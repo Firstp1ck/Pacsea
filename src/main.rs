@@ -1,4 +1,9 @@
-use std::{process::Command, time::Duration};
+use std::fs;
+use std::{collections::HashMap, path::PathBuf};
+use std::{
+    process::Command,
+    time::{Duration, Instant},
+};
 
 use anyhow::Result;
 use crossterm::{
@@ -32,7 +37,7 @@ struct PackageItem {
     source: Source,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 struct PackageDetails {
     repository: String,
     name: String,
@@ -76,7 +81,6 @@ impl PackageDetails {
             kv("Architecture", self.architecture.clone()),
             kv("URL", self.url.clone()),
             kv("Licences", join(&self.licenses)),
-            // Removed Groups
             kv("Provides", join(&self.provides)),
             kv("Depends on", join(&self.depends)),
             kv("Optional dependencies", join(&self.opt_depends)),
@@ -104,7 +108,19 @@ impl PackageDetails {
     }
 }
 
-#[derive(Debug, Default)]
+// Tagging for searches
+#[derive(Clone, Debug)]
+struct QueryInput {
+    id: u64,
+    text: String,
+}
+#[derive(Clone, Debug)]
+struct SearchResults {
+    id: u64,
+    items: Vec<PackageItem>,
+}
+
+#[derive(Debug)]
 struct AppState {
     input: String,
     results: Vec<PackageItem>,
@@ -114,17 +130,57 @@ struct AppState {
     status: String,
     modal: Modal,
     dry_run: bool,
+    // Recent searches
+    recent: Vec<String>,
+    history_state: ListState,
+    history_focus: bool,
+    last_input_change: Instant,
+    last_saved_value: Option<String>,
+
+    // Search coordination
+    latest_query_id: u64,
+    next_query_id: u64,
+    // Details cache
+    details_cache: HashMap<String, PackageDetails>,
+    cache_path: PathBuf,
+    cache_dirty: bool,
 }
 
-#[derive(Debug, Clone)]
-enum Modal {
-    None,
-    Password { buffer: String, pkg: PackageItem },
-}
-impl Default for Modal {
+impl Default for AppState {
     fn default() -> Self {
-        Modal::None
+        Self {
+            input: String::new(),
+            results: Vec::new(),
+            selected: 0,
+            details: PackageDetails::default(),
+            list_state: ListState::default(),
+            status: String::new(),
+            modal: Modal::None,
+            dry_run: false,
+            recent: Vec::new(),
+            history_state: ListState::default(),
+            history_focus: false,
+            last_input_change: Instant::now(),
+            last_saved_value: None,
+
+            latest_query_id: 0,
+            next_query_id: 1,
+            details_cache: HashMap::new(),
+            cache_path: PathBuf::from("details_cache.json"),
+            cache_dirty: false,
+        }
     }
+}
+
+#[derive(Debug, Clone, Default)]
+enum Modal {
+    #[default]
+    None,
+    Password {
+        buffer: String,
+        pkg: PackageItem,
+    },
+    Alert { message: String },
 }
 
 #[tokio::main]
@@ -153,12 +209,22 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     } else {
         "Type to search (Esc/Ctrl-C to quit)".into()
     };
+    app.last_input_change = Instant::now();
+
+    // Load cache from disk if present
+    if let Ok(s) = fs::read_to_string(&app.cache_path) {
+        if let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s) {
+            app.details_cache = map;
+        }
+    }
 
     // Channels
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<CEvent>();
-    let (search_result_tx, mut results_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
+    let (search_result_tx, mut results_rx) = mpsc::unbounded_channel::<SearchResults>();
     let (details_req_tx, mut details_req_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (details_res_tx, mut details_res_rx) = mpsc::unbounded_channel::<PackageDetails>();
+    let (tick_tx, mut tick_rx) = mpsc::unbounded_channel::<()>();
+    let (net_err_tx, mut net_err_rx) = mpsc::unbounded_channel::<String>();
 
     // Spawn blocking reader of crossterm events
     std::thread::spawn(move || {
@@ -171,37 +237,68 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
         }
     });
 
-    // Search worker with debounce
-    let (query_tx, mut query_rx) = mpsc::unbounded_channel::<String>();
+    // periodic ticks for history saving and cache flush
     tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
         loop {
-            let mut latest = match query_rx.recv().await {
-                Some(q) => q,
-                None => break,
-            };
-            loop {
-                select! {
-                    Some(new_q) = query_rx.recv() => { latest = new_q; }
-                    _ = sleep(Duration::from_millis(250)) => { break; }
-                }
-            }
-            if latest.trim().is_empty() {
-                let _ = search_result_tx.send(Vec::new());
+            interval.tick().await;
+            let _ = tick_tx.send(());
+        }
+    });
+
+    // Search worker with debounce + throttle + tagging
+    let (query_tx, mut query_rx) = mpsc::unbounded_channel::<QueryInput>();
+    let net_err_tx_search = net_err_tx.clone();
+    tokio::spawn(async move {
+        const DEBOUNCE_MS: u64 = 250;
+        const MIN_INTERVAL_MS: u64 = 300; // throttle
+        let mut last_sent = Instant::now() - Duration::from_millis(MIN_INTERVAL_MS);
+        loop {
+            // wait for first input
+            let mut latest = match query_rx.recv().await { Some(q) => q, None => break };
+            // debounce further updates
+            loop { select! { Some(new_q) = query_rx.recv() => { latest = new_q; } _ = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } } }
+            if latest.text.trim().is_empty() {
+                let _ = search_result_tx.send(SearchResults { id: latest.id, items: Vec::new() });
                 continue;
             }
+            // enforce min interval between outgoing network searches
+            let elapsed = last_sent.elapsed();
+            if elapsed < Duration::from_millis(MIN_INTERVAL_MS) {
+                sleep(Duration::from_millis(MIN_INTERVAL_MS) - elapsed).await;
+            }
+            last_sent = Instant::now();
+
+            let qtext = latest.text.clone();
+            let sid = latest.id;
             let tx = search_result_tx.clone();
+            let err_tx = net_err_tx_search.clone();
             tokio::spawn(async move {
-                let items = fetch_all(latest).await.unwrap_or_default();
-                let _ = tx.send(items);
+                let (items, errors) = fetch_all_with_errors(qtext).await;
+                for e in errors { let _ = err_tx.send(e); }
+                let _ = tx.send(SearchResults { id: sid, items });
             });
         }
     });
 
-    // Details worker
+    // Details worker (debounced)
+    let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
-        while let Some(item) = details_req_rx.recv().await {
-            let details = fetch_details(item.clone()).await.unwrap_or_default();
-            let _ = details_res_tx.send(details);
+        const DETAILS_DEBOUNCE_MS: u64 = 200;
+        loop {
+            let mut latest = match details_req_rx.recv().await { Some(i) => i, None => break };
+            // collect rapid changes
+            loop { select! { Some(next) = details_req_rx.recv() => { latest = next; } _ = sleep(Duration::from_millis(DETAILS_DEBOUNCE_MS)) => { break; } } }
+            match fetch_details(latest.clone()).await {
+                Ok(details) => { let _ = details_res_tx.send(details); }
+                Err(e) => {
+                    let msg = match latest.source { 
+                        Source::Official { .. } => format!("Official package details unavailable for {}: {}", latest.name, e),
+                        Source::Aur => format!("AUR package details unavailable for {}: {}", latest.name, e),
+                    };
+                    let _ = net_err_tx_details.send(msg);
+                }
+            }
         }
     });
 
@@ -213,16 +310,127 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
             Some(ev) = event_rx.recv() => { if handle_event(ev, &mut app, &query_tx, &details_req_tx) { break; } }
             // Search results
             Some(new_results) = results_rx.recv() => {
-                app.results = new_results; app.selected = 0; app.list_state.select(if app.results.is_empty(){None}else{Some(0)});
-                if let Some(item) = app.results.get(0).cloned() { let _ = details_req_tx.send(item); }
+                // ignore stale results
+                if new_results.id != app.latest_query_id { continue; }
+                app.results = new_results.items; app.selected = 0; app.list_state.select(if app.results.is_empty(){None}else{Some(0)});
+                if let Some(item) = app.results.get(0).cloned() { if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item); } }
             }
             // Details ready
-            Some(details) = details_res_rx.recv() => { app.details = details; }
+            Some(details) = details_res_rx.recv() => {
+                // store and persist later
+                app.details = details.clone();
+                app.details_cache.insert(details.name.clone(), details);
+                app.cache_dirty = true;
+            }
+            Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
+            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); }
             else => {}
         }
     }
 
     Ok(())
+}
+
+// Helper that returns items and any server error messages
+async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<String>) {
+    let client = match reqwest::Client::builder().user_agent("Pacsea/0.1 (+https://archlinux.org)").build() {
+        Ok(c) => c,
+        Err(e) => { return (Vec::new(), vec![format!("HTTP client error: {}", e)]); }
+    };
+    let q = urlencoding::encode(query.trim());
+    let official_url = format!("https://archlinux.org/packages/search/json/?q={}", q);
+    let aur_url = format!("https://aur.archlinux.org/rpc/v5/search?by=name&arg={}", q);
+
+    let official_fut = async {
+        let resp = client.get(&official_url).send().await?.json::<Value>().await?;
+        let mut items = Vec::new();
+        if let Some(arr) = resp.get("results").and_then(|v| v.as_array()) {
+            for pkg in arr.iter().take(200) {
+                let name = s(pkg, "pkgname");
+                let version = s(pkg, "pkgver");
+                let description = s(pkg, "pkgdesc");
+                let repo = s(pkg, "repo");
+                let arch = s(pkg, "arch");
+                if name.is_empty() { continue; }
+                items.push(PackageItem { name, version, description, source: Source::Official { repo, arch } });
+            }
+        }
+        Ok::<_, anyhow::Error>(items)
+    };
+
+    let aur_fut = async {
+        let resp = client.get(&aur_url).send().await?.json::<Value>().await?;
+        let mut items = Vec::new();
+        if let Some(arr) = resp.get("results").and_then(|v| v.as_array()) {
+            for pkg in arr.iter().take(200) {
+                let name = s(pkg, "Name");
+                let version = s(pkg, "Version");
+                let description = s(pkg, "Description");
+                if name.is_empty() { continue; }
+                items.push(PackageItem { name, version, description, source: Source::Aur });
+            }
+        }
+        Ok::<_, anyhow::Error>(items)
+    };
+
+    let (o, a) = tokio::join!(official_fut, aur_fut);
+    let mut items = Vec::new();
+    let mut errors = Vec::new();
+    match o { Ok(v) => items.extend(v), Err(e) => errors.push(format!("Official search unavailable: {}", e)) }
+    match a { Ok(v) => items.extend(v), Err(e) => errors.push(format!("AUR search unavailable: {}", e)) }
+
+    // sort like fetch_all
+    let ql = query.trim().to_lowercase();
+    items.sort_by(|a, b| {
+        let oa = repo_order(&a.source);
+        let ob = repo_order(&b.source);
+        if oa != ob { return oa.cmp(&ob); }
+        let ra = match_rank(&a.name, &ql);
+        let rb = match_rank(&b.name, &ql);
+        if ra != rb { return ra.cmp(&rb); }
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+    });
+
+    (items, errors)
+}
+
+fn maybe_flush_cache(app: &mut AppState) {
+    if !app.cache_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.details_cache) {
+        let _ = fs::write(&app.cache_path, s);
+        app.cache_dirty = false;
+    }
+}
+
+fn maybe_save_recent(app: &mut AppState) {
+    let now = Instant::now();
+    if app.input.trim().is_empty() {
+        return;
+    }
+    if now.duration_since(app.last_input_change) < Duration::from_secs(5) {
+        return;
+    }
+    if app.last_saved_value.as_deref() == Some(app.input.trim()) {
+        return;
+    }
+
+    let value = app.input.trim().to_string();
+    // de-dup and move-to-front
+    if let Some(pos) = app
+        .recent
+        .iter()
+        .position(|s| s.eq_ignore_ascii_case(&value))
+    {
+        app.recent.remove(pos);
+    }
+    app.recent.insert(0, value.clone());
+    // keep only last 20
+    if app.recent.len() > 20 {
+        app.recent.truncate(20);
+    }
+    app.last_saved_value = Some(value);
 }
 
 fn setup_terminal() -> Result<()> {
@@ -240,7 +448,7 @@ fn restore_terminal() -> Result<()> {
 fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
     let area = f.area();
     let total_h = area.height;
-    let search_h: u16 = 3;
+    let search_h: u16 = 5; // give a bit more room for history pane
     let bottom_h: u16 = total_h.saturating_mul(2) / 3; // 2/3 of full height
     let top_h: u16 = total_h.saturating_sub(search_h).saturating_sub(bottom_h);
 
@@ -259,7 +467,7 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
         .iter()
         .map(|p| {
             let (src, color) = match &p.source {
-                Source::Official { repo, .. } => (format!("{repo}"), Color::LightGreen),
+                Source::Official { repo, .. } => (repo.to_string(), Color::LightGreen),
                 Source::Aur => ("AUR".to_string(), Color::Yellow),
             };
             let line = Line::from(vec![
@@ -291,7 +499,13 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
 
     f.render_stateful_widget(list, chunks[0], &mut app.list_state);
 
-    // Search bar (middle)
+    // Middle row split: left input, right recent searches
+    let middle = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        .split(chunks[1]);
+
+    // Search input (left)
     let input_line = Line::from(vec![
         Span::styled("> ", Style::default().fg(Color::Green)),
         Span::raw(app.input.as_str()),
@@ -303,13 +517,34 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::Green)),
     );
-    f.render_widget(input, chunks[1]);
+    f.render_widget(input, middle[0]);
 
-    // place cursor inside the search bar after the prompt
-    let right = chunks[1].x + chunks[1].width.saturating_sub(1);
-    let x = std::cmp::min(chunks[1].x + 1 + 2 + app.input.len() as u16, right); // 1 padding + 2 for "> "
-    let y = chunks[1].y + 1;
+    // Cursor in input
+    let right = middle[0].x + middle[0].width.saturating_sub(1);
+    let x = std::cmp::min(middle[0].x + 1 + 2 + app.input.len() as u16, right);
+    let y = middle[0].y + 1;
     f.set_cursor_position(Position::new(x, y));
+
+    // Recent searches (right)
+    let rec_items: Vec<ListItem> = app
+        .recent
+        .iter()
+        .map(|s| ListItem::new(Span::raw(s.clone())))
+        .collect();
+    let rec_block = Block::default()
+        .title("Recent")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(if app.history_focus {
+            Color::Cyan
+        } else {
+            Color::Gray
+        }));
+    let rec_list = List::new(rec_items)
+        .block(rec_block)
+        .highlight_style(Style::default().fg(Color::Black).bg(Color::Cyan))
+        .highlight_symbol("▶ ");
+    f.render_stateful_widget(rec_list, middle[1], &mut app.history_state);
 
     // Details (bottom)
     let details_lines = app.details.format_lines(chunks[2].width);
@@ -342,7 +577,7 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
 
         // Header and content lines
         let mask_char = '•';
-        let masked: String = std::iter::repeat(mask_char).take(buffer.len()).collect();
+        let masked: String = std::iter::repeat_n(mask_char, buffer.len()).collect();
         let lines = vec![
             Line::from(vec![Span::styled(
                 "Authentication required",
@@ -389,20 +624,47 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
         let cursor_y = rect.y + 4; // line index where password is
         f.set_cursor_position(Position::new(cursor_x, cursor_y));
     }
+
+    // Modal overlay for alerts
+    if let Modal::Alert { message } = &app.modal {
+        let area = f.area();
+        let w = area.width.saturating_sub(10).min(80);
+        let h = 7;
+        let x = area.x + (area.width.saturating_sub(w)) / 2;
+        let y = area.y + (area.height.saturating_sub(h)) / 2;
+        let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+        f.render_widget(Clear, rect);
+        let lines = vec![
+            Line::from(Span::styled("Connection issue", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))),
+            Line::from(""),
+            Line::from(Span::raw(message.clone())),
+            Line::from(""),
+            Line::from(Span::styled("Press Enter or Esc to close", Style::default().fg(Color::Gray))),
+        ];
+        let boxw = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
+            Block::default().title(Span::styled(" Network Error ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))).borders(Borders::ALL).border_type(BorderType::Double).border_style(Style::default().fg(Color::Red))
+        );
+        f.render_widget(boxw, rect);
+    }
 }
 
 fn handle_event(
     ev: CEvent,
     app: &mut AppState,
-    query_tx: &mpsc::UnboundedSender<String>,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
     match ev {
         CEvent::Key(ke) => {
-            if ke.kind != KeyEventKind::Press {
+            if ke.kind != KeyEventKind::Press { return false; }
+
+            // Alert modal
+            if let Modal::Alert { .. } = app.modal {
+                match ke.code { KeyCode::Enter | KeyCode::Esc => { app.modal = Modal::None; }, _ => {} }
                 return false;
             }
-            // If modal open, capture password input
+
+            // Modal first
             if let Modal::Password { buffer, pkg } = &mut app.modal {
                 match ke.code {
                     KeyCode::Esc => {
@@ -429,27 +691,73 @@ fn handle_event(
                 return false;
             }
 
+            // History focus
+            if app.history_focus {
+                match ke.code {
+                    KeyCode::Esc | KeyCode::Tab | KeyCode::BackTab => {
+                        app.history_focus = false;
+                    }
+                    KeyCode::Up => {
+                        let sel = app.history_state.selected().unwrap_or(0);
+                        let new = sel.saturating_sub(1);
+                        app.history_state.select(if app.recent.is_empty() {
+                            None
+                        } else {
+                            Some(new)
+                        });
+                    }
+                    KeyCode::Down => {
+                        if !app.recent.is_empty() {
+                            let sel = app.history_state.selected().unwrap_or(0);
+                            let max = app.recent.len().saturating_sub(1);
+                            let new = std::cmp::min(sel + 1, max);
+                            app.history_state.select(Some(new));
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if let Some(idx) = app.history_state.selected() {
+                            if let Some(q) = app.recent.get(idx).cloned() {
+                                app.input = q;
+                                app.history_focus = false;
+                                app.last_input_change = Instant::now();
+                                app.last_saved_value = None;
+                                send_query(app, query_tx);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                return false;
+            }
+
+            // Normal mode
             let KeyEvent {
                 code, modifiers, ..
             } = ke;
             match (code, modifiers) {
                 (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
+                (KeyCode::Tab, _) => {
+                    app.history_focus = true;
+                    if app.history_state.selected().is_none() {
+                        app.history_state.select(Some(0));
+                    }
+                }
                 (KeyCode::Backspace, _) => {
                     app.input.pop();
-                    let _ = query_tx.send(app.input.clone());
+                    app.last_input_change = Instant::now();
+                    app.last_saved_value = None;
+                    send_query(app, query_tx);
                 }
                 (KeyCode::Char('\n') | KeyCode::Enter, _) => {
                     if let Some(item) = app.results.get(app.selected).cloned() {
                         match &item.source {
                             Source::Official { .. } => {
-                                // Always open password modal (also in dry-run) so it can be tested
                                 app.modal = Modal::Password {
                                     buffer: String::new(),
                                     pkg: item,
                                 };
                             }
                             Source::Aur => {
-                                // AUR install does not need sudo by default; still respect dry-run
                                 spawn_install(&item, None, app.dry_run);
                             }
                         }
@@ -457,12 +765,14 @@ fn handle_event(
                 }
                 (KeyCode::Char(ch), _) => {
                     app.input.push(ch);
-                    let _ = query_tx.send(app.input.clone());
+                    app.last_input_change = Instant::now();
+                    app.last_saved_value = None;
+                    send_query(app, query_tx);
                 }
-                (KeyCode::Up, _) => move_sel(app, -1, details_tx),
-                (KeyCode::Down, _) => move_sel(app, 1, details_tx),
-                (KeyCode::PageUp, _) => move_sel(app, -10, details_tx),
-                (KeyCode::PageDown, _) => move_sel(app, 10, details_tx),
+                (KeyCode::Up, _) => move_sel_cached(app, -1, details_tx),
+                (KeyCode::Down, _) => move_sel_cached(app, 1, details_tx),
+                (KeyCode::PageUp, _) => move_sel_cached(app, -10, details_tx),
+                (KeyCode::PageDown, _) => move_sel_cached(app, 10, details_tx),
                 _ => {}
             }
         }
@@ -471,7 +781,21 @@ fn handle_event(
     false
 }
 
-fn move_sel(app: &mut AppState, delta: isize, details_tx: &mpsc::UnboundedSender<PackageItem>) {
+fn send_query(app: &mut AppState, query_tx: &mpsc::UnboundedSender<QueryInput>) {
+    let id = app.next_query_id;
+    app.next_query_id += 1;
+    app.latest_query_id = id;
+    let _ = query_tx.send(QueryInput {
+        id,
+        text: app.input.clone(),
+    });
+}
+
+fn move_sel_cached(
+    app: &mut AppState,
+    delta: isize,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
     if app.results.is_empty() {
         return;
     }
@@ -486,7 +810,11 @@ fn move_sel(app: &mut AppState, delta: isize, details_tx: &mpsc::UnboundedSender
     app.selected = idx as usize;
     app.list_state.select(Some(app.selected));
     if let Some(item) = app.results.get(app.selected).cloned() {
-        let _ = details_tx.send(item);
+        if let Some(cached) = app.details_cache.get(&item.name).cloned() {
+            app.details = cached;
+        } else {
+            let _ = details_tx.send(item);
+        }
     }
 }
 
@@ -683,7 +1011,7 @@ async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
         .and_then(|x| x.as_array())
         .cloned()
         .unwrap_or_default();
-    let obj = arr.get(0).cloned().unwrap_or(Value::Null);
+    let obj = arr.first().cloned().unwrap_or(Value::Null);
 
     let mut d = PackageDetails::default();
     d.repository = "AUR".into();
@@ -715,10 +1043,10 @@ async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
 }
 
 fn ts_to_date(ts: Option<i64>) -> String {
-    if let Some(t) = ts {
-        if let Some(dt) = chrono::DateTime::<chrono::Utc>::from_timestamp(t, 0) {
-            return dt.format("%Y-%m-%d %H:%M:%S UTC").to_string();
-        }
+    if let Some(t) = ts
+        && let Some(dt) = chrono::DateTime::<chrono::Utc>::from_timestamp(t, 0)
+    {
+        return dt.format("%Y-%m-%d %H:%M:%S UTC").to_string();
     }
     "".into()
 }
@@ -729,7 +1057,7 @@ fn s(v: &Value, key: &str) -> String {
         .unwrap_or("")
         .to_string()
 }
-fn ss<'a>(v: &'a Value, keys: &[&str]) -> Option<String> {
+fn ss(v: &Value, keys: &[&str]) -> Option<String> {
     for k in keys {
         if let Some(s) = v.get(*k).and_then(|x| x.as_str()) {
             return Some(s.to_string());
@@ -757,10 +1085,10 @@ fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
             if let Some(i) = n.as_i64() {
                 return Some(i as u64);
             }
-            if let Some(s) = n.as_str() {
-                if let Ok(p) = s.parse::<u64>() {
-                    return Some(p);
-                }
+            if let Some(s) = n.as_str()
+                && let Ok(p) = s.parse::<u64>()
+            {
+                return Some(p);
             }
         }
     }

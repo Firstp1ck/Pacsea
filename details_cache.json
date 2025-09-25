@@ -1,0 +1,23 @@
+{
+  "neovim-airline-edge-git": {
+    "repository": "AUR",
+    "name": "neovim-airline-edge-git",
+    "version": "0.1.3.r4.g3231c16-1",
+    "description": "edge color scheme for airline",
+    "architecture": "any",
+    "url": "https://github.com/sainnhe/edge",
+    "licenses": ["MIT"],
+    "groups": [],
+    "provides": ["neovim-airline-edge"],
+    "depends": ["neovim-edge", "neovim-airline"],
+    "opt_depends": [],
+    "required_by": [],
+    "optional_for": [],
+    "conflicts": ["neovim-airline-edge"],
+    "replaces": [],
+    "download_size": null,
+    "install_size": null,
+    "owner": "sainnhe",
+    "build_date": "2021-02-15 09:59:00 UTC"
+  }
+}
