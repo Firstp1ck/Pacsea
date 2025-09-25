@@ -5,7 +5,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
+// Replace anyhow::Result with std error based alias
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
 use crossterm::{
     event::{self, Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     execute,
@@ -61,7 +63,7 @@ struct PackageDetails {
 }
 
 impl PackageDetails {
-    fn format_lines(&self, area_width: u16) -> Vec<Line<'static>> {
+    fn format_lines(&self, _area_width: u16) -> Vec<Line<'static>> {
         fn kv(key: &str, val: String) -> Line<'static> {
             Line::from(vec![
                 Span::styled(
@@ -103,7 +105,6 @@ impl PackageDetails {
             kv("Package Owner", self.owner.clone()),
             kv("Build date", self.build_date.clone()),
         ];
-        if area_width > 0 { /* keep clippy calm */ }
         lines
     }
 }
@@ -127,7 +128,6 @@ struct AppState {
     selected: usize,
     details: PackageDetails,
     list_state: ListState,
-    status: String,
     modal: Modal,
     dry_run: bool,
     // Recent searches
@@ -154,7 +154,6 @@ impl Default for AppState {
             selected: 0,
             details: PackageDetails::default(),
             list_state: ListState::default(),
-            status: String::new(),
             modal: Modal::None,
             dry_run: false,
             recent: Vec::new(),
@@ -180,7 +179,9 @@ enum Modal {
         buffer: String,
         pkg: PackageItem,
     },
-    Alert { message: String },
+    Alert {
+        message: String,
+    },
 }
 
 #[tokio::main]
@@ -202,14 +203,11 @@ async fn main() -> Result<()> {
 async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
 
-    let mut app = AppState::default();
-    app.dry_run = dry_run;
-    app.status = if dry_run {
-        "DRY RUN: installs will open a terminal and only echo commands".into()
-    } else {
-        "Type to search (Esc/Ctrl-C to quit)".into()
+    let mut app = AppState {
+        dry_run,
+        last_input_change: Instant::now(),
+        ..Default::default()
     };
-    app.last_input_change = Instant::now();
 
     // Load cache from disk if present
     if let Ok(s) = fs::read_to_string(&app.cache_path) {
@@ -255,11 +253,19 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
         let mut last_sent = Instant::now() - Duration::from_millis(MIN_INTERVAL_MS);
         loop {
             // wait for first input
-            let mut latest = match query_rx.recv().await { Some(q) => q, None => break };
+            let mut latest = match query_rx.recv().await {
+                Some(q) => q,
+                None => break,
+            };
             // debounce further updates
-            loop { select! { Some(new_q) = query_rx.recv() => { latest = new_q; } _ = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } } }
+            loop {
+                select! { Some(new_q) = query_rx.recv() => { latest = new_q; } _ = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } }
+            }
             if latest.text.trim().is_empty() {
-                let _ = search_result_tx.send(SearchResults { id: latest.id, items: Vec::new() });
+                let _ = search_result_tx.send(SearchResults {
+                    id: latest.id,
+                    items: Vec::new(),
+                });
                 continue;
             }
             // enforce min interval between outgoing network searches
@@ -275,7 +281,9 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
             let err_tx = net_err_tx_search.clone();
             tokio::spawn(async move {
                 let (items, errors) = fetch_all_with_errors(qtext).await;
-                for e in errors { let _ = err_tx.send(e); }
+                for e in errors {
+                    let _ = err_tx.send(e);
+                }
                 let _ = tx.send(SearchResults { id: sid, items });
             });
         }
@@ -286,15 +294,27 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     tokio::spawn(async move {
         const DETAILS_DEBOUNCE_MS: u64 = 200;
         loop {
-            let mut latest = match details_req_rx.recv().await { Some(i) => i, None => break };
+            let mut latest = match details_req_rx.recv().await {
+                Some(i) => i,
+                None => break,
+            };
             // collect rapid changes
-            loop { select! { Some(next) = details_req_rx.recv() => { latest = next; } _ = sleep(Duration::from_millis(DETAILS_DEBOUNCE_MS)) => { break; } } }
+            loop {
+                select! { Some(next) = details_req_rx.recv() => { latest = next; } _ = sleep(Duration::from_millis(DETAILS_DEBOUNCE_MS)) => { break; } }
+            }
             match fetch_details(latest.clone()).await {
-                Ok(details) => { let _ = details_res_tx.send(details); }
+                Ok(details) => {
+                    let _ = details_res_tx.send(details);
+                }
                 Err(e) => {
-                    let msg = match latest.source { 
-                        Source::Official { .. } => format!("Official package details unavailable for {}: {}", latest.name, e),
-                        Source::Aur => format!("AUR package details unavailable for {}: {}", latest.name, e),
+                    let msg = match latest.source {
+                        Source::Official { .. } => format!(
+                            "Official package details unavailable for {}: {}",
+                            latest.name, e
+                        ),
+                        Source::Aur => {
+                            format!("AUR package details unavailable for {}: {}", latest.name, e)
+                        }
                     };
                     let _ = net_err_tx_details.send(msg);
                 }
@@ -303,7 +323,7 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     });
 
     loop {
-        terminal.draw(|f| ui(f, &mut app)).ok();
+        let _ = terminal.draw(|f| ui(f, &mut app));
 
         select! {
             // UI events
@@ -313,7 +333,7 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
                 // ignore stale results
                 if new_results.id != app.latest_query_id { continue; }
                 app.results = new_results.items; app.selected = 0; app.list_state.select(if app.results.is_empty(){None}else{Some(0)});
-                if let Some(item) = app.results.get(0).cloned() { if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item); } }
+                if let Some(item) = app.results.first().cloned() { if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item); } }
             }
             // Details ready
             Some(details) = details_res_rx.recv() => {
@@ -331,18 +351,46 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     Ok(())
 }
 
+// Helper: simple percent-encoding for query components (RFC 3986 unreserved set)
+fn percent_encode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for &b in input.as_bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(b as char);
+            }
+            b' ' => out.push_str("%20"),
+            _ => {
+                out.push('%');
+                out.push_str(&format!("{b:02X}"));
+            }
+        }
+    }
+    out
+}
+
 // Helper that returns items and any server error messages
 async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<String>) {
-    let client = match reqwest::Client::builder().user_agent("Pacsea/0.1 (+https://archlinux.org)").build() {
+    let client = match reqwest::Client::builder()
+        .user_agent("Pacsea/0.1 (+https://archlinux.org)")
+        .build()
+    {
         Ok(c) => c,
-        Err(e) => { return (Vec::new(), vec![format!("HTTP client error: {}", e)]); }
+        Err(e) => {
+            return (Vec::new(), vec![format!("HTTP client error: {}", e)]);
+        }
     };
-    let q = urlencoding::encode(query.trim());
-    let official_url = format!("https://archlinux.org/packages/search/json/?q={}", q);
-    let aur_url = format!("https://aur.archlinux.org/rpc/v5/search?by=name&arg={}", q);
+    let q = percent_encode(query.trim());
+    let official_url = format!("https://archlinux.org/packages/search/json/?q={q}");
+    let aur_url = format!("https://aur.archlinux.org/rpc/v5/search?by=name&arg={q}");
 
     let official_fut = async {
-        let resp = client.get(&official_url).send().await?.json::<Value>().await?;
+        let resp = client
+            .get(&official_url)
+            .send()
+            .await?
+            .json::<Value>()
+            .await?;
         let mut items = Vec::new();
         if let Some(arr) = resp.get("results").and_then(|v| v.as_array()) {
             for pkg in arr.iter().take(200) {
@@ -351,11 +399,18 @@ async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<String>)
                 let description = s(pkg, "pkgdesc");
                 let repo = s(pkg, "repo");
                 let arch = s(pkg, "arch");
-                if name.is_empty() { continue; }
-                items.push(PackageItem { name, version, description, source: Source::Official { repo, arch } });
+                if name.is_empty() {
+                    continue;
+                }
+                items.push(PackageItem {
+                    name,
+                    version,
+                    description,
+                    source: Source::Official { repo, arch },
+                });
             }
         }
-        Ok::<_, anyhow::Error>(items)
+        Ok::<_, Box<dyn std::error::Error + Send + Sync>>(items)
     };
 
     let aur_fut = async {
@@ -366,28 +421,45 @@ async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<String>)
                 let name = s(pkg, "Name");
                 let version = s(pkg, "Version");
                 let description = s(pkg, "Description");
-                if name.is_empty() { continue; }
-                items.push(PackageItem { name, version, description, source: Source::Aur });
+                if name.is_empty() {
+                    continue;
+                }
+                items.push(PackageItem {
+                    name,
+                    version,
+                    description,
+                    source: Source::Aur,
+                });
             }
         }
-        Ok::<_, anyhow::Error>(items)
+        Ok::<_, Box<dyn std::error::Error + Send + Sync>>(items)
     };
 
     let (o, a) = tokio::join!(official_fut, aur_fut);
     let mut items = Vec::new();
     let mut errors = Vec::new();
-    match o { Ok(v) => items.extend(v), Err(e) => errors.push(format!("Official search unavailable: {}", e)) }
-    match a { Ok(v) => items.extend(v), Err(e) => errors.push(format!("AUR search unavailable: {}", e)) }
+    match o {
+        Ok(v) => items.extend(v),
+        Err(e) => errors.push(format!("Official search unavailable: {e}")),
+    }
+    match a {
+        Ok(v) => items.extend(v),
+        Err(e) => errors.push(format!("AUR search unavailable: {e}")),
+    }
 
     // sort like fetch_all
     let ql = query.trim().to_lowercase();
     items.sort_by(|a, b| {
         let oa = repo_order(&a.source);
         let ob = repo_order(&b.source);
-        if oa != ob { return oa.cmp(&ob); }
+        if oa != ob {
+            return oa.cmp(&ob);
+        }
         let ra = match_rank(&a.name, &ql);
         let rb = match_rank(&b.name, &ql);
-        if ra != rb { return ra.cmp(&rb); }
+        if ra != rb {
+            return ra.cmp(&rb);
+        }
         a.name.to_lowercase().cmp(&b.name.to_lowercase())
     });
 
@@ -632,17 +704,35 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
         let h = 7;
         let x = area.x + (area.width.saturating_sub(w)) / 2;
         let y = area.y + (area.height.saturating_sub(h)) / 2;
-        let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+        let rect = ratatui::prelude::Rect {
+            x,
+            y,
+            width: w,
+            height: h,
+        };
         f.render_widget(Clear, rect);
         let lines = vec![
-            Line::from(Span::styled("Connection issue", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                "Connection issue",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            )),
             Line::from(""),
             Line::from(Span::raw(message.clone())),
             Line::from(""),
-            Line::from(Span::styled("Press Enter or Esc to close", Style::default().fg(Color::Gray))),
+            Line::from(Span::styled(
+                "Press Enter or Esc to close",
+                Style::default().fg(Color::Gray),
+            )),
         ];
         let boxw = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
-            Block::default().title(Span::styled(" Network Error ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))).borders(Borders::ALL).border_type(BorderType::Double).border_style(Style::default().fg(Color::Red))
+            Block::default()
+                .title(Span::styled(
+                    " Network Error ",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(Color::Red)),
         );
         f.render_widget(boxw, rect);
     }
@@ -654,129 +744,133 @@ fn handle_event(
     query_tx: &mpsc::UnboundedSender<QueryInput>,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
-    match ev {
-        CEvent::Key(ke) => {
-            if ke.kind != KeyEventKind::Press { return false; }
+    if let CEvent::Key(ke) = ev {
+        if ke.kind != KeyEventKind::Press {
+            return false;
+        }
 
-            // Alert modal
-            if let Modal::Alert { .. } = app.modal {
-                match ke.code { KeyCode::Enter | KeyCode::Esc => { app.modal = Modal::None; }, _ => {} }
-                return false;
-            }
-
-            // Modal first
-            if let Modal::Password { buffer, pkg } = &mut app.modal {
-                match ke.code {
-                    KeyCode::Esc => {
-                        app.modal = Modal::None;
-                    }
-                    KeyCode::Enter => {
-                        let pwd = buffer.clone();
-                        let pkg = pkg.clone();
-                        app.modal = Modal::None;
-                        spawn_install(
-                            &pkg,
-                            if pwd.is_empty() { None } else { Some(&pwd) },
-                            app.dry_run,
-                        );
-                    }
-                    KeyCode::Backspace => {
-                        buffer.pop();
-                    }
-                    KeyCode::Char(ch) => {
-                        buffer.push(ch);
-                    }
-                    _ => {}
+        // Alert modal
+        if let Modal::Alert { .. } = app.modal {
+            match ke.code {
+                KeyCode::Enter | KeyCode::Esc => {
+                    app.modal = Modal::None;
                 }
-                return false;
-            }
-
-            // History focus
-            if app.history_focus {
-                match ke.code {
-                    KeyCode::Esc | KeyCode::Tab | KeyCode::BackTab => {
-                        app.history_focus = false;
-                    }
-                    KeyCode::Up => {
-                        let sel = app.history_state.selected().unwrap_or(0);
-                        let new = sel.saturating_sub(1);
-                        app.history_state.select(if app.recent.is_empty() {
-                            None
-                        } else {
-                            Some(new)
-                        });
-                    }
-                    KeyCode::Down => {
-                        if !app.recent.is_empty() {
-                            let sel = app.history_state.selected().unwrap_or(0);
-                            let max = app.recent.len().saturating_sub(1);
-                            let new = std::cmp::min(sel + 1, max);
-                            app.history_state.select(Some(new));
-                        }
-                    }
-                    KeyCode::Enter => {
-                        if let Some(idx) = app.history_state.selected() {
-                            if let Some(q) = app.recent.get(idx).cloned() {
-                                app.input = q;
-                                app.history_focus = false;
-                                app.last_input_change = Instant::now();
-                                app.last_saved_value = None;
-                                send_query(app, query_tx);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-                return false;
-            }
-
-            // Normal mode
-            let KeyEvent {
-                code, modifiers, ..
-            } = ke;
-            match (code, modifiers) {
-                (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
-                (KeyCode::Tab, _) => {
-                    app.history_focus = true;
-                    if app.history_state.selected().is_none() {
-                        app.history_state.select(Some(0));
-                    }
-                }
-                (KeyCode::Backspace, _) => {
-                    app.input.pop();
-                    app.last_input_change = Instant::now();
-                    app.last_saved_value = None;
-                    send_query(app, query_tx);
-                }
-                (KeyCode::Char('\n') | KeyCode::Enter, _) => {
-                    if let Some(item) = app.results.get(app.selected).cloned() {
-                        match &item.source {
-                            Source::Official { .. } => {
-                                app.modal = Modal::Password {
-                                    buffer: String::new(),
-                                    pkg: item,
-                                };
-                            }
-                            Source::Aur => {
-                                spawn_install(&item, None, app.dry_run);
-                            }
-                        }
-                    }
-                }
-                (KeyCode::Char(ch), _) => {
-                    app.input.push(ch);
-                    app.last_input_change = Instant::now();
-                    app.last_saved_value = None;
-                    send_query(app, query_tx);
-                }
-                (KeyCode::Up, _) => move_sel_cached(app, -1, details_tx),
-                (KeyCode::Down, _) => move_sel_cached(app, 1, details_tx),
-                (KeyCode::PageUp, _) => move_sel_cached(app, -10, details_tx),
-                (KeyCode::PageDown, _) => move_sel_cached(app, 10, details_tx),
                 _ => {}
             }
+            return false;
         }
-        _ => {}
+
+        // Modal first
+        if let Modal::Password { buffer, pkg } = &mut app.modal {
+            match ke.code {
+                KeyCode::Esc => {
+                    app.modal = Modal::None;
+                }
+                KeyCode::Enter => {
+                    let pwd = buffer.clone();
+                    let pkg = pkg.clone();
+                    app.modal = Modal::None;
+                    spawn_install(
+                        &pkg,
+                        if pwd.is_empty() { None } else { Some(&pwd) },
+                        app.dry_run,
+                    );
+                }
+                KeyCode::Backspace => {
+                    buffer.pop();
+                }
+                KeyCode::Char(ch) => {
+                    buffer.push(ch);
+                }
+                _ => {}
+            }
+            return false;
+        }
+
+        // History focus
+        if app.history_focus {
+            match ke.code {
+                KeyCode::Esc | KeyCode::Tab | KeyCode::BackTab => {
+                    app.history_focus = false;
+                }
+                KeyCode::Up => {
+                    let sel = app.history_state.selected().unwrap_or(0);
+                    let new = sel.saturating_sub(1);
+                    app.history_state.select(if app.recent.is_empty() {
+                        None
+                    } else {
+                        Some(new)
+                    });
+                }
+                KeyCode::Down => {
+                    if !app.recent.is_empty() {
+                        let sel = app.history_state.selected().unwrap_or(0);
+                        let max = app.recent.len().saturating_sub(1);
+                        let new = std::cmp::min(sel + 1, max);
+                        app.history_state.select(Some(new));
+                    }
+                }
+                KeyCode::Enter => {
+                    if let Some(idx) = app.history_state.selected() {
+                        if let Some(q) = app.recent.get(idx).cloned() {
+                            app.input = q;
+                            app.history_focus = false;
+                            app.last_input_change = Instant::now();
+                            app.last_saved_value = None;
+                            send_query(app, query_tx);
+                        }
+                    }
+                }
+                _ => {}
+            }
+            return false;
+        }
+
+        // Normal mode
+        let KeyEvent {
+            code, modifiers, ..
+        } = ke;
+        match (code, modifiers) {
+            (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
+            (KeyCode::Tab, _) => {
+                app.history_focus = true;
+                if app.history_state.selected().is_none() {
+                    app.history_state.select(Some(0));
+                }
+            }
+            (KeyCode::Backspace, _) => {
+                app.input.pop();
+                app.last_input_change = Instant::now();
+                app.last_saved_value = None;
+                send_query(app, query_tx);
+            }
+            (KeyCode::Char('\n') | KeyCode::Enter, _) => {
+                if let Some(item) = app.results.get(app.selected).cloned() {
+                    match &item.source {
+                        Source::Official { .. } => {
+                            app.modal = Modal::Password {
+                                buffer: String::new(),
+                                pkg: item,
+                            };
+                        }
+                        Source::Aur => {
+                            spawn_install(&item, None, app.dry_run);
+                        }
+                    }
+                }
+            }
+            (KeyCode::Char(ch), _) => {
+                app.input.push(ch);
+                app.last_input_change = Instant::now();
+                app.last_saved_value = None;
+                send_query(app, query_tx);
+            }
+            (KeyCode::Up, _) => move_sel_cached(app, -1, details_tx),
+            (KeyCode::Down, _) => move_sel_cached(app, 1, details_tx),
+            (KeyCode::PageUp, _) => move_sel_cached(app, -10, details_tx),
+            (KeyCode::PageDown, _) => move_sel_cached(app, 10, details_tx),
+            _ => {}
+        }
     }
     false
 }
@@ -837,99 +931,17 @@ fn human_bytes(n: u64) -> String {
     format!("{:.1} {}", v, UNITS[i])
 }
 
-async fn fetch_all(query: String) -> Result<Vec<PackageItem>> {
-    let client = reqwest::Client::builder()
-        .user_agent("Pacsea/0.1 (+https://archlinux.org)")
-        .build()?;
-
-    let q = urlencoding::encode(query.trim());
-
-    let official_url = format!("https://archlinux.org/packages/search/json/?q={}", q);
-    let aur_url = format!("https://aur.archlinux.org/rpc/v5/search?by=name&arg={}", q);
-
-    let official_fut = async {
-        let resp = client
-            .get(&official_url)
-            .send()
-            .await?
-            .json::<Value>()
-            .await?;
-        let mut items = Vec::new();
-        if let Some(arr) = resp.get("results").and_then(|v| v.as_array()) {
-            for pkg in arr.iter().take(200) {
-                let name = s(pkg, "pkgname");
-                let version = s(pkg, "pkgver");
-                let description = s(pkg, "pkgdesc");
-                let repo = s(pkg, "repo");
-                let arch = s(pkg, "arch");
-                if name.is_empty() {
-                    continue;
-                }
-                items.push(PackageItem {
-                    name,
-                    version,
-                    description,
-                    source: Source::Official { repo, arch },
-                });
-            }
-        }
-        Ok::<_, anyhow::Error>(items)
-    };
-
-    let aur_fut = async {
-        let resp = client.get(&aur_url).send().await?.json::<Value>().await?;
-        let mut items = Vec::new();
-        if let Some(arr) = resp.get("results").and_then(|v| v.as_array()) {
-            for pkg in arr.iter().take(200) {
-                let name = s(pkg, "Name");
-                let version = s(pkg, "Version");
-                let description = s(pkg, "Description");
-                if name.is_empty() {
-                    continue;
-                }
-                items.push(PackageItem {
-                    name,
-                    version,
-                    description,
-                    source: Source::Aur,
-                });
-            }
-        }
-        Ok::<_, anyhow::Error>(items)
-    };
-
-    let (official, aur) = tokio::join!(official_fut, aur_fut);
-
-    let mut combined = Vec::new();
-    combined.extend(official.unwrap_or_default());
-    combined.extend(aur.unwrap_or_default());
-
-    // sort by repo group (Core, Extra, other official, AUR) and match quality, then name
-    let ql = query.trim().to_lowercase();
-    combined.sort_by(|a, b| {
-        let oa = repo_order(&a.source);
-        let ob = repo_order(&b.source);
-        if oa != ob {
-            return oa.cmp(&ob);
-        }
-        let ra = match_rank(&a.name, &ql);
-        let rb = match_rank(&b.name, &ql);
-        if ra != rb {
-            return ra.cmp(&rb);
-        }
-        a.name.to_lowercase().cmp(&b.name.to_lowercase())
-    });
-
-    Ok(combined)
-}
-
 fn repo_order(src: &Source) -> u8 {
     match src {
-        Source::Official { repo, .. } => match repo.to_lowercase().as_str() {
-            "core" => 0,
-            "extra" => 1,
-            _ => 2, // other official repos
-        },
+        Source::Official { repo, .. } => {
+            if repo.eq_ignore_ascii_case("core") {
+                0
+            } else if repo.eq_ignore_ascii_case("extra") {
+                1
+            } else {
+                2 // other official repos
+            }
+        }
         Source::Aur => 3,
     }
 }
@@ -974,33 +986,34 @@ async fn fetch_official_details(
     let v = client.get(url).send().await?.json::<Value>().await?;
     let obj = v.get("pkg").unwrap_or(&v); // API sometimes nests under 'pkg'
 
-    let mut d = PackageDetails::default();
-    d.repository = repo;
-    d.name = item.name.clone();
-    d.version = ss(obj, &["pkgver", "Version"]).unwrap_or(item.version);
-    d.description = ss(obj, &["pkgdesc", "Description"]).unwrap_or(item.description);
-    d.architecture = ss(obj, &["arch", "Architecture"]).unwrap_or(arch);
-    d.url = ss(obj, &["url", "URL"]).unwrap_or_default();
-    d.licenses = arrs(obj, &["licenses", "Licenses"]);
-    d.groups = arrs(obj, &["groups", "Groups"]);
-    d.provides = arrs(obj, &["provides", "Provides"]);
-    d.depends = arrs(obj, &["depends", "Depends"]);
-    d.opt_depends = arrs(obj, &["optdepends", "OptDepends"]);
-    d.required_by = arrs(obj, &["requiredby", "RequiredBy"]);
-    d.optional_for = vec![]; // Not available from API
-    d.conflicts = arrs(obj, &["conflicts", "Conflicts"]);
-    d.replaces = arrs(obj, &["replaces", "Replaces"]);
-    d.download_size = u64_of(obj, &["compressed_size", "CompressedSize"]);
-    d.install_size = u64_of(obj, &["installed_size", "InstalledSize"]);
-    d.owner = ss(obj, &["packager", "Packager"]).unwrap_or_default();
-    d.build_date = ss(obj, &["build_date", "BuildDate"]).unwrap_or_default();
+    let d = PackageDetails {
+        repository: repo,
+        name: item.name.clone(),
+        version: ss(obj, &["pkgver", "Version"]).unwrap_or(item.version),
+        description: ss(obj, &["pkgdesc", "Description"]).unwrap_or(item.description),
+        architecture: ss(obj, &["arch", "Architecture"]).unwrap_or(arch),
+        url: ss(obj, &["url", "URL"]).unwrap_or_default(),
+        licenses: arrs(obj, &["licenses", "Licenses"]),
+        groups: arrs(obj, &["groups", "Groups"]),
+        provides: arrs(obj, &["provides", "Provides"]),
+        depends: arrs(obj, &["depends", "Depends"]),
+        opt_depends: arrs(obj, &["optdepends", "OptDepends"]),
+        required_by: arrs(obj, &["requiredby", "RequiredBy"]),
+        optional_for: vec![], // Not available from API
+        conflicts: arrs(obj, &["conflicts", "Conflicts"]),
+        replaces: arrs(obj, &["replaces", "Replaces"]),
+        download_size: u64_of(obj, &["compressed_size", "CompressedSize"]),
+        install_size: u64_of(obj, &["installed_size", "InstalledSize"]),
+        owner: ss(obj, &["packager", "Packager"]).unwrap_or_default(),
+        build_date: ss(obj, &["build_date", "BuildDate"]).unwrap_or_default(),
+    };
     Ok(d)
 }
 
 async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
     let url = format!(
         "https://aur.archlinux.org/rpc/v5/info?arg[]={}",
-        urlencoding::encode(&item.name)
+        percent_encode(&item.name)
     );
     let client = reqwest::Client::builder()
         .user_agent("Pacsea/0.1")
@@ -1013,32 +1026,30 @@ async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
         .unwrap_or_default();
     let obj = arr.first().cloned().unwrap_or(Value::Null);
 
-    let mut d = PackageDetails::default();
-    d.repository = "AUR".into();
-    d.name = item.name.clone();
-    d.version = s(&obj, "Version");
-    if d.version.is_empty() {
-        d.version = item.version.clone();
-    }
-    d.description = s(&obj, "Description");
-    if d.description.is_empty() {
-        d.description = item.description.clone();
-    }
-    d.architecture = "any".into();
-    d.url = s(&obj, "URL");
-    d.licenses = arrs(&obj, &["License", "Licenses"]);
-    d.groups = arrs(&obj, &["Groups"]);
-    d.provides = arrs(&obj, &["Provides"]);
-    d.depends = arrs(&obj, &["Depends"]);
-    d.opt_depends = arrs(&obj, &["OptDepends"]);
-    d.required_by = vec![]; // Not available via RPC
-    d.optional_for = vec![];
-    d.conflicts = arrs(&obj, &["Conflicts"]);
-    d.replaces = arrs(&obj, &["Replaces"]);
-    d.download_size = None; // Not available
-    d.install_size = None; // Not available
-    d.owner = s(&obj, "Maintainer");
-    d.build_date = ts_to_date(obj.get("LastModified").and_then(|v| v.as_i64()));
+    let version0 = s(&obj, "Version");
+    let description0 = s(&obj, "Description");
+
+    let d = PackageDetails {
+        repository: "AUR".into(),
+        name: item.name.clone(),
+        version: if version0.is_empty() { item.version.clone() } else { version0 },
+        description: if description0.is_empty() { item.description.clone() } else { description0 },
+        architecture: "any".into(),
+        url: s(&obj, "URL"),
+        licenses: arrs(&obj, &["License", "Licenses"]),
+        groups: arrs(&obj, &["Groups"]),
+        provides: arrs(&obj, &["Provides"]),
+        depends: arrs(&obj, &["Depends"]),
+        opt_depends: arrs(&obj, &["OptDepends"]),
+        required_by: vec![], // Not available via RPC
+        optional_for: vec![],
+        conflicts: arrs(&obj, &["Conflicts"]),
+        replaces: arrs(&obj, &["Replaces"]),
+        download_size: None, // Not available
+        install_size: None,  // Not available
+        owner: s(&obj, "Maintainer"),
+        build_date: ts_to_date(obj.get("LastModified").and_then(|v| v.as_i64())),
+    };
     Ok(d)
 }
 
@@ -1053,14 +1064,14 @@ fn ts_to_date(ts: Option<i64>) -> String {
 
 fn s(v: &Value, key: &str) -> String {
     v.get(key)
-        .and_then(|x| x.as_str())
-        .unwrap_or("")
-        .to_string()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 fn ss(v: &Value, keys: &[&str]) -> Option<String> {
     for k in keys {
         if let Some(s) = v.get(*k).and_then(|x| x.as_str()) {
-            return Some(s.to_string());
+            return Some(s.to_owned());
         }
     }
     None
@@ -1070,7 +1081,7 @@ fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
         if let Some(arr) = v.get(*k).and_then(|x| x.as_array()) {
             return arr
                 .iter()
-                .filter_map(|e| e.as_str().map(|s| s.to_string()))
+                .filter_map(|e| e.as_str().map(|s| s.to_owned()))
                 .collect();
         }
     }
@@ -1083,55 +1094,57 @@ fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
                 return Some(u);
             }
             if let Some(i) = n.as_i64() {
-                return Some(i as u64);
+                if let Ok(u) = u64::try_from(i) {
+                    return Some(u);
+                }
             }
-            if let Some(s) = n.as_str()
-                && let Ok(p) = s.parse::<u64>()
-            {
-                return Some(p);
+            if let Some(s) = n.as_str() {
+                if let Ok(p) = s.parse::<u64>() {
+                    return Some(p);
+                }
             }
         }
     }
     None
 }
 
+#[cfg(not(target_os = "windows"))]
 fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
-    #[cfg(target_os = "windows")]
-    {
-        // Open new window and keep it open
-        let _ = Command::new("cmd")
-            .args(["/C", "start", "Pacsea Install", "cmd", "/K", &cmd_str])
-            .spawn();
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        // Try common terminals
-        let terms: &[(&str, &[&str], bool)] = &[
-            ("alacritty", &["-e", "bash", "-lc"], false),
-            ("kitty", &["bash", "-lc"], false),
-            ("xterm", &["-hold", "-e", "bash", "-lc"], false),
-            ("gnome-terminal", &["--", "bash", "-lc"], false),
-            ("konsole", &["-e", "bash", "-lc"], false),
-            ("xfce4-terminal", &["-e", "bash", "-lc"], false),
-            ("tilix", &["-e", "bash", "-lc"], false),
-            ("mate-terminal", &["-e", "bash", "-lc"], false),
-        ];
-        let mut launched = false;
-        for (term, args, _hold) in terms {
-            if which::which(term).is_ok() {
-                let _ = Command::new(term)
-                    .args(args.iter().copied())
-                    .arg(cmd_str.clone())
-                    .spawn();
-                launched = true;
-                break;
-            }
-        }
-        if !launched {
-            let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+    // Try common terminals
+    let terms: &[(&str, &[&str], bool)] = &[
+        ("alacritty", &["-e", "bash", "-lc"], false),
+        ("kitty", &["bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+        ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("konsole", &["-e", "bash", "-lc"], false),
+        ("xfce4-terminal", &["-e", "bash", "-lc"], false),
+        ("tilix", &["-e", "bash", "-lc"], false),
+        ("mate-terminal", &["-e", "bash", "-lc"], false),
+    ];
+    let mut launched = false;
+    for (term, args, _hold) in terms {
+        if command_on_path(term) {
+            let _ = Command::new(term)
+                .args(args.iter().copied())
+                .arg(&cmd_str)
+                .spawn();
+            launched = true;
+            break;
         }
     }
+    if !launched {
+        let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
+    let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
+    // Open new window and keep it open
+    let _ = Command::new("cmd")
+        .args(["/C", "start", "Pacsea Install", "cmd", "/K", &cmd_str])
+        .spawn();
 }
 
 fn build_install_command(
@@ -1144,21 +1157,20 @@ fn build_install_command(
             let base_cmd = format!("pacman -S --needed {}", item.name);
             if dry_run {
                 return (
-                    format!("echo DRY RUN: sudo {} && echo Done & pause", base_cmd),
+                    format!("echo DRY RUN: sudo {base_cmd} && echo Done & pause"),
                     true,
                 );
             }
             // Escape password for bash
             let pass = password.unwrap_or("");
-            let escaped = pass.replace('\'', "'\"'\"'\'");
+            let escaped = pass.replace('\'', "'\"'\"'\''");
             let pipe = if pass.is_empty() {
                 String::new()
             } else {
-                format!("echo '{}' | ", escaped)
+                format!("echo '{escaped}' | ")
             };
             let bash = format!(
-                "{}sudo -S {}; echo; echo 'Finished.'; read -n1 -s -r -p 'Press any key to close...'",
-                pipe, base_cmd
+                "{pipe}sudo -S {base_cmd}; echo; echo 'Finished.'; read -n1 -s -r -p 'Press any key to close...'"
             );
             (bash, true)
         }
@@ -1176,18 +1188,5 @@ fn build_install_command(
             };
             (aur_cmd, false)
         }
-    }
-}
-
-fn is_cmd_available(bin: &str) -> bool {
-    Command::new(bin).arg("--version").output().is_ok()
-}
-
-fn shell_escape(s: &str) -> String {
-    // Minimal escape for single quotes in sh; works for both bash and sh
-    if s.contains('\'') {
-        s.replace('\'', "'\\''")
-    } else {
-        s.to_string()
     }
 }

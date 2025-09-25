@@ -1,4 +1,25 @@
 {
+  "hyprland-simple-setup-git": {
+    "repository": "AUR",
+    "name": "hyprland-simple-setup-git",
+    "version": "0.4.0-2",
+    "description": "Setup Hyprland the simple way. (Swiss/German Edition)",
+    "architecture": "any",
+    "url": "https://github.com/Firstp1ck/Hyprland-Simple-Setup.git",
+    "licenses": ["GPL3"],
+    "groups": [],
+    "provides": [],
+    "depends": ["git", "sudo", "bash", "base-devel", "xdg-user-dirs"],
+    "opt_depends": [],
+    "required_by": [],
+    "optional_for": [],
+    "conflicts": [],
+    "replaces": [],
+    "download_size": null,
+    "install_size": null,
+    "owner": "Firstpick",
+    "build_date": "2025-06-07 08:38:56 UTC"
+  },
   "neovim-airline-edge-git": {
     "repository": "AUR",
     "name": "neovim-airline-edge-git",
