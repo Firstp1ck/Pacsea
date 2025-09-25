@@ -43,17 +43,35 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 Source::Official { repo, .. } => (repo.to_string(), th.green),
                 Source::Aur => ("AUR".to_string(), th.yellow),
             };
-            let line = Line::from(vec![
+            let desc = if p.description.is_empty() {
+                app.details_cache
+                    .get(&p.name)
+                    .map(|d| d.description.clone())
+                    .unwrap_or_default()
+            } else {
+                p.description.clone()
+            };
+            let installed = crate::index::is_installed(&p.name);
+            let mut segs = vec![
                 Span::styled(format!("{src} "), Style::default().fg(color)),
                 Span::styled(
                     p.name.clone(),
                     Style::default().fg(th.text).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(format!("  {}", p.version), Style::default().fg(th.overlay1)),
-                Span::raw("  - "),
-                Span::styled(p.description.clone(), Style::default().fg(th.overlay2)),
-            ]);
-            ListItem::new(line)
+            ];
+            if !desc.is_empty() {
+                segs.push(Span::raw("  - "));
+                segs.push(Span::styled(desc, Style::default().fg(th.overlay2)));
+            }
+            if installed {
+                segs.push(Span::raw("  "));
+                segs.push(Span::styled(
+                    "[Installed]",
+                    Style::default().fg(th.green).add_modifier(Modifier::BOLD),
+                ));
+            }
+            ListItem::new(Line::from(segs))
         })
         .collect();
 
@@ -163,17 +181,16 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             th.overlay1
         }),
     )];
-    if recent_focused
-        && let Some(pat) = &app.pane_find {
-            recent_title_spans.push(Span::raw("  "));
-            recent_title_spans.push(Span::styled(
-                "/",
-                Style::default()
-                    .fg(th.sapphire)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            recent_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text)));
-        }
+    if recent_focused && let Some(pat) = &app.pane_find {
+        recent_title_spans.push(Span::raw("  "));
+        recent_title_spans.push(Span::styled(
+            "/",
+            Style::default()
+                .fg(th.sapphire)
+                .add_modifier(Modifier::BOLD),
+        ));
+        recent_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text)));
+    }
     let rec_block = Block::default()
         .title(Line::from(recent_title_spans))
         .borders(Borders::ALL)
@@ -236,17 +253,16 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             th.overlay1
         }),
     )];
-    if install_focused
-        && let Some(pat) = &app.pane_find {
-            install_title_spans.push(Span::raw("  "));
-            install_title_spans.push(Span::styled(
-                "/",
-                Style::default()
-                    .fg(th.sapphire)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            install_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text)));
-        }
+    if install_focused && let Some(pat) = &app.pane_find {
+        install_title_spans.push(Span::raw("  "));
+        install_title_spans.push(Span::styled(
+            "/",
+            Style::default()
+                .fg(th.sapphire)
+                .add_modifier(Modifier::BOLD),
+        ));
+        install_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text)));
+    }
     let install_block = Block::default()
         .title(Line::from(install_title_spans))
         .borders(Borders::ALL)
@@ -288,46 +304,247 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         );
     f.render_widget(details, chunks[2]);
 
-    // Modal overlay for alerts
-    if let crate::state::Modal::Alert { message } = &app.modal {
-        let w = area.width.saturating_sub(10).min(80);
-        let h = 7;
-        let x = area.x + (area.width.saturating_sub(w)) / 2;
-        let y = area.y + (area.height.saturating_sub(h)) / 2;
-        let rect = ratatui::prelude::Rect {
-            x,
-            y,
-            width: w,
-            height: h,
+    // Keybindings footer inside Package Info (four lines: Search, Recent, Install, Global)
+    let inner = ratatui::prelude::Rect {
+        x: chunks[2].x + 1,
+        y: chunks[2].y + 1,
+        width: chunks[2].width.saturating_sub(2),
+        height: chunks[2].height.saturating_sub(2),
+    };
+    if inner.height >= 4 && inner.width >= 1 {
+        let footer_rect = ratatui::prelude::Rect {
+            x: inner.x,
+            y: inner.y + inner.height.saturating_sub(4),
+            width: inner.width,
+            height: 4,
         };
-        f.render_widget(Clear, rect);
-        let lines = vec![
-            Line::from(Span::styled(
-                "Connection issue",
-                Style::default().fg(th.red).add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(message.clone(), Style::default().fg(th.text))),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Press Enter or Esc to close",
+
+        // Styles per pane depending on focus
+        let (search_lbl, search_keys) = if matches!(app.focus, Focus::Search) {
+            (
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                Style::default().fg(th.text),
+            )
+        } else {
+            (
+                Style::default().fg(th.overlay1),
                 Style::default().fg(th.subtext1),
-            )),
+            )
+        };
+        let (recent_lbl, recent_keys) = if matches!(app.focus, Focus::Recent) {
+            (
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                Style::default().fg(th.text),
+            )
+        } else {
+            (
+                Style::default().fg(th.overlay1),
+                Style::default().fg(th.subtext1),
+            )
+        };
+        let (install_lbl, install_keys) = if matches!(app.focus, Focus::Install) {
+            (
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                Style::default().fg(th.text),
+            )
+        } else {
+            (
+                Style::default().fg(th.overlay1),
+                Style::default().fg(th.subtext1),
+            )
+        };
+        let global_lbl = Style::default().fg(th.overlay1);
+        let global_keys = Style::default().fg(th.subtext1);
+
+        // SEARCH line
+        let l1: Vec<Span> = vec![
+            Span::styled("SEARCH:", search_lbl),
+            Span::styled(" ↑/↓ PgUp/PgDn", search_keys),
+            Span::raw("  "),
+            Span::styled("Space", search_keys),
+            Span::styled("=add", search_keys),
+            Span::raw("  "),
+            Span::styled("Enter", search_keys),
+            Span::styled("=install", search_keys),
+            Span::raw("  "),
+            Span::styled("←/→ Tab/S-Tab", search_keys),
+            Span::styled("=switch", search_keys),
+            Span::raw("  "),
+            Span::styled("Type", search_keys),
+            Span::styled("=query", search_keys),
+            Span::raw("  "),
+            Span::styled("Backspace", search_keys),
+            Span::styled("=delete", search_keys),
         ];
-        let boxw = Paragraph::new(lines)
-            .style(Style::default().fg(th.text).bg(th.mantle))
-            .wrap(Wrap { trim: true })
-            .block(
-                Block::default()
-                    .title(Span::styled(
-                        " Network Error ",
-                        Style::default().fg(th.red).add_modifier(Modifier::BOLD),
-                    ))
-                    .borders(Borders::ALL)
-                    .border_type(BorderType::Double)
-                    .border_style(Style::default().fg(th.red))
-                    .style(Style::default().bg(th.mantle)),
-            );
-        f.render_widget(boxw, rect);
+
+        // RECENT line
+        let l2: Vec<Span> = vec![
+            Span::styled("RECENT:", recent_lbl),
+            Span::styled(" j/k or ↑/↓", recent_keys),
+            Span::raw("  "),
+            Span::styled("Enter", recent_keys),
+            Span::styled("=use", recent_keys),
+            Span::raw("  "),
+            Span::styled("Space", recent_keys),
+            Span::styled("=add", recent_keys),
+            Span::raw("  "),
+            Span::styled("/", recent_keys),
+            Span::styled("=find, Enter next, Esc cancel", recent_keys),
+            Span::raw("  "),
+            Span::styled("Esc", recent_keys),
+            Span::styled("=to Search", recent_keys),
+            Span::raw("  "),
+            Span::styled("←/→ Tab/S-Tab", recent_keys),
+            Span::styled("=switch", recent_keys),
+        ];
+
+        // INSTALL line
+        let l3: Vec<Span> = vec![
+            Span::styled("INSTALL:", install_lbl),
+            Span::styled(" j/k or ↑/↓", install_keys),
+            Span::raw("  "),
+            Span::styled("Enter", install_keys),
+            Span::styled("=confirm", install_keys),
+            Span::raw("  "),
+            Span::styled("Del", install_keys),
+            Span::styled("=remove", install_keys),
+            Span::raw("  "),
+            Span::styled("Shift+Del", install_keys),
+            Span::styled("=clear", install_keys),
+            Span::raw("  "),
+            Span::styled("/", install_keys),
+            Span::styled("=find, Enter next, Esc cancel", install_keys),
+            Span::raw("  "),
+            Span::styled("Esc", install_keys),
+            Span::styled("=to Search", install_keys),
+            Span::raw("  "),
+            Span::styled("←/→ Tab/S-Tab", install_keys),
+            Span::styled("=switch", install_keys),
+        ];
+
+        // GLOBAL line
+        let l4: Vec<Span> = vec![
+            Span::styled("GLOBALS:", global_lbl),
+            Span::styled(" Ctrl+C=exit", global_keys),
+            Span::raw("  "),
+            Span::styled("Esc=exit (Search)", global_keys),
+            Span::raw("  "),
+            Span::styled("Popup dialog: Enter=confirm, Esc=cancel", global_keys),
+        ];
+
+        let kb = Paragraph::new(vec![
+            // Order: GLOBALS, SEARCH, INSTALL, RECENT
+            Line::from(l4),
+            Line::from(l1),
+            Line::from(l3),
+            Line::from(l2),
+        ])
+        .style(Style::default().fg(th.subtext1).bg(th.base))
+        .wrap(Wrap { trim: true });
+        f.render_widget(kb, footer_rect);
+    }
+
+    // Modal overlay for alerts
+    match &app.modal {
+        crate::state::Modal::Alert { message } => {
+            let w = area.width.saturating_sub(10).min(80);
+            let h = 7;
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
+            f.render_widget(Clear, rect);
+            let lines = vec![
+                Line::from(Span::styled(
+                    "Connection issue",
+                    Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(message.clone(), Style::default().fg(th.text))),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Press Enter or Esc to close",
+                    Style::default().fg(th.subtext1),
+                )),
+            ];
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.mantle))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            " Network Error ",
+                            Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(th.red))
+                        .style(Style::default().bg(th.mantle)),
+                );
+            f.render_widget(boxw, rect);
+        }
+        crate::state::Modal::ConfirmInstall { items } => {
+            let w = area.width.saturating_sub(6).min(90);
+            let h = area.height.saturating_sub(6).min(20);
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
+            f.render_widget(Clear, rect);
+            let mut lines: Vec<Line<'static>> = Vec::new();
+            lines.push(Line::from(Span::styled(
+                "Confirm installation",
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+            if items.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    "Nothing to install",
+                    Style::default().fg(th.subtext1),
+                )));
+            } else {
+                for p in items.iter().take((h as usize).saturating_sub(6)) {
+                    lines.push(Line::from(Span::styled(
+                        format!("- {}", p.name),
+                        Style::default().fg(th.text),
+                    )));
+                }
+                if items.len() + 6 > h as usize {
+                    lines.push(Line::from(Span::styled(
+                        "…",
+                        Style::default().fg(th.subtext1),
+                    )));
+                }
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Press Enter to confirm or Esc to cancel",
+                Style::default().fg(th.subtext1),
+            )));
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.mantle))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            " Confirm Install ",
+                            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(th.mauve))
+                        .style(Style::default().bg(th.mantle)),
+                );
+            f.render_widget(boxw, rect);
+        }
+        crate::state::Modal::None => {}
     }
 }

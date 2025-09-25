@@ -80,6 +80,9 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
     if !launched {
         let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
     }
+    if !dry_run {
+        let _ = log_installed(std::slice::from_ref(&item.name));
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -88,6 +91,9 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
     let _ = Command::new("cmd")
         .args(["/C", "start", "Pacsea Install", "cmd", "/K", &cmd_str])
         .spawn();
+    if !dry_run {
+        let _ = log_installed(&[item.name.clone()]);
+    }
 }
 
 pub fn build_install_command(
@@ -232,6 +238,12 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     if !launched {
         let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
     }
+
+    // Log installs
+    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+    if !names.is_empty() {
+        let _ = log_installed(&names);
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -255,4 +267,26 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
             &format!("echo {}", msg),
         ])
         .spawn();
+    if !dry_run {
+        let _ = log_installed(&names);
+    }
+}
+
+fn log_installed(names: &[String]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut path = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    path.push("install_log.txt");
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .ok();
+    let when = crate::util::ts_to_date(now);
+    for n in names {
+        writeln!(f, "{} {}", when, n)?;
+    }
+    Ok(())
 }

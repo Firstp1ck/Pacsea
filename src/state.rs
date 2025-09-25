@@ -56,6 +56,9 @@ pub enum Modal {
     Alert {
         message: String,
     },
+    ConfirmInstall {
+        items: Vec<PackageItem>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,6 +104,9 @@ pub struct AppState {
 
     // In-pane search (for Recent/Install panes)
     pub pane_find: Option<String>,
+
+    // Official package index persistence
+    pub official_index_path: PathBuf,
 }
 
 impl Default for AppState {
@@ -134,6 +140,8 @@ impl Default for AppState {
             install_dirty: false,
 
             pane_find: None,
+
+            official_index_path: PathBuf::from("official_index.json"),
         }
     }
 }

@@ -75,19 +75,27 @@ fn human_bytes(n: u64) -> String {
 }
 
 pub async fn fetch_first_match_for_query(q: String) -> Option<crate::state::PackageItem> {
-    let (items, _errors) = crate::fetch_all_with_errors(q.clone()).await;
-    if items.is_empty() {
-        return None;
-    }
-    if let Some(item) = items
+    // Prefer exact match from official index, then from AUR, else first official, then first AUR
+    let official = crate::index::search_official(&q);
+    if let Some(off) = official
         .iter()
         .find(|it| it.name.eq_ignore_ascii_case(&q))
         .cloned()
     {
-        Some(item)
-    } else {
-        Some(items[0].clone())
+        return Some(off);
     }
+    let (aur, _errors) = crate::net::fetch_all_with_errors(q.clone()).await;
+    if let Some(a) = aur
+        .iter()
+        .find(|it| it.name.eq_ignore_ascii_case(&q))
+        .cloned()
+    {
+        return Some(a);
+    }
+    if let Some(off) = official.first().cloned() {
+        return Some(off);
+    }
+    aur.into_iter().next()
 }
 
 pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {

@@ -20,13 +20,18 @@ fn find_in_recent(app: &mut AppState, forward: bool) {
     for _ in 0..n {
         vi = if forward {
             (vi + 1) % n
-        } else if vi == 0 { n - 1 } else { vi - 1 };
+        } else if vi == 0 {
+            n - 1
+        } else {
+            vi - 1
+        };
         let i = inds[vi];
         if let Some(s) = app.recent.get(i)
-            && s.to_lowercase().contains(&pattern.to_lowercase()) {
-                app.history_state.select(Some(vi));
-                break;
-            }
+            && s.to_lowercase().contains(&pattern.to_lowercase())
+        {
+            app.history_state.select(Some(vi));
+            break;
+        }
     }
 }
 
@@ -44,17 +49,21 @@ fn find_in_install(app: &mut AppState, forward: bool) {
     for _ in 0..n {
         vi = if forward {
             (vi + 1) % n
-        } else if vi == 0 { n - 1 } else { vi - 1 };
+        } else if vi == 0 {
+            n - 1
+        } else {
+            vi - 1
+        };
         let i = inds[vi];
         if let Some(p) = app.install_list.get(i)
             && (p.name.to_lowercase().contains(&pattern.to_lowercase())
                 || p.description
                     .to_lowercase()
                     .contains(&pattern.to_lowercase()))
-            {
-                app.install_state.select(Some(vi));
-                break;
-            }
+        {
+            app.install_state.select(Some(vi));
+            break;
+        }
     }
 }
 
@@ -71,15 +80,36 @@ pub fn handle_event(
             return false;
         }
 
-        // Alert modal
-        if let crate::state::Modal::Alert { .. } = app.modal {
-            match ke.code {
-                KeyCode::Enter | KeyCode::Esc => {
-                    app.modal = crate::state::Modal::None;
+        // Modal handling
+        match &app.modal {
+            crate::state::Modal::Alert { .. } => {
+                match ke.code {
+                    KeyCode::Enter | KeyCode::Esc => app.modal = crate::state::Modal::None,
+                    _ => {}
                 }
-                _ => {}
+                return false;
             }
-            return false;
+            crate::state::Modal::ConfirmInstall { items } => {
+                match ke.code {
+                    KeyCode::Esc => {
+                        app.modal = crate::state::Modal::None;
+                    }
+                    KeyCode::Enter => {
+                        let list = items.clone();
+                        app.modal = crate::state::Modal::None;
+                        if list.len() <= 1 {
+                            if let Some(it) = list.first() {
+                                crate::install::spawn_install(it, None, app.dry_run);
+                            }
+                        } else {
+                            crate::install::spawn_install_all(&list, app.dry_run);
+                        }
+                    }
+                    _ => {}
+                }
+                return false;
+            }
+            crate::state::Modal::None => {}
         }
 
         // Recent pane focused
@@ -189,19 +219,10 @@ pub fn handle_event(
                         if let Some(q) = app.recent.get(i).cloned() {
                             let tx = add_tx.clone();
                             tokio::spawn(async move {
-                                let (items, _errors) =
-                                    crate::fetch_all_with_errors(q.clone()).await;
-                                if items.is_empty() {
-                                    return;
-                                }
-                                if let Some(item) = items
-                                    .iter()
-                                    .find(|it| it.name.eq_ignore_ascii_case(&q))
-                                    .cloned()
+                                if let Some(item) =
+                                    crate::ui_helpers::fetch_first_match_for_query(q).await
                                 {
                                     let _ = tx.send(item);
-                                } else {
-                                    let _ = tx.send(items[0].clone());
                                 }
                             });
                         }
@@ -284,7 +305,10 @@ pub fn handle_event(
                 }
                 KeyCode::Enter => {
                     if !app.install_list.is_empty() {
-                        crate::install::spawn_install_all(&app.install_list, app.dry_run);
+                        // Open confirmation modal listing all items to be installed
+                        app.modal = crate::state::Modal::ConfirmInstall {
+                            items: app.install_list.clone(),
+                        };
                     }
                 }
                 KeyCode::Esc => {
@@ -404,7 +428,8 @@ pub fn handle_event(
             }
             (KeyCode::Char('\n') | KeyCode::Enter, _) => {
                 if let Some(item) = app.results.get(app.selected).cloned() {
-                    crate::install::spawn_install(&item, None, app.dry_run);
+                    // Confirm single install
+                    app.modal = crate::state::Modal::ConfirmInstall { items: vec![item] };
                 }
             }
             (KeyCode::Char(ch), _) => {

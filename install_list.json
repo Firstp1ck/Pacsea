@@ -1,1 +1,1 @@
-[{"name":"git","version":"2.51.0","description":"the fast distributed version control system","source":{"Official":{"repo":"extra","arch":"x86_64"}}},{"name":"konsole","version":"25.08.1","description":"KDE terminal emulator","source":{"Official":{"repo":"extra","arch":"x86_64"}}},{"name":"neovim","version":"0.11.4","description":"Fork of Vim aiming to improve user experience, plugins, and GUIs","source":{"Official":{"repo":"extra","arch":"x86_64"}}}]
+[{"name":"neovim","version":"","description":"","source":{"Official":{"repo":"extra","arch":"x86_64"}}}]
