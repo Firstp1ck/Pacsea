@@ -150,9 +150,22 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
     let mut parts: Vec<String> = Vec::new();
     if dry_run {
-        if !official.is_empty() { parts.push(format!("echo DRY RUN: sudo pacman -S --needed {}", official.join(" "))); }
-        if !aur.is_empty() { parts.push(format!("echo DRY RUN: (paru -S --needed {} || yay -S --needed {})", aur.join(" "), aur.join(" "))); }
-        if parts.is_empty() { parts.push("echo DRY RUN: nothing to install".to_string()); }
+        if !official.is_empty() {
+            parts.push(format!(
+                "echo DRY RUN: sudo pacman -S --needed {}",
+                official.join(" ")
+            ));
+        }
+        if !aur.is_empty() {
+            parts.push(format!(
+                "echo DRY RUN: (paru -S --needed {} || yay -S --needed {})",
+                aur.join(" "),
+                aur.join(" ")
+            ));
+        }
+        if parts.is_empty() {
+            parts.push("echo DRY RUN: nothing to install".to_string());
+        }
         let cmd_str = format!("{}{}", parts.join("; "), hold_tail);
         // Spawn terminal once
         let terms: &[(&str, &[&str], bool)] = &[
@@ -168,20 +181,30 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
         let mut launched = false;
         for (term, args, _hold) in terms {
             if command_on_path(term) {
-                let _ = Command::new(term).args(args.iter().copied()).arg(&cmd_str).spawn();
-                launched = true; break;
+                let _ = Command::new(term)
+                    .args(args.iter().copied())
+                    .arg(&cmd_str)
+                    .spawn();
+                launched = true;
+                break;
             }
         }
-        if !launched { let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn(); }
+        if !launched {
+            let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+        }
         return;
     }
 
-    if !official.is_empty() { parts.push(format!("sudo pacman -S --needed {}", official.join(" "))); }
+    if !official.is_empty() {
+        parts.push(format!("sudo pacman -S --needed {}", official.join(" ")));
+    }
     if !aur.is_empty() {
         let names = aur.join(" ");
         parts.push(format!("(command -v paru >/dev/null 2>&1 && paru -S --needed {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed {n}) || echo 'No AUR helper (paru/yay) found.'", n = names));
     }
-    if parts.is_empty() { parts.push("echo nothing to install".to_string()); }
+    if parts.is_empty() {
+        parts.push("echo nothing to install".to_string());
+    }
     let cmd_str = format!("{}{}", parts.join("; "), hold_tail);
 
     // Spawn terminal once
@@ -198,19 +221,38 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let mut launched = false;
     for (term, args, _hold) in terms {
         if command_on_path(term) {
-            let _ = Command::new(term).args(args.iter().copied()).arg(&cmd_str).spawn();
-            launched = true; break;
+            let _ = Command::new(term)
+                .args(args.iter().copied())
+                .arg(&cmd_str)
+                .spawn();
+            launched = true;
+            break;
         }
     }
-    if !launched { let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn(); }
+    if !launched {
+        let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+    }
 }
 
 #[cfg(target_os = "windows")]
 pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let mut names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-    if names.is_empty() { names.push("nothing".into()); }
-    let msg = if dry_run { format!("DRY RUN: install {}", names.join(" ")) } else { format!("Install {} (not supported on Windows)", names.join(" ")) };
+    if names.is_empty() {
+        names.push("nothing".into());
+    }
+    let msg = if dry_run {
+        format!("DRY RUN: install {}", names.join(" "))
+    } else {
+        format!("Install {} (not supported on Windows)", names.join(" "))
+    };
     let _ = Command::new("cmd")
-        .args(["/C", "start", "Pacsea Install", "cmd", "/K", &format!("echo {}", msg)])
+        .args([
+            "/C",
+            "start",
+            "Pacsea Install",
+            "cmd",
+            "/K",
+            &format!("echo {}", msg),
+        ])
         .spawn();
 }

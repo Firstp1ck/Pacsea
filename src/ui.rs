@@ -89,23 +89,46 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     let input_line = Line::from(vec![
         Span::styled(
             "> ",
-            Style::default().fg(if search_focused { th.sapphire } else { th.overlay1 }),
+            Style::default().fg(if search_focused {
+                th.sapphire
+            } else {
+                th.overlay1
+            }),
         ),
         Span::styled(
             app.input.as_str().to_string(),
             Style::default().fg(if search_focused { th.text } else { th.subtext0 }),
         ),
     ]);
-    let search_title = if search_focused { "Search (focused)" } else { "Search" };
-    let search_title_color = if search_focused { th.mauve } else { th.overlay1 };
+    let search_title = if search_focused {
+        "Search (focused)"
+    } else {
+        "Search"
+    };
+    let search_title_color = if search_focused {
+        th.mauve
+    } else {
+        th.overlay1
+    };
     let input = Paragraph::new(input_line)
-        .style(Style::default().fg(if search_focused { th.text } else { th.subtext0 }).bg(th.base))
+        .style(
+            Style::default()
+                .fg(if search_focused { th.text } else { th.subtext0 })
+                .bg(th.base),
+        )
         .block(
             Block::default()
-                .title(Span::styled(search_title, Style::default().fg(search_title_color)))
+                .title(Span::styled(
+                    search_title,
+                    Style::default().fg(search_title_color),
+                ))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(if search_focused { th.mauve } else { th.surface1 })),
+                .border_style(Style::default().fg(if search_focused {
+                    th.mauve
+                } else {
+                    th.surface1
+                })),
         );
     f.render_widget(input, middle[1]);
 
@@ -121,20 +144,51 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     let rec_items: Vec<ListItem> = rec_inds
         .iter()
         .filter_map(|&i| app.recent.get(i))
-        .map(|s| ListItem::new(Span::styled(
-            s.clone(),
-            Style::default().fg(if recent_focused { th.text } else { th.subtext0 }),
-        )))
+        .map(|s| {
+            ListItem::new(Span::styled(
+                s.clone(),
+                Style::default().fg(if recent_focused { th.text } else { th.subtext0 }),
+            ))
+        })
         .collect();
-    let mut recent_title_spans: Vec<Span> = vec![Span::styled(if recent_focused { "Recent (focused)" } else { "Recent" }, Style::default().fg(if recent_focused { th.mauve } else { th.overlay1 }))];
-    if recent_focused { if let Some(pat) = &app.pane_find { recent_title_spans.push(Span::raw("  ")); recent_title_spans.push(Span::styled("/", Style::default().fg(th.sapphire).add_modifier(Modifier::BOLD))); recent_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text))); } }
+    let mut recent_title_spans: Vec<Span> = vec![Span::styled(
+        if recent_focused {
+            "Recent (focused)"
+        } else {
+            "Recent"
+        },
+        Style::default().fg(if recent_focused {
+            th.mauve
+        } else {
+            th.overlay1
+        }),
+    )];
+    if recent_focused
+        && let Some(pat) = &app.pane_find {
+            recent_title_spans.push(Span::raw("  "));
+            recent_title_spans.push(Span::styled(
+                "/",
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            recent_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text)));
+        }
     let rec_block = Block::default()
         .title(Line::from(recent_title_spans))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(if recent_focused { th.mauve } else { th.surface1 }));
+        .border_style(Style::default().fg(if recent_focused {
+            th.mauve
+        } else {
+            th.surface1
+        }));
     let rec_list = List::new(rec_items)
-        .style(Style::default().fg(if recent_focused { th.text } else { th.subtext0 }).bg(th.base))
+        .style(
+            Style::default()
+                .fg(if recent_focused { th.text } else { th.subtext0 })
+                .bg(th.base),
+        )
         .block(rec_block)
         .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
         .highlight_symbol("▶ ");
@@ -148,21 +202,70 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .filter_map(|&i| app.install_list.get(i))
         .map(|p| {
             let line = Line::from(vec![
-                Span::styled(p.name.clone(), Style::default().fg(if install_focused { th.text } else { th.subtext0 }).add_modifier(Modifier::BOLD)),
-                Span::styled(format!("  {}", p.version), Style::default().fg(if install_focused { th.overlay1 } else { th.surface2 })),
+                Span::styled(
+                    p.name.clone(),
+                    Style::default()
+                        .fg(if install_focused {
+                            th.text
+                        } else {
+                            th.subtext0
+                        })
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("  {}", p.version),
+                    Style::default().fg(if install_focused {
+                        th.overlay1
+                    } else {
+                        th.surface2
+                    }),
+                ),
             ]);
             ListItem::new(line)
         })
         .collect();
-    let mut install_title_spans: Vec<Span> = vec![Span::styled(if install_focused { "Install List (focused)" } else { "Install List" }, Style::default().fg(if install_focused { th.mauve } else { th.overlay1 }))];
-    if install_focused { if let Some(pat) = &app.pane_find { install_title_spans.push(Span::raw("  ")); install_title_spans.push(Span::styled("/", Style::default().fg(th.sapphire).add_modifier(Modifier::BOLD))); install_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text))); } }
+    let mut install_title_spans: Vec<Span> = vec![Span::styled(
+        if install_focused {
+            "Install List (focused)"
+        } else {
+            "Install List"
+        },
+        Style::default().fg(if install_focused {
+            th.mauve
+        } else {
+            th.overlay1
+        }),
+    )];
+    if install_focused
+        && let Some(pat) = &app.pane_find {
+            install_title_spans.push(Span::raw("  "));
+            install_title_spans.push(Span::styled(
+                "/",
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ));
+            install_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text)));
+        }
     let install_block = Block::default()
         .title(Line::from(install_title_spans))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(if install_focused { th.mauve } else { th.surface1 }));
+        .border_style(Style::default().fg(if install_focused {
+            th.mauve
+        } else {
+            th.surface1
+        }));
     let install_list = List::new(install_items)
-        .style(Style::default().fg(if install_focused { th.text } else { th.subtext0 }).bg(th.base))
+        .style(
+            Style::default()
+                .fg(if install_focused {
+                    th.text
+                } else {
+                    th.subtext0
+                })
+                .bg(th.base),
+        )
         .block(install_block)
         .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
         .highlight_symbol("▶ ");
@@ -191,7 +294,12 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         let h = 7;
         let x = area.x + (area.width.saturating_sub(w)) / 2;
         let y = area.y + (area.height.saturating_sub(h)) / 2;
-        let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+        let rect = ratatui::prelude::Rect {
+            x,
+            y,
+            width: w,
+            height: h,
+        };
         f.render_widget(Clear, rect);
         let lines = vec![
             Line::from(Span::styled(

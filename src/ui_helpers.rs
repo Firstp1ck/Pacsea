@@ -3,7 +3,10 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use crate::{state::{AppState, Focus}, theme::Theme};
+use crate::{
+    state::{AppState, Focus},
+    theme::Theme,
+};
 
 pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec<Line<'static>> {
     fn kv(key: &str, val: String, th: &Theme) -> Line<'static> {
@@ -88,35 +91,77 @@ pub async fn fetch_first_match_for_query(q: String) -> Option<crate::state::Pack
 }
 
 pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
-    let apply = matches!(app.focus, Focus::Recent) && app.pane_find.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
-    if !apply { return (0..app.recent.len()).collect(); }
+    let apply = matches!(app.focus, Focus::Recent)
+        && app
+            .pane_find
+            .as_ref()
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+    if !apply {
+        return (0..app.recent.len()).collect();
+    }
     let pat = app.pane_find.as_ref().unwrap().to_lowercase();
-    app.recent.iter().enumerate()
-        .filter_map(|(i, s)| if s.to_lowercase().contains(&pat) { Some(i) } else { None })
-        .collect()
-}
-
-pub fn filtered_install_indices(app: &AppState) -> Vec<usize> {
-    let apply = matches!(app.focus, Focus::Install) && app.pane_find.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
-    if !apply { return (0..app.install_list.len()).collect(); }
-    let pat = app.pane_find.as_ref().unwrap().to_lowercase();
-    app.install_list.iter().enumerate()
-        .filter_map(|(i, p)| {
-            let name = p.name.to_lowercase();
-            let desc = p.description.to_lowercase();
-            if name.contains(&pat) || desc.contains(&pat) { Some(i) } else { None }
+    app.recent
+        .iter()
+        .enumerate()
+        .filter_map(|(i, s)| {
+            if s.to_lowercase().contains(&pat) {
+                Some(i)
+            } else {
+                None
+            }
         })
         .collect()
 }
 
-pub fn trigger_recent_preview(app: &crate::state::AppState, preview_tx: &tokio::sync::mpsc::UnboundedSender<crate::state::PackageItem>) {
-    if !matches!(app.focus, crate::state::Focus::Recent) { return; }
-    let idx = match app.history_state.selected() { Some(i) => i, None => return };
+pub fn filtered_install_indices(app: &AppState) -> Vec<usize> {
+    let apply = matches!(app.focus, Focus::Install)
+        && app
+            .pane_find
+            .as_ref()
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+    if !apply {
+        return (0..app.install_list.len()).collect();
+    }
+    let pat = app.pane_find.as_ref().unwrap().to_lowercase();
+    app.install_list
+        .iter()
+        .enumerate()
+        .filter_map(|(i, p)| {
+            let name = p.name.to_lowercase();
+            let desc = p.description.to_lowercase();
+            if name.contains(&pat) || desc.contains(&pat) {
+                Some(i)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+pub fn trigger_recent_preview(
+    app: &crate::state::AppState,
+    preview_tx: &tokio::sync::mpsc::UnboundedSender<crate::state::PackageItem>,
+) {
+    if !matches!(app.focus, crate::state::Focus::Recent) {
+        return;
+    }
+    let idx = match app.history_state.selected() {
+        Some(i) => i,
+        None => return,
+    };
     let inds = filtered_recent_indices(app);
-    if idx >= inds.len() { return; }
-    let Some(q) = app.recent.get(inds[idx]).cloned() else { return };
+    if idx >= inds.len() {
+        return;
+    }
+    let Some(q) = app.recent.get(inds[idx]).cloned() else {
+        return;
+    };
     let tx = preview_tx.clone();
     tokio::spawn(async move {
-        if let Some(item) = fetch_first_match_for_query(q).await { let _ = tx.send(item); }
+        if let Some(item) = fetch_first_match_for_query(q).await {
+            let _ = tx.send(item);
+        }
     });
 }

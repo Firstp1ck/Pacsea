@@ -53,7 +53,9 @@ pub struct SearchResults {
 pub enum Modal {
     #[default]
     None,
-    Alert { message: String },
+    Alert {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
