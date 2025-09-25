@@ -290,13 +290,13 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     // Details worker (debounced)
     let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
-        const DETAILS_DEBOUNCE_MS: u64 = 200;
+        const DETAILS_DEBOUNCE_MS: u64 = 120; // was 200, speed up
         loop {
             let mut latest = match details_req_rx.recv().await {
                 Some(i) => i,
                 None => break,
             };
-            // collect rapid changes
+            // collect rapid changes briefly
             loop {
                 select! { Some(next) = details_req_rx.recv() => { latest = next; } _ = sleep(Duration::from_millis(DETAILS_DEBOUNCE_MS)) => { break; } }
             }
@@ -333,7 +333,26 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
                 // ignore stale results
                 if new_results.id != app.latest_query_id { continue; }
                 app.results = new_results.items; app.selected = 0; app.list_state.select(if app.results.is_empty(){None}else{Some(0)});
-                if let Some(item) = app.results.first().cloned() { if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item); } }
+                if let Some(item) = app.results.first().cloned() { if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item.clone()); } }
+                // Prefetch details for first few visible items to improve perceived speed
+                let prefetch: Vec<PackageItem> = app.results.iter().take(10).cloned().collect();
+                for it in prefetch.into_iter().skip(1) {
+                    if !app.details_cache.contains_key(&it.name) { let _ = details_req_tx.send(it); }
+                }
+                // Opportunistically enrich official descriptions for this page
+                if !app.results.is_empty() {
+                    let names: Vec<String> = app
+                        .results
+                        .iter()
+                        .filter(|p| matches!(p.source, Source::Official { .. }))
+                        .map(|p| p.name.clone())
+                        .collect();
+                    crate::index::request_enrich_for(
+                        app.official_index_path.clone(),
+                        index_notify_tx.clone(),
+                        names,
+                    );
+                }
             }
             // Details ready
             Some(details) = details_res_rx.recv() => {

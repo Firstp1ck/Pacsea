@@ -26,6 +26,8 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
         format!("{repo}/{name}")
     };
     let out = std::process::Command::new("pacman")
+        .env("LC_ALL", "C")
+        .env("LANG", "C")
         .args(["-Si", &spec])
         .output()?;
     if !out.status.success() {
@@ -33,14 +35,14 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
     }
     let text = String::from_utf8(out.stdout)?;
 
-    // Parse Key : Value pairs, with continuation lines (leading spaces)
+    // Parse Key: Value pairs, with continuation lines; for Optional Deps, preserve line breaks
     let mut map: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     let mut last_key: Option<String> = None;
     for line in text.lines() {
         if line.trim().is_empty() {
             continue;
         }
-        if let Some((k, v)) = line.split_once(" : ") {
+        if let Some((k, v)) = line.split_once(':') {
             let key = k.trim().to_string();
             let val = v.trim().to_string();
             map.insert(key.clone(), val);
@@ -49,68 +51,66 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
             && let Some(k) = &last_key
         {
             let e = map.entry(k.clone()).or_default();
-            if !e.ends_with(' ') {
-                e.push(' ');
+            if k == "Optional Deps" {
+                e.push('\n');
+                e.push_str(line.trim());
+            } else {
+                if !e.ends_with(' ') {
+                    e.push(' ');
+                }
+                e.push_str(line.trim());
             }
-            e.push_str(line.trim());
         }
     }
 
-    let licenses = map
-        .get("Licenses")
-        .map(|s| s.split_whitespace().map(|x| x.to_string()).collect())
-        .unwrap_or_default();
-    let groups = map
-        .get("Groups")
-        .map(|s| s.split_whitespace().map(|x| x.to_string()).collect())
-        .unwrap_or_default();
-    let provides = map
-        .get("Provides")
-        .map(|s| s.split_whitespace().map(|x| x.to_string()).collect())
-        .unwrap_or_default();
-    let depends = map
-        .get("Depends On")
-        .map(|s| s.split_whitespace().map(|x| x.to_string()).collect())
-        .unwrap_or_default();
+    fn split_ws_or_none(s: Option<&String>) -> Vec<String> {
+        match s {
+            Some(v) if v != "None" => v.split_whitespace().map(|x| x.to_string()).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    let licenses = split_ws_or_none(map.get("Licenses").or_else(|| map.get("License")));
+    let groups = split_ws_or_none(map.get("Groups"));
+    let provides = split_ws_or_none(map.get("Provides"));
+    let depends = split_ws_or_none(map.get("Depends On"));
     let opt_depends = map
         .get("Optional Deps")
         .map(|s| {
-            s.split("  ")
-                .map(|x| x.trim().to_string())
-                .filter(|x| !x.is_empty())
+            s.lines()
+                .filter_map(|l| l.split_once(':').map(|(pkg, _)| pkg.trim().to_string()))
+                .filter(|x| !x.is_empty() && x != "None")
                 .collect()
         })
         .unwrap_or_default();
-    let required_by = map
-        .get("Required By")
-        .map(|s| {
-            if s == "None" {
-                Vec::new()
-            } else {
-                s.split_whitespace().map(|x| x.to_string()).collect()
+    let required_by = split_ws_or_none(map.get("Required By"));
+    let optional_for = split_ws_or_none(map.get("Optional For"));
+    let conflicts = split_ws_or_none(map.get("Conflicts With"));
+    let replaces = split_ws_or_none(map.get("Replaces"));
+
+    let mut description = map.get("Description").cloned().unwrap_or_default();
+    let mut architecture = map.get("Architecture").cloned().unwrap_or_default();
+
+    // Fill from official index if missing
+    if description.is_empty() || architecture.is_empty() {
+        let mut from_idx = None;
+        for it in crate::index::search_official(name) {
+            if it.name.eq_ignore_ascii_case(name) {
+                from_idx = Some(it);
+                break;
             }
-        })
-        .unwrap_or_default();
-    let conflicts = map
-        .get("Conflicts With")
-        .map(|s| {
-            if s == "None" {
-                Vec::new()
-            } else {
-                s.split_whitespace().map(|x| x.to_string()).collect()
+        }
+        if let Some(it) = from_idx {
+            if description.is_empty() {
+                description = it.description;
             }
-        })
-        .unwrap_or_default();
-    let replaces = map
-        .get("Replaces")
-        .map(|s| {
-            if s == "None" {
-                Vec::new()
-            } else {
-                s.split_whitespace().map(|x| x.to_string()).collect()
+            if architecture.is_empty()
+                && let Source::Official { arch, .. } = it.source
+            {
+                architecture = arch;
             }
-        })
-        .unwrap_or_default();
+        }
+    }
 
     let download_size = map.get("Download Size").and_then(|s| parse_size_bytes(s));
     let install_size = map.get("Installed Size").and_then(|s| parse_size_bytes(s));
@@ -122,8 +122,8 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
             .unwrap_or_else(|| repo.to_string()),
         name: map.get("Name").cloned().unwrap_or_else(|| name.to_string()),
         version: map.get("Version").cloned().unwrap_or_default(),
-        description: map.get("Description").cloned().unwrap_or_default(),
-        architecture: map.get("Architecture").cloned().unwrap_or_default(),
+        description,
+        architecture,
         url: map.get("URL").cloned().unwrap_or_default(),
         licenses,
         groups,
@@ -131,7 +131,7 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
         depends,
         opt_depends,
         required_by,
-        optional_for: Vec::new(),
+        optional_for,
         conflicts,
         replaces,
         download_size,
@@ -218,6 +218,23 @@ pub async fn fetch_official_details(
     arch: String,
     item: PackageItem,
 ) -> Result<PackageDetails> {
+    // Prefer local pacman -Si (fast, offline)
+    if let Ok(Ok(pd)) = tokio::task::spawn_blocking({
+        let repo = repo.clone();
+        let name = item.name.clone();
+        move || pacman_si(&repo, &name)
+    })
+    .await
+    {
+        // If pacman provided basic fields, return; else try web
+        let has_core =
+            !(pd.description.is_empty() && pd.architecture.is_empty() && pd.licenses.is_empty());
+        if has_core {
+            return Ok(pd);
+        }
+    }
+
+    // Fall back to web JSON
     let arch_candidates = if arch.to_lowercase() == "any" {
         vec![arch.clone()]
     } else {
@@ -239,7 +256,6 @@ pub async fn fetch_official_details(
 
     if let Some(v) = v {
         let obj = v.get("pkg").unwrap_or(&v);
-
         let d = PackageDetails {
             repository: repo,
             name: item.name.clone(),
@@ -264,18 +280,7 @@ pub async fn fetch_official_details(
         return Ok(d);
     }
 
-    // Fallback to pacman -Si if curl failed for all candidates
-    match tokio::task::spawn_blocking({
-        let repo = repo.clone();
-        let name = item.name.clone();
-        move || pacman_si(&repo, &name)
-    })
-    .await
-    {
-        Ok(Ok(pd)) => Ok(pd),
-        Ok(Err(e)) => Err(e),
-        Err(e) => Err(format!("fallback spawn failed: {e}").into()),
-    }
+    Err("official details unavailable".into())
 }
 
 pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<String>) {
