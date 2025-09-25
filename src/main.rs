@@ -25,6 +25,56 @@ use ratatui::{
 use serde_json::Value;
 use tokio::{select, sync::mpsc, time::sleep};
 
+// Catppuccin Mocha theme
+struct Theme {
+    base: Color,
+    mantle: Color,
+    crust: Color,
+    surface0: Color,
+    surface1: Color,
+    surface2: Color,
+    overlay0: Color,
+    overlay1: Color,
+    overlay2: Color,
+    text: Color,
+    subtext0: Color,
+    subtext1: Color,
+    blue: Color,
+    sapphire: Color,
+    mauve: Color,
+    green: Color,
+    yellow: Color,
+    red: Color,
+    lavender: Color,
+}
+
+fn hex(rgb: (u8, u8, u8)) -> Color {
+    Color::Rgb(rgb.0, rgb.1, rgb.2)
+}
+fn theme() -> Theme {
+    Theme {
+        base: hex((0x1e, 0x1e, 0x2e)),
+        mantle: hex((0x18, 0x18, 0x25)),
+        crust: hex((0x11, 0x11, 0x1b)),
+        surface0: hex((0x31, 0x32, 0x44)),
+        surface1: hex((0x45, 0x47, 0x5a)),
+        surface2: hex((0x58, 0x5b, 0x70)),
+        overlay0: hex((0x6c, 0x70, 0x86)),
+        overlay1: hex((0x7f, 0x84, 0x9c)),
+        overlay2: hex((0x93, 0x99, 0xb2)),
+        text: hex((0xcd, 0xd6, 0xf4)),
+        subtext0: hex((0xa6, 0xad, 0xc8)),
+        subtext1: hex((0xba, 0xc2, 0xde)),
+        blue: hex((0x89, 0xb4, 0xfa)),
+        sapphire: hex((0x74, 0xc7, 0xec)),
+        mauve: hex((0xcb, 0xa6, 0xf7)),
+        green: hex((0xa6, 0xe3, 0xa1)),
+        yellow: hex((0xf9, 0xe2, 0xaf)),
+        red: hex((0xf3, 0x8b, 0xa8)),
+        lavender: hex((0xb4, 0xbe, 0xfe)),
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Source {
     Official { repo: String, arch: String },
@@ -107,6 +157,52 @@ impl PackageDetails {
         ];
         lines
     }
+
+    fn format_lines_with_theme(&self, _area_width: u16, th: &Theme) -> Vec<Line<'static>> {
+        fn kv(key: &str, val: String, th: &Theme) -> Line<'static> {
+            Line::from(vec![
+                Span::styled(
+                    format!("{key}: "),
+                    Style::default()
+                        .fg(th.sapphire)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(val, Style::default().fg(th.text)),
+            ])
+        }
+        vec![
+            kv("Repository", self.repository.clone(), th),
+            kv("Package Name", self.name.clone(), th),
+            kv("Version", self.version.clone(), th),
+            kv("Description", self.description.clone(), th),
+            kv("Architecture", self.architecture.clone(), th),
+            kv("URL", self.url.clone(), th),
+            kv("Licences", join(&self.licenses), th),
+            kv("Provides", join(&self.provides), th),
+            kv("Depends on", join(&self.depends), th),
+            kv("Optional dependencies", join(&self.opt_depends), th),
+            kv("Required by", join(&self.required_by), th),
+            kv("Optional for", join(&self.optional_for), th),
+            kv("Conflicts with", join(&self.conflicts), th),
+            kv("Replaces", join(&self.replaces), th),
+            kv(
+                "Download size",
+                self.download_size
+                    .map(human_bytes)
+                    .unwrap_or_else(|| "N/A".to_string()),
+                th,
+            ),
+            kv(
+                "Install size",
+                self.install_size
+                    .map(human_bytes)
+                    .unwrap_or_else(|| "N/A".to_string()),
+                th,
+            ),
+            kv("Package Owner", self.owner.clone(), th),
+            kv("Build date", self.build_date.clone(), th),
+        ]
+    }
 }
 
 // Tagging for searches
@@ -136,6 +232,9 @@ struct AppState {
     history_focus: bool,
     last_input_change: Instant,
     last_saved_value: Option<String>,
+    // Persisted recent searches
+    recent_path: PathBuf,
+    recent_dirty: bool,
 
     // Search coordination
     latest_query_id: u64,
@@ -144,6 +243,10 @@ struct AppState {
     details_cache: HashMap<String, PackageDetails>,
     cache_path: PathBuf,
     cache_dirty: bool,
+
+    // Install list pane
+    install_list: Vec<PackageItem>,
+    install_state: ListState,
 }
 
 impl Default for AppState {
@@ -161,12 +264,18 @@ impl Default for AppState {
             history_focus: false,
             last_input_change: Instant::now(),
             last_saved_value: None,
+            // Persisted recent searches
+            recent_path: PathBuf::from("recent_searches.json"),
+            recent_dirty: false,
 
             latest_query_id: 0,
             next_query_id: 1,
             details_cache: HashMap::new(),
             cache_path: PathBuf::from("details_cache.json"),
             cache_dirty: false,
+
+            install_list: Vec::new(),
+            install_state: ListState::default(),
         }
     }
 }
@@ -175,10 +284,6 @@ impl Default for AppState {
 enum Modal {
     #[default]
     None,
-    Password {
-        buffer: String,
-        pkg: PackageItem,
-    },
     Alert {
         message: String,
     },
@@ -210,9 +315,25 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     };
 
     // Load cache from disk if present
-    if let Ok(s) = fs::read_to_string(&app.cache_path) {
-        if let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s) {
-            app.details_cache = map;
+    if let Ok(s) = fs::read_to_string(&app.cache_path)
+        && let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s)
+    {
+        app.details_cache = map;
+    }
+
+    // Load recent searches from disk if present
+    if let Ok(s) = fs::read_to_string(&app.recent_path)
+        && let Ok(list) = serde_json::from_str::<Vec<String>>(&s)
+    {
+        app.recent = list;
+        // de-duplicate (case-insensitive) and keep latest first, cap at 20
+        let mut seen = std::collections::HashSet::new();
+        app.recent.retain(|q| seen.insert(q.to_lowercase()));
+        if app.recent.len() > 20 {
+            app.recent.truncate(20);
+        }
+        if !app.recent.is_empty() {
+            app.history_state.select(Some(0));
         }
     }
 
@@ -223,14 +344,18 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     let (details_res_tx, mut details_res_rx) = mpsc::unbounded_channel::<PackageDetails>();
     let (tick_tx, mut tick_rx) = mpsc::unbounded_channel::<()>();
     let (net_err_tx, mut net_err_rx) = mpsc::unbounded_channel::<String>();
+    // Preview items (from Recent list hover)
+    let (preview_tx, mut preview_rx) = mpsc::unbounded_channel::<PackageItem>();
+    // Add-to-install-list channel
+    let (add_tx, mut add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
     // Spawn blocking reader of crossterm events
     std::thread::spawn(move || {
         loop {
-            if let Ok(true) = event::poll(Duration::from_millis(50)) {
-                if let Ok(ev) = event::read() {
-                    let _ = event_tx.send(ev);
-                }
+            if let Ok(true) = event::poll(Duration::from_millis(50))
+                && let Ok(ev) = event::read()
+            {
+                let _ = event_tx.send(ev);
             }
         }
     });
@@ -327,7 +452,7 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
 
         select! {
             // UI events
-            Some(ev) = event_rx.recv() => { if handle_event(ev, &mut app, &query_tx, &details_req_tx) { break; } }
+            Some(ev) = event_rx.recv() => { if handle_event(ev, &mut app, &query_tx, &details_req_tx, &preview_tx, &add_tx) { break; } }
             // Search results
             Some(new_results) = results_rx.recv() => {
                 // ignore stale results
@@ -342,11 +467,23 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
                 app.details_cache.insert(details.name.clone(), details);
                 app.cache_dirty = true;
             }
+            // Preview item from Recent focus
+            Some(item) = preview_rx.recv() => {
+                if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item); }
+            }
+            // Add to install list
+            Some(item) = add_rx.recv() => {
+                add_to_install_list(&mut app, item);
+            }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
-            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); }
+            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); }
             else => {}
         }
     }
+
+    // Final flush before exit
+    maybe_flush_cache(&mut app);
+    maybe_flush_recent(&mut app);
 
     Ok(())
 }
@@ -476,6 +613,16 @@ fn maybe_flush_cache(app: &mut AppState) {
     }
 }
 
+fn maybe_flush_recent(app: &mut AppState) {
+    if !app.recent_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.recent) {
+        let _ = fs::write(&app.recent_path, s);
+        app.recent_dirty = false;
+    }
+}
+
 fn maybe_save_recent(app: &mut AppState) {
     let now = Instant::now();
     if app.input.trim().is_empty() {
@@ -503,6 +650,7 @@ fn maybe_save_recent(app: &mut AppState) {
         app.recent.truncate(20);
     }
     app.last_saved_value = Some(value);
+    app.recent_dirty = true;
 }
 
 fn setup_terminal() -> Result<()> {
@@ -518,7 +666,13 @@ fn restore_terminal() -> Result<()> {
 }
 
 fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
+    let th = theme();
     let area = f.area();
+
+    // Background
+    let bg = Block::default().style(Style::default().bg(th.base));
+    f.render_widget(bg, area);
+
     let total_h = area.height;
     let search_h: u16 = 5; // give a bit more room for history pane
     let bottom_h: u16 = total_h.saturating_mul(2) / 3; // 2/3 of full height
@@ -539,34 +693,36 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
         .iter()
         .map(|p| {
             let (src, color) = match &p.source {
-                Source::Official { repo, .. } => (repo.to_string(), Color::LightGreen),
-                Source::Aur => ("AUR".to_string(), Color::Yellow),
+                Source::Official { repo, .. } => (repo.to_string(), th.green),
+                Source::Aur => ("AUR".to_string(), th.yellow),
             };
             let line = Line::from(vec![
                 Span::styled(format!("{src} "), Style::default().fg(color)),
                 Span::styled(
                     p.name.clone(),
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
                 ),
-                Span::raw(format!("  {}", p.version)),
+                Span::styled(format!("  {}", p.version), Style::default().fg(th.overlay1)),
                 Span::raw("  - "),
-                Span::styled(p.description.clone(), Style::default().fg(Color::Gray)),
+                Span::styled(p.description.clone(), Style::default().fg(th.overlay2)),
             ]);
             ListItem::new(line)
         })
         .collect();
 
     let list = List::new(items)
+        .style(Style::default().fg(th.text).bg(th.base))
         .block(
             Block::default()
-                .title(format!("Results ({})", app.results.len()))
+                .title(Span::styled(
+                    format!("Results ({})", app.results.len()),
+                    Style::default().fg(th.overlay1),
+                ))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(Color::Green)),
+                .border_style(Style::default().fg(th.surface2)),
         )
-        .highlight_style(Style::default().fg(Color::Black).bg(Color::Cyan))
+        .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
         .highlight_symbol("> ");
 
     f.render_stateful_widget(list, chunks[0], &mut app.list_state);
@@ -574,21 +730,36 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
     // Middle row split: left input, right recent searches
     let middle = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        .constraints([
+            Constraint::Percentage(60),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+        ])
         .split(chunks[1]);
 
     // Search input (left)
+    let search_focused = !app.history_focus;
     let input_line = Line::from(vec![
-        Span::styled("> ", Style::default().fg(Color::Green)),
-        Span::raw(app.input.as_str()),
+        Span::styled(
+            "> ",
+            Style::default().fg(if search_focused { th.sapphire } else { th.overlay1 }),
+        ),
+        Span::styled(
+            app.input.as_str().to_string(),
+            Style::default().fg(if search_focused { th.text } else { th.subtext0 }),
+        ),
     ]);
-    let input = Paragraph::new(input_line).block(
-        Block::default()
-            .title("Search")
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Green)),
-    );
+    let search_title = if app.history_focus { "Search" } else { "Search (focused)" };
+    let search_title_color = if search_focused { th.mauve } else { th.overlay1 };
+    let input = Paragraph::new(input_line)
+        .style(Style::default().fg(if search_focused { th.text } else { th.subtext0 }).bg(th.base))
+        .block(
+            Block::default()
+                .title(Span::styled(search_title, Style::default().fg(search_title_color)))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(if search_focused { th.mauve } else { th.surface1 })),
+        );
     f.render_widget(input, middle[0]);
 
     // Cursor in input
@@ -597,109 +768,73 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
     let y = middle[0].y + 1;
     f.set_cursor_position(Position::new(x, y));
 
-    // Recent searches (right)
+    // Recent searches (middle-right)
+    let recent_focused = app.history_focus;
     let rec_items: Vec<ListItem> = app
         .recent
         .iter()
-        .map(|s| ListItem::new(Span::raw(s.clone())))
+        .map(|s| ListItem::new(Span::styled(
+            s.clone(),
+            Style::default().fg(if recent_focused { th.text } else { th.subtext0 }),
+        )))
         .collect();
+    let recent_title = if app.history_focus { "Recent (focused)" } else { "Recent" };
+    let recent_title_color = if recent_focused { th.mauve } else { th.overlay1 };
     let rec_block = Block::default()
-        .title("Recent")
+        .title(Span::styled(recent_title, Style::default().fg(recent_title_color)))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(if app.history_focus {
-            Color::Cyan
-        } else {
-            Color::Gray
-        }));
+        .border_style(Style::default().fg(if recent_focused { th.mauve } else { th.surface1 }));
     let rec_list = List::new(rec_items)
+        .style(Style::default().fg(if recent_focused { th.text } else { th.subtext0 }).bg(th.base))
         .block(rec_block)
-        .highlight_style(Style::default().fg(Color::Black).bg(Color::Cyan))
+        .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
         .highlight_symbol("▶ ");
     f.render_stateful_widget(rec_list, middle[1], &mut app.history_state);
 
+    // Install List (far right)
+    let install_items: Vec<ListItem> = app
+        .install_list
+        .iter()
+        .map(|p| {
+            let line = Line::from(vec![
+                Span::styled(p.name.clone(), Style::default().fg(th.text).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("  {}", p.version), Style::default().fg(th.overlay1)),
+            ]);
+            ListItem::new(line)
+        })
+        .collect();
+    let install_block = Block::default()
+        .title(Span::styled("Install List", Style::default().fg(th.overlay1)))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(th.surface1));
+    let install_list = List::new(install_items)
+        .style(Style::default().fg(th.subtext0).bg(th.base))
+        .block(install_block)
+        .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+        .highlight_symbol("▶ ");
+    f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
+
     // Details (bottom)
-    let details_lines = app.details.format_lines(chunks[2].width);
+    let details_lines = app.details.format_lines_with_theme(chunks[2].width, &th);
     let details = Paragraph::new(details_lines)
+        .style(Style::default().fg(th.text).bg(th.base))
         .wrap(Wrap { trim: true })
         .block(
             Block::default()
-                .title("Package Info")
+                .title(Span::styled(
+                    "Package Info",
+                    Style::default().fg(th.overlay1),
+                ))
                 .borders(Borders::ALL)
-                .border_type(BorderType::Rounded),
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(th.surface2)),
         );
     f.render_widget(details, chunks[2]);
 
-    // Modal overlay for install password / confirmation
-    if let Modal::Password { buffer, pkg } = &app.modal {
-        // center rect
-        let w: u16 = 64;
-        let h: u16 = 9;
-        let x = area.x + (area.width.saturating_sub(w)) / 2;
-        let y = area.y + (area.height.saturating_sub(h)) / 2;
-        let rect = ratatui::prelude::Rect {
-            x,
-            y,
-            width: w,
-            height: h,
-        };
-
-        // clear popup area to make it stand out
-        f.render_widget(Clear, rect);
-
-        // Header and content lines
-        let mask_char = '•';
-        let masked: String = std::iter::repeat_n(mask_char, buffer.len()).collect();
-        let lines = vec![
-            Line::from(vec![Span::styled(
-                "Authentication required",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            )]),
-            Line::from(Span::styled(
-                format!("Package: {}", pkg.name),
-                Style::default().fg(Color::Cyan),
-            )),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("Password (optional): ", Style::default().fg(Color::White)),
-                Span::styled(masked, Style::default().fg(Color::Gray)),
-            ]),
-            Line::from(Span::styled(
-                "Leave blank to be prompted in the new terminal.",
-                Style::default().fg(Color::DarkGray),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Enter = Proceed   Esc = Cancel   Backspace = Delete",
-                Style::default().fg(Color::Gray),
-            )),
-        ];
-
-        let popup = Paragraph::new(lines).block(
-            Block::default()
-                .title(Span::styled(
-                    " Password ",
-                    Style::default()
-                        .fg(Color::Magenta)
-                        .add_modifier(Modifier::BOLD),
-                ))
-                .borders(Borders::ALL)
-                .border_type(BorderType::Double)
-                .border_style(Style::default().fg(Color::Magenta)),
-        );
-        f.render_widget(popup, rect);
-
-        // place cursor after the label inside the popup
-        let cursor_x = rect.x + "Password (optional): ".len() as u16 + buffer.len() as u16;
-        let cursor_y = rect.y + 4; // line index where password is
-        f.set_cursor_position(Position::new(cursor_x, cursor_y));
-    }
-
     // Modal overlay for alerts
     if let Modal::Alert { message } = &app.modal {
-        let area = f.area();
         let w = area.width.saturating_sub(10).min(80);
         let h = 7;
         let x = area.x + (area.width.saturating_sub(w)) / 2;
@@ -714,26 +849,30 @@ fn ui(f: &mut ratatui::Frame, app: &mut AppState) {
         let lines = vec![
             Line::from(Span::styled(
                 "Connection issue",
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                Style::default().fg(th.red).add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
-            Line::from(Span::raw(message.clone())),
+            Line::from(Span::styled(message.clone(), Style::default().fg(th.text))),
             Line::from(""),
             Line::from(Span::styled(
                 "Press Enter or Esc to close",
-                Style::default().fg(Color::Gray),
+                Style::default().fg(th.subtext1),
             )),
         ];
-        let boxw = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
-            Block::default()
-                .title(Span::styled(
-                    " Network Error ",
-                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                ))
-                .borders(Borders::ALL)
-                .border_type(BorderType::Double)
-                .border_style(Style::default().fg(Color::Red)),
-        );
+        let boxw = Paragraph::new(lines)
+            .style(Style::default().fg(th.text).bg(th.mantle))
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .title(Span::styled(
+                        " Network Error ",
+                        Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                    ))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Double)
+                    .border_style(Style::default().fg(th.red))
+                    .style(Style::default().bg(th.mantle)),
+            );
         f.render_widget(boxw, rect);
     }
 }
@@ -743,6 +882,8 @@ fn handle_event(
     app: &mut AppState,
     query_tx: &mpsc::UnboundedSender<QueryInput>,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
+    preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    add_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
     if let CEvent::Key(ke) = ev {
         if ke.kind != KeyEventKind::Press {
@@ -760,38 +901,22 @@ fn handle_event(
             return false;
         }
 
-        // Modal first
-        if let Modal::Password { buffer, pkg } = &mut app.modal {
-            match ke.code {
-                KeyCode::Esc => {
-                    app.modal = Modal::None;
-                }
-                KeyCode::Enter => {
-                    let pwd = buffer.clone();
-                    let pkg = pkg.clone();
-                    app.modal = Modal::None;
-                    spawn_install(
-                        &pkg,
-                        if pwd.is_empty() { None } else { Some(&pwd) },
-                        app.dry_run,
-                    );
-                }
-                KeyCode::Backspace => {
-                    buffer.pop();
-                }
-                KeyCode::Char(ch) => {
-                    buffer.push(ch);
-                }
-                _ => {}
-            }
-            return false;
-        }
-
         // History focus
         if app.history_focus {
+            // Allow exiting with Ctrl+C while in Recent pane
+            if ke.code == KeyCode::Char('c') && ke.modifiers.contains(KeyModifiers::CONTROL) {
+                return true;
+            }
             match ke.code {
                 KeyCode::Esc | KeyCode::Tab | KeyCode::BackTab => {
                     app.history_focus = false;
+                    // restore details for the currently selected result
+                    refresh_selected_details(app, details_tx);
+                }
+                KeyCode::Left => {
+                    // Move focus back to Search input from Recent pane
+                    app.history_focus = false;
+                    refresh_selected_details(app, details_tx);
                 }
                 KeyCode::Up => {
                     let sel = app.history_state.selected().unwrap_or(0);
@@ -801,6 +926,7 @@ fn handle_event(
                     } else {
                         Some(new)
                     });
+                    trigger_recent_preview(app, preview_tx);
                 }
                 KeyCode::Down => {
                     if !app.recent.is_empty() {
@@ -808,18 +934,35 @@ fn handle_event(
                         let max = app.recent.len().saturating_sub(1);
                         let new = std::cmp::min(sel + 1, max);
                         app.history_state.select(Some(new));
+                        trigger_recent_preview(app, preview_tx);
+                    }
+                }
+                KeyCode::Char(' ') => {
+                    // Add from Recent: resolve highlighted query to a package and add
+                    if let Some(idx) = app.history_state.selected() {
+                        if let Some(q) = app.recent.get(idx).cloned() {
+                            let tx = add_tx.clone();
+                            tokio::spawn(async move {
+                                let (items, _errors) = fetch_all_with_errors(q.clone()).await;
+                                if items.is_empty() { return; }
+                                if let Some(item) = items.iter().find(|it| it.name.eq_ignore_ascii_case(&q)).cloned() {
+                                    let _ = tx.send(item);
+                                } else {
+                                    let _ = tx.send(items[0].clone());
+                                }
+                            });
+                        }
                     }
                 }
                 KeyCode::Enter => {
-                    if let Some(idx) = app.history_state.selected() {
-                        if let Some(q) = app.recent.get(idx).cloned() {
+                    if let Some(idx) = app.history_state.selected()
+                        && let Some(q) = app.recent.get(idx).cloned() {
                             app.input = q;
                             app.history_focus = false;
                             app.last_input_change = Instant::now();
                             app.last_saved_value = None;
                             send_query(app, query_tx);
                         }
-                    }
                 }
                 _ => {}
             }
@@ -837,6 +980,23 @@ fn handle_event(
                 if app.history_state.selected().is_none() {
                     app.history_state.select(Some(0));
                 }
+                trigger_recent_preview(app, preview_tx);
+            }
+            (KeyCode::Right, _) => {
+                // Move focus to Recent pane with Right arrow
+                if !app.recent.is_empty() {
+                    app.history_focus = true;
+                    if app.history_state.selected().is_none() {
+                        app.history_state.select(Some(0));
+                    }
+                    trigger_recent_preview(app, preview_tx);
+                }
+            }
+            (KeyCode::Char(' '), _) => {
+                // Add currently selected result to install list
+                if let Some(item) = app.results.get(app.selected).cloned() {
+                    let _ = add_tx.send(item);
+                }
             }
             (KeyCode::Backspace, _) => {
                 app.input.pop();
@@ -846,17 +1006,8 @@ fn handle_event(
             }
             (KeyCode::Char('\n') | KeyCode::Enter, _) => {
                 if let Some(item) = app.results.get(app.selected).cloned() {
-                    match &item.source {
-                        Source::Official { .. } => {
-                            app.modal = Modal::Password {
-                                buffer: String::new(),
-                                pkg: item,
-                            };
-                        }
-                        Source::Aur => {
-                            spawn_install(&item, None, app.dry_run);
-                        }
-                    }
+                    // Always install in a new terminal and let sudo prompt there
+                    spawn_install(&item, None, app.dry_run);
                 }
             }
             (KeyCode::Char(ch), _) => {
@@ -873,6 +1024,46 @@ fn handle_event(
         }
     }
     false
+}
+
+fn refresh_selected_details(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
+    if let Some(item) = app.results.get(app.selected).cloned() {
+        if let Some(cached) = app.details_cache.get(&item.name).cloned() {
+            app.details = cached;
+        } else {
+            let _ = details_tx.send(item);
+        }
+    }
+}
+
+fn trigger_recent_preview(app: &AppState, preview_tx: &mpsc::UnboundedSender<PackageItem>) {
+    if !app.history_focus {
+        return;
+    }
+    let idx = match app.history_state.selected() {
+        Some(i) => i,
+        None => return,
+    };
+    let Some(q) = app.recent.get(idx).cloned() else {
+        return;
+    };
+    let tx = preview_tx.clone();
+    tokio::spawn(async move {
+        let (items, _errors) = fetch_all_with_errors(q.clone()).await;
+        if items.is_empty() {
+            return;
+        }
+        // prefer exact match by name (case-insensitive), else first item
+        if let Some(item) = items
+            .iter()
+            .find(|it| it.name.eq_ignore_ascii_case(&q))
+            .cloned()
+        {
+            let _ = tx.send(item);
+        } else {
+            let _ = tx.send(items[0].clone());
+        }
+    });
 }
 
 fn send_query(app: &mut AppState, query_tx: &mpsc::UnboundedSender<QueryInput>) {
@@ -909,6 +1100,18 @@ fn move_sel_cached(
         } else {
             let _ = details_tx.send(item);
         }
+    }
+}
+
+fn add_to_install_list(app: &mut AppState, item: PackageItem) {
+    // Avoid duplicates by name (case-insensitive)
+    if app.install_list.iter().any(|p| p.name.eq_ignore_ascii_case(&item.name)) {
+        return;
+    }
+    app.install_list.push(item);
+    // Ensure a selection exists in the Install List
+    if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+        app.install_state.select(Some(0));
     }
 }
 
@@ -1032,8 +1235,16 @@ async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
     let d = PackageDetails {
         repository: "AUR".into(),
         name: item.name.clone(),
-        version: if version0.is_empty() { item.version.clone() } else { version0 },
-        description: if description0.is_empty() { item.description.clone() } else { description0 },
+        version: if version0.is_empty() {
+            item.version.clone()
+        } else {
+            version0
+        },
+        description: if description0.is_empty() {
+            item.description.clone()
+        } else {
+            description0
+        },
         architecture: "any".into(),
         url: s(&obj, "URL"),
         licenses: arrs(&obj, &["License", "Licenses"]),
@@ -1093,19 +1304,69 @@ fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
             if let Some(u) = n.as_u64() {
                 return Some(u);
             }
-            if let Some(i) = n.as_i64() {
-                if let Ok(u) = u64::try_from(i) {
-                    return Some(u);
-                }
+            if let Some(i) = n.as_i64()
+                && let Ok(u) = u64::try_from(i)
+            {
+                return Some(u);
             }
-            if let Some(s) = n.as_str() {
-                if let Ok(p) = s.parse::<u64>() {
-                    return Some(p);
-                }
+            if let Some(s) = n.as_str()
+                && let Ok(p) = s.parse::<u64>()
+            {
+                return Some(p);
             }
         }
     }
     None
+}
+
+// Helper: check whether a command exists on PATH (Unix-aware exec bit)
+fn command_on_path(cmd: &str) -> bool {
+    use std::path::Path;
+
+    fn is_exec(p: &std::path::Path) -> bool {
+        if !p.is_file() {
+            return false;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(meta) = fs::metadata(p) {
+                return meta.permissions().mode() & 0o111 != 0;
+            }
+            false
+        }
+        #[cfg(not(unix))]
+        {
+            true
+        }
+    }
+
+    // If path contains a separator, check directly
+    if cmd.contains(std::path::MAIN_SEPARATOR) {
+        return is_exec(Path::new(cmd));
+    }
+
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            let candidate = dir.join(cmd);
+            if is_exec(&candidate) {
+                return true;
+            }
+            #[cfg(windows)]
+            {
+                // On Windows, try PATHEXT variants
+                if let Some(pathext) = std::env::var_os("PATHEXT") {
+                    for ext in pathext.to_string_lossy().split(';') {
+                        let candidate = dir.join(format!("{}{}", cmd, ext));
+                        if candidate.is_file() {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -1155,11 +1416,11 @@ fn build_install_command(
     match &item.source {
         Source::Official { .. } => {
             let base_cmd = format!("pacman -S --needed {}", item.name);
+            // Robust hold tail that works even if read fails (e.g., no TTY)
+            let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             if dry_run {
-                return (
-                    format!("echo DRY RUN: sudo {base_cmd} && echo Done & pause"),
-                    true,
-                );
+                let bash = format!("echo DRY RUN: sudo {base_cmd}{hold}", hold = hold_tail);
+                return (bash, true);
             }
             // Escape password for bash
             let pass = password.unwrap_or("");
@@ -1169,21 +1430,23 @@ fn build_install_command(
             } else {
                 format!("echo '{escaped}' | ")
             };
-            let bash = format!(
-                "{pipe}sudo -S {base_cmd}; echo; echo 'Finished.'; read -n1 -s -r -p 'Press any key to close...'"
-            );
+            let bash = format!("{pipe}sudo -S {base_cmd}{hold}", hold = hold_tail);
             (bash, true)
         }
         Source::Aur => {
+            // Robust hold tail that works even if read fails (e.g., no TTY)
+            let hold_tail = "; echo; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             let aur_cmd = if dry_run {
                 format!(
-                    "echo DRY RUN: paru -S --needed {} || yay -S --needed {}; echo Done; read -n1 -s -r -p 'Press any key...'",
-                    item.name, item.name
+                    "echo DRY RUN: paru -S --needed {n} || yay -S --needed {n}{hold}",
+                    n = item.name,
+                    hold = hold_tail
                 )
             } else {
                 format!(
-                    "(command -v paru >/dev/null 2>&1 && paru -S --needed {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed {n}) || echo 'No AUR helper (paru/yay) found.'; echo; read -n1 -s -r -p 'Press any key...'",
-                    n = item.name
+                    "(command -v paru >/dev/null 2>&1 && paru -S --needed {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed {n}) || echo 'No AUR helper (paru/yay) found.'{hold}",
+                    n = item.name,
+                    hold = hold_tail
                 )
             };
             (aur_cmd, false)
