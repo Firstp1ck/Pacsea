@@ -19,3 +19,7 @@ target/
 # Added by cargo
 
 /target
+
+details_cache.json
+recent_searches.json
+official_index.json

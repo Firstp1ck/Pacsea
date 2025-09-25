@@ -56,6 +56,9 @@ pub enum Modal {
     Alert {
         message: String,
     },
+    Info {
+        message: String,
+    },
     ConfirmInstall {
         items: Vec<PackageItem>,
     },
@@ -107,6 +110,9 @@ pub struct AppState {
 
     // Official package index persistence
     pub official_index_path: PathBuf,
+
+    // Loading indicator for official index generation
+    pub loading_index: bool,
 }
 
 impl Default for AppState {
@@ -142,6 +148,8 @@ impl Default for AppState {
             pane_find: None,
 
             official_index_path: PathBuf::from("official_index.json"),
+
+            loading_index: false,
         }
     }
 }

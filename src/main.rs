@@ -139,32 +139,6 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     // Load official index from disk and refresh in background
     pkgindex::load_from_disk(&app.official_index_path);
 
-    // Load recent searches from disk if present
-    if let Ok(s) = fs::read_to_string(&app.recent_path)
-        && let Ok(list) = serde_json::from_str::<Vec<String>>(&s)
-    {
-        app.recent = list;
-        // de-duplicate (case-insensitive) and keep latest first, cap at 20
-        let mut seen = std::collections::HashSet::new();
-        app.recent.retain(|q| seen.insert(q.to_lowercase()));
-        if app.recent.len() > 20 {
-            app.recent.truncate(20);
-        }
-        if !app.recent.is_empty() {
-            app.history_state.select(Some(0));
-        }
-    }
-
-    // Load install list from disk if present
-    if let Ok(s) = fs::read_to_string(&app.install_path)
-        && let Ok(list) = serde_json::from_str::<Vec<PackageItem>>(&s)
-    {
-        app.install_list = list;
-        if !app.install_list.is_empty() {
-            app.install_state.select(Some(0));
-        }
-    }
-
     // Channels
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<CEvent>();
     let (search_result_tx, mut results_rx) = mpsc::unbounded_channel::<SearchResults>();
@@ -178,6 +152,30 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     let (add_tx, mut add_rx) = mpsc::unbounded_channel::<PackageItem>();
     // Notify when official index updates
     let (index_notify_tx, mut index_notify_rx) = mpsc::unbounded_channel::<()>();
+
+    // If first run (no index yet), show info popup
+    let index_missing = !std::path::Path::new(&app.official_index_path).exists();
+    let index_empty = pkgindex::all_official().is_empty();
+    if index_missing || index_empty {
+        app.modal = Modal::Info { message: "Building official package index for the first time…\nThis may take a few minutes on slower connections or disks.".to_string() };
+        app.loading_index = true;
+    }
+
+    // Background refresh of official index (once on startup)
+    pkgindex::update_in_background(
+        app.official_index_path.clone(),
+        net_err_tx.clone(),
+        index_notify_tx.clone(),
+    )
+    .await;
+
+    // If index became available synchronously (e.g., already on disk), clear loading flag
+    if !pkgindex::all_official().is_empty() {
+        app.loading_index = false;
+    }
+
+    // Refresh installed packages cache once at startup
+    pkgindex::refresh_installed_cache().await;
 
     // Spawn blocking reader of crossterm events
     std::thread::spawn(move || {
@@ -198,17 +196,6 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
             let _ = tick_tx.send(());
         }
     });
-
-    // Background refresh of official index (once on startup)
-    pkgindex::update_in_background(
-        app.official_index_path.clone(),
-        net_err_tx.clone(),
-        index_notify_tx.clone(),
-    )
-    .await;
-
-    // Refresh installed packages cache once at startup
-    pkgindex::refresh_installed_cache().await;
 
     // Search worker with debounce + throttle + tagging
     let (query_tx, mut query_rx) = mpsc::unbounded_channel::<QueryInput>();
@@ -327,7 +314,10 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
             // UI events
             Some(ev) = event_rx.recv() => { if handle_event(ev, &mut app, &query_tx, &details_req_tx, &preview_tx, &add_tx) { break; } }
             // Official index updated -> rerun current search (refresh UI)
-            Some(_) = index_notify_rx.recv() => { send_query(&mut app, &query_tx); }
+            Some(_) = index_notify_rx.recv() => {
+                app.loading_index = false;
+                send_query(&mut app, &query_tx);
+            }
             // Search results
             Some(new_results) = results_rx.recv() => {
                 // ignore stale results

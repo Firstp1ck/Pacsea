@@ -89,6 +89,13 @@ pub fn handle_event(
                 }
                 return false;
             }
+            crate::state::Modal::Info { .. } => {
+                match ke.code {
+                    KeyCode::Enter | KeyCode::Esc => app.modal = crate::state::Modal::None,
+                    _ => {}
+                }
+                return false;
+            }
             crate::state::Modal::ConfirmInstall { items } => {
                 match ke.code {
                     KeyCode::Esc => {

@@ -304,144 +304,32 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         );
     f.render_widget(details, chunks[2]);
 
-    // Keybindings footer inside Package Info (four lines: Search, Recent, Install, Global)
-    let inner = ratatui::prelude::Rect {
-        x: chunks[2].x + 1,
-        y: chunks[2].y + 1,
-        width: chunks[2].width.saturating_sub(2),
-        height: chunks[2].height.saturating_sub(2),
-    };
-    if inner.height >= 4 && inner.width >= 1 {
-        let footer_rect = ratatui::prelude::Rect {
-            x: inner.x,
-            y: inner.y + inner.height.saturating_sub(4),
-            width: inner.width,
-            height: 4,
+    // Bottom-right loading hint while official index is being generated
+    if app.loading_index {
+        let msg = "Repo’s are Loading…";
+        let w = msg.len() as u16 + 4;
+        let h = 3;
+        let x = chunks[2].x + chunks[2].width.saturating_sub(w) - 1;
+        let y = chunks[2].y + chunks[2].height.saturating_sub(h);
+        let rect = ratatui::prelude::Rect {
+            x,
+            y,
+            width: w,
+            height: h,
         };
-
-        // Styles per pane depending on focus
-        let (search_lbl, search_keys) = if matches!(app.focus, Focus::Search) {
-            (
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-                Style::default().fg(th.text),
-            )
-        } else {
-            (
-                Style::default().fg(th.overlay1),
-                Style::default().fg(th.subtext1),
-            )
-        };
-        let (recent_lbl, recent_keys) = if matches!(app.focus, Focus::Recent) {
-            (
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-                Style::default().fg(th.text),
-            )
-        } else {
-            (
-                Style::default().fg(th.overlay1),
-                Style::default().fg(th.subtext1),
-            )
-        };
-        let (install_lbl, install_keys) = if matches!(app.focus, Focus::Install) {
-            (
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-                Style::default().fg(th.text),
-            )
-        } else {
-            (
-                Style::default().fg(th.overlay1),
-                Style::default().fg(th.subtext1),
-            )
-        };
-        let global_lbl = Style::default().fg(th.overlay1);
-        let global_keys = Style::default().fg(th.subtext1);
-
-        // SEARCH line
-        let l1: Vec<Span> = vec![
-            Span::styled("SEARCH:", search_lbl),
-            Span::styled(" ↑/↓ PgUp/PgDn", search_keys),
-            Span::raw("  "),
-            Span::styled("Space", search_keys),
-            Span::styled("=add", search_keys),
-            Span::raw("  "),
-            Span::styled("Enter", search_keys),
-            Span::styled("=install", search_keys),
-            Span::raw("  "),
-            Span::styled("←/→ Tab/S-Tab", search_keys),
-            Span::styled("=switch", search_keys),
-            Span::raw("  "),
-            Span::styled("Type", search_keys),
-            Span::styled("=query", search_keys),
-            Span::raw("  "),
-            Span::styled("Backspace", search_keys),
-            Span::styled("=delete", search_keys),
-        ];
-
-        // RECENT line
-        let l2: Vec<Span> = vec![
-            Span::styled("RECENT:", recent_lbl),
-            Span::styled(" j/k or ↑/↓", recent_keys),
-            Span::raw("  "),
-            Span::styled("Enter", recent_keys),
-            Span::styled("=use", recent_keys),
-            Span::raw("  "),
-            Span::styled("Space", recent_keys),
-            Span::styled("=add", recent_keys),
-            Span::raw("  "),
-            Span::styled("/", recent_keys),
-            Span::styled("=find, Enter next, Esc cancel", recent_keys),
-            Span::raw("  "),
-            Span::styled("Esc", recent_keys),
-            Span::styled("=to Search", recent_keys),
-            Span::raw("  "),
-            Span::styled("←/→ Tab/S-Tab", recent_keys),
-            Span::styled("=switch", recent_keys),
-        ];
-
-        // INSTALL line
-        let l3: Vec<Span> = vec![
-            Span::styled("INSTALL:", install_lbl),
-            Span::styled(" j/k or ↑/↓", install_keys),
-            Span::raw("  "),
-            Span::styled("Enter", install_keys),
-            Span::styled("=confirm", install_keys),
-            Span::raw("  "),
-            Span::styled("Del", install_keys),
-            Span::styled("=remove", install_keys),
-            Span::raw("  "),
-            Span::styled("Shift+Del", install_keys),
-            Span::styled("=clear", install_keys),
-            Span::raw("  "),
-            Span::styled("/", install_keys),
-            Span::styled("=find, Enter next, Esc cancel", install_keys),
-            Span::raw("  "),
-            Span::styled("Esc", install_keys),
-            Span::styled("=to Search", install_keys),
-            Span::raw("  "),
-            Span::styled("←/→ Tab/S-Tab", install_keys),
-            Span::styled("=switch", install_keys),
-        ];
-
-        // GLOBAL line
-        let l4: Vec<Span> = vec![
-            Span::styled("GLOBALS:", global_lbl),
-            Span::styled(" Ctrl+C=exit", global_keys),
-            Span::raw("  "),
-            Span::styled("Esc=exit (Search)", global_keys),
-            Span::raw("  "),
-            Span::styled("Popup dialog: Enter=confirm, Esc=cancel", global_keys),
-        ];
-
-        let kb = Paragraph::new(vec![
-            // Order: GLOBALS, SEARCH, INSTALL, RECENT
-            Line::from(l4),
-            Line::from(l1),
-            Line::from(l3),
-            Line::from(l2),
-        ])
-        .style(Style::default().fg(th.subtext1).bg(th.base))
-        .wrap(Wrap { trim: true });
-        f.render_widget(kb, footer_rect);
+        let hint = Paragraph::new(Line::from(Span::styled(
+            msg,
+            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+        )))
+        .style(Style::default().bg(th.base))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(th.surface2))
+                .title(Span::styled(" Loading ", Style::default().fg(th.overlay1))),
+        );
+        f.render_widget(hint, rect);
     }
 
     // Modal overlay for alerts
@@ -483,6 +371,47 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Double)
                         .border_style(Style::default().fg(th.red))
+                        .style(Style::default().bg(th.mantle)),
+                );
+            f.render_widget(boxw, rect);
+        }
+        crate::state::Modal::Info { message } => {
+            let w = area.width.saturating_sub(10).min(80);
+            let h = 9;
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
+            f.render_widget(Clear, rect);
+            let lines = vec![
+                Line::from(Span::styled(
+                    "First‑time setup",
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(message.clone(), Style::default().fg(th.text))),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Press Enter or Esc to continue",
+                    Style::default().fg(th.subtext1),
+                )),
+            ];
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.mantle))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            " Info ",
+                            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(th.mauve))
                         .style(Style::default().bg(th.mantle)),
                 );
             f.render_widget(boxw, rect);
