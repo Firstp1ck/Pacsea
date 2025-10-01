@@ -56,9 +56,6 @@ pub enum Modal {
     Alert {
         message: String,
     },
-    Info {
-        message: String,
-    },
     ConfirmInstall {
         items: Vec<PackageItem>,
     },
@@ -121,6 +118,9 @@ pub struct AppState {
     pub scroll_moves: u32,
     pub ring_resume_at: Option<Instant>,
     pub need_ring_prefetch: bool,
+
+    // Clickable URL button rectangle (x, y, w, h) in terminal cells
+    pub url_button_rect: Option<(u16, u16, u16, u16)>,
 }
 
 impl Default for AppState {
@@ -164,6 +164,7 @@ impl Default for AppState {
             scroll_moves: 0,
             ring_resume_at: None,
             need_ring_prefetch: false,
+            url_button_rect: None,
         }
     }
 }

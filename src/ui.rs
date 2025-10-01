@@ -324,49 +324,137 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
 
     // Details (bottom)
-    let details_lines = crate::ui_helpers::format_details_lines(app, chunks[2].width, &th);
+    let mut details_lines = crate::ui_helpers::format_details_lines(app, chunks[2].width, &th);
+
+    // Find the URL line and, when mouse mode is enabled, style it as a link and record its rect
+    app.url_button_rect = None;
+    for (row_idx, line) in details_lines.iter_mut().enumerate() {
+        if line.spans.len() >= 2 {
+            let key_txt = line.spans[0].content.to_string();
+            if key_txt.starts_with("URL:") {
+                let url_txt = app.details.url.clone();
+                let mut style = Style::default().fg(th.text);
+                if !url_txt.is_empty() {
+                    style = Style::default().fg(th.mauve).add_modifier(Modifier::UNDERLINED | Modifier::BOLD);
+                }
+                line.spans[1] = Span::styled(url_txt.clone(), style);
+                if !url_txt.is_empty() {
+                    let border_inset = 1u16;
+                    let content_x = chunks[2].x.saturating_add(border_inset);
+                    let content_y = chunks[2].y.saturating_add(border_inset);
+                    let key_len = key_txt.len() as u16;
+                    let x_start = content_x.saturating_add(key_len);
+                    let y = content_y.saturating_add(row_idx as u16);
+                    let max_w = chunks[2].width.saturating_sub(2).saturating_sub(key_len);
+                    let w = url_txt.len().min(max_w as usize) as u16;
+                    if w > 0 { app.url_button_rect = Some((x_start, y, w, 1)); }
+                }
+                break;
+            }
+        }
+    }
+
+    let details_block = Block::default()
+        .title(Span::styled(
+            "Package Info",
+            Style::default().fg(th.overlay1),
+        ))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(th.surface2));
     let details = Paragraph::new(details_lines)
         .style(Style::default().fg(th.text).bg(th.base))
         .wrap(Wrap { trim: true })
-        .block(
-            Block::default()
-                .title(Span::styled(
-                    "Package Info",
-                    Style::default().fg(th.overlay1),
-                ))
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(th.surface2)),
-        );
+        .block(details_block.clone());
     f.render_widget(details, chunks[2]);
 
-    // Bottom-right loading hint while official index is being generated
-    if app.loading_index {
-        let msg = "Repo’s are Loading…";
-        let w = msg.len() as u16 + 4;
-        let h = 3;
-        let x = chunks[2].x + chunks[2].width.saturating_sub(w) - 1;
-        let y = chunks[2].y + chunks[2].height.saturating_sub(h);
-        let rect = ratatui::prelude::Rect {
-            x,
-            y,
-            width: w,
-            height: h,
-        };
-        let hint = Paragraph::new(Line::from(Span::styled(
-            msg,
-            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
-        )))
-        .style(Style::default().bg(th.base))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(th.surface2))
-                .title(Span::styled(" Loading ", Style::default().fg(th.overlay1))),
-        );
-        f.render_widget(hint, rect);
+    // Help footer with keybindings in the bottom of Package Info pane
+    {
+        let help_h: u16 = 5;
+        if chunks[2].height > help_h + 2 {
+            let x = chunks[2].x + 1; // inside border
+            let y = chunks[2].y + chunks[2].height.saturating_sub(1 + help_h);
+            let w = chunks[2].width.saturating_sub(2);
+            let h = help_h;
+            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+
+            let search_label_color = if matches!(app.focus, Focus::Search) { th.mauve } else { th.overlay1 };
+            let install_label_color = if matches!(app.focus, Focus::Install) { th.mauve } else { th.overlay1 };
+            let recent_label_color = if matches!(app.focus, Focus::Recent) { th.mauve } else { th.overlay1 };
+
+            let key_style = Style::default().fg(th.text).bg(th.surface2).add_modifier(Modifier::BOLD);
+            let sep = Span::styled("  |  ", Style::default().fg(th.overlay2));
+
+            // GLOBALS
+            let mut g_spans: Vec<Span> = vec![
+                Span::styled("GLOBALS:", Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD)),
+                Span::raw("  "),
+            ];
+            g_spans.extend([
+                Span::styled("[Ctrl+C]", key_style), Span::raw(" exit"), sep.clone(),
+                Span::styled("[Esc]", key_style), Span::raw(" exit (Search)"), sep.clone(),
+                Span::styled("[Enter]", key_style), Span::raw(" confirm popup"), sep.clone(),
+                Span::styled("[Esc]", key_style), Span::raw(" cancel popup"),
+            ]);
+
+            // SEARCH
+            let mut s_spans: Vec<Span> = vec![
+                Span::styled("SEARCH:", Style::default().fg(search_label_color).add_modifier(Modifier::BOLD)),
+                Span::raw("  "),
+            ];
+            s_spans.extend([
+                Span::styled("[↑/↓]", key_style), Span::raw(" move"), sep.clone(),
+                Span::styled("[PgUp/PgDn]", key_style), Span::raw(" page"), sep.clone(),
+                Span::styled("[Space]", key_style), Span::raw(" add"), sep.clone(),
+                Span::styled("[Enter]", key_style), Span::raw(" install"), sep.clone(),
+                Span::styled("[Tab/S-Tab]", key_style), Span::raw(" switch pane"), sep.clone(),
+                Span::styled("[Type]", key_style), Span::raw(" query"), sep.clone(),
+                Span::styled("[Backspace]", key_style), Span::raw(" delete"),
+            ]);
+
+            // INSTALL
+            let mut i_spans: Vec<Span> = vec![
+                Span::styled("INSTALL:", Style::default().fg(install_label_color).add_modifier(Modifier::BOLD)),
+                Span::raw("  "),
+            ];
+            i_spans.extend([
+                Span::styled("[j/k or ↑/↓]", key_style), Span::raw(" move"), sep.clone(),
+                Span::styled("[Enter]", key_style), Span::raw(" confirm"), sep.clone(),
+                Span::styled("[Del]", key_style), Span::raw(" remove"), sep.clone(),
+                Span::styled("[Shift+Del]", key_style), Span::raw(" clear"), sep.clone(),
+                Span::styled("[/]", key_style), Span::raw(" find (Enter next, Esc cancel)"), sep.clone(),
+                Span::styled("[Esc]", key_style), Span::raw(" to Search"), sep.clone(),
+                Span::styled("[Tab/S-Tab]", key_style), Span::raw(" switch pane"),
+            ]);
+
+            // RECENT
+            let mut r_spans: Vec<Span> = vec![
+                Span::styled("RECENT:", Style::default().fg(recent_label_color).add_modifier(Modifier::BOLD)),
+                Span::raw("  "),
+            ];
+            r_spans.extend([
+                Span::styled("[j/k or ↑/↓]", key_style), Span::raw(" move"), sep.clone(),
+                Span::styled("[Enter]", key_style), Span::raw(" use"), sep.clone(),
+                Span::styled("[Space]", key_style), Span::raw(" add"), sep.clone(),
+                Span::styled("[/]", key_style), Span::raw(" find (Enter next, Esc cancel)"), sep.clone(),
+                Span::styled("[Esc]", key_style), Span::raw(" to Search"), sep.clone(),
+                Span::styled("[Tab/S-Tab]", key_style), Span::raw(" switch pane"),
+            ]);
+
+            let lines = vec![
+                Line::from(g_spans),
+                Line::from(s_spans),
+                Line::from(i_spans),
+                Line::from(r_spans),
+            ];
+            let footer = Paragraph::new(lines)
+                .style(Style::default().fg(th.subtext1).bg(th.base))
+                .wrap(Wrap { trim: true });
+            f.render_widget(footer, rect);
+        }
     }
+
+    // Removed URL button; URL text itself is clickable in mouse mode
 
     // Modal overlay for alerts
     match &app.modal {
@@ -407,47 +495,6 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Double)
                         .border_style(Style::default().fg(th.red))
-                        .style(Style::default().bg(th.mantle)),
-                );
-            f.render_widget(boxw, rect);
-        }
-        crate::state::Modal::Info { message } => {
-            let w = area.width.saturating_sub(10).min(80);
-            let h = 9;
-            let x = area.x + (area.width.saturating_sub(w)) / 2;
-            let y = area.y + (area.height.saturating_sub(h)) / 2;
-            let rect = ratatui::prelude::Rect {
-                x,
-                y,
-                width: w,
-                height: h,
-            };
-            f.render_widget(Clear, rect);
-            let lines = vec![
-                Line::from(Span::styled(
-                    "First‑time setup",
-                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-                )),
-                Line::from(""),
-                Line::from(Span::styled(message.clone(), Style::default().fg(th.text))),
-                Line::from(""),
-                Line::from(Span::styled(
-                    "Press Enter or Esc to continue",
-                    Style::default().fg(th.subtext1),
-                )),
-            ];
-            let boxw = Paragraph::new(lines)
-                .style(Style::default().fg(th.text).bg(th.mantle))
-                .wrap(Wrap { trim: true })
-                .block(
-                    Block::default()
-                        .title(Span::styled(
-                            " Info ",
-                            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-                        ))
-                        .borders(Borders::ALL)
-                        .border_type(BorderType::Double)
-                        .border_style(Style::default().fg(th.mauve))
                         .style(Style::default().bg(th.mantle)),
                 );
             f.render_widget(boxw, rect);

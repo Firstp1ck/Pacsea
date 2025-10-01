@@ -201,14 +201,6 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
         }
     });
 
-    // If first run (no index yet), show info popup
-    let index_missing = !std::path::Path::new(&app.official_index_path).exists();
-    let index_empty = pkgindex::all_official().is_empty();
-    if index_missing || index_empty {
-        app.modal = Modal::Info { message: "Building official package index for the first time…\nThis may take a few minutes on slower connections or disks.".to_string() };
-        app.loading_index = true;
-    }
-
     // Background refresh of official index (once on startup)
     pkgindex::update_in_background(
         app.official_index_path.clone(),
@@ -218,9 +210,7 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     .await;
 
     // If index became available synchronously (e.g., already on disk), clear loading flag
-    if !pkgindex::all_official().is_empty() {
-        app.loading_index = false;
-    }
+    // app.loading_index is no longer used
 
     // Refresh installed packages cache once at startup
     pkgindex::refresh_installed_cache().await;

@@ -89,13 +89,6 @@ pub fn handle_event(
                 }
                 return false;
             }
-            crate::state::Modal::Info { .. } => {
-                match ke.code {
-                    KeyCode::Enter | KeyCode::Esc => app.modal = crate::state::Modal::None,
-                    _ => {}
-                }
-                return false;
-            }
             crate::state::Modal::ConfirmInstall { items } => {
                 match ke.code {
                     KeyCode::Esc => {
@@ -451,6 +444,28 @@ pub fn handle_event(
             (KeyCode::PageDown, _) => move_sel_cached(app, 10, details_tx),
             _ => {}
         }
+    }
+    // Mouse click handling for URL (always enabled)
+    if let CEvent::Mouse(m) = ev {
+        if let crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) = m.kind {
+            if let Some((x, y, w, h)) = app.url_button_rect {
+                let mx = m.column; let my = m.row;
+                if mx >= x && mx < x + w && my >= y && my < y + h {
+                    if !app.details.url.is_empty() {
+                        let url = app.details.url.clone();
+                        std::thread::spawn(move || {
+                            let _ = std::process::Command::new("xdg-open")
+                                .arg(url)
+                                .stdin(std::process::Stdio::null())
+                                .stdout(std::process::Stdio::null())
+                                .stderr(std::process::Stdio::null())
+                                .spawn();
+                        });
+                    }
+                }
+            }
+        }
+        return false;
     }
     false
 }

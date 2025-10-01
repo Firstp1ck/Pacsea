@@ -18,6 +18,7 @@ Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in 
   - [Build from source](#build-from-source)
   - [Run](#run)
 - [Usage](#usage)
+- [Command-line options](#command-line-options)
 - [Keybindings](#keybindings)
 - [Data sources and performance](#data-sources-and-performance)
 - [Files created](#files-created)
@@ -39,6 +40,7 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - 🧠 Caching of details and local index for faster subsequent usage
 - 📝 Install log written to `install_log.txt`
 - 🧪 `--dry-run` mode for safe testing
+- 🖱️ Click the URL in Package Info to open it in your browser (uses `xdg-open`)
 
 ## Installation
 ### Prerequisites
@@ -76,8 +78,12 @@ cargo run
 3) Press Space to add the selected package to the Install list.
 4) Press Enter to confirm installing the selected (Search) or all (Install) packages.
 5) Use the Recent pane to re‑run prior queries; Enter loads the query into Search, Space quickly adds the first match.
+6) Optional: Left‑click the URL in the Package Info panel to open it in your browser.
 
 The bottom Package Info panel displays rich metadata for the selected item; Pacsea prefetches details for the first few results to keep it snappy.
+
+## Command-line options
+- `--dry-run` — run Pacsea without performing any installs. Useful for testing and demos.
 
 ## Keybindings
 
@@ -96,7 +102,7 @@ The bottom Package Info panel displays rich metadata for the selected item; Pacs
 | Install  | Confirm install all            | Enter                        |
 | Install  | Remove selected / Clear all    | Delete / Shift+Delete        |
 
-A compact multi‑line help is also visible at the bottom of Package Info.
+A compact multi‑line help is also visible at the bottom of Package Info. Mouse: Left‑click the URL in Package Info to open it.
 
 ## Data sources and performance
 - Official repositories
@@ -124,14 +130,69 @@ A compact multi‑line help is also visible at the bottom of Package Info.
 - AUR search errors
   - Check network connectivity (AUR RPC is online).
 - Installs don’t start
-  - Pacsea uses `sudo pacman` for official installs and `paru`/`yay` for AUR. If no terminal emulator is found, it falls back to `bash`.
+  - Pacsea opens a terminal to run commands. It tries common emulators in this order (if found on PATH): `alacritty`, `kitty`, `xterm`, `gnome-terminal`, `konsole`, `xfce4-terminal`, `tilix`, `mate-terminal`. If none are found, it falls back to `bash`. Ensure at least one is installed.
+  - Official installs use `sudo pacman`; make sure you can authenticate with sudo in a terminal.
 
 ## Roadmap
 - [ ] Configurable paths (XDG) and settings
-- [ ] Additional fields in Package Info
-- [ ] AUR README/PKGBUILD inline preview
-- [ ] Optional mouse support
-- [ ] Prebuilt binaries / packaging
+- [ ] Prebuilt binaries / packaging (Arch User Repository)
+
+Priority (next)
+- [ ] Theme customization system (themes, color palettes, glyph styles; adaptive terminal colors)
+- [ ] XDG‑compliant configuration with persistent settings
+- [ ] Customizable keybindings and context help overlay
+- [ ] Smarter caching and performance (intelligent prefetch, async enrichment, offline mode)
+- [ ] Richer package info (PKGBUILD preview, dependency visualization)
+
+Customization
+- [ ] Adjustable pane proportions (resizable three‑pane layout)
+- [ ] Toggle visibility of panes/sections
+
+Configuration & Profiles
+- [ ] Settings persistence across sessions
+- [ ] Multiple profiles for different workflows
+
+Search & Sorting
+- [ ] Search modes: contains / starts‑with / regex
+- [ ] Scope filtering: official vs AUR
+- [ ] Sorting: name, popularity, date, size
+
+Productivity
+- [ ] Quick actions: refresh, clear cache, toggle views
+
+Batch Operations
+- [ ] Multi‑select (checkbox‑style) for bulk actions
+- [ ] Selection persistence across searches
+- [ ] Filter installed vs available packages
+
+Package Information
+- [ ] Dependency tree and conflict insights
+- [ ] Package statistics (sizes, install dates, update frequency)
+- [ ] Arch news integration in context
+
+Background Operations
+- [ ] Progress indicators for long tasks
+- [ ] Parallel AUR/official installs where appropriate
+
+Integration
+- [ ] Improved paru/yay workflows
+- [ ] Pacman hooks/post‑install integration
+- [ ] Export/import package lists (backup/share)
+
+Accessibility & UX
+- [ ] Screen reader/accessibility support
+- [ ] Internationalization (multi‑language)
+- [ ] Responsive layouts for small terminals
+
+Update Management
+- [ ] Automatic update checks
+- [ ] Selective updates, pinning/version policies
+- [ ] System maintenance helpers
+
+Security & Safety
+- [ ] Signature verification indicators
+- [ ] Rollback/downgrade flows
+- [ ] Enhanced dry‑run with impact analysis
 
 ## Inspiration and credits
 - Omarchy Distro — UX/workflow inspiration
