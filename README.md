@@ -134,65 +134,50 @@ A compact multi‑line help is also visible at the bottom of Package Info. Mouse
   - Official installs use `sudo pacman`; make sure you can authenticate with sudo in a terminal.
 
 ## Roadmap
-- [ ] Configurable paths (XDG) and settings
-- [ ] Prebuilt binaries / packaging (Arch User Repository)
 
-Priority (next)
+Extremely Popular & Expected
 - [ ] Theme customization system (themes, color palettes, glyph styles; adaptive terminal colors)
 - [ ] XDG‑compliant configuration with persistent settings
 - [ ] Customizable keybindings and context help overlay
-- [ ] Smarter caching and performance (intelligent prefetch, async enrichment, offline mode)
-- [ ] Richer package info (PKGBUILD preview, dependency visualization)
-
-Customization
-- [ ] Adjustable pane proportions (resizable three‑pane layout)
-- [ ] Toggle visibility of panes/sections
-
-Configuration & Profiles
-- [ ] Settings persistence across sessions
-- [ ] Multiple profiles for different workflows
-
-Search & Sorting
 - [ ] Search modes: contains / starts‑with / regex
 - [ ] Scope filtering: official vs AUR
 - [ ] Sorting: name, popularity, date, size
-
-Productivity
 - [ ] Quick actions: refresh, clear cache, toggle views
-
-Batch Operations
+- [ ] Adjustable pane proportions (resizable three‑pane layout)
+- [ ] Toggle visibility of panes/sections
 - [ ] Multi‑select (checkbox‑style) for bulk actions
 - [ ] Selection persistence across searches
-- [ ] Filter installed vs available packages
-
-Package Information
 - [ ] Dependency tree and conflict insights
 - [ ] Package statistics (sizes, install dates, update frequency)
 - [ ] Arch news integration in context
-
-Background Operations
+- [ ] Settings persistence across sessions
+- [ ] Smarter caching and performance (intelligent prefetch, async enrichment, offline mode)
 - [ ] Progress indicators for long tasks
-- [ ] Parallel AUR/official installs where appropriate
-
-Integration
 - [ ] Improved paru/yay workflows
-- [ ] Pacman hooks/post‑install integration
 - [ ] Export/import package lists (backup/share)
 
-Accessibility & UX
-- [ ] Screen reader/accessibility support
+Popular, but found less often
+- [ ] Richer package info (PKGBUILD preview, dependency visualization)
+- [ ] Batch operations (filter installed vs available, apply to selection)
+- [ ] Multiple profiles for different workflows
+- [ ] Background operations (parallel/async installs)
+- [ ] Pacman hooks/post‑install integration
 - [ ] Internationalization (multi‑language)
 - [ ] Responsive layouts for small terminals
-
-Update Management
+- [ ] Screen reader/accessibility support
 - [ ] Automatic update checks
 - [ ] Selective updates, pinning/version policies
 - [ ] System maintenance helpers
 
-Security & Safety
+Niche or Advanced
 - [ ] Signature verification indicators
 - [ ] Rollback/downgrade flows
 - [ ] Enhanced dry‑run with impact analysis
+
+Also planned
+- [ ] Prebuilt binaries / packaging (Arch User Repository)
+
+See `Documents/Features_to_Adopt.md` for the full proposal list and rationale.
 
 ## Inspiration and credits
 - Omarchy Distro — UX/workflow inspiration
