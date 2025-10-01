@@ -113,6 +113,14 @@ pub struct AppState {
 
     // Loading indicator for official index generation
     pub loading_index: bool,
+
+    // Track which package’s details the UI is focused on
+    pub details_focus: Option<String>,
+
+    // Ring prefetch debounce state
+    pub scroll_moves: u32,
+    pub ring_resume_at: Option<Instant>,
+    pub need_ring_prefetch: bool,
 }
 
 impl Default for AppState {
@@ -150,6 +158,12 @@ impl Default for AppState {
             official_index_path: PathBuf::from("official_index.json"),
 
             loading_index: false,
+
+            details_focus: None,
+
+            scroll_moves: 0,
+            ring_resume_at: None,
+            need_ring_prefetch: false,
         }
     }
 }

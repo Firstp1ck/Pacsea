@@ -13,11 +13,13 @@ pub struct OfficialIndex {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct OfficialPkg {
     pub name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub repo: String, // core or extra
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub arch: String, // e.g., x86_64/any
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub version: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub description: String,
 }
 
@@ -115,31 +117,35 @@ pub async fn update_in_background(
     tokio::spawn(async move {
         match fetch_official_pkg_names().await {
             Ok(new_pkgs) => {
-                let different = {
+                let (different, merged): (bool, Vec<OfficialPkg>) = {
                     let guard = idx().read().ok();
                     if let Some(g) = guard {
-                        if g.pkgs.len() != new_pkgs.len() {
-                            true
-                        } else {
-                            use std::collections::HashSet;
-                            let old: HashSet<(String, String)> = g
-                                .pkgs
-                                .iter()
-                                .map(|p| (p.repo.clone(), p.name.clone()))
-                                .collect();
-                            let new: HashSet<(String, String)> = new_pkgs
-                                .iter()
-                                .map(|p| (p.repo.clone(), p.name.clone()))
-                                .collect();
-                            old != new
+                        use std::collections::{HashMap, HashSet};
+                        let old_names: HashSet<String> = g.pkgs.iter().map(|p| p.name.clone()).collect();
+                        let new_names: HashSet<String> = new_pkgs.iter().map(|p| p.name.clone()).collect();
+                        let different = old_names != new_names;
+                        // Merge: prefer old/enriched fields when same name exists
+                        let mut old_map: HashMap<String, &OfficialPkg> = HashMap::new();
+                        for p in &g.pkgs { old_map.insert(p.name.clone(), p); }
+                        let mut merged = Vec::with_capacity(new_pkgs.len());
+                        for mut p in new_pkgs.into_iter() {
+                            if let Some(old) = old_map.get(&p.name) {
+                                // keep enriched data
+                                p.repo = old.repo.clone();
+                                p.arch = old.arch.clone();
+                                p.version = old.version.clone();
+                                p.description = old.description.clone();
+                            }
+                            merged.push(p);
                         }
+                        (different, merged)
                     } else {
-                        true
+                        (true, new_pkgs)
                     }
                 };
                 if different {
                     if let Ok(mut g) = idx().write() {
-                        g.pkgs = new_pkgs;
+                        g.pkgs = merged;
                     }
                     save_to_disk(&persist_path);
                     let _ = notify_tx.send(());
@@ -184,10 +190,11 @@ pub async fn fetch_official_pkg_names()
             if r != repo {
                 continue;
             }
+            // Keep name, repo, version; leave arch/description empty for speed
             pkgs.push(OfficialPkg {
                 name: n.to_string(),
                 repo: r.to_string(),
-                arch: "x86_64".to_string(),
+                arch: String::new(),
                 version: v.unwrap_or("").to_string(),
                 description: String::new(),
             });
@@ -197,62 +204,7 @@ pub async fn fetch_official_pkg_names()
     pkgs.sort_by(|a, b| a.repo.cmp(&b.repo).then(a.name.cmp(&b.name)));
     pkgs.dedup_by(|a, b| a.repo == b.repo && a.name == b.name);
 
-    // 2) Enrich with descriptions via -Si in batches
-    use std::collections::HashMap;
-    let names: Vec<String> = pkgs.iter().map(|p| p.name.clone()).collect();
-    let mut desc_map: HashMap<String, (String, String)> = HashMap::new(); // name -> (desc, arch)
-
-    const BATCH: usize = 100;
-    for chunk in names.chunks(BATCH) {
-        // Own the arguments to satisfy 'static requirement of spawn_blocking
-        let args_owned: Vec<String> = std::iter::once("-Si".to_string())
-            .chain(chunk.iter().cloned())
-            .collect();
-        let block = tokio::task::spawn_blocking(move || {
-            let args_ref: Vec<&str> = args_owned.iter().map(|s| s.as_str()).collect();
-            run_pacman(&args_ref)
-        })
-        .await
-        .map_err(|e| format!("spawn failed: {e}"))?;
-        if let Ok(out) = block {
-            // Parse pacman -Si output blocks separated by blank lines
-            let mut cur_name: Option<String> = None;
-            let mut cur_desc: Option<String> = None;
-            let mut cur_arch: Option<String> = None;
-            for line in out.lines().chain([""].iter().copied()) {
-                let line = line.trim_end();
-                if line.is_empty() {
-                    if let (Some(n), Some(d)) = (cur_name.take(), cur_desc.take()) {
-                        let a = cur_arch.take().unwrap_or_else(|| "x86_64".to_string());
-                        desc_map.insert(n, (d, a));
-                    }
-                    continue;
-                }
-                if let Some((k, v)) = line.split_once(':') {
-                    let key = k.trim();
-                    let val = v.trim();
-                    match key {
-                        "Name" => cur_name = Some(val.to_string()),
-                        "Description" => cur_desc = Some(val.to_string()),
-                        "Architecture" => cur_arch = Some(val.to_string()),
-                        _ => {}
-                    }
-                }
-            }
-        }
-    }
-
-    for p in &mut pkgs {
-        if let Some((d, a)) = desc_map.get(&p.name) {
-            if p.description.is_empty() {
-                p.description = d.clone();
-            }
-            if !a.is_empty() {
-                p.arch = a.clone();
-            }
-        }
-    }
-
+    // Do not enrich here; keep only fast fields for the initial on-disk index.
     Ok(pkgs)
 }
 
@@ -277,8 +229,8 @@ pub fn request_enrich_for(
             Ok(String::from_utf8(out.stdout)?)
         }
         // Batch -Si queries
-        let mut desc_map: std::collections::HashMap<String, (String, String)> =
-            std::collections::HashMap::new();
+        let mut desc_map: std::collections::HashMap<String, (String, String, String, String)> =
+            std::collections::HashMap::new(); // name -> (desc, arch, repo, version)
         const BATCH: usize = 100;
         let all: Vec<String> = set.into_iter().collect();
         for chunk in all.chunks(BATCH) {
@@ -295,12 +247,17 @@ pub fn request_enrich_for(
             let mut cur_name: Option<String> = None;
             let mut cur_desc: Option<String> = None;
             let mut cur_arch: Option<String> = None;
-            for line in out.lines().chain([""].iter().copied()) {
+            let mut cur_repo: Option<String> = None;
+            let mut cur_ver: Option<String> = None;
+            for line in out.lines().chain([""] .iter().copied()) {
                 let line = line.trim_end();
                 if line.is_empty() {
-                    if let (Some(n), Some(d)) = (cur_name.take(), cur_desc.take()) {
-                        let a = cur_arch.take().unwrap_or_else(|| "x86_64".to_string());
-                        desc_map.insert(n, (d, a));
+                    if let Some(n) = cur_name.take() {
+                        let d = cur_desc.take().unwrap_or_default();
+                        let a = cur_arch.take().unwrap_or_default();
+                        let r = cur_repo.take().unwrap_or_default();
+                        let v = cur_ver.take().unwrap_or_default();
+                        desc_map.insert(n, (d, a, r, v));
                     }
                     continue;
                 }
@@ -311,6 +268,8 @@ pub fn request_enrich_for(
                         "Name" => cur_name = Some(val.to_string()),
                         "Description" => cur_desc = Some(val.to_string()),
                         "Architecture" => cur_arch = Some(val.to_string()),
+                        "Repository" => cur_repo = Some(val.to_string()),
+                        "Version" => cur_ver = Some(val.to_string()),
                         _ => {}
                     }
                 }
@@ -322,13 +281,11 @@ pub fn request_enrich_for(
         // Update index entries
         if let Ok(mut g) = idx().write() {
             for p in &mut g.pkgs {
-                if let Some((d, a)) = desc_map.get(&p.name) {
-                    if p.description.is_empty() {
-                        p.description = d.clone();
-                    }
-                    if !a.is_empty() {
-                        p.arch = a.clone();
-                    }
+                if let Some((d, a, r, v)) = desc_map.get(&p.name) {
+                    if p.description.is_empty() { p.description = d.clone(); }
+                    if !a.is_empty() { p.arch = a.clone(); }
+                    if !r.is_empty() { p.repo = r.clone(); }
+                    if !v.is_empty() { p.version = v.clone(); }
                 }
             }
         }

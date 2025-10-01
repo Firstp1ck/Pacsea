@@ -153,6 +153,54 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     // Notify when official index updates
     let (index_notify_tx, mut index_notify_rx) = mpsc::unbounded_channel::<()>();
 
+    // Details worker (debounced)
+    let net_err_tx_details = net_err_tx.clone();
+    tokio::spawn(async move {
+        const DETAILS_BATCH_WINDOW_MS: u64 = 120; // collect quick bursts
+        loop {
+            let first = match details_req_rx.recv().await {
+                Some(i) => i,
+                None => break,
+            };
+            // Collect a short burst of requests
+            let mut batch: Vec<PackageItem> = vec![first];
+            loop {
+                tokio::select! {
+                    Some(next) = details_req_rx.recv() => { batch.push(next); }
+                    _ = sleep(Duration::from_millis(DETAILS_BATCH_WINDOW_MS)) => { break; }
+                }
+            }
+            // Deduplicate by name while preserving the original enqueue order (ring order)
+            use std::collections::HashSet;
+            let mut seen: HashSet<String> = HashSet::new();
+            let mut ordered: Vec<PackageItem> = Vec::with_capacity(batch.len());
+            for it in batch.into_iter() {
+                if seen.insert(it.name.clone()) {
+                    ordered.push(it);
+                }
+            }
+            // Process each requested item sequentially in preserved order, but skip if not allowed now
+            for it in ordered.into_iter() {
+                if !crate::logic::is_allowed(&it.name) { continue; }
+                match fetch_details(it.clone()).await {
+                    Ok(details) => { let _ = details_res_tx.send(details); }
+                    Err(e) => {
+                        let msg = match it.source {
+                            Source::Official { .. } => format!(
+                                "Official package details unavailable for {}: {}",
+                                it.name, e
+                            ),
+                            Source::Aur => {
+                                format!("AUR package details unavailable for {}: {}", it.name, e)
+                            }
+                        };
+                        let _ = net_err_tx_details.send(msg);
+                    }
+                }
+            }
+        }
+    });
+
     // If first run (no index yet), show info popup
     let index_missing = !std::path::Path::new(&app.official_index_path).exists();
     let index_empty = pkgindex::all_official().is_empty();
@@ -189,11 +237,12 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     });
 
     // periodic ticks for history saving and cache flush
+    let tick_tx_bg = tick_tx.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_millis(500));
+        let mut interval = tokio::time::interval(Duration::from_millis(200));
         loop {
             interval.tick().await;
-            let _ = tick_tx.send(());
+            let _ = tick_tx_bg.send(());
         }
     });
 
@@ -243,7 +292,12 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
             let sid = latest.id;
             let tx = search_result_tx.clone();
             let err_tx = net_err_tx_search.clone();
+            let ipath = index_path.clone();
             tokio::spawn(async move {
+                // If index is empty (first run), populate it so search works for non-empty queries
+                if crate::index::all_official().is_empty() {
+                    let _ = crate::index::all_official_or_fetch(&ipath).await;
+                }
                 let mut items = pkgindex::search_official(&qtext);
                 let q_for_net = qtext.clone();
                 let (aur_items, errors) = net::fetch_all_with_errors(q_for_net).await;
@@ -274,39 +328,6 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     // Trigger initial search now that the query channel exists
     send_query(&mut app, &query_tx);
 
-    // Details worker (debounced)
-    let net_err_tx_details = net_err_tx.clone();
-    tokio::spawn(async move {
-        const DETAILS_DEBOUNCE_MS: u64 = 120; // was 200, speed up
-        loop {
-            let mut latest = match details_req_rx.recv().await {
-                Some(i) => i,
-                None => break,
-            };
-            // collect rapid changes briefly
-            loop {
-                select! { Some(next) = details_req_rx.recv() => { latest = next; } _ = sleep(Duration::from_millis(DETAILS_DEBOUNCE_MS)) => { break; } }
-            }
-            match fetch_details(latest.clone()).await {
-                Ok(details) => {
-                    let _ = details_res_tx.send(details);
-                }
-                Err(e) => {
-                    let msg = match latest.source {
-                        Source::Official { .. } => format!(
-                            "Official package details unavailable for {}: {}",
-                            latest.name, e
-                        ),
-                        Source::Aur => {
-                            format!("AUR package details unavailable for {}: {}", latest.name, e)
-                        }
-                    };
-                    let _ = net_err_tx_details.send(msg);
-                }
-            }
-        }
-    });
-
     loop {
         let _ = terminal.draw(|f| ui(f, &mut app));
 
@@ -316,65 +337,95 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
             // Official index updated -> rerun current search (refresh UI)
             Some(_) = index_notify_rx.recv() => {
                 app.loading_index = false;
-                send_query(&mut app, &query_tx);
+                // Do not rerun search here; just trigger a UI refresh to avoid cursor jumps
+                let _ = tick_tx.send(());
             }
             // Search results
             Some(new_results) = results_rx.recv() => {
                 // ignore stale results
                 if new_results.id != app.latest_query_id { continue; }
-                app.results = new_results.items; app.selected = 0; app.list_state.select(if app.results.is_empty(){None}else{Some(0)});
-                if let Some(item) = app.results.first().cloned() { if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item.clone()); } }
-                // Prefetch details for first few visible items to improve perceived speed
-                let prefetch: Vec<PackageItem> = app.results.iter().take(10).cloned().collect();
-                for it in prefetch.into_iter().skip(1) {
-                    if !app.details_cache.contains_key(&it.name) { let _ = details_req_tx.send(it); }
+                // Remember previously selected item name (if any)
+                let prev_selected_name = app
+                    .results
+                    .get(app.selected)
+                    .map(|p| p.name.clone());
+                // Update results
+                app.results = new_results.items;
+                // Try to preserve selection on the same item; otherwise clamp to 0
+                let new_sel = prev_selected_name
+                    .and_then(|name| app.results.iter().position(|p| p.name == name))
+                    .unwrap_or(0);
+                app.selected = new_sel.min(app.results.len().saturating_sub(1));
+                app.list_state.select(if app.results.is_empty(){None}else{Some(app.selected)});
+                if let Some(item) = app.results.get(app.selected).cloned() {
+                    app.details_focus = Some(item.name.clone());
+                    if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item.clone()); }
                 }
-                // Opportunistically enrich official descriptions for this page
-                if !app.results.is_empty() {
-                    let names: Vec<String> = app
-                        .results
-                        .iter()
-                        .filter(|p| matches!(p.source, Source::Official { .. }))
-                        .map(|p| p.name.clone())
-                        .collect();
-                    crate::index::request_enrich_for(
-                        app.official_index_path.clone(),
-                        index_notify_tx.clone(),
-                        names,
-                    );
-                }
+                // Build allowed ring based on selection
+                crate::logic::set_allowed_ring(&app, 30);
+                // If a heavy scroll happened recently, wait for debounce completion; else start ring prefetch now
+                if app.need_ring_prefetch { /* defer */ } else { crate::logic::ring_prefetch_from_selected(&mut app, &details_req_tx); }
+                // Enrich only nearby official packages in the same ring order
+                let len_u = app.results.len();
+                let mut enrich_names: Vec<String> = Vec::new();
+                if let Some(sel) = app.results.get(app.selected) { if matches!(sel.source, Source::Official { .. }) { enrich_names.push(sel.name.clone()); } }
+                let max_radius: usize = 30; let mut step: usize = 1; while step <= max_radius { if let Some(i) = app.selected.checked_sub(step) { if let Some(it) = app.results.get(i) { if matches!(it.source, Source::Official { .. }) { enrich_names.push(it.name.clone()); } } } let below = app.selected + step; if below < len_u { if let Some(it) = app.results.get(below) { if matches!(it.source, Source::Official { .. }) { enrich_names.push(it.name.clone()); } } } step += 1; }
+                if !enrich_names.is_empty() { crate::index::request_enrich_for(app.official_index_path.clone(), index_notify_tx.clone(), enrich_names); }
             }
             // Details ready
             Some(details) = details_res_rx.recv() => {
                 // store and persist later
-                app.details = details.clone();
-                app.details_cache.insert(details.name.clone(), details);
+                // Only update the info pane if the arriving details match the focused package
+                if app.details_focus.as_deref() == Some(details.name.as_str()) {
+                    app.details = details.clone();
+                }
+                app.details_cache.insert(details.name.clone(), details.clone());
                 app.cache_dirty = true;
+
+                // Also update the results entry so it contains the description
+                if let Some(pos) = app.results.iter().position(|p| p.name == details.name) {
+                    // Update description
+                    app.results[pos].description = details.description.clone();
+                    // Update version if missing or different
+                    if !details.version.is_empty() && app.results[pos].version != details.version {
+                        app.results[pos].version = details.version.clone();
+                    }
+                    // If official, fill repo/arch when empty
+                    if let crate::state::Source::Official { repo, arch } = &mut app.results[pos].source {
+                        if repo.is_empty() && !details.repository.is_empty() {
+                            *repo = details.repository.clone();
+                        }
+                        if arch.is_empty() && !details.architecture.is_empty() {
+                            *arch = details.architecture.clone();
+                        }
+                    }
+                }
+                // Trigger immediate UI refresh
+                let _ = tick_tx.send(());
             }
             // Preview item from Recent focus
             Some(item) = preview_rx.recv() => {
-                if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item); }
-                // Opportunistically enrich official index descriptions for current page
-                if !app.results.is_empty() {
-                    let names: Vec<String> = app
-                        .results
-                        .iter()
-                        .filter(|p| matches!(p.source, Source::Official { .. }))
-                        .map(|p| p.name.clone())
-                        .collect();
-                    crate::index::request_enrich_for(
-                        app.official_index_path.clone(),
-                        index_notify_tx.clone(),
-                        names,
-                    );
-                }
+                if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item.clone()); }
+                // Ensure selection is valid but don't reset to top
+                if !app.results.is_empty() && app.selected >= app.results.len() { app.selected = app.results.len() - 1; app.list_state.select(Some(app.selected)); }
             }
             // Add to install list
             Some(item) = add_rx.recv() => {
                 add_to_install_list(&mut app, item);
             }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
-            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_install(&mut app); }
+            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_install(&mut app);
+                // resume deferred ring prefetch when idle period elapsed
+                if app.need_ring_prefetch {
+                    if app.ring_resume_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
+                        crate::logic::set_allowed_ring(&app, 30);
+                        crate::logic::ring_prefetch_from_selected(&mut app, &details_req_tx);
+                        app.need_ring_prefetch = false;
+                        app.scroll_moves = 0;
+                        app.ring_resume_at = None;
+                    }
+                }
+            }
             else => {}
         }
     }

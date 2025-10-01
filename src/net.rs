@@ -235,33 +235,51 @@ pub async fn fetch_official_details(
     }
 
     // Fall back to web JSON
-    let arch_candidates = if arch.to_lowercase() == "any" {
-        vec![arch.clone()]
+    let arch_candidates: Vec<String> = if arch.trim().is_empty() {
+        vec!["x86_64".to_string(), "any".to_string()]
+    } else if arch.to_lowercase() == "any" {
+        vec!["any".to_string()]
     } else {
         vec![arch.clone(), "any".to_string()]
     };
+    let repo_candidates: Vec<String> = if repo.trim().is_empty() {
+        vec!["core".to_string(), "extra".to_string()]
+    } else {
+        vec![repo.clone()]
+    };
     let mut v: Option<Value> = None;
-    for a in arch_candidates {
-        let url = format!(
-            "https://archlinux.org/packages/{}/{}/{}/json/",
-            repo.to_lowercase(),
-            a,
-            item.name
-        );
-        if let Ok(Ok(val)) = tokio::task::spawn_blocking(move || curl_json(&url)).await {
-            v = Some(val);
-            break;
+    let mut repo_selected = repo.clone();
+    let mut arch_selected = arch.clone();
+    'outer: for r in &repo_candidates {
+        for a in &arch_candidates {
+            let url = format!(
+                "https://archlinux.org/packages/{}/{}/{}/json/",
+                r.to_lowercase(),
+                a,
+                item.name
+            );
+            if let Ok(Ok(val)) = tokio::task::spawn_blocking({
+                let url = url.clone();
+                move || curl_json(&url)
+            })
+            .await
+            {
+                v = Some(val);
+                repo_selected = r.clone();
+                arch_selected = a.clone();
+                break 'outer;
+            }
         }
     }
 
     if let Some(v) = v {
         let obj = v.get("pkg").unwrap_or(&v);
         let d = PackageDetails {
-            repository: repo,
+            repository: repo_selected,
             name: item.name.clone(),
             version: ss(obj, &["pkgver", "Version"]).unwrap_or(item.version),
             description: ss(obj, &["pkgdesc", "Description"]).unwrap_or(item.description),
-            architecture: ss(obj, &["arch", "Architecture"]).unwrap_or(arch),
+            architecture: ss(obj, &["arch", "Architecture"]).unwrap_or(arch_selected),
             url: ss(obj, &["url", "URL"]).unwrap_or_default(),
             licenses: arrs(obj, &["licenses", "Licenses"]),
             groups: arrs(obj, &["groups", "Groups"]),

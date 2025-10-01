@@ -34,6 +34,42 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         ])
         .split(area);
 
+    // Keep selection centered within the visible results list when possible
+    {
+        let viewport_rows = chunks[0].height.saturating_sub(2) as usize; // account for borders
+        let len = app.results.len();
+        let selected_idx = if app.results.is_empty() {
+            None
+        } else {
+            Some(app.selected.min(len - 1))
+        };
+
+        if viewport_rows > 0 && len > viewport_rows {
+            let selected = selected_idx.unwrap_or(0);
+            let max_offset = len.saturating_sub(viewport_rows);
+            let desired = selected
+                .saturating_sub(viewport_rows / 2)
+                .min(max_offset);
+            if app.list_state.offset() != desired {
+                let mut st = ratatui::widgets::ListState::default().with_offset(desired);
+                st.select(selected_idx);
+                app.list_state = st;
+            } else {
+                // ensure selection is set
+                app.list_state.select(selected_idx);
+            }
+        } else {
+            // Small lists: ensure offset is 0 and selection is applied
+            if app.list_state.offset() != 0 {
+                let mut st = ratatui::widgets::ListState::default().with_offset(0);
+                st.select(selected_idx);
+                app.list_state = st;
+            } else {
+                app.list_state.select(selected_idx);
+            }
+        }
+    }
+
     // Results list (top)
     let items: Vec<ListItem> = app
         .results

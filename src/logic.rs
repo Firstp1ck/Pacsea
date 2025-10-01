@@ -2,14 +2,45 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
 
+// Global allowed-names gating for details loading
+use std::collections::HashSet;
+use std::sync::{OnceLock, RwLock};
+fn allowed_set() -> &'static RwLock<HashSet<String>> {
+    static ALLOWED: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
+    ALLOWED.get_or_init(|| RwLock::new(HashSet::new()))
+}
+
+pub fn is_allowed(name: &str) -> bool {
+    allowed_set().read().ok().map(|s| s.contains(name)).unwrap_or(true)
+}
+
+pub fn set_allowed_only_selected(app: &AppState) {
+    if let Some(sel) = app.results.get(app.selected) {
+        if let Ok(mut w) = allowed_set().write() {
+            w.clear();
+            w.insert(sel.name.clone());
+        }
+    }
+}
+
+pub fn set_allowed_ring(app: &AppState, radius: usize) {
+    let mut ring: HashSet<String> = HashSet::new();
+    if let Some(sel) = app.results.get(app.selected) { ring.insert(sel.name.clone()); }
+    let len = app.results.len();
+    let mut step = 1usize;
+    while step <= radius {
+        if let Some(i) = app.selected.checked_sub(step) { if let Some(it) = app.results.get(i) { ring.insert(it.name.clone()); } }
+        let below = app.selected + step; if below < len { if let Some(it) = app.results.get(below) { ring.insert(it.name.clone()); } }
+        step += 1;
+    }
+    if let Ok(mut w) = allowed_set().write() { *w = ring; }
+}
+
 pub fn send_query(app: &mut AppState, query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>) {
     let id = app.next_query_id;
     app.next_query_id += 1;
     app.latest_query_id = id;
-    let _ = query_tx.send(crate::state::QueryInput {
-        id,
-        text: app.input.clone(),
-    });
+    let _ = query_tx.send(crate::state::QueryInput { id, text: app.input.clone() });
 }
 
 pub fn move_sel_cached(
@@ -17,25 +48,75 @@ pub fn move_sel_cached(
     delta: isize,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) {
-    if app.results.is_empty() {
-        return;
-    }
+    if app.results.is_empty() { return; }
     let len = app.results.len() as isize;
     let mut idx = app.selected as isize + delta;
-    if idx < 0 {
-        idx = 0;
-    }
-    if idx >= len {
-        idx = len - 1;
-    }
+    if idx < 0 { idx = 0; }
+    if idx >= len { idx = len - 1; }
     app.selected = idx as usize;
     app.list_state.select(Some(app.selected));
     if let Some(item) = app.results.get(app.selected).cloned() {
-        if let Some(cached) = app.details_cache.get(&item.name).cloned() {
-            app.details = cached;
-        } else {
-            let _ = details_tx.send(item);
+        // Focus details on the currently selected item only
+        app.details_focus = Some(item.name.clone());
+
+        // Update details pane immediately with a placeholder reflecting the selection
+        app.details.name = item.name.clone();
+        app.details.version = item.version.clone();
+        app.details.description.clear();
+        match &item.source {
+            crate::state::Source::Official { repo, arch } => { app.details.repository = repo.clone(); app.details.architecture = arch.clone(); }
+            crate::state::Source::Aur => { app.details.repository = "AUR".to_string(); app.details.architecture = "any".to_string(); }
         }
+
+        if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_tx.send(item); }
+    }
+
+    // Debounce ring prefetch when scrolling fast (>5 items cumulatively)
+    let abs_delta_usize: usize = if delta < 0 { (-delta) as usize } else { delta as usize };
+    if abs_delta_usize > 0 {
+        let add = abs_delta_usize.min(u32::MAX as usize) as u32;
+        app.scroll_moves = app.scroll_moves.saturating_add(add);
+    }
+    if app.need_ring_prefetch {
+        // tighten allowed set to only current selection during fast scroll
+        set_allowed_only_selected(app);
+        app.ring_resume_at = Some(std::time::Instant::now() + std::time::Duration::from_millis(200));
+        return;
+    }
+    if app.scroll_moves > 5 {
+        app.need_ring_prefetch = true;
+        set_allowed_only_selected(app);
+        app.ring_resume_at = Some(std::time::Instant::now() + std::time::Duration::from_millis(200));
+        return;
+    }
+
+    // For small/slow scrolls, allow ring and prefetch immediately
+    set_allowed_ring(app, 30);
+    ring_prefetch_from_selected(app, details_tx);
+}
+
+pub fn ring_prefetch_from_selected(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
+    let len_u = app.results.len();
+    if len_u == 0 { return; }
+    let max_radius: usize = 30;
+    let mut step: usize = 1;
+    loop {
+        let mut progressed = false;
+        if let Some(i) = app.selected.checked_sub(step) {
+            if let Some(it) = app.results.get(i).cloned() {
+                if is_allowed(&it.name) && !app.details_cache.contains_key(&it.name) { let _ = details_tx.send(it); }
+            }
+            progressed = true;
+        }
+        let below = app.selected + step;
+        if below < len_u {
+            if let Some(it) = app.results.get(below).cloned() {
+                if is_allowed(&it.name) && !app.details_cache.contains_key(&it.name) { let _ = details_tx.send(it); }
+            }
+            progressed = true;
+        }
+        if step >= max_radius || !progressed { break; }
+        step += 1;
     }
 }
 
