@@ -177,8 +177,6 @@ Niche or Advanced
 Also planned
 - [ ] Prebuilt binaries / packaging (Arch User Repository)
 
-See `Documents/Features_to_Adopt.md` for the full proposal list and rationale.
-
 ## Inspiration and credits
 - Omarchy Distro — UX/workflow inspiration
 - ratatui, crossterm — great TUI foundations
