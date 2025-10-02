@@ -15,6 +15,7 @@ Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in 
 - [Features](#features)
 - [Installation](#installation)
   - [Prerequisites](#prerequisites)
+  - [Install from AUR](#install-from-aur)
   - [Build from source](#build-from-source)
   - [Run](#run)
 - [Usage](#usage)
@@ -48,6 +49,39 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - `curl` for web fallbacks and AUR requests
 - For AUR installs: one of `paru` or `yay` (auto‑detected)
 - Rust toolchain (to build from source)
+
+### Install from AUR
+If you already use an AUR helper:
+
+```bash
+# Stable release (tagged)
+paru -S pacsea-bin     # or: yay -S pacsea-bin
+
+# Latest development (from main)
+paru -S pacsea-git # or: yay -S pacsea-git
+```
+
+Don’t have an AUR helper yet? Install one from the AUR:
+
+```bash
+# Common prerequisites
+sudo pacman -S --needed base-devel git
+
+# Install paru
+git clone https://aur.archlinux.org/paru.git
+cd paru && makepkg -si
+
+# …or install yay
+git clone https://aur.archlinux.org/yay.git
+cd yay && makepkg -si
+```
+
+Then install Pacsea:
+
+```bash
+paru -S pacsea      # or: yay -S pacsea
+# For the -git (latest) package: paru -S pacsea-git
+```
 
 ### Build from source
 ```bash
