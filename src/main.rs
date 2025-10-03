@@ -1,7 +1,13 @@
+//! Pacsea TUI entry point and orchestration.
+//!
+//! This module wires together terminal lifecycle, asynchronous workers, channels,
+//! and the main event loop. It also provides helpers to persist caches and
+//! recent history to disk.
 use std::collections::HashMap;
 use std::fs;
 use std::time::{Duration, Instant};
 
+/// Convenient crate-wide `Result` alias with a thread-safe error trait object.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 use crossterm::{
@@ -32,6 +38,9 @@ use util::{match_rank, repo_order};
 
 // Official index logic is in the pkgindex module
 
+/// If the details cache was modified, serialize and persist it to disk.
+///
+/// Marks `app.cache_dirty` false on successful write.
 fn maybe_flush_cache(app: &mut AppState) {
     if !app.cache_dirty {
         return;
@@ -42,6 +51,9 @@ fn maybe_flush_cache(app: &mut AppState) {
     }
 }
 
+/// If the Recent list was modified, serialize and persist it to disk.
+///
+/// This maintains a small history of user queries for quick access.
 fn maybe_flush_recent(app: &mut AppState) {
     if !app.recent_dirty {
         return;
@@ -52,6 +64,7 @@ fn maybe_flush_recent(app: &mut AppState) {
     }
 }
 
+/// If the Install list was modified, serialize and persist it to disk.
 fn maybe_flush_install(app: &mut AppState) {
     if !app.install_dirty {
         return;
@@ -62,6 +75,13 @@ fn maybe_flush_install(app: &mut AppState) {
     }
 }
 
+/// Debounced saver for the current input into the Recent list.
+///
+/// Behavior:
+/// - Ignores empty input
+/// - Waits 5 seconds since the last change
+/// - De-duplicates and moves the saved value to the front
+/// - Truncates the list to 20 items
 fn maybe_save_recent(app: &mut AppState) {
     let now = Instant::now();
     if app.input.trim().is_empty() {
@@ -92,12 +112,17 @@ fn maybe_save_recent(app: &mut AppState) {
     app.recent_dirty = true;
 }
 
+/// Put the terminal into raw mode and switch to the alternate screen for the TUI.
+///
+/// Must be paired with `restore_terminal` on exit.
 fn setup_terminal() -> Result<()> {
     enable_raw_mode()?;
     execute!(std::io::stdout(), EnterAlternateScreen)?;
     Ok(())
 }
 
+/// Restore the terminal after the TUI exits by leaving the alternate screen
+/// and disabling raw mode.
 fn restore_terminal() -> Result<()> {
     disable_raw_mode()?;
     execute!(std::io::stdout(), LeaveAlternateScreen)?;
@@ -105,6 +130,10 @@ fn restore_terminal() -> Result<()> {
 }
 
 #[tokio::main]
+/// Tokio entry point.
+///
+/// Parses a `--dry-run` flag (useful on Windows), initializes the terminal,
+/// runs the app loop, then restores the terminal and reports any error.
 async fn main() -> Result<()> {
     // parse a simple --dry-run flag (esp. for Windows testing)
     let dry_run = std::env::args().any(|a| a == "--dry-run");
@@ -120,6 +149,14 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+/// Run the TUI application with the given flags.
+///
+/// - `dry_run`: when true, suppresses executing privileged operations and installs.
+///
+/// This sets up the terminal backend, initializes the application state, spawns
+/// asynchronous workers for search, package details, and index maintenance, and
+/// drives the draw/event loop until the user exits. On shutdown, it flushes
+/// caches to disk.
 async fn run_app_with_flags(dry_run: bool) -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
 

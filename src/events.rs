@@ -1,3 +1,23 @@
+//! Event handling layer for Pacsea's TUI.
+//!
+//! This module centralizes keyboard and mouse input handling for the
+//! three-pane interface:
+//!
+//! - Search (center): query input and results navigation
+//! - Recent (left): previously used queries
+//! - Install (right): pending install list and confirmation modal
+//!
+//! High-level behavior:
+//!
+//! - Converts raw `crossterm` events into mutations on [`AppState`]
+//! - Coordinates background requests via async channels (query/details/preview/add)
+//! - Implements pane-local search ("/") and Vim-like navigation ("j"/"k")
+//! - Manages modal dialogs (alert and install confirmation)
+//! - Opens package URLs on mouse click
+//!
+//! All functions in this module are synchronous and manipulate the provided
+//! mutable [`AppState`]. Any long-running work is delegated to other modules or
+//! spawned tasks to keep input handling responsive.
 use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
@@ -6,6 +26,18 @@ use crate::{
     state::{AppState, Focus, PackageItem, QueryInput},
 };
 
+/// Advance selection in the Recent pane to the next or previous item matching
+/// the current pane-find pattern.
+///
+/// - Matching is case-insensitive and performed against the raw recent query
+///   text.
+/// - Search wraps around and respects the current filtered view (via
+///   `filtered_recent_indices`).
+/// - When no pattern is set or the list is empty, the function is a no-op.
+///
+/// The function updates `app.history_state` in place and does not emit any
+/// I/O. Callers typically follow a successful move by triggering a preview
+/// update.
 fn find_in_recent(app: &mut AppState, forward: bool) {
     let Some(pattern) = app.pane_find.clone() else {
         return;
@@ -35,6 +67,12 @@ fn find_in_recent(app: &mut AppState, forward: bool) {
     }
 }
 
+/// Advance selection in the Install pane to the next or previous item whose
+/// name or description matches the pane-find pattern.
+///
+/// - Case-insensitive matching against both `name` and `description`
+/// - Respects filtered indices and wraps around
+/// - No effect when the pattern or list is empty
 fn find_in_install(app: &mut AppState, forward: bool) {
     let Some(pattern) = app.pane_find.clone() else {
         return;
@@ -67,6 +105,46 @@ fn find_in_install(app: &mut AppState, forward: bool) {
     }
 }
 
+/// Dispatch a single input event, mutating [`AppState`] and coordinating
+/// background work via the provided channels.
+///
+/// Returns `true` to signal the application should exit (e.g., `Esc` or
+/// `Ctrl+C` in supported contexts); otherwise returns `false`.
+///
+/// Arguments:
+///
+/// - `ev`: A raw `crossterm` event (keyboard or mouse)
+/// - `app`: Mutable application state to be updated
+/// - `query_tx`: Sends search queries when input changes
+/// - `details_tx`: Requests details for the currently selected result
+/// - `preview_tx`: Requests preview for the selected recent query
+/// - `add_tx`: Adds selected result(s) to the install list
+///
+/// Behavior overview:
+///
+/// - Only key presses (`KeyEventKind::Press`) are handled; other key event
+///   kinds are ignored.
+/// - Modal handling has precedence and captures `Enter`/`Esc` while a modal is
+///   open. Confirmation can trigger installs.
+/// - Pane focus controls which bindings are active:
+///   - Recent: `j`/`k` or arrows to move; `Enter` to load into Search; `Space`
+///     to add first match to install; `/` to start pane-find.
+///   - Install: `j`/`k` or arrows to move; `Delete` to remove; `Shift+Delete`
+///     to clear all; `Enter` to open confirmation modal; `/` to pane-find.
+///   - Search: text input edits query and sends it; `Space` adds selection to
+///     install; arrows/PageUp/PageDown move selection; `Enter` opens single
+///     item confirmation.
+/// - Focus switching: `Tab`/`BackTab`/`Left`/`Right` move focus between panes
+///   while ensuring a valid selection where applicable.
+/// - Mouse: A left-click inside the stored `url_button_rect` attempts to open
+///   the details URL using `xdg-open` on a background thread.
+///
+/// Concurrency and side effects:
+///
+/// - May spawn a Tokio task to resolve a recent query to a concrete package
+///   when pressing `Space` in the Recent pane.
+/// - Sends messages over provided channels; failures are ignored to keep input
+///   handling robust in the face of downstream shutdowns.
 pub fn handle_event(
     ev: CEvent,
     app: &mut AppState,
@@ -470,6 +548,11 @@ pub fn handle_event(
     false
 }
 
+/// Ensure `app.details` reflects the currently selected result.
+///
+/// If details are cached for the selected item's name, updates `app.details`
+/// from cache synchronously. Otherwise sends a details request over
+/// `details_tx` for asynchronous population.
 fn refresh_selected_details(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
     if let Some(item) = app.results.get(app.selected).cloned() {
         if let Some(cached) = app.details_cache.get(&item.name).cloned() {

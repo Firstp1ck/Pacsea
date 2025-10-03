@@ -1,10 +1,27 @@
+//! Network and system data retrieval for package metadata.
+//!
+//! This module fetches package details from two sources:
+//! - AUR RPC v5 endpoints for AUR packages
+//! - Arch Linux official package JSON pages and local `pacman -Si` for
+//!   official repository packages
+//!
+//! It provides helpers that normalize data into `PackageDetails` and utilities
+//! to search the AUR. For robustness and offline support, official details are
+//! attempted via `pacman -Si` first, then fall back to web JSON.
 use serde_json::Value;
 
 use crate::state::{PackageDetails, PackageItem, Source};
 use crate::util::{arrs, percent_encode, s, ss, u64_of};
 
+/// Convenient `Result` alias for network/detail fetching operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+/// Execute `curl` with strict flags and parse the response as JSON.
+///
+/// Uses `curl -sSLf` to be quiet, follow redirects, and fail on HTTP errors.
+/// Returns a parsed `serde_json::Value` on success.
+///
+/// Errors if `curl` exits non-zero or the body is not valid JSON.
 fn curl_json(url: &str) -> Result<Value> {
     // Use curl to fetch a URL and parse JSON
     let out = std::process::Command::new("curl")
@@ -19,6 +36,14 @@ fn curl_json(url: &str) -> Result<Value> {
 }
 
 // Fallback: query pacman -Si and parse human output
+/// Run `pacman -Si` for an official package and parse human-readable output.
+///
+/// The `repo` may be empty; when provided, the `repo/name` form is used. The
+/// parser handles multi-line fields and preserves line breaks for
+/// "Optional Deps" while collapsing continuation lines for other keys.
+///
+/// If description or architecture are missing from `pacman -Si`, the function
+/// attempts to fill them from the in-memory official index.
 fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
     let spec = if repo.is_empty() {
         name.to_string()
@@ -142,6 +167,9 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
     Ok(pd)
 }
 
+/// Parse a human-readable size string like "3.44 MiB" into bytes.
+///
+/// Supports units: B, KiB, MiB, GiB, TiB. Returns `None` if parsing fails.
 fn parse_size_bytes(s: &str) -> Option<u64> {
     // Examples: "3.44 MiB", "123.0 KiB"
     let mut it = s.split_whitespace();
@@ -158,6 +186,9 @@ fn parse_size_bytes(s: &str) -> Option<u64> {
     Some((num * mult) as u64)
 }
 
+/// Fetch details for a `PackageItem` based on its `Source`.
+///
+/// Delegates to `fetch_official_details` or `fetch_aur_details` accordingly.
 pub async fn fetch_details(item: PackageItem) -> Result<PackageDetails> {
     match item.source.clone() {
         Source::Official { repo, arch } => fetch_official_details(repo, arch, item).await,
@@ -165,6 +196,10 @@ pub async fn fetch_details(item: PackageItem) -> Result<PackageDetails> {
     }
 }
 
+/// Fetch details for an AUR package using AUR RPC v5 `info` endpoint.
+///
+/// Populates fields from the JSON response, falling back to values already
+/// present on the `PackageItem` for missing description/version.
 pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
     let url = format!(
         "https://aur.archlinux.org/rpc/v5/info?arg={}",
@@ -213,6 +248,15 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
     Ok(d)
 }
 
+/// Fetch details for an official package.
+///
+/// Strategy:
+/// 1) Try `pacman -Si` locally (via `spawn_blocking`) for fast/offline data.
+///    If it yields core fields (description, architecture, or licenses), return
+///    its result.
+/// 2) Otherwise, query `https://archlinux.org/packages/<repo>/<arch>/<name>/json/`.
+///    If `repo` or `arch` are unknown, try sensible candidates (core/extra and
+///    x86_64/any) until one succeeds.
 pub async fn fetch_official_details(
     repo: String,
     arch: String,
@@ -301,6 +345,12 @@ pub async fn fetch_official_details(
     Err("official details unavailable".into())
 }
 
+/// Fetch AUR search results for a name query and report any errors.
+///
+/// Returns a tuple of `(items, errors)` where `items` are `PackageItem`s from
+/// AUR whose names match the query and `errors` contains human-readable error
+/// strings for failed network operations. Official results are not included and
+/// are expected to be provided by the caller.
 pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<String>) {
     let q = percent_encode(query.trim());
     let aur_url = format!("https://aur.archlinux.org/rpc/v5/search?by=name&arg={q}");

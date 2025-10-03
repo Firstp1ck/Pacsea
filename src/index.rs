@@ -1,3 +1,16 @@
+//! Official package index management, persistence, and enrichment.
+//!
+//! This module maintains an in-memory view of Arch Linux official repository
+//! packages and exposes utilities to:
+//! - Load/save the index from/to disk as JSON
+//! - Search the official index and materialize results as `PackageItem`s
+//! - Fetch a minimal fresh index quickly using `pacman -Sl`
+//! - Enrich selected packages with descriptions/arch/repo/version via
+//!   `pacman -Si` in the background
+//! - Track a process-wide set of installed package names (via `pacman -Qq`)
+//!
+//! All shared state is guarded by `RwLock` for concurrent read access and safe
+//! mutation from background tasks.
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -5,11 +18,16 @@ use std::sync::{OnceLock, RwLock};
 
 use crate::state::{PackageItem, Source};
 
+/// In-memory representation of the persisted official package index.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct OfficialIndex {
     pub pkgs: Vec<OfficialPkg>,
 }
 
+/// Minimal, serializable record for a package in the official repositories.
+///
+/// Fields other than `name` may be empty for speed when the index is first
+/// fetched. Additional details are filled in later by enrichment routines.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct OfficialPkg {
     pub name: String,
@@ -23,17 +41,24 @@ pub struct OfficialPkg {
     pub description: String,
 }
 
+/// Process-wide holder for the official index state.
 static OFFICIAL_INDEX: OnceLock<RwLock<OfficialIndex>> = OnceLock::new();
+/// Process-wide set of installed package names.
 static INSTALLED_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
+/// Get a reference to the global `OfficialIndex` lock, initializing it if needed.
 fn idx() -> &'static RwLock<OfficialIndex> {
     OFFICIAL_INDEX.get_or_init(|| RwLock::new(OfficialIndex { pkgs: Vec::new() }))
 }
 
+/// Get a reference to the global installed-name set lock, initializing it if needed.
 fn installed_lock() -> &'static RwLock<HashSet<String>> {
     INSTALLED_SET.get_or_init(|| RwLock::new(HashSet::new()))
 }
 
+/// Load the official index from `path` if a valid JSON exists.
+///
+/// Silently ignores errors and leaves the index unchanged on failure.
 pub fn load_from_disk(path: &Path) {
     if let Ok(s) = fs::read_to_string(path)
         && let Ok(new_idx) = serde_json::from_str::<OfficialIndex>(&s)
@@ -43,6 +68,9 @@ pub fn load_from_disk(path: &Path) {
     }
 }
 
+/// Persist the current official index to `path` as JSON.
+///
+/// Silently ignores errors to avoid interrupting the UI.
 pub fn save_to_disk(path: &Path) {
     if let Ok(guard) = idx().read()
         && let Ok(s) = serde_json::to_string(&*guard)
@@ -51,6 +79,10 @@ pub fn save_to_disk(path: &Path) {
     }
 }
 
+/// Search the official index for packages whose names contain `query`.
+///
+/// Returns `PackageItem`s with fields populated from the index; enrichment is
+/// not performed here. An empty or whitespace-only query returns an empty list.
 pub fn search_official(query: &str) -> Vec<PackageItem> {
     let ql = query.trim().to_lowercase();
     if ql.is_empty() {
@@ -77,6 +109,7 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
     items
 }
 
+/// Return the entire official index as a list of `PackageItem`s.
 pub fn all_official() -> Vec<PackageItem> {
     let guard = idx().read().ok();
     let mut items = Vec::new();
@@ -97,6 +130,11 @@ pub fn all_official() -> Vec<PackageItem> {
     items
 }
 
+/// Ensure the official index is populated (fetching if empty), persist it, and
+/// return it as `PackageItem`s.
+///
+/// Uses `pacman -Sl core` and `-Sl extra` for a fast initial snapshot. If the
+/// index is already non-empty, no fetch occurs.
 pub async fn all_official_or_fetch(persist_path: &Path) -> Vec<PackageItem> {
     // if empty, fetch using pacman and persist
     let is_empty = idx().read().map(|g| g.pkgs.is_empty()).unwrap_or(true);
@@ -109,6 +147,12 @@ pub async fn all_official_or_fetch(persist_path: &Path) -> Vec<PackageItem> {
     all_official()
 }
 
+/// Spawn a background task to refresh the official index and notify on changes.
+///
+/// On success, merges new names while preserving previously enriched fields
+/// (repo, arch, version, description) for packages that still exist. Persists
+/// the updated index and sends a unit message on `notify_tx` when the set of
+/// names changes. On failure, sends a human-readable error on `net_err_tx`.
 pub async fn update_in_background(
     persist_path: std::path::PathBuf,
     net_err_tx: tokio::sync::mpsc::UnboundedSender<String>,
@@ -158,6 +202,11 @@ pub async fn update_in_background(
     });
 }
 
+/// Fetch a minimal list of official packages using `pacman -Sl`.
+///
+/// Returns `OfficialPkg` entries with `name`, `repo`, and `version` set when
+/// available. The `arch` and `description` fields are left empty for speed. The
+/// result is deduplicated by `(repo, name)`.
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
     fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -208,6 +257,11 @@ pub async fn fetch_official_pkg_names()
     Ok(pkgs)
 }
 
+/// Request enrichment (`pacman -Si`) for a set of package `names` in the
+/// background, merge fields into the index, persist, and notify.
+///
+/// Only non-empty results are applied. Field updates prefer non-empty values
+/// from `-Si` output and leave existing values untouched when `-Si` omits them.
 pub fn request_enrich_for(
     persist_path: std::path::PathBuf,
     notify_tx: tokio::sync::mpsc::UnboundedSender<()>,
@@ -294,6 +348,8 @@ pub fn request_enrich_for(
     });
 }
 
+/// Refresh the process-wide cache of installed package names using
+/// `pacman -Qq` and store them in `INSTALLED_SET`.
 pub async fn refresh_installed_cache() {
     // pacman -Qq to list installed names
     fn run_pacman_q() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -313,6 +369,9 @@ pub async fn refresh_installed_cache() {
     }
 }
 
+/// Query whether `name` appears in the cached set of installed packages.
+///
+/// Returns `false` if the cache is unavailable.
 pub fn is_installed(name: &str) -> bool {
     installed_lock()
         .read()

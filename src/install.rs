@@ -1,9 +1,34 @@
-use std::fs;
+//! Installation command construction and launching utilities.
+//!
+//! This module is responsible for turning a `PackageItem` into an executable
+//! command-line and spawning an external terminal to perform the installation.
+//!
+//! Key behaviors:
+//! - On Unix-like systems, installation happens in a new terminal (Alacritty,
+//!   Kitty, Xterm, GNOME Terminal, Konsole, Xfce Terminal, Tilix, or MATE
+//!   Terminal), falling back to invoking `bash -lc` if none is available.
+//! - `pacman` is used for official packages. AUR installs prefer `paru`, then
+//!   `yay` if `paru` is missing.
+//! - Commands end with a resilient "hold" tail to keep the terminal open and
+//!   prompt the user to press a key before closing.
+//! - In dry-run mode, commands print what would happen without making changes.
+//! - On Windows, installation is not implemented; a `cmd` window is opened to
+//!   display the intended action for visibility.
+//! - Completed (non-dry-run) installs are appended to `install_log.txt` with a
+//!   timestamp for simple auditability.
 use std::process::Command;
 
 use crate::state::{PackageItem, Source};
 
 // Helper: check whether a command exists on PATH (Unix-aware exec bit)
+#[cfg(not(target_os = "windows"))]
+/// Check whether `cmd` exists on the current `PATH`.
+///
+/// This function understands platform nuances:
+/// - If `cmd` contains a path separator, it checks that path directly.
+/// - On Unix, the file must be present and have at least one execute bit set.
+/// - On Windows, any regular file is accepted, and `PATHEXT` is honored when
+///   probing candidates without extensions.
 fn command_on_path(cmd: &str) -> bool {
     use std::path::Path;
 
@@ -14,7 +39,7 @@ fn command_on_path(cmd: &str) -> bool {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            if let Ok(meta) = fs::metadata(p) {
+            if let Ok(meta) = std::fs::metadata(p) {
                 return meta.permissions().mode() & 0o111 != 0;
             }
             false
@@ -53,6 +78,15 @@ fn command_on_path(cmd: &str) -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
+/// Spawn a new terminal to install a single `PackageItem` on Unix-like systems.
+///
+/// - `password`: Optional sudo password. If provided, it is piped to `sudo -S`.
+///   If omitted, `sudo` will prompt interactively on the spawned TTY.
+/// - `dry_run`: When true, prints the intended command instead of performing it.
+///
+/// This tries a list of known terminal emulators and falls back to `bash -lc`.
+/// After launching, it logs the package name to `install_log.txt` when not in
+/// dry-run mode.
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
     // Try common terminals
@@ -86,6 +120,12 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
 }
 
 #[cfg(target_os = "windows")]
+/// Open a `cmd` window to display and run the install command on Windows.
+///
+/// Windows is not supported for actual Arch-based installation; this function
+/// opens a terminal with the constructed command to inform the user. When not
+/// in dry-run mode, it still records the package as "installed" in the
+/// `install_log.txt` for parity with Unix behavior.
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
     let _ = Command::new("cmd")
@@ -96,6 +136,20 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
     }
 }
 
+/// Build a shell command to install `item` and indicate whether `sudo` is used.
+///
+/// Returns `(command_string, uses_sudo)` where:
+/// - `command_string` is a bash-compatible line that includes a terminal hold
+///   tail to keep the window open after completion.
+/// - `uses_sudo` is true for official packages that use `pacman`.
+///
+/// Behavior by source:
+/// - Official: `pacman -S --needed <name>` under `sudo`. If `password` is
+///   provided, it is quoted and piped to `sudo -S`.
+/// - AUR: Prefer `paru`, fall back to `yay`; error message if neither exists.
+///
+/// In `dry_run` mode the command echoes the intended action rather than running
+/// it.
 pub fn build_install_command(
     item: &PackageItem,
     password: Option<&str>,
@@ -144,6 +198,14 @@ pub fn build_install_command(
 }
 
 #[cfg(not(target_os = "windows"))]
+/// Spawn a single terminal to install multiple `PackageItem`s on Unix-like systems.
+///
+/// Packages are partitioned into official and AUR lists and installed with a
+/// single `pacman` invocation (for official) and a single AUR helper command
+/// (for AUR). The window is kept open with a hold tail.
+///
+/// In `dry_run` mode, the terminal prints the commands that would be executed.
+/// On success (non-dry-run), appends all names to `install_log.txt`.
 pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let mut official: Vec<String> = Vec::new();
     let mut aur: Vec<String> = Vec::new();
@@ -247,6 +309,10 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
 }
 
 #[cfg(target_os = "windows")]
+/// Open a `cmd` window to describe batch installation on Windows.
+///
+/// This does not perform installation; it echoes a message for visibility. When
+/// not in `dry_run` mode, names are nevertheless recorded to `install_log.txt`.
 pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let mut names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
     if names.is_empty() {
@@ -272,6 +338,12 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     }
 }
 
+/// Append installed package names with a timestamp to `install_log.txt` in the
+/// current working directory.
+///
+/// Each line is formatted as `<YYYY-MM-DD HH:MM:SS> <name>`. Errors are
+/// propagated to the caller. This function creates the log file if missing and
+/// appends to it otherwise.
 fn log_installed(names: &[String]) -> std::io::Result<()> {
     use std::io::Write;
     let mut path = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));

@@ -1,3 +1,17 @@
+//! TUI rendering for Pacsea.
+//!
+//! This module renders the full terminal user interface using `ratatui`.
+//! The layout is split vertically into three regions:
+//!
+//! 1) Results list (top): shows search matches and keeps the current selection
+//!    centered when possible
+//! 2) Middle row (three columns): Recent (left), Search input (center), and
+//!    Install list (right), each styled based on focus
+//! 3) Details pane (bottom): rich package information with a clickable URL and
+//!    a contextual help footer displaying keybindings
+//!
+//! The renderer also draws modal overlays for alerts and install confirmation.
+//! It updates `app.url_button_rect` to make the URL clickable when available.
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
@@ -12,6 +26,29 @@ use crate::{
     theme::theme,
 };
 
+/// Render a full frame of the Pacsea TUI.
+///
+/// This function is the single entry point for drawing the interface and is
+/// meant to be called each tick or after state changes.
+///
+/// Arguments:
+///
+/// - `f`: `ratatui` frame to render into
+/// - `app`: mutable application state; updated during rendering for selection
+///    offsets, cursor position, and clickable URL geometry
+///
+/// Behavior summary:
+///
+/// - Applies the global theme and background
+/// - Ensures the results selection remains centered within the list viewport
+///   by adjusting the list state's internal offset
+/// - Renders the top results list with source badges and install markers
+/// - Renders the middle row with Recent, Search (with visible cursor), and
+///   Install panes; titles and colors reflect focus
+/// - Computes and stores a clickable rectangle for the details URL when it is
+///   present, enabling mouse interactions handled elsewhere
+/// - Shows a help footer with keybindings inside the details area
+/// - Draws modal overlays for network alerts and install confirmations
 pub fn ui(f: &mut Frame, app: &mut AppState) {
     let th = theme();
     let area = f.area();
