@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Viewport"],"fn":["init","init_with_options","restore","try_init","try_init_with_options","try_restore"],"macro":["assert_buffer_eq"],"mod":["backend","buffer","layout","prelude","style","symbols","text","widgets"],"struct":["CompletedFrame","Frame","Terminal","TerminalOptions"],"type":["DefaultTerminal"]};

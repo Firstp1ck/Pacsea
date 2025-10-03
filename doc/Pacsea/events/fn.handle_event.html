@@ -1,0 +1,50 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Dispatch a single input event, mutating `AppState` and coordinating background work via the provided channels."><title>handle_event in Pacsea::events - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="Pacsea" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../Pacsea/index.html">Pacsea</a><span class="version">0.2.0</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"><h2><a href="index.html">In Pacsea::<wbr>events</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">Pacsea</a>::<wbr><a href="index.html">events</a></div><h1>Function <span class="fn">handle_event</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/Pacsea/events.rs.html#148-549">Source</a> </span></div><pre class="rust item-decl"><code>pub fn handle_event(
+    ev: <a class="enum" href="../../crossterm/event/enum.Event.html" title="enum crossterm::event::Event">Event</a>,
+    app: &amp;mut <a class="struct" href="../state/struct.AppState.html" title="struct Pacsea::state::AppState">AppState</a>,
+    query_tx: &amp;<a class="struct" href="../../tokio/sync/mpsc/unbounded/struct.UnboundedSender.html" title="struct tokio::sync::mpsc::unbounded::UnboundedSender">UnboundedSender</a>&lt;<a class="struct" href="../state/struct.QueryInput.html" title="struct Pacsea::state::QueryInput">QueryInput</a>&gt;,
+    details_tx: &amp;<a class="struct" href="../../tokio/sync/mpsc/unbounded/struct.UnboundedSender.html" title="struct tokio::sync::mpsc::unbounded::UnboundedSender">UnboundedSender</a>&lt;<a class="struct" href="../state/struct.PackageItem.html" title="struct Pacsea::state::PackageItem">PackageItem</a>&gt;,
+    preview_tx: &amp;<a class="struct" href="../../tokio/sync/mpsc/unbounded/struct.UnboundedSender.html" title="struct tokio::sync::mpsc::unbounded::UnboundedSender">UnboundedSender</a>&lt;<a class="struct" href="../state/struct.PackageItem.html" title="struct Pacsea::state::PackageItem">PackageItem</a>&gt;,
+    add_tx: &amp;<a class="struct" href="../../tokio/sync/mpsc/unbounded/struct.UnboundedSender.html" title="struct tokio::sync::mpsc::unbounded::UnboundedSender">UnboundedSender</a>&lt;<a class="struct" href="../state/struct.PackageItem.html" title="struct Pacsea::state::PackageItem">PackageItem</a>&gt;,
+) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.90.0/std/primitive.bool.html">bool</a></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Dispatch a single input event, mutating <a href="../state/struct.AppState.html" title="struct Pacsea::state::AppState"><code>AppState</code></a> and coordinating
+background work via the provided channels.</p>
+<p>Returns <code>true</code> to signal the application should exit (e.g., <code>Esc</code> or
+<code>Ctrl+C</code> in supported contexts); otherwise returns <code>false</code>.</p>
+<p>Arguments:</p>
+<ul>
+<li><code>ev</code>: A raw <code>crossterm</code> event (keyboard or mouse)</li>
+<li><code>app</code>: Mutable application state to be updated</li>
+<li><code>query_tx</code>: Sends search queries when input changes</li>
+<li><code>details_tx</code>: Requests details for the currently selected result</li>
+<li><code>preview_tx</code>: Requests preview for the selected recent query</li>
+<li><code>add_tx</code>: Adds selected result(s) to the install list</li>
+</ul>
+<p>Behavior overview:</p>
+<ul>
+<li>Only key presses (<code>KeyEventKind::Press</code>) are handled; other key event
+kinds are ignored.</li>
+<li>Modal handling has precedence and captures <code>Enter</code>/<code>Esc</code> while a modal is
+open. Confirmation can trigger installs.</li>
+<li>Pane focus controls which bindings are active:
+<ul>
+<li>Recent: <code>j</code>/<code>k</code> or arrows to move; <code>Enter</code> to load into Search; <code>Space</code>
+to add first match to install; <code>/</code> to start pane-find.</li>
+<li>Install: <code>j</code>/<code>k</code> or arrows to move; <code>Delete</code> to remove; <code>Shift+Delete</code>
+to clear all; <code>Enter</code> to open confirmation modal; <code>/</code> to pane-find.</li>
+<li>Search: text input edits query and sends it; <code>Space</code> adds selection to
+install; arrows/PageUp/PageDown move selection; <code>Enter</code> opens single
+item confirmation.</li>
+</ul>
+</li>
+<li>Focus switching: <code>Tab</code>/<code>BackTab</code>/<code>Left</code>/<code>Right</code> move focus between panes
+while ensuring a valid selection where applicable.</li>
+<li>Mouse: A left-click inside the stored <code>url_button_rect</code> attempts to open
+the details URL using <code>xdg-open</code> on a background thread.</li>
+</ul>
+<p>Concurrency and side effects:</p>
+<ul>
+<li>May spawn a Tokio task to resolve a recent query to a concrete package
+when pressing <code>Space</code> in the Recent pane.</li>
+<li>Sends messages over provided channels; failures are ignored to keep input
+handling robust in the face of downstream shutdowns.</li>
+</ul>
+</div></details></section></div></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["build_install_command","command_on_path","log_installed","spawn_install","spawn_install_all"]};

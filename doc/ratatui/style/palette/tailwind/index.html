@@ -1,0 +1,248 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Represents the Tailwind CSS default color palette."><title>ratatui::style::palette::tailwind - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="ratatui" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../../../static.files/storage-68b7e25d.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../../../ratatui/index.html"><img src="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../ratatui/index.html"><img src="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/logo.png" alt="logo"></a><h2><a href="../../../../ratatui/index.html">ratatui</a><span class="version">0.29.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module tailwind</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example" title="Example">Example</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#constants" title="Constants">Constants</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In ratatui::<wbr>style::<wbr>palette</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">ratatui</a>::<wbr><a href="../../index.html">style</a>::<wbr><a href="../index.html">palette</a></div><h1>Module <span>tailwind</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/ratatui/style/palette/tailwind.rs.html#1-654">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Represents the Tailwind CSS <a href="https://tailwindcss.com/docs/customizing-colors#default-color-palette">default color palette</a>.</p>
+<p>There are 22 palettes. Each palette has 11 colors, with variants from 50 to 950. Black and White
+are also included for completeness and to avoid being affected by any terminal theme that might
+be in use.</p>
+<style>
+.color { display: flex; align-items: center; }
+.color > div { width: 2rem; height: 2rem; }
+.color > div.name { width: 150px; !important; }
+</style>
+<div style="overflow-x: auto">
+<div style="display: flex; flex-direction:column; text-align: left">
+<div class="color" style="font-size:0.8em">
+    <div class="name"></div>
+    <div>C50</div> <div>C100</div> <div>C200</div> <div>C300</div> <div>C400</div>
+    <div>C500</div> <div>C600</div> <div>C700</div> <div>C800</div> <div>C900</div>
+    <div>C950</div>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.SLATE.html" title="constant ratatui::style::palette::tailwind::SLATE"><code>SLATE</code></a></div>
+<div style="background-color: #f8fafc"></div> <div style="background-color: #f1f5f9"></div>
+<div style="background-color: #e2e8f0"></div> <div style="background-color: #cbd5e1"></div>
+<div style="background-color: #94a3b8"></div> <div style="background-color: #64748b"></div>
+<div style="background-color: #475569"></div> <div style="background-color: #334155"></div>
+<div style="background-color: #1e293b"></div> <div style="background-color: #0f172a"></div>
+<div style="background-color: #020617"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.GRAY.html" title="constant ratatui::style::palette::tailwind::GRAY"><code>GRAY</code></a></div>
+<div style="background-color: #f9fafb"></div> <div style="background-color: #f3f4f6"></div>
+<div style="background-color: #e5e7eb"></div> <div style="background-color: #d1d5db"></div>
+<div style="background-color: #9ca3af"></div> <div style="background-color: #6b7280"></div>
+<div style="background-color: #4b5563"></div> <div style="background-color: #374151"></div>
+<div style="background-color: #1f2937"></div> <div style="background-color: #111827"></div>
+<div style="background-color: #0a0a0a"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.ZINC.html" title="constant ratatui::style::palette::tailwind::ZINC"><code>ZINC</code></a></div>
+<div style="background-color: #fafafa"></div> <div style="background-color: #f5f5f5"></div>
+<div style="background-color: #e5e5e5"></div> <div style="background-color: #d4d4d4"></div>
+<div style="background-color: #a1a1aa"></div> <div style="background-color: #71717a"></div>
+<div style="background-color: #52525b"></div> <div style="background-color: #404040"></div>
+<div style="background-color: #262626"></div> <div style="background-color: #171717"></div>
+<div style="background-color: #0a0a0a"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.NEUTRAL.html" title="constant ratatui::style::palette::tailwind::NEUTRAL"><code>NEUTRAL</code></a></div>
+<div style="background-color: #fafafa"></div> <div style="background-color: #f5f5f5"></div>
+<div style="background-color: #e5e5e5"></div> <div style="background-color: #d4d4d4"></div>
+<div style="background-color: #a3a3a3"></div> <div style="background-color: #737373"></div>
+<div style="background-color: #525252"></div> <div style="background-color: #404040"></div>
+<div style="background-color: #262626"></div> <div style="background-color: #171717"></div>
+<div style="background-color: #0a0a0a"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.STONE.html" title="constant ratatui::style::palette::tailwind::STONE"><code>STONE</code></a></div>
+<div style="background-color: #fafaf9"></div> <div style="background-color: #f5f5f4"></div>
+<div style="background-color: #e7e5e4"></div> <div style="background-color: #d6d3d1"></div>
+<div style="background-color: #a8a29e"></div> <div style="background-color: #78716c"></div>
+<div style="background-color: #57534e"></div> <div style="background-color: #44403c"></div>
+<div style="background-color: #292524"></div> <div style="background-color: #1c1917"></div>
+<div style="background-color: #0c0a09"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.RED.html" title="constant ratatui::style::palette::tailwind::RED"><code>RED</code></a></div>
+<div style="background-color: #fef2f2"></div> <div style="background-color: #fee2e2"></div>
+<div style="background-color: #fecaca"></div> <div style="background-color: #fca5a5"></div>
+<div style="background-color: #f87171"></div> <div style="background-color: #ef4444"></div>
+<div style="background-color: #dc2626"></div> <div style="background-color: #b91c1c"></div>
+<div style="background-color: #991b1b"></div> <div style="background-color: #7f1d1d"></div>
+<div style="background-color: #450a0a"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.ORANGE.html" title="constant ratatui::style::palette::tailwind::ORANGE"><code>ORANGE</code></a></div>
+<div style="background-color: #fff7ed"></div> <div style="background-color: #ffedd5"></div>
+<div style="background-color: #fed7aa"></div> <div style="background-color: #fdba74"></div>
+<div style="background-color: #fb923c"></div> <div style="background-color: #f97316"></div>
+<div style="background-color: #ea580c"></div> <div style="background-color: #c2410c"></div>
+<div style="background-color: #9a3412"></div> <div style="background-color: #7c2d12"></div>
+<div style="background-color: #431407"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.AMBER.html" title="constant ratatui::style::palette::tailwind::AMBER"><code>AMBER</code></a></div>
+<div style="background-color: #fffbeb"></div> <div style="background-color: #fef3c7"></div>
+<div style="background-color: #fde68a"></div> <div style="background-color: #fcd34d"></div>
+<div style="background-color: #fbbf24"></div> <div style="background-color: #f59e0b"></div>
+<div style="background-color: #d97706"></div> <div style="background-color: #b45309"></div>
+<div style="background-color: #92400e"></div> <div style="background-color: #78350f"></div>
+<div style="background-color: #451a03"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.YELLOW.html" title="constant ratatui::style::palette::tailwind::YELLOW"><code>YELLOW</code></a></div>
+<div style="background-color: #fefce8"></div> <div style="background-color: #fef9c3"></div>
+<div style="background-color: #fef08a"></div> <div style="background-color: #fde047"></div>
+<div style="background-color: #facc15"></div> <div style="background-color: #eab308"></div>
+<div style="background-color: #ca8a04"></div> <div style="background-color: #a16207"></div>
+<div style="background-color: #854d0e"></div> <div style="background-color: #713f12"></div>
+<div style="background-color: #422006"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.LIME.html" title="constant ratatui::style::palette::tailwind::LIME"><code>LIME</code></a></div>
+<div style="background-color: #f7fee7"></div> <div style="background-color: #ecfccb"></div>
+<div style="background-color: #d9f99d"></div> <div style="background-color: #bef264"></div>
+<div style="background-color: #a3e635"></div> <div style="background-color: #84cc16"></div>
+<div style="background-color: #65a30d"></div> <div style="background-color: #4d7c0f"></div>
+<div style="background-color: #3f6212"></div> <div style="background-color: #365314"></div>
+<div style="background-color: #1a2e05"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.GREEN.html" title="constant ratatui::style::palette::tailwind::GREEN"><code>GREEN</code></a></div>
+<div style="background-color: #f0fdf4"></div> <div style="background-color: #dcfce7"></div>
+<div style="background-color: #bbf7d0"></div> <div style="background-color: #86efac"></div>
+<div style="background-color: #4ade80"></div> <div style="background-color: #22c55e"></div>
+<div style="background-color: #16a34a"></div> <div style="background-color: #15803d"></div>
+<div style="background-color: #166534"></div> <div style="background-color: #14532d"></div>
+<div style="background-color: #052e16"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.EMERALD.html" title="constant ratatui::style::palette::tailwind::EMERALD"><code>EMERALD</code></a></div>
+<div style="background-color: #ecfdf5"></div> <div style="background-color: #d1fae5"></div>
+<div style="background-color: #a7f3d0"></div> <div style="background-color: #6ee7b7"></div>
+<div style="background-color: #34d399"></div> <div style="background-color: #10b981"></div>
+<div style="background-color: #059669"></div> <div style="background-color: #047857"></div>
+<div style="background-color: #065f46"></div> <div style="background-color: #064e3b"></div>
+<div style="background-color: #022c22"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.TEAL.html" title="constant ratatui::style::palette::tailwind::TEAL"><code>TEAL</code></a></div>
+<div style="background-color: #f0fdfa"></div> <div style="background-color: #ccfbf1"></div>
+<div style="background-color: #99f6e4"></div> <div style="background-color: #5eead4"></div>
+<div style="background-color: #2dd4bf"></div> <div style="background-color: #14b8a6"></div>
+<div style="background-color: #0d9488"></div> <div style="background-color: #0f766e"></div>
+<div style="background-color: #115e59"></div> <div style="background-color: #134e4a"></div>
+<div style="background-color: #042f2e"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.CYAN.html" title="constant ratatui::style::palette::tailwind::CYAN"><code>CYAN</code></a></div>
+<div style="background-color: #ecfeff"></div> <div style="background-color: #cffafe"></div>
+<div style="background-color: #a5f3fc"></div> <div style="background-color: #67e8f9"></div>
+<div style="background-color: #22d3ee"></div> <div style="background-color: #06b6d4"></div>
+<div style="background-color: #0891b2"></div> <div style="background-color: #0e7490"></div>
+<div style="background-color: #155e75"></div> <div style="background-color: #164e63"></div>
+<div style="background-color: #083344"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.SKY.html" title="constant ratatui::style::palette::tailwind::SKY"><code>SKY</code></a></div>
+<div style="background-color: #f0f9ff"></div> <div style="background-color: #e0f2fe"></div>
+<div style="background-color: #bae6fd"></div> <div style="background-color: #7dd3fc"></div>
+<div style="background-color: #38bdf8"></div> <div style="background-color: #0ea5e9"></div>
+<div style="background-color: #0284c7"></div> <div style="background-color: #0369a1"></div>
+<div style="background-color: #075985"></div> <div style="background-color: #0c4a6e"></div>
+<div style="background-color: #082f49"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.BLUE.html" title="constant ratatui::style::palette::tailwind::BLUE"><code>BLUE</code></a></div>
+<div style="background-color: #eff6ff"></div> <div style="background-color: #dbeafe"></div>
+<div style="background-color: #bfdbfe"></div> <div style="background-color: #93c5fd"></div>
+<div style="background-color: #60a5fa"></div> <div style="background-color: #3b82f6"></div>
+<div style="background-color: #2563eb"></div> <div style="background-color: #1d4ed8"></div>
+<div style="background-color: #1e40af"></div> <div style="background-color: #1e3a8a"></div>
+<div style="background-color: #172554"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.INDIGO.html" title="constant ratatui::style::palette::tailwind::INDIGO"><code>INDIGO</code></a></div>
+<div style="background-color: #eef2ff"></div> <div style="background-color: #e0e7ff"></div>
+<div style="background-color: #c7d2fe"></div> <div style="background-color: #a5b4fc"></div>
+<div style="background-color: #818cf8"></div> <div style="background-color: #6366f1"></div>
+<div style="background-color: #4f46e5"></div> <div style="background-color: #4338ca"></div>
+<div style="background-color: #3730a3"></div> <div style="background-color: #312e81"></div>
+<div style="background-color: #1e1b4b"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.VIOLET.html" title="constant ratatui::style::palette::tailwind::VIOLET"><code>VIOLET</code></a></div>
+<div style="background-color: #f5f3ff"></div> <div style="background-color: #ede9fe"></div>
+<div style="background-color: #ddd6fe"></div> <div style="background-color: #c4b5fd"></div>
+<div style="background-color: #a78bfa"></div> <div style="background-color: #8b5cf6"></div>
+<div style="background-color: #7c3aed"></div> <div style="background-color: #6d28d9"></div>
+<div style="background-color: #5b21b6"></div> <div style="background-color: #4c1d95"></div>
+<div style="background-color: #2e1065"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.PURPLE.html" title="constant ratatui::style::palette::tailwind::PURPLE"><code>PURPLE</code></a></div>
+<div style="background-color: #faf5ff"></div> <div style="background-color: #f3e8ff"></div>
+<div style="background-color: #e9d5ff"></div> <div style="background-color: #d8b4fe"></div>
+<div style="background-color: #c084fc"></div> <div style="background-color: #a855f7"></div>
+<div style="background-color: #9333ea"></div> <div style="background-color: #7e22ce"></div>
+<div style="background-color: #6b21a8"></div> <div style="background-color: #581c87"></div>
+<div style="background-color: #4c136e"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.FUCHSIA.html" title="constant ratatui::style::palette::tailwind::FUCHSIA"><code>FUCHSIA</code></a></div>
+<div style="background-color: #fdf4ff"></div> <div style="background-color: #fae8ff"></div>
+<div style="background-color: #f5d0fe"></div> <div style="background-color: #f0abfc"></div>
+<div style="background-color: #e879f9"></div> <div style="background-color: #d946ef"></div>
+<div style="background-color: #c026d3"></div> <div style="background-color: #a21caf"></div>
+<div style="background-color: #86198f"></div> <div style="background-color: #701a75"></div>
+<div style="background-color: #4e145b"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.PINK.html" title="constant ratatui::style::palette::tailwind::PINK"><code>PINK</code></a></div>
+<div style="background-color: #fdf2f8"></div> <div style="background-color: #fce7f3"></div>
+<div style="background-color: #fbcfe8"></div> <div style="background-color: #f9a8d4"></div>
+<div style="background-color: #f472b6"></div> <div style="background-color: #ec4899"></div>
+<div style="background-color: #db2777"></div> <div style="background-color: #be185d"></div>
+<div style="background-color: #9d174d"></div> <div style="background-color: #831843"></div>
+<div style="background-color: #5f0b37"></div></p>
+</div>
+<div class="color">
+   <div class="name">
+<p><a href="constant.BLACK.html" title="constant ratatui::style::palette::tailwind::BLACK"><code>BLACK</code></a></div>
+<div style="background-color: #000000; width:22rem"></div></p>
+</div>
+<div class="color">
+    <div class="name">
+<p><a href="constant.WHITE.html" title="constant ratatui::style::palette::tailwind::WHITE"><code>WHITE</code></a></div>
+<div style="background-color: #ffffff; width:22rem"></div></p>
+</div>
+</div>
+</div>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ratatui::style::{
+    palette::tailwind::{BLUE, RED},
+    Color,
+};
+
+<span class="macro">assert_eq!</span>(RED.c500, Color::Rgb(<span class="number">239</span>, <span class="number">68</span>, <span class="number">68</span>));
+<span class="macro">assert_eq!</span>(BLUE.c500, Color::Rgb(<span class="number">59</span>, <span class="number">130</span>, <span class="number">246</span>));</code></pre></div>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Palette.html" title="struct ratatui::style::palette::tailwind::Palette">Palette</a></dt></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.AMBER.html" title="constant ratatui::style::palette::tailwind::AMBER">AMBER</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fffbeb"></div><div style="background-color: #fef3c7"></div><div style="background-color: #fde68a"></div><div style="background-color: #fcd34d"></div><div style="background-color: #fbbf24"></div><div style="background-color: #f59e0b"></div><div style="background-color: #d97706"></div><div style="background-color: #b45309"></div><div style="background-color: #92400e"></div><div style="background-color: #78350f"></div><div style="background-color: #451a03"></div></div></dd><dt><a class="constant" href="constant.BLACK.html" title="constant ratatui::style::palette::tailwind::BLACK">BLACK</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #000000"></div></div></dd><dt><a class="constant" href="constant.BLUE.html" title="constant ratatui::style::palette::tailwind::BLUE">BLUE</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #eff6ff"></div><div style="background-color: #dbeafe"></div><div style="background-color: #bfdbfe"></div><div style="background-color: #93c5fd"></div><div style="background-color: #60a5fa"></div><div style="background-color: #3b82f6"></div><div style="background-color: #2563eb"></div><div style="background-color: #1d4ed8"></div><div style="background-color: #1e40af"></div><div style="background-color: #1e3a8a"></div><div style="background-color: #172554"></div></div></dd><dt><a class="constant" href="constant.CYAN.html" title="constant ratatui::style::palette::tailwind::CYAN">CYAN</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #ecfeff"></div><div style="background-color: #cffafe"></div><div style="background-color: #a5f3fc"></div><div style="background-color: #67e8f9"></div><div style="background-color: #22d3ee"></div><div style="background-color: #06b6d4"></div><div style="background-color: #0891b2"></div><div style="background-color: #0e7490"></div><div style="background-color: #155e75"></div><div style="background-color: #164e63"></div><div style="background-color: #083344"></div></div></dd><dt><a class="constant" href="constant.EMERALD.html" title="constant ratatui::style::palette::tailwind::EMERALD">EMERALD</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #f0fdfa"></div><div style="background-color: #ccfbf1"></div><div style="background-color: #99f6e4"></div><div style="background-color: #5eead4"></div><div style="background-color: #2dd4bf"></div><div style="background-color: #14b8a6"></div><div style="background-color: #0d9488"></div><div style="background-color: #0f766e"></div><div style="background-color: #115e59"></div><div style="background-color: #134e4a"></div><div style="background-color: #042f2e"></div></div></dd><dt><a class="constant" href="constant.FUCHSIA.html" title="constant ratatui::style::palette::tailwind::FUCHSIA">FUCHSIA</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fdf4ff"></div><div style="background-color: #fae8ff"></div><div style="background-color: #f5d0fe"></div><div style="background-color: #f0abfc"></div><div style="background-color: #e879f9"></div><div style="background-color: #d946ef"></div><div style="background-color: #c026d3"></div><div style="background-color: #a21caf"></div><div style="background-color: #86198f"></div><div style="background-color: #701a75"></div><div style="background-color: #4a044e"></div></div></dd><dt><a class="constant" href="constant.GRAY.html" title="constant ratatui::style::palette::tailwind::GRAY">GRAY</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #f9fafb"></div><div style="background-color: #f3f4f6"></div><div style="background-color: #e5e7eb"></div><div style="background-color: #d1d5db"></div><div style="background-color: #9ca3af"></div><div style="background-color: #6b7280"></div><div style="background-color: #4b5563"></div><div style="background-color: #374151"></div><div style="background-color: #1f2937"></div><div style="background-color: #111827"></div><div style="background-color: #030712"></div></div></dd><dt><a class="constant" href="constant.GREEN.html" title="constant ratatui::style::palette::tailwind::GREEN">GREEN</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #f0fdf4"></div><div style="background-color: #dcfce7"></div><div style="background-color: #bbf7d0"></div><div style="background-color: #86efac"></div><div style="background-color: #4ade80"></div><div style="background-color: #22c55e"></div><div style="background-color: #16a34a"></div><div style="background-color: #15803d"></div><div style="background-color: #166534"></div><div style="background-color: #14532d"></div><div style="background-color: #052e16"></div></div></dd><dt><a class="constant" href="constant.INDIGO.html" title="constant ratatui::style::palette::tailwind::INDIGO">INDIGO</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #eef2ff"></div><div style="background-color: #e0e7ff"></div><div style="background-color: #c7d2fe"></div><div style="background-color: #a5b4fc"></div><div style="background-color: #818cf8"></div><div style="background-color: #6366f1"></div><div style="background-color: #4f46e5"></div><div style="background-color: #4338ca"></div><div style="background-color: #3730a3"></div><div style="background-color: #312e81"></div><div style="background-color: #1e1b4b"></div></div></dd><dt><a class="constant" href="constant.LIME.html" title="constant ratatui::style::palette::tailwind::LIME">LIME</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #f7fee7"></div><div style="background-color: #ecfccb"></div><div style="background-color: #d9f99d"></div><div style="background-color: #bef264"></div><div style="background-color: #a3e635"></div><div style="background-color: #84cc16"></div><div style="background-color: #65a30d"></div><div style="background-color: #4d7c0f"></div><div style="background-color: #3f6212"></div><div style="background-color: #365314"></div><div style="background-color: #1a2e05"></div></div></dd><dt><a class="constant" href="constant.NEUTRAL.html" title="constant ratatui::style::palette::tailwind::NEUTRAL">NEUTRAL</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fafafa"></div><div style="background-color: #f5f5f5"></div><div style="background-color: #e5e5e5"></div><div style="background-color: #d4d4d4"></div><div style="background-color: #a3a3a3"></div><div style="background-color: #737373"></div><div style="background-color: #525252"></div><div style="background-color: #404040"></div><div style="background-color: #262626"></div><div style="background-color: #171717"></div><div style="background-color: #0a0a0a"></div></div></dd><dt><a class="constant" href="constant.ORANGE.html" title="constant ratatui::style::palette::tailwind::ORANGE">ORANGE</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fff7ed"></div><div style="background-color: #ffedd5"></div><div style="background-color: #fed7aa"></div><div style="background-color: #fdba74"></div><div style="background-color: #fb923c"></div><div style="background-color: #f97316"></div><div style="background-color: #ea580c"></div><div style="background-color: #c2410c"></div><div style="background-color: #9a3412"></div><div style="background-color: #7c2d12"></div><div style="background-color: #431407"></div></div></dd><dt><a class="constant" href="constant.PINK.html" title="constant ratatui::style::palette::tailwind::PINK">PINK</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fdf2f8"></div><div style="background-color: #fce7f3"></div><div style="background-color: #fbcfe8"></div><div style="background-color: #f9a8d4"></div><div style="background-color: #f472b6"></div><div style="background-color: #ec4899"></div><div style="background-color: #db2777"></div><div style="background-color: #be185d"></div><div style="background-color: #9d174d"></div><div style="background-color: #831843"></div><div style="background-color: #500724"></div></div></dd><dt><a class="constant" href="constant.PURPLE.html" title="constant ratatui::style::palette::tailwind::PURPLE">PURPLE</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #faf5ff"></div><div style="background-color: #f3e8ff"></div><div style="background-color: #e9d5ff"></div><div style="background-color: #d8b4fe"></div><div style="background-color: #c084fc"></div><div style="background-color: #a855f7"></div><div style="background-color: #9333ea"></div><div style="background-color: #7e22ce"></div><div style="background-color: #6b21a8"></div><div style="background-color: #581c87"></div><div style="background-color: #3b0764"></div></div></dd><dt><a class="constant" href="constant.RED.html" title="constant ratatui::style::palette::tailwind::RED">RED</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fef2f2"></div><div style="background-color: #fee2e2"></div><div style="background-color: #fecaca"></div><div style="background-color: #fca5a5"></div><div style="background-color: #f87171"></div><div style="background-color: #ef4444"></div><div style="background-color: #dc2626"></div><div style="background-color: #b91c1c"></div><div style="background-color: #991b1b"></div><div style="background-color: #7f1d1d"></div><div style="background-color: #450a0a"></div></div></dd><dt><a class="constant" href="constant.ROSE.html" title="constant ratatui::style::palette::tailwind::ROSE">ROSE</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fff1f2"></div><div style="background-color: #ffe4e6"></div><div style="background-color: #fecdd3"></div><div style="background-color: #fda4af"></div><div style="background-color: #fb7185"></div><div style="background-color: #f43f5e"></div><div style="background-color: #e11d48"></div><div style="background-color: #be123c"></div><div style="background-color: #9f1239"></div><div style="background-color: #881337"></div><div style="background-color: #4c0519"></div></div></dd><dt><a class="constant" href="constant.SKY.html" title="constant ratatui::style::palette::tailwind::SKY">SKY</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #f0f9ff"></div><div style="background-color: #e0f2fe"></div><div style="background-color: #bae6fd"></div><div style="background-color: #7dd3fc"></div><div style="background-color: #38bdf8"></div><div style="background-color: #0ea5e9"></div><div style="background-color: #0284c7"></div><div style="background-color: #0369a1"></div><div style="background-color: #075985"></div><div style="background-color: #0c4a6e"></div><div style="background-color: #082f49"></div></div></dd><dt><a class="constant" href="constant.SLATE.html" title="constant ratatui::style::palette::tailwind::SLATE">SLATE</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #f8fafc"></div><div style="background-color: #f1f5f9"></div><div style="background-color: #e2e8f0"></div><div style="background-color: #cbd5e1"></div><div style="background-color: #94a3b8"></div><div style="background-color: #64748b"></div><div style="background-color: #475569"></div><div style="background-color: #334155"></div><div style="background-color: #1e293b"></div><div style="background-color: #0f172a"></div><div style="background-color: #020617"></div></div></dd><dt><a class="constant" href="constant.STONE.html" title="constant ratatui::style::palette::tailwind::STONE">STONE</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fafaf9"></div><div style="background-color: #f5f5f4"></div><div style="background-color: #e7e5e4"></div><div style="background-color: #d6d3d1"></div><div style="background-color: #a8a29e"></div><div style="background-color: #78716c"></div><div style="background-color: #57534e"></div><div style="background-color: #44403c"></div><div style="background-color: #292524"></div><div style="background-color: #1c1917"></div><div style="background-color: #0c0a09"></div></div></dd><dt><a class="constant" href="constant.TEAL.html" title="constant ratatui::style::palette::tailwind::TEAL">TEAL</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #f5fdf4"></div><div style="background-color: #e7f9e7"></div><div style="background-color: #c6f6d5"></div><div style="background-color: #9ae6b4"></div><div style="background-color: #68d391"></div><div style="background-color: #48bb78"></div><div style="background-color: #38a169"></div><div style="background-color: #2f855a"></div><div style="background-color: #276749"></div><div style="background-color: #22543d"></div><div style="background-color: #0d3321"></div></div></dd><dt><a class="constant" href="constant.VIOLET.html" title="constant ratatui::style::palette::tailwind::VIOLET">VIOLET</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #f5f3ff"></div><div style="background-color: #ede9fe"></div><div style="background-color: #ddd6fe"></div><div style="background-color: #c4b5fd"></div><div style="background-color: #a78bfa"></div><div style="background-color: #8b5cf6"></div><div style="background-color: #7c3aed"></div><div style="background-color: #6d28d9"></div><div style="background-color: #5b21b6"></div><div style="background-color: #4c1d95"></div><div style="background-color: #2e1065"></div></div></dd><dt><a class="constant" href="constant.WHITE.html" title="constant ratatui::style::palette::tailwind::WHITE">WHITE</a></dt><dd><style>.palette div{width:22rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #ffffff"></div></div></dd><dt><a class="constant" href="constant.YELLOW.html" title="constant ratatui::style::palette::tailwind::YELLOW">YELLOW</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fefce8"></div><div style="background-color: #fef9c3"></div><div style="background-color: #fef08a"></div><div style="background-color: #fde047"></div><div style="background-color: #facc15"></div><div style="background-color: #eab308"></div><div style="background-color: #ca8a04"></div><div style="background-color: #a16207"></div><div style="background-color: #854d0e"></div><div style="background-color: #713f12"></div><div style="background-color: #422006"></div></div></dd><dt><a class="constant" href="constant.ZINC.html" title="constant ratatui::style::palette::tailwind::ZINC">ZINC</a></dt><dd><style>.palette div{width:2rem;height:2rem}</style><div class="palette" style="display:flex;flex-direction:row"><div style="background-color: #fafafa"></div><div style="background-color: #f5f5f5"></div><div style="background-color: #e5e5e5"></div><div style="background-color: #d4d4d4"></div><div style="background-color: #a1a1aa"></div><div style="background-color: #71717a"></div><div style="background-color: #52525b"></div><div style="background-color: #404040"></div><div style="background-color: #262626"></div><div style="background-color: #171717"></div><div style="background-color: #09090b"></div></div></dd></dl></section></div></main></body></html>

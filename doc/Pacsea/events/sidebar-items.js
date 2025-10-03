@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["find_in_install","find_in_recent","handle_event","refresh_selected_details"]};

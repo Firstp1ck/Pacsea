@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="`style` contains the primitives used to control how your user interface will look."><title>ratatui::style - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="ratatui" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../ratatui/index.html"><img src="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../ratatui/index.html"><img src="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/logo.png" alt="logo"></a><h2><a href="../../ratatui/index.html">ratatui</a><span class="version">0.29.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module style</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#using-the-style-struct" title="Using the `Style` struct">Using the <code>Style</code> struct</a><ul><li><a href="#example" title="Example">Example</a></li></ul></li><li><a href="#using-style-shorthands" title="Using style shorthands">Using style shorthands</a><ul><li><a href="#example-1" title="Example">Example</a></li></ul></li></ul><h3><a href="#modules">Module Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate ratatui</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">ratatui</a></div><h1>Module <span>style</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/ratatui/style.rs.html#1-905">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><code>style</code> contains the primitives used to control how your user interface will look.</p>
+<p>There are two ways to set styles:</p>
+<ul>
+<li>Creating and using the <a href="struct.Style.html" title="struct ratatui::style::Style"><code>Style</code></a> struct. (e.g. <code>Style::new().fg(Color::Red)</code>).</li>
+<li>Using style shorthands. (e.g. <code>"hello".red()</code>).</li>
+</ul>
+<h2 id="using-the-style-struct"><a class="doc-anchor" href="#using-the-style-struct">§</a>Using the <code>Style</code> struct</h2>
+<p>This is the original approach to styling and likely the most common. This is useful when
+creating style variables to reuse, however the shorthands are often more convenient and
+readable for most use cases.</p>
+<h3 id="example"><a class="doc-anchor" href="#example">§</a>Example</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ratatui::{
+    style::{Color, Modifier, Style},
+    text::Span,
+};
+
+<span class="kw">let </span>heading_style = Style::new()
+    .fg(Color::Black)
+    .bg(Color::Green)
+    .add_modifier(Modifier::ITALIC | Modifier::BOLD);
+<span class="kw">let </span>span = Span::styled(<span class="string">"hello"</span>, heading_style);</code></pre></div>
+<h2 id="using-style-shorthands"><a class="doc-anchor" href="#using-style-shorthands">§</a>Using style shorthands</h2>
+<p>Originally Ratatui only had the ability to set styles using the <code>Style</code> struct. This is still
+supported, but there are now shorthands for all the styles that can be set. These save you from
+having to create a <code>Style</code> struct every time you want to set a style.</p>
+<p>The shorthands are implemented in the <a href="trait.Stylize.html" title="trait ratatui::style::Stylize"><code>Stylize</code></a> trait which is automatically implemented for
+many types via the <a href="trait.Styled.html" title="trait ratatui::style::Styled"><code>Styled</code></a> trait. This means that you can use the shorthands on any type
+that implements <a href="trait.Styled.html" title="trait ratatui::style::Styled"><code>Styled</code></a>. E.g.:</p>
+<ul>
+<li>Strings and string slices when styled return a <a href="../text/struct.Span.html" title="struct ratatui::text::Span"><code>Span</code></a></li>
+<li><a href="../text/struct.Span.html" title="struct ratatui::text::Span"><code>Span</code></a>s can be styled again, which will merge the styles.</li>
+<li>Many widget types can be styled directly rather than calling their <code>style()</code> method.</li>
+</ul>
+<p>See the <a href="trait.Stylize.html" title="trait ratatui::style::Stylize"><code>Stylize</code></a> and <a href="trait.Styled.html" title="trait ratatui::style::Styled"><code>Styled</code></a> traits for more information.</p>
+<h3 id="example-1"><a class="doc-anchor" href="#example-1">§</a>Example</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ratatui::{
+    style::{Color, Modifier, Style, Stylize},
+    text::Span,
+    widgets::Paragraph,
+};
+
+<span class="macro">assert_eq!</span>(
+    <span class="string">"hello"</span>.red().on_blue().bold(),
+    Span::styled(
+        <span class="string">"hello"</span>,
+        Style::default()
+            .fg(Color::Red)
+            .bg(Color::Blue)
+            .add_modifier(Modifier::BOLD)
+    )
+);
+
+<span class="macro">assert_eq!</span>(
+    Paragraph::new(<span class="string">"hello"</span>).red().on_blue().bold(),
+    Paragraph::new(<span class="string">"hello"</span>).style(
+        Style::default()
+            .fg(Color::Red)
+            .bg(Color::Blue)
+            .add_modifier(Modifier::BOLD)
+    )
+);</code></pre></div>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="palette/index.html" title="mod ratatui::style::palette">palette</a></dt><dd>A module for defining color palettes.</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Modifier.html" title="struct ratatui::style::Modifier">Modifier</a></dt><dd>Modifier changes the way a piece of text is displayed.</dd><dt><a class="struct" href="struct.ParseColorError.html" title="struct ratatui::style::ParseColorError">Parse<wbr>Color<wbr>Error</a></dt><dd>Error type indicating a failure to parse a color string.</dd><dt><a class="struct" href="struct.Style.html" title="struct ratatui::style::Style">Style</a></dt><dd>Style lets you control the main characteristics of the displayed elements.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Color.html" title="enum ratatui::style::Color">Color</a></dt><dd>ANSI Color</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.Styled.html" title="trait ratatui::style::Styled">Styled</a></dt><dd>A trait for objects that have a <code>Style</code>.</dd><dt><a class="trait" href="trait.Stylize.html" title="trait ratatui::style::Stylize">Stylize</a></dt><dd>An extension trait for styling objects.</dd></dl></section></div></main></body></html>

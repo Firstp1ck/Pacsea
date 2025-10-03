@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["fetch_first_match_for_query","filtered_install_indices","filtered_recent_indices","format_details_lines","human_bytes","join","trigger_recent_preview"]};

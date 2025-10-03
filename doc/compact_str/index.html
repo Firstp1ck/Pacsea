@@ -1,0 +1,161 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="         About"><title>compact_str - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="compact_str" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-68b7e25d.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../compact_str/index.html">compact_<wbr>str</a><span class="version">0.8.1</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#about" title="About">About</a></li><li><a href="#properties" title="Properties">Properties</a></li><li><a href="#traits" title="Traits">Traits</a><ul><li><a href="#tocompactstring" title="`ToCompactString`"><code>ToCompactString</code></a></li><li><a href="#compactstringext" title="`CompactStringExt`"><code>CompactStringExt</code></a></li></ul></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#features" title="Features">Features</a></li><li><a href="#how-it-works" title="How it works">How it works</a><ul><li><a href="#memory-layout" title="Memory Layout">Memory Layout</a></li></ul></li><li><a href="#testing" title="Testing">Testing</a></li><li><a href="#unsafe-code" title="`unsafe` code"><code>unsafe</code> code</a></li><li><a href="#similar-crates" title="Similar Crates">Similar Crates</a></li></ul><h3><a href="#macros-1">Crate Items</a></h3><ul class="block"><li><a href="#macros-1" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits-1" title="Traits">Traits</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>compact_str</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/compact_str/lib.rs.html#1-2702">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><div align="center">
+  <h1><code>compact_str</code></h1>
+  <p><strong>A memory efficient string type that can store up to 24* bytes on the stack.</strong></p>
+  <a href="https://crates.io/crates/compact_str">
+    <img alt="version on crates.io" src="https://img.shields.io/crates/v/compact_str"/>
+  </a>
+  <img alt="Minimum supported Rust Version: 1.60" src="https://img.shields.io/badge/MSRV-1.60-blueviolet">
+  <a href="LICENSE">
+    <img alt="mit license" src="https://img.shields.io/crates/l/compact_str"/>
+  </a>
+   <br />
+  <a href="https://github.com/ParkMyCar/compact_str/actions/workflows/ci.yml">
+    <img alt="Continuous Integration Status" src="https://github.com/ParkMyCar/compact_str/actions/workflows/ci.yml/badge.svg?branch=main&event=push"/>
+  </a>
+  <a href="https://github.com/ParkMyCar/compact_str/actions/workflows/cross_platform.yml">
+    <img alt="Cross Platform Status" src="https://github.com/ParkMyCar/compact_str/actions/workflows/cross_platform.yml/badge.svg?branch=main&event=push"/>
+  </a>
+  <a href="https://github.com/ParkMyCar/compact_str/actions/workflows/msrv.yml">
+    <img alt="Minimum Supported Rust Version Status" src="https://github.com/ParkMyCar/compact_str/actions/workflows/msrv.yml/badge.svg?branch=main&event=push"/>
+  </a>
+  <a href="https://github.com/ParkMyCar/compact_str/actions/workflows/clippy.yml">
+    <img alt="Clippy Status" src="https://github.com/ParkMyCar/compact_str/actions/workflows/clippy.yml/badge.svg?branch=main&event=push"/>
+  </a>
+  <p  align=right><sub>* 12 bytes for 32-bit architectures</sub></p>
+</div>
+<br />
+<h4 id="about"><a class="doc-anchor" href="#about">§</a>About</h4>
+<p>A <code>CompactString</code> is a more memory efficient string type, that can store smaller strings on the stack, and transparently stores longer strings on the heap (aka a small string optimization).
+It can mostly be used as a drop in replacement for <code>String</code> and are particularly useful in parsing, deserializing, or any other application where you may
+have smaller strings.</p>
+<h4 id="properties"><a class="doc-anchor" href="#properties">§</a>Properties</h4>
+<p>A <code>CompactString</code> specifically has the following properties:</p>
+<ul>
+<li><code>size_of::&lt;CompactString&gt;() == size_of::&lt;String&gt;()</code></li>
+<li>Stores up to 24 bytes on the stack
+<ul>
+<li>12 bytes if running on a 32 bit architecture</li>
+</ul>
+</li>
+<li>Strings longer than 24 bytes are stored on the heap</li>
+<li><code>Clone</code> is <code>O(n)</code></li>
+<li><code>From&lt;String&gt;</code> or <code>From&lt;Box&lt;str&gt;&gt;</code> re-uses underlying buffer
+<ul>
+<li>Eagerly inlines small strings</li>
+</ul>
+</li>
+<li><code>O(1)</code> creation from <code>&amp;'static str</code> with <code>CompactString::const_new</code></li>
+<li>Heap based string grows at a rate of 1.5x
+<ul>
+<li>The std library <code>String</code> grows at a rate of 2x</li>
+</ul>
+</li>
+<li>Space optimized for <code>Option&lt;_&gt;</code>
+<ul>
+<li><code>size_of::&lt;CompactString&gt;() == size_of::&lt;Option&lt;CompactString&gt;&gt;()</code></li>
+</ul>
+</li>
+<li>Uses <a href="https://en.algorithmica.org/hpc/pipelining/branchless/">branchless instructions</a> for string accesses</li>
+<li>Supports <code>no_std</code> environments</li>
+</ul>
+<h4 id="traits"><a class="doc-anchor" href="#traits">§</a>Traits</h4>
+<p>This crate exposes two traits, <code>ToCompactString</code> and <code>CompactStringExt</code>.</p>
+<h5 id="tocompactstring"><a class="doc-anchor" href="#tocompactstring">§</a><code>ToCompactString</code></h5>
+<p>Provides the <code>to_compact_string(&amp;self)</code> method for converting types into a <code>CompactString</code>. This trait is automatically implemented for all types that are <code>std::fmt::Display</code>, with specialized higher performance impls for:</p>
+<ul>
+<li><code>u8</code>, <code>u16</code>, <code>u32</code>, <code>u64</code>, <code>usize</code>, <code>u128</code></li>
+<li><code>i8</code>, <code>i16</code>, <code>i32</code>, <code>i64</code>, <code>isize</code>, <code>i128</code></li>
+<li><code>f32</code>, <code>f64</code></li>
+<li><code>bool</code>, <code>char</code></li>
+<li><code>NonZeroU*</code>, <code>NonZeroI*</code></li>
+<li><code>String</code>, <code>CompactString</code></li>
+</ul>
+<h5 id="compactstringext"><a class="doc-anchor" href="#compactstringext">§</a><code>CompactStringExt</code></h5>
+<p>Provides two methods <code>join_compact(seperator: impl AsRef&lt;str&gt;)</code> and <code>concat_compact()</code>. This trait is automatically implemented for all types that can be converted into an iterator and yield types that <code>impl AsRef&lt;str&gt;</code>. This allows you to join Vec’s, slices, and any other collection to form <code>CompactString</code>s.</p>
+<h4 id="macros"><a class="doc-anchor" href="#macros">§</a>Macros</h4>
+<p>This crate exposes one macro <code>format_compact!</code> that can be used to create <code>CompactString</code>s from arguments, like you can <code>String</code>s with the <code>std::format!</code> macro.</p>
+<h4 id="features"><a class="doc-anchor" href="#features">§</a>Features</h4>
+<p><code>compact_str</code> has the following optional features:</p>
+<ul>
+<li><code>serde</code>, which implements <a href="https://docs.rs/serde/1/serde/trait.Deserialize.html"><code>Deserialize</code></a> and <a href="https://docs.rs/serde/1/serde/trait.Serialize.html"><code>Serialize</code></a> from the popular <a href="https://docs.rs/serde/1/serde/"><code>serde</code></a> crate, for <code>CompactString</code></li>
+<li><code>bytes</code>, which provides two methods <code>from_utf8_buf&lt;B: Buf&gt;(buf: &amp;mut B)</code> and <code>from_utf8_buf_unchecked&lt;B: Buf&gt;(buf: &amp;mut B)</code>, which allows for the creation of a <code>CompactString</code> from a <a href="https://docs.rs/bytes/1/bytes/trait.Buf.html"><code>bytes::Buf</code></a></li>
+<li><code>markup</code>, which implements <a href="https://docs.rs/markup/0.13/markup/trait.Render.html"><code>Render</code></a> trait, so <code>CompactString</code>s can be used in templates as HTML escaped strings</li>
+<li><code>diesel</code>, which allows using CompactStrings in <a href="https://diesel.rs/"><code>diesel</code></a> text columns</li>
+<li><code>sqlx-mysql</code> / <code>sqlx-postgres</code> / <code>sqlx-sqlite</code>, which allows using CompactStrings in <a href="https://github.com/launchbadge/sqlx"><code>sqlx</code></a> text columns</li>
+<li><code>arbitrary</code>, which implements the <a href="https://docs.rs/arbitrary/1/arbitrary/trait.Arbitrary.html"><code>arbitrary::Arbitrary</code></a> trait for fuzzing</li>
+<li><code>proptest</code>, which implements the <a href="https://docs.rs/proptest/1/proptest/arbitrary/trait.Arbitrary.html"><code>proptest::arbitrary::Arbitrary</code></a> trait for fuzzing</li>
+<li><code>quickcheck</code>, which implements the <a href="https://docs.rs/quickcheck/1/quickcheck/trait.Arbitrary.html"><code>quickcheck::Arbitrary</code></a> trait for fuzzing</li>
+<li><code>rkyv</code>, which implements <a href="https://docs.rs/rkyv/0.7/rkyv/trait.Archive.html"><code>rkyv::Archive</code></a>, <a href="https://docs.rs/rkyv/0.7/rkyv/trait.Serialize.html"><code>rkyv::Serialize</code></a> and <a href="https://docs.rs/rkyv/0.7/rkyv/trait.Deserialize.html"><code>rkyv::Deserialize</code></a> for fast zero-copy serialization, interchangable with serialized Strings</li>
+<li><code>smallvec</code>, provides the <code>into_bytes()</code> method which enables you to convert a <code>CompactString</code> into a byte vector, using <a href="https://docs.rs/smallvec/latest/smallvec/struct.SmallVec.html"><code>smallvec::SmallVec</code></a></li>
+</ul>
+<h4 id="how-it-works"><a class="doc-anchor" href="#how-it-works">§</a>How it works</h4>
+<p>Note: this explanation assumes a 64-bit architecture, for 32-bit architectures generally divide any number by 2.</p>
+<p>Normally strings are stored on the heap since they’re dynamically sized. In Rust a <code>String</code> consists of three fields, each of which are the size of a <code>usize</code>.
+e.g. its layout is something like the following:</p>
+<p><code>String: [ ptr&lt;8&gt; | len&lt;8&gt; | cap&lt;8&gt; ]</code></p>
+<ol>
+<li><code>ptr</code> is a pointer to a location on the heap that stores the string</li>
+<li><code>len</code> is the length of the string</li>
+<li><code>cap</code> is the total capacity of the buffer being pointed to</li>
+</ol>
+<p>This results in 24 bytes being stored on the stack, 8 bytes for each field. Then the actual string is stored on the heap, usually with additional memory allocated to prevent re-allocating if the string is mutated.</p>
+<p>The idea of <code>CompactString</code> is instead of storing metadata on the stack, just store the string itself. This way for smaller strings we save a bit of memory, and we
+don’t have to heap allocate so it’s more performant. A <code>CompactString</code> is limited to 24 bytes (aka <code>size_of::&lt;String&gt;()</code>) so it won’t ever use more memory than a
+<code>String</code> would.</p>
+<p>The memory layout of a <code>CompactString</code> looks something like:</p>
+<p><code>CompactString: [ buffer&lt;23&gt; | len&lt;1&gt; ]</code></p>
+<h5 id="memory-layout"><a class="doc-anchor" href="#memory-layout">§</a>Memory Layout</h5>
+<p>Internally a <code>CompactString</code> has two variants:</p>
+<ol>
+<li><strong>Inline</strong>, a string &lt;= 24 bytes long</li>
+<li><strong>Heap</strong> allocated, a string &gt; 24 bytes long</li>
+</ol>
+<p>We define a discriminant (aka track which variant we are) <em>within</em> the last byte, specifically:</p>
+<ol>
+<li><code>0b11111110</code> - All 1s with a trailing 0, indicates <strong>heap</strong> allocated</li>
+<li><code>0b11XXXXXX</code> - Two leading 1s, indicates <strong>inline</strong>, with the trailing 6 bits used to store the length</li>
+</ol>
+<p>and the overall memory layout of a <code>CompactString</code> is:</p>
+<ol>
+<li><code>heap:   { ptr: NonNull&lt;u8&gt;, len: usize, cap: Capacity }</code></li>
+<li><code>inline: { buffer: [u8; 24] }</code></li>
+</ol>
+<p><sub>Both variants are 24 bytes long</sub></p>
+<p>For <strong>heap</strong> allocated strings we use a custom <code>HeapBuffer</code> which normally stores the capacity of the string on the stack, but also optionally allows us to store it on the heap. Since we use the last byte to track our discriminant, we only have 7 bytes to store the capacity, or 3 bytes on a 32-bit architecture. 7 bytes allows us to store a value up to <code>2^56</code>, aka 64 petabytes, while 3 bytes only allows us to store a value up to <code>2^24</code>, aka 16 megabytes.</p>
+<p>For 64-bit architectures we always inline the capacity, because we can safely assume our strings will never be larger than 64 petabytes, but on 32-bit architectures, when creating or growing a <code>CompactString</code>, if the text is larger than 16MB then we move the capacity onto the heap.</p>
+<p>We handle the capacity in this way for two reasons:</p>
+<ol>
+<li>Users shouldn’t have to pay for what they don’t use. Meaning, in the <em>majority</em> of cases the capacity of the buffer could easily fit into 7 or 3 bytes, so the user shouldn’t have to pay the memory cost of storing the capacity on the heap, if they don’t need to.</li>
+<li>Allows us to convert <code>From&lt;String&gt;</code> in <code>O(1)</code> time, by taking the parts of a <code>String</code> (e.g. <code>ptr</code>, <code>len</code>, and <code>cap</code>) and using those to create a <code>CompactString</code>, without having to do any heap allocations. This is important when using <code>CompactString</code> in large codebases where you might have <code>CompactString</code> working alongside of <code>String</code>.</li>
+</ol>
+<p>For <strong>inline</strong> strings we only have a 24 byte buffer on the stack. This might make you wonder how can we store a 24 byte long string, inline? Don’t we also need to store the length somewhere?</p>
+<p>To do this, we utilize the fact that the last byte of our string could only ever have a value in the range <code>[0, 192)</code>. We know this because all strings in Rust are valid <a href="https://en.wikipedia.org/wiki/UTF-8">UTF-8</a>, and the only valid byte pattern for the last byte of a UTF-8 character (and thus the possible last byte of a string) is <code>0b0XXXXXXX</code> aka <code>[0, 128)</code> or <code>0b10XXXXXX</code> aka <code>[128, 192)</code>. This leaves all values in <code>[192, 255]</code> as unused in our last byte. Therefore, we can use values in the range of <code>[192, 215]</code> to represent a length in the range of <code>[0, 23]</code>, and if our last byte has a value <code>&lt; 192</code>, we know that’s a UTF-8 character, and can interpret the length of our string as <code>24</code>.</p>
+<p>Specifically, the last byte on the stack for a <code>CompactString</code> has the following uses:</p>
+<ul>
+<li><code>[0, 191]</code> - Is the last byte of a UTF-8 char, the <code>CompactString</code> is stored on the stack and implicitly has a length of <code>24</code></li>
+<li><code>[192, 215]</code> - Denotes a length in the range of <code>[0, 23]</code>, this <code>CompactString</code> is stored on the stack.</li>
+<li><code>216</code> - Denotes this <code>CompactString</code> is stored on the heap</li>
+<li><code>217</code> - Denotes this <code>CompactString</code> stores a <code>&amp;'static str</code>.</li>
+<li><code>[218, 255]</code> - Unused, denotes e.g. the <code>None</code> variant for <code>Option&lt;CompactString&gt;</code></li>
+</ul>
+<h4 id="testing"><a class="doc-anchor" href="#testing">§</a>Testing</h4>
+<p>Strings and unicode can be quite messy, even further, we’re working with things at the bit level. <code>compact_str</code> has an <em>extensive</em> test suite comprised of unit testing, property testing, and fuzz testing, to ensure our invariants are upheld. We test across all major OSes (Windows, macOS, and Linux), architectures (64-bit and 32-bit), and endian-ness (big endian and little endian).</p>
+<p>Fuzz testing is run with <code>libFuzzer</code>, <code>AFL++</code>, <em>and</em> <code>honggfuzz</code>, with <code>AFL++</code> running on both <code>x86_64</code> and <code>ARMv7</code> architectures. We test with <a href="https://github.com/rust-lang/miri"><code>miri</code></a> to catch cases of undefined behavior, and run all tests on every Rust compiler since <code>v1.60</code> to ensure support for our minimum supported Rust version (MSRV).</p>
+<h4 id="unsafe-code"><a class="doc-anchor" href="#unsafe-code">§</a><code>unsafe</code> code</h4>
+<p><code>CompactString</code> uses a bit of unsafe code because we manually define what variant we are, so unlike an enum, the compiler can’t guarantee what value is actually stored.
+We also have some manually implemented heap data structures, i.e. <code>HeapBuffer</code>, and mess with bytes at a bit level, to make the most out of our resources.
+That being said, uses of unsafe code in this library are constrained to only where <em>absolutely</em> necessary, and always documented with
+<code>// SAFETY: &lt;reason&gt;</code>.</p>
+<h4 id="similar-crates"><a class="doc-anchor" href="#similar-crates">§</a>Similar Crates</h4>
+<p>Storing strings on the stack is not a new idea, in fact there are a few other crates in the Rust ecosystem that do similar things, an incomplete list:</p>
+<ol>
+<li><a href="https://crates.io/crates/smol_str"><code>smol_str</code></a> - Can inline 22 bytes, <code>Clone</code> is <code>O(1)</code>, doesn’t adjust for 32-bit archs</li>
+<li><a href="https://crates.io/crates/smartstring"><code>smartstring</code></a> - Can inline 23 bytes, <code>Clone</code> is <code>O(n)</code>, is mutable</li>
+<li><a href="https://crates.io/crates/kstring"><code>kstring</code></a> - Can inline 15 or 22 bytes dependent on crate features, <code>Clone</code> is <code>O(1)</code>, can also store <code>&amp;'static str</code>s</li>
+<li><a href="https://crates.io/crates/flexstr"><code>flexstr</code></a> - Can inline 22 bytes, <code>Clone</code> is <code>O(1)</code>, can also store <code>&amp;'static str</code>s</li>
+</ol>
+<br />
+Thanks for readingme!</div></details><h2 id="macros-1" class="section-header">Macros<a href="#macros-1" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.format_compact.html" title="macro compact_str::format_compact">format_<wbr>compact</a></dt><dd>Creates a <code>CompactString</code> using interpolation of runtime expressions.</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.CompactString.html" title="struct compact_str::CompactString">Compact<wbr>String</a></dt><dd>A <a href="struct.CompactString.html" title="struct compact_str::CompactString"><code>CompactString</code></a> is a compact string type that can be used almost anywhere a
+<a href="https://doc.rust-lang.org/1.90.0/alloc/string/struct.String.html" title="struct alloc::string::String"><code>String</code></a> or <a href="https://doc.rust-lang.org/1.90.0/std/primitive.str.html" title="primitive str"><code>str</code></a> can be used.</dd><dt><a class="struct" href="struct.Drain.html" title="struct compact_str::Drain">Drain</a></dt><dd>An iterator over the exacted data by <a href="struct.CompactString.html#method.drain" title="method compact_str::CompactString::drain"><code>CompactString::drain()</code></a>.</dd><dt><a class="struct" href="struct.ReserveError.html" title="struct compact_str::ReserveError">Reserve<wbr>Error</a></dt><dd>A possible error value if allocating or resizing a <a href="struct.CompactString.html" title="struct compact_str::CompactString"><code>CompactString</code></a> failed.</dd><dt><a class="struct" href="struct.Utf16Error.html" title="struct compact_str::Utf16Error">Utf16<wbr>Error</a></dt><dd>A possible error value when converting a <a href="struct.CompactString.html" title="struct compact_str::CompactString"><code>CompactString</code></a> from a UTF-16 byte slice.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.ToCompactStringError.html" title="enum compact_str::ToCompactStringError">ToCompact<wbr>String<wbr>Error</a></dt><dd>A possible error value if <a href="trait.ToCompactString.html#tymethod.try_to_compact_string" title="method compact_str::ToCompactString::try_to_compact_string"><code>ToCompactString::try_to_compact_string()</code></a> failed.</dd></dl><h2 id="traits-1" class="section-header">Traits<a href="#traits-1" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.CompactStringExt.html" title="trait compact_str::CompactStringExt">Compact<wbr>String<wbr>Ext</a></dt><dd>A trait that provides convenience methods for creating a <a href="struct.CompactString.html" title="struct compact_str::CompactString"><code>CompactString</code></a> from a collection of
+items. It is implemented for all types that can be converted into an iterator, and that iterator
+yields types that can be converted into a <code>str</code>.</dd><dt><a class="trait" href="trait.ToCompactString.html" title="trait compact_str::ToCompactString">ToCompact<wbr>String</a></dt><dd>A trait for converting a value to a <code>CompactString</code>.</dd></dl></section></div></main></body></html>

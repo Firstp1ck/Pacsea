@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["AMBER","BLACK","BLUE","BLUE_GRAY","BROWN","CYAN","DEEP_ORANGE","DEEP_PURPLE","GRAY","GREEN","INDIGO","LIGHT_BLUE","LIGHT_GREEN","LIME","ORANGE","PINK","PURPLE","RED","TEAL","WHITE","YELLOW"],"struct":["AccentedPalette","NonAccentedPalette"]};

@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Match the result of an expression against multiple concrete types."><title>match_type in castaway - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="castaway" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-68b7e25d.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc macro"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../castaway/index.html">castaway</a><span class="version">0.2.4</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">match_<wbr>type</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#examples" title="Examples">Examples</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate castaway</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">castaway</a></div><h1>Macro <span class="macro">match_type</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/castaway/lib.rs.html#263-285">Source</a> </span></div><pre class="rust item-decl"><code>macro_rules! match_type {
+    ($value:expr, {
+        $T:ty as $pat:pat =&gt; $branch:expr,
+        $($tail:tt)+
+    }) =&gt; { ... };
+    ($value:expr, {
+        $pat:pat =&gt; $branch:expr $(,)?
+    }) =&gt; { ... };
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Match the result of an expression against multiple concrete types.</p>
+<p>You can write multiple match arms in the following syntax:</p>
+<div class="example-wrap"><pre class="language-no_compile"><code>TYPE as name =&gt; { /* expression */ }</code></pre></div>
+<p>If the concrete type matches the given type, then the value will be cast to
+that type and bound to the given variable name. The expression on the
+right-hand side of the match is then executed and returned as the result of
+the entire match expression.</p>
+<p>The name following the <code>as</code> keyword can be any <a href="https://doc.rust-lang.org/stable/reference/patterns.html#refutability">irrefutable
+pattern</a>.
+Like <code>match</code> or <code>let</code> expressions, you can use an underscore to prevent
+warnings if you don’t use the casted value, such as <code>_value</code> or just <code>_</code>.</p>
+<p>Since it would be impossible to exhaustively list all possible types of an
+expression, you <strong>must</strong> include a final default match arm. The default
+match arm does not specify a type:</p>
+<div class="example-wrap"><pre class="language-no_compile"><code>name =&gt; { /* expression */ }</code></pre></div>
+<p>The original expression will be bound to the given variable name without
+being casted. If you don’t care about the original value, the default arm
+can be:</p>
+<div class="example-wrap"><pre class="language-no_compile"><code>_ =&gt; { /* expression */ }</code></pre></div>
+<p>This macro has all the same rules and restrictions around type casting as
+<a href="macro.cast.html" title="macro castaway::cast"><code>cast</code></a>.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::fmt::Display;
+<span class="kw">use </span>castaway::match_type;
+
+<span class="kw">fn </span>to_string&lt;T: Display + <span class="lifetime">'static</span>&gt;(value: T) -&gt; String {
+    <span class="macro">match_type!</span>(value, {
+        String <span class="kw">as </span>s =&gt; s,
+        <span class="kw-2">&amp;</span>str <span class="kw">as </span>s =&gt; s.to_string(),
+        s =&gt; s.to_string(),
+    })
+}
+
+<span class="macro">println!</span>(<span class="string">"{}"</span>, to_string(<span class="string">"foo"</span>));</code></pre></div>
+</div></details></section></div></main></body></html>

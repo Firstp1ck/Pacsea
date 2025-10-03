@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["BorderType"],"mod":["title"],"struct":["Block","Padding"],"trait":["BlockExt"]};

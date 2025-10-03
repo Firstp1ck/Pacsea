@@ -1,0 +1,72 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="This module provides the backend implementations for different terminal libraries."><title>ratatui::backend - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="ratatui" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../ratatui/index.html"><img src="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../ratatui/index.html"><img src="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/logo.png" alt="logo"></a><h2><a href="../../ratatui/index.html">ratatui</a><span class="version">0.29.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module backend</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example" title="Example">Example</a></li><li><a href="#raw-mode" title="Raw Mode">Raw Mode</a></li><li><a href="#alternate-screen" title="Alternate Screen">Alternate Screen</a></li><li><a href="#mouse-capture" title="Mouse Capture">Mouse Capture</a></li></ul><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate ratatui</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">ratatui</a></div><h1>Module <span>backend</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/ratatui/backend.rs.html#1-426">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>This module provides the backend implementations for different terminal libraries.</p>
+<p>It defines the <a href="trait.Backend.html" title="trait ratatui::backend::Backend"><code>Backend</code></a> trait which is used to abstract over the specific terminal library
+being used.</p>
+<p>Supported terminal backends:</p>
+<ul>
+<li><a href="https://crates.io/crates/crossterm">Crossterm</a>: enable the <code>crossterm</code> feature (enabled by default) and use <a href="struct.CrosstermBackend.html" title="struct ratatui::backend::CrosstermBackend"><code>CrosstermBackend</code></a></li>
+<li><a href="https://crates.io/crates/termion">Termion</a>: enable the <code>termion</code> feature and use <a href="termion/struct.TermionBackend.html"><code>TermionBackend</code></a></li>
+<li><a href="https://crates.io/crates/termwiz">Termwiz</a>: enable the <code>termwiz</code> feature and use [<code>TermwizBackend</code>]</li>
+</ul>
+<p>Additionally, a <a href="struct.TestBackend.html" title="struct ratatui::backend::TestBackend"><code>TestBackend</code></a> is provided for testing purposes.</p>
+<p>See the <a href="https://ratatui.rs/concepts/backends/comparison/">Backend Comparison</a> section of the <a href="https://ratatui.rs">Ratatui Website</a> for more details on the different
+backends.</p>
+<p>Each backend supports a number of features, such as <a href="#raw-mode">raw mode</a>, <a href="#alternate-screen">alternate
+screen</a>, and <a href="#mouse-capture">mouse capture</a>. These features are generally
+not enabled by default, and must be enabled by the application before they can be used. See the
+documentation for each backend for more details.</p>
+<p>Note: most applications should use the <a href="../struct.Terminal.html" title="struct ratatui::Terminal"><code>Terminal</code></a> struct instead of directly calling methods
+on the backend.</p>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::io::stdout;
+
+<span class="kw">use </span>ratatui::{backend::CrosstermBackend, Terminal};
+
+<span class="kw">let </span>backend = CrosstermBackend::new(stdout());
+<span class="kw">let </span><span class="kw-2">mut </span>terminal = Terminal::new(backend)<span class="question-mark">?</span>;
+terminal.clear()<span class="question-mark">?</span>;
+terminal.draw(|frame| {
+    <span class="comment">// -- snip --
+</span>})<span class="question-mark">?</span>;</code></pre></div>
+<p>See the the <a href="https://github.com/ratatui/ratatui/tree/main/examples/README.md">Examples</a> directory for more examples.</p>
+<h2 id="raw-mode"><a class="doc-anchor" href="#raw-mode">§</a>Raw Mode</h2>
+<p>Raw mode is a mode where the terminal does not perform any processing or handling of the input
+and output. This means that features such as echoing input characters, line buffering, and
+special character processing (e.g., CTRL-C for SIGINT) are disabled. This is useful for
+applications that want to have complete control over the terminal input and output, processing
+each keystroke themselves.</p>
+<p>For example, in raw mode, the terminal will not perform line buffering on the input, so the
+application will receive each key press as it is typed, instead of waiting for the user to
+press enter. This makes it suitable for real-time applications like text editors,
+terminal-based games, and more.</p>
+<p>Each backend handles raw mode differently, so the behavior may vary depending on the backend
+being used. Be sure to consult the backend’s specific documentation for exact details on how it
+implements raw mode.</p>
+<h2 id="alternate-screen"><a class="doc-anchor" href="#alternate-screen">§</a>Alternate Screen</h2>
+<p>The alternate screen is a separate buffer that some terminals provide, distinct from the main
+screen. When activated, the terminal will display the alternate screen, hiding the current
+content of the main screen. Applications can write to this screen as if it were the regular
+terminal display, but when the application exits, the terminal will switch back to the main
+screen, and the contents of the alternate screen will be cleared. This is useful for
+applications like text editors or terminal games that want to use the full terminal window
+without disrupting the command line or other terminal content.</p>
+<p>This creates a seamless transition between the application and the regular terminal session, as
+the content displayed before launching the application will reappear after the application
+exits.</p>
+<p>Note that not all terminal emulators support the alternate screen, and even those that do may
+handle it differently. As a result, the behavior may vary depending on the backend being used.
+Always consult the specific backend’s documentation to understand how it implements the
+alternate screen.</p>
+<h2 id="mouse-capture"><a class="doc-anchor" href="#mouse-capture">§</a>Mouse Capture</h2>
+<p>Mouse capture is a mode where the terminal captures mouse events such as clicks, scrolls, and
+movement, and sends them to the application as special sequences or events. This enables the
+application to handle and respond to mouse actions, providing a more interactive and graphical
+user experience within the terminal. It’s particularly useful for applications like
+terminal-based games, text editors, or other programs that require more direct interaction from
+the user.</p>
+<p>Each backend handles mouse capture differently, with variations in the types of events that can
+be captured and how they are represented. As such, the behavior may vary depending on the
+backend being used, and developers should consult the specific backend’s documentation to
+understand how it implements mouse capture.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.CrosstermBackend.html" title="struct ratatui::backend::CrosstermBackend">Crossterm<wbr>Backend</a></dt><dd>A <a href="index.html" title="mod ratatui::backend"><code>Backend</code></a> implementation that uses <a href="https://crates.io/crates/crossterm">Crossterm</a> to render to the terminal.</dd><dt><a class="struct" href="struct.TestBackend.html" title="struct ratatui::backend::TestBackend">Test<wbr>Backend</a></dt><dd>A <a href="trait.Backend.html" title="trait ratatui::backend::Backend"><code>Backend</code></a> implementation used for integration testing that renders to an memory buffer.</dd><dt><a class="struct" href="struct.WindowSize.html" title="struct ratatui::backend::WindowSize">Window<wbr>Size</a></dt><dd>The window size in characters (columns / rows) as well as pixels.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.ClearType.html" title="enum ratatui::backend::ClearType">Clear<wbr>Type</a></dt><dd>Enum representing the different types of clearing operations that can be performed
+on the terminal screen.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.Backend.html" title="trait ratatui::backend::Backend">Backend</a></dt><dd>The <code>Backend</code> trait provides an abstraction over different terminal libraries. It defines the
+methods required to draw content, manipulate the cursor, and clear the terminal screen.</dd></dl></section></div></main></body></html>

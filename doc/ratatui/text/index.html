@@ -1,0 +1,50 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Primitives for styled text."><title>ratatui::text - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="ratatui" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../ratatui/index.html"><img src="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/logo.png" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../ratatui/index.html"><img src="https://raw.githubusercontent.com/ratatui/ratatui/main/assets/logo.png" alt="logo"></a><h2><a href="../../ratatui/index.html">ratatui</a><span class="version">0.29.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module text</a></h2><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#traits" title="Traits">Traits</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate ratatui</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">ratatui</a></div><h1>Module <span>text</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/ratatui/text.rs.html#1-64">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Primitives for styled text.</p>
+<p>A terminal UI is at its root a lot of strings. In order to make it accessible and stylish,
+those strings may be associated to a set of styles. <code>ratatui</code> has three ways to represent them:</p>
+<ul>
+<li>A single line string where all graphemes have the same style is represented by a <a href="struct.Span.html" title="struct ratatui::text::Span"><code>Span</code></a>.</li>
+<li>A single line string where each grapheme may have its own style is represented by <a href="struct.Line.html" title="struct ratatui::text::Line"><code>Line</code></a>.</li>
+<li>A multiple line string where each grapheme may have its own style is represented by a
+<a href="struct.Text.html" title="struct ratatui::text::Text"><code>Text</code></a>.</li>
+</ul>
+<p>These types form a hierarchy: <a href="struct.Line.html" title="struct ratatui::text::Line"><code>Line</code></a> is a collection of <a href="struct.Span.html" title="struct ratatui::text::Span"><code>Span</code></a> and each line of <a href="struct.Text.html" title="struct ratatui::text::Text"><code>Text</code></a>
+is a <a href="struct.Line.html" title="struct ratatui::text::Line"><code>Line</code></a>.</p>
+<p>Keep it mind that a lot of widgets will use those types to advertise what kind of string is
+supported for their properties. Moreover, <code>ratatui</code> provides convenient <code>From</code> implementations
+so that you can start by using simple <code>String</code> or <code>&amp;str</code> and then promote them to the previous
+primitives when you need additional styling capabilities.</p>
+<p>For example, for the <a href="../widgets/block/struct.Block.html" title="struct ratatui::widgets::block::Block"><code>crate::widgets::Block</code></a> widget, all the following calls are valid to set
+its <code>title</code> property (which is a <a href="struct.Line.html" title="struct ratatui::text::Line"><code>Line</code></a> under the hood):</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>ratatui::{
+    style::{Color, Style},
+    text::{Line, Span},
+    widgets::Block,
+};
+
+<span class="comment">// A simple string with no styling.
+// Converted to Line(vec![
+//   Span { content: Cow::Borrowed("My title"), style: Style { .. } }
+// ])
+</span><span class="kw">let </span>block = Block::new().title(<span class="string">"My title"</span>);
+
+<span class="comment">// A simple string with a unique style.
+// Converted to Line(vec![
+//   Span { content: Cow::Borrowed("My title"), style: Style { fg: Some(Color::Yellow), .. }
+// ])
+</span><span class="kw">let </span>block = Block::new().title(Span::styled(<span class="string">"My title"</span>, Style::default().fg(Color::Yellow)));
+
+<span class="comment">// A string with multiple styles.
+// Converted to Line(vec![
+//   Span { content: Cow::Borrowed("My"), style: Style { fg: Some(Color::Yellow), .. } },
+//   Span { content: Cow::Borrowed(" title"), .. }
+// ])
+</span><span class="kw">let </span>block = Block::new().title(<span class="macro">vec!</span>[
+    Span::styled(<span class="string">"My"</span>, Style::default().fg(Color::Yellow)),
+    Span::raw(<span class="string">" title"</span>),
+]);</code></pre></div>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Line.html" title="struct ratatui::text::Line">Line</a></dt><dd>A line of text, consisting of one or more <a href="struct.Span.html" title="struct ratatui::text::Span"><code>Span</code></a>s.</dd><dt><a class="struct" href="struct.Masked.html" title="struct ratatui::text::Masked">Masked</a></dt><dd>A wrapper around a string that is masked when displayed.</dd><dt><a class="struct" href="struct.Span.html" title="struct ratatui::text::Span">Span</a></dt><dd>Represents a part of a line that is contiguous and where all characters share the same style.</dd><dt><a class="struct" href="struct.StyledGrapheme.html" title="struct ratatui::text::StyledGrapheme">Styled<wbr>Grapheme</a></dt><dd>A grapheme associated to a style.
+Note that, although <code>StyledGrapheme</code> is the smallest divisible unit of text,
+it actually is not a member of the text type hierarchy (<code>Text</code> -&gt; <code>Line</code> -&gt; <code>Span</code>).
+It is a separate type used mostly for rendering purposes. A <code>Span</code> consists of components that
+can be split into <code>StyledGrapheme</code>s, but it does not contain a collection of <code>StyledGrapheme</code>s.</dd><dt><a class="struct" href="struct.Text.html" title="struct ratatui::text::Text">Text</a></dt><dd>A string split over one or more lines.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.ToLine.html" title="trait ratatui::text::ToLine">ToLine</a></dt><dd>A trait for converting a value to a <a href="struct.Line.html" title="struct ratatui::text::Line"><code>Line</code></a>.</dd><dt><a class="trait" href="trait.ToSpan.html" title="trait ratatui::text::ToSpan">ToSpan</a></dt><dd>A trait for converting a value to a <a href="struct.Span.html" title="struct ratatui::text::Span"><code>Span</code></a>.</dd><dt><a class="trait" href="trait.ToText.html" title="trait ratatui::text::ToText">ToText</a></dt><dd>A trait for converting a value to a <a href="struct.Text.html" title="struct ratatui::text::Text"><code>Text</code></a>.</dd></dl></section></div></main></body></html>

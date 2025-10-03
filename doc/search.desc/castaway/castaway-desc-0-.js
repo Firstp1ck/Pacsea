@@ -1,0 +1,1 @@
+searchState.loadedDescShard("castaway", 0, "Safe, zero-cost downcasting for limited compile-time …\nMarker trait for types that do not contain any lifetime …\nAttempt to cast the result of an expression into a given …\nMatch the result of an expression against multiple …")

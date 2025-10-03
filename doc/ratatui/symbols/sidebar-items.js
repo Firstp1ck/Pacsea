@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DOT"],"enum":["Marker"],"mod":["bar","block","border","braille","half_block","line","scrollbar","shade"]};

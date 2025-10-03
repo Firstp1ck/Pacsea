@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MapResolution"],"struct":["Canvas","Circle","Context","Label","Line","Map","Painter","Points","Rectangle"],"trait":["Shape"]};

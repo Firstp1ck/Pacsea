@@ -1,0 +1,1 @@
+searchState.loadedDescShard("instability", 0, "This crate provides attribute macros for specifying API …\nMark an API as stable.\nMark an API as unstable.")

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ToCompactStringError"],"macro":["format_compact"],"struct":["CompactString","Drain","ReserveError","Utf16Error"],"trait":["CompactStringExt","ToCompactString"]};

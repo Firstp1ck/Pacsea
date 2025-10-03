@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["all_official","all_official_or_fetch","fetch_official_pkg_names","idx","installed_lock","is_installed","load_from_disk","refresh_installed_cache","request_enrich_for","save_to_disk","search_official","update_in_background"],"static":["INSTALLED_SET","OFFICIAL_INDEX"],"struct":["OfficialIndex","OfficialPkg"]};

@@ -1,0 +1,126 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Attempt to cast the result of an expression into a given concrete type."><title>cast in castaway - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="castaway" data-themes="" data-resource-suffix="" data-rustdoc-version="1.90.0 (1159e78c4 2025-09-14)" data-channel="1.90.0" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-68b7e25d.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc macro"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../castaway/index.html">castaway</a><span class="version">0.2.4</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">cast</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#restrictions" title="Restrictions">Restrictions</a></li><li><a href="#examples" title="Examples">Examples</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate castaway</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">castaway</a></div><h1>Macro <span class="macro">cast</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/castaway/lib.rs.html#177-207">Source</a> </span></div><pre class="rust item-decl"><code>macro_rules! cast {
+    ($value:expr, $T:ty) =&gt; { ... };
+    ($value:expr) =&gt; { ... };
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Attempt to cast the result of an expression into a given concrete type.</p>
+<p>If the expression is in fact of the given type, an <a href="https://doc.rust-lang.org/1.90.0/core/result/enum.Result.html#variant.Ok" title="variant core::result::Result::Ok"><code>Ok</code></a> is returned
+containing the result of the expression as that type. If the types do not
+match, the value is returned in an <a href="https://doc.rust-lang.org/1.90.0/core/result/enum.Result.html#variant.Err" title="variant core::result::Result::Err"><code>Err</code></a> unchanged.</p>
+<p>This macro is designed to work inside a generic context, and allows you to
+downcast generic types to their concrete types or to another generic type at
+compile time. If you are looking for the ability to downcast values at
+runtime, you should use <a href="https://doc.rust-lang.org/1.90.0/core/any/trait.Any.html" title="trait core::any::Any"><code>Any</code></a> instead.</p>
+<p>This macro does not perform any sort of type <em>conversion</em> (such as
+re-interpreting <code>i32</code> as <code>u32</code> and so on), it only resolves generic types to
+concrete types if the instantiated generic type is exactly the same as the
+type you specify. If you are looking to reinterpret the bits of a value as a
+type other than the one it actually is, then you should look for a different
+library.</p>
+<p>Invoking this macro is zero-cost, meaning after normal compiler optimization
+steps there will be no code generated in the final binary for performing a
+cast. In debug builds some glue code may be present with a small runtime
+cost.</p>
+<h2 id="restrictions"><a class="doc-anchor" href="#restrictions">§</a>Restrictions</h2>
+<p>Attempting to perform an illegal or unsupported cast that can never be
+successful, such as casting to a value with a longer lifetime than the
+expression, will produce a compile-time error.</p>
+<p>Due to language limitations with lifetime bounds, this macro is more
+restrictive than what is theoretically possible and rejects some legal
+casts. This is to ensure safety and correctness around lifetime handling.
+Examples include the following:</p>
+<ul>
+<li>Casting an expression by value with a non-<code>'static</code> lifetime is not
+allowed. For example, you cannot attempt to cast a <code>T: 'a</code> to <code>Foo&lt;'a&gt;</code>.</li>
+<li>Casting to a reference with a non-<code>'static</code> lifetime is not allowed if the
+expression type is not required to be a reference. For example, you can
+attempt to cast a <code>&amp;T</code> to <code>&amp;String</code>, but you can’t attempt to cast a <code>T</code>
+to <code>&amp;String</code> because <code>T</code> may or may not be a reference. You can, however,
+attempt to cast a <code>T: 'static</code> to <code>&amp;'static String</code>.</li>
+<li>You cannot cast references whose target itself may contain non-<code>'static</code>
+references. For example, you can attempt to cast a <code>&amp;'a T: 'static</code> to
+<code>&amp;'a Foo&lt;'static&gt;</code>, but you can’t attempt to cast a <code>&amp;'a T: 'b</code> to <code>&amp;'a Foo&lt;'b&gt;</code>.</li>
+<li>You can cast generic slices as long as the item type is <code>'static</code> and
+<code>Sized</code>, but you cannot cast a generic reference to a slice or vice versa.</li>
+</ul>
+<p>Some exceptions are made to the above restrictions for certain types which
+are known to be <em>lifetime-free</em>. You can cast a generic type to any
+lifetime-free type by value or by reference, even if the generic type is not
+<code>'static</code>.</p>
+<p>A type is considered lifetime-free if it contains no generic lifetime
+bounds, ensuring that all possible instantiations of the type are always
+<code>'static</code>. To mark a type as being lifetime-free and enable it to be casted
+to in this manner by this macro it must implement the <a href="trait.LifetimeFree.html" title="trait castaway::LifetimeFree"><code>LifetimeFree</code></a>
+trait. This is implemented automatically for all primitive types and for
+several <a href="https://doc.rust-lang.org/1.90.0/core/index.html" title="mod core"><code>core</code></a> types. If you enable the <code>std</code> crate feature, then it will
+also be implemented for several [<code>std</code>] types as well. If you enable the
+<code>alloc</code> crate feature, then it will be implemented for several <a href="https://doc.rust-lang.org/1.90.0/alloc/index.html" title="mod alloc"><code>alloc</code></a>
+types without linking to the standard library as the <code>std</code> feature would.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<p>The above restrictions are admittedly complex and can be tricky to reason
+about, so it is recommended to read the following examples to get a feel for
+what is, and what is not, supported.</p>
+<p>Performing trivial casts:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>castaway::cast;
+
+<span class="kw">let </span>value: u8 = <span class="number">0</span>;
+<span class="macro">assert_eq!</span>(<span class="macro">cast!</span>(value, u8), <span class="prelude-val">Ok</span>(<span class="number">0</span>));
+
+<span class="kw">let </span>slice: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>[value];
+<span class="macro">assert_eq!</span>(<span class="macro">cast!</span>(slice, <span class="kw-2">&amp;</span>[u8]), <span class="prelude-val">Ok</span>(slice));</code></pre></div>
+<p>Performing a cast in a generic context:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>castaway::cast;
+
+<span class="kw">fn </span>is_this_a_u8&lt;T: <span class="lifetime">'static</span>&gt;(value: T) -&gt; bool {
+    <span class="macro">cast!</span>(value, u8).is_ok()
+}
+
+<span class="macro">assert!</span>(is_this_a_u8(<span class="number">0u8</span>));
+<span class="macro">assert!</span>(!is_this_a_u8(<span class="number">0u16</span>));
+
+<span class="comment">// Note that we can also implement this without the `'static` type bound
+// because the only type(s) we care about casting to all implement
+// `LifetimeFree`:
+
+</span><span class="kw">fn </span>is_this_a_u8_non_static&lt;T&gt;(value: T) -&gt; bool {
+    <span class="macro">cast!</span>(value, u8).is_ok()
+}
+
+<span class="macro">assert!</span>(is_this_a_u8_non_static(<span class="number">0u8</span>));
+<span class="macro">assert!</span>(!is_this_a_u8_non_static(<span class="number">0u16</span>));</code></pre></div>
+<p>Specialization in a blanket trait implementation:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::fmt::Display;
+<span class="kw">use </span>castaway::cast;
+
+<span class="doccomment">/// Like `std::string::ToString`, but with an optimization when `Self` is
+/// already a `String`.
+///
+/// Since the standard library is allowed to use unstable features,
+/// `ToString` already has this optimization using the `specialization`
+/// feature, but this isn't something normal crates can do.
+</span><span class="kw">pub trait </span>FastToString {
+    <span class="kw">fn </span>fast_to_string(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String;
+}
+
+<span class="kw">impl</span>&lt;T: Display&gt; FastToString <span class="kw">for </span>T {
+    <span class="kw">fn </span>fast_to_string&lt;<span class="lifetime">'local</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'local </span><span class="self">self</span>) -&gt; String {
+        <span class="comment">// If `T` is already a string, then take a different code path.
+        // After monomorphization, this check will be completely optimized
+        // away.
+        //
+        // Note we can cast a `&amp;'local self` to a `&amp;'local String` as `String`
+        // implements `LifetimeFree`.
+        </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(string) = <span class="macro">cast!</span>(<span class="self">self</span>, <span class="kw-2">&amp;</span>String) {
+            <span class="comment">// Don't invoke the std::fmt machinery, just clone the string.
+            </span>string.to_owned()
+        } <span class="kw">else </span>{
+            <span class="comment">// Make use of `Display` for any other `T`.
+            </span><span class="macro">format!</span>(<span class="string">"{}"</span>, <span class="self">self</span>)
+        }
+    }
+}
+
+<span class="macro">println!</span>(<span class="string">"specialized: {}"</span>, String::from(<span class="string">"hello"</span>).fast_to_string());
+<span class="macro">println!</span>(<span class="string">"default: {}"</span>, <span class="string">"hello"</span>.fast_to_string());</code></pre></div>
+</div></details></section></div></main></body></html>

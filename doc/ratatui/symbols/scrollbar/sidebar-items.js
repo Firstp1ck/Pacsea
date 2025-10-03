@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DOUBLE_HORIZONTAL","DOUBLE_VERTICAL","HORIZONTAL","VERTICAL"],"struct":["Set"]};
