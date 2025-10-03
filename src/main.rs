@@ -188,6 +188,26 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
         app.details_cache = map;
     }
 
+    // Load Recent list from XDG state if present
+    if let Ok(s) = fs::read_to_string(&app.recent_path)
+        && let Ok(list) = serde_json::from_str::<Vec<String>>(&s)
+    {
+        app.recent = list;
+        if !app.recent.is_empty() {
+            app.history_state.select(Some(0));
+        }
+    }
+
+    // Load Install list from XDG state if present
+    if let Ok(s) = fs::read_to_string(&app.install_path)
+        && let Ok(list) = serde_json::from_str::<Vec<PackageItem>>(&s)
+    {
+        app.install_list = list;
+        if !app.install_list.is_empty() {
+            app.install_state.select(Some(0));
+        }
+    }
+
     // Load official index from disk and refresh in background
     pkgindex::load_from_disk(&app.official_index_path);
 
