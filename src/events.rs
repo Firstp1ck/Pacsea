@@ -188,7 +188,33 @@ pub fn handle_event(
                 }
                 return false;
             }
+            crate::state::Modal::Help => {
+                match ke.code {
+                    KeyCode::Esc | KeyCode::Enter => app.modal = crate::state::Modal::None,
+                    _ => {}
+                }
+                return false;
+            }
             crate::state::Modal::None => {}
+        }
+
+        // Global keymap shortcuts (regardless of focus)
+        let km = &app.keymap;
+        let chord = (ke.code, ke.modifiers);
+        let matches_any = |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
+        if matches_any(&km.help_overlay) {
+            app.modal = crate::state::Modal::Help;
+            return false;
+        }
+        if matches_any(&km.reload_theme) {
+            match reload_theme() {
+                Ok(()) => {}
+                Err(msg) => { app.modal = crate::state::Modal::Alert { message: msg }; }
+            }
+            return false;
+        }
+        if matches_any(&km.exit) {
+            return true;
         }
 
         // Recent pane focused
@@ -252,12 +278,12 @@ pub fn handle_event(
                     app.focus = Focus::Search;
                     refresh_selected_details(app, details_tx);
                 }
-                KeyCode::Tab => {
+                code if matches_any(&km.pane_next) && code == ke.code => {
                     // Recent -> Search (cycle)
                     app.focus = Focus::Search;
                     refresh_selected_details(app, details_tx);
                 }
-                KeyCode::BackTab => {
+                code if matches_any(&km.pane_prev) && code == ke.code => {
                     app.focus = Focus::Search;
                     refresh_selected_details(app, details_tx);
                 }
@@ -393,7 +419,7 @@ pub fn handle_event(
                 KeyCode::Esc => {
                     app.focus = Focus::Search;
                 }
-                KeyCode::Tab => {
+                code if matches_any(&km.pane_next) && code == ke.code => {
                     // Install -> Recent (cycle)
                     if app.history_state.selected().is_none() && !app.recent.is_empty() {
                         app.history_state.select(Some(0));
@@ -401,7 +427,7 @@ pub fn handle_event(
                     app.focus = Focus::Recent;
                     crate::ui_helpers::trigger_recent_preview(app, preview_tx);
                 }
-                KeyCode::BackTab => {
+                code if matches_any(&km.pane_prev) && code == ke.code => {
                     app.focus = Focus::Recent;
                 }
                 KeyCode::Left => {
@@ -464,27 +490,15 @@ pub fn handle_event(
             code, modifiers, ..
         } = ke;
         match (code, modifiers) {
-            (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
-            // Reload theme from disk
-            (KeyCode::Char('r'), KeyModifiers::CONTROL) => {
-                match reload_theme() {
-                    Ok(()) => {
-                        // trigger a UI refresh by sending a tick via side-effect: no direct channel here,
-                        // but returning false will cause next loop draw; also any state change will repaint.
-                    }
-                    Err(msg) => {
-                        app.modal = crate::state::Modal::Alert { message: msg };
-                    }
-                }
-            }
-            (KeyCode::Tab, _) => {
+            (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
+            (c, m) if matches_any(&km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
                 // Search -> Install (cycle)
                 if app.install_state.selected().is_none() && !app.install_list.is_empty() {
                     app.install_state.select(Some(0));
                 }
                 app.focus = Focus::Install;
             }
-            (KeyCode::BackTab, _) => {
+            (c, m) if matches_any(&km.pane_prev) && (c, m) == (ke.code, ke.modifiers) => {
                 // Search -> Install (unchanged)
                 if app.install_state.selected().is_none() && !app.install_list.is_empty() {
                     app.install_state.select(Some(0));

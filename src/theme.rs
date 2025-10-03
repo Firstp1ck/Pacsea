@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{OnceLock, RwLock};
 use std::{env, fs};
+use crossterm::event::{KeyCode, KeyModifiers};
 
 /// Application theme palette used by rendering code.
 ///
@@ -52,12 +53,14 @@ pub struct Theme {
 // Note: No hardcoded default color values are embedded here.
 
 /// User-configurable application settings parsed from `pacsea.conf`.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Settings {
     pub layout_left_pct: u16,
     pub layout_center_pct: u16,
     pub layout_right_pct: u16,
     pub app_dry_run_default: bool,
+    /// Configurable key bindings parsed from `pacsea.conf`
+    pub keymap: KeyMap,
 }
 
 impl Default for Settings {
@@ -67,8 +70,213 @@ impl Default for Settings {
             layout_center_pct: 60,
             layout_right_pct: 20,
             app_dry_run_default: false,
+            keymap: KeyMap::default(),
         }
     }
+}
+
+/// A single keyboard chord (modifiers + key).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct KeyChord {
+    pub code: KeyCode,
+    pub mods: KeyModifiers,
+}
+
+impl KeyChord {
+    /// Return a short display label such as "Ctrl+R", "F1", "Shift+Del", "+/ ?".
+    pub fn label(&self) -> String {
+        let mut parts: Vec<&'static str> = Vec::new();
+        if self.mods.contains(KeyModifiers::CONTROL) {
+            parts.push("Ctrl");
+        }
+        if self.mods.contains(KeyModifiers::ALT) {
+            parts.push("Alt");
+        }
+        if self.mods.contains(KeyModifiers::SHIFT) {
+            parts.push("Shift");
+        }
+        if self.mods.contains(KeyModifiers::SUPER) {
+            parts.push("Super");
+        }
+        let key = match self.code {
+            KeyCode::Char(ch) => {
+                // Show uppercase character for display
+                let up = ch.to_ascii_uppercase();
+                if up == ' ' { "Space".to_string() } else { up.to_string() }
+            }
+            KeyCode::Enter => "Enter".to_string(),
+            KeyCode::Esc => "Esc".to_string(),
+            KeyCode::Backspace => "Backspace".to_string(),
+            KeyCode::Tab => "Tab".to_string(),
+            KeyCode::BackTab => "Shift+Tab".to_string(),
+            KeyCode::Delete => "Del".to_string(),
+            KeyCode::Insert => "Ins".to_string(),
+            KeyCode::Home => "Home".to_string(),
+            KeyCode::End => "End".to_string(),
+            KeyCode::PageUp => "PgUp".to_string(),
+            KeyCode::PageDown => "PgDn".to_string(),
+            KeyCode::Up => "↑".to_string(),
+            KeyCode::Down => "↓".to_string(),
+            KeyCode::Left => "←".to_string(),
+            KeyCode::Right => "→".to_string(),
+            KeyCode::F(n) => format!("F{n}"),
+            _ => "?".to_string(),
+        };
+        if parts.is_empty() || matches!(self.code, KeyCode::BackTab) {
+            key
+        } else {
+            format!("{}+{}", parts.join("+"), key)
+        }
+    }
+}
+
+/// Application key bindings.
+/// Each action can have multiple chords.
+#[derive(Clone, Debug)]
+pub struct KeyMap {
+    // Global
+    pub help_overlay: Vec<KeyChord>,
+    pub reload_theme: Vec<KeyChord>,
+    pub exit: Vec<KeyChord>,
+    pub pane_next: Vec<KeyChord>,
+    pub pane_prev: Vec<KeyChord>,
+    pub pane_left: Vec<KeyChord>,
+    pub pane_right: Vec<KeyChord>,
+
+    // Search
+    pub search_move_up: Vec<KeyChord>,
+    pub search_move_down: Vec<KeyChord>,
+    pub search_page_up: Vec<KeyChord>,
+    pub search_page_down: Vec<KeyChord>,
+    pub search_add: Vec<KeyChord>,
+    pub search_install: Vec<KeyChord>,
+    pub search_focus_left: Vec<KeyChord>,
+    pub search_focus_right: Vec<KeyChord>,
+    pub search_backspace: Vec<KeyChord>,
+
+    // Recent
+    pub recent_move_up: Vec<KeyChord>,
+    pub recent_move_down: Vec<KeyChord>,
+    pub recent_find: Vec<KeyChord>,
+    pub recent_use: Vec<KeyChord>,
+    pub recent_add: Vec<KeyChord>,
+    pub recent_to_search: Vec<KeyChord>,
+    pub recent_focus_right: Vec<KeyChord>,
+
+    // Install
+    pub install_move_up: Vec<KeyChord>,
+    pub install_move_down: Vec<KeyChord>,
+    pub install_confirm: Vec<KeyChord>,
+    pub install_remove: Vec<KeyChord>,
+    pub install_clear: Vec<KeyChord>,
+    pub install_find: Vec<KeyChord>,
+    pub install_to_search: Vec<KeyChord>,
+    pub install_focus_left: Vec<KeyChord>,
+}
+
+impl Default for KeyMap {
+    fn default() -> Self {
+        use KeyCode::*;
+        let none = KeyModifiers::empty();
+        let ctrl = KeyModifiers::CONTROL;
+        let shift = KeyModifiers::SHIFT;
+        KeyMap {
+            help_overlay: vec![KeyChord { code: F(1), mods: none }, KeyChord { code: Char('?'), mods: none }],
+            reload_theme: vec![KeyChord { code: Char('r'), mods: ctrl }],
+            exit: vec![KeyChord { code: Char('c'), mods: ctrl }],
+            pane_next: vec![KeyChord { code: Tab, mods: none }],
+            pane_prev: vec![KeyChord { code: BackTab, mods: none }],
+            pane_left: vec![KeyChord { code: Left, mods: none }],
+            pane_right: vec![KeyChord { code: Right, mods: none }],
+
+            search_move_up: vec![KeyChord { code: Up, mods: none }],
+            search_move_down: vec![KeyChord { code: Down, mods: none }],
+            search_page_up: vec![KeyChord { code: PageUp, mods: none }],
+            search_page_down: vec![KeyChord { code: PageDown, mods: none }],
+            search_add: vec![KeyChord { code: Char(' '), mods: none }],
+            search_install: vec![KeyChord { code: Enter, mods: none }],
+            search_focus_left: vec![KeyChord { code: Left, mods: none }],
+            search_focus_right: vec![KeyChord { code: Right, mods: none }],
+            search_backspace: vec![KeyChord { code: Backspace, mods: none }],
+
+            recent_move_up: vec![KeyChord { code: Char('k'), mods: none }, KeyChord { code: Up, mods: none }],
+            recent_move_down: vec![KeyChord { code: Char('j'), mods: none }, KeyChord { code: Down, mods: none }],
+            recent_find: vec![KeyChord { code: Char('/'), mods: none }],
+            recent_use: vec![KeyChord { code: Enter, mods: none }],
+            recent_add: vec![KeyChord { code: Char(' '), mods: none }],
+            recent_to_search: vec![KeyChord { code: Esc, mods: none }],
+            recent_focus_right: vec![KeyChord { code: Right, mods: none }],
+
+            install_move_up: vec![KeyChord { code: Char('k'), mods: none }, KeyChord { code: Up, mods: none }],
+            install_move_down: vec![KeyChord { code: Char('j'), mods: none }, KeyChord { code: Down, mods: none }],
+            install_confirm: vec![KeyChord { code: Enter, mods: none }],
+            install_remove: vec![KeyChord { code: Delete, mods: none }],
+            install_clear: vec![KeyChord { code: Delete, mods: shift }],
+            install_find: vec![KeyChord { code: Char('/'), mods: none }],
+            install_to_search: vec![KeyChord { code: Esc, mods: none }],
+            install_focus_left: vec![KeyChord { code: Left, mods: none }],
+        }
+    }
+}
+
+fn parse_key_identifier(s: &str) -> Option<KeyCode> {
+    let t = s.trim();
+    // Function keys
+    if let Some(num) = t.strip_prefix('F').and_then(|x| x.parse::<u8>().ok()) {
+        return Some(KeyCode::F(num));
+    }
+    match t.to_ascii_uppercase().as_str() {
+        "ESC" => Some(KeyCode::Esc),
+        "ENTER" | "RETURN" => Some(KeyCode::Enter),
+        "TAB" => Some(KeyCode::Tab),
+        "BACKTAB" | "SHIFT+TAB" => Some(KeyCode::BackTab),
+        "BACKSPACE" => Some(KeyCode::Backspace),
+        "DELETE" | "DEL" => Some(KeyCode::Delete),
+        "INSERT" | "INS" => Some(KeyCode::Insert),
+        "HOME" => Some(KeyCode::Home),
+        "END" => Some(KeyCode::End),
+        "PAGEUP" | "PGUP" => Some(KeyCode::PageUp),
+        "PAGEDOWN" | "PGDN" => Some(KeyCode::PageDown),
+        "UP" | "ARROWUP" => Some(KeyCode::Up),
+        "DOWN" | "ARROWDOWN" => Some(KeyCode::Down),
+        "LEFT" | "ARROWLEFT" => Some(KeyCode::Left),
+        "RIGHT" | "ARROWRIGHT" => Some(KeyCode::Right),
+        "SPACE" => Some(KeyCode::Char(' ')),
+        _ => {
+            // Single visible character, e.g. "?" or "r"; normalize to lowercase
+            let mut chars = t.chars();
+            if let (Some(ch), None) = (chars.next(), chars.next()) {
+                Some(KeyCode::Char(ch.to_ascii_lowercase()))
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn parse_key_chord(spec: &str) -> Option<KeyChord> {
+    // Accept formats like: CTRL+R, Alt+?, Shift+Del, F1, Tab, BackTab, Super+F2
+    let mut mods = KeyModifiers::empty();
+    let mut key_part: Option<String> = None;
+    for part in spec.split('+') {
+        let p = part.trim();
+        if p.is_empty() { continue; }
+        match p.to_ascii_uppercase().as_str() {
+            "CTRL" | "CONTROL" => mods |= KeyModifiers::CONTROL,
+            "ALT" => mods |= KeyModifiers::ALT,
+            "SHIFT" => mods |= KeyModifiers::SHIFT,
+            "SUPER" | "META" | "WIN" => mods |= KeyModifiers::SUPER,
+            other => {
+                key_part = Some(other.to_string());
+            }
+        }
+    }
+    // Special-case Shift+Tab -> BackTab (mods cleared)
+    if key_part.as_deref() == Some("TAB") && mods.contains(KeyModifiers::SHIFT) {
+        return Some(KeyChord { code: KeyCode::BackTab, mods: KeyModifiers::empty() });
+    }
+    let code = parse_key_identifier(key_part.as_deref().unwrap_or(""))?;
+    Some(KeyChord { code, mods })
 }
 
 /// Skeleton configuration file content with default color values.
@@ -539,6 +747,44 @@ pub fn settings() -> Settings {
                 let lv = val.to_ascii_lowercase();
                 out.app_dry_run_default = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
             }
+            // Keybindings (single chord per action); overrides full list
+            "keybind_help" | "keybind_help_overlay" => { if let Some(ch) = parse_key_chord(val) { out.keymap.help_overlay = vec![ch]; } }
+            "keybind_reload_theme" | "keybind_reload" => { if let Some(ch) = parse_key_chord(val) { out.keymap.reload_theme = vec![ch]; } }
+            "keybind_exit" | "keybind_quit" => { if let Some(ch) = parse_key_chord(val) { out.keymap.exit = vec![ch]; } }
+            "keybind_pane_next" | "keybind_next_pane" | "keybind_switch_pane" => { if let Some(ch) = parse_key_chord(val) { out.keymap.pane_next = vec![ch]; } }
+            "keybind_pane_prev" | "keybind_prev_pane" => { if let Some(ch) = parse_key_chord(val) { out.keymap.pane_prev = vec![ch]; } }
+            "keybind_pane_left" => { if let Some(ch) = parse_key_chord(val) { out.keymap.pane_left = vec![ch]; } }
+            "keybind_pane_right" => { if let Some(ch) = parse_key_chord(val) { out.keymap.pane_right = vec![ch]; } }
+
+            // Search pane
+            "keybind_search_move_up" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_move_up = vec![ch]; } }
+            "keybind_search_move_down" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_move_down = vec![ch]; } }
+            "keybind_search_page_up" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_page_up = vec![ch]; } }
+            "keybind_search_page_down" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_page_down = vec![ch]; } }
+            "keybind_search_add" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_add = vec![ch]; } }
+            "keybind_search_install" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_install = vec![ch]; } }
+            "keybind_search_focus_left" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_focus_left = vec![ch]; } }
+            "keybind_search_focus_right" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_focus_right = vec![ch]; } }
+            "keybind_search_backspace" => { if let Some(ch) = parse_key_chord(val) { out.keymap.search_backspace = vec![ch]; } }
+
+            // Recent pane
+            "keybind_recent_move_up" => { if let Some(ch) = parse_key_chord(val) { out.keymap.recent_move_up = vec![ch]; } }
+            "keybind_recent_move_down" => { if let Some(ch) = parse_key_chord(val) { out.keymap.recent_move_down = vec![ch]; } }
+            "keybind_recent_find" => { if let Some(ch) = parse_key_chord(val) { out.keymap.recent_find = vec![ch]; } }
+            "keybind_recent_use" => { if let Some(ch) = parse_key_chord(val) { out.keymap.recent_use = vec![ch]; } }
+            "keybind_recent_add" => { if let Some(ch) = parse_key_chord(val) { out.keymap.recent_add = vec![ch]; } }
+            "keybind_recent_to_search" => { if let Some(ch) = parse_key_chord(val) { out.keymap.recent_to_search = vec![ch]; } }
+            "keybind_recent_focus_right" => { if let Some(ch) = parse_key_chord(val) { out.keymap.recent_focus_right = vec![ch]; } }
+
+            // Install pane
+            "keybind_install_move_up" => { if let Some(ch) = parse_key_chord(val) { out.keymap.install_move_up = vec![ch]; } }
+            "keybind_install_move_down" => { if let Some(ch) = parse_key_chord(val) { out.keymap.install_move_down = vec![ch]; } }
+            "keybind_install_confirm" => { if let Some(ch) = parse_key_chord(val) { out.keymap.install_confirm = vec![ch]; } }
+            "keybind_install_remove" => { if let Some(ch) = parse_key_chord(val) { out.keymap.install_remove = vec![ch]; } }
+            "keybind_install_clear" => { if let Some(ch) = parse_key_chord(val) { out.keymap.install_clear = vec![ch]; } }
+            "keybind_install_find" => { if let Some(ch) = parse_key_chord(val) { out.keymap.install_find = vec![ch]; } }
+            "keybind_install_to_search" => { if let Some(ch) = parse_key_chord(val) { out.keymap.install_to_search = vec![ch]; } }
+            "keybind_install_focus_left" => { if let Some(ch) = parse_key_chord(val) { out.keymap.install_focus_left = vec![ch]; } }
             _ => {}
         }
     }

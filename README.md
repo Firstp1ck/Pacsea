@@ -122,10 +122,12 @@ The bottom Package Info panel displays rich metadata for the selected item; Pacs
 
 ## Keybindings
 
-| Pane     | Action                         | Keys                         |
+| Pane     | Action                         | Keys (defaults)              |
 |----------|--------------------------------|------------------------------|
+| Global   | Help overlay                   | F1 or ?                      |
 | Global   | Switch panes                   | Tab / Shift+Tab, ← / →       |
-| Global   | Exit                           | Esc (from Search), Ctrl+C    |
+| Global   | Exit                           | Ctrl+C (or configured key)   |
+| Global   | Reload config/theme            | Ctrl+R                       |
 | Dialogs  | Confirm / Cancel               | Enter / Esc                  |
 | Search   | Move selection                 | ↑ / ↓, PageUp / PageDown     |
 | Search   | Add to install                 | Space                        |
@@ -137,9 +139,11 @@ The bottom Package Info panel displays rich metadata for the selected item; Pacs
 | Install  | Confirm install all            | Enter                        |
 | Install  | Remove selected / Clear all    | Delete / Shift+Delete        |
 
-A compact multi‑line help is also visible at the bottom of Package Info. Mouse: Left‑click the URL in Package Info to open it.
+Press F1 or ? for a full‑screen help overlay with your configured bindings. A compact multi‑line help is also visible at the bottom of Package Info. Mouse: Left‑click the URL in Package Info to open it.
 
-## Configuration (Theme and Settings)
+Note: Esc does not quit the app. It cancels dialogs or navigates between panes, depending on context. Use Ctrl+C or your configured exit key to quit.
+
+## Configuration (Theme, Settings, and Keybindings)
 
 Pacsea supports a configurable color theme and basic app settings via a simple `key = value` config file.
 
@@ -166,9 +170,14 @@ Pacsea supports a configurable color theme and basic app settings via a simple `
 - Key naming:
   - Preferred comprehensive names are documented below.
 
-- Application settings (in the same `pacsea.conf`):
+- Application settings and keybindings (in the same `pacsea.conf`):
   - `layout_left_pct`, `layout_center_pct`, `layout_right_pct` — integers that must sum to 100; control the middle row pane widths. Defaults: 20/60/20.
   - `app_dry_run_default` — `true`/`false`; sets default dry‑run mode at startup. Overridden by the `--dry-run` flag.
+  - Keybindings (one chord per action; modifiers can be `SUPER`, `CTRL`, `SHIFT`, `ALT`). Examples:
+    - Global: `keybind_help`, `keybind_reload_theme`, `keybind_exit`, `keybind_pane_next`, `keybind_pane_prev`, `keybind_pane_left`, `keybind_pane_right`
+    - Search: `keybind_search_move_up`, `keybind_search_move_down`, `keybind_search_page_up`, `keybind_search_page_down`, `keybind_search_add`, `keybind_search_install`, `keybind_search_focus_left`, `keybind_search_focus_right`, `keybind_search_backspace`
+    - Recent: `keybind_recent_move_up`, `keybind_recent_move_down`, `keybind_recent_find`, `keybind_recent_use`, `keybind_recent_add`, `keybind_recent_to_search`, `keybind_recent_focus_right`
+    - Install: `keybind_install_move_up`, `keybind_install_move_down`, `keybind_install_confirm`, `keybind_install_remove`, `keybind_install_clear`, `keybind_install_find`, `keybind_install_to_search`, `keybind_install_focus_left`
 
 Example (hex and decimal):
 
@@ -241,9 +250,9 @@ XDG locations (env overrides respected):
 - [x] Theme customization system (themes, color palettes, glyph styles; adaptive terminal colors)
 - [x] Prebuilt binaries / packaging (Arch User Repository)
 - [x] XDG‑compliant configuration with persistent settings (config/cache/state dirs; basic app settings)
+- [x] Customizable keybindings and context help overlay
 
 ### Not implemented
-- [ ] Customizable keybindings and context help overlay
 - [ ] Search modes: contains / starts‑with / regex
 - [ ] Scope filtering: official vs AUR
 - [ ] Sorting: name, popularity, date, size

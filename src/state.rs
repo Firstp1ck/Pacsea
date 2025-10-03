@@ -6,6 +6,7 @@
 //! layers. Many of these types are persisted between runs.
 use ratatui::widgets::ListState;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
+use crate::theme::KeyMap;
 
 /// Package source origin.
 ///
@@ -106,6 +107,8 @@ pub enum Modal {
     Alert { message: String },
     /// Confirmation dialog for installing the given items.
     ConfirmInstall { items: Vec<PackageItem> },
+    /// Help overlay with keybindings. Non-interactive; dismissed with Esc/Enter.
+    Help,
 }
 
 /// Which UI pane currently has keyboard focus.
@@ -213,6 +216,8 @@ pub struct AppState {
     pub layout_left_pct: u16,
     pub layout_center_pct: u16,
     pub layout_right_pct: u16,
+    /// Resolved key bindings from user settings
+    pub keymap: KeyMap,
 }
 
 impl Default for AppState {
@@ -266,6 +271,7 @@ impl Default for AppState {
             layout_left_pct: 20,
             layout_center_pct: 60,
             layout_right_pct: 20,
+            keymap: crate::theme::Settings::default().keymap,
         }
     }
 }

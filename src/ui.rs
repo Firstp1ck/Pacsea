@@ -25,6 +25,7 @@ use crate::{
     state::{AppState, Focus, Source},
     theme::theme,
 };
+use crate::theme::KeyChord;
 
 /// Render a full frame of the Pacsea TUI.
 ///
@@ -444,32 +445,15 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 .add_modifier(Modifier::BOLD);
             let sep = Span::styled("  |  ", Style::default().fg(th.overlay2));
 
-            // GLOBALS
-            let mut g_spans: Vec<Span> = vec![
-                Span::styled(
-                    "GLOBALS:",
-                    Style::default()
-                        .fg(th.overlay1)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw("  "),
-            ];
-            g_spans.extend([
-                Span::styled("[Ctrl+C]", key_style),
-                Span::raw(" exit"),
-                sep.clone(),
-                Span::styled("[Esc]", key_style),
-                Span::raw(" exit (Search)"),
-                sep.clone(),
-                Span::styled("[Enter]", key_style),
-                Span::raw(" confirm popup"),
-                sep.clone(),
-                Span::styled("[Esc]", key_style),
-                Span::raw(" cancel popup"),
-                sep.clone(),
-                Span::styled("[Ctrl+R]", key_style),
-                Span::raw(" reload theme"),
-            ]);
+            // GLOBALS (dynamic from keymap)
+            let km = &app.keymap;
+            let mut g_spans: Vec<Span> = vec![Span::styled(
+                "GLOBALS:",
+                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+            ), Span::raw("  ")];
+            if let Some(k) = km.exit.first() { g_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" exit"), sep.clone()]); }
+            if let Some(k) = km.help_overlay.first() { g_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" help"), sep.clone()]); }
+            if let Some(k) = km.reload_theme.first() { g_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" reload theme"), sep.clone()]); }
 
             // SEARCH
             let mut s_spans: Vec<Span> = vec![
@@ -481,28 +465,23 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 ),
                 Span::raw("  "),
             ];
-            s_spans.extend([
-                Span::styled("[↑/↓]", key_style),
-                Span::raw(" move"),
-                sep.clone(),
-                Span::styled("[PgUp/PgDn]", key_style),
-                Span::raw(" page"),
-                sep.clone(),
-                Span::styled("[Space]", key_style),
-                Span::raw(" add"),
-                sep.clone(),
-                Span::styled("[Enter]", key_style),
-                Span::raw(" install"),
-                sep.clone(),
-                Span::styled("[Tab/S-Tab]", key_style),
-                Span::raw(" switch pane"),
-                sep.clone(),
-                Span::styled("[Type]", key_style),
-                Span::raw(" query"),
-                sep.clone(),
-                Span::styled("[Backspace]", key_style),
-                Span::raw(" delete"),
-            ]);
+            // Move
+            if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
+                s_spans.extend([Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style), Span::raw(" move"), sep.clone()]);
+            }
+            // Page
+            if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
+                s_spans.extend([Span::styled(format!("[{} / {}]", pu.label(), pd.label()), key_style), Span::raw(" page"), sep.clone()]);
+            }
+            // Add / Install
+            if let Some(k) = km.search_add.first() { s_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" add"), sep.clone()]); }
+            if let Some(k) = km.search_install.first() { s_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" install"), sep.clone()]); }
+            // Switch pane
+            if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
+                s_spans.extend([Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style), Span::raw(" switch pane"), sep.clone()]);
+            }
+            // Backspace
+            if let Some(k) = km.search_backspace.first() { s_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" delete"), sep.clone()]); }
 
             // INSTALL
             let mut i_spans: Vec<Span> = vec![
@@ -514,28 +493,17 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 ),
                 Span::raw("  "),
             ];
-            i_spans.extend([
-                Span::styled("[j/k or ↑/↓]", key_style),
-                Span::raw(" move"),
-                sep.clone(),
-                Span::styled("[Enter]", key_style),
-                Span::raw(" confirm"),
-                sep.clone(),
-                Span::styled("[Del]", key_style),
-                Span::raw(" remove"),
-                sep.clone(),
-                Span::styled("[Shift+Del]", key_style),
-                Span::raw(" clear"),
-                sep.clone(),
-                Span::styled("[/]", key_style),
-                Span::raw(" find (Enter next, Esc cancel)"),
-                sep.clone(),
-                Span::styled("[Esc]", key_style),
-                Span::raw(" to Search"),
-                sep.clone(),
-                Span::styled("[Tab/S-Tab]", key_style),
-                Span::raw(" switch pane"),
-            ]);
+            if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first()) {
+                i_spans.extend([Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style), Span::raw(" move"), sep.clone()]);
+            }
+            if let Some(k) = km.install_confirm.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" confirm"), sep.clone()]); }
+            if let Some(k) = km.install_remove.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" remove"), sep.clone()]); }
+            if let Some(k) = km.install_clear.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" clear"), sep.clone()]); }
+            if let Some(k) = km.install_find.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" find (Enter next, Esc cancel)"), sep.clone()]); }
+            if let Some(k) = km.install_to_search.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" to Search"), sep.clone()]); }
+            if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
+                i_spans.extend([Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style), Span::raw(" switch pane"), sep.clone()]);
+            }
 
             // RECENT
             let mut r_spans: Vec<Span> = vec![
@@ -547,25 +515,16 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 ),
                 Span::raw("  "),
             ];
-            r_spans.extend([
-                Span::styled("[j/k or ↑/↓]", key_style),
-                Span::raw(" move"),
-                sep.clone(),
-                Span::styled("[Enter]", key_style),
-                Span::raw(" use"),
-                sep.clone(),
-                Span::styled("[Space]", key_style),
-                Span::raw(" add"),
-                sep.clone(),
-                Span::styled("[/]", key_style),
-                Span::raw(" find (Enter next, Esc cancel)"),
-                sep.clone(),
-                Span::styled("[Esc]", key_style),
-                Span::raw(" to Search"),
-                sep.clone(),
-                Span::styled("[Tab/S-Tab]", key_style),
-                Span::raw(" switch pane"),
-            ]);
+            if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
+                r_spans.extend([Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style), Span::raw(" move"), sep.clone()]);
+            }
+            if let Some(k) = km.recent_use.first() { r_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" use"), sep.clone()]); }
+            if let Some(k) = km.recent_add.first() { r_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" add"), sep.clone()]); }
+            if let Some(k) = km.recent_find.first() { r_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" find (Enter next, Esc cancel)"), sep.clone()]); }
+            if let Some(k) = km.recent_to_search.first() { r_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" to Search"), sep.clone()]); }
+            if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
+                r_spans.extend([Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style), Span::raw(" switch pane")]);
+            }
 
             let lines = vec![
                 Line::from(g_spans),
@@ -697,6 +656,112 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                     Block::default()
                         .title(Span::styled(
                             " Confirm Install ",
+                            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(th.mauve))
+                        .style(Style::default().bg(th.mantle)),
+                );
+            f.render_widget(boxw, rect);
+        }
+        crate::state::Modal::Help => {
+            // Full-screen translucent help overlay
+            let w = area.width.saturating_sub(6).min(96);
+            let h = area.height.saturating_sub(4).min(28);
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            f.render_widget(Clear, rect);
+            let km = &app.keymap;
+            let th = th; // same theme
+
+            let mut lines: Vec<Line<'static>> = Vec::new();
+            lines.push(Line::from(Span::styled(
+                "Pacsea Help",
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+
+            // Utility to format a binding line
+            let fmt = |label: &str, chord: KeyChord| -> Line<'static> {
+                Line::from(vec![
+                    Span::styled(
+                        format!("{:18}", label),
+                        Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw("  "),
+                    Span::styled(
+                        format!("[{}]", chord.label()),
+                        Style::default().fg(th.text).bg(th.surface2).add_modifier(Modifier::BOLD),
+                    ),
+                ])
+            };
+
+            if let Some(k) = km.help_overlay.first().copied() { lines.push(fmt("Help overlay", k)); }
+            if let Some(k) = km.exit.first().copied() { lines.push(fmt("Exit", k)); }
+            if let Some(k) = km.reload_theme.first().copied() { lines.push(fmt("Reload theme", k)); }
+            if let Some(k) = km.pane_next.first().copied() { lines.push(fmt("Next pane", k)); }
+            if let Some(k) = km.pane_prev.first().copied() { lines.push(fmt("Previous pane", k)); }
+            lines.push(Line::from(""));
+
+            // Dynamic section for per-pane actions based on keymap
+            lines.push(Line::from(Span::styled(
+                "Search:",
+                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+            )));
+            if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
+                lines.push(fmt("  Move", KeyChord { code: up.code, mods: up.mods }));
+                lines.push(fmt("  Move", KeyChord { code: dn.code, mods: dn.mods }));
+            }
+            if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
+                lines.push(fmt("  Page", KeyChord { code: pu.code, mods: pu.mods }));
+                lines.push(fmt("  Page", KeyChord { code: pd.code, mods: pd.mods }));
+            }
+            if let Some(k) = km.search_add.first().copied() { lines.push(fmt("  Add", k)); }
+            if let Some(k) = km.search_install.first().copied() { lines.push(fmt("  Install", k)); }
+
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Install:",
+                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+            )));
+            if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first()) {
+                lines.push(fmt("  Move", KeyChord { code: up.code, mods: up.mods }));
+                lines.push(fmt("  Move", KeyChord { code: dn.code, mods: dn.mods }));
+            }
+            if let Some(k) = km.install_confirm.first().copied() { lines.push(fmt("  Confirm", k)); }
+            if let Some(k) = km.install_remove.first().copied() { lines.push(fmt("  Remove", k)); }
+            if let Some(k) = km.install_clear.first().copied() { lines.push(fmt("  Clear", k)); }
+            if let Some(k) = km.install_find.first().copied() { lines.push(fmt("  Find", k)); }
+            if let Some(k) = km.install_to_search.first().copied() { lines.push(fmt("  To Search", k)); }
+
+            lines.push(Line::from("") );
+            lines.push(Line::from(Span::styled(
+                "Recent:",
+                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+            )));
+            if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
+                lines.push(fmt("  Move", KeyChord { code: up.code, mods: up.mods }));
+                lines.push(fmt("  Move", KeyChord { code: dn.code, mods: dn.mods }));
+            }
+            if let Some(k) = km.recent_use.first().copied() { lines.push(fmt("  Use", k)); }
+            if let Some(k) = km.recent_add.first().copied() { lines.push(fmt("  Add", k)); }
+            if let Some(k) = km.recent_find.first().copied() { lines.push(fmt("  Find", k)); }
+            if let Some(k) = km.recent_to_search.first().copied() { lines.push(fmt("  To Search", k)); }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Press Enter or Esc to close",
+                Style::default().fg(th.subtext1),
+            )));
+
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.mantle))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            " Help ",
                             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                         ))
                         .borders(Borders::ALL)

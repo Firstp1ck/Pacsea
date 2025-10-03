@@ -176,6 +176,8 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
     app.layout_left_pct = prefs.layout_left_pct;
     app.layout_center_pct = prefs.layout_center_pct;
     app.layout_right_pct = prefs.layout_right_pct;
+    // Load keymap
+    app.keymap = prefs.keymap;
 
     // Legacy migration removed
 
