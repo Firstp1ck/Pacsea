@@ -887,7 +887,6 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             };
             f.render_widget(Clear, rect);
             let km = &app.keymap;
-            let th = th; // same theme
 
             let mut lines: Vec<Line<'static>> = Vec::new();
             lines.push(Line::from(Span::styled(

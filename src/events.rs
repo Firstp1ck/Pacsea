@@ -586,73 +586,94 @@ pub fn handle_event(
         if is_left_down && ctrl && shift {
             // URL click
             if let Some((x, y, w, h)) = app.url_button_rect
-                && mx >= x && mx < x + w && my >= y && my < y + h && !app.details.url.is_empty() {
-                    app.mouse_disabled_in_details = false; // temporarily allow action
-                    let url = app.details.url.clone();
-                    std::thread::spawn(move || {
-                        let _ = std::process::Command::new("xdg-open")
-                            .arg(url)
-                            .stdin(std::process::Stdio::null())
-                            .stdout(std::process::Stdio::null())
-                            .stderr(std::process::Stdio::null())
-                            .spawn();
-                    });
-                    return false;
-                }
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+                && !app.details.url.is_empty()
+            {
+                app.mouse_disabled_in_details = false; // temporarily allow action
+                let url = app.details.url.clone();
+                std::thread::spawn(move || {
+                    let _ = std::process::Command::new("xdg-open")
+                        .arg(url)
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn();
+                });
+                return false;
+            }
             // Show PKGBUILD click (legacy Ctrl+Shift) — no longer active
         }
 
         // 2) New behavior: plain left click on Show PKGBUILD
         if is_left_down
             && let Some((x, y, w, h)) = app.pkgb_button_rect
-                && mx >= x && mx < x + w && my >= y && my < y + h {
-                    app.mouse_disabled_in_details = false; // allow this action
-                    app.pkgb_visible = true;
-                    app.pkgb_text = None;
-                    if let Some(item) = app.results.get(app.selected).cloned() {
-                        let _ = pkgb_tx.send(item);
-                    }
-                    return false;
-                }
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.mouse_disabled_in_details = false; // allow this action
+            app.pkgb_visible = true;
+            app.pkgb_text = None;
+            if let Some(item) = app.results.get(app.selected).cloned() {
+                let _ = pkgb_tx.send(item);
+            }
+            return false;
+        }
 
         // 3) If details should be markable, ignore other clicks within it
         if app.mouse_disabled_in_details
             && let Some((x, y, w, h)) = app.details_rect
-                && mx >= x && mx < x + w && my >= y && my < y + h {
-                    // Ensure terminal mouse capture stays enabled globally, while app ignores clicks here
-                    if !app.mouse_capture_enabled {
-                        let _ = execute!(std::io::stdout(), EnableMouseCapture);
-                        app.mouse_capture_enabled = true;
-                    }
-                    return false;
-                }
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            // Ensure terminal mouse capture stays enabled globally, while app ignores clicks here
+            if !app.mouse_capture_enabled {
+                let _ = execute!(std::io::stdout(), EnableMouseCapture);
+                app.mouse_capture_enabled = true;
+            }
+            return false;
+        }
 
         // 4) Results: click to select
         if is_left_down
             && let Some((x, y, w, h)) = app.results_rect
-                && mx >= x && mx < x + w && my >= y && my < y + h {
-                    let row = my.saturating_sub(y) as usize; // row in viewport
-                    let offset = app.list_state.offset();
-                    let idx = offset + row;
-                    if idx < app.results.len() {
-                        app.selected = idx;
-                        app.list_state.select(Some(idx));
-                    }
-                }
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let row = my.saturating_sub(y) as usize; // row in viewport
+            let offset = app.list_state.offset();
+            let idx = offset + row;
+            if idx < app.results.len() {
+                app.selected = idx;
+                app.list_state.select(Some(idx));
+            }
+        }
 
         // 5) Scroll support inside PKGBUILD viewer using mouse wheel
         if let Some((x, y, w, h)) = app.pkgb_rect
-            && mx >= x && mx < x + w && my >= y && my < y + h {
-                match m.kind {
-                    crossterm::event::MouseEventKind::ScrollUp => {
-                        app.pkgb_scroll = app.pkgb_scroll.saturating_sub(1);
-                    }
-                    crossterm::event::MouseEventKind::ScrollDown => {
-                        app.pkgb_scroll = app.pkgb_scroll.saturating_add(1);
-                    }
-                    _ => {}
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            match m.kind {
+                crossterm::event::MouseEventKind::ScrollUp => {
+                    app.pkgb_scroll = app.pkgb_scroll.saturating_sub(1);
                 }
+                crossterm::event::MouseEventKind::ScrollDown => {
+                    app.pkgb_scroll = app.pkgb_scroll.saturating_add(1);
+                }
+                _ => {}
             }
+        }
         return false;
     }
     false
