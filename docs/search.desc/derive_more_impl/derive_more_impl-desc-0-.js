@@ -1,1 +1,0 @@
-searchState.loadedDescShard("derive_more_impl", 0, "<code>derive_more-impl</code>\nWhat <code>#[derive(IsVariant)]</code> generates")

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["main","maybe_flush_cache","maybe_flush_install","maybe_flush_recent","maybe_save_recent","restore_terminal","run_app_with_flags","setup_terminal"],"mod":["events","index","install","logic","net","state","theme","ui","ui_helpers","util"],"type":["Result"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["add_to_install_list","allowed_set","is_allowed","move_sel_cached","ring_prefetch_from_selected","send_query","set_allowed_only_selected","set_allowed_ring"]};

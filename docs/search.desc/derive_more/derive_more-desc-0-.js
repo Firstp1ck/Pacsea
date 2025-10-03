@@ -1,1 +1,0 @@
-searchState.loadedDescShard("derive_more", 0, "What <code>#[derive(IsVariant)]</code> generates\nModule containing derive definitions only, without their …\nModule containing derive definitions with their …\nWhat <code>#[derive(IsVariant)]</code> generates\nWhat <code>#[derive(IsVariant)]</code> generates")

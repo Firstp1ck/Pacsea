@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["curl_json","fetch_all_with_errors","fetch_aur_details","fetch_details","fetch_official_details","pacman_si","parse_size_bytes"],"type":["Result"]};

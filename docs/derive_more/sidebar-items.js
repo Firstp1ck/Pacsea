@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"derive":["IsVariant"],"mod":["derive","with_trait"]};

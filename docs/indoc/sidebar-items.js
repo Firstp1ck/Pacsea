@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"macro":["concatdoc","eprintdoc","formatdoc","indoc","printdoc","writedoc"]};

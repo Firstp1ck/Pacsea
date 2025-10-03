@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BoolLit","FloatType","IntegerBase","IntegerType","Literal"],"struct":["ByteLit","ByteStringLit","CharLit","FloatLit","IntegerLit","InvalidToken","ParseError","StringLit"],"trait":["Buffer","FromIntegerLiteral"]};

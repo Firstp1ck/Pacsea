@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["backend","exfiltrator"],"struct":["Forever","SignalsInfo"],"type":["Signals"]};

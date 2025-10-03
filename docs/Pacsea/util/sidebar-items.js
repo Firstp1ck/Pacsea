@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["arrs","is_leap","match_rank","percent_encode","repo_order","s","ss","ts_to_date","u64_of"]};

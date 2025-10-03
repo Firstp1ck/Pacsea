@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["AddConstraintError","AddEditVariableError","RelationalOperator","RemoveConstraintError","RemoveEditVariableError","SuggestValueError","WeightedRelation"],"mod":["strength"],"struct":["Constraint","Expression","PartialConstraint","Solver","Term","Variable"]};
