@@ -35,7 +35,7 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
     }
     let d = &app.details;
     // Each line is a label/value pair derived from the current details view.
-    vec![
+    let mut lines = vec![
         kv("Repository", d.repository.clone(), th),
         kv("Package Name", d.name.clone(), th),
         kv("Version", d.version.clone(), th),
@@ -66,7 +66,15 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
         ),
         kv("Package Owner", d.owner.clone(), th),
         kv("Build date", d.build_date.clone(), th),
-    ]
+    ];
+    // Add a clickable helper line to Show PKGBUILD below Build date
+    lines.push(Line::from(vec![Span::styled(
+        "Show PKGBUILD",
+        Style::default()
+            .fg(th.mauve)
+            .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
+    )]));
+    lines
 }
 
 /// Join a list of strings into a comma-separated value.

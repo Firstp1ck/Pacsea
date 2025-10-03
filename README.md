@@ -42,7 +42,8 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - 🧠 Caching of details and local index for faster subsequent usage
 - 📝 Install log written to `install_log.txt`
 - 🧪 `--dry-run` mode for safe testing
-- 🖱️ Click the URL in Package Info to open it in your browser (uses `xdg-open`)
+ - 🖱️ Click the URL in Package Info to open it in your browser (uses `xdg-open`)
+ - 📦 PKGBUILD preview via "Show PKGBUILD" in Package Info (mouse click; Esc to close)
 
 ## Installation
 ### Prerequisites
@@ -55,11 +56,11 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 If you already use an AUR helper:
 
 ```bash
-# Stable release (tagged)
+# Stable release (prebuilt binaries)
 paru -S pacsea-bin     # or: yay -S pacsea-bin
 
-# Latest development (from main)
-paru -S pacsea-git # or: yay -S pacsea-git
+# Latest development snapshot
+paru -S pacsea-git     # or: yay -S pacsea-git
 ```
 
 Don’t have an AUR helper yet? Install one from the AUR:
@@ -80,7 +81,7 @@ cd yay && makepkg -si
 Then install Pacsea:
 
 ```bash
-paru -S pacsea      # or: yay -S pacsea
+paru -S pacsea-bin      # or: yay -S pacsea-bin
 # For the -git (latest) package: paru -S pacsea-git
 ```
 
@@ -114,6 +115,7 @@ cargo run
 4) Press Enter to confirm installing the selected (Search) or all (Install) packages.
 5) Use the Recent pane to re‑run prior queries; Enter loads the query into Search, Space quickly adds the first match.
 6) Optional: Left‑click the URL in the Package Info panel to open it in your browser.
+7) Optional: Click "Show PKGBUILD" in Package Info to open a side‑by‑side PKGBUILD preview; use the mouse wheel to scroll; press Esc to close.
 
 The bottom Package Info panel displays rich metadata for the selected item; Pacsea prefetches details for the first few results to keep it snappy.
 
@@ -126,7 +128,7 @@ The bottom Package Info panel displays rich metadata for the selected item; Pacs
 |----------|--------------------------------|------------------------------|
 | Global   | Help overlay                   | F1 or ?                      |
 | Global   | Switch panes                   | Tab / Shift+Tab, ← / →       |
-| Global   | Exit                           | Ctrl+C (or configured key)   |
+| Global   | Exit                           | Ctrl+C or configured key     |
 | Global   | Reload config/theme            | Ctrl+R                       |
 | Dialogs  | Confirm / Cancel               | Enter / Esc                  |
 | Search   | Move selection                 | ↑ / ↓, PageUp / PageDown     |
@@ -138,6 +140,10 @@ The bottom Package Info panel displays rich metadata for the selected item; Pacs
 | Install  | Move selection                 | j / k, ↑ / ↓                 |
 | Install  | Confirm install all            | Enter                        |
 | Install  | Remove selected / Clear all    | Delete / Shift+Delete        |
+| Details  | Open URL                       | Ctrl+Shift+left‑click on URL |
+| Details  | Show PKGBUILD                  | Mouse left‑click on label    |
+| PKGBUILD | Close viewer                   | Esc                          |
+| PKGBUILD | Scroll                         | Mouse wheel                  |
 
 Press F1 or ? for a full‑screen help overlay with your configured bindings. A compact multi‑line help is also visible at the bottom of Package Info. Mouse: Left‑click the URL in Package Info to open it.
 
@@ -218,6 +224,9 @@ An optional commented “Light” theme block is included in the generated confi
   - A background refresh runs at startup; the index is enriched on‑demand as you browse
 - AUR
   - AUR RPC v5 is used for search and details
+ - PKGBUILD preview
+   - AUR packages: `https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=<name>`
+   - Official packages: Arch GitLab raw `PKGBUILD` (tries `main`, falls back to `master`)
 
 ## Files created
 
@@ -251,6 +260,7 @@ XDG locations (env overrides respected):
 - [x] Prebuilt binaries / packaging (Arch User Repository)
 - [x] XDG‑compliant configuration with persistent settings (config/cache/state dirs; basic app settings)
 - [x] Customizable keybindings and context help overlay
+- [x] Richer package info: PKGBUILD preview
 
 ### Not implemented
 - [ ] Search modes: contains / starts‑with / regex
@@ -269,7 +279,7 @@ XDG locations (env overrides respected):
 - [ ] Progress indicators for long tasks
 - [ ] Improved paru/yay workflows
 - [ ] Export/import package lists (backup/share)
-- [ ] Richer package info (PKGBUILD preview, dependency visualization)
+- [ ] Richer package info (dependency visualization)
 - [ ] Batch operations (filter installed vs available, apply to selection)
 - [ ] Multiple profiles for different workflows
 - [ ] Background operations (parallel/async installs)

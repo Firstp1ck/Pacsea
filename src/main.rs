@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 use crossterm::{
-    event::{self, Event as CEvent},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -118,7 +118,7 @@ fn maybe_save_recent(app: &mut AppState) {
 /// Must be paired with `restore_terminal` on exit.
 fn setup_terminal() -> Result<()> {
     enable_raw_mode()?;
-    execute!(std::io::stdout(), EnterAlternateScreen)?;
+    execute!(std::io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
     Ok(())
 }
 
@@ -126,7 +126,7 @@ fn setup_terminal() -> Result<()> {
 /// and disabling raw mode.
 fn restore_terminal() -> Result<()> {
     disable_raw_mode()?;
-    execute!(std::io::stdout(), LeaveAlternateScreen)?;
+    execute!(std::io::stdout(), DisableMouseCapture, LeaveAlternateScreen)?;
     Ok(())
 }
 
@@ -224,6 +224,9 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
     let (add_tx, mut add_rx) = mpsc::unbounded_channel::<PackageItem>();
     // Notify when official index updates
     let (index_notify_tx, mut index_notify_rx) = mpsc::unbounded_channel::<()>();
+    // PKGBUILD fetch request/response channels
+    let (pkgb_req_tx, mut pkgb_req_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (pkgb_res_tx, mut pkgb_res_rx) = mpsc::unbounded_channel::<(String, String)>();
 
     // Details worker (debounced)
     let net_err_tx_details = net_err_tx.clone();
@@ -272,6 +275,21 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
                         };
                         let _ = net_err_tx_details.send(msg);
                     }
+                }
+            }
+        }
+    });
+
+    // PKGBUILD worker
+    tokio::spawn(async move {
+        while let Some(item) = pkgb_req_rx.recv().await {
+            let name = item.name.clone();
+            match net::fetch_pkgbuild_fast(&item).await {
+                Ok(txt) => {
+                    let _ = pkgb_res_tx.send((name, txt));
+                }
+                Err(e) => {
+                    let _ = pkgb_res_tx.send((name, format!("Failed to fetch PKGBUILD: {}", e)));
                 }
             }
         }
@@ -399,7 +417,7 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
 
         select! {
             // UI events
-            Some(ev) = event_rx.recv() => { if handle_event(ev, &mut app, &query_tx, &details_req_tx, &preview_tx, &add_tx) { break; } }
+            Some(ev) = event_rx.recv() => { if handle_event(ev, &mut app, &query_tx, &details_req_tx, &preview_tx, &add_tx, &pkgb_req_tx) { break; } }
             // Official index updated -> rerun current search (refresh UI)
             Some(_) = index_notify_rx.recv() => {
                 app.loading_index = false;
@@ -478,6 +496,13 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
             // Add to install list
             Some(item) = add_rx.recv() => {
                 add_to_install_list(&mut app, item);
+            }
+            // PKGBUILD text ready
+            Some((pkgname, text)) = pkgb_res_rx.recv() => {
+                if app.details_focus.as_deref() == Some(pkgname.as_str()) || app.results.get(app.selected).map(|i| i.name.as_str()) == Some(pkgname.as_str()) {
+                    app.pkgb_text = Some(text);
+                }
+                let _ = tick_tx.send(());
             }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
             Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_install(&mut app);

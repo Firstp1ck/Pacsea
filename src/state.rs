@@ -4,9 +4,9 @@
 //! application: package descriptors, search coordination types, UI focus and
 //! modals, and the central [`AppState`] container mutated by the event and UI
 //! layers. Many of these types are persisted between runs.
+use crate::theme::KeyMap;
 use ratatui::widgets::ListState;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
-use crate::theme::KeyMap;
 
 /// Package source origin.
 ///
@@ -212,12 +212,36 @@ pub struct AppState {
     /// Rectangle of the clickable URL button in terminal cell coordinates.
     pub url_button_rect: Option<(u16, u16, u16, u16)>,
 
+    // Clickable PKGBUILD button rectangle and viewer state
+    /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
+    pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Whether the PKGBUILD viewer is visible (details pane split in half).
+    pub pkgb_visible: bool,
+    /// The fetched PKGBUILD text when available.
+    pub pkgb_text: Option<String>,
+    /// Scroll offset (lines) for the PKGBUILD viewer.
+    pub pkgb_scroll: u16,
+    /// Content rectangle of the PKGBUILD viewer (x, y, w, h) when visible.
+    pub pkgb_rect: Option<(u16, u16, u16, u16)>,
+
     // User settings loaded at startup
     pub layout_left_pct: u16,
     pub layout_center_pct: u16,
     pub layout_right_pct: u16,
     /// Resolved key bindings from user settings
     pub keymap: KeyMap,
+
+    // Mouse hit-test rectangles for panes
+    /// Inner content rectangle of the Results list (x, y, w, h).
+    pub results_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the Package Info details pane (x, y, w, h).
+    pub details_rect: Option<(u16, u16, u16, u16)>,
+    /// Whether mouse capture is temporarily disabled to allow text selection in details.
+    pub mouse_disabled_in_details: bool,
+    /// Last observed mouse position (column, row) in terminal cells.
+    pub last_mouse_pos: Option<(u16, u16)>,
+    /// Whether global terminal mouse capture is currently enabled.
+    pub mouse_capture_enabled: bool,
 }
 
 impl Default for AppState {
@@ -267,11 +291,22 @@ impl Default for AppState {
             ring_resume_at: None,
             need_ring_prefetch: false,
             url_button_rect: None,
+            pkgb_button_rect: None,
+            pkgb_visible: false,
+            pkgb_text: None,
+            pkgb_scroll: 0,
+            pkgb_rect: None,
 
             layout_left_pct: 20,
             layout_center_pct: 60,
             layout_right_pct: 20,
             keymap: crate::theme::Settings::default().keymap,
+
+            results_rect: None,
+            details_rect: None,
+            mouse_disabled_in_details: false,
+            last_mouse_pos: None,
+            mouse_capture_enabled: true,
         }
     }
 }

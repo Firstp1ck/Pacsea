@@ -21,11 +21,11 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 
+use crate::theme::KeyChord;
 use crate::{
     state::{AppState, Focus, Source},
     theme::theme,
 };
-use crate::theme::KeyChord;
 
 /// Render a full frame of the Pacsea TUI.
 ///
@@ -163,6 +163,13 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .highlight_symbol("> ");
 
     f.render_stateful_widget(list, chunks[0], &mut app.list_state);
+    // Record inner results rect for mouse hit-testing (inside borders)
+    app.results_rect = Some((
+        chunks[0].x + 1,
+        chunks[0].y + 1,
+        chunks[0].width.saturating_sub(2),
+        chunks[0].height.saturating_sub(2),
+    ));
 
     // Middle row split: left input, middle recent, right install list
     let middle = Layout::default()
@@ -359,12 +366,36 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .highlight_symbol("▶ ");
     f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
 
-    // Details (bottom)
-    let mut details_lines = crate::ui_helpers::format_details_lines(app, chunks[2].width, &th);
+    // Details (bottom): determine rendering areas first
+    let container_area = chunks[2];
+    let (details_area, pkgb_area_opt) = if app.pkgb_visible {
+        let split = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(container_area);
+        (split[0], Some(split[1]))
+    } else {
+        (container_area, None)
+    };
 
-    // Find the URL line and, when mouse mode is enabled, style it as a link and record its rect
+    let mut details_lines = crate::ui_helpers::format_details_lines(app, details_area.width, &th);
+    // Record details inner rect for mouse hit-testing
+    app.details_rect = Some((
+        details_area.x + 1,
+        details_area.y + 1,
+        details_area.width.saturating_sub(2),
+        details_area.height.saturating_sub(2),
+    ));
+
+    // Find the URL line, style it as a link, and record its rect; also compute PKGBUILD rect
     app.url_button_rect = None;
-    for (row_idx, line) in details_lines.iter_mut().enumerate() {
+    app.pkgb_button_rect = None;
+    let border_inset = 1u16;
+    let content_x = details_area.x.saturating_add(border_inset);
+    let content_y = details_area.y.saturating_add(border_inset);
+    let inner_w: u16 = details_area.width.saturating_sub(2);
+    let mut cur_y: u16 = content_y;
+    for line in details_lines.iter_mut() {
         if line.spans.len() >= 2 {
             let key_txt = line.spans[0].content.to_string();
             if key_txt.starts_with("URL:") {
@@ -377,21 +408,34 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 }
                 line.spans[1] = Span::styled(url_txt.clone(), style);
                 if !url_txt.is_empty() {
-                    let border_inset = 1u16;
-                    let content_x = chunks[2].x.saturating_add(border_inset);
-                    let content_y = chunks[2].y.saturating_add(border_inset);
                     let key_len = key_txt.len() as u16;
                     let x_start = content_x.saturating_add(key_len);
-                    let y = content_y.saturating_add(row_idx as u16);
-                    let max_w = chunks[2].width.saturating_sub(2).saturating_sub(key_len);
+                    let max_w = inner_w.saturating_sub(key_len);
                     let w = url_txt.len().min(max_w as usize) as u16;
                     if w > 0 {
-                        app.url_button_rect = Some((x_start, y, w, 1));
+                        app.url_button_rect = Some((x_start, cur_y, w, 1));
                     }
                 }
-                break;
             }
         }
+        if line.spans.len() == 1 {
+            let txt = line.spans[0].content.to_string();
+            if txt.to_lowercase().contains("show pkgbuild") {
+                let x_start = content_x;
+                let w = txt.len().min(inner_w as usize) as u16;
+                if w > 0 {
+                    app.pkgb_button_rect = Some((x_start, cur_y, w, 1));
+                }
+            }
+        }
+        // advance y accounting for wrapping
+        let line_len: usize = line.spans.iter().map(|s| s.content.len()).sum();
+        let rows = if inner_w == 0 {
+            1
+        } else {
+            (line_len as u16).div_ceil(inner_w).max(1)
+        };
+        cur_y = cur_y.saturating_add(rows);
     }
 
     let details_block = Block::default()
@@ -406,15 +450,56 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .style(Style::default().fg(th.text).bg(th.base))
         .wrap(Wrap { trim: true })
         .block(details_block.clone());
-    f.render_widget(details, chunks[2]);
+    f.render_widget(details, details_area);
+
+    // Allow terminal to mark/select text in details: ignore clicks within details by default
+    app.mouse_disabled_in_details = true;
+
+    if let Some(pkgb_area) = pkgb_area_opt {
+        let pkgb_text = app.pkgb_text.as_deref().unwrap_or("Loading PKGBUILD…");
+        // Remember PKGBUILD rect for mouse interactions (scrolling)
+        app.pkgb_rect = Some((
+            pkgb_area.x + 1,
+            pkgb_area.y + 1,
+            pkgb_area.width.saturating_sub(2),
+            pkgb_area.height.saturating_sub(2),
+        ));
+        // Apply vertical scroll offset by trimming top lines
+        let mut visible = String::new();
+        let mut skip = app.pkgb_scroll as usize;
+        for line in pkgb_text.lines() {
+            if skip > 0 {
+                skip -= 1;
+                continue;
+            }
+            visible.push_str(line);
+            visible.push('\n');
+        }
+        let pkgb = Paragraph::new(visible)
+            .style(Style::default().fg(th.text).bg(th.base))
+            .wrap(Wrap { trim: false })
+            .block(
+                Block::default()
+                    .title(Span::styled("PKGBUILD", Style::default().fg(th.overlay1)))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(th.surface2)),
+            );
+        f.render_widget(pkgb, pkgb_area);
+    }
 
     // Help footer with keybindings in the bottom of Package Info pane
     {
         let help_h: u16 = 5;
-        if chunks[2].height > help_h + 2 {
-            let x = chunks[2].x + 1; // inside border
-            let y = chunks[2].y + chunks[2].height.saturating_sub(1 + help_h);
-            let w = chunks[2].width.saturating_sub(2);
+        let footer_container = if app.pkgb_visible {
+            details_area
+        } else {
+            chunks[2]
+        };
+        if footer_container.height > help_h + 2 {
+            let x = footer_container.x + 1; // inside border
+            let y = footer_container.y + footer_container.height.saturating_sub(1 + help_h);
+            let w = footer_container.width.saturating_sub(2);
             let h = help_h;
             let rect = ratatui::prelude::Rect {
                 x,
@@ -447,13 +532,36 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
             // GLOBALS (dynamic from keymap)
             let km = &app.keymap;
-            let mut g_spans: Vec<Span> = vec![Span::styled(
-                "GLOBALS:",
-                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
-            ), Span::raw("  ")];
-            if let Some(k) = km.exit.first() { g_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" exit"), sep.clone()]); }
-            if let Some(k) = km.help_overlay.first() { g_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" help"), sep.clone()]); }
-            if let Some(k) = km.reload_theme.first() { g_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" reload theme"), sep.clone()]); }
+            let mut g_spans: Vec<Span> = vec![
+                Span::styled(
+                    "GLOBALS:",
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw("  "),
+            ];
+            if let Some(k) = km.exit.first() {
+                g_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" exit"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.help_overlay.first() {
+                g_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" help"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.reload_theme.first() {
+                g_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" reload theme"),
+                    sep.clone(),
+                ]);
+            }
 
             // SEARCH
             let mut s_spans: Vec<Span> = vec![
@@ -467,21 +575,51 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             ];
             // Move
             if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
-                s_spans.extend([Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style), Span::raw(" move"), sep.clone()]);
+                s_spans.extend([
+                    Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
+                    Span::raw(" move"),
+                    sep.clone(),
+                ]);
             }
             // Page
             if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
-                s_spans.extend([Span::styled(format!("[{} / {}]", pu.label(), pd.label()), key_style), Span::raw(" page"), sep.clone()]);
+                s_spans.extend([
+                    Span::styled(format!("[{} / {}]", pu.label(), pd.label()), key_style),
+                    Span::raw(" page"),
+                    sep.clone(),
+                ]);
             }
             // Add / Install
-            if let Some(k) = km.search_add.first() { s_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" add"), sep.clone()]); }
-            if let Some(k) = km.search_install.first() { s_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" install"), sep.clone()]); }
+            if let Some(k) = km.search_add.first() {
+                s_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" add"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.search_install.first() {
+                s_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" install"),
+                    sep.clone(),
+                ]);
+            }
             // Switch pane
             if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
-                s_spans.extend([Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style), Span::raw(" switch pane"), sep.clone()]);
+                s_spans.extend([
+                    Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
+                    Span::raw(" switch pane"),
+                    sep.clone(),
+                ]);
             }
             // Backspace
-            if let Some(k) = km.search_backspace.first() { s_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" delete"), sep.clone()]); }
+            if let Some(k) = km.search_backspace.first() {
+                s_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" delete"),
+                    sep.clone(),
+                ]);
+            }
 
             // INSTALL
             let mut i_spans: Vec<Span> = vec![
@@ -493,16 +631,55 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 ),
                 Span::raw("  "),
             ];
-            if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first()) {
-                i_spans.extend([Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style), Span::raw(" move"), sep.clone()]);
+            if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first())
+            {
+                i_spans.extend([
+                    Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
+                    Span::raw(" move"),
+                    sep.clone(),
+                ]);
             }
-            if let Some(k) = km.install_confirm.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" confirm"), sep.clone()]); }
-            if let Some(k) = km.install_remove.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" remove"), sep.clone()]); }
-            if let Some(k) = km.install_clear.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" clear"), sep.clone()]); }
-            if let Some(k) = km.install_find.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" find (Enter next, Esc cancel)"), sep.clone()]); }
-            if let Some(k) = km.install_to_search.first() { i_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" to Search"), sep.clone()]); }
+            if let Some(k) = km.install_confirm.first() {
+                i_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" confirm"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.install_remove.first() {
+                i_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" remove"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.install_clear.first() {
+                i_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" clear"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.install_find.first() {
+                i_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" find (Enter next, Esc cancel)"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.install_to_search.first() {
+                i_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" to Search"),
+                    sep.clone(),
+                ]);
+            }
             if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
-                i_spans.extend([Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style), Span::raw(" switch pane"), sep.clone()]);
+                i_spans.extend([
+                    Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
+                    Span::raw(" switch pane"),
+                    sep.clone(),
+                ]);
             }
 
             // RECENT
@@ -516,14 +693,45 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 Span::raw("  "),
             ];
             if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
-                r_spans.extend([Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style), Span::raw(" move"), sep.clone()]);
+                r_spans.extend([
+                    Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
+                    Span::raw(" move"),
+                    sep.clone(),
+                ]);
             }
-            if let Some(k) = km.recent_use.first() { r_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" use"), sep.clone()]); }
-            if let Some(k) = km.recent_add.first() { r_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" add"), sep.clone()]); }
-            if let Some(k) = km.recent_find.first() { r_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" find (Enter next, Esc cancel)"), sep.clone()]); }
-            if let Some(k) = km.recent_to_search.first() { r_spans.extend([Span::styled(format!("[{}]", k.label()), key_style), Span::raw(" to Search"), sep.clone()]); }
+            if let Some(k) = km.recent_use.first() {
+                r_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" use"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.recent_add.first() {
+                r_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" add"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.recent_find.first() {
+                r_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" find (Enter next, Esc cancel)"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.recent_to_search.first() {
+                r_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" to Search"),
+                    sep.clone(),
+                ]);
+            }
             if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
-                r_spans.extend([Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style), Span::raw(" switch pane")]);
+                r_spans.extend([
+                    Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
+                    Span::raw(" switch pane"),
+                ]);
             }
 
             let lines = vec![
@@ -671,7 +879,12 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             let h = area.height.saturating_sub(4).min(28);
             let x = area.x + (area.width.saturating_sub(w)) / 2;
             let y = area.y + (area.height.saturating_sub(h)) / 2;
-            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
             f.render_widget(Clear, rect);
             let km = &app.keymap;
             let th = th; // same theme
@@ -688,67 +901,159 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 Line::from(vec![
                     Span::styled(
                         format!("{:18}", label),
-                        Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(th.overlay1)
+                            .add_modifier(Modifier::BOLD),
                     ),
                     Span::raw("  "),
                     Span::styled(
                         format!("[{}]", chord.label()),
-                        Style::default().fg(th.text).bg(th.surface2).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(th.text)
+                            .bg(th.surface2)
+                            .add_modifier(Modifier::BOLD),
                     ),
                 ])
             };
 
-            if let Some(k) = km.help_overlay.first().copied() { lines.push(fmt("Help overlay", k)); }
-            if let Some(k) = km.exit.first().copied() { lines.push(fmt("Exit", k)); }
-            if let Some(k) = km.reload_theme.first().copied() { lines.push(fmt("Reload theme", k)); }
-            if let Some(k) = km.pane_next.first().copied() { lines.push(fmt("Next pane", k)); }
-            if let Some(k) = km.pane_prev.first().copied() { lines.push(fmt("Previous pane", k)); }
+            if let Some(k) = km.help_overlay.first().copied() {
+                lines.push(fmt("Help overlay", k));
+            }
+            if let Some(k) = km.exit.first().copied() {
+                lines.push(fmt("Exit", k));
+            }
+            if let Some(k) = km.reload_theme.first().copied() {
+                lines.push(fmt("Reload theme", k));
+            }
+            if let Some(k) = km.pane_next.first().copied() {
+                lines.push(fmt("Next pane", k));
+            }
+            if let Some(k) = km.pane_prev.first().copied() {
+                lines.push(fmt("Previous pane", k));
+            }
             lines.push(Line::from(""));
 
             // Dynamic section for per-pane actions based on keymap
             lines.push(Line::from(Span::styled(
                 "Search:",
-                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
             )));
             if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
-                lines.push(fmt("  Move", KeyChord { code: up.code, mods: up.mods }));
-                lines.push(fmt("  Move", KeyChord { code: dn.code, mods: dn.mods }));
+                lines.push(fmt(
+                    "  Move",
+                    KeyChord {
+                        code: up.code,
+                        mods: up.mods,
+                    },
+                ));
+                lines.push(fmt(
+                    "  Move",
+                    KeyChord {
+                        code: dn.code,
+                        mods: dn.mods,
+                    },
+                ));
             }
             if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
-                lines.push(fmt("  Page", KeyChord { code: pu.code, mods: pu.mods }));
-                lines.push(fmt("  Page", KeyChord { code: pd.code, mods: pd.mods }));
+                lines.push(fmt(
+                    "  Page",
+                    KeyChord {
+                        code: pu.code,
+                        mods: pu.mods,
+                    },
+                ));
+                lines.push(fmt(
+                    "  Page",
+                    KeyChord {
+                        code: pd.code,
+                        mods: pd.mods,
+                    },
+                ));
             }
-            if let Some(k) = km.search_add.first().copied() { lines.push(fmt("  Add", k)); }
-            if let Some(k) = km.search_install.first().copied() { lines.push(fmt("  Install", k)); }
+            if let Some(k) = km.search_add.first().copied() {
+                lines.push(fmt("  Add", k));
+            }
+            if let Some(k) = km.search_install.first().copied() {
+                lines.push(fmt("  Install", k));
+            }
 
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Install:",
-                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
             )));
-            if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first()) {
-                lines.push(fmt("  Move", KeyChord { code: up.code, mods: up.mods }));
-                lines.push(fmt("  Move", KeyChord { code: dn.code, mods: dn.mods }));
+            if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first())
+            {
+                lines.push(fmt(
+                    "  Move",
+                    KeyChord {
+                        code: up.code,
+                        mods: up.mods,
+                    },
+                ));
+                lines.push(fmt(
+                    "  Move",
+                    KeyChord {
+                        code: dn.code,
+                        mods: dn.mods,
+                    },
+                ));
             }
-            if let Some(k) = km.install_confirm.first().copied() { lines.push(fmt("  Confirm", k)); }
-            if let Some(k) = km.install_remove.first().copied() { lines.push(fmt("  Remove", k)); }
-            if let Some(k) = km.install_clear.first().copied() { lines.push(fmt("  Clear", k)); }
-            if let Some(k) = km.install_find.first().copied() { lines.push(fmt("  Find", k)); }
-            if let Some(k) = km.install_to_search.first().copied() { lines.push(fmt("  To Search", k)); }
+            if let Some(k) = km.install_confirm.first().copied() {
+                lines.push(fmt("  Confirm", k));
+            }
+            if let Some(k) = km.install_remove.first().copied() {
+                lines.push(fmt("  Remove", k));
+            }
+            if let Some(k) = km.install_clear.first().copied() {
+                lines.push(fmt("  Clear", k));
+            }
+            if let Some(k) = km.install_find.first().copied() {
+                lines.push(fmt("  Find", k));
+            }
+            if let Some(k) = km.install_to_search.first().copied() {
+                lines.push(fmt("  To Search", k));
+            }
 
-            lines.push(Line::from("") );
+            lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Recent:",
-                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
             )));
             if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
-                lines.push(fmt("  Move", KeyChord { code: up.code, mods: up.mods }));
-                lines.push(fmt("  Move", KeyChord { code: dn.code, mods: dn.mods }));
+                lines.push(fmt(
+                    "  Move",
+                    KeyChord {
+                        code: up.code,
+                        mods: up.mods,
+                    },
+                ));
+                lines.push(fmt(
+                    "  Move",
+                    KeyChord {
+                        code: dn.code,
+                        mods: dn.mods,
+                    },
+                ));
             }
-            if let Some(k) = km.recent_use.first().copied() { lines.push(fmt("  Use", k)); }
-            if let Some(k) = km.recent_add.first().copied() { lines.push(fmt("  Add", k)); }
-            if let Some(k) = km.recent_find.first().copied() { lines.push(fmt("  Find", k)); }
-            if let Some(k) = km.recent_to_search.first().copied() { lines.push(fmt("  To Search", k)); }
+            if let Some(k) = km.recent_use.first().copied() {
+                lines.push(fmt("  Use", k));
+            }
+            if let Some(k) = km.recent_add.first().copied() {
+                lines.push(fmt("  Add", k));
+            }
+            if let Some(k) = km.recent_find.first().copied() {
+                lines.push(fmt("  Find", k));
+            }
+            if let Some(k) = km.recent_to_search.first().copied() {
+                lines.push(fmt("  To Search", k));
+            }
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Press Enter or Esc to close",

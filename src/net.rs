@@ -35,6 +35,59 @@ fn curl_json(url: &str) -> Result<Value> {
     Ok(v)
 }
 
+/// Execute `curl` with strict flags and return body as text.
+///
+/// Uses `curl -sSLf` to be quiet, follow redirects, and fail on HTTP errors.
+fn curl_text(url: &str) -> Result<String> {
+    let out = std::process::Command::new("curl")
+        .args(["-sSLf", url])
+        .output()?;
+    if !out.status.success() {
+        return Err(format!("curl failed: {:?}", out.status).into());
+    }
+    Ok(String::from_utf8(out.stdout)?)
+}
+
+/// Fetch PKGBUILD quickly from the most likely upstream location.
+///
+/// For AUR packages, fetch from AUR cgit raw URL. For official packages, try the
+/// Arch GitLab packaging repo (`main` then `master` branch). Returns the text.
+pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
+    match &item.source {
+        Source::Aur => {
+            let url = format!(
+                "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h={}",
+                percent_encode(&item.name)
+            );
+            // run in blocking thread since curl is blocking
+            let res = tokio::task::spawn_blocking(move || curl_text(&url)).await??;
+            Ok(res)
+        }
+        Source::Official { .. } => {
+            // Try GitLab packaging repo raw file
+            let name = item.name.clone();
+            let url_main = format!(
+                "https://gitlab.archlinux.org/archlinux/packaging/packages/{}/-/raw/main/PKGBUILD",
+                percent_encode(&name)
+            );
+            if let Ok(Ok(txt)) = tokio::task::spawn_blocking({
+                let u = url_main.clone();
+                move || curl_text(&u)
+            })
+            .await
+            {
+                return Ok(txt);
+            }
+            let url_master = format!(
+                "https://gitlab.archlinux.org/archlinux/packaging/packages/{}/-/raw/master/PKGBUILD",
+                percent_encode(&name)
+            );
+            let txt = tokio::task::spawn_blocking(move || curl_text(&url_master)).await??;
+            Ok(txt)
+        }
+    }
+}
+
 // Fallback: query pacman -Si and parse human output
 /// Run `pacman -Si` for an official package and parse human-readable output.
 ///

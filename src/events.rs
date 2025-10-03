@@ -18,7 +18,10 @@
 //! All functions in this module are synchronous and manipulate the provided
 //! mutable [`AppState`]. Any long-running work is delegated to other modules or
 //! spawned tasks to keep input handling responsive.
-use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    EnableMouseCapture, Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
+};
+use crossterm::execute;
 use tokio::sync::mpsc;
 
 use crate::theme::reload_theme;
@@ -153,6 +156,7 @@ pub fn handle_event(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
     add_tx: &mpsc::UnboundedSender<PackageItem>,
+    pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
     if let CEvent::Key(ke) = ev {
         if ke.kind != KeyEventKind::Press {
@@ -199,9 +203,19 @@ pub fn handle_event(
         }
 
         // Global keymap shortcuts (regardless of focus)
+        // First: allow ESC to close the PKGBUILD viewer if it is open
+        if ke.code == KeyCode::Esc && app.pkgb_visible {
+            app.pkgb_visible = false;
+            app.pkgb_text = None;
+            return false;
+        }
+
+        // Removed mouse capture toggle: always allow terminal text selection
+
         let km = &app.keymap;
         let chord = (ke.code, ke.modifiers);
-        let matches_any = |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
+        let matches_any =
+            |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
         if matches_any(&km.help_overlay) {
             app.modal = crate::state::Modal::Help;
             return false;
@@ -209,7 +223,9 @@ pub fn handle_event(
         if matches_any(&km.reload_theme) {
             match reload_theme() {
                 Ok(()) => {}
-                Err(msg) => { app.modal = crate::state::Modal::Alert { message: msg }; }
+                Err(msg) => {
+                    app.modal = crate::state::Modal::Alert { message: msg };
+                }
             }
             return false;
         }
@@ -550,24 +566,92 @@ pub fn handle_event(
             _ => {}
         }
     }
-    // Mouse click handling for URL (always enabled)
+    // Mouse handling for Results selection, Details URL/PKGBUILD, and PKGBUILD scroll
     if let CEvent::Mouse(m) = ev {
-        if let crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) = m.kind
-            && let Some((x, y, w, h)) = app.url_button_rect {
-                let mx = m.column;
-                let my = m.row;
-                if mx >= x && mx < x + w && my >= y && my < y + h
-                    && !app.details.url.is_empty() {
-                        let url = app.details.url.clone();
-                        std::thread::spawn(move || {
-                            let _ = std::process::Command::new("xdg-open")
-                                .arg(url)
-                                .stdin(std::process::Stdio::null())
-                                .stdout(std::process::Stdio::null())
-                                .stderr(std::process::Stdio::null())
-                                .spawn();
-                        });
+        let mx = m.column;
+        let my = m.row;
+        let is_left_down = matches!(
+            m.kind,
+            crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left)
+        );
+        let ctrl = m
+            .modifiers
+            .contains(crossterm::event::KeyModifiers::CONTROL);
+        let shift = m.modifiers.contains(crossterm::event::KeyModifiers::SHIFT);
+
+        // Track last mouse position for dynamic capture toggling
+        app.last_mouse_pos = Some((mx, my));
+
+        // 1) Handle modifier-clicks in details first, even when selection is enabled
+        if is_left_down && ctrl && shift {
+            // URL click
+            if let Some((x, y, w, h)) = app.url_button_rect
+                && mx >= x && mx < x + w && my >= y && my < y + h && !app.details.url.is_empty() {
+                    app.mouse_disabled_in_details = false; // temporarily allow action
+                    let url = app.details.url.clone();
+                    std::thread::spawn(move || {
+                        let _ = std::process::Command::new("xdg-open")
+                            .arg(url)
+                            .stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn();
+                    });
+                    return false;
+                }
+            // Show PKGBUILD click (legacy Ctrl+Shift) — no longer active
+        }
+
+        // 2) New behavior: plain left click on Show PKGBUILD
+        if is_left_down
+            && let Some((x, y, w, h)) = app.pkgb_button_rect
+                && mx >= x && mx < x + w && my >= y && my < y + h {
+                    app.mouse_disabled_in_details = false; // allow this action
+                    app.pkgb_visible = true;
+                    app.pkgb_text = None;
+                    if let Some(item) = app.results.get(app.selected).cloned() {
+                        let _ = pkgb_tx.send(item);
                     }
+                    return false;
+                }
+
+        // 3) If details should be markable, ignore other clicks within it
+        if app.mouse_disabled_in_details
+            && let Some((x, y, w, h)) = app.details_rect
+                && mx >= x && mx < x + w && my >= y && my < y + h {
+                    // Ensure terminal mouse capture stays enabled globally, while app ignores clicks here
+                    if !app.mouse_capture_enabled {
+                        let _ = execute!(std::io::stdout(), EnableMouseCapture);
+                        app.mouse_capture_enabled = true;
+                    }
+                    return false;
+                }
+
+        // 4) Results: click to select
+        if is_left_down
+            && let Some((x, y, w, h)) = app.results_rect
+                && mx >= x && mx < x + w && my >= y && my < y + h {
+                    let row = my.saturating_sub(y) as usize; // row in viewport
+                    let offset = app.list_state.offset();
+                    let idx = offset + row;
+                    if idx < app.results.len() {
+                        app.selected = idx;
+                        app.list_state.select(Some(idx));
+                    }
+                }
+
+        // 5) Scroll support inside PKGBUILD viewer using mouse wheel
+        if let Some((x, y, w, h)) = app.pkgb_rect
+            && mx >= x && mx < x + w && my >= y && my < y + h {
+                match m.kind {
+                    crossterm::event::MouseEventKind::ScrollUp => {
+                        app.pkgb_scroll = app.pkgb_scroll.saturating_sub(1);
+                    }
+                    crossterm::event::MouseEventKind::ScrollDown => {
+                        app.pkgb_scroll = app.pkgb_scroll.saturating_add(1);
+                    }
+                    _ => {}
+                }
             }
         return false;
     }
