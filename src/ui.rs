@@ -297,27 +297,24 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .iter()
         .filter_map(|&i| app.install_list.get(i))
         .map(|p| {
-            let line = Line::from(vec![
+            let (src, color) = match &p.source {
+                Source::Official { repo, .. } => (repo.to_string(), th.green),
+                Source::Aur => ("AUR".to_string(), th.yellow),
+            };
+            let segs = vec![
+                Span::styled(format!("{src} "), Style::default().fg(color)),
                 Span::styled(
                     p.name.clone(),
                     Style::default()
-                        .fg(if install_focused {
-                            th.text
-                        } else {
-                            th.subtext0
-                        })
+                        .fg(if install_focused { th.text } else { th.subtext0 })
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("  {}", p.version),
-                    Style::default().fg(if install_focused {
-                        th.overlay1
-                    } else {
-                        th.surface2
-                    }),
+                    Style::default().fg(if install_focused { th.overlay1 } else { th.surface2 }),
                 ),
-            ]);
-            ListItem::new(line)
+            ];
+            ListItem::new(Line::from(segs))
         })
         .collect();
     let mut install_title_spans: Vec<Span> = vec![Span::styled(

@@ -39,6 +39,7 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - 🧭 Three‑pane layout: Results, Recent/Search/Install, Package Info
 - 🔎 In‑pane find (/) for Recent and Install panes
 - ➕ One‑key queueing (Space) and batch install confirmation
+- 🏷️ Repo badges (core/extra/AUR) shown in Results and Install lists
 - 🧠 Caching of details and local index for faster subsequent usage
 - 📝 Install log written to `install_log.txt`
 - 🧪 `--dry-run` mode for safe testing
@@ -118,6 +119,15 @@ cargo run
 7) Optional: Click "Show PKGBUILD" in Package Info to open a side‑by‑side PKGBUILD preview; use the mouse wheel to scroll; press Esc to close.
 
 The bottom Package Info panel displays rich metadata for the selected item; Pacsea prefetches details for the first few results to keep it snappy.
+
+### Install behavior
+
+- Install list entries show their source repository (core/extra or AUR).
+- Installs are non‑interactive by default and pass `--noconfirm` to the underlying tools.
+- When you confirm install from the Install pane:
+  - If at least one AUR package is present, the entire list is installed via your AUR helper (prefers `paru`, falls back to `yay`).
+  - Otherwise, all packages are installed via `sudo pacman -S --needed --noconfirm`.
+- In `--dry-run` mode, Pacsea prints the exact commands it would run instead of performing changes.
 
 ## Command-line options
 - `--dry-run` — run Pacsea without performing any installs. Useful for testing and demos.

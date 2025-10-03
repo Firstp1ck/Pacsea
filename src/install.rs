@@ -157,7 +157,7 @@ pub fn build_install_command(
 ) -> (String, bool) {
     match &item.source {
         Source::Official { .. } => {
-            let base_cmd = format!("pacman -S --needed {}", item.name);
+            let base_cmd = format!("pacman -S --needed --noconfirm {}", item.name);
             // Robust hold tail that works even if read fails (e.g., no TTY)
             let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             if dry_run {
@@ -181,13 +181,13 @@ pub fn build_install_command(
             let hold_tail = "; echo; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             let aur_cmd = if dry_run {
                 format!(
-                    "echo DRY RUN: paru -S --needed {n} || yay -S --needed {n}{hold}",
+                    "echo DRY RUN: paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n}{hold}",
                     n = item.name,
                     hold = hold_tail
                 )
             } else {
                 format!(
-                    "(command -v paru >/dev/null 2>&1 && paru -S --needed {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed {n}) || echo 'No AUR helper (paru/yay) found.'{hold}",
+                    "(command -v paru >/dev/null 2>&1 && paru -S --needed --noconfirm {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed --noconfirm {n}) || echo 'No AUR helper (paru/yay) found.'{hold}",
                     n = item.name,
                     hold = hold_tail
                 )
@@ -200,9 +200,10 @@ pub fn build_install_command(
 #[cfg(not(target_os = "windows"))]
 /// Spawn a single terminal to install multiple `PackageItem`s on Unix-like systems.
 ///
-/// Packages are partitioned into official and AUR lists and installed with a
-/// single `pacman` invocation (for official) and a single AUR helper command
-/// (for AUR). The window is kept open with a hold tail.
+/// If any AUR package is present, prefer installing the entire list via an AUR
+/// helper (`paru` or `yay`) so that dependencies across sources are resolved
+/// consistently. Otherwise, install all items via `pacman`. The window is kept
+/// open with a hold tail.
 ///
 /// In `dry_run` mode, the terminal prints the commands that would be executed.
 /// On success (non-dry-run), appends all names to `install_log.txt`.
@@ -216,64 +217,43 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
         }
     }
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-    let mut parts: Vec<String> = Vec::new();
-    if dry_run {
-        if !official.is_empty() {
-            parts.push(format!(
-                "echo DRY RUN: sudo pacman -S --needed {}",
-                official.join(" ")
-            ));
-        }
-        if !aur.is_empty() {
-            parts.push(format!(
-                "echo DRY RUN: (paru -S --needed {} || yay -S --needed {})",
-                aur.join(" "),
-                aur.join(" ")
-            ));
-        }
-        if parts.is_empty() {
-            parts.push("echo DRY RUN: nothing to install".to_string());
-        }
-        let cmd_str = format!("{}{}", parts.join("; "), hold_tail);
-        // Spawn terminal once
-        let terms: &[(&str, &[&str], bool)] = &[
-            ("alacritty", &["-e", "bash", "-lc"], false),
-            ("kitty", &["bash", "-lc"], false),
-            ("xterm", &["-hold", "-e", "bash", "-lc"], false),
-            ("gnome-terminal", &["--", "bash", "-lc"], false),
-            ("konsole", &["-e", "bash", "-lc"], false),
-            ("xfce4-terminal", &["-e", "bash", "-lc"], false),
-            ("tilix", &["-e", "bash", "-lc"], false),
-            ("mate-terminal", &["-e", "bash", "-lc"], false),
-        ];
-        let mut launched = false;
-        for (term, args, _hold) in terms {
-            if command_on_path(term) {
-                let _ = Command::new(term)
-                    .args(args.iter().copied())
-                    .arg(&cmd_str)
-                    .spawn();
-                launched = true;
-                break;
-            }
-        }
-        if !launched {
-            let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
-        }
-        return;
-    }
 
-    if !official.is_empty() {
-        parts.push(format!("sudo pacman -S --needed {}", official.join(" ")));
-    }
-    if !aur.is_empty() {
-        let names = aur.join(" ");
-        parts.push(format!("(command -v paru >/dev/null 2>&1 && paru -S --needed {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed {n}) || echo 'No AUR helper (paru/yay) found.'", n = names));
-    }
-    if parts.is_empty() {
-        parts.push("echo nothing to install".to_string());
-    }
-    let cmd_str = format!("{}{}", parts.join("; "), hold_tail);
+    let cmd_str = if dry_run {
+        if !aur.is_empty() {
+            let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            format!(
+                "echo DRY RUN: (paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n}){hold}",
+                n = all.join(" "),
+                hold = hold_tail
+            )
+        } else if !official.is_empty() {
+            format!(
+                "echo DRY RUN: sudo pacman -S --needed --noconfirm {n}{hold}",
+                n = official.join(" "),
+                hold = hold_tail
+            )
+        } else {
+            format!("echo DRY RUN: nothing to install{hold}", hold = hold_tail)
+        }
+    } else {
+        if !aur.is_empty() {
+            let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            let n = all.join(" ");
+            format!(
+                "(command -v paru >/dev/null 2>&1 && paru -S --needed --noconfirm {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed --noconfirm {n}) || echo 'No AUR helper (paru/yay) found.'{hold}",
+                n = n,
+                hold = hold_tail
+            )
+        } else if !official.is_empty() {
+            format!(
+                "sudo pacman -S --needed --noconfirm {n}{hold}",
+                n = official.join(" "),
+                hold = hold_tail
+            )
+        } else {
+            format!("echo nothing to install{hold}", hold = hold_tail)
+        }
+    };
 
     // Spawn terminal once
     let terms: &[(&str, &[&str], bool)] = &[
@@ -302,9 +282,11 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     }
 
     // Log installs
-    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-    if !names.is_empty() {
-        let _ = log_installed(&names);
+    if !dry_run {
+        let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+        if !names.is_empty() {
+            let _ = log_installed(&names);
+        }
     }
 }
 
