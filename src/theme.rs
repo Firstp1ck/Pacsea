@@ -318,6 +318,36 @@ accent_emphasis = #b4befe\n\
 semantic_success = #a6e3a1\n\
 semantic_warning = #f9e2af\n\
 semantic_error = #f38ba8\n\
+\
+# ---------- Alternative Theme (Light) ----------\n\
+# To use this light theme, comment out the dark values above and uncomment the\n\
+# lines below, or copy these into your own overrides.\n\
+\
+# # Background layers (from lightest to darkest)\n\
+# background_base = #f5f5f7\n\
+# background_mantle = #eaeaee\n\
+# background_crust = #dcdce1\n\
+\
+# # Component surfaces\n\
+# surface_level1 = #cfd1d7\n\
+# surface_level2 = #b7bac3\n\
+\
+# # Low-contrast lines/borders and secondary text accents\n\
+# overlay_primary = #7a7d86\n\
+# overlay_secondary = #63666f\n\
+\
+# # Text hierarchy\n\
+# text_primary = #1c1c22\n\
+# text_secondary = #3c3f47\n\
+# text_tertiary = #565a64\n\
+\
+# # Accents and semantic colors\n\
+# accent_interactive = #1e66f5\n\
+# accent_heading = #8839ef\n\
+# accent_emphasis = #7287fd\n\
+# semantic_success = #40a02b\n\
+# semantic_warning = #df8e1d\n\
+# semantic_error = #d20f39\n\
 \n\
 # Application settings\n\
 # Layout percentages for the middle row panes (must sum to 100)\n\
@@ -325,7 +355,65 @@ layout_left_pct = 20\n\
 layout_center_pct = 60\n\
 layout_right_pct = 20\n\
 # Default dry-run behavior when starting the app (overridden by --dry-run)\n\
-app_dry_run_default = false\n";
+app_dry_run_default = false\n\
+\n\
+# Keybindings (defaults)\n\
+# Modifiers can be one of: SUPER, CTRL, SHIFT, ALT.\n\
+\n\
+# GLOBAL — App\n\
+keybind_help = F1\n\
+# Alternative help shortcut\n\
+keybind_help = ?\n\
+keybind_reload_theme = CTRL+R\n\
+keybind_exit = CTRL+Q\n\
+\n\
+# GLOBAL — Pane switching\n\
+keybind_pane_left = Left\n\
+keybind_pane_right = Right\n\
+keybind_pane_next = Tab\n\
+keybind_pane_prev = Shift+Tab\n\
+\n\
+# SEARCH — Navigation\n\
+keybind_search_move_up = Up\n\
+keybind_search_move_down = Down\n\
+keybind_search_page_up = PgUp\n\
+keybind_search_page_down = PgDn\n\
+\n\
+# SEARCH — Actions\n\
+keybind_search_add = Space\n\
+keybind_search_install = Enter\n\
+\n\
+# SEARCH — Focus/Edit\n\
+keybind_search_focus_left = Left\n\
+keybind_search_focus_right = Right\n\
+keybind_search_backspace = Backspace\n\
+\n\
+# RECENT — Navigation\n\
+keybind_recent_move_up = k\n\
+keybind_recent_move_down = j\n\
+\n\
+# RECENT — Actions\n\
+keybind_recent_use = Enter\n\
+keybind_recent_add = Space\n\
+\n\
+# RECENT — Find/Focus\n\
+keybind_recent_find = /\n\
+keybind_recent_to_search = Esc\n\
+keybind_recent_focus_right = Right\n\
+\n\
+# INSTALL — Navigation\n\
+keybind_install_move_up = k\n\
+keybind_install_move_down = j\n\
+\n\
+# INSTALL — Actions\n\
+keybind_install_confirm = Enter\n\
+keybind_install_remove = Del\n\
+keybind_install_clear = Shift+Del\n\
+\n\
+# INSTALL — Find/Focus\n\
+keybind_install_find = /\n\
+keybind_install_to_search = Esc\n\
+keybind_install_focus_left = Left\n";
 
 /// Parse a color value from a configuration string.
 ///
