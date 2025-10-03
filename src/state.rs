@@ -103,13 +103,9 @@ pub enum Modal {
     #[default]
     None,
     /// Informational alert with a non-interactive message.
-    Alert {
-        message: String,
-    },
+    Alert { message: String },
     /// Confirmation dialog for installing the given items.
-    ConfirmInstall {
-        items: Vec<PackageItem>,
-    },
+    ConfirmInstall { items: Vec<PackageItem> },
 }
 
 /// Which UI pane currently has keyboard focus.
@@ -212,6 +208,11 @@ pub struct AppState {
     // Clickable URL button rectangle (x, y, w, h) in terminal cells
     /// Rectangle of the clickable URL button in terminal cell coordinates.
     pub url_button_rect: Option<(u16, u16, u16, u16)>,
+
+    // User settings loaded at startup
+    pub layout_left_pct: u16,
+    pub layout_center_pct: u16,
+    pub layout_right_pct: u16,
 }
 
 impl Default for AppState {
@@ -231,24 +232,27 @@ impl Default for AppState {
             focus: Focus::Search,
             last_input_change: Instant::now(),
             last_saved_value: None,
-            // Persisted recent searches
-            recent_path: PathBuf::from("recent_searches.json"),
+            // Persisted recent searches (XDG state)
+            recent_path: crate::theme::state_dir().join("recent_searches.json"),
             recent_dirty: false,
 
             latest_query_id: 0,
             next_query_id: 1,
             details_cache: HashMap::new(),
-            cache_path: PathBuf::from("details_cache.json"),
+            // Details cache (XDG cache)
+            cache_path: crate::theme::cache_dir().join("details_cache.json"),
             cache_dirty: false,
 
             install_list: Vec::new(),
             install_state: ListState::default(),
-            install_path: PathBuf::from("install_list.json"),
+            // Install list (XDG state)
+            install_path: crate::theme::state_dir().join("install_list.json"),
             install_dirty: false,
 
             pane_find: None,
 
-            official_index_path: PathBuf::from("official_index.json"),
+            // Official index (XDG cache)
+            official_index_path: crate::theme::cache_dir().join("official_index.json"),
 
             loading_index: false,
 
@@ -258,6 +262,10 @@ impl Default for AppState {
             ring_resume_at: None,
             need_ring_prefetch: false,
             url_button_rect: None,
+
+            layout_left_pct: 20,
+            layout_center_pct: 60,
+            layout_right_pct: 20,
         }
     }
 }

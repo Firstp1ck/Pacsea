@@ -25,6 +25,7 @@ use crate::{
     logic::{move_sel_cached, send_query},
     state::{AppState, Focus, PackageItem, QueryInput},
 };
+use crate::theme::reload_theme;
 
 /// Advance selection in the Recent pane to the next or previous item matching
 /// the current pane-find pattern.
@@ -464,6 +465,18 @@ pub fn handle_event(
         } = ke;
         match (code, modifiers) {
             (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
+            // Reload theme from disk
+            (KeyCode::Char('r'), KeyModifiers::CONTROL) => {
+                match reload_theme() {
+                    Ok(()) => {
+                        // trigger a UI refresh by sending a tick via side-effect: no direct channel here,
+                        // but returning false will cause next loop draw; also any state change will repaint.
+                    }
+                    Err(msg) => {
+                        app.modal = crate::state::Modal::Alert { message: msg };
+                    }
+                }
+            }
             (KeyCode::Tab, _) => {
                 // Search -> Install (cycle)
                 if app.install_state.selected().is_none() && !app.install_list.is_empty() {
@@ -525,9 +538,11 @@ pub fn handle_event(
     }
     // Mouse click handling for URL (always enabled)
     if let CEvent::Mouse(m) = ev {
-        if let crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) = m.kind {
+        if let crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) = m.kind
+        {
             if let Some((x, y, w, h)) = app.url_button_rect {
-                let mx = m.column; let my = m.row;
+                let mx = m.column;
+                let my = m.row;
                 if mx >= x && mx < x + w && my >= y && my < y + h {
                     if !app.details.url.is_empty() {
                         let url = app.details.url.clone();

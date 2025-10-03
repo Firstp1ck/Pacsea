@@ -84,9 +84,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         if viewport_rows > 0 && len > viewport_rows {
             let selected = selected_idx.unwrap_or(0);
             let max_offset = len.saturating_sub(viewport_rows);
-            let desired = selected
-                .saturating_sub(viewport_rows / 2)
-                .min(max_offset);
+            let desired = selected.saturating_sub(viewport_rows / 2).min(max_offset);
             if app.list_state.offset() != desired {
                 let mut st = ratatui::widgets::ListState::default().with_offset(desired);
                 st.select(selected_idx);
@@ -169,9 +167,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     let middle = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(20),
-            Constraint::Percentage(60),
-            Constraint::Percentage(20),
+            Constraint::Percentage(app.layout_left_pct.min(100)),
+            Constraint::Percentage(app.layout_center_pct.min(100)),
+            Constraint::Percentage(app.layout_right_pct.min(100)),
         ])
         .split(chunks[1]);
 
@@ -372,7 +370,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 let url_txt = app.details.url.clone();
                 let mut style = Style::default().fg(th.text);
                 if !url_txt.is_empty() {
-                    style = Style::default().fg(th.mauve).add_modifier(Modifier::UNDERLINED | Modifier::BOLD);
+                    style = Style::default()
+                        .fg(th.mauve)
+                        .add_modifier(Modifier::UNDERLINED | Modifier::BOLD);
                 }
                 line.spans[1] = Span::styled(url_txt.clone(), style);
                 if !url_txt.is_empty() {
@@ -384,7 +384,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                     let y = content_y.saturating_add(row_idx as u16);
                     let max_w = chunks[2].width.saturating_sub(2).saturating_sub(key_len);
                     let w = url_txt.len().min(max_w as usize) as u16;
-                    if w > 0 { app.url_button_rect = Some((x_start, y, w, 1)); }
+                    if w > 0 {
+                        app.url_button_rect = Some((x_start, y, w, 1));
+                    }
                 }
                 break;
             }
@@ -413,69 +415,156 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             let y = chunks[2].y + chunks[2].height.saturating_sub(1 + help_h);
             let w = chunks[2].width.saturating_sub(2);
             let h = help_h;
-            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
 
-            let search_label_color = if matches!(app.focus, Focus::Search) { th.mauve } else { th.overlay1 };
-            let install_label_color = if matches!(app.focus, Focus::Install) { th.mauve } else { th.overlay1 };
-            let recent_label_color = if matches!(app.focus, Focus::Recent) { th.mauve } else { th.overlay1 };
+            let search_label_color = if matches!(app.focus, Focus::Search) {
+                th.mauve
+            } else {
+                th.overlay1
+            };
+            let install_label_color = if matches!(app.focus, Focus::Install) {
+                th.mauve
+            } else {
+                th.overlay1
+            };
+            let recent_label_color = if matches!(app.focus, Focus::Recent) {
+                th.mauve
+            } else {
+                th.overlay1
+            };
 
-            let key_style = Style::default().fg(th.text).bg(th.surface2).add_modifier(Modifier::BOLD);
+            let key_style = Style::default()
+                .fg(th.text)
+                .bg(th.surface2)
+                .add_modifier(Modifier::BOLD);
             let sep = Span::styled("  |  ", Style::default().fg(th.overlay2));
 
             // GLOBALS
             let mut g_spans: Vec<Span> = vec![
-                Span::styled("GLOBALS:", Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "GLOBALS:",
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("  "),
             ];
             g_spans.extend([
-                Span::styled("[Ctrl+C]", key_style), Span::raw(" exit"), sep.clone(),
-                Span::styled("[Esc]", key_style), Span::raw(" exit (Search)"), sep.clone(),
-                Span::styled("[Enter]", key_style), Span::raw(" confirm popup"), sep.clone(),
-                Span::styled("[Esc]", key_style), Span::raw(" cancel popup"),
+                Span::styled("[Ctrl+C]", key_style),
+                Span::raw(" exit"),
+                sep.clone(),
+                Span::styled("[Esc]", key_style),
+                Span::raw(" exit (Search)"),
+                sep.clone(),
+                Span::styled("[Enter]", key_style),
+                Span::raw(" confirm popup"),
+                sep.clone(),
+                Span::styled("[Esc]", key_style),
+                Span::raw(" cancel popup"),
+                sep.clone(),
+                Span::styled("[Ctrl+R]", key_style),
+                Span::raw(" reload theme"),
             ]);
 
             // SEARCH
             let mut s_spans: Vec<Span> = vec![
-                Span::styled("SEARCH:", Style::default().fg(search_label_color).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "SEARCH:",
+                    Style::default()
+                        .fg(search_label_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("  "),
             ];
             s_spans.extend([
-                Span::styled("[↑/↓]", key_style), Span::raw(" move"), sep.clone(),
-                Span::styled("[PgUp/PgDn]", key_style), Span::raw(" page"), sep.clone(),
-                Span::styled("[Space]", key_style), Span::raw(" add"), sep.clone(),
-                Span::styled("[Enter]", key_style), Span::raw(" install"), sep.clone(),
-                Span::styled("[Tab/S-Tab]", key_style), Span::raw(" switch pane"), sep.clone(),
-                Span::styled("[Type]", key_style), Span::raw(" query"), sep.clone(),
-                Span::styled("[Backspace]", key_style), Span::raw(" delete"),
+                Span::styled("[↑/↓]", key_style),
+                Span::raw(" move"),
+                sep.clone(),
+                Span::styled("[PgUp/PgDn]", key_style),
+                Span::raw(" page"),
+                sep.clone(),
+                Span::styled("[Space]", key_style),
+                Span::raw(" add"),
+                sep.clone(),
+                Span::styled("[Enter]", key_style),
+                Span::raw(" install"),
+                sep.clone(),
+                Span::styled("[Tab/S-Tab]", key_style),
+                Span::raw(" switch pane"),
+                sep.clone(),
+                Span::styled("[Type]", key_style),
+                Span::raw(" query"),
+                sep.clone(),
+                Span::styled("[Backspace]", key_style),
+                Span::raw(" delete"),
             ]);
 
             // INSTALL
             let mut i_spans: Vec<Span> = vec![
-                Span::styled("INSTALL:", Style::default().fg(install_label_color).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "INSTALL:",
+                    Style::default()
+                        .fg(install_label_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("  "),
             ];
             i_spans.extend([
-                Span::styled("[j/k or ↑/↓]", key_style), Span::raw(" move"), sep.clone(),
-                Span::styled("[Enter]", key_style), Span::raw(" confirm"), sep.clone(),
-                Span::styled("[Del]", key_style), Span::raw(" remove"), sep.clone(),
-                Span::styled("[Shift+Del]", key_style), Span::raw(" clear"), sep.clone(),
-                Span::styled("[/]", key_style), Span::raw(" find (Enter next, Esc cancel)"), sep.clone(),
-                Span::styled("[Esc]", key_style), Span::raw(" to Search"), sep.clone(),
-                Span::styled("[Tab/S-Tab]", key_style), Span::raw(" switch pane"),
+                Span::styled("[j/k or ↑/↓]", key_style),
+                Span::raw(" move"),
+                sep.clone(),
+                Span::styled("[Enter]", key_style),
+                Span::raw(" confirm"),
+                sep.clone(),
+                Span::styled("[Del]", key_style),
+                Span::raw(" remove"),
+                sep.clone(),
+                Span::styled("[Shift+Del]", key_style),
+                Span::raw(" clear"),
+                sep.clone(),
+                Span::styled("[/]", key_style),
+                Span::raw(" find (Enter next, Esc cancel)"),
+                sep.clone(),
+                Span::styled("[Esc]", key_style),
+                Span::raw(" to Search"),
+                sep.clone(),
+                Span::styled("[Tab/S-Tab]", key_style),
+                Span::raw(" switch pane"),
             ]);
 
             // RECENT
             let mut r_spans: Vec<Span> = vec![
-                Span::styled("RECENT:", Style::default().fg(recent_label_color).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "RECENT:",
+                    Style::default()
+                        .fg(recent_label_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("  "),
             ];
             r_spans.extend([
-                Span::styled("[j/k or ↑/↓]", key_style), Span::raw(" move"), sep.clone(),
-                Span::styled("[Enter]", key_style), Span::raw(" use"), sep.clone(),
-                Span::styled("[Space]", key_style), Span::raw(" add"), sep.clone(),
-                Span::styled("[/]", key_style), Span::raw(" find (Enter next, Esc cancel)"), sep.clone(),
-                Span::styled("[Esc]", key_style), Span::raw(" to Search"), sep.clone(),
-                Span::styled("[Tab/S-Tab]", key_style), Span::raw(" switch pane"),
+                Span::styled("[j/k or ↑/↓]", key_style),
+                Span::raw(" move"),
+                sep.clone(),
+                Span::styled("[Enter]", key_style),
+                Span::raw(" use"),
+                sep.clone(),
+                Span::styled("[Space]", key_style),
+                Span::raw(" add"),
+                sep.clone(),
+                Span::styled("[/]", key_style),
+                Span::raw(" find (Enter next, Esc cancel)"),
+                sep.clone(),
+                Span::styled("[Esc]", key_style),
+                Span::raw(" to Search"),
+                sep.clone(),
+                Span::styled("[Tab/S-Tab]", key_style),
+                Span::raw(" switch pane"),
             ]);
 
             let lines = vec![
@@ -507,10 +596,21 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 height: h,
             };
             f.render_widget(Clear, rect);
+            // Choose labels depending on error type (config vs network/other)
+            let is_config = message.contains("Unknown key")
+                || message.contains("Missing required keys")
+                || message.contains("Missing '='")
+                || message.contains("Missing key before '='")
+                || message.contains("Duplicate key")
+                || message.contains("Invalid color")
+                || message.to_lowercase().contains("theme configuration");
+            let header_text = if is_config { "Configuration error" } else { "Connection issue" };
+            let box_title = if is_config { " Configuration Error " } else { " Network Error " };
+            let header_color = if is_config { th.mauve } else { th.red };
             let lines = vec![
                 Line::from(Span::styled(
-                    "Connection issue",
-                    Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                    header_text,
+                    Style::default().fg(header_color).add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 Line::from(Span::styled(message.clone(), Style::default().fg(th.text))),
@@ -526,12 +626,12 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 .block(
                     Block::default()
                         .title(Span::styled(
-                            " Network Error ",
-                            Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                            box_title,
+                            Style::default().fg(header_color).add_modifier(Modifier::BOLD),
                         ))
                         .borders(Borders::ALL)
                         .border_type(BorderType::Double)
-                        .border_style(Style::default().fg(th.red))
+                        .border_style(Style::default().fg(header_color))
                         .style(Style::default().bg(th.mantle)),
                 );
             f.render_widget(boxw, rect);

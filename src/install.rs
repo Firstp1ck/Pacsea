@@ -339,14 +339,14 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
 }
 
 /// Append installed package names with a timestamp to `install_log.txt` in the
-/// current working directory.
+/// XDG state directory.
 ///
 /// Each line is formatted as `<YYYY-MM-DD HH:MM:SS> <name>`. Errors are
 /// propagated to the caller. This function creates the log file if missing and
 /// appends to it otherwise.
 fn log_installed(names: &[String]) -> std::io::Result<()> {
     use std::io::Write;
-    let mut path = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let mut path = crate::theme::state_dir();
     path.push("install_log.txt");
     let mut f = std::fs::OpenOptions::new()
         .create(true)

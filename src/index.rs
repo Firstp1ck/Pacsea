@@ -165,12 +165,16 @@ pub async fn update_in_background(
                     let guard = idx().read().ok();
                     if let Some(g) = guard {
                         use std::collections::{HashMap, HashSet};
-                        let old_names: HashSet<String> = g.pkgs.iter().map(|p| p.name.clone()).collect();
-                        let new_names: HashSet<String> = new_pkgs.iter().map(|p| p.name.clone()).collect();
+                        let old_names: HashSet<String> =
+                            g.pkgs.iter().map(|p| p.name.clone()).collect();
+                        let new_names: HashSet<String> =
+                            new_pkgs.iter().map(|p| p.name.clone()).collect();
                         let different = old_names != new_names;
                         // Merge: prefer old/enriched fields when same name exists
                         let mut old_map: HashMap<String, &OfficialPkg> = HashMap::new();
-                        for p in &g.pkgs { old_map.insert(p.name.clone(), p); }
+                        for p in &g.pkgs {
+                            old_map.insert(p.name.clone(), p);
+                        }
                         let mut merged = Vec::with_capacity(new_pkgs.len());
                         for mut p in new_pkgs.into_iter() {
                             if let Some(old) = old_map.get(&p.name) {
@@ -303,7 +307,7 @@ pub fn request_enrich_for(
             let mut cur_arch: Option<String> = None;
             let mut cur_repo: Option<String> = None;
             let mut cur_ver: Option<String> = None;
-            for line in out.lines().chain([""] .iter().copied()) {
+            for line in out.lines().chain([""].iter().copied()) {
                 let line = line.trim_end();
                 if line.is_empty() {
                     if let Some(n) = cur_name.take() {
@@ -336,10 +340,18 @@ pub fn request_enrich_for(
         if let Ok(mut g) = idx().write() {
             for p in &mut g.pkgs {
                 if let Some((d, a, r, v)) = desc_map.get(&p.name) {
-                    if p.description.is_empty() { p.description = d.clone(); }
-                    if !a.is_empty() { p.arch = a.clone(); }
-                    if !r.is_empty() { p.repo = r.clone(); }
-                    if !v.is_empty() { p.version = v.clone(); }
+                    if p.description.is_empty() {
+                        p.description = d.clone();
+                    }
+                    if !a.is_empty() {
+                        p.arch = a.clone();
+                    }
+                    if !r.is_empty() {
+                        p.repo = r.clone();
+                    }
+                    if !v.is_empty() {
+                        p.version = v.clone();
+                    }
                 }
             }
         }

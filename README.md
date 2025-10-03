@@ -21,6 +21,7 @@ Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in 
 - [Usage](#usage)
 - [Command-line options](#command-line-options)
 - [Keybindings](#keybindings)
+- [Configuration (Theme)](#configuration-theme)
 - [Data sources and performance](#data-sources-and-performance)
 - [Files created](#files-created)
 - [Troubleshooting](#troubleshooting)
@@ -138,6 +139,69 @@ The bottom Package Info panel displays rich metadata for the selected item; Pacs
 
 A compact multi‑line help is also visible at the bottom of Package Info. Mouse: Left‑click the URL in Package Info to open it.
 
+## Configuration (Theme and Settings)
+
+Pacsea supports a configurable color theme and basic app settings via a simple `key = value` config file.
+
+- Locations (first match wins):
+  - `$XDG_CONFIG_HOME/pacsea/pacsea.conf` (fallback: `~/.config/pacsea/pacsea.conf`)
+  - Development: `config/pacsea.conf` in the repo is preferred during development
+
+- First‑run generation:
+  - If no config exists, Pacsea creates `$XDG_CONFIG_HOME/pacsea/pacsea.conf` (fallback: `~/.config/pacsea/pacsea.conf`).
+  - It copies your repo `config/pacsea.conf` if present; otherwise it writes a complete default theme.
+
+- Live reload:
+  - Press `Ctrl+R` to reload the config while the app is running.
+
+- Validation and diagnostics:
+  - The config loader reports precise issues with line numbers, for example:
+    - `- Unknown key 'backgrond_base' on line 15 (did you mean 'background_base'?)`
+    - `- Missing required keys: background_base`
+    - `- Missing '=' on line 7`
+    - `- Missing key before '=' on line 12`
+    - `- Duplicate key 'text_primary' on line 22`
+    - `- Invalid color for 'accent_heading' on line 18 (use #RRGGBB or R,G,B)`
+
+- Key naming:
+  - Preferred comprehensive names are documented below.
+
+- Application settings (in the same `pacsea.conf`):
+  - `layout_left_pct`, `layout_center_pct`, `layout_right_pct` — integers that must sum to 100; control the middle row pane widths. Defaults: 20/60/20.
+  - `app_dry_run_default` — `true`/`false`; sets default dry‑run mode at startup. Overridden by the `--dry-run` flag.
+
+Example (hex and decimal):
+
+```ini
+# Background layers
+background_base = #1e1e2e
+background_mantle = #181825
+background_crust = #11111b
+
+# Text
+text_primary = #cdd6f4
+text_secondary = 166,173,200  # decimal R,G,B also supported
+text_tertiary = #bac2de
+
+# Accents
+accent_interactive = #74c7ec
+accent_heading = #cba6f7
+accent_emphasis = #b4befe
+
+# Semantics
+semantic_success = #a6e3a1
+semantic_warning = #f9e2af
+semantic_error   = #f38ba8
+
+# Application settings
+layout_left_pct = 20
+layout_center_pct = 60
+layout_right_pct = 20
+app_dry_run_default = false
+```
+
+An optional commented “Light” theme block is included in the generated config for quick switching.
+
 ## Data sources and performance
 - Official repositories
   - Local pacman is preferred for speed: `pacman -Sl` (names) + batched `pacman -Si` (details)
@@ -150,13 +214,17 @@ A compact multi‑line help is also visible at the bottom of Package Info. Mouse
 
 | File                   | Purpose                                                            |
 |------------------------|--------------------------------------------------------------------|
-| `official_index.json`  | Local cache of official packages (repo/name/arch/description)      |
-| `details_cache.json`   | Package name → detailed metadata used in Package Info              |
-| `recent_searches.json` | Recent queries (deduped, MRU)                                      |
-| `install_list.json`    | Persisted install queue                                            |
-| `install_log.txt`      | Timestamped record of packages you initiated installs for          |
+| `official_index.json`  | Local cache of official packages (repo/name/arch/description) — XDG cache dir |
+| `details_cache.json`   | Package name → detailed metadata used in Package Info — XDG cache dir |
+| `recent_searches.json` | Recent queries (deduped, MRU) — XDG state dir                     |
+| `install_list.json`    | Persisted install queue — XDG state dir                            |
+| `install_log.txt`      | Timestamped record of packages you initiated installs for — XDG state dir |
 
-> Note: These default to the working directory; moving to XDG paths is planned.
+XDG locations (env overrides respected):
+- Config: `$XDG_CONFIG_HOME/pacsea/pacsea.conf` (fallback `~/.config/pacsea/pacsea.conf`)
+- Cache: `$XDG_CACHE_HOME/pacsea/`
+- State: `$XDG_STATE_HOME/pacsea/`
+- Data: `$XDG_DATA_HOME/pacsea/`
 
 ## Troubleshooting
 - Official details show empty fields
@@ -169,9 +237,12 @@ A compact multi‑line help is also visible at the bottom of Package Info. Mouse
 
 ## Roadmap
 
-Extremely Popular & Expected
-- [ ] Theme customization system (themes, color palettes, glyph styles; adaptive terminal colors)
-- [ ] XDG‑compliant configuration with persistent settings
+### Implemented
+- [x] Theme customization system (themes, color palettes, glyph styles; adaptive terminal colors)
+- [x] Prebuilt binaries / packaging (Arch User Repository)
+- [x] XDG‑compliant configuration with persistent settings (config/cache/state dirs; basic app settings)
+
+### Not implemented
 - [ ] Customizable keybindings and context help overlay
 - [ ] Search modes: contains / starts‑with / regex
 - [ ] Scope filtering: official vs AUR
@@ -189,8 +260,6 @@ Extremely Popular & Expected
 - [ ] Progress indicators for long tasks
 - [ ] Improved paru/yay workflows
 - [ ] Export/import package lists (backup/share)
-
-Popular, but found less often
 - [ ] Richer package info (PKGBUILD preview, dependency visualization)
 - [ ] Batch operations (filter installed vs available, apply to selection)
 - [ ] Multiple profiles for different workflows
@@ -202,14 +271,9 @@ Popular, but found less often
 - [ ] Automatic update checks
 - [ ] Selective updates, pinning/version policies
 - [ ] System maintenance helpers
-
-Niche or Advanced
 - [ ] Signature verification indicators
 - [ ] Rollback/downgrade flows
 - [ ] Enhanced dry‑run with impact analysis
-
-Also planned
-- [ ] Prebuilt binaries / packaging (Arch User Repository)
 
 ## Inspiration and credits
 - Omarchy Distro — UX/workflow inspiration

@@ -35,6 +35,7 @@ mod util;
 use index as pkgindex;
 use net::fetch_details;
 use util::{match_rank, repo_order};
+// Legacy file migration removed; we now rely solely on XDG dirs.
 
 // Official index logic is in the pkgindex module
 
@@ -79,7 +80,7 @@ fn maybe_flush_install(app: &mut AppState) {
 ///
 /// Behavior:
 /// - Ignores empty input
-/// - Waits 5 seconds since the last change
+/// - Waits 3 seconds since the last change
 /// - De-duplicates and moves the saved value to the front
 /// - Truncates the list to 20 items
 fn maybe_save_recent(app: &mut AppState) {
@@ -87,7 +88,7 @@ fn maybe_save_recent(app: &mut AppState) {
     if app.input.trim().is_empty() {
         return;
     }
-    if now.duration_since(app.last_input_change) < Duration::from_secs(5) {
+    if now.duration_since(app.last_input_change) < Duration::from_secs(3) {
         return;
     }
     if app.last_saved_value.as_deref() == Some(app.input.trim()) {
@@ -136,11 +137,11 @@ fn restore_terminal() -> Result<()> {
 /// runs the app loop, then restores the terminal and reports any error.
 async fn main() -> Result<()> {
     // parse a simple --dry-run flag (esp. for Windows testing)
-    let dry_run = std::env::args().any(|a| a == "--dry-run");
+    let dry_run_flag = std::env::args().any(|a| a == "--dry-run");
 
     setup_terminal()?;
 
-    let res = run_app_with_flags(dry_run).await;
+    let res = run_app_with_flags(dry_run_flag).await;
 
     restore_terminal()?;
     if let Err(err) = res {
@@ -157,14 +158,22 @@ async fn main() -> Result<()> {
 /// asynchronous workers for search, package details, and index maintenance, and
 /// drives the draw/event loop until the user exits. On shutdown, it flushes
 /// caches to disk.
-async fn run_app_with_flags(dry_run: bool) -> Result<()> {
+async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
 
     let mut app = AppState {
-        dry_run,
+        dry_run: if dry_run_flag { true } else { crate::theme::settings().app_dry_run_default },
         last_input_change: Instant::now(),
         ..Default::default()
     };
+
+    // Load layout preferences
+    let prefs = crate::theme::settings();
+    app.layout_left_pct = prefs.layout_left_pct;
+    app.layout_center_pct = prefs.layout_center_pct;
+    app.layout_right_pct = prefs.layout_right_pct;
+
+    // Legacy migration removed
 
     // Load cache from disk if present
     if let Ok(s) = fs::read_to_string(&app.cache_path)
@@ -218,9 +227,13 @@ async fn run_app_with_flags(dry_run: bool) -> Result<()> {
             }
             // Process each requested item sequentially in preserved order, but skip if not allowed now
             for it in ordered.into_iter() {
-                if !crate::logic::is_allowed(&it.name) { continue; }
+                if !crate::logic::is_allowed(&it.name) {
+                    continue;
+                }
                 match fetch_details(it.clone()).await {
-                    Ok(details) => { let _ = details_res_tx.send(details); }
+                    Ok(details) => {
+                        let _ = details_res_tx.send(details);
+                    }
                     Err(e) => {
                         let msg = match it.source {
                             Source::Official { .. } => format!(

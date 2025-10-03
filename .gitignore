@@ -23,6 +23,8 @@ target/
 details_cache.json
 recent_searches.json
 official_index.json
+install_list.json
+install_log.txt
 
 RELEASE*.md
 .jj
