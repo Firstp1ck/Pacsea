@@ -162,7 +162,11 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
 
     let mut app = AppState {
-        dry_run: if dry_run_flag { true } else { crate::theme::settings().app_dry_run_default },
+        dry_run: if dry_run_flag {
+            true
+        } else {
+            crate::theme::settings().app_dry_run_default
+        },
         last_input_change: Instant::now(),
         ..Default::default()
     };
@@ -408,8 +412,8 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
                 // Enrich only nearby official packages in the same ring order
                 let len_u = app.results.len();
                 let mut enrich_names: Vec<String> = Vec::new();
-                if let Some(sel) = app.results.get(app.selected) { if matches!(sel.source, Source::Official { .. }) { enrich_names.push(sel.name.clone()); } }
-                let max_radius: usize = 30; let mut step: usize = 1; while step <= max_radius { if let Some(i) = app.selected.checked_sub(step) { if let Some(it) = app.results.get(i) { if matches!(it.source, Source::Official { .. }) { enrich_names.push(it.name.clone()); } } } let below = app.selected + step; if below < len_u { if let Some(it) = app.results.get(below) { if matches!(it.source, Source::Official { .. }) { enrich_names.push(it.name.clone()); } } } step += 1; }
+                if let Some(sel) = app.results.get(app.selected) && matches!(sel.source, Source::Official { .. }) { enrich_names.push(sel.name.clone()); }
+                let max_radius: usize = 30; let mut step: usize = 1; while step <= max_radius { if let Some(i) = app.selected.checked_sub(step) && let Some(it) = app.results.get(i) && matches!(it.source, Source::Official { .. }) { enrich_names.push(it.name.clone()); } let below = app.selected + step; if below < len_u && let Some(it) = app.results.get(below) && matches!(it.source, Source::Official { .. }) { enrich_names.push(it.name.clone()); } step += 1; }
                 if !enrich_names.is_empty() { crate::index::request_enrich_for(app.official_index_path.clone(), index_notify_tx.clone(), enrich_names); }
             }
             // Details ready
@@ -456,15 +460,14 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
             Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_install(&mut app);
                 // resume deferred ring prefetch when idle period elapsed
-                if app.need_ring_prefetch {
-                    if app.ring_resume_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
+                if app.need_ring_prefetch
+                    && app.ring_resume_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
                         crate::logic::set_allowed_ring(&app, 30);
                         crate::logic::ring_prefetch_from_selected(&mut app, &details_req_tx);
                         app.need_ring_prefetch = false;
                         app.scroll_moves = 0;
                         app.ring_resume_at = None;
                     }
-                }
             }
             else => {}
         }

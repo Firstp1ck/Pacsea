@@ -21,11 +21,11 @@
 use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
+use crate::theme::reload_theme;
 use crate::{
     logic::{move_sel_cached, send_query},
     state::{AppState, Focus, PackageItem, QueryInput},
 };
-use crate::theme::reload_theme;
 
 /// Advance selection in the Recent pane to the next or previous item matching
 /// the current pane-find pattern.
@@ -539,12 +539,11 @@ pub fn handle_event(
     // Mouse click handling for URL (always enabled)
     if let CEvent::Mouse(m) = ev {
         if let crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) = m.kind
-        {
-            if let Some((x, y, w, h)) = app.url_button_rect {
+            && let Some((x, y, w, h)) = app.url_button_rect {
                 let mx = m.column;
                 let my = m.row;
-                if mx >= x && mx < x + w && my >= y && my < y + h {
-                    if !app.details.url.is_empty() {
+                if mx >= x && mx < x + w && my >= y && my < y + h
+                    && !app.details.url.is_empty() {
                         let url = app.details.url.clone();
                         std::thread::spawn(move || {
                             let _ = std::process::Command::new("xdg-open")
@@ -555,9 +554,7 @@ pub fn handle_event(
                                 .spawn();
                         });
                     }
-                }
             }
-        }
         return false;
     }
     false

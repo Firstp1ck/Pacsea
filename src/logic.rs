@@ -46,12 +46,11 @@ pub fn is_allowed(name: &str) -> bool {
 /// This is used during fast scrolling to minimize wasted work. If there is no
 /// current selection, this function is a no-op.
 pub fn set_allowed_only_selected(app: &AppState) {
-    if let Some(sel) = app.results.get(app.selected) {
-        if let Ok(mut w) = allowed_set().write() {
+    if let Some(sel) = app.results.get(app.selected)
+        && let Ok(mut w) = allowed_set().write() {
             w.clear();
             w.insert(sel.name.clone());
         }
-    }
 }
 
 /// Allow details loading for a "ring" around the current selection.
@@ -67,17 +66,15 @@ pub fn set_allowed_ring(app: &AppState, radius: usize) {
     let len = app.results.len();
     let mut step = 1usize;
     while step <= radius {
-        if let Some(i) = app.selected.checked_sub(step) {
-            if let Some(it) = app.results.get(i) {
+        if let Some(i) = app.selected.checked_sub(step)
+            && let Some(it) = app.results.get(i) {
                 ring.insert(it.name.clone());
             }
-        }
         let below = app.selected + step;
-        if below < len {
-            if let Some(it) = app.results.get(below) {
+        if below < len
+            && let Some(it) = app.results.get(below) {
                 ring.insert(it.name.clone());
             }
-        }
         step += 1;
     }
     if let Ok(mut w) = allowed_set().write() {
@@ -208,20 +205,18 @@ pub fn ring_prefetch_from_selected(
     loop {
         let mut progressed = false;
         if let Some(i) = app.selected.checked_sub(step) {
-            if let Some(it) = app.results.get(i).cloned() {
-                if is_allowed(&it.name) && !app.details_cache.contains_key(&it.name) {
+            if let Some(it) = app.results.get(i).cloned()
+                && is_allowed(&it.name) && !app.details_cache.contains_key(&it.name) {
                     let _ = details_tx.send(it);
                 }
-            }
             progressed = true;
         }
         let below = app.selected + step;
         if below < len_u {
-            if let Some(it) = app.results.get(below).cloned() {
-                if is_allowed(&it.name) && !app.details_cache.contains_key(&it.name) {
+            if let Some(it) = app.results.get(below).cloned()
+                && is_allowed(&it.name) && !app.details_cache.contains_key(&it.name) {
                     let _ = details_tx.send(it);
                 }
-            }
             progressed = true;
         }
         if step >= max_radius || !progressed {

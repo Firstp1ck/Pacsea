@@ -35,7 +35,7 @@ use crate::{
 ///
 /// - `f`: `ratatui` frame to render into
 /// - `app`: mutable application state; updated during rendering for selection
-///    offsets, cursor position, and clickable URL geometry
+///   offsets, cursor position, and clickable URL geometry
 ///
 /// Behavior summary:
 ///
@@ -604,13 +604,23 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 || message.contains("Duplicate key")
                 || message.contains("Invalid color")
                 || message.to_lowercase().contains("theme configuration");
-            let header_text = if is_config { "Configuration error" } else { "Connection issue" };
-            let box_title = if is_config { " Configuration Error " } else { " Network Error " };
+            let header_text = if is_config {
+                "Configuration error"
+            } else {
+                "Connection issue"
+            };
+            let box_title = if is_config {
+                " Configuration Error "
+            } else {
+                " Network Error "
+            };
             let header_color = if is_config { th.mauve } else { th.red };
             let lines = vec![
                 Line::from(Span::styled(
                     header_text,
-                    Style::default().fg(header_color).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(header_color)
+                        .add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 Line::from(Span::styled(message.clone(), Style::default().fg(th.text))),
@@ -627,7 +637,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                     Block::default()
                         .title(Span::styled(
                             box_title,
-                            Style::default().fg(header_color).add_modifier(Modifier::BOLD),
+                            Style::default()
+                                .fg(header_color)
+                                .add_modifier(Modifier::BOLD),
                         ))
                         .borders(Borders::ALL)
                         .border_type(BorderType::Double)

@@ -4,10 +4,10 @@
 //! interface. Colors are grouped into neutrals (base/mantle/crust/surfaces),
 //! overlays/subtexts, and accents for highlighting and semantic states.
 use ratatui::style::Color;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{OnceLock, RwLock};
 use std::{env, fs};
-use std::collections::{HashMap, HashSet};
 
 /// Application theme palette used by rendering code.
 ///
@@ -131,8 +131,8 @@ fn parse_color_value(s: &str) -> Option<Color> {
     if let Some(i) = t.find("//") {
         t = &t[..i];
     }
-    if let Some(i_rel) = if t.starts_with('#') {
-        t[1..].find('#').map(|j| j + 1)
+    if let Some(i_rel) = if let Some(stripped) = t.strip_prefix('#') {
+        stripped.find('#').map(|j| j + 1)
     } else {
         t.find('#')
     } {
@@ -156,11 +156,10 @@ fn parse_color_value(s: &str) -> Option<Color> {
         let g = v[1].trim().parse::<u16>().ok()?;
         let b = v[2].trim().parse::<u16>().ok()?;
         Some((r, g, b))
-    }) {
-        if r <= 255 && g <= 255 && b <= 255 {
+    })
+        && r <= 255 && g <= 255 && b <= 255 {
             return Some(Color::Rgb(r as u8, g as u8, b as u8));
         }
-    }
     None
 }
 
@@ -250,22 +249,8 @@ fn apply_override_to_map(
 fn nearest_key(input: &str) -> Option<&'static str> {
     // Very small domain; simple Levenshtein distance is fine
     const CANON: [&str; 16] = [
-        "base",
-        "mantle",
-        "crust",
-        "surface1",
-        "surface2",
-        "overlay1",
-        "overlay2",
-        "text",
-        "subtext0",
-        "subtext1",
-        "sapphire",
-        "mauve",
-        "green",
-        "yellow",
-        "red",
-        "lavender",
+        "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
+        "subtext0", "subtext1", "sapphire", "mauve", "green", "yellow", "red", "lavender",
     ];
     let mut best: Option<(&'static str, usize)> = None;
     for &k in &CANON {
@@ -286,10 +271,7 @@ fn levenshtein(a: &str, b: &str) -> usize {
         for (j, cb) in b.chars().enumerate() {
             let tmp = dp[j + 1];
             let cost = if ca == cb { 0 } else { 1 };
-            dp[j + 1] = std::cmp::min(
-                std::cmp::min(dp[j + 1] + 1, dp[j] + 1),
-                prev + cost,
-            );
+            dp[j + 1] = std::cmp::min(std::cmp::min(dp[j + 1] + 1, dp[j] + 1), prev + cost);
             prev = tmp;
         }
     }
@@ -340,22 +322,8 @@ fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
     }
     // Check missing required keys
     const REQUIRED: [&str; 16] = [
-        "base",
-        "mantle",
-        "crust",
-        "surface1",
-        "surface2",
-        "overlay1",
-        "overlay2",
-        "text",
-        "subtext0",
-        "subtext1",
-        "sapphire",
-        "mauve",
-        "green",
-        "yellow",
-        "red",
-        "lavender",
+        "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
+        "subtext0", "subtext1", "sapphire", "mauve", "green", "yellow", "red", "lavender",
     ];
     let mut missing: Vec<&str> = Vec::new();
     for k in REQUIRED {
@@ -364,14 +332,8 @@ fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
         }
     }
     if !missing.is_empty() {
-        let preferred: Vec<String> = missing
-            .iter()
-            .map(|k| canonical_to_preferred(k))
-            .collect();
-        errors.push(format!(
-            "- Missing required keys: {}",
-            preferred.join(", ")
-        ));
+        let preferred: Vec<String> = missing.iter().map(|k| canonical_to_preferred(k)).collect();
+        errors.push(format!("- Missing required keys: {}", preferred.join(", ")));
     }
     if !errors.is_empty() {
         Err(errors.join("\n"))
@@ -399,10 +361,7 @@ fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
 }
 
 fn load_theme_from_file(path: &Path) -> Option<Theme> {
-    match try_load_theme_with_diagnostics(path) {
-        Ok(t) => Some(t),
-        Err(_) => None,
-    }
+    try_load_theme_with_diagnostics(path).ok()
 }
 
 /// Determine the configuration file path for Pacsea's theme, searching in priority order:
@@ -415,7 +374,12 @@ fn resolve_config_path() -> Option<PathBuf> {
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Some(h) = home.as_deref() {
-        candidates.push(Path::new(h).join(".config").join("pacsea").join("pacsea.conf"));
+        candidates.push(
+            Path::new(h)
+                .join(".config")
+                .join("pacsea")
+                .join("pacsea.conf"),
+        );
     }
     if let Some(xdg) = xdg_config.as_deref() {
         let x = Path::new(xdg);
@@ -425,12 +389,7 @@ fn resolve_config_path() -> Option<PathBuf> {
     if let Ok(cwd) = env::current_dir() {
         candidates.push(cwd.join("config").join("pacsea.conf"));
     }
-    for p in candidates {
-        if p.is_file() {
-            return Some(p);
-        }
-    }
-    None
+    candidates.into_iter().find(|p| p.is_file())
 }
 
 /// Global theme store with live-reload capability.
@@ -443,16 +402,18 @@ fn load_initial_theme_or_exit() -> Theme {
             Err(msg) => {
                 eprintln!(
                     "Pacsea: theme configuration errors in {}:\n{}",
-                    path.display(), msg
+                    path.display(),
+                    msg
                 );
             }
         }
         std::process::exit(1);
     } else {
         // No config found: write default skeleton to $XDG_CONFIG_HOME/pacsea/pacsea.conf
-        let xdg_base = env::var("XDG_CONFIG_HOME").ok().map(PathBuf::from).or_else(|| {
-            env::var("HOME").ok().map(|h| Path::new(&h).join(".config"))
-        });
+        let xdg_base = env::var("XDG_CONFIG_HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")));
         if let Some(base) = xdg_base {
             let target = base.join("pacsea").join("pacsea.conf");
             if !target.exists() {
@@ -478,16 +439,15 @@ fn load_initial_theme_or_exit() -> Theme {
     }
 }
 
-/// Return the directory that contains `pacsea.conf`, creating it if needed.
-/// This is also where other app files (caches, lists) should live.
+// /// Return the directory that contains `pacsea.conf`, creating it if needed.
+// /// This is also where other app files (caches, lists) should live.
 // removed unused config_dir()
 
 fn xdg_base_dir(var: &str, home_default: &[&str]) -> PathBuf {
-    if let Ok(p) = env::var(var) {
-        if !p.trim().is_empty() {
+    if let Ok(p) = env::var(var)
+        && !p.trim().is_empty() {
             return PathBuf::from(p);
         }
-    }
     let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let mut base = PathBuf::from(home);
     for seg in home_default {
@@ -512,12 +472,18 @@ pub fn state_dir() -> PathBuf {
     dir
 }
 
-/// XDG data directory for Pacsea (ensured to exist)
+// /// XDG data directory for Pacsea (ensured to exist)
 // removed unused data_dir()
 
 fn strip_inline_comment(mut s: &str) -> &str {
-    if let Some(i) = s.find("//") { s = &s[..i]; }
-    if let Some(i_rel) = if s.starts_with('#') { s[1..].find('#').map(|j| j + 1) } else { s.find('#') } {
+    if let Some(i) = s.find("//") {
+        s = &s[..i];
+    }
+    if let Some(i_rel) = if let Some(stripped) = s.strip_prefix('#') {
+        stripped.find('#').map(|j| j + 1)
+    } else {
+        s.find('#')
+    } {
         s = &s[..i_rel];
     }
     s.trim()
@@ -528,23 +494,47 @@ fn strip_inline_comment(mut s: &str) -> &str {
 pub fn settings() -> Settings {
     let mut out = Settings::default();
     let path = resolve_config_path().or_else(|| {
-        env::var("XDG_CONFIG_HOME").ok().map(PathBuf::from).or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config"))).map(|base| base.join("pacsea").join("pacsea.conf"))
+        env::var("XDG_CONFIG_HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")))
+            .map(|base| base.join("pacsea").join("pacsea.conf"))
     });
-    let Some(p) = path else { return out; };
-    let Ok(content) = fs::read_to_string(&p) else { return out; };
+    let Some(p) = path else {
+        return out;
+    };
+    let Ok(content) = fs::read_to_string(&p) else {
+        return out;
+    };
     for line in content.lines() {
         let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") { continue; }
-        if !trimmed.contains('=') { continue; }
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if !trimmed.contains('=') {
+            continue;
+        }
         let mut parts = trimmed.splitn(2, '=');
         let raw_key = parts.next().unwrap_or("");
         let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
         let val_raw = parts.next().unwrap_or("").trim();
         let val = strip_inline_comment(val_raw);
         match key.as_str() {
-            "layout_left_pct" => { if let Ok(v) = val.parse::<u16>() { out.layout_left_pct = v; } },
-            "layout_center_pct" => { if let Ok(v) = val.parse::<u16>() { out.layout_center_pct = v; } },
-            "layout_right_pct" => { if let Ok(v) = val.parse::<u16>() { out.layout_right_pct = v; } },
+            "layout_left_pct" => {
+                if let Ok(v) = val.parse::<u16>() {
+                    out.layout_left_pct = v;
+                }
+            }
+            "layout_center_pct" => {
+                if let Ok(v) = val.parse::<u16>() {
+                    out.layout_center_pct = v;
+                }
+            }
+            "layout_right_pct" => {
+                if let Ok(v) = val.parse::<u16>() {
+                    out.layout_right_pct = v;
+                }
+            }
             "app_dry_run_default" => {
                 let lv = val.to_ascii_lowercase();
                 out.app_dry_run_default = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
@@ -553,8 +543,15 @@ pub fn settings() -> Settings {
         }
     }
     // Validate sum; if invalid, revert to defaults
-    let sum = out.layout_left_pct.saturating_add(out.layout_center_pct).saturating_add(out.layout_right_pct);
-    if sum != 100 || out.layout_left_pct == 0 || out.layout_center_pct == 0 || out.layout_right_pct == 0 {
+    let sum = out
+        .layout_left_pct
+        .saturating_add(out.layout_center_pct)
+        .saturating_add(out.layout_right_pct);
+    if sum != 100
+        || out.layout_left_pct == 0
+        || out.layout_center_pct == 0
+        || out.layout_right_pct == 0
+    {
         out = Settings::default();
     }
     out
@@ -578,13 +575,17 @@ pub fn theme() -> Theme {
 /// Returns Ok(()) on success; Err(msg) if the config is missing or incomplete.
 pub fn reload_theme() -> std::result::Result<(), String> {
     let path = resolve_config_path().or_else(|| {
-        env::var("HOME").ok().map(|h| Path::new(&h).join(".config").join("pacsea").join("pacsea.conf"))
+        env::var("HOME").ok().map(|h| {
+            Path::new(&h)
+                .join(".config")
+                .join("pacsea")
+                .join("pacsea.conf")
+        })
     });
-    let Some(p) = path else { return Err("No theme configuration file found".to_string()); };
-    let new_theme = match try_load_theme_with_diagnostics(&p) {
-        Ok(t) => t,
-        Err(msg) => return Err(msg),
+    let Some(p) = path else {
+        return Err("No theme configuration file found".to_string());
     };
+    let new_theme = try_load_theme_with_diagnostics(&p)?;
     let lock = THEME_STORE.get_or_init(|| RwLock::new(load_initial_theme_or_exit()));
     if let Ok(mut guard) = lock.write() {
         *guard = new_theme;
