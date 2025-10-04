@@ -269,6 +269,9 @@ XDG locations (env overrides respected):
 
 ## Roadmap
 
+ ### Vote for next Feature:
+- [Vote for Feature](https://github.com/Firstp1ck/Pacsea/discussions/4)
+
 ### Implemented
 - [x] Theme customization system (themes, color palettes, glyph styles; adaptive terminal colors)
 - [x] Prebuilt binaries / packaging (Arch User Repository)
