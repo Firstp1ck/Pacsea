@@ -21,6 +21,7 @@ use crate::state::{PackageItem, Source};
 /// In-memory representation of the persisted official package index.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct OfficialIndex {
+    /// All known official packages in the process-wide index.
     pub pkgs: Vec<OfficialPkg>,
 }
 

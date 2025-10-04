@@ -235,24 +235,22 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
         } else {
             format!("echo DRY RUN: nothing to install{hold}", hold = hold_tail)
         }
+    } else if !aur.is_empty() {
+        let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+        let n = all.join(" ");
+        format!(
+            "(command -v paru >/dev/null 2>&1 && paru -S --needed --noconfirm {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed --noconfirm {n}) || echo 'No AUR helper (paru/yay) found.'{hold}",
+            n = n,
+            hold = hold_tail
+        )
+    } else if !official.is_empty() {
+        format!(
+            "sudo pacman -S --needed --noconfirm {n}{hold}",
+            n = official.join(" "),
+            hold = hold_tail
+        )
     } else {
-        if !aur.is_empty() {
-            let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-            let n = all.join(" ");
-            format!(
-                "(command -v paru >/dev/null 2>&1 && paru -S --needed --noconfirm {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed --noconfirm {n}) || echo 'No AUR helper (paru/yay) found.'{hold}",
-                n = n,
-                hold = hold_tail
-            )
-        } else if !official.is_empty() {
-            format!(
-                "sudo pacman -S --needed --noconfirm {n}{hold}",
-                n = official.join(" "),
-                hold = hold_tail
-            )
-        } else {
-            format!("echo nothing to install{hold}", hold = hold_tail)
-        }
+        format!("echo nothing to install{hold}", hold = hold_tail)
     };
 
     // Spawn terminal once

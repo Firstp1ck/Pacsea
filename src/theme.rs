@@ -55,9 +55,14 @@ pub struct Theme {
 /// User-configurable application settings parsed from `pacsea.conf`.
 #[derive(Clone, Debug)]
 pub struct Settings {
+    /// Percentage width allocated to the Recent pane (left column).
     pub layout_left_pct: u16,
+    /// Percentage width allocated to the Search pane (center column).
     pub layout_center_pct: u16,
+    /// Percentage width allocated to the Install pane (right column).
     pub layout_right_pct: u16,
+    /// Default value for the application's dry-run mode on startup.
+    /// This can be toggled via the `--dry-run` CLI flag.
     pub app_dry_run_default: bool,
     /// Configurable key bindings parsed from `pacsea.conf`
     pub keymap: KeyMap,

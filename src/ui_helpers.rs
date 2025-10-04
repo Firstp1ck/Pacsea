@@ -17,6 +17,11 @@ use crate::{
     theme::Theme,
 };
 
+/// Format the current [`AppState::details`] into themed `ratatui` lines.
+///
+/// Returns key/value rows for commonly displayed metadata followed by a
+/// trailing "Show PKGBUILD" action line. The `_area_width` parameter is
+/// reserved for future wrapping/layout needs and is currently unused.
 pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec<Line<'static>> {
     /// Build a key-value display line with themed styling.
     ///

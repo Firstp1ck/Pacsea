@@ -306,12 +306,20 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 Span::styled(
                     p.name.clone(),
                     Style::default()
-                        .fg(if install_focused { th.text } else { th.subtext0 })
+                        .fg(if install_focused {
+                            th.text
+                        } else {
+                            th.subtext0
+                        })
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("  {}", p.version),
-                    Style::default().fg(if install_focused { th.overlay1 } else { th.surface2 }),
+                    Style::default().fg(if install_focused {
+                        th.overlay1
+                    } else {
+                        th.surface2
+                    }),
                 ),
             ];
             ListItem::new(Line::from(segs))
