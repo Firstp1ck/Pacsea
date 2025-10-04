@@ -559,6 +559,13 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                     sep.clone(),
                 ]);
             }
+            if let Some(k) = km.show_pkgbuild.first() {
+                g_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" PKGBUILD"),
+                    sep.clone(),
+                ]);
+            }
 
             // SEARCH
             let mut s_spans: Vec<Span> = vec![
@@ -926,6 +933,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             }
             if let Some(k) = km.pane_prev.first().copied() {
                 lines.push(fmt("Previous pane", k));
+            }
+            if let Some(k) = km.show_pkgbuild.first().copied() {
+                lines.push(fmt("Show PKGBUILD", k));
             }
             lines.push(Line::from(""));
 
