@@ -232,6 +232,20 @@ pub fn handle_event(
         if matches_any(&km.exit) {
             return true;
         }
+        // Toggle PKGBUILD viewer globally
+        if matches_any(&km.show_pkgbuild) {
+            if app.pkgb_visible {
+                app.pkgb_visible = false;
+                app.pkgb_text = None;
+            } else {
+                app.pkgb_visible = true;
+                app.pkgb_text = None;
+                if let Some(item) = app.results.get(app.selected).cloned() {
+                    let _ = pkgb_tx.send(item);
+                }
+            }
+            return false;
+        }
 
         // Recent pane focused
         if matches!(app.focus, Focus::Recent) {

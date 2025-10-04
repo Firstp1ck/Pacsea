@@ -142,6 +142,8 @@ pub struct KeyMap {
     pub help_overlay: Vec<KeyChord>,
     pub reload_theme: Vec<KeyChord>,
     pub exit: Vec<KeyChord>,
+    /// Global: Show/Hide PKGBUILD viewer
+    pub show_pkgbuild: Vec<KeyChord>,
     pub pane_next: Vec<KeyChord>,
     pub pane_prev: Vec<KeyChord>,
     pub pane_left: Vec<KeyChord>,
@@ -201,6 +203,10 @@ impl Default for KeyMap {
             }],
             exit: vec![KeyChord {
                 code: Char('c'),
+                mods: ctrl,
+            }],
+            show_pkgbuild: vec![KeyChord {
+                code: Char('x'),
                 mods: ctrl,
             }],
             pane_next: vec![KeyChord {
@@ -498,6 +504,7 @@ keybind_help = F1\n\
 keybind_help = ?\n\
 keybind_reload_theme = CTRL+R\n\
 keybind_exit = CTRL+Q\n\
+keybind_show_pkgbuild = CTRL+X\n\
 \n\
 # GLOBAL — Pane switching\n\
 keybind_pane_left = Left\n\
@@ -984,6 +991,11 @@ pub fn settings() -> Settings {
             "keybind_exit" | "keybind_quit" => {
                 if let Some(ch) = parse_key_chord(val) {
                     out.keymap.exit = vec![ch];
+                }
+            }
+            "keybind_show_pkgbuild" | "keybind_pkgbuild" | "keybind_toggle_pkgbuild" => {
+                if let Some(ch) = parse_key_chord(val) {
+                    out.keymap.show_pkgbuild = vec![ch];
                 }
             }
             "keybind_pane_next" | "keybind_next_pane" | "keybind_switch_pane" => {
