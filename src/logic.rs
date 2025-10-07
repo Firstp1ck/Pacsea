@@ -12,7 +12,7 @@
 //! - Manages the install list with simple de-duplication and cursor behavior.
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, PackageItem, Source, SortMode};
+use crate::state::{AppState, PackageItem, SortMode, Source};
 
 // Global allowed-names gating for details loading
 use std::collections::HashSet;
@@ -334,14 +334,12 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
             app.selected = 0;
             app.list_state.select(None);
         }
+    } else if app.results.is_empty() {
+        app.selected = 0;
+        app.list_state.select(None);
     } else {
-        if app.results.is_empty() {
-            app.selected = 0;
-            app.list_state.select(None);
-        } else {
-            app.selected = app.selected.min(app.results.len() - 1);
-            app.list_state.select(Some(app.selected));
-        }
+        app.selected = app.selected.min(app.results.len() - 1);
+        app.list_state.select(Some(app.selected));
     }
 }
 

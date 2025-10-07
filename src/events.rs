@@ -388,14 +388,14 @@ pub fn handle_event(
                     }
                     if let Some(vsel) = app.history_state.selected() {
                         let i = inds.get(vsel).copied().unwrap_or(0);
-                    if let Some(q) = app.recent.get(i).cloned() {
-                        app.input = q;
+                        if let Some(q) = app.recent.get(i).cloned() {
+                            app.input = q;
                             app.focus = Focus::Search;
                             app.last_input_change = std::time::Instant::now();
                             app.last_saved_value = None;
-                        // Position caret at end and clear selection
-                        app.search_caret = char_count(&app.input);
-                        app.search_select_anchor = None;
+                            // Position caret at end and clear selection
+                            app.search_caret = char_count(&app.input);
+                            app.search_select_anchor = None;
                             send_query(app, query_tx);
                         }
                     }
@@ -614,10 +614,12 @@ pub fn handle_event(
                     }
                     (KeyCode::Char('j'), _) => move_sel_cached(app, 1, details_tx),
                     (KeyCode::Char('k'), _) => move_sel_cached(app, -1, details_tx),
-                    (KeyCode::Char('d'), KeyModifiers::CONTROL) =>
-                        move_sel_cached(app, 10, details_tx),
-                    (KeyCode::Char('u'), KeyModifiers::CONTROL) =>
-                        move_sel_cached(app, -10, details_tx),
+                    (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
+                        move_sel_cached(app, 10, details_tx)
+                    }
+                    (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
+                        move_sel_cached(app, -10, details_tx)
+                    }
                     (KeyCode::Char(' '), _) => {
                         if let Some(item) = app.results.get(app.selected).cloned() {
                             let _ = add_tx.send(item);
@@ -948,7 +950,9 @@ fn refresh_selected_details(app: &mut AppState, details_tx: &mpsc::UnboundedSend
 /// retrieve the underlying `PackageItem`, then updates `details_focus` and the
 /// details pane using cached data when available or by requesting details.
 fn refresh_install_details(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
-    let Some(vsel) = app.install_state.selected() else { return; };
+    let Some(vsel) = app.install_state.selected() else {
+        return;
+    };
     let inds = crate::ui_helpers::filtered_install_indices(app);
     if inds.is_empty() || vsel >= inds.len() {
         return;

@@ -289,9 +289,18 @@ impl Default for KeyMap {
                 code: Char('i'),
                 mods: none,
             }],
-            search_normal_select_left: vec![KeyChord { code: Char('h'), mods: none }],
-            search_normal_select_right: vec![KeyChord { code: Char('l'), mods: none }],
-            search_normal_delete: vec![KeyChord { code: Char('d'), mods: none }],
+            search_normal_select_left: vec![KeyChord {
+                code: Char('h'),
+                mods: none,
+            }],
+            search_normal_select_right: vec![KeyChord {
+                code: Char('l'),
+                mods: none,
+            }],
+            search_normal_delete: vec![KeyChord {
+                code: Char('d'),
+                mods: none,
+            }],
 
             recent_move_up: vec![
                 KeyChord {
@@ -1128,7 +1137,6 @@ pub fn settings() -> Settings {
                     out.keymap.search_normal_delete = vec![ch];
                 }
             }
-
 
             // Recent pane
             "keybind_recent_move_up" => {
