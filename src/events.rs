@@ -30,6 +30,24 @@ use crate::{
     state::{AppState, Focus, PackageItem, QueryInput},
 };
 
+/// Return the number of Unicode scalar values (characters) in the input.
+fn char_count(s: &str) -> usize {
+    s.chars().count()
+}
+
+/// Convert a character index to a byte index for slicing.
+/// If `ci` equals the number of characters, returns `s.len()`.
+fn byte_index_for_char(s: &str, ci: usize) -> usize {
+    let cc = char_count(s);
+    if ci == 0 {
+        return 0;
+    }
+    if ci >= cc {
+        return s.len();
+    }
+    s.char_indices().map(|(i, _)| i).nth(ci).unwrap_or(s.len())
+}
+
 /// Advance selection in the Recent pane to the next or previous item matching
 /// the current pane-find pattern.
 ///
@@ -370,11 +388,14 @@ pub fn handle_event(
                     }
                     if let Some(vsel) = app.history_state.selected() {
                         let i = inds.get(vsel).copied().unwrap_or(0);
-                        if let Some(q) = app.recent.get(i).cloned() {
-                            app.input = q;
+                    if let Some(q) = app.recent.get(i).cloned() {
+                        app.input = q;
                             app.focus = Focus::Search;
                             app.last_input_change = std::time::Instant::now();
                             app.last_saved_value = None;
+                        // Position caret at end and clear selection
+                        app.search_caret = char_count(&app.input);
+                        app.search_select_anchor = None;
                             send_query(app, query_tx);
                         }
                     }
@@ -394,6 +415,7 @@ pub fn handle_event(
                 match ke.code {
                     KeyCode::Enter => {
                         find_in_install(app, true);
+                        refresh_install_details(app, details_tx);
                     }
                     KeyCode::Esc => {
                         app.pane_find = None;
@@ -423,6 +445,7 @@ pub fn handle_event(
                     let max = inds.len().saturating_sub(1);
                     let new = std::cmp::min(sel + 1, max);
                     app.install_state.select(Some(new));
+                    refresh_install_details(app, details_tx);
                 }
                 KeyCode::Char('k') => {
                     // vim up
@@ -433,6 +456,7 @@ pub fn handle_event(
                     if let Some(sel) = app.install_state.selected() {
                         let new = sel.saturating_sub(1);
                         app.install_state.select(Some(new));
+                        refresh_install_details(app, details_tx);
                     }
                 }
                 KeyCode::Char('/') => {
@@ -448,6 +472,7 @@ pub fn handle_event(
                 }
                 KeyCode::Esc => {
                     app.focus = Focus::Search;
+                    refresh_selected_details(app, details_tx);
                 }
                 code if matches_any(&km.pane_next) && code == ke.code => {
                     // Install -> Recent (cycle)
@@ -463,6 +488,7 @@ pub fn handle_event(
                 KeyCode::Left => {
                     // Install -> Search (adjacent)
                     app.focus = Focus::Search;
+                    refresh_selected_details(app, details_tx);
                 }
                 KeyCode::Right => { /* no-op: rightmost pane */ }
                 KeyCode::Delete if ke.modifiers.contains(KeyModifiers::SHIFT) => {
@@ -486,6 +512,7 @@ pub fn handle_event(
                             } else {
                                 let new_sel = if vsel >= vis_len { vis_len - 1 } else { vsel };
                                 app.install_state.select(Some(new_sel));
+                                refresh_install_details(app, details_tx);
                             }
                         }
                     }
@@ -498,6 +525,7 @@ pub fn handle_event(
                     if let Some(sel) = app.install_state.selected() {
                         let new = sel.saturating_sub(1);
                         app.install_state.select(Some(new));
+                        refresh_install_details(app, details_tx);
                     }
                 }
                 KeyCode::Down => {
@@ -509,16 +537,132 @@ pub fn handle_event(
                     let max = inds.len().saturating_sub(1);
                     let new = std::cmp::min(sel + 1, max);
                     app.install_state.select(Some(new));
+                    refresh_install_details(app, details_tx);
                 }
                 _ => {}
             }
             return false;
         }
 
-        // Normal mode (Search focused)
+        // Search pane focused (supports Normal mode toggle via Esc)
         let KeyEvent {
             code, modifiers, ..
         } = ke;
+        if matches!(app.focus, Focus::Search) {
+            // Toggle Normal mode (configurable)
+            if matches_any(&km.search_normal_toggle) {
+                app.search_normal_mode = !app.search_normal_mode;
+                return false;
+            }
+            // Normal mode: Vim-like navigation without editing input
+            if app.search_normal_mode {
+                match (code, modifiers) {
+                    (c, m)
+                        if matches_any(&km.search_normal_insert)
+                            && (c, m) == (ke.code, ke.modifiers) =>
+                    {
+                        // return to insert mode
+                        app.search_normal_mode = false;
+                        app.search_select_anchor = None;
+                    }
+                    // Selection with configured left/right (default: h/l)
+                    (c, m)
+                        if matches_any(&km.search_normal_select_left)
+                            && (c, m) == (ke.code, ke.modifiers) =>
+                    {
+                        // Begin selection if not started
+                        if app.search_select_anchor.is_none() {
+                            app.search_select_anchor = Some(app.search_caret);
+                        }
+                        let cc = char_count(&app.input);
+                        let cur = app.search_caret as isize - 1;
+                        let new_ci = if cur < 0 { 0 } else { cur as usize };
+                        app.search_caret = new_ci.min(cc);
+                    }
+                    (c, m)
+                        if matches_any(&km.search_normal_select_right)
+                            && (c, m) == (ke.code, ke.modifiers) =>
+                    {
+                        if app.search_select_anchor.is_none() {
+                            app.search_select_anchor = Some(app.search_caret);
+                        }
+                        let cc = char_count(&app.input);
+                        let cur = app.search_caret + 1;
+                        app.search_caret = cur.min(cc);
+                    }
+                    // Delete selected range (default: d)
+                    (c, m)
+                        if matches_any(&km.search_normal_delete)
+                            && (c, m) == (ke.code, ke.modifiers) =>
+                    {
+                        if let Some(anchor) = app.search_select_anchor.take() {
+                            let a = anchor.min(app.search_caret);
+                            let b = anchor.max(app.search_caret);
+                            if a != b {
+                                let bs = byte_index_for_char(&app.input, a);
+                                let be = byte_index_for_char(&app.input, b);
+                                let mut new_input = String::with_capacity(app.input.len());
+                                new_input.push_str(&app.input[..bs]);
+                                new_input.push_str(&app.input[be..]);
+                                app.input = new_input;
+                                app.search_caret = a;
+                                app.last_input_change = std::time::Instant::now();
+                                app.last_saved_value = None;
+                                send_query(app, query_tx);
+                            }
+                        }
+                    }
+                    (KeyCode::Char('j'), _) => move_sel_cached(app, 1, details_tx),
+                    (KeyCode::Char('k'), _) => move_sel_cached(app, -1, details_tx),
+                    (KeyCode::Char('d'), KeyModifiers::CONTROL) =>
+                        move_sel_cached(app, 10, details_tx),
+                    (KeyCode::Char('u'), KeyModifiers::CONTROL) =>
+                        move_sel_cached(app, -10, details_tx),
+                    (KeyCode::Char(' '), _) => {
+                        if let Some(item) = app.results.get(app.selected).cloned() {
+                            let _ = add_tx.send(item);
+                        }
+                    }
+                    (KeyCode::Char('\n') | KeyCode::Enter, _) => {
+                        if let Some(item) = app.results.get(app.selected).cloned() {
+                            app.modal = crate::state::Modal::ConfirmInstall { items: vec![item] };
+                        }
+                    }
+                    (c, m) if matches_any(&km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
+                        if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                            app.install_state.select(Some(0));
+                        }
+                        app.focus = Focus::Install;
+                        refresh_install_details(app, details_tx);
+                    }
+                    (c, m) if matches_any(&km.pane_prev) && (c, m) == (ke.code, ke.modifiers) => {
+                        if app.history_state.selected().is_none() && !app.recent.is_empty() {
+                            app.history_state.select(Some(0));
+                        }
+                        app.focus = Focus::Recent;
+                        crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                    }
+                    (KeyCode::Right, _) => {
+                        if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                            app.install_state.select(Some(0));
+                        }
+                        app.focus = Focus::Install;
+                        refresh_install_details(app, details_tx);
+                    }
+                    (KeyCode::Left, _) => {
+                        if app.history_state.selected().is_none() && !app.recent.is_empty() {
+                            app.history_state.select(Some(0));
+                        }
+                        app.focus = Focus::Recent;
+                        crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                    }
+                    _ => {}
+                }
+                return false;
+            }
+        }
+
+        // Insert mode (default for Search)
         match (code, modifiers) {
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
             (c, m) if matches_any(&km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
@@ -527,6 +671,7 @@ pub fn handle_event(
                     app.install_state.select(Some(0));
                 }
                 app.focus = Focus::Install;
+                refresh_install_details(app, details_tx);
             }
             (c, m) if matches_any(&km.pane_prev) && (c, m) == (ke.code, ke.modifiers) => {
                 // Search -> Install (unchanged)
@@ -534,6 +679,7 @@ pub fn handle_event(
                     app.install_state.select(Some(0));
                 }
                 app.focus = Focus::Install;
+                refresh_install_details(app, details_tx);
             }
             (KeyCode::Right, _) => {
                 // Search -> Install (adjacent)
@@ -541,6 +687,7 @@ pub fn handle_event(
                     app.install_state.select(Some(0));
                 }
                 app.focus = Focus::Install;
+                refresh_install_details(app, details_tx);
             }
             (KeyCode::Left, _) => {
                 // Search -> Recent (adjacent)
@@ -559,6 +706,9 @@ pub fn handle_event(
                 app.input.pop();
                 app.last_input_change = std::time::Instant::now();
                 app.last_saved_value = None;
+                // Move caret to end and clear selection in insert mode
+                app.search_caret = char_count(&app.input);
+                app.search_select_anchor = None;
                 send_query(app, query_tx);
             }
             (KeyCode::Char('\n') | KeyCode::Enter, _) => {
@@ -571,6 +721,8 @@ pub fn handle_event(
                 app.input.push(ch);
                 app.last_input_change = std::time::Instant::now();
                 app.last_saved_value = None;
+                app.search_caret = char_count(&app.input);
+                app.search_select_anchor = None;
                 send_query(app, query_tx);
             }
             (KeyCode::Up, _) => move_sel_cached(app, -1, details_tx),
@@ -654,7 +806,89 @@ pub fn handle_event(
             return false;
         }
 
-        // 4) Results: click to select
+        // 4) Sort button, filters, and dropdown in Results title
+        if is_left_down {
+            // Toggle sort menu when clicking the button on the title
+            if let Some((x, y, w, h)) = app.sort_button_rect
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+            {
+                app.sort_menu_open = !app.sort_menu_open;
+                return false;
+            }
+            // Toggle filters when clicking their labels
+            if let Some((x, y, w, h)) = app.results_filter_aur_rect
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+            {
+                app.results_filter_show_aur = !app.results_filter_show_aur;
+                crate::logic::apply_filters_and_sort_preserve_selection(app);
+                return false;
+            }
+            if let Some((x, y, w, h)) = app.results_filter_core_rect
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+            {
+                app.results_filter_show_core = !app.results_filter_show_core;
+                crate::logic::apply_filters_and_sort_preserve_selection(app);
+                return false;
+            }
+            if let Some((x, y, w, h)) = app.results_filter_extra_rect
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+            {
+                app.results_filter_show_extra = !app.results_filter_show_extra;
+                crate::logic::apply_filters_and_sort_preserve_selection(app);
+                return false;
+            }
+            if let Some((x, y, w, h)) = app.results_filter_multilib_rect
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+            {
+                app.results_filter_show_multilib = !app.results_filter_show_multilib;
+                crate::logic::apply_filters_and_sort_preserve_selection(app);
+                return false;
+            }
+            // If menu open, handle option click inside menu
+            if app.sort_menu_open
+                && let Some((x, y, w, h)) = app.sort_menu_rect
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+            {
+                let row = my.saturating_sub(y) as usize; // 0-based within options
+                match row {
+                    0 => {
+                        app.sort_mode = crate::state::SortMode::RepoThenName;
+                    }
+                    1 => {
+                        app.sort_mode = crate::state::SortMode::AurPopularityThenOfficial;
+                    }
+                    _ => {}
+                }
+                app.sort_menu_open = false;
+                // Apply sort immediately
+                crate::logic::sort_results_preserve_selection(app);
+                return false;
+            }
+            // Click outside menu closes it
+            if app.sort_menu_open {
+                app.sort_menu_open = false;
+            }
+        }
+
+        // 5) Results: click to select
         if is_left_down
             && let Some((x, y, w, h)) = app.results_rect
             && mx >= x
@@ -671,7 +905,7 @@ pub fn handle_event(
             }
         }
 
-        // 5) Scroll support inside PKGBUILD viewer using mouse wheel
+        // 6) Scroll support inside PKGBUILD viewer using mouse wheel
         if let Some((x, y, w, h)) = app.pkgb_rect
             && mx >= x
             && mx < x + w
@@ -700,6 +934,45 @@ pub fn handle_event(
 /// `details_tx` for asynchronous population.
 fn refresh_selected_details(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
     if let Some(item) = app.results.get(app.selected).cloned() {
+        if let Some(cached) = app.details_cache.get(&item.name).cloned() {
+            app.details = cached;
+        } else {
+            let _ = details_tx.send(item);
+        }
+    }
+}
+
+/// Ensure `app.details` reflects the currently selected item in the Install pane.
+///
+/// Maps the visible selection index through the filtered install indices to
+/// retrieve the underlying `PackageItem`, then updates `details_focus` and the
+/// details pane using cached data when available or by requesting details.
+fn refresh_install_details(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
+    let Some(vsel) = app.install_state.selected() else { return; };
+    let inds = crate::ui_helpers::filtered_install_indices(app);
+    if inds.is_empty() || vsel >= inds.len() {
+        return;
+    }
+    let i = inds[vsel];
+    if let Some(item) = app.install_list.get(i).cloned() {
+        // Focus details on the install selection
+        app.details_focus = Some(item.name.clone());
+
+        // Provide an immediate placeholder reflecting the selection
+        app.details.name = item.name.clone();
+        app.details.version = item.version.clone();
+        app.details.description.clear();
+        match &item.source {
+            crate::state::Source::Official { repo, arch } => {
+                app.details.repository = repo.clone();
+                app.details.architecture = arch.clone();
+            }
+            crate::state::Source::Aur => {
+                app.details.repository = "AUR".to_string();
+                app.details.architecture = "any".to_string();
+            }
+        }
+
         if let Some(cached) = app.details_cache.get(&item.name).cloned() {
             app.details = cached;
         } else {

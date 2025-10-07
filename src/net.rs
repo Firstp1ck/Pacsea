@@ -216,6 +216,7 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
         install_size,
         owner: map.get("Packager").cloned().unwrap_or_default(),
         build_date: map.get("Build Date").cloned().unwrap_or_default(),
+        popularity: None,
     };
     Ok(pd)
 }
@@ -268,6 +269,7 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
 
     let version0 = s(&obj, "Version");
     let description0 = s(&obj, "Description");
+    let popularity0 = obj.get("Popularity").and_then(|v| v.as_f64());
 
     let d = PackageDetails {
         repository: "AUR".into(),
@@ -297,6 +299,7 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
         install_size: None,
         owner: s(&obj, "Maintainer"),
         build_date: crate::util::ts_to_date(obj.get("LastModified").and_then(|v| v.as_i64())),
+        popularity: popularity0,
     };
     Ok(d)
 }
@@ -391,6 +394,7 @@ pub async fn fetch_official_details(
             install_size: u64_of(obj, &["installed_size", "InstalledSize"]),
             owner: ss(obj, &["packager", "Packager"]).unwrap_or_default(),
             build_date: ss(obj, &["build_date", "BuildDate"]).unwrap_or_default(),
+            popularity: None,
         };
         return Ok(d);
     }
@@ -420,6 +424,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
                     let name = s(pkg, "Name");
                     let version = s(pkg, "Version");
                     let description = s(pkg, "Description");
+                    let popularity = pkg.get("Popularity").and_then(|v| v.as_f64());
                     if name.is_empty() {
                         continue;
                     }
@@ -428,6 +433,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
                         version,
                         description,
                         source: Source::Aur,
+                        popularity,
                     });
                 }
             }

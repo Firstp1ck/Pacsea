@@ -103,6 +103,7 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
                         repo: p.repo.clone(),
                         arch: p.arch.clone(),
                     },
+                    popularity: None,
                 });
             }
         }
@@ -125,6 +126,7 @@ pub fn all_official() -> Vec<PackageItem> {
                     repo: p.repo.clone(),
                     arch: p.arch.clone(),
                 },
+                popularity: None,
             });
         }
     }

@@ -35,6 +35,9 @@ pub struct PackageItem {
     pub description: String,
     /// Origin of the package (official repo or AUR).
     pub source: Source,
+    /// AUR popularity score when available (AUR only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<f64>,
 }
 
 /// Full set of details for a package, suitable for a dedicated information
@@ -79,6 +82,9 @@ pub struct PackageDetails {
     pub owner: String, // packager/maintainer
     /// Build or packaging date (string-formatted for display).
     pub build_date: String,
+    /// AUR popularity score when available (AUR only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<f64>,
 }
 
 /// Search query sent to the background search worker.
@@ -96,6 +102,15 @@ pub struct SearchResults {
     pub id: u64,
     /// Matching packages in rank order.
     pub items: Vec<PackageItem>,
+}
+
+/// Sorting mode for the Results list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortMode {
+    /// Default: Pacman (core/extra/other official) first, then AUR; name tiebreak.
+    RepoThenName,
+    /// AUR first (by highest popularity), then official repos; name tiebreak.
+    AurPopularityThenOfficial,
 }
 
 /// Modal dialog state for the UI.
@@ -133,6 +148,8 @@ pub struct AppState {
     pub input: String,
     /// Current search results, most relevant first.
     pub results: Vec<PackageItem>,
+    /// Unfiltered results as last received from the search worker.
+    pub all_results: Vec<PackageItem>,
     /// Index into `results` that is currently highlighted.
     pub selected: usize,
     /// Details for the currently highlighted result.
@@ -188,6 +205,17 @@ pub struct AppState {
     /// Optional, transient find pattern used by pane-local search ("/").
     pub pane_find: Option<String>,
 
+    /// Whether Search pane is in Normal mode (Vim-like navigation) instead of Insert mode.
+    pub search_normal_mode: bool,
+
+    /// Caret position (in characters) within the Search input.
+    /// Always clamped to the range 0..=input.chars().count().
+    pub search_caret: usize,
+    /// Selection anchor (in characters) for the Search input when selecting text.
+    /// When `None`, no selection is active. When `Some(i)`, the selected range is
+    /// between `min(i, search_caret)` and `max(i, search_caret)` (exclusive upper bound).
+    pub search_select_anchor: Option<usize>,
+
     // Official package index persistence
     /// Path to the persisted official package index used for fast offline lookups.
     pub official_index_path: PathBuf,
@@ -242,6 +270,34 @@ pub struct AppState {
     pub last_mouse_pos: Option<(u16, u16)>,
     /// Whether global terminal mouse capture is currently enabled.
     pub mouse_capture_enabled: bool,
+
+    // Results sorting UI
+    /// Current sort mode for results.
+    pub sort_mode: SortMode,
+    /// Whether the sort dropdown is currently visible.
+    pub sort_menu_open: bool,
+    /// Clickable rectangle for the sort button in the Results title (x, y, w, h).
+    pub sort_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the sort dropdown menu when visible (x, y, w, h).
+    pub sort_menu_rect: Option<(u16, u16, u16, u16)>,
+
+    // Results filters UI
+    /// Whether to include AUR packages in the Results view.
+    pub results_filter_show_aur: bool,
+    /// Whether to include packages from the `core` repo in the Results view.
+    pub results_filter_show_core: bool,
+    /// Whether to include packages from the `extra` repo in the Results view.
+    pub results_filter_show_extra: bool,
+    /// Whether to include packages from the `multilib` repo in the Results view.
+    pub results_filter_show_multilib: bool,
+    /// Clickable rectangle for the AUR filter toggle in the Results title (x, y, w, h).
+    pub results_filter_aur_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the core filter toggle in the Results title (x, y, w, h).
+    pub results_filter_core_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the extra filter toggle in the Results title (x, y, w, h).
+    pub results_filter_extra_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the multilib filter toggle in the Results title (x, y, w, h).
+    pub results_filter_multilib_rect: Option<(u16, u16, u16, u16)>,
 }
 
 impl Default for AppState {
@@ -251,6 +307,7 @@ impl Default for AppState {
         Self {
             input: String::new(),
             results: Vec::new(),
+            all_results: Vec::new(),
             selected: 0,
             details: PackageDetails::default(),
             list_state: ListState::default(),
@@ -280,6 +337,11 @@ impl Default for AppState {
 
             pane_find: None,
 
+            // Search input mode
+            search_normal_mode: false,
+            search_caret: 0,
+            search_select_anchor: None,
+
             // Official index (XDG cache)
             official_index_path: crate::theme::cache_dir().join("official_index.json"),
 
@@ -307,6 +369,22 @@ impl Default for AppState {
             mouse_disabled_in_details: false,
             last_mouse_pos: None,
             mouse_capture_enabled: true,
+
+            // Sorting
+            sort_mode: SortMode::RepoThenName,
+            sort_menu_open: false,
+            sort_button_rect: None,
+            sort_menu_rect: None,
+
+            // Filters default to showing everything
+            results_filter_show_aur: true,
+            results_filter_show_core: true,
+            results_filter_show_extra: true,
+            results_filter_show_multilib: true,
+            results_filter_aur_rect: None,
+            results_filter_core_rect: None,
+            results_filter_extra_rect: None,
+            results_filter_multilib_rect: None,
         }
     }
 }

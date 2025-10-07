@@ -124,14 +124,25 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 p.description.clone()
             };
             let installed = crate::index::is_installed(&p.name);
-            let mut segs = vec![
-                Span::styled(format!("{src} "), Style::default().fg(color)),
-                Span::styled(
-                    p.name.clone(),
-                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(format!("  {}", p.version), Style::default().fg(th.overlay1)),
-            ];
+            let mut segs: Vec<Span> = Vec::new();
+            // Popularity (AUR) shown before repo label when available
+            if let Some(pop) = p.popularity {
+                segs.push(Span::styled(
+                    format!("Pop: {:.2} ", pop),
+                    Style::default().fg(th.overlay1),
+                ));
+            }
+            // Repo / source label
+            segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
+            // Name and version
+            segs.push(Span::styled(
+                p.name.clone(),
+                Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+            ));
+            segs.push(Span::styled(
+                format!("  {}", p.version),
+                Style::default().fg(th.overlay1),
+            ));
             if !desc.is_empty() {
                 segs.push(Span::raw("  - "));
                 segs.push(Span::styled(desc, Style::default().fg(th.overlay2)));
@@ -147,14 +158,75 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         })
         .collect();
 
+    // Build title with Sort button and filter toggles
+    let results_title_text = format!("Results ({})", app.results.len());
+    let sort_button_label = "Sort ▾".to_string();
+    let mut title_spans: Vec<Span> = vec![Span::styled(
+        results_title_text.clone(),
+        Style::default().fg(th.overlay1),
+    )];
+    title_spans.push(Span::raw("  "));
+    // Style the button differently when menu is open
+    let btn_style = if app.sort_menu_open {
+        Style::default()
+            .fg(th.crust)
+            .bg(th.mauve)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .fg(th.mauve)
+            .bg(th.surface2)
+            .add_modifier(Modifier::BOLD)
+    };
+    title_spans.push(Span::styled(sort_button_label.clone(), btn_style));
+    title_spans.push(Span::raw("  "));
+    // Filter toggles: [AUR] [core] [extra] [multilib]
+    let filt = |label: &str, on: bool| -> Span<'static> {
+        let (fg, bg) = if on { (th.crust, th.green) } else { (th.mauve, th.surface2) };
+        Span::styled(format!("[{label}]"), Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD))
+    };
+    title_spans.push(filt("AUR", app.results_filter_show_aur));
+    title_spans.push(Span::raw(" "));
+    title_spans.push(filt("core", app.results_filter_show_core));
+    title_spans.push(Span::raw(" "));
+    title_spans.push(filt("extra", app.results_filter_show_extra));
+    title_spans.push(Span::raw(" "));
+    title_spans.push(filt("multilib", app.results_filter_show_multilib));
+
+    // Estimate and record clickable rects for controls on the title line
+    // Title is rendered on the top border row at y = chunks[0].y
+    let mut x_cursor = chunks[0].x
+        .saturating_add(1) // left border inset
+        .saturating_add(results_title_text.len() as u16)
+        .saturating_add(2); // two spaces before Sort
+    let btn_w = sort_button_label.len() as u16;
+    let btn_x = x_cursor;
+    let btn_y = chunks[0].y; // top border row
+    app.sort_button_rect = Some((btn_x, btn_y, btn_w, 1));
+    x_cursor = x_cursor.saturating_add(btn_w).saturating_add(2); // space after sort
+
+    // Filter rects in sequence, with single space between
+    let rec_rect = |start_x: u16, label: &str| -> (u16, u16, u16, u16) {
+        // label already includes brackets, so width is exact label length
+        (start_x, btn_y, label.len() as u16, 1)
+    };
+    let aur_label = "[AUR]";
+    app.results_filter_aur_rect = Some(rec_rect(x_cursor, aur_label));
+    x_cursor = x_cursor.saturating_add(aur_label.len() as u16).saturating_add(1);
+    let core_label = "[core]";
+    app.results_filter_core_rect = Some(rec_rect(x_cursor, core_label));
+    x_cursor = x_cursor.saturating_add(core_label.len() as u16).saturating_add(1);
+    let extra_label = "[extra]";
+    app.results_filter_extra_rect = Some(rec_rect(x_cursor, extra_label));
+    x_cursor = x_cursor.saturating_add(extra_label.len() as u16).saturating_add(1);
+    let multilib_label = "[multilib]";
+    app.results_filter_multilib_rect = Some(rec_rect(x_cursor, multilib_label));
+
     let list = List::new(items)
         .style(Style::default().fg(th.text).bg(th.base))
         .block(
             Block::default()
-                .title(Span::styled(
-                    format!("Results ({})", app.results.len()),
-                    Style::default().fg(th.overlay1),
-                ))
+                .title(Line::from(title_spans))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(th.surface2)),
@@ -163,6 +235,61 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .highlight_symbol("> ");
 
     f.render_stateful_widget(list, chunks[0], &mut app.list_state);
+    
+    // Optional: render sort dropdown overlay near the button
+    app.sort_menu_rect = None;
+    if app.sort_menu_open {
+        let opts = vec![
+            "Pacman (core/extra/multilib) -> AUR",
+            "AUR -> highest popularity -> pacman",
+        ];
+        let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
+        let w = widest.saturating_add(2).min(chunks[0].width.saturating_sub(2));
+        // Place menu just under the title, aligned to button if possible
+        let menu_x = btn_x.min(chunks[0].x + chunks[0].width.saturating_sub(1 + w));
+        let menu_y = chunks[0].y.saturating_add(1); // just below top border
+        let h = (opts.len() as u16) + 2; // borders
+        let rect = ratatui::prelude::Rect {
+            x: menu_x,
+            y: menu_y,
+            width: w.saturating_add(2),
+            height: h,
+        };
+        // Record inner list area for hit-testing (exclude borders)
+        app.sort_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
+
+        // Build lines with current mode highlighted
+        let mut lines: Vec<Line> = Vec::new();
+        for (i, text) in opts.iter().enumerate() {
+            let is_selected = match (i, app.sort_mode) {
+                (0, crate::state::SortMode::RepoThenName) => true,
+                (1, crate::state::SortMode::AurPopularityThenOfficial) => true,
+                _ => false,
+            };
+            let mark = if is_selected { "✔ " } else { "  " };
+            let style = if is_selected {
+                Style::default().fg(th.crust).bg(th.lavender).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(th.text)
+            };
+            lines.push(Line::from(vec![
+                Span::styled(mark.to_string(), Style::default().fg(th.overlay1)),
+                Span::styled(text.to_string(), style),
+            ]));
+        }
+        let menu = Paragraph::new(lines)
+            .style(Style::default().fg(th.text).bg(th.base))
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .title(Span::styled(" Sort by ", Style::default().fg(th.overlay1)))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(th.surface2)),
+            );
+        f.render_widget(Clear, rect);
+        f.render_widget(menu, rect);
+    }
     // Record inner results rect for mouse hit-testing (inside borders)
     app.results_rect = Some((
         chunks[0].x + 1,
@@ -183,20 +310,59 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     // Search input (center)
     let search_focused = matches!(app.focus, Focus::Search);
-    let input_line = Line::from(vec![
-        Span::styled(
-            "> ",
-            Style::default().fg(if search_focused {
-                th.sapphire
-            } else {
-                th.overlay1
-            }),
-        ),
-        Span::styled(
+    // Build input line with optional selection highlight in Search normal mode
+    let mut input_spans: Vec<Span> = Vec::new();
+    input_spans.push(Span::styled(
+        "> ",
+        Style::default().fg(if search_focused { th.sapphire } else { th.overlay1 }),
+    ));
+    if search_focused && app.search_normal_mode {
+        let caret_ci = app.search_caret;
+        let (sel_from_ci, sel_to_ci) = if let Some(anchor) = app.search_select_anchor {
+            (anchor.min(caret_ci), anchor.max(caret_ci))
+        } else {
+            (caret_ci, caret_ci)
+        };
+        let cc = app.input.chars().count();
+        let sel_from_ci = sel_from_ci.min(cc);
+        let sel_to_ci = sel_to_ci.min(cc);
+        let from_b = {
+            if sel_from_ci == 0 { 0 } else { app.input.char_indices().map(|(i, _)| i).nth(sel_from_ci).unwrap_or(app.input.len()) }
+        };
+        let to_b = {
+            if sel_to_ci == 0 { 0 } else { app.input.char_indices().map(|(i, _)| i).nth(sel_to_ci).unwrap_or(app.input.len()) }
+        };
+        let pre = &app.input[..from_b];
+        let sel = &app.input[from_b..to_b];
+        let post = &app.input[to_b..];
+        if !pre.is_empty() {
+            input_spans.push(Span::styled(
+                pre.to_string(),
+                Style::default().fg(if search_focused { th.text } else { th.subtext0 }),
+            ));
+        }
+        if sel_from_ci != sel_to_ci {
+            input_spans.push(Span::styled(
+                sel.to_string(),
+                Style::default()
+                    .fg(th.crust)
+                    .bg(th.lavender)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+        if !post.is_empty() {
+            input_spans.push(Span::styled(
+                post.to_string(),
+                Style::default().fg(if search_focused { th.text } else { th.subtext0 }),
+            ));
+        }
+    } else {
+        input_spans.push(Span::styled(
             app.input.as_str().to_string(),
             Style::default().fg(if search_focused { th.text } else { th.subtext0 }),
-        ),
-    ]);
+        ));
+    }
+    let input_line = Line::from(input_spans);
     let search_title = if search_focused {
         "Search (focused)"
     } else {
@@ -231,7 +397,22 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     // Cursor in input
     let right = middle[1].x + middle[1].width.saturating_sub(1);
-    let x = std::cmp::min(middle[1].x + 1 + 2 + app.input.len() as u16, right);
+    // Cursor x: align to caret in characters from start (prefix "> ")
+    let caret_cols: u16 = if search_focused {
+        let mut ci: u16 = 0;
+        let mut it = app.input.chars();
+        for _ in 0..app.search_caret {
+            if it.next().is_some() {
+                ci = ci.saturating_add(1);
+            } else {
+                break;
+            }
+        }
+        ci
+    } else {
+        app.input.len() as u16
+    };
+    let x = std::cmp::min(middle[1].x + 1 + 2 + caret_cols, right);
     let y = middle[1].y + 1;
     f.set_cursor_position(Position::new(x, y));
 
@@ -301,27 +482,27 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 Source::Official { repo, .. } => (repo.to_string(), th.green),
                 Source::Aur => ("AUR".to_string(), th.yellow),
             };
-            let segs = vec![
-                Span::styled(format!("{src} "), Style::default().fg(color)),
-                Span::styled(
-                    p.name.clone(),
-                    Style::default()
-                        .fg(if install_focused {
-                            th.text
-                        } else {
-                            th.subtext0
-                        })
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!("  {}", p.version),
-                    Style::default().fg(if install_focused {
-                        th.overlay1
-                    } else {
-                        th.surface2
-                    }),
-                ),
-            ];
+            let mut segs: Vec<Span> = Vec::new();
+            // Popularity (AUR) shown before repo label when available, like Results pane
+            if let Some(pop) = p.popularity {
+                segs.push(Span::styled(
+                    format!("Pop: {:.2} ", pop),
+                    Style::default().fg(th.overlay1),
+                ));
+            }
+            // Repo / source label
+            segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
+            // Name and version
+            segs.push(Span::styled(
+                p.name.clone(),
+                Style::default()
+                    .fg(if install_focused { th.text } else { th.subtext0 })
+                    .add_modifier(Modifier::BOLD),
+            ));
+            segs.push(Span::styled(
+                format!("  {}", p.version),
+                Style::default().fg(if install_focused { th.overlay1 } else { th.surface2 }),
+            ));
             ListItem::new(Line::from(segs))
         })
         .collect();
@@ -371,16 +552,28 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .highlight_symbol("▶ ");
     f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
 
-    // Details (bottom): determine rendering areas first
-    let container_area = chunks[2];
+    // Details (bottom): reserve space for footer, then render content (details/PKGBUILD)
+    let bottom_container = chunks[2];
+    let base_help_h: u16 = if app.pkgb_visible { 10 } else { 5 };
+    let help_h: u16 = if matches!(app.focus, Focus::Search) && app.search_normal_mode {
+        base_help_h.saturating_add(1)
+    } else {
+        base_help_h
+    };
+    let content_container = ratatui::prelude::Rect {
+        x: bottom_container.x,
+        y: bottom_container.y,
+        width: bottom_container.width,
+        height: bottom_container.height.saturating_sub(help_h),
+    };
     let (details_area, pkgb_area_opt) = if app.pkgb_visible {
         let split = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(container_area);
+            .split(content_container);
         (split[0], Some(split[1]))
     } else {
-        (container_area, None)
+        (content_container, None)
     };
 
     let mut details_lines = crate::ui_helpers::format_details_lines(app, details_area.width, &th);
@@ -495,23 +688,14 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     // Help footer with keybindings in the bottom of Package Info pane
     {
-        let help_h: u16 = 5;
-        let footer_container = if app.pkgb_visible {
-            details_area
-        } else {
-            chunks[2]
-        };
+        // Footer occupies the bottom rows of the bottom container using reserved height above
+        let footer_container = bottom_container;
         if footer_container.height > help_h + 2 {
             let x = footer_container.x + 1; // inside border
-            let y = footer_container.y + footer_container.height.saturating_sub(1 + help_h);
+            let y_top = footer_container.y + footer_container.height.saturating_sub(help_h);
             let w = footer_container.width.saturating_sub(2);
             let h = help_h;
-            let rect = ratatui::prelude::Rect {
-                x,
-                y,
-                width: w,
-                height: h,
-            };
+            let footer_rect = ratatui::prelude::Rect { x, y: y_top, width: w, height: h };
 
             let search_label_color = if matches!(app.focus, Focus::Search) {
                 th.mauve
@@ -531,7 +715,6 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
             let key_style = Style::default()
                 .fg(th.text)
-                .bg(th.surface2)
                 .add_modifier(Modifier::BOLD);
             let sep = Span::styled("  |  ", Style::default().fg(th.overlay2));
 
@@ -746,16 +929,55 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 ]);
             }
 
-            let lines = vec![
+            // Optional Normal Mode line when Search is focused and active
+            let mut lines: Vec<Line> = vec![
                 Line::from(g_spans),
                 Line::from(s_spans),
                 Line::from(i_spans),
                 Line::from(r_spans),
             ];
+            if matches!(app.focus, Focus::Search) && app.search_normal_mode {
+                // Use configured labels
+                let label = |v: &Vec<KeyChord>, def: &str| v.first().map(|c| c.label()).unwrap_or_else(|| def.to_string());
+                let toggle_label = label(&km.search_normal_toggle, "Esc");
+                let insert_label = label(&km.search_normal_insert, "i");
+                let left_label = label(&km.search_normal_select_left, "h");
+                let right_label = label(&km.search_normal_select_right, "l");
+                let delete_label = label(&km.search_normal_delete, "d");
+
+                let n_spans: Vec<Span> = vec![
+                    Span::styled(
+                        "Normal Mode (Focused Search Window):",
+                        Style::default()
+                            .fg(th.mauve)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw("  "),
+                    Span::styled(format!("[{}]", toggle_label), key_style),
+                    Span::raw(" toggle, "),
+                    Span::styled(format!("[{}]", insert_label), key_style),
+                    Span::raw(" insert, "),
+                    Span::styled("[j / k]", key_style),
+                    Span::raw(" move, "),
+                    Span::styled("[Ctrl+d / Ctrl+u]", key_style),
+                    Span::raw(" page, "),
+                    Span::styled(format!("[{} / {}]", left_label, right_label), key_style),
+                    Span::raw(" select, "),
+                    Span::styled(format!("[{}]", delete_label), key_style),
+                    Span::raw(" delete"),
+                ];
+                lines.push(Line::from(n_spans));
+            }
+            // Bottom-align the content within the reserved footer area
+            let content_lines: u16 = if matches!(app.focus, Focus::Search) && app.search_normal_mode { 5 } else { 4 };
+            let content_y = y_top + h.saturating_sub(content_lines);
+            let content_rect = ratatui::prelude::Rect { x, y: content_y, width: w, height: content_lines };
+            // Fill the whole reserved footer area with a uniform background
+            f.render_widget(Block::default().style(Style::default().bg(th.base)), footer_rect);
             let footer = Paragraph::new(lines)
-                .style(Style::default().fg(th.subtext1).bg(th.base))
+                .style(Style::default().fg(th.subtext1))
                 .wrap(Wrap { trim: true });
-            f.render_widget(footer, rect);
+            f.render_widget(footer, content_rect);
         }
     }
 
@@ -921,7 +1143,6 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                         format!("[{}]", chord.label()),
                         Style::default()
                             .fg(th.text)
-                            .bg(th.surface2)
                             .add_modifier(Modifier::BOLD),
                     ),
                 ])

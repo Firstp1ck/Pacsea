@@ -44,11 +44,16 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - 🔎 In‑pane find (/) for Recent and Install panes
 - ➕ One‑key queueing (Space) and batch install confirmation
 - 🏷️ Repo badges (core/extra/AUR) shown in Results and Install lists
+- ⭐ AUR popularity displayed in Results and Install lists
 - 🧠 Caching of details and local index for faster subsequent usage
 - 📝 Install log written to `install_log.txt`
 - 🧪 `--dry-run` mode for safe testing
  - 🖱️ Click the URL in Package Info to open it in your browser (uses `xdg-open`)
  - 📦 PKGBUILD preview via "Show PKGBUILD" in Package Info (mouse click; Esc to close)
+ - 🧩 Sort button in Results: choose Pacman order or AUR popularity first
+ - 🔘 Clickable repo filters in Results title: [AUR], [core], [extra], [multilib]
+ - ⌨️ Vim‑style Search modes: toggle Normal/Insert; select with h/l, delete with d
+ - 🪄 Package Info follows the focused pane (Results/Recent/Install)
 
 ## Installation
 ### Prerequisites
@@ -63,7 +68,10 @@ If you already use an AUR helper:
 ```bash
 # Stable release (prebuilt binaries)
 paru -S pacsea-bin     # or: yay -S pacsea-bin
+```
 
+### Recommended, if you want the newest features
+```bash
 # Latest development snapshot
 paru -S pacsea-git     # or: yay -S pacsea-git
 ```
@@ -122,7 +130,10 @@ cargo run
 6) Optional: Left‑click the URL in the Package Info panel to open it in your browser.
 7) Optional: Click "Show PKGBUILD" in Package Info to open a side‑by‑side PKGBUILD preview; use the mouse wheel to scroll; press Esc to close.
 
-The bottom Package Info panel displays rich metadata for the selected item; Pacsea prefetches details for the first few results to keep it snappy.
+- Sorting and filters: In the Results title bar, click "Sort ▾" to choose between Pacman‑first or AUR‑popularity‑first ordering. Toggle repo visibility by clicking [AUR], [core], [extra], [multilib].
+- Focused details: The bottom Package Info panel shows details for the selection in the currently focused pane (Results, Recent, or Install).
+
+Pacsea prefetches details for the first few results to keep it snappy.
 
 ### Install behavior
 
@@ -144,10 +155,15 @@ The bottom Package Info panel displays rich metadata for the selected item; Pacs
 | Global   | Switch panes                   | Tab / Shift+Tab, ← / →       |
 | Global   | Exit                           | Ctrl+C or configured key     |
 | Global   | Reload config/theme            | Ctrl+R                       |
+| Global   | Toggle PKGBUILD viewer         | Ctrl+X                       |
 | Dialogs  | Confirm / Cancel               | Enter / Esc                  |
 | Search   | Move selection                 | ↑ / ↓, PageUp / PageDown     |
 | Search   | Add to install                 | Space                        |
 | Search   | Install selected               | Enter                        |
+| Search   | Toggle Normal/Insert mode      | Esc / i                      |
+| Search   | Normal: extend select left/right | h / l                      |
+| Search   | Normal: delete selection       | d                            |
+| Search   | Normal: move list selection    | j / k                        |
 | Recent   | Move selection                 | j / k, ↑ / ↓                 |
 | Recent   | Use query / Add first match    | Enter / Space                |
 | Recent   | Find in pane                   | /, Enter=next, Esc=cancel    |
@@ -194,8 +210,9 @@ Pacsea supports a configurable color theme and basic app settings via a simple `
   - `layout_left_pct`, `layout_center_pct`, `layout_right_pct` — integers that must sum to 100; control the middle row pane widths. Defaults: 20/60/20.
   - `app_dry_run_default` — `true`/`false`; sets default dry‑run mode at startup. Overridden by the `--dry-run` flag.
   - Keybindings (one chord per action; modifiers can be `SUPER`, `CTRL`, `SHIFT`, `ALT`). Examples:
-    - Global: `keybind_help`, `keybind_reload_theme`, `keybind_exit`, `keybind_pane_next`, `keybind_pane_prev`, `keybind_pane_left`, `keybind_pane_right`
+    - Global: `keybind_help`, `keybind_reload_theme`, `keybind_exit`, `keybind_show_pkgbuild`, `keybind_pane_next`, `keybind_pane_prev`, `keybind_pane_left`, `keybind_pane_right`
     - Search: `keybind_search_move_up`, `keybind_search_move_down`, `keybind_search_page_up`, `keybind_search_page_down`, `keybind_search_add`, `keybind_search_install`, `keybind_search_focus_left`, `keybind_search_focus_right`, `keybind_search_backspace`
+    - Search (Normal mode): `keybind_search_normal_toggle`, `keybind_search_normal_insert`, `keybind_search_normal_select_left`, `keybind_search_normal_select_right`, `keybind_search_normal_delete`
     - Recent: `keybind_recent_move_up`, `keybind_recent_move_down`, `keybind_recent_find`, `keybind_recent_use`, `keybind_recent_add`, `keybind_recent_to_search`, `keybind_recent_focus_right`
     - Install: `keybind_install_move_up`, `keybind_install_move_down`, `keybind_install_confirm`, `keybind_install_remove`, `keybind_install_clear`, `keybind_install_find`, `keybind_install_to_search`, `keybind_install_focus_left`
 
@@ -238,6 +255,7 @@ An optional commented “Light” theme block is included in the generated confi
   - A background refresh runs at startup; the index is enriched on‑demand as you browse
 - AUR
   - AUR RPC v5 is used for search and details
+  - AUR popularity is fetched from RPC and shown when available
  - PKGBUILD preview
    - AUR packages: `https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=<name>`
    - Official packages: Arch GitLab raw `PKGBUILD` (tries `main`, falls back to `master`)
@@ -278,11 +296,14 @@ XDG locations (env overrides respected):
 - [x] XDG‑compliant configuration with persistent settings (config/cache/state dirs; basic app settings)
 - [x] Customizable keybindings and context help overlay
 - [x] Richer package info: PKGBUILD preview
+- [x] Repo filters in Results (AUR/core/extra/multilib)
+- [x] Sort modes: Pacman‑first or AUR‑popularity‑first
+- [x] AUR popularity shown in Results and Install lists
+- [x] Vim‑style Search normal/insert modes
 
 ### Not implemented
 - [ ] Search modes: contains / starts‑with / regex
-- [ ] Scope filtering: official vs AUR
-- [ ] Sorting: name, popularity, date, size
+- [ ] Sorting: name/date/size (beyond current repo/popularity modes)
 - [ ] Quick actions: refresh, clear cache, toggle views
 - [ ] Adjustable pane proportions (resizable three‑pane layout)
 - [ ] Toggle visibility of panes/sections

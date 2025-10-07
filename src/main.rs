@@ -433,8 +433,9 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
                     .results
                     .get(app.selected)
                     .map(|p| p.name.clone());
-                // Update results
-                app.results = new_results.items;
+                // Update full results and then apply filters + sort
+                app.all_results = new_results.items;
+                crate::logic::apply_filters_and_sort_preserve_selection(&mut app);
                 // Try to preserve selection on the same item; otherwise clamp to 0
                 let new_sel = prev_selected_name
                     .and_then(|name| app.results.iter().position(|p| p.name == name))
@@ -473,6 +474,10 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
                     // Update version if missing or different
                     if !details.version.is_empty() && app.results[pos].version != details.version {
                         app.results[pos].version = details.version.clone();
+                    }
+                    // Update popularity when available (AUR only)
+                    if details.popularity.is_some() {
+                        app.results[pos].popularity = details.popularity;
                     }
                     // If official, fill repo/arch when empty
                     if let crate::state::Source::Official { repo, arch } = &mut app.results[pos].source {

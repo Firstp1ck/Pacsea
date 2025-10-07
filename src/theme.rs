@@ -165,6 +165,18 @@ pub struct KeyMap {
     pub search_focus_right: Vec<KeyChord>,
     pub search_backspace: Vec<KeyChord>,
 
+    // Search normal mode
+    /// Toggle Search normal mode on/off (works from both insert/normal)
+    pub search_normal_toggle: Vec<KeyChord>,
+    /// Enter insert mode while in Search normal mode
+    pub search_normal_insert: Vec<KeyChord>,
+    /// Normal mode: extend selection to the left (default: h)
+    pub search_normal_select_left: Vec<KeyChord>,
+    /// Normal mode: extend selection to the right (default: l)
+    pub search_normal_select_right: Vec<KeyChord>,
+    /// Normal mode: delete selected text (default: d)
+    pub search_normal_delete: Vec<KeyChord>,
+
     // Recent
     pub recent_move_up: Vec<KeyChord>,
     pub recent_move_down: Vec<KeyChord>,
@@ -267,6 +279,19 @@ impl Default for KeyMap {
                 code: Backspace,
                 mods: none,
             }],
+
+            // Search normal mode (Vim-like)
+            search_normal_toggle: vec![KeyChord {
+                code: Esc,
+                mods: none,
+            }],
+            search_normal_insert: vec![KeyChord {
+                code: Char('i'),
+                mods: none,
+            }],
+            search_normal_select_left: vec![KeyChord { code: Char('h'), mods: none }],
+            search_normal_select_right: vec![KeyChord { code: Char('l'), mods: none }],
+            search_normal_delete: vec![KeyChord { code: Char('d'), mods: none }],
 
             recent_move_up: vec![
                 KeyChord {
@@ -531,6 +556,13 @@ keybind_search_install = Enter\n\
 keybind_search_focus_left = Left\n\
 keybind_search_focus_right = Right\n\
 keybind_search_backspace = Backspace\n\
+\n\
+# SEARCH — Normal Mode (Focused Search Window)\n\
+keybind_search_normal_toggle = Esc\n\
+keybind_search_normal_insert = i\n\
+keybind_search_normal_select_left = h\n\
+keybind_search_normal_select_right = l\n\
+keybind_search_normal_delete = d\n\
 \n\
 # RECENT — Navigation\n\
 keybind_recent_move_up = k\n\
@@ -1070,6 +1102,33 @@ pub fn settings() -> Settings {
                     out.keymap.search_backspace = vec![ch];
                 }
             }
+            // Search normal mode
+            "keybind_search_normal_toggle" => {
+                if let Some(ch) = parse_key_chord(val) {
+                    out.keymap.search_normal_toggle = vec![ch];
+                }
+            }
+            "keybind_search_normal_insert" => {
+                if let Some(ch) = parse_key_chord(val) {
+                    out.keymap.search_normal_insert = vec![ch];
+                }
+            }
+            "keybind_search_normal_select_left" => {
+                if let Some(ch) = parse_key_chord(val) {
+                    out.keymap.search_normal_select_left = vec![ch];
+                }
+            }
+            "keybind_search_normal_select_right" => {
+                if let Some(ch) = parse_key_chord(val) {
+                    out.keymap.search_normal_select_right = vec![ch];
+                }
+            }
+            "keybind_search_normal_delete" => {
+                if let Some(ch) = parse_key_chord(val) {
+                    out.keymap.search_normal_delete = vec![ch];
+                }
+            }
+
 
             // Recent pane
             "keybind_recent_move_up" => {

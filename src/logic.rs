@@ -12,7 +12,7 @@
 //! - Manages the install list with simple de-duplication and cursor behavior.
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, PackageItem};
+use crate::state::{AppState, PackageItem, Source, SortMode};
 
 // Global allowed-names gating for details loading
 use std::collections::HashSet;
@@ -230,6 +230,118 @@ pub fn ring_prefetch_from_selected(
             break;
         }
         step += 1;
+    }
+}
+
+/// Apply the currently selected sorting mode to `app.results` in-place.
+///
+/// Preserves the selection by trying to keep the same package name selected
+/// after sorting, falling back to index clamping.
+pub fn sort_results_preserve_selection(app: &mut AppState) {
+    if app.results.is_empty() {
+        return;
+    }
+    let prev_name = app.results.get(app.selected).map(|p| p.name.clone());
+    match app.sort_mode {
+        SortMode::RepoThenName => {
+            app.results.sort_by(|a, b| {
+                let oa = crate::util::repo_order(&a.source);
+                let ob = crate::util::repo_order(&b.source);
+                if oa != ob {
+                    return oa.cmp(&ob);
+                }
+                a.name.to_lowercase().cmp(&b.name.to_lowercase())
+            });
+        }
+        SortMode::AurPopularityThenOfficial => {
+            app.results.sort_by(|a, b| {
+                // AUR first
+                let aur_a = matches!(a.source, Source::Aur);
+                let aur_b = matches!(b.source, Source::Aur);
+                if aur_a != aur_b {
+                    return aur_b.cmp(&aur_a); // true before false
+                }
+                if aur_a && aur_b {
+                    // Desc popularity for AUR
+                    let pa = a.popularity.unwrap_or(0.0);
+                    let pb = b.popularity.unwrap_or(0.0);
+                    if (pa - pb).abs() > f64::EPSILON {
+                        return pb.partial_cmp(&pa).unwrap_or(std::cmp::Ordering::Equal);
+                    }
+                } else {
+                    // Both official: keep pacman order (repo_order), then name
+                    let oa = crate::util::repo_order(&a.source);
+                    let ob = crate::util::repo_order(&b.source);
+                    if oa != ob {
+                        return oa.cmp(&ob);
+                    }
+                }
+                a.name.to_lowercase().cmp(&b.name.to_lowercase())
+            });
+        }
+    }
+    if let Some(name) = prev_name {
+        if let Some(pos) = app.results.iter().position(|p| p.name == name) {
+            app.selected = pos;
+            app.list_state.select(Some(pos));
+        } else {
+            app.selected = app.selected.min(app.results.len().saturating_sub(1));
+            app.list_state.select(Some(app.selected));
+        }
+    }
+}
+
+/// Apply current repo/AUR filters to `app.all_results`, write into `app.results`, then sort.
+///
+/// Attempts to preserve the selection by name; falls back to clamping.
+pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
+    // Capture previous selected name to preserve when possible
+    let prev_name = app.results.get(app.selected).map(|p| p.name.clone());
+
+    // Filter from all_results into results based on toggles
+    let mut filtered: Vec<PackageItem> = Vec::with_capacity(app.all_results.len());
+    for it in app.all_results.iter().cloned() {
+        let include = match &it.source {
+            Source::Aur => app.results_filter_show_aur,
+            Source::Official { repo, .. } => {
+                let r = repo.to_lowercase();
+                (r == "core" && app.results_filter_show_core)
+                    || (r == "extra" && app.results_filter_show_extra)
+                    || (r == "multilib" && app.results_filter_show_multilib)
+                    || (!["core", "extra", "multilib"].contains(&r.as_str())
+                        // If an official repo is not one of the three, include it only if at least one official filter is on
+                        && (app.results_filter_show_core
+                            || app.results_filter_show_extra
+                            || app.results_filter_show_multilib))
+            }
+        };
+        if include {
+            filtered.push(it);
+        }
+    }
+    app.results = filtered;
+    // Apply existing sort policy and preserve selection
+    sort_results_preserve_selection(app);
+    // Restore by name if possible
+    if let Some(name) = prev_name {
+        if let Some(pos) = app.results.iter().position(|p| p.name == name) {
+            app.selected = pos;
+            app.list_state.select(Some(pos));
+        } else if !app.results.is_empty() {
+            app.selected = app.selected.min(app.results.len() - 1);
+            app.list_state.select(Some(app.selected));
+        } else {
+            app.selected = 0;
+            app.list_state.select(None);
+        }
+    } else {
+        if app.results.is_empty() {
+            app.selected = 0;
+            app.list_state.select(None);
+        } else {
+            app.selected = app.selected.min(app.results.len() - 1);
+            app.list_state.select(Some(app.selected));
+        }
     }
 }
 
