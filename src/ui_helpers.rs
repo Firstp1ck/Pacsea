@@ -72,9 +72,14 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
         kv("Package Owner", d.owner.clone(), th),
         kv("Build date", d.build_date.clone(), th),
     ];
-    // Add a clickable helper line to Show PKGBUILD below Build date
+    // Add a clickable helper line to Show/Hide PKGBUILD below Build date
+    let pkgb_label = if app.pkgb_visible {
+        "Hide PKGBUILD"
+    } else {
+        "Show PKGBUILD"
+    };
     lines.push(Line::from(vec![Span::styled(
-        "Show PKGBUILD",
+        pkgb_label,
         Style::default()
             .fg(th.mauve)
             .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),

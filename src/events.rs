@@ -265,6 +265,36 @@ pub fn handle_event(
             return false;
         }
 
+        // Global: Shift+Tab cycles sort mode and opens the dropdown for visual feedback
+        if ke.code == KeyCode::BackTab {
+            // Cycle through sort modes in fixed order
+            app.sort_mode = match app.sort_mode {
+                crate::state::SortMode::RepoThenName => {
+                    crate::state::SortMode::AurPopularityThenOfficial
+                }
+                crate::state::SortMode::AurPopularityThenOfficial => {
+                    crate::state::SortMode::BestMatches
+                }
+                crate::state::SortMode::BestMatches => crate::state::SortMode::RepoThenName,
+            };
+            // Persist preference and apply immediately
+            crate::theme::save_sort_mode(app.sort_mode);
+            crate::logic::sort_results_preserve_selection(app);
+            // Jump selection to top and refresh details
+            if !app.results.is_empty() {
+                app.selected = 0;
+                app.list_state.select(Some(0));
+                refresh_selected_details(app, details_tx);
+            } else {
+                app.list_state.select(None);
+            }
+            // Show the dropdown so the user sees the current option with a check mark
+            app.sort_menu_open = true;
+            app.sort_menu_auto_close_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+            return false;
+        }
+
         // Recent pane focused
         if matches!(app.focus, Focus::Recent) {
             // Allow exiting with Ctrl+C while in Recent pane
@@ -295,6 +325,10 @@ pub fn handle_event(
                 }
                 return false;
             }
+            let km = &app.keymap;
+            let chord = (ke.code, ke.modifiers);
+            let matches_any =
+                |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
             match ke.code {
                 KeyCode::Char('j') => {
                     // vim down
@@ -340,6 +374,33 @@ pub fn handle_event(
                     // Recent -> Search (adjacent)
                     app.focus = Focus::Search;
                     refresh_selected_details(app, details_tx);
+                }
+                KeyCode::Delete if ke.modifiers.contains(KeyModifiers::SHIFT) => {
+                    app.recent.clear();
+                    app.history_state.select(None);
+                    app.recent_dirty = true;
+                }
+                // Single delete in Recent via configured keys (default: d or Delete)
+                code if matches_any(&km.recent_remove) && code == ke.code => {
+                    let inds = crate::ui_helpers::filtered_recent_indices(app);
+                    if inds.is_empty() {
+                        return false;
+                    }
+                    if let Some(vsel) = app.history_state.selected() {
+                        let i = inds.get(vsel).copied().unwrap_or(0);
+                        if i < app.recent.len() {
+                            app.recent.remove(i);
+                            app.recent_dirty = true;
+                            let vis_len = inds.len().saturating_sub(1); // now one less visible
+                            if vis_len == 0 {
+                                app.history_state.select(None);
+                            } else {
+                                let new_sel = if vsel >= vis_len { vis_len - 1 } else { vsel };
+                                app.history_state.select(Some(new_sel));
+                                crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                            }
+                        }
+                    }
                 }
                 KeyCode::Down => {
                     let inds = crate::ui_helpers::filtered_recent_indices(app);
@@ -434,6 +495,10 @@ pub fn handle_event(
                 }
                 return false;
             }
+            let km = &app.keymap;
+            let chord = (ke.code, ke.modifiers);
+            let matches_any =
+                |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
             match ke.code {
                 KeyCode::Char('j') => {
                     // vim down
@@ -496,7 +561,7 @@ pub fn handle_event(
                     app.install_state.select(None);
                     app.install_dirty = true;
                 }
-                KeyCode::Delete => {
+                code if matches_any(&km.install_remove) && code == ke.code => {
                     let inds = crate::ui_helpers::filtered_install_indices(app);
                     if inds.is_empty() {
                         return false;
@@ -775,7 +840,7 @@ pub fn handle_event(
             // Show PKGBUILD click (legacy Ctrl+Shift) — no longer active
         }
 
-        // 2) New behavior: plain left click on Show PKGBUILD
+        // 2) New behavior: plain left click on Show/Hide PKGBUILD
         if is_left_down
             && let Some((x, y, w, h)) = app.pkgb_button_rect
             && mx >= x
@@ -784,10 +849,97 @@ pub fn handle_event(
             && my < y + h
         {
             app.mouse_disabled_in_details = false; // allow this action
-            app.pkgb_visible = true;
-            app.pkgb_text = None;
-            if let Some(item) = app.results.get(app.selected).cloned() {
-                let _ = pkgb_tx.send(item);
+            if app.pkgb_visible {
+                // Close if already open
+                app.pkgb_visible = false;
+                app.pkgb_text = None;
+            } else {
+                // Open and (re)load
+                app.pkgb_visible = true;
+                app.pkgb_text = None;
+                if let Some(item) = app.results.get(app.selected).cloned() {
+                    let _ = pkgb_tx.send(item);
+                }
+            }
+            return false;
+        }
+
+        // 2b) Click on "Check Package Build" title button
+        if is_left_down
+            && let Some((x, y, w, h)) = app.pkgb_check_button_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.mouse_disabled_in_details = false;
+            if let Some(text) = app.pkgb_text.clone() {
+                // Best-effort: Wayland -> wl-copy; X11 -> xclip; fallback -> arboard
+                std::thread::spawn(move || {
+                    let suffix = {
+                        let s = crate::theme::settings().clipboard_suffix;
+                        if s.trim().is_empty() {
+                            String::new()
+                        } else {
+                            format!("\n\n{}\n", s)
+                        }
+                    };
+                    let payload = if suffix.is_empty() {
+                        text.clone()
+                    } else {
+                        format!("{}{}", text, suffix)
+                    };
+                    // Try wl-copy on Wayland
+                    let tried_wl = if std::env::var("WAYLAND_DISPLAY").is_ok() {
+                        if let Ok(mut child) = std::process::Command::new("wl-copy")
+                            .stdin(std::process::Stdio::piped())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn()
+                        {
+                            if let Some(mut sin) = child.stdin.take() {
+                                let _ = std::io::Write::write_all(&mut sin, payload.as_bytes());
+                            }
+                            let _ = child.wait();
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    if tried_wl {
+                        return;
+                    }
+
+                    // Try xclip as a generic fallback on X11
+                    if let Ok(mut child) = std::process::Command::new("xclip")
+                        .args(["-selection", "clipboard"]) // send to clipboard selection
+                        .stdin(std::process::Stdio::piped())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn()
+                    {
+                        if let Some(mut sin) = child.stdin.take() {
+                            let _ = std::io::Write::write_all(&mut sin, payload.as_bytes());
+                        }
+                        let _ = child.wait();
+                        return;
+                    }
+
+                    // Last resort: use arboard
+                    if let Ok(mut cb) = arboard::Clipboard::new() {
+                        let _ = cb.set_text(payload);
+                    }
+                });
+                app.modal = crate::state::Modal::Alert {
+                    message: "PKGBUILD is added to the Clipboard".to_string(),
+                };
+            } else {
+                app.modal = crate::state::Modal::Alert {
+                    message: "PKGBUILD not loaded yet".to_string(),
+                };
             }
             return false;
         }
@@ -818,6 +970,12 @@ pub fn handle_event(
                 && my < y + h
             {
                 app.sort_menu_open = !app.sort_menu_open;
+                if app.sort_menu_open {
+                    app.sort_menu_auto_close_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+                } else {
+                    app.sort_menu_auto_close_at = None;
+                }
                 return false;
             }
             // Toggle filters when clicking their labels
@@ -873,20 +1031,36 @@ pub fn handle_event(
                 match row {
                     0 => {
                         app.sort_mode = crate::state::SortMode::RepoThenName;
+                        crate::theme::save_sort_mode(app.sort_mode);
                     }
                     1 => {
                         app.sort_mode = crate::state::SortMode::AurPopularityThenOfficial;
+                        crate::theme::save_sort_mode(app.sort_mode);
+                    }
+                    2 => {
+                        app.sort_mode = crate::state::SortMode::BestMatches;
+                        crate::theme::save_sort_mode(app.sort_mode);
                     }
                     _ => {}
                 }
                 app.sort_menu_open = false;
+                app.sort_menu_auto_close_at = None;
                 // Apply sort immediately
                 crate::logic::sort_results_preserve_selection(app);
+                // Jump selection to top and refresh details
+                if !app.results.is_empty() {
+                    app.selected = 0;
+                    app.list_state.select(Some(0));
+                    refresh_selected_details(app, details_tx);
+                } else {
+                    app.list_state.select(None);
+                }
                 return false;
             }
             // Click outside menu closes it
             if app.sort_menu_open {
                 app.sort_menu_open = false;
+                app.sort_menu_auto_close_at = None;
             }
         }
 
@@ -907,7 +1081,82 @@ pub fn handle_event(
             }
         }
 
-        // 6) Scroll support inside PKGBUILD viewer using mouse wheel
+        // 6) Results: scroll with mouse wheel to move selection
+        if let Some((x, y, w, h)) = app.results_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            match m.kind {
+                crossterm::event::MouseEventKind::ScrollUp => {
+                    move_sel_cached(app, -1, details_tx);
+                }
+                crossterm::event::MouseEventKind::ScrollDown => {
+                    move_sel_cached(app, 1, details_tx);
+                }
+                _ => {}
+            }
+        }
+
+        // 7) Recent pane: scroll with mouse wheel to change selection
+        if let Some((x, y, w, h)) = app.recent_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let inds = crate::ui_helpers::filtered_recent_indices(app);
+            if !inds.is_empty() {
+                match m.kind {
+                    crossterm::event::MouseEventKind::ScrollUp => {
+                        let sel = app.history_state.selected().unwrap_or(0);
+                        let new = sel.saturating_sub(1);
+                        app.history_state.select(Some(new));
+                        crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                    }
+                    crossterm::event::MouseEventKind::ScrollDown => {
+                        let sel = app.history_state.selected().unwrap_or(0);
+                        let max = inds.len().saturating_sub(1);
+                        let new = std::cmp::min(sel.saturating_add(1), max);
+                        app.history_state.select(Some(new));
+                        crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // 8) Install pane: scroll with mouse wheel to change selection
+        if let Some((x, y, w, h)) = app.install_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let inds = crate::ui_helpers::filtered_install_indices(app);
+            if !inds.is_empty() {
+                match m.kind {
+                    crossterm::event::MouseEventKind::ScrollUp => {
+                        if let Some(sel) = app.install_state.selected() {
+                            let new = sel.saturating_sub(1);
+                            app.install_state.select(Some(new));
+                            refresh_install_details(app, details_tx);
+                        }
+                    }
+                    crossterm::event::MouseEventKind::ScrollDown => {
+                        let sel = app.install_state.selected().unwrap_or(0);
+                        let max = inds.len().saturating_sub(1);
+                        let new = std::cmp::min(sel.saturating_add(1), max);
+                        app.install_state.select(Some(new));
+                        refresh_install_details(app, details_tx);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // 9) Scroll support inside PKGBUILD viewer using mouse wheel
         if let Some((x, y, w, h)) = app.pkgb_rect
             && mx >= x
             && mx < x + w

@@ -279,6 +279,24 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
                 a.name.to_lowercase().cmp(&b.name.to_lowercase())
             });
         }
+        SortMode::BestMatches => {
+            // Compute simple match rank based on current input; lower is better
+            let ql = app.input.trim().to_lowercase();
+            app.results.sort_by(|a, b| {
+                let ra = crate::util::match_rank(&a.name, &ql);
+                let rb = crate::util::match_rank(&b.name, &ql);
+                if ra != rb {
+                    return ra.cmp(&rb);
+                }
+                // Tiebreak: keep pacman repo order first to keep layout familiar
+                let oa = crate::util::repo_order(&a.source);
+                let ob = crate::util::repo_order(&b.source);
+                if oa != ob {
+                    return oa.cmp(&ob);
+                }
+                a.name.to_lowercase().cmp(&b.name.to_lowercase())
+            });
+        }
     }
     if let Some(name) = prev_name {
         if let Some(pos) = app.results.iter().position(|p| p.name == name) {

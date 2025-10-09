@@ -111,6 +111,26 @@ pub enum SortMode {
     RepoThenName,
     /// AUR first (by highest popularity), then official repos; name tiebreak.
     AurPopularityThenOfficial,
+    /// Best matches: Relevance by name to current query, then repo order, then name.
+    BestMatches,
+}
+
+impl SortMode {
+    pub fn as_config_key(&self) -> &'static str {
+        match self {
+            SortMode::RepoThenName => "alphabetical",
+            SortMode::AurPopularityThenOfficial => "aur_popularity",
+            SortMode::BestMatches => "best_matches",
+        }
+    }
+    pub fn from_config_key(s: &str) -> Option<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "alphabetical" | "repo_then_name" | "pacman" => Some(SortMode::RepoThenName),
+            "aur_popularity" | "popularity" => Some(SortMode::AurPopularityThenOfficial),
+            "best_matches" | "relevance" => Some(SortMode::BestMatches),
+            _ => None,
+        }
+    }
 }
 
 /// Modal dialog state for the UI.
@@ -243,6 +263,8 @@ pub struct AppState {
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
     pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Rectangle of the clickable "Check Package Build" button in PKGBUILD title.
+    pub pkgb_check_button_rect: Option<(u16, u16, u16, u16)>,
     /// Whether the PKGBUILD viewer is visible (details pane split in half).
     pub pkgb_visible: bool,
     /// The fetched PKGBUILD text when available.
@@ -264,6 +286,10 @@ pub struct AppState {
     pub results_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle of the Package Info details pane (x, y, w, h).
     pub details_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the Recent pane list (x, y, w, h).
+    pub recent_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the Install pane list (x, y, w, h).
+    pub install_rect: Option<(u16, u16, u16, u16)>,
     /// Whether mouse capture is temporarily disabled to allow text selection in details.
     pub mouse_disabled_in_details: bool,
     /// Last observed mouse position (column, row) in terminal cells.
@@ -280,6 +306,8 @@ pub struct AppState {
     pub sort_button_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle of the sort dropdown menu when visible (x, y, w, h).
     pub sort_menu_rect: Option<(u16, u16, u16, u16)>,
+    /// Deadline after which the sort dropdown auto-closes.
+    pub sort_menu_auto_close_at: Option<Instant>,
 
     // Results filters UI
     /// Whether to include AUR packages in the Results view.
@@ -354,6 +382,7 @@ impl Default for AppState {
             need_ring_prefetch: false,
             url_button_rect: None,
             pkgb_button_rect: None,
+            pkgb_check_button_rect: None,
             pkgb_visible: false,
             pkgb_text: None,
             pkgb_scroll: 0,
@@ -366,6 +395,8 @@ impl Default for AppState {
 
             results_rect: None,
             details_rect: None,
+            recent_rect: None,
+            install_rect: None,
             mouse_disabled_in_details: false,
             last_mouse_pos: None,
             mouse_capture_enabled: true,
@@ -375,6 +406,7 @@ impl Default for AppState {
             sort_menu_open: false,
             sort_button_rect: None,
             sort_menu_rect: None,
+            sort_menu_auto_close_at: None,
 
             // Filters default to showing everything
             results_filter_show_aur: true,

@@ -253,8 +253,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     // Optional: render sort dropdown overlay near the button
     app.sort_menu_rect = None;
     if app.sort_menu_open {
-        let opts = ["Pacman (core/extra/multilib) -> AUR",
-            "AUR -> highest popularity -> pacman"];
+        let opts = ["Alphabetical", "AUR popularity", "Best matches"];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let w = widest
             .saturating_add(2)
@@ -279,6 +278,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 (i, app.sort_mode),
                 (0, crate::state::SortMode::RepoThenName)
                     | (1, crate::state::SortMode::AurPopularityThenOfficial)
+                    | (2, crate::state::SortMode::BestMatches)
             );
             let mark = if is_selected { "✔ " } else { "  " };
             let style = if is_selected {
@@ -507,6 +507,13 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
         .highlight_symbol("▶ ");
     f.render_stateful_widget(rec_list, middle[0], &mut app.history_state);
+    // Record inner Recent rect for mouse hit-testing (inside borders)
+    app.recent_rect = Some((
+        middle[0].x + 1,
+        middle[0].y + 1,
+        middle[0].width.saturating_sub(2),
+        middle[0].height.saturating_sub(2),
+    ));
 
     // Install List (right) with filtering
     let install_focused = matches!(app.focus, Focus::Install);
@@ -596,10 +603,17 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
         .highlight_symbol("▶ ");
     f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
+    // Record inner Install rect for mouse hit-testing (inside borders)
+    app.install_rect = Some((
+        middle[2].x + 1,
+        middle[2].y + 1,
+        middle[2].width.saturating_sub(2),
+        middle[2].height.saturating_sub(2),
+    ));
 
     // Details (bottom): reserve space for footer, then render content (details/PKGBUILD)
     let bottom_container = chunks[2];
-    let base_help_h: u16 = if app.pkgb_visible { 10 } else { 5 };
+    let base_help_h: u16 = 5;
     let help_h: u16 = if matches!(app.focus, Focus::Search) && app.search_normal_mode {
         base_help_h.saturating_add(1)
     } else {
@@ -663,7 +677,8 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         }
         if line.spans.len() == 1 {
             let txt = line.spans[0].content.to_string();
-            if txt.to_lowercase().contains("show pkgbuild") {
+            let lowered = txt.to_lowercase();
+            if lowered.contains("show pkgbuild") || lowered.contains("hide pkgbuild") {
                 let x_start = content_x;
                 let w = txt.len().min(inner_w as usize) as u16;
                 if w > 0 {
@@ -718,12 +733,33 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             visible.push_str(line);
             visible.push('\n');
         }
+        // Title with clickable "Check Package Build" button
+        let check_button_label = "Check Package Build".to_string();
+        let mut pkgb_title_spans: Vec<Span> =
+            vec![Span::styled("PKGBUILD", Style::default().fg(th.overlay1))];
+        pkgb_title_spans.push(Span::raw("  "));
+        let check_btn_style = Style::default()
+            .fg(th.mauve)
+            .bg(th.surface2)
+            .add_modifier(Modifier::BOLD);
+        pkgb_title_spans.push(Span::styled(check_button_label.clone(), check_btn_style));
+
+        // Record clickable rect for the title button on the top border row
+        let btn_y = pkgb_area.y;
+        let btn_x = pkgb_area
+            .x
+            .saturating_add(1)
+            .saturating_add("PKGBUILD".len() as u16)
+            .saturating_add(2);
+        let btn_w = check_button_label.len() as u16;
+        app.pkgb_check_button_rect = Some((btn_x, btn_y, btn_w, 1));
+
         let pkgb = Paragraph::new(visible)
             .style(Style::default().fg(th.text).bg(th.base))
             .wrap(Wrap { trim: false })
             .block(
                 Block::default()
-                    .title(Span::styled("PKGBUILD", Style::default().fg(th.overlay1)))
+                    .title(Line::from(pkgb_title_spans))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(th.surface2)),
@@ -805,6 +841,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                     sep.clone(),
                 ]);
             }
+            // (BackTab sort-cycling hint removed)
 
             // SEARCH
             let mut s_spans: Vec<Span> = vec![
@@ -847,7 +884,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                     sep.clone(),
                 ]);
             }
-            // Switch pane
+            // Switch pane (only show when both next and prev are configured)
             if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
                 s_spans.extend([
                     Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
@@ -860,6 +897,21 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 s_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
                     Span::raw(" delete"),
+                    sep.clone(),
+                ]);
+            }
+            // Focus left/right within Search
+            if let Some(k) = km.search_focus_left.first() {
+                s_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" focus left"),
+                    sep.clone(),
+                ]);
+            }
+            if let Some(k) = km.search_focus_right.first() {
+                s_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" focus right"),
                     sep.clone(),
                 ]);
             }
@@ -917,10 +969,19 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                     sep.clone(),
                 ]);
             }
+            // Pane switch (only when both are configured)
             if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
                 i_spans.extend([
                     Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
                     Span::raw(" switch pane"),
+                    sep.clone(),
+                ]);
+            }
+            // Focus left within Install
+            if let Some(k) = km.install_focus_left.first() {
+                i_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" to Search"),
                     sep.clone(),
                 ]);
             }
@@ -970,10 +1031,25 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                     sep.clone(),
                 ]);
             }
+            if let Some(k) = km.recent_remove.first() {
+                r_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" delete"),
+                    sep.clone(),
+                ]);
+            }
             if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
                 r_spans.extend([
                     Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
                     Span::raw(" switch pane"),
+                ]);
+            }
+            // Focus right within Recent
+            if let Some(k) = km.recent_focus_right.first() {
+                r_spans.extend([
+                    sep.clone(),
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" to Search"),
                 ]);
             }
 
@@ -1224,6 +1300,12 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             if let Some(k) = km.pane_prev.first().copied() {
                 lines.push(fmt("Previous pane", k));
             }
+            if let Some(k) = km.pane_left.first().copied() {
+                lines.push(fmt("Focus left", k));
+            }
+            if let Some(k) = km.pane_right.first().copied() {
+                lines.push(fmt("Focus right", k));
+            }
             if let Some(k) = km.show_pkgbuild.first().copied() {
                 lines.push(fmt("Show PKGBUILD", k));
             }
@@ -1274,6 +1356,43 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             if let Some(k) = km.search_install.first().copied() {
                 lines.push(fmt("  Install", k));
             }
+            if let Some(k) = km.search_backspace.first().copied() {
+                lines.push(fmt("  Delete", k));
+            }
+
+            // Search normal mode
+            if km
+                .search_normal_toggle
+                .first()
+                .or(km.search_normal_insert.first())
+                .or(km.search_normal_select_left.first())
+                .or(km.search_normal_select_right.first())
+                .or(km.search_normal_delete.first())
+                .is_some()
+            {
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    "Search (Normal mode):",
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                )));
+                if let Some(k) = km.search_normal_toggle.first().copied() {
+                    lines.push(fmt("  Toggle normal", k));
+                }
+                if let Some(k) = km.search_normal_insert.first().copied() {
+                    lines.push(fmt("  Insert mode", k));
+                }
+                if let Some(k) = km.search_normal_select_left.first().copied() {
+                    lines.push(fmt("  Select left", k));
+                }
+                if let Some(k) = km.search_normal_select_right.first().copied() {
+                    lines.push(fmt("  Select right", k));
+                }
+                if let Some(k) = km.search_normal_delete.first().copied() {
+                    lines.push(fmt("  Delete", k));
+                }
+            }
 
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
@@ -1314,6 +1433,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             if let Some(k) = km.install_to_search.first().copied() {
                 lines.push(fmt("  To Search", k));
             }
+            // (Focus left shown in Global section)
 
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
@@ -1350,6 +1470,17 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             if let Some(k) = km.recent_to_search.first().copied() {
                 lines.push(fmt("  To Search", k));
             }
+            if let Some(k) = km.recent_remove.first().copied() {
+                lines.push(fmt("  Remove", k));
+            }
+            // Explicit: Shift+Del clears Recent (display only)
+            lines.push(fmt(
+                "  Clear",
+                crate::theme::KeyChord {
+                    code: crossterm::event::KeyCode::Delete,
+                    mods: crossterm::event::KeyModifiers::SHIFT,
+                },
+            ));
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Press Enter or Esc to close",

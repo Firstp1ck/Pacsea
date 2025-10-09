@@ -171,13 +171,15 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
         ..Default::default()
     };
 
-    // Load layout preferences
+    // Load preferences
     let prefs = crate::theme::settings();
     app.layout_left_pct = prefs.layout_left_pct;
     app.layout_center_pct = prefs.layout_center_pct;
     app.layout_right_pct = prefs.layout_right_pct;
     // Load keymap
     app.keymap = prefs.keymap;
+    // Load initial sort mode
+    app.sort_mode = prefs.sort_mode;
 
     // Legacy migration removed
 
@@ -520,6 +522,13 @@ async fn run_app_with_flags(dry_run_flag: bool) -> Result<()> {
                         app.scroll_moves = 0;
                         app.ring_resume_at = None;
                     }
+                // Auto-close sort dropdown after deadline
+                if app.sort_menu_open
+                    && let Some(deadline) = app.sort_menu_auto_close_at
+                        && std::time::Instant::now() >= deadline {
+                            app.sort_menu_open = false;
+                            app.sort_menu_auto_close_at = None;
+                        }
             }
             else => {}
         }

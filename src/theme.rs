@@ -66,6 +66,10 @@ pub struct Settings {
     pub app_dry_run_default: bool,
     /// Configurable key bindings parsed from `pacsea.conf`
     pub keymap: KeyMap,
+    /// Initial sort mode for results list.
+    pub sort_mode: crate::state::SortMode,
+    /// Text appended when copying PKGBUILD to clipboard.
+    pub clipboard_suffix: String,
 }
 
 impl Default for Settings {
@@ -76,6 +80,9 @@ impl Default for Settings {
             layout_right_pct: 20,
             app_dry_run_default: false,
             keymap: KeyMap::default(),
+            sort_mode: crate::state::SortMode::RepoThenName,
+            clipboard_suffix: "Check PKGBUILD and source for suspicious and malicious activities"
+                .to_string(),
         }
     }
 }
@@ -185,6 +192,8 @@ pub struct KeyMap {
     pub recent_add: Vec<KeyChord>,
     pub recent_to_search: Vec<KeyChord>,
     pub recent_focus_right: Vec<KeyChord>,
+    /// Remove one entry from Recent
+    pub recent_remove: Vec<KeyChord>,
 
     // Install
     pub install_move_up: Vec<KeyChord>,
@@ -202,7 +211,7 @@ impl Default for KeyMap {
         use KeyCode::*;
         let none = KeyModifiers::empty();
         let ctrl = KeyModifiers::CONTROL;
-        let shift = KeyModifiers::SHIFT;
+        let shift = KeyModifiers::SHIFT; // retained for other bindings; not used for pane switching
         KeyMap {
             help_overlay: vec![
                 KeyChord {
@@ -230,10 +239,7 @@ impl Default for KeyMap {
                 code: Tab,
                 mods: none,
             }],
-            pane_prev: vec![KeyChord {
-                code: BackTab,
-                mods: none,
-            }],
+            pane_prev: vec![],
             pane_left: vec![KeyChord {
                 code: Left,
                 mods: none,
@@ -342,6 +348,16 @@ impl Default for KeyMap {
                 code: Right,
                 mods: none,
             }],
+            recent_remove: vec![
+                KeyChord {
+                    code: Char('d'),
+                    mods: none,
+                },
+                KeyChord {
+                    code: Delete,
+                    mods: none,
+                },
+            ],
 
             install_move_up: vec![
                 KeyChord {
@@ -367,10 +383,16 @@ impl Default for KeyMap {
                 code: Enter,
                 mods: none,
             }],
-            install_remove: vec![KeyChord {
-                code: Delete,
-                mods: none,
-            }],
+            install_remove: vec![
+                KeyChord {
+                    code: Delete,
+                    mods: none,
+                },
+                KeyChord {
+                    code: Char('d'),
+                    mods: none,
+                },
+            ],
             install_clear: vec![KeyChord {
                 code: Delete,
                 mods: shift,
@@ -495,29 +517,29 @@ accent_emphasis = #b4befe\n\
 semantic_success = #a6e3a1\n\
 semantic_warning = #f9e2af\n\
 semantic_error = #f38ba8\n\
-\
+#\n\
 # ---------- Alternative Theme (Light) ----------\n\
 # To use this light theme, comment out the dark values above and uncomment the\n\
 # lines below, or copy these into your own overrides.\n\
-\
+#\n\
 # # Background layers (from lightest to darkest)\n\
 # background_base = #f5f5f7\n\
 # background_mantle = #eaeaee\n\
 # background_crust = #dcdce1\n\
-\
+#\n\
 # # Component surfaces\n\
 # surface_level1 = #cfd1d7\n\
 # surface_level2 = #b7bac3\n\
-\
+#\n\
 # # Low-contrast lines/borders and secondary text accents\n\
 # overlay_primary = #7a7d86\n\
 # overlay_secondary = #63666f\n\
-\
+#\n\
 # # Text hierarchy\n\
 # text_primary = #1c1c22\n\
 # text_secondary = #3c3f47\n\
 # text_tertiary = #565a64\n\
-\
+#\n\
 # # Accents and semantic colors\n\
 # accent_interactive = #1e66f5\n\
 # accent_heading = #8839ef\n\
@@ -534,6 +556,14 @@ layout_right_pct = 20\n\
 # Default dry-run behavior when starting the app (overridden by --dry-run)\n\
 app_dry_run_default = false\n\
 \n\
+# Results sorting\n\
+# Allowed values: alphabetical | aur_popularity | best_matches\n\
+sort_mode = best_matches\n\
+\n\
+# Clipboard\n\
+# Text appended when copying PKGBUILD to the clipboard\n\
+clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activities\n\
+\n\
 # Keybindings (defaults)\n\
 # Modifiers can be one of: SUPER, CTRL, SHIFT, ALT.\n\
 \n\
@@ -549,7 +579,6 @@ keybind_show_pkgbuild = CTRL+X\n\
 keybind_pane_left = Left\n\
 keybind_pane_right = Right\n\
 keybind_pane_next = Tab\n\
-keybind_pane_prev = Shift+Tab\n\
 \n\
 # SEARCH — Navigation\n\
 keybind_search_move_up = Up\n\
@@ -580,6 +609,8 @@ keybind_recent_move_down = j\n\
 # RECENT — Actions\n\
 keybind_recent_use = Enter\n\
 keybind_recent_add = Space\n\
+keybind_recent_remove = d\n\
+keybind_recent_remove = Del\n\
 \n\
 # RECENT — Find/Focus\n\
 keybind_recent_find = /\n\
@@ -593,6 +624,7 @@ keybind_install_move_down = j\n\
 # INSTALL — Actions\n\
 keybind_install_confirm = Enter\n\
 keybind_install_remove = Del\n\
+keybind_install_remove = d\n\
 keybind_install_clear = Shift+Del\n\
 \n\
 # INSTALL — Find/Focus\n\
@@ -791,7 +823,10 @@ fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
             || norm.starts_with("settings_")
             || norm.starts_with("layout_")
             || norm.starts_with("keybind_")
-            || norm.starts_with("app_");
+            || norm.starts_with("app_")
+            || norm.starts_with("sort_")
+            || norm.starts_with("clipboard_")
+            || norm == "results_sort";
         if is_pref_key {
             // Skip theme handling; parsed elsewhere
             continue;
@@ -847,15 +882,31 @@ fn load_theme_from_file(path: &Path) -> Option<Theme> {
     try_load_theme_with_diagnostics(path).ok()
 }
 
+/// Repository-local config path embedded at compile time when building with Cargo.
+/// Returns `config/pacsea.conf` under `CARGO_MANIFEST_DIR` when available.
+fn repo_config_path() -> Option<PathBuf> {
+    if let Some(dir) = option_env!("CARGO_MANIFEST_DIR") {
+        let p = Path::new(dir).join("config").join("pacsea.conf");
+        return Some(p);
+    }
+    None
+}
+
 /// Determine the configuration file path for Pacsea's theme, searching in priority order:
-/// 1) "$HOME/pacsea.conf"
-/// 2) "$HOME/.config/pacsea.conf"
-/// 3) "$HOME/.config/pacsea/pacsea.conf"
-/// 4) "config/pacsea.conf" (repository-local testing)
+/// 1) Repository-local `config/pacsea.conf` (when built with Cargo and present)
+/// 2) "$HOME/.config/pacsea/pacsea.conf"
+/// 3) "$XDG_CONFIG_HOME/pacsea/pacsea.conf" or "$XDG_CONFIG_HOME/pacsea.conf"
+/// 4) "config/pacsea.conf" under the current working directory (fallback for manual runs)
 fn resolve_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
+    // Prefer repository config if it exists (useful for `cargo run`)
+    if let Some(rcp) = repo_config_path()
+        && rcp.is_file()
+    {
+        candidates.push(rcp);
+    }
     if let Some(h) = home.as_deref() {
         candidates.push(
             Path::new(h)
@@ -879,6 +930,23 @@ fn resolve_config_path() -> Option<PathBuf> {
 static THEME_STORE: OnceLock<RwLock<Theme>> = OnceLock::new();
 
 fn load_initial_theme_or_exit() -> Theme {
+    // When built and run via Cargo, prioritize repository config and create it
+    if let Some(rcp) = repo_config_path() {
+        if rcp.is_file() {
+            if let Some(t) = load_theme_from_file(&rcp) {
+                return t;
+            }
+        } else {
+            // Create repository-local config from skeleton for dev runs
+            if let Some(dir) = rcp.parent() {
+                let _ = fs::create_dir_all(dir);
+            }
+            let _ = fs::write(&rcp, SKELETON_CONFIG_CONTENT);
+            if let Some(t) = load_theme_from_file(&rcp) {
+                return t;
+            }
+        }
+    }
     if let Some(path) = resolve_config_path() {
         match try_load_theme_with_diagnostics(&path) {
             Ok(t) => return t,
@@ -977,7 +1045,21 @@ fn strip_inline_comment(mut s: &str) -> &str {
 /// Falls back to `Settings::default()` when missing or invalid.
 pub fn settings() -> Settings {
     let mut out = Settings::default();
-    let path = resolve_config_path().or_else(|| {
+    // Prefer repository-local config for cargo/dev runs, creating it if missing
+    let path = if let Some(rcp) = repo_config_path() {
+        if rcp.is_file() {
+            Some(rcp)
+        } else {
+            if let Some(dir) = rcp.parent() {
+                let _ = fs::create_dir_all(dir);
+            }
+            let _ = fs::write(&rcp, SKELETON_CONFIG_CONTENT);
+            Some(rcp)
+        }
+    } else {
+        None
+    }
+    .or_else(|| {
         env::var("XDG_CONFIG_HOME")
             .ok()
             .map(PathBuf::from)
@@ -1022,6 +1104,14 @@ pub fn settings() -> Settings {
             "app_dry_run_default" => {
                 let lv = val.to_ascii_lowercase();
                 out.app_dry_run_default = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+            }
+            "sort_mode" | "results_sort" => {
+                if let Some(sm) = crate::state::SortMode::from_config_key(val) {
+                    out.sort_mode = sm;
+                }
+            }
+            "clipboard_suffix" | "copy_suffix" => {
+                out.clipboard_suffix = val.to_string();
             }
             // Keybindings (single chord per action); overrides full list
             "keybind_help" | "keybind_help_overlay" => {
@@ -1174,6 +1264,17 @@ pub fn settings() -> Settings {
                     out.keymap.recent_focus_right = vec![ch];
                 }
             }
+            "keybind_recent_remove" => {
+                if let Some(ch) = parse_key_chord(val)
+                    && out
+                        .keymap
+                        .recent_remove
+                        .iter()
+                        .all(|c| c.code != ch.code || c.mods != ch.mods)
+                {
+                    out.keymap.recent_remove.push(ch);
+                }
+            }
 
             // Install pane
             "keybind_install_move_up" => {
@@ -1192,8 +1293,14 @@ pub fn settings() -> Settings {
                 }
             }
             "keybind_install_remove" => {
-                if let Some(ch) = parse_key_chord(val) {
-                    out.keymap.install_remove = vec![ch];
+                if let Some(ch) = parse_key_chord(val)
+                    && out
+                        .keymap
+                        .install_remove
+                        .iter()
+                        .all(|c| c.code != ch.code || c.mods != ch.mods)
+                {
+                    out.keymap.install_remove.push(ch);
                 }
             }
             "keybind_install_clear" => {
@@ -1232,6 +1339,52 @@ pub fn settings() -> Settings {
         out = Settings::default();
     }
     out
+}
+
+/// Persist selected sort mode back to `pacsea.conf`, preserving comments and other keys.
+pub fn save_sort_mode(sm: crate::state::SortMode) {
+    let path = resolve_config_path().or_else(|| {
+        env::var("XDG_CONFIG_HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")))
+            .map(|base| base.join("pacsea").join("pacsea.conf"))
+    });
+    let Some(p) = path else {
+        return;
+    };
+    let mut lines: Vec<String> = if let Ok(content) = fs::read_to_string(&p) {
+        content.lines().map(|s| s.to_string()).collect()
+    } else {
+        Vec::new()
+    };
+    let mut replaced = false;
+    for line in lines.iter_mut() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if let Some(eq) = trimmed.find('=') {
+            let (kraw, _) = trimmed.split_at(eq);
+            let key = kraw.trim().to_lowercase().replace(['.', '-', ' '], "_");
+            if key == "sort_mode" || key == "results_sort" {
+                *line = format!("sort_mode = {}", sm.as_config_key());
+                replaced = true;
+            }
+        }
+    }
+    if !replaced {
+        if let Some(dir) = p.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        lines.push(format!("sort_mode = {}", sm.as_config_key()));
+    }
+    let new_content = if lines.is_empty() {
+        format!("sort_mode = {}\n", sm.as_config_key())
+    } else {
+        lines.join("\n")
+    };
+    let _ = fs::write(p, new_content);
 }
 
 /// Return the application's theme palette, loading from config if available.
