@@ -62,6 +62,7 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - `curl` for web fallbacks and AUR requests
 - For AUR installs: one of `paru` or `yay` (auto‑detected)
 - Rust toolchain (to build from source)
+ - Clipboard support for "Check Package Build": install either `wl-clipboard` (Wayland; provides `wl-copy`) or `xclip` (X11). If neither is installed, Pacsea will show a notice instead of copying.
 
 ### Install from AUR
 If you already use an AUR helper:

@@ -874,7 +874,8 @@ pub fn handle_event(
         {
             app.mouse_disabled_in_details = false;
             if let Some(text) = app.pkgb_text.clone() {
-                // Best-effort: Wayland -> wl-copy; X11 -> xclip; fallback -> arboard
+                // Best-effort: Wayland -> wl-copy; X11 -> xclip; otherwise show guidance modal
+                let (tx_msg, rx_msg) = std::sync::mpsc::channel::<Option<String>>();
                 std::thread::spawn(move || {
                     let suffix = {
                         let s = crate::theme::settings().clipboard_suffix;
@@ -901,6 +902,7 @@ pub fn handle_event(
                                 let _ = std::io::Write::write_all(&mut sin, payload.as_bytes());
                             }
                             let _ = child.wait();
+                            let _ = tx_msg.send(Some("PKGBUILD is added to the Clipboard".to_string()));
                             true
                         } else {
                             false
@@ -925,17 +927,26 @@ pub fn handle_event(
                             let _ = std::io::Write::write_all(&mut sin, payload.as_bytes());
                         }
                         let _ = child.wait();
+                        let _ = tx_msg.send(Some("PKGBUILD is added to the Clipboard".to_string()));
                         return;
                     }
 
-                    // Last resort: use arboard
-                    if let Ok(mut cb) = arboard::Clipboard::new() {
-                        let _ = cb.set_text(payload);
-                    }
+                    // Neither wl-copy nor xclip worked — report guidance to UI thread
+                    let hint = if std::env::var("WAYLAND_DISPLAY").is_ok() {
+                        "Clipboard tool not found. Please install 'wl-clipboard' (provides wl-copy) or 'xclip'."
+                    } else {
+                        "Clipboard tool not found. Please install 'xclip' or 'wl-clipboard' (wl-copy)."
+                    };
+                    let _ = tx_msg.send(Some(hint.to_string()));
                 });
+                // Default optimistic message; overwritten by worker if needed
                 app.modal = crate::state::Modal::Alert {
-                    message: "PKGBUILD is added to the Clipboard".to_string(),
+                    message: "Copying PKGBUILD to clipboard…".to_string(),
                 };
+                // Try to receive the result quickly without blocking UI long
+                if let Ok(Some(msg)) = rx_msg.recv_timeout(std::time::Duration::from_millis(50)) {
+                    app.modal = crate::state::Modal::Alert { message: msg };
+                }
             } else {
                 app.modal = crate::state::Modal::Alert {
                     message: "PKGBUILD not loaded yet".to_string(),
