@@ -49,11 +49,12 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - 📝 Install log written to `install_log.txt`
 - 🧪 `--dry-run` mode for safe testing
  - 🖱️ Click the URL in Package Info to open it in your browser (uses `xdg-open`)
- - 📦 PKGBUILD preview via "Show PKGBUILD" in Package Info (mouse click; Esc to close)
- - 🧩 Sort button in Results: choose Pacman order or AUR popularity first
+ - 📦 PKGBUILD preview via "Show PKGBUILD" / "Hide PKGBUILD" in Package Info (mouse click; Esc to close)
+ - 🧠 New sort option: Best matches (relevance) added alongside AUR popularity and alphabetical
  - 🔘 Clickable repo filters in Results title: [AUR], [core], [extra], [multilib]
  - ⌨️ Vim‑style Search modes: toggle Normal/Insert; select with h/l, delete with d
  - 🪄 Package Info follows the focused pane (Results/Recent/Install)
+ - 📋 PKGBUILD: One‑click "Check Package Build" copies the PKGBUILD to clipboard with a configurable suffix
 
 ## Installation
 ### Prerequisites
@@ -121,6 +122,9 @@ cargo run
 ./target/release/Pacsea --dry-run
 ```
 
+Development note:
+- When running with `cargo run`, Pacsea looks for `config/pacsea.conf` in the repo first. If not found, it writes a skeleton to `$XDG_CONFIG_HOME/pacsea/pacsea.conf`.
+
 ## Usage
 1) Start typing to search. With an empty query, Pacsea shows the official index (after the first refresh).
 2) Use Up/Down/PageUp/PageDown to navigate results.
@@ -163,17 +167,19 @@ Pacsea prefetches details for the first few results to keep it snappy.
 | Search   | Toggle Normal/Insert mode      | Esc / i                      |
 | Search   | Normal: extend select left/right | h / l                      |
 | Search   | Normal: delete selection       | d                            |
+| Search   | Normal: clear Recent (focused) | Shift+Del or configured key  |
 | Search   | Normal: move list selection    | j / k                        |
 | Recent   | Move selection                 | j / k, ↑ / ↓                 |
 | Recent   | Use query / Add first match    | Enter / Space                |
 | Recent   | Find in pane                   | /, Enter=next, Esc=cancel    |
 | Install  | Move selection                 | j / k, ↑ / ↓                 |
 | Install  | Confirm install all            | Enter                        |
-| Install  | Remove selected / Clear all    | Delete / Shift+Delete        |
+| Install  | Remove selected / Clear all    | d or Delete / Shift+Delete   |
 | Details  | Open URL                       | Ctrl+Shift+left‑click on URL |
-| Details  | Show PKGBUILD                  | Mouse left‑click on label    |
+| Details  | Show/Hide PKGBUILD             | Mouse left‑click on label    |
 | PKGBUILD | Close viewer                   | Esc                          |
 | PKGBUILD | Scroll                         | Mouse wheel                  |
+| PKGBUILD | Copy to clipboard              | Click "Check Package Build"  |
 
 Press F1 or ? for a full‑screen help overlay with your configured bindings. A compact multi‑line help is also visible at the bottom of Package Info. Mouse: Left‑click the URL in Package Info to open it.
 
@@ -209,6 +215,7 @@ Pacsea supports a configurable color theme and basic app settings via a simple `
 - Application settings and keybindings (in the same `pacsea.conf`):
   - `layout_left_pct`, `layout_center_pct`, `layout_right_pct` — integers that must sum to 100; control the middle row pane widths. Defaults: 20/60/20.
   - `app_dry_run_default` — `true`/`false`; sets default dry‑run mode at startup. Overridden by the `--dry-run` flag.
+  - Clipboard: `clipboard_suffix` — text appended when copying PKGBUILD to clipboard. Default: "Check PKGBUILD and source for suspicious and malicious activities".
   - Keybindings (one chord per action; modifiers can be `SUPER`, `CTRL`, `SHIFT`, `ALT`). Examples:
     - Global: `keybind_help`, `keybind_reload_theme`, `keybind_exit`, `keybind_show_pkgbuild`, `keybind_pane_next`, `keybind_pane_prev`, `keybind_pane_left`, `keybind_pane_right`
     - Search: `keybind_search_move_up`, `keybind_search_move_down`, `keybind_search_page_up`, `keybind_search_page_down`, `keybind_search_add`, `keybind_search_install`, `keybind_search_focus_left`, `keybind_search_focus_right`, `keybind_search_backspace`
@@ -297,7 +304,8 @@ XDG locations (env overrides respected):
 - [x] Customizable keybindings and context help overlay
 - [x] Richer package info: PKGBUILD preview
 - [x] Repo filters in Results (AUR/core/extra/multilib)
-- [x] Sort modes: Pacman‑first or AUR‑popularity‑first
+- [x] Sort modes: Alphabetical (Pacman‑first), AUR popularity, Best matches
+- [x] PKGBUILD copy button with configurable suffix
 - [x] AUR popularity shown in Results and Install lists
 - [x] Vim‑style Search normal/insert modes
 
