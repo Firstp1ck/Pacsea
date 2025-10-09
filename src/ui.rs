@@ -1146,13 +1146,24 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 || message.to_lowercase().contains("theme configuration");
             let header_text = if is_config {
                 "Configuration error"
+            } else if {
+                let ml = message.to_lowercase();
+                ml.contains("clipboard") || ml.contains("wl-copy") || ml.contains("xclip") || ml.contains("wl-clipboard")
+            } {
+                "Clipboard Copy"
             } else {
                 "Connection issue"
             };
+            let is_clipboard = {
+                let ml = message.to_lowercase();
+                ml.contains("clipboard") || ml.contains("wl-copy") || ml.contains("xclip") || ml.contains("wl-clipboard")
+            };
             let box_title = if is_config {
                 " Configuration Error "
+            } else if is_clipboard {
+                " Clipboard Copy "
             } else {
-                " Network Error "
+                " Connection issue "
             };
             let header_color = if is_config { th.mauve } else { th.red };
             let lines = vec![
