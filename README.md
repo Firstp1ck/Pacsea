@@ -7,9 +7,9 @@
 Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in Rust. Inspired by Omarchy's Package Install Tool.
 
 ### PKGBUILD Viewer
-![Search screenshot](Images/AppView_v0.2.0_noPKGBUILD.png)
+![Search screenshot](Images/AppView_v0.3.0_noPKGBUILD.png)
 
-![Search screenshot](Images/AppView_v0.2.0_withPKGBUILD.png)
+![Search screenshot](Images/AppView_v0.3.0_withPKGBUILD.png)
 
 - PKGBUILD viewer is now optional and can be toggled with `Ctrl+X` or clicking the "Show PKGBUILD" label in the Package Info panel.
 ---
