@@ -256,6 +256,14 @@ background_base = #1e1e2e
 background_mantle = #181825
 background_crust = #11111b
 
+# Component surfaces
+surface_level1 = #45475a
+surface_level2 = #585b70
+
+# Overlays (borders/lines)
+overlay_primary = #7f849c
+overlay_secondary = #9399b2
+
 # Text
 text_primary = #cdd6f4
 text_secondary = 166,173,200  # decimal R,G,B also supported
@@ -276,6 +284,10 @@ layout_left_pct = 20
 layout_center_pct = 60
 layout_right_pct = 20
 app_dry_run_default = false
+sort_mode = best_matches
+
+# Clipboard
+clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activities
 ```
 
 An optional commented “Light” theme block is included in the generated config for quick switching.
