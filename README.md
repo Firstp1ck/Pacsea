@@ -311,8 +311,8 @@ XDG locations (env overrides respected):
 - [x] Vim‑style Search normal/insert modes
 
 ### Not implemented
+- [ ] Rollback/downgrade flows
 - [ ] Search modes: contains / starts‑with / regex
-- [ ] Sorting: name/date/size (beyond current repo/popularity modes)
 - [ ] Quick actions: refresh, clear cache, toggle views
 - [ ] Adjustable pane proportions (resizable three‑pane layout)
 - [ ] Toggle visibility of panes/sections
@@ -338,8 +338,8 @@ XDG locations (env overrides respected):
 - [ ] Selective updates, pinning/version policies
 - [ ] System maintenance helpers
 - [ ] Signature verification indicators
-- [ ] Rollback/downgrade flows
 - [ ] Enhanced dry‑run with impact analysis
+- [ ] Sorting: name/date/size (beyond current repo/popularity modes)
 
 ## Inspiration and credits
 - Omarchy Distro — UX/workflow inspiration

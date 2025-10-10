@@ -161,19 +161,19 @@ pub fn build_install_command(
             // Robust hold tail that works even if read fails (e.g., no TTY)
             let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             if dry_run {
-                let bash = format!("echo DRY RUN: sudo {base_cmd}{hold}", hold = hold_tail);
+                let bash = format!("echo DRY RUN: sudo {base_cmd}{hold_tail}");
                 return (bash, true);
             }
             // Escape password for bash
             let pass = password.unwrap_or("");
             if pass.is_empty() {
                 // Interactive sudo without -S so it prompts on the TTY
-                let bash = format!("sudo {base_cmd}{hold}", hold = hold_tail);
+                let bash = format!("sudo {base_cmd}{hold_tail}");
                 (bash, true)
             } else {
                 let escaped = pass.replace('\'', "'\"'\"'\''");
                 let pipe = format!("echo '{escaped}' | ");
-                let bash = format!("{pipe}sudo -S {base_cmd}{hold}", hold = hold_tail);
+                let bash = format!("{pipe}sudo -S {base_cmd}{hold_tail}");
                 (bash, true)
             }
         }
@@ -310,7 +310,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
             "Pacsea Install",
             "cmd",
             "/K",
-            &format!("echo {}", msg),
+            &format!("echo {msg}"),
         ])
         .spawn();
     if !dry_run {
@@ -338,7 +338,7 @@ fn log_installed(names: &[String]) -> std::io::Result<()> {
         .ok();
     let when = crate::util::ts_to_date(now);
     for n in names {
-        writeln!(f, "{} {}", when, n)?;
+        writeln!(f, "{when} {n}")?;
     }
     Ok(())
 }

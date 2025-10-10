@@ -323,14 +323,18 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
             Source::Aur => app.results_filter_show_aur,
             Source::Official { repo, .. } => {
                 let r = repo.to_lowercase();
-                (r == "core" && app.results_filter_show_core)
-                    || (r == "extra" && app.results_filter_show_extra)
-                    || (r == "multilib" && app.results_filter_show_multilib)
-                    || (!["core", "extra", "multilib"].contains(&r.as_str())
-                        // If an official repo is not one of the three, include it only if at least one official filter is on
-                        && (app.results_filter_show_core
-                            || app.results_filter_show_extra
-                            || app.results_filter_show_multilib))
+                if r == "core" {
+                    app.results_filter_show_core
+                } else if r == "extra" {
+                    app.results_filter_show_extra
+                } else if r == "multilib" {
+                    app.results_filter_show_multilib
+                } else {
+                    // Unknown official repo: include only when all official filters are enabled
+                    app.results_filter_show_core
+                        && app.results_filter_show_extra
+                        && app.results_filter_show_multilib
+                }
             }
         };
         if include {
