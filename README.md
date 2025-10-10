@@ -51,10 +51,16 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
  - 🖱️ Click the URL in Package Info to open it in your browser (uses `xdg-open`)
  - 📦 PKGBUILD preview via "Show PKGBUILD" / "Hide PKGBUILD" in Package Info (mouse click; Esc to close)
  - 🧠 New sort option: Best matches (relevance) added alongside AUR popularity and alphabetical
- - 🔘 Clickable repo filters in Results title: [AUR], [core], [extra], [multilib]
+- 🔘 Clickable repo filters in Results title: [AUR], [core], [extra], [multilib], [EOS]
  - ⌨️ Vim‑style Search modes: toggle Normal/Insert; select with h/l, delete with d
  - 🪄 Package Info follows the focused pane (Results/Recent/Install)
  - 📋 PKGBUILD: One‑click "Check Package Build" copies the PKGBUILD to clipboard with a configurable suffix
+
+- 📋 List installed packages view (Options → "List installed packages")
+- 🗑️ Remove List pane for uninstalling packages with confirmation
+- ⚠️ Core‑package warning shown when uninstalling core packages
+- 🟣 EndeavourOS repos supported (`eos`, `endeavouros`) with an [EOS] filter
+- 🔧 System Update dialog (Options → "Update System") for mirrors, pacman, AUR, and cache
 
 ## Installation
 ### Prerequisites
@@ -140,6 +146,22 @@ Development note:
 
 Pacsea prefetches details for the first few results to keep it snappy.
 
+### Installed‑only mode and removal
+
+- Open the Options menu (top‑right) and choose "List installed packages" to toggle an installed‑only view.
+- In this mode, the Results show only installed packages and the right pane becomes the "Remove List".
+- Space adds the selected package to the Remove List; Enter in the Remove List opens a confirmation dialog to uninstall.
+- If any core packages are selected, the dialog shows a warning. In `--dry-run` mode, Pacsea prints the exact command instead of making changes.
+
+### System update options
+
+- Options → "Update System" opens a dialog where you can toggle:
+  - Update Arch mirrors (optionally choose a country)
+  - Update system packages (sudo pacman -Syu)
+  - Update AUR packages (paru/yay)
+  - Remove caches (pacman and AUR helper)
+- Use Space to toggle items and Enter to run the selected actions in a terminal.
+
 ### Install behavior
 
 - Install list entries show their source repository (core/extra or AUR).
@@ -183,6 +205,8 @@ Pacsea prefetches details for the first few results to keep it snappy.
 | PKGBUILD | Copy to clipboard              | Click "Check Package Build"  |
 
 Press F1 or ? for a full‑screen help overlay with your configured bindings. A compact multi‑line help is also visible at the bottom of Package Info. Mouse: Left‑click the URL in Package Info to open it.
+
+When "List installed packages" is enabled, the right pane becomes the "Remove List"; press Enter there to confirm uninstall.
 
 Note: Esc does not quit the app. It cancels dialogs or navigates between panes, depending on context. Use Ctrl+C or your configured exit key to quit.
 
@@ -261,6 +285,7 @@ An optional commented “Light” theme block is included in the generated confi
   - Local pacman is preferred for speed: `pacman -Sl` (names) + batched `pacman -Si` (details)
   - Falls back to archlinux.org JSON if needed
   - A background refresh runs at startup; the index is enriched on‑demand as you browse
+  - EndeavourOS repos (`eos`, `endeavouros`) are included when present; the unified [EOS] filter controls their visibility
 - AUR
   - AUR RPC v5 is used for search and details
   - AUR popularity is fetched from RPC and shown when available
@@ -277,6 +302,7 @@ An optional commented “Light” theme block is included in the generated confi
 | `recent_searches.json` | Recent queries (deduped, MRU) — XDG state dir                     |
 | `install_list.json`    | Persisted install queue — XDG state dir                            |
 | `install_log.txt`      | Timestamped record of packages you initiated installs for — XDG state dir |
+| `removed_packages.txt` | Names of removed packages (one per line) — XDG config dir                 |
 
 XDG locations (env overrides respected):
 - Config: `$XDG_CONFIG_HOME/pacsea/pacsea.conf` (fallback `~/.config/pacsea/pacsea.conf`)
@@ -304,11 +330,15 @@ XDG locations (env overrides respected):
 - [x] XDG‑compliant configuration with persistent settings (config/cache/state dirs; basic app settings)
 - [x] Customizable keybindings and context help overlay
 - [x] Richer package info: PKGBUILD preview
-- [x] Repo filters in Results (AUR/core/extra/multilib)
+- [x] Repo filters in Results (AUR/core/extra/multilib/EOS)
 - [x] Sort modes: Alphabetical (Pacman‑first), AUR popularity, Best matches
 - [x] PKGBUILD copy button with configurable suffix
 - [x] AUR popularity shown in Results and Install lists
 - [x] Vim‑style Search normal/insert modes
+- [x] Installed‑only mode (Options → List installed packages)
+- [x] Remove List pane and uninstall confirmation flow
+- [x] EndeavourOS repos support (`eos`, `endeavouros`) with [EOS] filter
+- [x] System Update dialog (mirrors, pacman, AUR, cache)
 
 ### Not implemented
 - [ ] Rollback/downgrade flows
