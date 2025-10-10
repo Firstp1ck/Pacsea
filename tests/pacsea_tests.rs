@@ -261,3 +261,228 @@ fn ui_helpers_filtered_indices_and_details_lines() {
             .contains("Hide PKGBUILD")
     );
 }
+
+#[test]
+fn logic_add_to_remove_list_behavior() {
+    let mut app = new_app();
+    logic::add_to_remove_list(&mut app, item_official("pkg1", "extra"));
+    logic::add_to_remove_list(&mut app, item_official("Pkg1", "extra")); // duplicate (case-insensitive)
+    assert_eq!(app.remove_list.len(), 1);
+    assert_eq!(app.remove_state.selected(), Some(0));
+}
+
+#[tokio::test]
+async fn logic_move_sel_cached_clamps_and_requests_details() {
+    let mut app = new_app();
+    app.results = vec![item_aur("aur1", None), item_official("pkg2", "core")];
+    app.selected = 0;
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    logic::move_sel_cached(&mut app, 1, &tx);
+
+    assert_eq!(app.selected, 1);
+    assert_eq!(app.details.repository.to_lowercase(), "core");
+    assert_eq!(app.details.architecture.to_lowercase(), "x86_64");
+
+    // At least one request (selected and/or ring) enqueued
+    let got = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv())
+        .await.ok().flatten();
+    assert!(got.is_some());
+
+    // Clamp to start
+    logic::move_sel_cached(&mut app, -100, &tx);
+    assert_eq!(app.selected, 0);
+
+    // Move back to AUR and check placeholder fields
+    logic::move_sel_cached(&mut app, 0, &tx);
+    assert_eq!(app.details.repository, "AUR");
+    assert_eq!(app.details.architecture, "any");
+}
+
+#[tokio::test]
+async fn logic_move_sel_cached_uses_details_cache() {
+    let mut app = new_app();
+    let pkg = item_official("pkg", "core");
+    app.results = vec![pkg.clone()];
+    app.details_cache.insert(
+        pkg.name.clone(),
+        crate_root::state::PackageDetails {
+            repository: "core".into(),
+            name: pkg.name.clone(),
+            version: pkg.version.clone(),
+            architecture: "x86_64".into(),
+            ..Default::default()
+        },
+    );
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    logic::move_sel_cached(&mut app, 0, &tx);
+
+    // No network request as cached
+    let none = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
+        .await.ok().flatten();
+    assert!(none.is_none());
+    assert_eq!(app.details.name, "pkg");
+}
+
+#[tokio::test]
+async fn logic_ring_prefetch_sends_neighbors_respecting_allowed_and_cache() {
+    let mut app = new_app();
+    app.results = vec![
+        item_official("a", "core"),
+        item_official("b", "core"),
+        item_official("c", "core"),
+    ];
+    app.selected = 1;
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    logic::set_allowed_ring(&app, 1);
+    logic::ring_prefetch_from_selected(&mut app, &tx);
+
+    let mut names = std::collections::HashSet::new();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    while names.len() < 2 && std::time::Instant::now() < deadline {
+        if let Ok(Some(it)) = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+        {
+            names.insert(it.name);
+        }
+    }
+    assert_eq!(names, ["a".to_string(), "c".to_string()].into_iter().collect());
+}
+
+#[test]
+fn ui_helpers_details_lines_sizes_and_lists() {
+    let mut app = new_app();
+    app.details = crate_root::state::PackageDetails {
+        repository: "extra".into(),
+        name: "ripgrep".into(),
+        version: "14".into(),
+        description: "desc".into(),
+        architecture: "x86_64".into(),
+        url: String::new(),
+        licenses: vec![],                          // -> "-"
+        groups: vec![],
+        provides: vec!["prov1".into(), "prov2".into()], // -> "prov1, prov2"
+        depends: vec![],
+        opt_depends: vec![],
+        required_by: vec![],
+        optional_for: vec![],
+        conflicts: vec![],
+        replaces: vec![],
+        download_size: None,                       // -> "N/A"
+        install_size: Some(1536),                  // -> "1.5 KiB"
+        owner: String::new(),
+        build_date: String::new(),
+        popularity: None,
+    };
+    let th = crate_root::theme::theme();
+    let lines = ui_helpers::format_details_lines(&app, 80, &th);
+
+    // Download size shows N/A
+    assert!(lines.iter().any(|l| l.spans.iter().any(|s| s.content.contains("N/A"))));
+    // Install size shows human bytes
+    assert!(lines.iter().any(|l| l.spans.iter().any(|s| s.content.contains("1.5 KiB"))));
+    // Licences shows "-"
+    assert!(lines.iter().any(|l| l.spans.iter().any(|s| s.content.contains("Licences") || s.content.contains("-"))));
+    // Provides shows comma-separated
+    assert!(lines.iter().any(|l| l.spans.iter().any(|s| s.content.contains("prov1, prov2"))));
+}
+
+#[tokio::test]
+async fn ui_helpers_trigger_recent_preview_noop_when_not_recent_or_invalid() {
+    let mut app = new_app();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Not Recent focus
+    app.focus = crate_root::state::Focus::Search;
+    ui_helpers::trigger_recent_preview(&app, &tx);
+    let none1 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
+        .await.ok().flatten();
+    assert!(none1.is_none());
+
+    // Recent focus but no selection
+    app.focus = crate_root::state::Focus::Recent;
+    app.recent = vec!["abc".into()];
+    app.history_state.select(None);
+    ui_helpers::trigger_recent_preview(&app, &tx);
+    let none2 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
+        .await.ok().flatten();
+    assert!(none2.is_none());
+
+    // Selection out of bounds after filtering
+    app.history_state.select(Some(0));
+    app.pane_find = Some("zzz".into()); // filter to empty => idx >= inds.len()
+    ui_helpers::trigger_recent_preview(&app, &tx);
+    let none3 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
+        .await.ok().flatten();
+    assert!(none3.is_none());
+}
+
+#[test]
+fn state_sortmode_config_roundtrip_and_aliases() {
+    use crate_root::state::SortMode;
+    assert_eq!(SortMode::RepoThenName.as_config_key(), "alphabetical");
+    assert_eq!(SortMode::from_config_key("alphabetical"), Some(SortMode::RepoThenName));
+    assert_eq!(SortMode::from_config_key("repo_then_name"), Some(SortMode::RepoThenName));
+    assert_eq!(SortMode::from_config_key("pacman"), Some(SortMode::RepoThenName));
+    assert_eq!(SortMode::from_config_key("aur_popularity"), Some(SortMode::AurPopularityThenOfficial));
+    assert_eq!(SortMode::from_config_key("popularity"), Some(SortMode::AurPopularityThenOfficial));
+    assert_eq!(SortMode::from_config_key("best_matches"), Some(SortMode::BestMatches));
+    assert_eq!(SortMode::from_config_key("relevance"), Some(SortMode::BestMatches));
+    assert_eq!(SortMode::from_config_key("unknown"), None);
+}
+
+#[test]
+fn state_appstate_defaults_sane() {
+    let app = new_app();
+    assert_eq!(app.latest_query_id, 0);
+    assert_eq!(app.next_query_id, 1);
+    assert!(app.results.is_empty());
+    assert!(app.all_results.is_empty());
+    assert!(app.recent.is_empty());
+    assert!(app.install_list.is_empty());
+    assert!(app.details_cache.is_empty());
+    assert_eq!(app.sort_mode, SortMode::RepoThenName);
+    assert!(app.results_filter_show_aur);
+    assert!(app.results_filter_show_core);
+    assert!(app.results_filter_show_extra);
+    assert!(app.results_filter_show_multilib);
+    assert!(app.results_filter_show_eos);
+}
+
+#[test]
+fn logic_apply_filters_eos_toggle() {
+    let mut app = new_app();
+    app.all_results = vec![
+        PackageItem {
+            name: "e1".into(),
+            version: "1".into(),
+            description: "".into(),
+            source: Source::Official { repo: "eos".into(), arch: "x86_64".into() },
+            popularity: None,
+        },
+        PackageItem {
+            name: "e2".into(),
+            version: "1".into(),
+            description: "".into(),
+            source: Source::Official { repo: "endeavouros".into(), arch: "x86_64".into() },
+            popularity: None,
+        },
+        item_official("core1", "core"),
+    ];
+    app.results_filter_show_eos = false;
+    app.results_filter_show_core = true;
+    logic::apply_filters_and_sort_preserve_selection(&mut app);
+    assert!(app.results.iter().all(
+        |p| matches!(&p.source, Source::Official{repo, ..} if repo.eq_ignore_ascii_case("core"))
+    ));
+}
+
+#[test]
+fn util_ts_to_date_boundaries() {
+    // 2000-01-01 00:00:00 UTC
+    assert_eq!(util::ts_to_date(Some(946_684_800)), "2000-01-01 00:00:00");
+    // One second before
+    assert_eq!(util::ts_to_date(Some(946_684_799)), "1999-12-31 23:59:59");
+}
