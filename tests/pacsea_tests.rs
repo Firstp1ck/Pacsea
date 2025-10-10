@@ -1,4 +1,4 @@
-use Pacsea as crate_root; // alias for clarity in imports
+use pacsea as crate_root; // alias for clarity in imports
 
 use crate_root::logic;
 use crate_root::state::{AppState, PackageDetails, PackageItem, SortMode, Source};
