@@ -91,7 +91,12 @@ pub fn handle_search_key(
             (KeyCode::Char('u'), KeyModifiers::CONTROL) => move_sel_cached(app, -10, details_tx),
             (KeyCode::Char(' '), _) => {
                 if let Some(item) = app.results.get(app.selected).cloned() {
-                    let _ = add_tx.send(item);
+                    if app.installed_only_mode {
+                        crate::logic::add_to_remove_list(app, item);
+                        super::utils::refresh_remove_details(app, details_tx);
+                    } else {
+                        let _ = add_tx.send(item);
+                    }
                 }
             }
             (KeyCode::Char('\n') | KeyCode::Enter, _) => {
@@ -169,7 +174,12 @@ pub fn handle_search_key(
         }
         (KeyCode::Char(' '), _) => {
             if let Some(item) = app.results.get(app.selected).cloned() {
-                let _ = add_tx.send(item);
+                if app.installed_only_mode {
+                    crate::logic::add_to_remove_list(app, item);
+                    super::utils::refresh_remove_details(app, details_tx);
+                } else {
+                    let _ = add_tx.send(item);
+                }
             }
         }
         (KeyCode::Backspace, _) => {

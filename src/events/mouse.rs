@@ -191,7 +191,7 @@ pub fn handle_mouse_event(
         return false;
     }
 
-    // 4) Sort button, filters, and dropdown in Results title
+    // 4) Sort button, filters, options button, and dropdowns in Results title
     if is_left_down {
         // Toggle sort menu when clicking the button on the title
         if let Some((x, y, w, h)) = app.sort_button_rect
@@ -207,6 +207,16 @@ pub fn handle_mouse_event(
             } else {
                 app.sort_menu_auto_close_at = None;
             }
+            return false;
+        }
+        // Toggle options menu when clicking the Options button
+        if let Some((x, y, w, h)) = app.options_button_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.options_menu_open = !app.options_menu_open;
             return false;
         }
         // Toggle filters when clicking their labels
@@ -250,7 +260,17 @@ pub fn handle_mouse_event(
             crate::logic::apply_filters_and_sort_preserve_selection(app);
             return false;
         }
-        // If menu open, handle option click inside menu
+        if let Some((x, y, w, h)) = app.results_filter_eos_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_eos = !app.results_filter_show_eos;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        // If sort menu open, handle option click inside menu
         if app.sort_menu_open
             && let Some((x, y, w, h)) = app.sort_menu_rect
             && mx >= x
@@ -288,10 +308,110 @@ pub fn handle_mouse_event(
             }
             return false;
         }
+        // If options menu open, handle clicks inside menu
+        if app.options_menu_open
+            && let Some((x, y, w, h)) = app.options_menu_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let row = my.saturating_sub(y) as usize; // rows: 0 toggle, 1 update system
+            match row {
+                0 => {
+                    if app.installed_only_mode {
+                        // Toggle OFF: restore full results (from backup) and label back
+                        if let Some(prev) = app.results_backup_for_toggle.take() {
+                            app.all_results = prev;
+                        }
+                        app.installed_only_mode = false;
+                        crate::logic::apply_filters_and_sort_preserve_selection(app);
+                        super::utils::refresh_selected_details(app, details_tx);
+                    } else {
+                        // Toggle ON: show only explicitly installed leaf packages
+                        app.results_backup_for_toggle = Some(app.all_results.clone());
+                        let explicit = crate::index::explicit_names();
+                        // Official items filtered by explicit set
+                        let mut items: Vec<crate::state::PackageItem> =
+                            crate::index::all_official()
+                                .into_iter()
+                                .filter(|p| explicit.contains(&p.name))
+                                .collect();
+                        // For explicit names that are not in official index, represent as AUR entries
+                        use std::collections::HashSet;
+                        let official_names: HashSet<String> =
+                            items.iter().map(|p| p.name.clone()).collect();
+                        for name in explicit.into_iter() {
+                            if !official_names.contains(&name) {
+                                // If name indicates EOS, classify as official EOS
+                                let is_eos = name.to_lowercase().contains("eos-");
+                                let src = if is_eos {
+                                    crate::state::Source::Official {
+                                        repo: "EOS".to_string(),
+                                        arch: String::new(),
+                                    }
+                                } else {
+                                    crate::state::Source::Aur
+                                };
+                                items.push(crate::state::PackageItem {
+                                    name: name.clone(),
+                                    version: String::new(),
+                                    description: String::new(),
+                                    source: src,
+                                    popularity: None,
+                                });
+                            }
+                        }
+                        app.all_results = items;
+                        app.installed_only_mode = true;
+                        crate::logic::apply_filters_and_sort_preserve_selection(app);
+                        super::utils::refresh_selected_details(app, details_tx);
+
+                        // Save exported list to config directory as requested
+                        let path = crate::theme::config_dir().join("installed_packages.txt");
+                        let mut names: Vec<String> =
+                            crate::index::explicit_names().into_iter().collect();
+                        names.sort();
+                        let body = names.join("\n");
+                        let _ = std::fs::write(path, body);
+                    }
+                }
+                1 => {
+                    // Open SystemUpdate modal with defaults
+                    let countries = vec![
+                        "Worldwide".to_string(),
+                        "Germany".to_string(),
+                        "United States".to_string(),
+                        "United Kingdom".to_string(),
+                        "France".to_string(),
+                        "Netherlands".to_string(),
+                        "Sweden".to_string(),
+                        "Canada".to_string(),
+                        "Australia".to_string(),
+                        "Japan".to_string(),
+                    ];
+                    app.modal = crate::state::Modal::SystemUpdate {
+                        do_mirrors: false,
+                        do_pacman: true,
+                        do_aur: true,
+                        do_cache: false,
+                        country_idx: 0,
+                        countries,
+                        cursor: 0,
+                    };
+                }
+                _ => {}
+            }
+            app.options_menu_open = false;
+            return false;
+        }
         // Click outside menu closes it
         if app.sort_menu_open {
             app.sort_menu_open = false;
             app.sort_menu_auto_close_at = None;
+        }
+        if app.options_menu_open {
+            app.options_menu_open = false;
         }
     }
 
@@ -358,31 +478,54 @@ pub fn handle_mouse_event(
         }
     }
 
-    // 8) Install pane: scroll with mouse wheel to change selection
+    // 8) Install/Remove pane: scroll with mouse wheel to change selection
     if let Some((x, y, w, h)) = app.install_rect
         && mx >= x
         && mx < x + w
         && my >= y
         && my < y + h
     {
-        let inds = crate::ui_helpers::filtered_install_indices(app);
-        if !inds.is_empty() {
-            match m.kind {
-                MouseEventKind::ScrollUp => {
-                    if let Some(sel) = app.install_state.selected() {
-                        let new = sel.saturating_sub(1);
+        if app.installed_only_mode {
+            let len = app.remove_list.len();
+            if len > 0 {
+                match m.kind {
+                    MouseEventKind::ScrollUp => {
+                        if let Some(sel) = app.remove_state.selected() {
+                            let new = sel.saturating_sub(1);
+                            app.remove_state.select(Some(new));
+                            super::utils::refresh_remove_details(app, details_tx);
+                        }
+                    }
+                    MouseEventKind::ScrollDown => {
+                        let sel = app.remove_state.selected().unwrap_or(0);
+                        let max = len.saturating_sub(1);
+                        let new = std::cmp::min(sel.saturating_add(1), max);
+                        app.remove_state.select(Some(new));
+                        super::utils::refresh_remove_details(app, details_tx);
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            let inds = crate::ui_helpers::filtered_install_indices(app);
+            if !inds.is_empty() {
+                match m.kind {
+                    MouseEventKind::ScrollUp => {
+                        if let Some(sel) = app.install_state.selected() {
+                            let new = sel.saturating_sub(1);
+                            app.install_state.select(Some(new));
+                            refresh_install_details(app, details_tx);
+                        }
+                    }
+                    MouseEventKind::ScrollDown => {
+                        let sel = app.install_state.selected().unwrap_or(0);
+                        let max = inds.len().saturating_sub(1);
+                        let new = std::cmp::min(sel.saturating_add(1), max);
                         app.install_state.select(Some(new));
                         refresh_install_details(app, details_tx);
                     }
+                    _ => {}
                 }
-                MouseEventKind::ScrollDown => {
-                    let sel = app.install_state.selected().unwrap_or(0);
-                    let max = inds.len().saturating_sub(1);
-                    let new = std::cmp::min(sel.saturating_add(1), max);
-                    app.install_state.select(Some(new));
-                    refresh_install_details(app, details_tx);
-                }
-                _ => {}
             }
         }
     }

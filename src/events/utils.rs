@@ -138,3 +138,34 @@ pub fn refresh_install_details(
         }
     }
 }
+
+/// Ensure `app.details` reflects the currently selected item in the Remove pane.
+pub fn refresh_remove_details(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
+    let Some(vsel) = app.remove_state.selected() else {
+        return;
+    };
+    if app.remove_list.is_empty() || vsel >= app.remove_list.len() {
+        return;
+    }
+    if let Some(item) = app.remove_list.get(vsel).cloned() {
+        app.details_focus = Some(item.name.clone());
+        app.details.name = item.name.clone();
+        app.details.version = item.version.clone();
+        app.details.description.clear();
+        match &item.source {
+            crate::state::Source::Official { repo, arch } => {
+                app.details.repository = repo.clone();
+                app.details.architecture = arch.clone();
+            }
+            crate::state::Source::Aur => {
+                app.details.repository = "AUR".to_string();
+                app.details.architecture = "any".to_string();
+            }
+        }
+        if let Some(cached) = app.details_cache.get(&item.name).cloned() {
+            app.details = cached;
+        } else {
+            let _ = details_tx.send(item);
+        }
+    }
+}

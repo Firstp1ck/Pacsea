@@ -46,6 +46,8 @@ pub struct OfficialPkg {
 static OFFICIAL_INDEX: OnceLock<RwLock<OfficialIndex>> = OnceLock::new();
 /// Process-wide set of installed package names.
 static INSTALLED_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
+/// Process-wide set of explicitly-installed package names (dependency-free set).
+static EXPLICIT_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
 /// Get a reference to the global `OfficialIndex` lock, initializing it if needed.
 fn idx() -> &'static RwLock<OfficialIndex> {
@@ -55,6 +57,11 @@ fn idx() -> &'static RwLock<OfficialIndex> {
 /// Get a reference to the global installed-name set lock, initializing it if needed.
 fn installed_lock() -> &'static RwLock<HashSet<String>> {
     INSTALLED_SET.get_or_init(|| RwLock::new(HashSet::new()))
+}
+
+/// Get a reference to the global explicit-name set lock, initializing it if needed.
+fn explicit_lock() -> &'static RwLock<HashSet<String>> {
+    EXPLICIT_SET.get_or_init(|| RwLock::new(HashSet::new()))
 }
 
 /// Load the official index from `path` if a valid JSON exists.
@@ -226,12 +233,37 @@ pub async fn fetch_official_pkg_names()
     // 1) Get repo/name/version quickly via -Sl
     let core = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "core"]))
         .await
-        .map_err(|e| format!("spawn failed: {e}"))??;
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
     let extra = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "extra"]))
         .await
-        .map_err(|e| format!("spawn failed: {e}"))??;
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let multilib = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "multilib"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let eos = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "eos"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let endeavouros = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "endeavouros"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
     let mut pkgs: Vec<OfficialPkg> = Vec::new();
-    for (repo, text) in [("core", core), ("extra", extra)] {
+    for (repo, text) in [
+        ("core", core),
+        ("extra", extra),
+        ("multilib", multilib),
+        ("eos", eos),
+        ("endeavouros", endeavouros),
+    ] {
         for line in text.lines() {
             // Format: "repo pkgname version [installed]"
             let mut it = line.split_whitespace();
@@ -393,4 +425,32 @@ pub fn is_installed(name: &str) -> bool {
         .ok()
         .map(|s| s.contains(name))
         .unwrap_or(false)
+}
+
+/// Refresh the process-wide cache of explicitly installed package names using
+/// `pacman -Qqe` and store them in `EXPLICIT_SET`.
+pub async fn refresh_explicit_cache() {
+    fn run_pacman_qe() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let out = std::process::Command::new("pacman")
+            .args(["-Qetq"]) // explicitly installed AND not required (leaf), names only
+            .output()?;
+        if !out.status.success() {
+            return Err(format!("pacman -Qetq exited with {:?}", out.status).into());
+        }
+        Ok(String::from_utf8(out.stdout)?)
+    }
+    if let Ok(Ok(body)) = tokio::task::spawn_blocking(run_pacman_qe).await {
+        let set: HashSet<String> = body.lines().map(|s| s.trim().to_string()).collect();
+        if let Ok(mut g) = explicit_lock().write() {
+            *g = set;
+        }
+    }
+}
+
+/// Return a cloned set of explicitly installed package names.
+pub fn explicit_names() -> HashSet<String> {
+    explicit_lock()
+        .read()
+        .map(|s| s.clone())
+        .unwrap_or_default()
 }

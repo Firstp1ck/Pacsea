@@ -329,11 +329,14 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
                     app.results_filter_show_extra
                 } else if r == "multilib" {
                     app.results_filter_show_multilib
+                } else if r == "eos" || r == "endeavouros" {
+                    app.results_filter_show_eos
                 } else {
                     // Unknown official repo: include only when all official filters are enabled
                     app.results_filter_show_core
                         && app.results_filter_show_extra
                         && app.results_filter_show_multilib
+                        && app.results_filter_show_eos
                 }
             }
         };
@@ -382,4 +385,19 @@ pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
     app.install_dirty = true;
     // Always keep cursor on top after adding
     app.install_state.select(Some(0));
+}
+
+/// Add a `PackageItem` to the remove list if it is not already present.
+///
+/// Inserts at the front and selects the first entry to keep it visible.
+pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
+    if app
+        .remove_list
+        .iter()
+        .any(|p| p.name.eq_ignore_ascii_case(&item.name))
+    {
+        return;
+    }
+    app.remove_list.insert(0, item);
+    app.remove_state.select(Some(0));
 }

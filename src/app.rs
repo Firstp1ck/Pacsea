@@ -34,7 +34,6 @@ use crate::util::{match_rank, repo_order};
 /// - Persists state periodically (recent searches, details cache, install list)
 ///
 /// Returns `Ok(())` on normal shutdown or an error if initialization fails.
-
 fn setup_terminal() -> Result<()> {
     enable_raw_mode()?;
     execute!(std::io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
@@ -233,6 +232,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     .await;
 
     pkgindex::refresh_installed_cache().await;
+    pkgindex::refresh_explicit_cache().await;
 
     std::thread::spawn(move || {
         loop {

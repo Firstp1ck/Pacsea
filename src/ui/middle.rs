@@ -217,12 +217,24 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
         middle[0].height.saturating_sub(2),
     ));
 
-    // Install List (right) with filtering
+    // Install/Remove List (right) with filtering
     let install_focused = matches!(app.focus, Focus::Install);
-    let install_inds = crate::ui_helpers::filtered_install_indices(app);
-    let install_items: Vec<ListItem> = install_inds
+    let using_remove = app.installed_only_mode;
+    let indices: Vec<usize> = if using_remove {
+        // No filtering helper for remove_list yet; show all
+        (0..app.remove_list.len()).collect()
+    } else {
+        crate::ui_helpers::filtered_install_indices(app)
+    };
+    let install_items: Vec<ListItem> = indices
         .iter()
-        .filter_map(|&i| app.install_list.get(i))
+        .filter_map(|&i| {
+            if using_remove {
+                app.remove_list.get(i)
+            } else {
+                app.install_list.get(i)
+            }
+        })
         .map(|p| {
             let (src, color) = match &p.source {
                 Source::Official { repo, .. } => (repo.to_string(), th.green),
@@ -260,19 +272,29 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
             ListItem::new(Line::from(segs))
         })
         .collect();
-    let mut install_title_spans: Vec<Span> = vec![Span::styled(
+    let title_text = if app.installed_only_mode {
         if install_focused {
-            "Install List (focused)"
+            "Remove List (focused)"
         } else {
-            "Install List"
-        },
+            "Remove List"
+        }
+    } else if install_focused {
+        "Install List (focused)"
+    } else {
+        "Install List"
+    };
+    let mut install_title_spans: Vec<Span> = vec![Span::styled(
+        title_text,
         Style::default().fg(if install_focused {
             th.mauve
         } else {
             th.overlay1
         }),
     )];
-    if install_focused && let Some(pat) = &app.pane_find {
+    if !using_remove
+        && install_focused
+        && let Some(pat) = &app.pane_find
+    {
         install_title_spans.push(Span::raw("  "));
         install_title_spans.push(Span::styled(
             "/",
@@ -304,7 +326,11 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
         .block(install_block)
         .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
         .highlight_symbol("▶ ");
-    f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
+    if using_remove {
+        f.render_stateful_widget(install_list, middle[2], &mut app.remove_state);
+    } else {
+        f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
+    }
     // Record inner Install rect for mouse hit-testing (inside borders)
     app.install_rect = Some((
         middle[2].x + 1,

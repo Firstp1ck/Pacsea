@@ -3,7 +3,9 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
 
-use super::utils::{find_in_install, refresh_install_details, refresh_selected_details};
+use super::utils::{
+    find_in_install, refresh_install_details, refresh_remove_details, refresh_selected_details,
+};
 
 /// Handle key events while the Install pane is focused.
 ///
@@ -53,33 +55,59 @@ pub fn handle_install_key(
     match ke.code {
         KeyCode::Char('j') => {
             // vim down
-            let inds = crate::ui_helpers::filtered_install_indices(app);
-            if inds.is_empty() {
-                return false;
+            if app.installed_only_mode {
+                let len = app.remove_list.len();
+                if len == 0 {
+                    return false;
+                }
+                let sel = app.remove_state.selected().unwrap_or(0);
+                let max = len.saturating_sub(1);
+                let new = std::cmp::min(sel + 1, max);
+                app.remove_state.select(Some(new));
+                refresh_remove_details(app, details_tx);
+            } else {
+                let inds = crate::ui_helpers::filtered_install_indices(app);
+                if inds.is_empty() {
+                    return false;
+                }
+                let sel = app.install_state.selected().unwrap_or(0);
+                let max = inds.len().saturating_sub(1);
+                let new = std::cmp::min(sel + 1, max);
+                app.install_state.select(Some(new));
+                refresh_install_details(app, details_tx);
             }
-            let sel = app.install_state.selected().unwrap_or(0);
-            let max = inds.len().saturating_sub(1);
-            let new = std::cmp::min(sel + 1, max);
-            app.install_state.select(Some(new));
-            refresh_install_details(app, details_tx);
         }
         KeyCode::Char('k') => {
             // vim up
-            let inds = crate::ui_helpers::filtered_install_indices(app);
-            if inds.is_empty() {
-                return false;
-            }
-            if let Some(sel) = app.install_state.selected() {
-                let new = sel.saturating_sub(1);
-                app.install_state.select(Some(new));
-                refresh_install_details(app, details_tx);
+            if app.installed_only_mode {
+                if let Some(sel) = app.remove_state.selected() {
+                    let new = sel.saturating_sub(1);
+                    app.remove_state.select(Some(new));
+                    refresh_remove_details(app, details_tx);
+                }
+            } else {
+                let inds = crate::ui_helpers::filtered_install_indices(app);
+                if inds.is_empty() {
+                    return false;
+                }
+                if let Some(sel) = app.install_state.selected() {
+                    let new = sel.saturating_sub(1);
+                    app.install_state.select(Some(new));
+                    refresh_install_details(app, details_tx);
+                }
             }
         }
         KeyCode::Char('/') => {
             app.pane_find = Some(String::new());
         }
         KeyCode::Enter => {
-            if !app.install_list.is_empty() {
+            if app.installed_only_mode {
+                if !app.remove_list.is_empty() {
+                    app.modal = crate::state::Modal::ConfirmRemove {
+                        items: app.remove_list.clone(),
+                    };
+                }
+            } else if !app.install_list.is_empty() {
                 // Open confirmation modal listing all items to be installed
                 app.modal = crate::state::Modal::ConfirmInstall {
                     items: app.install_list.clone(),
@@ -102,7 +130,7 @@ pub fn handle_install_key(
             app.focus = crate::state::Focus::Recent;
         }
         KeyCode::Left => {
-            // Install -> Search (adjacent)
+            // Install/Remove -> Search (adjacent)
             app.focus = crate::state::Focus::Search;
             refresh_selected_details(app, details_tx);
         }
@@ -134,26 +162,46 @@ pub fn handle_install_key(
             }
         }
         KeyCode::Up => {
-            let inds = crate::ui_helpers::filtered_install_indices(app);
-            if inds.is_empty() {
-                return false;
-            }
-            if let Some(sel) = app.install_state.selected() {
-                let new = sel.saturating_sub(1);
-                app.install_state.select(Some(new));
-                refresh_install_details(app, details_tx);
+            if app.installed_only_mode {
+                if let Some(sel) = app.remove_state.selected() {
+                    let new = sel.saturating_sub(1);
+                    app.remove_state.select(Some(new));
+                    refresh_remove_details(app, details_tx);
+                }
+            } else {
+                let inds = crate::ui_helpers::filtered_install_indices(app);
+                if inds.is_empty() {
+                    return false;
+                }
+                if let Some(sel) = app.install_state.selected() {
+                    let new = sel.saturating_sub(1);
+                    app.install_state.select(Some(new));
+                    refresh_install_details(app, details_tx);
+                }
             }
         }
         KeyCode::Down => {
-            let inds = crate::ui_helpers::filtered_install_indices(app);
-            if inds.is_empty() {
-                return false;
+            if app.installed_only_mode {
+                let len = app.remove_list.len();
+                if len == 0 {
+                    return false;
+                }
+                let sel = app.remove_state.selected().unwrap_or(0);
+                let max = len.saturating_sub(1);
+                let new = std::cmp::min(sel + 1, max);
+                app.remove_state.select(Some(new));
+                refresh_remove_details(app, details_tx);
+            } else {
+                let inds = crate::ui_helpers::filtered_install_indices(app);
+                if inds.is_empty() {
+                    return false;
+                }
+                let sel = app.install_state.selected().unwrap_or(0);
+                let max = inds.len().saturating_sub(1);
+                let new = std::cmp::min(sel + 1, max);
+                app.install_state.select(Some(new));
+                refresh_install_details(app, details_tx);
             }
-            let sel = app.install_state.selected().unwrap_or(0);
-            let max = inds.len().saturating_sub(1);
-            let new = std::cmp::min(sel + 1, max);
-            app.install_state.select(Some(new));
-            refresh_install_details(app, details_tx);
         }
         _ => {}
     }

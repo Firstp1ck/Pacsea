@@ -220,9 +220,7 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
     }
     let day = (days + 1) as u32;
 
-    format!(
-        "{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}"
-    )
+    format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}")
 }
 
 /// Leap year predicate for the proleptic Gregorian calendar.

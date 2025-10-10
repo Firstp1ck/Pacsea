@@ -19,6 +19,74 @@
 use std::process::Command;
 
 use crate::state::{PackageItem, Source};
+#[cfg(not(target_os = "windows"))]
+/// Spawn a new terminal to remove multiple packages via pacman -Rns.
+///
+/// Uses `sudo pacman -Rns --noconfirm <names...>` and keeps the terminal open
+/// with a hold tail. In dry-run mode, prints the intended command.
+pub fn spawn_remove_all(names: &[String], dry_run: bool) {
+    let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
+    let cmd_str = if dry_run {
+        format!(
+            "echo DRY RUN: sudo pacman -Rns --noconfirm {n}{hold}",
+            n = names.join(" "),
+            hold = hold_tail
+        )
+    } else {
+        format!(
+            "sudo pacman -Rns --noconfirm {n}{hold}",
+            n = names.join(" "),
+            hold = hold_tail
+        )
+    };
+    let terms: &[(&str, &[&str], bool)] = &[
+        ("alacritty", &["-e", "bash", "-lc"], false),
+        ("kitty", &["bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+        ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("konsole", &["-e", "bash", "-lc"], false),
+        ("xfce4-terminal", &["-e", "bash", "-lc"], false),
+        ("tilix", &["-e", "bash", "-lc"], false),
+        ("mate-terminal", &["-e", "bash", "-lc"], false),
+    ];
+    let mut launched = false;
+    for (term, args, _hold) in terms {
+        if command_on_path(term) {
+            let _ = Command::new(term)
+                .args(args.iter().copied())
+                .arg(&cmd_str)
+                .spawn();
+            launched = true;
+            break;
+        }
+    }
+    if !launched {
+        let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub fn spawn_remove_all(names: &[String], dry_run: bool) {
+    let mut names = names.to_vec();
+    if names.is_empty() {
+        names.push("nothing".into());
+    }
+    let msg = if dry_run {
+        format!("DRY RUN: remove {}", names.join(" "))
+    } else {
+        format!("Remove {} (not supported on Windows)", names.join(" "))
+    };
+    let _ = Command::new("cmd")
+        .args([
+            "/C",
+            "start",
+            "Pacsea Remove",
+            "cmd",
+            "/K",
+            &format!("echo {msg}"),
+        ])
+        .spawn();
+}
 
 // Helper: check whether a command exists on PATH (Unix-aware exec bit)
 #[cfg(not(target_os = "windows"))]
@@ -341,4 +409,78 @@ fn log_installed(names: &[String]) -> std::io::Result<()> {
         writeln!(f, "{when} {n}")?;
     }
     Ok(())
+}
+
+/// Append removed package names to `removed_packages.txt` in the XDG config directory.
+///
+/// One package name per line; file is created if missing and appended otherwise.
+pub fn log_removed(names: &[String]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut path = crate::theme::config_dir();
+    path.push("removed_packages.txt");
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    for n in names {
+        writeln!(f, "{}", n)?;
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+/// Spawn a terminal and execute a sequence of shell commands (bash -lc) one after another.
+///
+/// Each command is joined with '&&' so that subsequent commands run only if the previous
+/// one succeeded. The terminal remains open with a hold tail to show results.
+pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
+    if cmds.is_empty() {
+        return;
+    }
+    let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
+    let joined = cmds.join(" && ");
+    let cmd_str = format!("{joined}{hold}", hold = hold_tail);
+    let terms: &[(&str, &[&str], bool)] = &[
+        ("alacritty", &["-e", "bash", "-lc"], false),
+        ("kitty", &["bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+        ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("konsole", &["-e", "bash", "-lc"], false),
+        ("xfce4-terminal", &["-e", "bash", "-lc"], false),
+        ("tilix", &["-e", "bash", "-lc"], false),
+        ("mate-terminal", &["-e", "bash", "-lc"], false),
+    ];
+    let mut launched = false;
+    for (term, args, _hold) in terms {
+        if command_on_path(term) {
+            let _ = Command::new(term)
+                .args(args.iter().copied())
+                .arg(&cmd_str)
+                .spawn();
+            launched = true;
+            break;
+        }
+    }
+    if !launched {
+        let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
+    let msg = if cmds.is_empty() {
+        "Nothing to run".to_string()
+    } else {
+        cmds.join(" && ")
+    };
+    let _ = Command::new("cmd")
+        .args([
+            "/C",
+            "start",
+            "Pacsea Update",
+            "cmd",
+            "/K",
+            &format!("echo {msg}"),
+        ])
+        .spawn();
 }

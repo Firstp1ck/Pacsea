@@ -11,7 +11,7 @@ mod store;
 mod types;
 
 pub use config::save_sort_mode;
-pub use paths::{cache_dir, state_dir};
+pub use paths::{cache_dir, config_dir, state_dir};
 pub use settings::settings;
 pub use store::{reload_theme, theme};
 pub use types::{KeyChord, KeyMap, Settings, Theme};

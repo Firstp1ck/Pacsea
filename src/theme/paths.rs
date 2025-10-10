@@ -74,3 +74,11 @@ pub fn state_dir() -> PathBuf {
     let _ = std::fs::create_dir_all(&dir);
     dir
 }
+
+/// XDG config directory for Pacsea (ensured to exist)
+pub fn config_dir() -> PathBuf {
+    let base = xdg_base_dir("XDG_CONFIG_HOME", &[".config"]);
+    let dir = base.join("pacsea");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}

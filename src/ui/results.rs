@@ -57,7 +57,16 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .iter()
         .map(|p| {
             let (src, color) = match &p.source {
-                Source::Official { repo, .. } => (repo.to_string(), th.green),
+                Source::Official { repo, .. } => {
+                    let label = if repo.eq_ignore_ascii_case("eos")
+                        || repo.eq_ignore_ascii_case("endeavouros")
+                    {
+                        "EOS".to_string()
+                    } else {
+                        repo.to_string()
+                    };
+                    (label, th.green)
+                }
                 Source::Aur => ("AUR".to_string(), th.yellow),
             };
             let desc = if p.description.is_empty() {
@@ -103,15 +112,16 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         })
         .collect();
 
-    // Build title with Sort button and filter toggles
+    // Build title with Sort button, filter toggles, and a right-aligned Options button
     let results_title_text = format!("Results ({})", app.results.len());
-    let sort_button_label = "Sort ▾".to_string();
+    let sort_button_label = "Sort v".to_string();
+    let options_button_label = "Options v".to_string();
     let mut title_spans: Vec<Span> = vec![Span::styled(
         results_title_text.clone(),
         Style::default().fg(th.overlay1),
     )];
     title_spans.push(Span::raw("  "));
-    // Style the button differently when menu is open
+    // Style the sort button differently when menu is open
     let btn_style = if app.sort_menu_open {
         Style::default()
             .fg(th.crust)
@@ -125,7 +135,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     };
     title_spans.push(Span::styled(sort_button_label.clone(), btn_style));
     title_spans.push(Span::raw("  "));
-    // Filter toggles: [AUR] [core] [extra] [multilib]
+    // Filter toggles: [AUR] [core] [extra] [multilib] [EOS]
     let filt = |label: &str, on: bool| -> Span<'static> {
         let (fg, bg) = if on {
             (th.crust, th.green)
@@ -144,6 +154,8 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     title_spans.push(filt("extra", app.results_filter_show_extra));
     title_spans.push(Span::raw(" "));
     title_spans.push(filt("multilib", app.results_filter_show_multilib));
+    title_spans.push(Span::raw(" "));
+    title_spans.push(filt("EOS", app.results_filter_show_eos));
 
     // Estimate and record clickable rects for controls on the title line (top border row)
     let mut x_cursor = area
@@ -178,6 +190,56 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .saturating_add(1);
     let multilib_label = "[multilib]";
     app.results_filter_multilib_rect = Some(rec_rect(x_cursor, multilib_label));
+    x_cursor = x_cursor
+        .saturating_add(multilib_label.len() as u16)
+        .saturating_add(1);
+    let eos_label = "[EOS]";
+    app.results_filter_eos_rect = Some(rec_rect(x_cursor, eos_label));
+
+    // Right-aligned Options button: compute remaining space and append to title spans
+    let inner_width = area.width.saturating_sub(2); // exclude borders
+    let consumed_left = (results_title_text.len()
+        + 2 // spaces before Sort
+        + sort_button_label.len()
+        + 2 // spaces after Sort
+        + aur_label.len()
+        + 1 // space
+        + core_label.len()
+        + 1 // space
+        + extra_label.len()
+        + 1 // space
+        + multilib_label.len()
+        + 1 // space
+        + eos_label.len()) as u16;
+    // Minimum single space before Options when possible
+    let options_w = options_button_label.len() as u16;
+    let pad = inner_width.saturating_sub(consumed_left.saturating_add(options_w));
+    let mut options_btn_x: Option<u16> = None;
+    if pad >= 1 {
+        title_spans.push(Span::raw(" ".repeat(pad as usize)));
+        let opt_btn_style = if app.options_menu_open {
+            Style::default()
+                .fg(th.crust)
+                .bg(th.mauve)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(th.mauve)
+                .bg(th.surface2)
+                .add_modifier(Modifier::BOLD)
+        };
+        title_spans.push(Span::styled(options_button_label.clone(), opt_btn_style));
+
+        // Record clickable rect for Options button at the computed right edge
+        let x = area
+            .x
+            .saturating_add(1) // left border inset
+            .saturating_add(inner_width.saturating_sub(options_w));
+        options_btn_x = Some(x);
+        app.options_button_rect = Some((x, btn_y, options_w, 1));
+    } else {
+        app.options_button_rect = None;
+    }
 
     let list = List::new(items)
         .style(Style::default().fg(th.text).bg(th.base))
@@ -200,13 +262,15 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
         // Place menu just under the title, aligned to button if possible
-        let menu_x = btn_x.min(area.x + area.width.saturating_sub(1 + w));
+        let rect_w = w.saturating_add(2);
+        let max_x = area.x + area.width.saturating_sub(rect_w);
+        let menu_x = btn_x.min(max_x);
         let menu_y = area.y.saturating_add(1); // just below top border
         let h = (opts.len() as u16) + 2; // borders
         let rect = ratatui::prelude::Rect {
             x: menu_x,
             y: menu_y,
-            width: w.saturating_add(2),
+            width: rect_w,
             height: h,
         };
         // Record inner list area for hit-testing (exclude borders)
@@ -241,6 +305,55 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             .block(
                 Block::default()
                     .title(Span::styled(" Sort by ", Style::default().fg(th.overlay1)))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(th.surface2)),
+            );
+        f.render_widget(Clear, rect);
+        f.render_widget(menu, rect);
+    }
+
+    // Optional: render Options dropdown overlay near the right button
+    app.options_menu_rect = None;
+    if app.options_menu_open {
+        let label_toggle = if app.installed_only_mode {
+            "List all packages"
+        } else {
+            "List installed packages"
+        };
+        let opts = [label_toggle, "Update System"];
+        let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
+        let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
+        // Place menu under the Options button aligned to its right edge
+        let rect_w = w.saturating_add(2);
+        let max_x = area.x + area.width.saturating_sub(rect_w);
+        let obx = options_btn_x.unwrap_or(max_x);
+        let menu_x = obx.min(max_x);
+        let menu_y = area.y.saturating_add(1); // just below top border
+        let h = (opts.len() as u16) + 2; // borders
+        let rect = ratatui::prelude::Rect {
+            x: menu_x,
+            y: menu_y,
+            width: rect_w,
+            height: h,
+        };
+        // Record inner list area for hit-testing (exclude borders)
+        app.options_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
+
+        // Build lines (single selectable option)
+        let mut lines: Vec<Line> = Vec::new();
+        for text in opts.iter() {
+            lines.push(Line::from(vec![Span::styled(
+                text.to_string(),
+                Style::default().fg(th.text),
+            )]));
+        }
+        let menu = Paragraph::new(lines)
+            .style(Style::default().fg(th.text).bg(th.base))
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .title(Span::styled(" Options ", Style::default().fg(th.overlay1)))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(th.surface2)),

@@ -144,6 +144,25 @@ pub enum Modal {
     ConfirmInstall { items: Vec<PackageItem> },
     /// Help overlay with keybindings. Non-interactive; dismissed with Esc/Enter.
     Help,
+    /// Confirmation dialog for removing the given items.
+    ConfirmRemove { items: Vec<PackageItem> },
+    /// System update dialog with multi-select options and optional country.
+    SystemUpdate {
+        /// Whether to update Arch mirrors using reflector.
+        do_mirrors: bool,
+        /// Whether to update system packages via pacman.
+        do_pacman: bool,
+        /// Whether to update AUR packages via paru/yay.
+        do_aur: bool,
+        /// Whether to remove caches (pacman and AUR helper).
+        do_cache: bool,
+        /// Index into `countries` for the reflector `--country` argument.
+        country_idx: usize,
+        /// Available countries to choose from for reflector.
+        countries: Vec<String>,
+        /// Cursor row in the dialog (0..=4)
+        cursor: usize,
+    },
 }
 
 /// Which UI pane currently has keyboard focus.
@@ -170,6 +189,8 @@ pub struct AppState {
     pub results: Vec<PackageItem>,
     /// Unfiltered results as last received from the search worker.
     pub all_results: Vec<PackageItem>,
+    /// Backup of results when toggling to installed-only view.
+    pub results_backup_for_toggle: Option<Vec<PackageItem>>,
     /// Index into `results` that is currently highlighted.
     pub selected: usize,
     /// Details for the currently highlighted result.
@@ -215,6 +236,10 @@ pub struct AppState {
     pub install_list: Vec<PackageItem>,
     /// List selection state for the Install pane.
     pub install_state: ListState,
+    /// Separate list of packages selected for removal (active in installed-only mode).
+    pub remove_list: Vec<PackageItem>,
+    /// List selection state for the Remove pane.
+    pub remove_state: ListState,
     // Persisted install list
     /// Path where the install list is persisted as JSON.
     pub install_path: PathBuf,
@@ -309,6 +334,17 @@ pub struct AppState {
     /// Deadline after which the sort dropdown auto-closes.
     pub sort_menu_auto_close_at: Option<Instant>,
 
+    // Results options UI (top-right dropdown)
+    /// Whether the options dropdown is currently visible.
+    pub options_menu_open: bool,
+    /// Clickable rectangle for the options button in the Results title (x, y, w, h).
+    pub options_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the options dropdown menu when visible (x, y, w, h).
+    pub options_menu_rect: Option<(u16, u16, u16, u16)>,
+
+    /// Whether Results is currently showing only explicitly installed packages.
+    pub installed_only_mode: bool,
+
     // Results filters UI
     /// Whether to include AUR packages in the Results view.
     pub results_filter_show_aur: bool,
@@ -318,6 +354,8 @@ pub struct AppState {
     pub results_filter_show_extra: bool,
     /// Whether to include packages from the `multilib` repo in the Results view.
     pub results_filter_show_multilib: bool,
+    /// Whether to include packages from the `eos` repo in the Results view.
+    pub results_filter_show_eos: bool,
     /// Clickable rectangle for the AUR filter toggle in the Results title (x, y, w, h).
     pub results_filter_aur_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the core filter toggle in the Results title (x, y, w, h).
@@ -326,6 +364,8 @@ pub struct AppState {
     pub results_filter_extra_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the multilib filter toggle in the Results title (x, y, w, h).
     pub results_filter_multilib_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the EOS filter toggle in the Results title (x, y, w, h).
+    pub results_filter_eos_rect: Option<(u16, u16, u16, u16)>,
 }
 
 impl Default for AppState {
@@ -336,6 +376,7 @@ impl Default for AppState {
             input: String::new(),
             results: Vec::new(),
             all_results: Vec::new(),
+            results_backup_for_toggle: None,
             selected: 0,
             details: PackageDetails::default(),
             list_state: ListState::default(),
@@ -359,6 +400,8 @@ impl Default for AppState {
 
             install_list: Vec::new(),
             install_state: ListState::default(),
+            remove_list: Vec::new(),
+            remove_state: ListState::default(),
             // Install list (XDG state)
             install_path: crate::theme::state_dir().join("install_list.json"),
             install_dirty: false,
@@ -408,15 +451,24 @@ impl Default for AppState {
             sort_menu_rect: None,
             sort_menu_auto_close_at: None,
 
+            // Options dropdown (top-right of Results)
+            options_menu_open: false,
+            options_button_rect: None,
+            options_menu_rect: None,
+
+            installed_only_mode: false,
+
             // Filters default to showing everything
             results_filter_show_aur: true,
             results_filter_show_core: true,
             results_filter_show_extra: true,
             results_filter_show_multilib: true,
+            results_filter_show_eos: true,
             results_filter_aur_rect: None,
             results_filter_core_rect: None,
             results_filter_extra_rect: None,
             results_filter_multilib_rect: None,
+            results_filter_eos_rect: None,
         }
     }
 }
