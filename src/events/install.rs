@@ -126,9 +126,6 @@ pub fn handle_install_key(
             app.focus = crate::state::Focus::Recent;
             crate::ui_helpers::trigger_recent_preview(app, preview_tx);
         }
-        code if matches_any(&km.pane_prev) && code == ke.code => {
-            app.focus = crate::state::Focus::Recent;
-        }
         KeyCode::Left => {
             // Install/Remove -> Search (adjacent)
             app.focus = crate::state::Focus::Search;

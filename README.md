@@ -242,7 +242,7 @@ Pacsea supports a configurable color theme and basic app settings via a simple `
   - `app_dry_run_default` — `true`/`false`; sets default dry‑run mode at startup. Overridden by the `--dry-run` flag.
   - Clipboard: `clipboard_suffix` — text appended when copying PKGBUILD to clipboard. Default: "Check PKGBUILD and source for suspicious and malicious activities".
   - Keybindings (one chord per action; modifiers can be `SUPER`, `CTRL`, `SHIFT`, `ALT`). Examples:
-    - Global: `keybind_help`, `keybind_reload_theme`, `keybind_exit`, `keybind_show_pkgbuild`, `keybind_pane_next`, `keybind_pane_prev`, `keybind_pane_left`, `keybind_pane_right`
+    - Global: `keybind_help`, `keybind_reload_theme`, `keybind_exit`, `keybind_show_pkgbuild`, `keybind_pane_next`, `keybind_pane_left`, `keybind_pane_right`, `keybind_change_sort`
     - Search: `keybind_search_move_up`, `keybind_search_move_down`, `keybind_search_page_up`, `keybind_search_page_down`, `keybind_search_add`, `keybind_search_install`, `keybind_search_focus_left`, `keybind_search_focus_right`, `keybind_search_backspace`
     - Search (Normal mode): `keybind_search_normal_toggle`, `keybind_search_normal_insert`, `keybind_search_normal_select_left`, `keybind_search_normal_select_right`, `keybind_search_normal_delete`
     - Recent: `keybind_recent_move_up`, `keybind_recent_move_down`, `keybind_recent_find`, `keybind_recent_use`, `keybind_recent_add`, `keybind_recent_to_search`, `keybind_recent_focus_right`

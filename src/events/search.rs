@@ -111,13 +111,6 @@ pub fn handle_search_key(
                 app.focus = crate::state::Focus::Install;
                 refresh_install_details(app, details_tx);
             }
-            (c, m) if matches_any(&km.pane_prev) && (c, m) == (ke.code, ke.modifiers) => {
-                if app.history_state.selected().is_none() && !app.recent.is_empty() {
-                    app.history_state.select(Some(0));
-                }
-                app.focus = crate::state::Focus::Recent;
-                crate::ui_helpers::trigger_recent_preview(app, &dummy_preview());
-            }
             (KeyCode::Right, _) => {
                 if app.install_state.selected().is_none() && !app.install_list.is_empty() {
                     app.install_state.select(Some(0));
@@ -148,14 +141,7 @@ pub fn handle_search_key(
             app.focus = crate::state::Focus::Install;
             refresh_install_details(app, details_tx);
         }
-        (c, m) if matches_any(&km.pane_prev) && (c, m) == (ke.code, ke.modifiers) => {
-            // Search -> Install (unchanged)
-            if app.install_state.selected().is_none() && !app.install_list.is_empty() {
-                app.install_state.select(Some(0));
-            }
-            app.focus = crate::state::Focus::Install;
-            refresh_install_details(app, details_tx);
-        }
+        // previous pane removed
         (KeyCode::Right, _) => {
             // Search -> Install (adjacent)
             if app.install_state.selected().is_none() && !app.install_list.is_empty() {

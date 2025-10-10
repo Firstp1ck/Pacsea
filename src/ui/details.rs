@@ -248,6 +248,14 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
+            // Change sorting (global) using configured keybind
+            if let Some(k) = km.change_sort.first() {
+                g_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" change sorting"),
+                    sep.clone(),
+                ]);
+            }
 
             // SEARCH
             let mut s_spans: Vec<Span> = vec![
@@ -290,11 +298,11 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
-            // Switch pane (only show when both next and prev are configured)
-            if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
+            // Switch pane (next only)
+            if let Some(n) = km.pane_next.first() {
                 s_spans.extend([
-                    Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
-                    Span::raw(" switch pane"),
+                    Span::styled(format!("[{}]", n.label()), key_style),
+                    Span::raw(" next pane"),
                     sep.clone(),
                 ]);
             }
@@ -375,11 +383,11 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
-            // Pane switch (only when both are configured)
-            if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
+            // Pane switch (next only)
+            if let Some(n) = km.pane_next.first() {
                 i_spans.extend([
-                    Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
-                    Span::raw(" switch pane"),
+                    Span::styled(format!("[{}]", n.label()), key_style),
+                    Span::raw(" next pane"),
                     sep.clone(),
                 ]);
             }
@@ -444,10 +452,10 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
-            if let (Some(n), Some(p)) = (km.pane_next.first(), km.pane_prev.first()) {
+            if let Some(n) = km.pane_next.first() {
                 r_spans.extend([
-                    Span::styled(format!("[{} / {}]", n.label(), p.label()), key_style),
-                    Span::raw(" switch pane"),
+                    Span::styled(format!("[{}]", n.label()), key_style),
+                    Span::raw(" next pane"),
                 ]);
             }
             // Focus right within Recent

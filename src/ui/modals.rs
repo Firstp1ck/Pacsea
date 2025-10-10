@@ -373,9 +373,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             if let Some(k) = km.pane_next.first().copied() {
                 lines.push(fmt("Next pane", k));
             }
-            if let Some(k) = km.pane_prev.first().copied() {
-                lines.push(fmt("Previous pane", k));
-            }
+            // Previous pane binding removed
             if let Some(k) = km.pane_left.first().copied() {
                 lines.push(fmt("Focus left", k));
             }
@@ -384,6 +382,10 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             }
             if let Some(k) = km.show_pkgbuild.first().copied() {
                 lines.push(fmt("Show PKGBUILD", k));
+            }
+            // Show configured key for change sorting
+            if let Some(k) = km.change_sort.first().copied() {
+                lines.push(fmt("Change sorting", k));
             }
             lines.push(Line::from(""));
 

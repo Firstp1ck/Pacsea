@@ -100,16 +100,17 @@ pub fn settings() -> Settings {
                     out.keymap.show_pkgbuild = vec![ch];
                 }
             }
+            "keybind_change_sort" | "keybind_sort" => {
+                if let Some(ch) = parse_key_chord(val) {
+                    out.keymap.change_sort = vec![ch];
+                }
+            }
             "keybind_pane_next" | "keybind_next_pane" | "keybind_switch_pane" => {
                 if let Some(ch) = parse_key_chord(val) {
                     out.keymap.pane_next = vec![ch];
                 }
             }
-            "keybind_pane_prev" | "keybind_prev_pane" => {
-                if let Some(ch) = parse_key_chord(val) {
-                    out.keymap.pane_prev = vec![ch];
-                }
-            }
+            // keybind_pane_prev has been removed; ignore for compatibility
             "keybind_pane_left" => {
                 if let Some(ch) = parse_key_chord(val) {
                     out.keymap.pane_left = vec![ch];

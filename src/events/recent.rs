@@ -85,10 +85,6 @@ pub fn handle_recent_key(
             app.focus = crate::state::Focus::Search;
             refresh_selected_details(app, details_tx);
         }
-        code if matches_any(&km.pane_prev) && code == ke.code => {
-            app.focus = crate::state::Focus::Search;
-            refresh_selected_details(app, details_tx);
-        }
         KeyCode::Left => { /* no-op: already at leftmost pane */ }
         KeyCode::Right => {
             // Recent -> Search (adjacent)

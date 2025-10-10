@@ -108,6 +108,8 @@ keybind_show_pkgbuild = CTRL+X\n\
 keybind_pane_left = Left\n\
 keybind_pane_right = Right\n\
 keybind_pane_next = Tab\n\
+# GLOBAL — Sorting\n\
+keybind_change_sort = BackTab\n\
 \n\
 # SEARCH — Navigation\n\
 keybind_search_move_up = Up\n\

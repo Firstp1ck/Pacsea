@@ -145,8 +145,9 @@ pub struct KeyMap {
     pub exit: Vec<KeyChord>,
     /// Global: Show/Hide PKGBUILD viewer
     pub show_pkgbuild: Vec<KeyChord>,
+    /// Global: Change results sorting mode
+    pub change_sort: Vec<KeyChord>,
     pub pane_next: Vec<KeyChord>,
-    pub pane_prev: Vec<KeyChord>,
     pub pane_left: Vec<KeyChord>,
     pub pane_right: Vec<KeyChord>,
 
@@ -224,11 +225,14 @@ impl Default for KeyMap {
                 code: Char('x'),
                 mods: ctrl,
             }],
+            change_sort: vec![KeyChord {
+                code: BackTab,
+                mods: none,
+            }],
             pane_next: vec![KeyChord {
                 code: Tab,
                 mods: none,
             }],
-            pane_prev: vec![],
             pane_left: vec![KeyChord {
                 code: Left,
                 mods: none,

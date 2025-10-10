@@ -241,8 +241,13 @@ pub fn handle_event(
             return false;
         }
 
-        // Global: Shift+Tab cycles sort mode and opens the dropdown for visual feedback
-        if ke.code == KeyCode::BackTab {
+        // Global: Change sorting via configured keybind
+        if app
+            .keymap
+            .change_sort
+            .iter()
+            .any(|c| (c.code, c.mods) == (ke.code, ke.modifiers))
+        {
             // Cycle through sort modes in fixed order
             app.sort_mode = match app.sort_mode {
                 crate::state::SortMode::RepoThenName => {
