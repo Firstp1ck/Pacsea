@@ -589,32 +589,18 @@ pub fn handle_mouse_event(
                 }
             };
 
-            // Build command to open file in terminal editor
-            let mut cmds: Vec<String> = Vec::new();
+            // Build a single OR-chained command so only the first available editor runs
             let path_str = target.display().to_string();
-            // Prefer nvim, then vim, then helix/hx, fallback nano
-            cmds.push(format!(
-                "(command -v nvim >/dev/null 2>&1 && nvim '{}') || true",
-                path_str
-            ));
-            cmds.push(format!(
-                "(command -v vim >/dev/null 2>&1 && vim '{}') || true",
-                path_str
-            ));
-            cmds.push(format!(
-                "(command -v hx >/dev/null 2>&1 && hx '{}') || true",
-                path_str
-            ));
-            cmds.push(format!(
-                "(command -v helix >/dev/null 2>&1 && helix '{}') || true",
-                path_str
-            ));
-            cmds.push(format!(
-                "(command -v nano >/dev/null 2>&1 && nano '{}') || true",
-                path_str
-            ));
-            // If none matched, just cat with hint to install an editor
-            cmds.push(format!("(echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {}'; read -rn1 -s _ || true)", path_str));
+            let editor_cmd = format!(
+                "(command -v nvim >/dev/null 2>&1 && nvim '{p}') || \
+                 (command -v vim >/dev/null 2>&1 && vim '{p}') || \
+                 (command -v hx >/dev/null 2>&1 && hx '{p}') || \
+                 (command -v helix >/dev/null 2>&1 && helix '{p}') || \
+                 (command -v nano >/dev/null 2>&1 && nano '{p}') || \
+                 (echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {p}'; read -rn1 -s _ || true)",
+                p = path_str,
+            );
+            let cmds = vec![editor_cmd];
 
             // Run in external terminal window
             std::thread::spawn(move || {
