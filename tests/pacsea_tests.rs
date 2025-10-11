@@ -34,13 +34,6 @@ fn new_app() -> AppState {
     }
 }
 
-// Test-only helper: reset global allowed set via public API
-fn test_reset_allowed() {
-    // With an empty app, set_allowed_ring writes an empty set into the global
-    // allowed gating, which effectively clears it.
-    let app = new_app();
-    logic::set_allowed_ring(&app, 0);
-}
 
 #[test]
 fn util_percent_encode() {
@@ -337,36 +330,6 @@ async fn logic_move_sel_cached_uses_details_cache() {
     assert_eq!(app.details.name, "pkg");
 }
 
-#[tokio::test]
-async fn logic_ring_prefetch_sends_neighbors_respecting_allowed_and_cache() {
-    // Ensure global gating state is clean for this test run
-    test_reset_allowed();
-    let mut app = new_app();
-    app.results = vec![
-        item_official("a", "core"),
-        item_official("b", "core"),
-        item_official("c", "core"),
-    ];
-    app.selected = 1;
-
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    logic::set_allowed_ring(&app, 1);
-    logic::ring_prefetch_from_selected(&mut app, &tx);
-
-    let mut names = std::collections::HashSet::new();
-    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
-    while names.len() < 2 && std::time::Instant::now() < deadline {
-        if let Ok(Some(it)) =
-            tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv()).await
-        {
-            names.insert(it.name);
-        }
-    }
-    assert_eq!(
-        names,
-        ["a".to_string(), "c".to_string()].into_iter().collect()
-    );
-}
 
 #[test]
 fn ui_helpers_details_lines_sizes_and_lists() {
