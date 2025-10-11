@@ -35,7 +35,53 @@ pub fn handle_mouse_event(
     // Track last mouse position for dynamic capture toggling
     app.last_mouse_pos = Some((mx, my));
 
-    // A) Modal-first handling: if News modal is open, intercept mouse events before anything else
+    // A) Modal-first handling: Help and News intercept mouse events
+    if let crate::state::Modal::Help = &app.modal {
+        // Scroll within Help content area
+        if let Some((x, y, w, h)) = app.help_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    app.help_scroll = app.help_scroll.saturating_sub(1);
+                    return false;
+                }
+                MouseEventKind::ScrollDown => {
+                    app.help_scroll = app.help_scroll.saturating_add(1);
+                    return false;
+                }
+                _ => {}
+            }
+        }
+        // Clicking outside closes the Help modal
+        if is_left_down {
+            if let Some((x, y, w, h)) = app.help_rect {
+                // Outer rect includes borders around inner help rect
+                let outer_x = x.saturating_sub(1);
+                let outer_y = y.saturating_sub(1);
+                let outer_w = w.saturating_add(2);
+                let outer_h = h.saturating_add(2);
+                if mx < outer_x
+                    || mx >= outer_x + outer_w
+                    || my < outer_y
+                    || my >= outer_y + outer_h
+                {
+                    app.modal = crate::state::Modal::None;
+                }
+            } else {
+                // Fallback: close on any click if no rect is known
+                app.modal = crate::state::Modal::None;
+            }
+            return false;
+        }
+        // Consume remaining mouse events while Help is open
+        return false;
+    }
+
+    // If News modal is open, intercept mouse events before anything else
     if let crate::state::Modal::News { items, selected } = &mut app.modal {
         // Left click: select/open or close on outside
         if is_left_down {

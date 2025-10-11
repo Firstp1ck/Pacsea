@@ -181,6 +181,12 @@ pub struct AppState {
     /// Inner list rectangle for clickable news rows.
     pub news_list_rect: Option<(u16, u16, u16, u16)>,
 
+    // Help modal scroll and hit-testing
+    /// Scroll offset (lines) for the Help modal content.
+    pub help_scroll: u16,
+    /// Inner content rectangle of the Help modal (x, y, w, h) for hit-testing.
+    pub help_rect: Option<(u16, u16, u16, u16)>,
+
     // Results sorting UI
     /// Current sort mode for results.
     pub sort_mode: SortMode,
@@ -336,6 +342,9 @@ impl Default for AppState {
 
             news_rect: None,
             news_list_rect: None,
+
+            help_scroll: 0,
+            help_rect: None,
 
             // Sorting
             sort_mode: SortMode::RepoThenName,

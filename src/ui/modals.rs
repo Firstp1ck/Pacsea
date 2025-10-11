@@ -335,6 +335,13 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 height: h,
             };
             f.render_widget(Clear, rect);
+            // Record inner content rect (exclude borders) for mouse hit-testing
+            app.help_rect = Some((
+                rect.x + 1,
+                rect.y + 1,
+                rect.width.saturating_sub(2),
+                rect.height.saturating_sub(2),
+            ));
             let km = &app.keymap;
 
             let mut lines: Vec<Line<'static>> = Vec::new();
@@ -558,6 +565,62 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     mods: crossterm::event::KeyModifiers::SHIFT,
                 },
             ));
+
+            // Mouse and UI controls
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Mouse:",
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Scroll lists (Results/Recent/Install) and PKGBUILD with mouse wheel",
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details",
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Copy 'Check Package Build': click the title button in PKGBUILD",
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Open details URL: Ctrl+Shift+Left click on the URL",
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Results title bar: click Sort/Options/Panels/Config to open menus",
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Toggle filters (AUR/core/extra/multilib/EOS/cachyos): click their labels",
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Arch Status (top-right): click to open status.archlinux.org",
+            )));
+
+            // Dialogs
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "System Update dialog:",
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Open via Options → Update System",
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Up/Down: move • Space: toggle • Left/Right: change country • Enter: run • Esc: close",
+            )));
+
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "News dialog:",
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::raw(
+                "  • Open via Options → News • Up/Down: select • Enter: open • Esc: close",
+            )));
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Press Enter or Esc to close",
@@ -567,6 +630,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             let boxw = Paragraph::new(lines)
                 .style(Style::default().fg(th.text).bg(th.mantle))
                 .wrap(Wrap { trim: true })
+                .scroll((app.help_scroll, 0))
                 .block(
                     Block::default()
                         .title(Span::styled(
