@@ -10,7 +10,10 @@ mod settings;
 mod store;
 mod types;
 
-pub use config::save_sort_mode;
+pub use config::{
+    ensure_settings_keys_present, save_show_install_pane, save_show_keybinds_footer,
+    save_show_recent_pane, save_sort_mode,
+};
 pub use paths::{cache_dir, config_dir, state_dir};
 pub use settings::settings;
 pub use store::{reload_theme, theme};

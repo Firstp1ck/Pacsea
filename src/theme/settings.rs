@@ -79,6 +79,18 @@ pub fn settings() -> Settings {
             "clipboard_suffix" | "copy_suffix" => {
                 out.clipboard_suffix = val.to_string();
             }
+            "show_recent_pane" | "recent_visible" => {
+                let lv = val.to_ascii_lowercase();
+                out.show_recent_pane = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+            }
+            "show_install_pane" | "install_visible" | "show_install_list" => {
+                let lv = val.to_ascii_lowercase();
+                out.show_install_pane = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+            }
+            "show_keybinds_footer" | "keybinds_visible" => {
+                let lv = val.to_ascii_lowercase();
+                out.show_keybinds_footer = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+            }
             // Keybindings (single chord per action); overrides full list
             "keybind_help" | "keybind_help_overlay" => {
                 if let Some(ch) = parse_key_chord(val) {

@@ -275,6 +275,14 @@ pub struct AppState {
     /// Dirty flag indicating `install_list` needs to be saved.
     pub install_dirty: bool,
 
+    // Visibility toggles for middle row panes
+    /// Whether the Recent pane is visible in the middle row.
+    pub show_recent_pane: bool,
+    /// Whether the Install/Remove pane is visible in the middle row.
+    pub show_install_pane: bool,
+    /// Whether to show the keybindings footer in the details pane.
+    pub show_keybinds_footer: bool,
+
     // In-pane search (for Recent/Install panes)
     /// Optional, transient find pattern used by pane-local search ("/").
     pub pane_find: Option<String>,
@@ -391,6 +399,14 @@ pub struct AppState {
     /// Inner content rectangle of the options dropdown menu when visible (x, y, w, h).
     pub options_menu_rect: Option<(u16, u16, u16, u16)>,
 
+    // Panels dropdown UI (left of Options)
+    /// Whether the panels dropdown is currently visible.
+    pub panels_menu_open: bool,
+    /// Clickable rectangle for the panels button in the Results title (x, y, w, h).
+    pub panels_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the panels dropdown menu when visible (x, y, w, h).
+    pub panels_menu_rect: Option<(u16, u16, u16, u16)>,
+
     /// Whether Results is currently showing only explicitly installed packages.
     pub installed_only_mode: bool,
 
@@ -459,6 +475,11 @@ impl Default for AppState {
             install_path: crate::theme::state_dir().join("install_list.json"),
             install_dirty: false,
 
+            // Middle row panes visible by default
+            show_recent_pane: true,
+            show_install_pane: true,
+            show_keybinds_footer: true,
+
             pane_find: None,
 
             // Search input mode
@@ -517,6 +538,11 @@ impl Default for AppState {
             options_menu_open: false,
             options_button_rect: None,
             options_menu_rect: None,
+
+            // Panels dropdown (top-right of Results)
+            panels_menu_open: false,
+            panels_button_rect: None,
+            panels_menu_rect: None,
 
             installed_only_mode: false,
 

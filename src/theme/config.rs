@@ -5,7 +5,7 @@ use std::path::Path;
 
 use super::parsing::{apply_override_to_map, canonical_to_preferred};
 use super::paths::resolve_config_path;
-use super::types::Theme;
+use super::types::{Settings, Theme};
 
 /// Skeleton configuration file content with default color values.
 pub(crate) const SKELETON_CONFIG_CONTENT: &str = "# Pacsea theme configuration\n\
@@ -84,6 +84,9 @@ layout_center_pct = 60\n\
 layout_right_pct = 20\n\
 # Default dry-run behavior when starting the app (overridden by --dry-run)\n\
 app_dry_run_default = false\n\
+# Middle row visibility (default true)\n\
+show_recent_pane = true\n\
+show_install_pane = true\n\
 \n\
 # Results sorting\n\
 # Allowed values: alphabetical | aur_popularity | best_matches\n\
@@ -196,6 +199,7 @@ pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, Stri
             || norm.starts_with("app_")
             || norm.starts_with("sort_")
             || norm.starts_with("clipboard_")
+            || norm.starts_with("show_")
             || norm == "results_sort";
         if is_pref_key {
             // Skip theme handling; parsed elsewhere
@@ -300,4 +304,166 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
         lines.join("\n")
     };
     let _ = fs::write(p, new_content);
+}
+
+/// Persist a boolean key to pacsea.conf, preserving other content.
+fn save_boolean_key(key_norm: &str, value: bool) {
+    let path = resolve_config_path().or_else(|| {
+        std::env::var("XDG_CONFIG_HOME")
+            .ok()
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var("HOME")
+                    .ok()
+                    .map(|h| Path::new(&h).join(".config"))
+            })
+            .map(|base| base.join("pacsea").join("pacsea.conf"))
+    });
+    let Some(p) = path else {
+        return;
+    };
+    let mut lines: Vec<String> = if let Ok(content) = fs::read_to_string(&p) {
+        content.lines().map(|s| s.to_string()).collect()
+    } else {
+        Vec::new()
+    };
+    let mut replaced = false;
+    for line in lines.iter_mut() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if let Some(eq) = trimmed.find('=') {
+            let (kraw, _) = trimmed.split_at(eq);
+            let key = kraw.trim().to_lowercase().replace(['.', '-', ' '], "_");
+            if key == key_norm {
+                *line = format!("{} = {}", key_norm, if value { "true" } else { "false" });
+                replaced = true;
+            }
+        }
+    }
+    if !replaced {
+        if let Some(dir) = p.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        lines.push(format!(
+            "{} = {}",
+            key_norm,
+            if value { "true" } else { "false" }
+        ));
+    }
+    let new_content = if lines.is_empty() {
+        format!("{} = {}\n", key_norm, if value { "true" } else { "false" })
+    } else {
+        lines.join("\n")
+    };
+    let _ = fs::write(p, new_content);
+}
+
+/// Persist Recent and Install pane visibility toggles.
+pub fn save_show_recent_pane(value: bool) {
+    save_boolean_key("show_recent_pane", value)
+}
+pub fn save_show_install_pane(value: bool) {
+    save_boolean_key("show_install_pane", value)
+}
+pub fn save_show_keybinds_footer(value: bool) {
+    save_boolean_key("show_keybinds_footer", value)
+}
+
+/// Ensure core application settings keys exist in the config file; append missing with current/default values.
+///
+/// This preserves existing lines and comments, only appending keys that are not present.
+pub fn ensure_settings_keys_present(prefs: &Settings) {
+    // Prefer repository config path; otherwise use resolved XDG/HOME path similar to save_sort_mode
+    let path = super::paths::repo_config_path()
+        .filter(|p| p.is_file())
+        .or_else(resolve_config_path)
+        .or_else(|| {
+            std::env::var("XDG_CONFIG_HOME")
+                .ok()
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    std::env::var("HOME")
+                        .ok()
+                        .map(|h| Path::new(&h).join(".config"))
+                })
+                .map(|base| base.join("pacsea").join("pacsea.conf"))
+        });
+    let Some(p) = path else {
+        return;
+    };
+    let mut lines: Vec<String> = if let Ok(content) = fs::read_to_string(&p) {
+        content.lines().map(|s| s.to_string()).collect()
+    } else {
+        Vec::new()
+    };
+    use std::collections::HashSet;
+    let mut have: HashSet<String> = HashSet::new();
+    for line in &lines {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if let Some(eq) = trimmed.find('=') {
+            let (kraw, _) = trimmed.split_at(eq);
+            let key = kraw.trim().to_lowercase().replace(['.', '-', ' '], "_");
+            have.insert(key);
+        }
+    }
+    // Desired keys and their values from prefs
+    let pairs: [(&str, String); 9] = [
+        ("layout_left_pct", prefs.layout_left_pct.to_string()),
+        ("layout_center_pct", prefs.layout_center_pct.to_string()),
+        ("layout_right_pct", prefs.layout_right_pct.to_string()),
+        (
+            "app_dry_run_default",
+            if prefs.app_dry_run_default {
+                "true"
+            } else {
+                "false"
+            }
+            .to_string(),
+        ),
+        ("sort_mode", prefs.sort_mode.as_config_key().to_string()),
+        ("clipboard_suffix", prefs.clipboard_suffix.clone()),
+        (
+            "show_recent_pane",
+            if prefs.show_recent_pane {
+                "true"
+            } else {
+                "false"
+            }
+            .to_string(),
+        ),
+        (
+            "show_install_pane",
+            if prefs.show_install_pane {
+                "true"
+            } else {
+                "false"
+            }
+            .to_string(),
+        ),
+        (
+            "show_keybinds_footer",
+            if prefs.show_keybinds_footer {
+                "true"
+            } else {
+                "false"
+            }
+            .to_string(),
+        ),
+    ];
+    let mut appended_any = false;
+    for (k, v) in pairs.iter() {
+        if !have.contains(*k) {
+            lines.push(format!("{} = {}", k, v));
+            appended_any = true;
+        }
+    }
+    if appended_any {
+        let new_content = lines.join("\n");
+        let _ = fs::write(p, new_content);
+    }
 }

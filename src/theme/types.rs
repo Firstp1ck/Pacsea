@@ -59,6 +59,12 @@ pub struct Settings {
     pub sort_mode: crate::state::SortMode,
     /// Text appended when copying PKGBUILD to clipboard.
     pub clipboard_suffix: String,
+    /// Whether the Recent pane should be shown on startup.
+    pub show_recent_pane: bool,
+    /// Whether the Install/Remove pane should be shown on startup.
+    pub show_install_pane: bool,
+    /// Whether the keybinds footer should be shown on startup.
+    pub show_keybinds_footer: bool,
 }
 
 impl Default for Settings {
@@ -72,6 +78,9 @@ impl Default for Settings {
             sort_mode: crate::state::SortMode::RepoThenName,
             clipboard_suffix: "Check PKGBUILD and source for suspicious and malicious activities"
                 .to_string(),
+            show_recent_pane: true,
+            show_install_pane: true,
+            show_keybinds_footer: true,
         }
     }
 }

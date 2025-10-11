@@ -178,11 +178,18 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     };
 
     let prefs = crate::theme::settings();
+    // Ensure config has all known settings keys (non-destructive append)
+    crate::theme::ensure_settings_keys_present(&prefs);
     app.layout_left_pct = prefs.layout_left_pct;
     app.layout_center_pct = prefs.layout_center_pct;
     app.layout_right_pct = prefs.layout_right_pct;
     app.keymap = prefs.keymap;
     app.sort_mode = prefs.sort_mode;
+    // Apply initial visibility for middle row panes from settings
+    app.show_recent_pane = prefs.show_recent_pane;
+    app.show_install_pane = prefs.show_install_pane;
+    // Apply initial keybind footer visibility (default true if not present)
+    app.show_keybinds_footer = prefs.show_keybinds_footer;
 
     if let Ok(s) = fs::read_to_string(&app.cache_path)
         && let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s)

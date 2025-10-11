@@ -138,6 +138,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let results_title_text = format!("Results ({})", app.results.len());
     let sort_button_label = "Sort v".to_string();
     let options_button_label = "Options v".to_string();
+    let panels_button_label = "Panels v".to_string();
     let mut title_spans: Vec<Span> = vec![Span::styled(
         results_title_text.clone(),
         Style::default().fg(th.overlay1),
@@ -237,7 +238,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         app.results_filter_cachyos_rect = None;
     }
 
-    // Right-aligned Options button: compute remaining space and append to title spans
+    // Right-aligned Panels and Options buttons: compute remaining space and append to title spans
     let inner_width = area.width.saturating_sub(2); // exclude borders
     let mut consumed_left = (results_title_text.len()
         + 2 // spaces before Sort
@@ -256,12 +257,28 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     if has_cachyos {
         consumed_left = consumed_left.saturating_add(1 + cachyos_label.len() as u16);
     }
-    // Minimum single space before Options when possible
+    // Minimum single space before right-side buttons when possible
     let options_w = options_button_label.len() as u16;
-    let pad = inner_width.saturating_sub(consumed_left.saturating_add(options_w));
+    let panels_w = panels_button_label.len() as u16;
+    let right_w = panels_w.saturating_add(1).saturating_add(options_w); // "Panels" + space + "Options"
+    let pad = inner_width.saturating_sub(consumed_left.saturating_add(right_w));
     let mut options_btn_x: Option<u16> = None;
+    let mut panels_btn_x: Option<u16> = None;
     if pad >= 1 {
         title_spans.push(Span::raw(" ".repeat(pad as usize)));
+        let pan_btn_style = if app.panels_menu_open {
+            Style::default()
+                .fg(th.crust)
+                .bg(th.mauve)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(th.mauve)
+                .bg(th.surface2)
+                .add_modifier(Modifier::BOLD)
+        };
+        title_spans.push(Span::styled(panels_button_label.clone(), pan_btn_style));
+        title_spans.push(Span::raw(" "));
         let opt_btn_style = if app.options_menu_open {
             Style::default()
                 .fg(th.crust)
@@ -275,15 +292,19 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         };
         title_spans.push(Span::styled(options_button_label.clone(), opt_btn_style));
 
-        // Record clickable rect for Options button at the computed right edge
-        let x = area
+        // Record clickable rects at the computed right edge (Panels to the left of Options)
+        let opt_x = area
             .x
             .saturating_add(1) // left border inset
             .saturating_add(inner_width.saturating_sub(options_w));
-        options_btn_x = Some(x);
-        app.options_button_rect = Some((x, btn_y, options_w, 1));
+        let pan_x = opt_x.saturating_sub(1).saturating_sub(panels_w);
+        options_btn_x = Some(opt_x);
+        panels_btn_x = Some(pan_x);
+        app.options_button_rect = Some((opt_x, btn_y, options_w, 1));
+        app.panels_button_rect = Some((pan_x, btn_y, panels_w, 1));
     } else {
         app.options_button_rect = None;
+        app.panels_button_rect = None;
     }
 
     // Build a custom block title with an additional status line on the bottom border.
@@ -422,6 +443,64 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             .block(
                 Block::default()
                     .title(Span::styled(" Sort by ", Style::default().fg(th.overlay1)))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(th.surface2)),
+            );
+        f.render_widget(Clear, rect);
+        f.render_widget(menu, rect);
+    }
+
+    // Optional: render Panels dropdown overlay near its button
+    app.panels_menu_rect = None;
+    if app.panels_menu_open {
+        let label_recent = if app.show_recent_pane {
+            "Hide Recent"
+        } else {
+            "Show Recent"
+        };
+        let label_install = if app.show_install_pane {
+            "Hide Install List"
+        } else {
+            "Show Install List"
+        };
+        let label_keybinds = if app.show_keybinds_footer {
+            "Hide Keybinds"
+        } else {
+            "Show Keybinds"
+        };
+        let opts = [label_recent, label_install, label_keybinds];
+        let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
+        let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
+        // Place menu under the Panels button aligned to its right edge
+        let rect_w = w.saturating_add(2);
+        let max_x = area.x + area.width.saturating_sub(rect_w);
+        let pbx = panels_btn_x.unwrap_or(max_x);
+        let menu_x = pbx.min(max_x);
+        let menu_y = area.y.saturating_add(1); // just below top border
+        let h = (opts.len() as u16) + 2; // borders
+        let rect = ratatui::prelude::Rect {
+            x: menu_x,
+            y: menu_y,
+            width: rect_w,
+            height: h,
+        };
+        // Record inner list area for hit-testing (exclude borders)
+        app.panels_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
+
+        let mut lines: Vec<Line> = Vec::new();
+        for text in opts.iter() {
+            lines.push(Line::from(vec![Span::styled(
+                text.to_string(),
+                Style::default().fg(th.text),
+            )]));
+        }
+        let menu = Paragraph::new(lines)
+            .style(Style::default().fg(th.text).bg(th.base))
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .title(Span::styled(" Panels ", Style::default().fg(th.overlay1)))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(th.surface2)),

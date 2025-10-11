@@ -290,6 +290,22 @@ pub fn handle_mouse_event(
             && my < y + h
         {
             app.options_menu_open = !app.options_menu_open;
+            if app.options_menu_open {
+                app.panels_menu_open = false;
+            }
+            return false;
+        }
+        // Toggle panels menu when clicking the Panels button
+        if let Some((x, y, w, h)) = app.panels_button_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.panels_menu_open = !app.panels_menu_open;
+            if app.panels_menu_open {
+                app.options_menu_open = false;
+            }
             return false;
         }
         // Toggle filters when clicking their labels
@@ -399,7 +415,7 @@ pub fn handle_mouse_event(
             && my >= y
             && my < y + h
         {
-            let row = my.saturating_sub(y) as usize; // rows: 0 toggle, 1 update system, 2 news
+            let row = my.saturating_sub(y) as usize; // rows: 0 installed-only toggle, 1 update system, 2 news
             match row {
                 0 => {
                     if app.installed_only_mode {
@@ -523,6 +539,39 @@ pub fn handle_mouse_event(
             app.options_menu_open = false;
             return false;
         }
+        // If panels menu open, handle clicks inside menu
+        if app.panels_menu_open
+            && let Some((x, y, w, h)) = app.panels_menu_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let row = my.saturating_sub(y) as usize; // rows: 0 toggle recent, 1 toggle install, 2 toggle keybinds
+            match row {
+                0 => {
+                    app.show_recent_pane = !app.show_recent_pane;
+                    if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
+                        app.focus = crate::state::Focus::Search;
+                    }
+                    crate::theme::save_show_recent_pane(app.show_recent_pane);
+                }
+                1 => {
+                    app.show_install_pane = !app.show_install_pane;
+                    if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
+                        app.focus = crate::state::Focus::Search;
+                    }
+                    crate::theme::save_show_install_pane(app.show_install_pane);
+                }
+                2 => {
+                    app.show_keybinds_footer = !app.show_keybinds_footer;
+                    crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+                }
+                _ => {}
+            }
+            app.panels_menu_open = false;
+            return false;
+        }
         // Click outside menu closes it
         if app.sort_menu_open {
             app.sort_menu_open = false;
@@ -530,6 +579,9 @@ pub fn handle_mouse_event(
         }
         if app.options_menu_open {
             app.options_menu_open = false;
+        }
+        if app.panels_menu_open {
+            app.panels_menu_open = false;
         }
     }
 

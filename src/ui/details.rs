@@ -20,7 +20,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     // Details (bottom): reserve space for footer, then render content (details/PKGBUILD)
     let bottom_container = area;
-    let base_help_h: u16 = 5;
+    let base_help_h: u16 = if app.show_keybinds_footer { 5 } else { 0 };
     let help_h: u16 = if matches!(app.focus, Focus::Search) && app.search_normal_mode {
         base_help_h.saturating_add(1)
     } else {
@@ -175,7 +175,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     }
 
     // Help footer with keybindings in the bottom of Package Info pane
-    {
+    if app.show_keybinds_footer {
         // Footer occupies the bottom rows of the bottom container using reserved height above
         let footer_container = bottom_container;
         if footer_container.height > help_h + 2 {
