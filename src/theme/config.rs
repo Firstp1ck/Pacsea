@@ -390,11 +390,21 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     let Some(p) = path else {
         return;
     };
+    let meta = std::fs::metadata(&p).ok();
+    let created_new = meta.is_none() || meta.map(|m| m.len() == 0).unwrap_or(true);
     let mut lines: Vec<String> = if let Ok(content) = fs::read_to_string(&p) {
         content.lines().map(|s| s.to_string()).collect()
     } else {
         Vec::new()
     };
+    // If file is missing or empty, seed with the built-in skeleton content first
+    if created_new || lines.is_empty() {
+        if let Some(dir) = p.parent() { let _ = fs::create_dir_all(dir); }
+        lines = SKELETON_CONFIG_CONTENT
+            .lines()
+            .map(|s| s.to_string())
+            .collect();
+    }
     use std::collections::HashSet;
     let mut have: HashSet<String> = HashSet::new();
     for line in &lines {
@@ -459,7 +469,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
             appended_any = true;
         }
     }
-    if appended_any {
+    if created_new || appended_any {
         let new_content = lines.join("\n");
         let _ = fs::write(p, new_content);
     }
