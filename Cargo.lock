@@ -397,7 +397,7 @@ dependencies = [
 
 [[package]]
 name = "pacsea"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "crossterm 0.29.0",
  "ratatui",
