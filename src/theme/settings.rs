@@ -2,36 +2,23 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::config::SKELETON_CONFIG_CONTENT;
+// no longer writing skeleton here
 use super::parsing::{parse_key_chord, strip_inline_comment};
-use super::paths::repo_config_path;
+// Repo-local config is disabled; always use HOME/XDG.
 use super::types::Settings;
 
 /// Load user settings from the same config file as the theme.
 /// Falls back to `Settings::default()` when missing or invalid.
 pub fn settings() -> Settings {
     let mut out = Settings::default();
-    // Prefer repository-local config for cargo/dev runs, creating it if missing
-    let path = if let Some(rcp) = repo_config_path() {
-        if rcp.is_file() {
-            Some(rcp)
-        } else {
-            if let Some(dir) = rcp.parent() {
-                let _ = fs::create_dir_all(dir);
-            }
-            let _ = fs::write(&rcp, SKELETON_CONFIG_CONTENT);
-            Some(rcp)
-        }
-    } else {
-        None
-    }
-    .or_else(|| {
+    // Always resolve to HOME/XDG
+    let path = {
         env::var("XDG_CONFIG_HOME")
             .ok()
             .map(PathBuf::from)
             .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")))
             .map(|base| base.join("pacsea").join("pacsea.conf"))
-    });
+    };
     let Some(p) = path else {
         return out;
     };

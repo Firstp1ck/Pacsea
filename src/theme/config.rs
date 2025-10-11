@@ -375,21 +375,18 @@ pub fn save_show_keybinds_footer(value: bool) {
 ///
 /// This preserves existing lines and comments, only appending keys that are not present.
 pub fn ensure_settings_keys_present(prefs: &Settings) {
-    // Prefer repository config path; otherwise use resolved XDG/HOME path similar to save_sort_mode
-    let path = super::paths::repo_config_path()
-        .filter(|p| p.is_file())
-        .or_else(resolve_config_path)
-        .or_else(|| {
-            std::env::var("XDG_CONFIG_HOME")
-                .ok()
-                .map(std::path::PathBuf::from)
-                .or_else(|| {
-                    std::env::var("HOME")
-                        .ok()
-                        .map(|h| Path::new(&h).join(".config"))
-                })
-                .map(|base| base.join("pacsea").join("pacsea.conf"))
-        });
+    // Always resolve to HOME/XDG path similar to save_sort_mode
+    let path = resolve_config_path().or_else(|| {
+        std::env::var("XDG_CONFIG_HOME")
+            .ok()
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var("HOME")
+                    .ok()
+                    .map(|h| Path::new(&h).join(".config"))
+            })
+            .map(|base| base.join("pacsea").join("pacsea.conf"))
+    });
     let Some(p) = path else {
         return;
     };
