@@ -87,6 +87,7 @@ app_dry_run_default = false\n\
 # Middle row visibility (default true)\n\
 show_recent_pane = true\n\
 show_install_pane = true\n\
+show_keybinds_footer = true\n\
 \n\
 # Results sorting\n\
 # Allowed values: alphabetical | aur_popularity | best_matches\n\
