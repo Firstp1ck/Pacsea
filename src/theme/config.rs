@@ -21,6 +21,10 @@ pub(crate) const SKELETON_CONFIG_CONTENT: &str = "# Pacsea theme configuration\n
 #   Comprehensive names are preferred (shown first). Legacy keys remain supported\n\
 #   for compatibility (e.g., \"base\", \"surface1\").\n\
 #\n\
+#-----------------------------------------------------------------------------------------------------------------------\n\
+#\n\
+# ---------- Catppuccin Mocha (dark) ----------\n\
+#\n\
 # Background layers (from darkest to lightest)\n\
 background_base = #1e1e2e\n\
 background_mantle = #181825\n\
@@ -48,8 +52,6 @@ semantic_warning = #f9e2af\n\
 semantic_error = #f38ba8\n\
 #\n\
 # ---------- Alternative Theme (Light) ----------\n\
-# To use this light theme, comment out the dark values above and uncomment the\n\
-# lines below, or copy these into your own overrides.\n\
 #\n\
 # # Background layers (from lightest to darkest)\n\
 # background_base = #f5f5f7\n\
@@ -77,6 +79,92 @@ semantic_error = #f38ba8\n\
 # semantic_warning = #df8e1d\n\
 # semantic_error = #d20f39\n\
 \n\
+# ---------- Alternative Theme (Tokyo Night — Night) ----------\n\
+#\n\
+# # Background layers (from darkest to lightest)\n\
+# background_base = #1a1b26\n\
+# background_mantle = #16161e\n\
+# background_crust = #0f0f14\n\
+#\n\
+# # Component surfaces\n\
+# surface_level1 = #24283b\n\
+# surface_level2 = #1f2335\n\
+#\n\
+# # Low-contrast lines/borders\n\
+# overlay_primary = #414868\n\
+# overlay_secondary = #565f89\n\
+#\n\
+# # Text hierarchy\n\
+# text_primary = #c0caf5\n\
+# text_secondary = #a9b1d6\n\
+# text_tertiary = #9aa5ce\n\
+#\n\
+# # Accents and semantic colors\n\
+# accent_interactive = #7aa2f7\n\
+# accent_heading = #bb9af7\n\
+# accent_emphasis = #7dcfff\n\
+# semantic_success = #9ece6a\n\
+# semantic_warning = #e0af68\n\
+# semantic_error = #f7768e\n\
+\n\
+# ---------- Alternative Theme (Nord) ----------\n\
+#\n\
+# # Background layers (from darkest to lightest)\n\
+# background_base = #2e3440\n\
+# background_mantle = #3b4252\n\
+# background_crust = #434c5e\n\
+#\n\
+# # Component surfaces\n\
+# surface_level1 = #3b4252\n\
+# surface_level2 = #4c566a\n\
+#\n\
+# # Low-contrast lines/borders\n\
+# overlay_primary = #4c566a\n\
+# overlay_secondary = #616e88\n\
+#\n\
+# # Text hierarchy\n\
+# text_primary = #e5e9f0\n\
+# text_secondary = #d8dee9\n\
+# text_tertiary = #eceff4\n\
+#\n\
+# # Accents and semantic colors\n\
+# accent_interactive = #81a1c1\n\
+# accent_heading = #b48ead\n\
+# accent_emphasis = #88c0d0\n\
+# semantic_success = #a3be8c\n\
+# semantic_warning = #ebcb8b\n\
+# semantic_error = #bf616a\n\
+\n\
+# ---------- Alternative Theme (Dracula) ----------\n\
+#\n\
+# # Background layers (from darkest to lightest)\n\
+# background_base = #282a36\n\
+# background_mantle = #21222c\n\
+# background_crust = #44475a\n\
+#\n\
+# # Component surfaces\n\
+# surface_level1 = #44475a\n\
+# surface_level2 = #343746\n\
+#\n\
+# # Low-contrast lines/borders\n\
+# overlay_primary = #44475a\n\
+# overlay_secondary = #6272a4\n\
+#\n\
+# # Text hierarchy\n\
+# text_primary = #f8f8f2\n\
+# text_secondary = #e2e2e6\n\
+# text_tertiary = #d6d6de\n\
+#\n\
+# # Accents and semantic colors\n\
+# accent_interactive = #8be9fd\n\
+# accent_heading = #bd93f9\n\
+# accent_emphasis = #ff79c6\n\
+# semantic_success = #50fa7b\n\
+# semantic_warning = #f1fa8c\n\
+# semantic_error = #ff5555\n\
+#\n\
+#-----------------------------------------------------------------------------------------------------------------------\n\
+#\n\
 # Application settings\n\
 # Layout percentages for the middle row panes (must sum to 100)\n\
 layout_left_pct = 20\n\
