@@ -77,20 +77,35 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     details::render_details(f, app, chunks[2]);
     modals::render_modals(f, app, area);
 
-    // Render transient toast (bottom-right) if present
+    // Render transient toast (bottom-right) if present (framed)
     if let Some(msg) = &app.toast_message {
         let th = theme();
-        let w = (msg.len() as u16).saturating_add(2).min(area.width);
-        let h: u16 = 1;
-        let x = area.x + area.width.saturating_sub(w) - 1; // 1-char padding from right border
-        let y = area.y + area.height.saturating_sub(h) - 1; // 1-char padding from bottom
+        let inner_w = (msg.len() as u16).min(area.width.saturating_sub(4)); // leave room for borders
+        let w = inner_w.saturating_add(2 + 2); // borders + small padding
+        let h: u16 = 3; // single-line message with top/bottom padding
+        let x = area.x + area.width.saturating_sub(w).saturating_sub(1);
+        let y = area.y + area.height.saturating_sub(h).saturating_sub(1);
         let rect = ratatui::prelude::Rect {
             x,
             y,
             width: w,
             height: h,
         };
-        let p = Paragraph::new(Span::styled(msg.clone(), Style::default().fg(th.subtext1)));
+        let title_text = if msg.to_lowercase().contains("news") {
+            " News "
+        } else {
+            " Clipboard "
+        };
+        let content = Span::styled(msg.clone(), Style::default().fg(th.text));
+        let p = Paragraph::new(content)
+            .block(
+                ratatui::widgets::Block::default()
+                    .title(Span::styled(title_text, Style::default().fg(th.overlay1)))
+                    .borders(ratatui::widgets::Borders::ALL)
+                    .border_style(Style::default().fg(th.overlay1))
+                    .style(Style::default().bg(th.mantle)),
+            )
+            .style(Style::default().bg(th.mantle));
         f.render_widget(p, rect);
     }
 }

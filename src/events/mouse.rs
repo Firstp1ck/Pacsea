@@ -213,18 +213,20 @@ pub fn handle_mouse_event(
                 };
                 let _ = tx_msg.send(Some(hint.to_string()));
             });
-            // Default optimistic message; overwritten by worker if needed
-            app.modal = crate::state::Modal::Alert {
-                message: "Copying PKGBUILD to clipboard…".to_string(),
-            };
+            // Default optimistic toast; overwritten by worker if needed
+            app.toast_message = Some("Copying PKGBUILD to clipboard…".to_string());
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
             // Try to receive the result quickly without blocking UI long
             if let Ok(Some(msg)) = rx_msg.recv_timeout(std::time::Duration::from_millis(50)) {
-                app.modal = crate::state::Modal::Alert { message: msg };
+                app.toast_message = Some(msg);
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
             }
         } else {
-            app.modal = crate::state::Modal::Alert {
-                message: "PKGBUILD not loaded yet".to_string(),
-            };
+            app.toast_message = Some("PKGBUILD not loaded yet".to_string());
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
         }
         return false;
     }
