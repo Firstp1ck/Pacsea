@@ -45,13 +45,19 @@ pub(crate) fn resolve_config_path() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-/// Repository-local config directory (the repo's `config/`) when building with Cargo.
-/// Returns `Some(<repo>/config)` if available; ensures the directory exists.
+/// Repository-local config directory (the repo's `config/`) when running from the repo.
+/// Only returns `Some(<repo>/config)` if a real `config/pacsea.conf` file exists at runtime.
+/// This avoids using transient build paths from package managers.
 fn repo_config_dir() -> Option<PathBuf> {
     if let Some(dir) = option_env!("CARGO_MANIFEST_DIR") {
-        let p = Path::new(dir).join("config");
-        let _ = std::fs::create_dir_all(&p);
-        return Some(p);
+        let conf = Path::new(dir).join("config").join("pacsea.conf");
+        if conf.is_file() {
+            if let Some(parent) = conf.parent() {
+                let p = parent.to_path_buf();
+                let _ = std::fs::create_dir_all(&p);
+                return Some(p);
+            }
+        }
     }
     None
 }
