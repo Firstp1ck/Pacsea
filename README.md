@@ -56,6 +56,8 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
  - 🪄 Package Info follows the focused pane (Results/Recent/Install)
  - 📋 PKGBUILD: One‑click "Check Package Build" copies the PKGBUILD to clipboard with a configurable suffix
 
+- 🧩 Panels dropdown: quickly hide/show the Recent pane, the Install/Remove pane, and the Keybinds footer; your choices persist in `pacsea.conf`
+
 - 📋 List installed packages view (Options → "List installed packages")
 - 🗑️ Remove List pane for uninstalling packages with confirmation
 - ⚠️ Core‑package warning shown when uninstalling core packages
@@ -151,6 +153,7 @@ Development note:
 Pacsea prefetches details for the first few results to keep it snappy.
 
 - Tips: Options → "Arch Linux News" to view the latest news; use Up/Down to select and Enter to open. Critical/manual‑intervention items are marked in red.
+ - Panels: Use the "Panels ▾" dropdown (top‑right, left of Options) to toggle visibility of the Recent pane, the Install/Remove pane, and the Keybinds footer.
 
 ### Installed‑only mode and removal
 
@@ -227,6 +230,7 @@ Pacsea supports a configurable color theme and basic app settings via a simple `
 - First‑run generation:
   - If no config exists, Pacsea creates `$XDG_CONFIG_HOME/pacsea/pacsea.conf` (fallback: `~/.config/pacsea/pacsea.conf`).
   - It copies your repo `config/pacsea.conf` if present; otherwise it writes a complete default theme.
+  - On startup, Pacsea appends any missing known settings keys to your config (non‑destructive; comments preserved).
 
 - Live reload:
   - Press `Ctrl+R` to reload the config while the app is running.
@@ -246,6 +250,7 @@ Pacsea supports a configurable color theme and basic app settings via a simple `
 - Application settings and keybindings (in the same `pacsea.conf`):
   - `layout_left_pct`, `layout_center_pct`, `layout_right_pct` — integers that must sum to 100; control the middle row pane widths. Defaults: 20/60/20.
   - `app_dry_run_default` — `true`/`false`; sets default dry‑run mode at startup. Overridden by the `--dry-run` flag.
+  - Visibility: `show_recent_pane`, `show_install_pane`, `show_keybinds_footer` — `true`/`false`; control initial visibility of the Recent pane, Install/Remove pane, and the Details keybinds footer.
   - Clipboard: `clipboard_suffix` — text appended when copying PKGBUILD to clipboard. Default: "Check PKGBUILD and source for suspicious and malicious activities".
   - Keybindings (one chord per action; modifiers can be `SUPER`, `CTRL`, `SHIFT`, `ALT`). Examples:
     - Global: `keybind_help`, `keybind_reload_theme`, `keybind_exit`, `keybind_show_pkgbuild`, `keybind_pane_next`, `keybind_pane_left`, `keybind_pane_right`, `keybind_change_sort`
@@ -291,6 +296,11 @@ layout_center_pct = 60
 layout_right_pct = 20
 app_dry_run_default = false
 sort_mode = best_matches
+
+# Panels visibility
+show_recent_pane = true
+show_install_pane = true
+show_keybinds_footer = true
 
 # Clipboard
 clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activities
@@ -360,13 +370,13 @@ XDG locations (env overrides respected):
 - [x] Arch Linux News popup with critical/manual‑intervention highlighting
 - [x] Startup news check
 - [x] AUR/Arch status indicator (operational/incident‑today cue)
+- [x] Toggle visibility of panes/sections
 
 ### Not implemented
 - [ ] Rollback/downgrade flows
 - [ ] Search modes: contains / starts‑with / regex
 - [ ] Quick actions: refresh, clear cache, toggle views
 - [ ] Adjustable pane proportions (resizable three‑pane layout)
-- [ ] Toggle visibility of panes/sections
 - [ ] Multi‑select (checkbox‑style) for bulk actions
 - [ ] Dependency tree and conflict insights
 - [ ] Package statistics (sizes, install dates, update frequency)
