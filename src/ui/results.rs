@@ -17,6 +17,27 @@ use crate::theme::theme;
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 
+    // Detect availability of optional repos from the official index
+    let (has_eos, has_cachyos) = {
+        let mut eos = false;
+        let mut cach = false;
+        for it in crate::index::all_official().iter() {
+            if let Source::Official { repo, .. } = &it.source {
+                let r = repo.to_lowercase();
+                if !eos && (r == "eos" || r == "endeavouros") {
+                    eos = true;
+                }
+                if !cach && r.starts_with("cachyos") {
+                    cach = true;
+                }
+                if eos && cach {
+                    break;
+                }
+            }
+        }
+        (eos, cach)
+    };
+
     // Keep selection centered within the visible results list when possible
     {
         let viewport_rows = area.height.saturating_sub(2) as usize; // account for borders
@@ -58,10 +79,11 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .map(|p| {
             let (src, color) = match &p.source {
                 Source::Official { repo, .. } => {
-                    let label = if repo.eq_ignore_ascii_case("eos")
-                        || repo.eq_ignore_ascii_case("endeavouros")
-                    {
+                    let rl = repo.to_lowercase();
+                    let label = if rl == "eos" || rl == "endeavouros" {
                         "EOS".to_string()
+                    } else if rl.starts_with("cachyos") {
+                        "CachyOS".to_string()
                     } else {
                         repo.to_string()
                     };
@@ -135,7 +157,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     };
     title_spans.push(Span::styled(sort_button_label.clone(), btn_style));
     title_spans.push(Span::raw("  "));
-    // Filter toggles: [AUR] [core] [extra] [multilib] [EOS]
+    // Filter toggles: [AUR] [core] [extra] [multilib] and optional [EOS]/[CachyOS]
     let filt = |label: &str, on: bool| -> Span<'static> {
         let (fg, bg) = if on {
             (th.crust, th.green)
@@ -154,8 +176,14 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     title_spans.push(filt("extra", app.results_filter_show_extra));
     title_spans.push(Span::raw(" "));
     title_spans.push(filt("multilib", app.results_filter_show_multilib));
-    title_spans.push(Span::raw(" "));
-    title_spans.push(filt("EOS", app.results_filter_show_eos));
+    if has_eos {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt("EOS", app.results_filter_show_eos));
+    }
+    if has_cachyos {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt("CachyOS", app.results_filter_show_cachyos));
+    }
 
     // Estimate and record clickable rects for controls on the title line (top border row)
     let mut x_cursor = area
@@ -194,11 +222,24 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .saturating_add(multilib_label.len() as u16)
         .saturating_add(1);
     let eos_label = "[EOS]";
-    app.results_filter_eos_rect = Some(rec_rect(x_cursor, eos_label));
+    if has_eos {
+        app.results_filter_eos_rect = Some(rec_rect(x_cursor, eos_label));
+        x_cursor = x_cursor
+            .saturating_add(eos_label.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_eos_rect = None;
+    }
+    let cachyos_label = "[CachyOS]";
+    if has_cachyos {
+        app.results_filter_cachyos_rect = Some(rec_rect(x_cursor, cachyos_label));
+    } else {
+        app.results_filter_cachyos_rect = None;
+    }
 
     // Right-aligned Options button: compute remaining space and append to title spans
     let inner_width = area.width.saturating_sub(2); // exclude borders
-    let consumed_left = (results_title_text.len()
+    let mut consumed_left = (results_title_text.len()
         + 2 // spaces before Sort
         + sort_button_label.len()
         + 2 // spaces after Sort
@@ -208,9 +249,13 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         + 1 // space
         + extra_label.len()
         + 1 // space
-        + multilib_label.len()
-        + 1 // space
-        + eos_label.len()) as u16;
+        + multilib_label.len()) as u16;
+    if has_eos {
+        consumed_left = consumed_left.saturating_add(1 + eos_label.len() as u16);
+    }
+    if has_cachyos {
+        consumed_left = consumed_left.saturating_add(1 + cachyos_label.len() as u16);
+    }
     // Minimum single space before Options when possible
     let options_w = options_button_label.len() as u16;
     let pad = inner_width.saturating_sub(consumed_left.saturating_add(options_w));

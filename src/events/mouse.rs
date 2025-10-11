@@ -341,6 +341,16 @@ pub fn handle_mouse_event(
             crate::logic::apply_filters_and_sort_preserve_selection(app);
             return false;
         }
+        if let Some((x, y, w, h)) = app.results_filter_cachyos_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_cachyos = !app.results_filter_show_cachyos;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
         // If sort menu open, handle option click inside menu
         if app.sort_menu_open
             && let Some((x, y, w, h)) = app.sort_menu_rect

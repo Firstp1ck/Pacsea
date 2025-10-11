@@ -405,6 +405,8 @@ pub struct AppState {
     pub results_filter_show_multilib: bool,
     /// Whether to include packages from the `eos` repo in the Results view.
     pub results_filter_show_eos: bool,
+    /// Whether to include packages from `cachyos*` repos in the Results view.
+    pub results_filter_show_cachyos: bool,
     /// Clickable rectangle for the AUR filter toggle in the Results title (x, y, w, h).
     pub results_filter_aur_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the core filter toggle in the Results title (x, y, w, h).
@@ -415,6 +417,8 @@ pub struct AppState {
     pub results_filter_multilib_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the EOS filter toggle in the Results title (x, y, w, h).
     pub results_filter_eos_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the CachyOS filter toggle in the Results title (x, y, w, h).
+    pub results_filter_cachyos_rect: Option<(u16, u16, u16, u16)>,
 }
 
 impl Default for AppState {
@@ -522,11 +526,13 @@ impl Default for AppState {
             results_filter_show_extra: true,
             results_filter_show_multilib: true,
             results_filter_show_eos: true,
+            results_filter_show_cachyos: true,
             results_filter_aur_rect: None,
             results_filter_core_rect: None,
             results_filter_extra_rect: None,
             results_filter_multilib_rect: None,
             results_filter_eos_rect: None,
+            results_filter_cachyos_rect: None,
         }
     }
 }

@@ -256,6 +256,52 @@ pub async fn fetch_official_pkg_names()
         .ok()
         .and_then(|r| r.ok())
         .unwrap_or_default();
+    // CachyOS: attempt multiple potential repo names; missing ones yield empty output
+    let cachyos = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let cachyos_core = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos-core"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let cachyos_extra = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos-extra"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let cachyos_v3 = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos-v3"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let cachyos_core_v3 = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos-core-v3"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let cachyos_extra_v3 = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos-extra-v3"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let cachyos_v4 = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos-v4"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let cachyos_core_v4 = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos-core-v4"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
+    let cachyos_extra_v4 = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "cachyos-extra-v4"]))
+        .await
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_default();
     let mut pkgs: Vec<OfficialPkg> = Vec::new();
     for (repo, text) in [
         ("core", core),
@@ -263,6 +309,15 @@ pub async fn fetch_official_pkg_names()
         ("multilib", multilib),
         ("eos", eos),
         ("endeavouros", endeavouros),
+        ("cachyos", cachyos),
+        ("cachyos-core", cachyos_core),
+        ("cachyos-extra", cachyos_extra),
+        ("cachyos-v3", cachyos_v3),
+        ("cachyos-core-v3", cachyos_core_v3),
+        ("cachyos-extra-v3", cachyos_extra_v3),
+        ("cachyos-v4", cachyos_v4),
+        ("cachyos-core-v4", cachyos_core_v4),
+        ("cachyos-extra-v4", cachyos_extra_v4),
     ] {
         for line in text.lines() {
             // Format: "repo pkgname version [installed]"

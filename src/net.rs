@@ -111,12 +111,12 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
                 if count == 4
                     && let (Ok(day), Some((ty, tm, td))) =
                         (day_s.trim().parse::<u32>(), today_ymd_utc())
-                    {
-                        let month_idx = months.iter().position(|mm| *mm == *m).unwrap() as u32 + 1;
-                        // year is not used for equality except sanity; assume current year if parse succeeded
-                        let _year_s = &region[year_start..(year_start + 4)];
-                        is_today = tm == month_idx && td == day && ty.to_string() == _year_s;
-                    }
+                {
+                    let month_idx = months.iter().position(|mm| *mm == *m).unwrap() as u32 + 1;
+                    // year is not used for equality except sanity; assume current year if parse succeeded
+                    let _year_s = &region[year_start..(year_start + 4)];
+                    is_today = tm == month_idx && td == day && ty.to_string() == _year_s;
+                }
                 break 'outer;
             }
         }

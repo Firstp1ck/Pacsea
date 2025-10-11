@@ -301,10 +301,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             let todays: Vec<NewsItem> = match today {
                 Some((ty, tm, td)) => list
                     .into_iter()
-                    .filter(|it| {
-                        parse_news_date_to_ymd(&it.date)
-                            == Some((ty, tm, td))
-                    })
+                    .filter(|it| parse_news_date_to_ymd(&it.date) == Some((ty, tm, td)))
                     .collect(),
                 None => Vec::new(),
             };
