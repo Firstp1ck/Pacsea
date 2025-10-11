@@ -169,10 +169,11 @@ pub fn handle_event(
                                         .args(names_for_proc.iter())
                                         .status();
                                     if let Ok(st) = status
-                                        && st.success() {
-                                            // On success, log removed packages
-                                            let _ = crate::install::log_removed(&names_for_log);
-                                        }
+                                        && st.success()
+                                    {
+                                        // On success, log removed packages
+                                        let _ = crate::install::log_removed(&names_for_log);
+                                    }
                                 });
                                 // Also launch a terminal view for visibility (non-blocking)
                                 crate::install::spawn_remove_all(&names, false);
@@ -191,6 +192,36 @@ pub fn handle_event(
             crate::state::Modal::Help => {
                 match ke.code {
                     KeyCode::Esc | KeyCode::Enter => app.modal = crate::state::Modal::None,
+                    _ => {}
+                }
+                return false;
+            }
+            crate::state::Modal::News { items, selected } => {
+                match ke.code {
+                    KeyCode::Esc => app.modal = crate::state::Modal::None,
+                    KeyCode::Up => {
+                        if *selected > 0 {
+                            *selected -= 1;
+                        }
+                    }
+                    KeyCode::Down => {
+                        if *selected + 1 < items.len() {
+                            *selected += 1;
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if let Some(it) = items.get(*selected) {
+                            let url = it.url.clone();
+                            std::thread::spawn(move || {
+                                let _ = std::process::Command::new("xdg-open")
+                                    .arg(url)
+                                    .stdin(std::process::Stdio::null())
+                                    .stdout(std::process::Stdio::null())
+                                    .stderr(std::process::Stdio::null())
+                                    .spawn();
+                            });
+                        }
+                    }
                     _ => {}
                 }
                 return false;

@@ -16,7 +16,8 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
     style::Style,
-    widgets::Block,
+    text::Span,
+    widgets::{Block, Paragraph},
 };
 
 use crate::{state::AppState, theme::theme};
@@ -75,4 +76,21 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     middle::render_middle(f, app, chunks[1]);
     details::render_details(f, app, chunks[2]);
     modals::render_modals(f, app, area);
+
+    // Render transient toast (bottom-right) if present
+    if let Some(msg) = &app.toast_message {
+        let th = theme();
+        let w = (msg.len() as u16).saturating_add(2).min(area.width);
+        let h: u16 = 1;
+        let x = area.x + area.width.saturating_sub(w) - 1; // 1-char padding from right border
+        let y = area.y + area.height.saturating_sub(h) - 1; // 1-char padding from bottom
+        let rect = ratatui::prelude::Rect {
+            x,
+            y,
+            width: w,
+            height: h,
+        };
+        let p = Paragraph::new(Span::styled(msg.clone(), Style::default().fg(th.subtext1)));
+        f.render_widget(p, rect);
+    }
 }

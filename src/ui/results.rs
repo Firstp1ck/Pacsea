@@ -241,6 +241,8 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         app.options_button_rect = None;
     }
 
+    // Build a custom block title with an additional status line on the bottom border.
+    // Render the list normally first.
     let list = List::new(items)
         .style(Style::default().fg(th.text).bg(th.base))
         .block(
@@ -254,6 +256,76 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .highlight_symbol("> ");
 
     f.render_stateful_widget(list, area, &mut app.list_state);
+
+    // Draw status label on the bottom border line of the Results block
+    // Bottom border y coordinate is area.y + area.height - 1
+    let status_text = format!("Status: {}", app.arch_status_text);
+    let sx = area.x.saturating_add(2); // a bit of left padding after corner
+    let sy = area.y.saturating_add(area.height.saturating_sub(1));
+    let maxw = area.width.saturating_sub(4); // avoid right corner
+    let mut content = status_text.clone();
+    if content.len() as u16 > maxw {
+        content.truncate(maxw as usize);
+    }
+    // Compute style to blend with border line
+    // Compose a dot + text with color depending on status
+    let mut dot = "";
+    let mut dot_color = th.overlay1;
+    match app.arch_status_color {
+        crate::state::ArchStatusColor::Operational => {
+            dot = "●";
+            dot_color = th.green;
+        }
+        crate::state::ArchStatusColor::IncidentToday => {
+            dot = "●";
+            dot_color = th.yellow;
+        }
+        crate::state::ArchStatusColor::None => {
+            // If we have a nominal message, still show a green dot
+            if app
+                .arch_status_text
+                .to_lowercase()
+                .contains("arch systems nominal")
+            {
+                dot = "●";
+                dot_color = th.green;
+            }
+        }
+    }
+    let style_text = Style::default()
+        .fg(th.mauve)
+        .bg(th.base)
+        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+    let line = Paragraph::new(Line::from(vec![
+        Span::styled(
+            dot.to_string(),
+            Style::default()
+                .fg(dot_color)
+                .bg(th.base)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" "),
+        Span::styled(content.clone(), style_text),
+    ]));
+    // Record clickable rect centered within the available width
+    let cw = ((content.len() + dot.len() + 1) as u16).min(maxw); // +1 for the space
+    let pad_left = maxw.saturating_sub(cw) / 2;
+    let start_x = sx.saturating_add(pad_left);
+    // Clickable rect only over the text portion, not the dot or space
+    let click_start_x = start_x.saturating_add((dot.len() + 1) as u16);
+    app.arch_status_rect = Some((
+        click_start_x,
+        sy,
+        (content.len() as u16).min(maxw.saturating_sub((dot.len() + 1) as u16)),
+        1,
+    ));
+    let rect = ratatui::prelude::Rect {
+        x: start_x,
+        y: sy,
+        width: cw,
+        height: 1,
+    };
+    f.render_widget(line, rect);
 
     // Optional: render sort dropdown overlay near the button
     app.sort_menu_rect = None;
@@ -321,7 +393,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         } else {
             "List installed packages"
         };
-        let opts = [label_toggle, "Update System"];
+        let opts = [label_toggle, "Update System", "News"];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
         // Place menu under the Options button aligned to its right edge

@@ -104,6 +104,64 @@ fn maybe_save_recent(app: &mut AppState) {
     app.recent_dirty = true;
 }
 
+/// Return today's UTC date as (year, month, day) using the system `date` command.
+fn today_ymd_utc() -> Option<(i32, u32, u32)> {
+    let out = std::process::Command::new("date")
+        .args(["-u", "+%Y-%m-%d"]) // e.g., 2025-10-11
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8(out.stdout).ok()?;
+    let s = s.trim();
+    let mut it = s.split('-');
+    let y = it.next()?.parse::<i32>().ok()?;
+    let m = it.next()?.parse::<u32>().ok()?;
+    let d = it.next()?.parse::<u32>().ok()?;
+    Some((y, m, d))
+}
+
+/// Try to parse various short date formats used by Arch RSS into (Y,M,D).
+fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
+    let t = s.trim();
+    // Case 1: ISO: YYYY-MM-DD
+    if t.len() >= 10 && t.as_bytes().get(4) == Some(&b'-') && t.as_bytes().get(7) == Some(&b'-') {
+        let y = t[0..4].parse::<i32>().ok()?;
+        let m = t[5..7].parse::<u32>().ok()?;
+        let d = t[8..10].parse::<u32>().ok()?;
+        return Some((y, m, d));
+    }
+    // Case 2: "Sat, 05 Oct 2024" or "05 Oct 2024"
+    let part = if let Some((_, rhs)) = t.split_once(',') {
+        rhs.trim()
+    } else {
+        t
+    };
+    let mut it = part.split_whitespace();
+    let d_s = it.next()?; // e.g., 05
+    let m_s = it.next()?; // e.g., Oct
+    let y_s = it.next()?; // e.g., 2024
+    let d = d_s.parse::<u32>().ok()?;
+    let y = y_s.parse::<i32>().ok()?;
+    let m = match m_s {
+        "Jan" | "January" => 1,
+        "Feb" | "February" => 2,
+        "Mar" | "March" => 3,
+        "Apr" | "April" => 4,
+        "May" => 5,
+        "Jun" | "June" => 6,
+        "Jul" | "July" => 7,
+        "Aug" | "August" => 8,
+        "Sep" | "Sept" | "September" => 9,
+        "Oct" | "October" => 10,
+        "Nov" | "November" => 11,
+        "Dec" | "December" => 12,
+        _ => return None,
+    };
+    Some((y, m, d))
+}
+
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     setup_terminal()?;
 
@@ -161,6 +219,9 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     let (index_notify_tx, mut index_notify_rx) = mpsc::unbounded_channel::<()>();
     let (pkgb_req_tx, mut pkgb_req_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_res_tx, mut pkgb_res_rx) = mpsc::unbounded_channel::<(String, String)>();
+    let (status_tx, mut status_rx) =
+        mpsc::unbounded_channel::<(String, crate::state::ArchStatusColor)>();
+    let (news_tx, mut news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
 
     let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
@@ -220,6 +281,38 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 Err(e) => {
                     let _ = pkgb_res_tx.send((name, format!("Failed to fetch PKGBUILD: {e}")));
                 }
+            }
+        }
+    });
+
+    // Fetch Arch status text in background once at startup, then occasionally refresh
+    let status_tx_once = status_tx.clone();
+    tokio::spawn(async move {
+        if let Ok((txt, color)) = net::fetch_arch_status_text().await {
+            let _ = status_tx_once.send((txt, color));
+        }
+    });
+
+    // Fetch Arch news once at startup; if any items are dated today (UTC), show modal
+    let news_tx_once = news_tx.clone();
+    tokio::spawn(async move {
+        if let Ok(list) = net::fetch_arch_news(10).await {
+            let today = today_ymd_utc();
+            let todays: Vec<NewsItem> = match today {
+                Some((ty, tm, td)) => list
+                    .into_iter()
+                    .filter(|it| {
+                        parse_news_date_to_ymd(&it.date)
+                            == Some((ty, tm, td))
+                    })
+                    .collect(),
+                None => Vec::new(),
+            };
+            if !todays.is_empty() {
+                let _ = news_tx_once.send(todays);
+            } else {
+                // Signal "no news today" by sending an empty list
+                let _ = news_tx_once.send(Vec::new());
             }
         }
     });
@@ -397,6 +490,24 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 if app.sort_menu_open && let Some(deadline) = app.sort_menu_auto_close_at && std::time::Instant::now() >= deadline {
                     app.sort_menu_open = false; app.sort_menu_auto_close_at = None;
                 }
+                if let Some(deadline) = app.toast_expires_at
+                    && std::time::Instant::now() >= deadline {
+                        app.toast_message = None;
+                        app.toast_expires_at = None;
+                    }
+            }
+            Some(todays) = news_rx.recv() => {
+                if todays.is_empty() {
+                    app.toast_message = Some("No new News today".to_string());
+                    app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
+                } else {
+                    // Show just today's news items; default to first selected
+                    app.modal = Modal::News { items: todays, selected: 0 };
+                }
+            }
+            Some((txt, color)) = status_rx.recv() => {
+                app.arch_status_text = txt;
+                app.arch_status_color = color;
             }
             else => {}
         }

@@ -10,7 +10,7 @@
 //! attempted via `pacman -Si` first, then fall back to web JSON.
 use serde_json::Value;
 
-use crate::state::{PackageDetails, PackageItem, Source};
+use crate::state::{ArchStatusColor, NewsItem, PackageDetails, PackageItem, Source};
 use crate::util::{arrs, percent_encode, s, ss, u64_of};
 
 /// Convenient `Result` alias for network/detail fetching operations.
@@ -46,6 +46,190 @@ fn curl_text(url: &str) -> Result<String> {
         return Err(format!("curl failed: {:?}", out.status).into());
     }
     Ok(String::from_utf8(out.stdout)?)
+}
+
+/// Fetch a short status string from Arch Linux status page.
+///
+/// Returns a concise message like "AUR outage due to DDoS" when detectable,
+/// otherwise a generic "All systems nominal" if no signal can be parsed.
+pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
+    let url = "https://status.archlinux.org";
+    let body = tokio::task::spawn_blocking(move || curl_text(url)).await??;
+    // Extremely small heuristic parser because the page is dynamic; look for outage headline
+    let lowered = body.to_lowercase();
+    let has_all_ok = lowered.contains("all systems operational");
+
+    let outage_key = "the aur is currently experiencing an outage";
+    if let Some(pos) = lowered.find(outage_key) {
+        // Try to find a nearby date string like "October 5, 2025" around the headline
+        let start = pos.saturating_sub(220);
+        let region = &body[start..std::cmp::min(body.len(), pos + 220)];
+        let months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ];
+        let mut is_today = false;
+        'outer: for m in months.iter() {
+            if let Some(mi) = region.find(m) {
+                // Cursor just after month name
+                let mut idx = mi + m.len();
+                let rbytes = region.as_bytes();
+                // Skip spaces and commas
+                while idx < region.len() && (rbytes[idx] == b' ' || rbytes[idx] == b',') {
+                    idx += 1;
+                }
+                // Parse day digits
+                let day_start = idx;
+                while idx < region.len() && rbytes[idx].is_ascii_digit() {
+                    idx += 1;
+                }
+                if idx == day_start {
+                    continue;
+                }
+                let day_s = &region[day_start..idx];
+                // Skip spaces and comma
+                while idx < region.len() && (rbytes[idx] == b' ' || rbytes[idx] == b',') {
+                    idx += 1;
+                }
+                // Parse 4-digit year
+                let year_start = idx;
+                let mut count = 0;
+                while idx < region.len() && rbytes[idx].is_ascii_digit() && count < 4 {
+                    idx += 1;
+                    count += 1;
+                }
+                if count == 4
+                    && let (Ok(day), Some((ty, tm, td))) =
+                        (day_s.trim().parse::<u32>(), today_ymd_utc())
+                    {
+                        let month_idx = months.iter().position(|mm| *mm == *m).unwrap() as u32 + 1;
+                        // year is not used for equality except sanity; assume current year if parse succeeded
+                        let _year_s = &region[year_start..(year_start + 4)];
+                        is_today = tm == month_idx && td == day && ty.to_string() == _year_s;
+                    }
+                break 'outer;
+            }
+        }
+
+        if is_today {
+            return Ok((
+                "AUR outage (see status)".to_string(),
+                ArchStatusColor::IncidentToday,
+            ));
+        }
+        // Not today: prefer overall operational message if present
+        if has_all_ok {
+            return Ok((
+                "All systems operational".to_string(),
+                ArchStatusColor::Operational,
+            ));
+        }
+        return Ok(("Arch systems nominal".to_string(), ArchStatusColor::None));
+    }
+
+    // Detect overall "All systems Operational"
+    if has_all_ok {
+        return Ok((
+            "All systems operational".to_string(),
+            ArchStatusColor::Operational,
+        ));
+    }
+
+    Ok(("Arch systems nominal".to_string(), ArchStatusColor::None))
+}
+
+/// Return today's UTC date as (year, month, day) using the system `date` command.
+fn today_ymd_utc() -> Option<(i32, u32, u32)> {
+    let out = std::process::Command::new("date")
+        .args(["-u", "+%Y-%m-%d"]) // e.g., 2025-10-11
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8(out.stdout).ok()?;
+    let s = s.trim();
+    let mut it = s.split('-');
+    let y = it.next()?.parse::<i32>().ok()?;
+    let m = it.next()?.parse::<u32>().ok()?;
+    let d = it.next()?.parse::<u32>().ok()?;
+    Some((y, m, d))
+}
+
+/// Fetch latest Arch Linux news from RSS and parse top N entries.
+///
+/// Returns up to `limit` items consisting of date, title, and link.
+pub async fn fetch_arch_news(limit: usize) -> Result<Vec<NewsItem>> {
+    let url = "https://archlinux.org/feeds/news/";
+    let body = tokio::task::spawn_blocking(move || curl_text(url)).await??;
+    // Very small RSS parser specialized for Arch's feed structure
+    let mut items: Vec<NewsItem> = Vec::new();
+    let mut pos = 0;
+    while items.len() < limit {
+        if let Some(start) = body[pos..].find("<item>") {
+            let s = pos + start;
+            let end = body[s..]
+                .find("</item>")
+                .map(|e| s + e + 7)
+                .unwrap_or(body.len());
+            let chunk = &body[s..end];
+            let title = extract_between(chunk, "<title>", "</title>").unwrap_or_default();
+            let link = extract_between(chunk, "<link>", "</link>").unwrap_or_default();
+            // Prefer <pubDate> if present; else empty
+            let raw_date = extract_between(chunk, "<pubDate>", "</pubDate>")
+                .map(|d| d.trim().to_string())
+                .unwrap_or_default();
+            let date = strip_time_and_tz(&raw_date);
+            items.push(NewsItem {
+                date,
+                title,
+                url: link,
+            });
+            pos = end;
+        } else {
+            break;
+        }
+    }
+    Ok(items)
+}
+
+fn extract_between(s: &str, start: &str, end: &str) -> Option<String> {
+    let i = s.find(start)? + start.len();
+    let j = s[i..].find(end)? + i;
+    Some(s[i..j].to_string())
+}
+
+fn strip_time_and_tz(s: &str) -> String {
+    // Example input: "Sat, 05 Oct 2024 00:00:00 +0000"
+    let mut t = s.trim().to_string();
+    // Remove timezone if present (e.g., "+0000")
+    if let Some(pos) = t.rfind(" +") {
+        t.truncate(pos);
+        t = t.trim_end().to_string();
+    }
+    // Remove trailing time segment " HH:MM:SS" if present
+    if t.len() >= 9 {
+        let n = t.len();
+        let time_part = &t[n - 8..n];
+        let looks_time = time_part.chars().enumerate().all(|(i, c)| match i {
+            2 | 5 => c == ':',
+            _ => c.is_ascii_digit(),
+        });
+        if looks_time && t.as_bytes()[n - 9] == b' ' {
+            t.truncate(n - 9);
+        }
+    }
+    t.trim_end().to_string()
 }
 
 /// Fetch PKGBUILD quickly from the most likely upstream location.

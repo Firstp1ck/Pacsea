@@ -286,7 +286,9 @@ async fn logic_move_sel_cached_clamps_and_requests_details() {
 
     // At least one request (selected and/or ring) enqueued
     let got = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv())
-        .await.ok().flatten();
+        .await
+        .ok()
+        .flatten();
     assert!(got.is_some());
 
     // Clamp to start
@@ -320,7 +322,9 @@ async fn logic_move_sel_cached_uses_details_cache() {
 
     // No network request as cached
     let none = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
-        .await.ok().flatten();
+        .await
+        .ok()
+        .flatten();
     assert!(none.is_none());
     assert_eq!(app.details.name, "pkg");
 }
@@ -342,13 +346,16 @@ async fn logic_ring_prefetch_sends_neighbors_respecting_allowed_and_cache() {
     let mut names = std::collections::HashSet::new();
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
     while names.len() < 2 && std::time::Instant::now() < deadline {
-        if let Ok(Some(it)) = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
-            .await
+        if let Ok(Some(it)) =
+            tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv()).await
         {
             names.insert(it.name);
         }
     }
-    assert_eq!(names, ["a".to_string(), "c".to_string()].into_iter().collect());
+    assert_eq!(
+        names,
+        ["a".to_string(), "c".to_string()].into_iter().collect()
+    );
 }
 
 #[test]
@@ -361,7 +368,7 @@ fn ui_helpers_details_lines_sizes_and_lists() {
         description: "desc".into(),
         architecture: "x86_64".into(),
         url: String::new(),
-        licenses: vec![],                          // -> "-"
+        licenses: vec![], // -> "-"
         groups: vec![],
         provides: vec!["prov1".into(), "prov2".into()], // -> "prov1, prov2"
         depends: vec![],
@@ -370,8 +377,8 @@ fn ui_helpers_details_lines_sizes_and_lists() {
         optional_for: vec![],
         conflicts: vec![],
         replaces: vec![],
-        download_size: None,                       // -> "N/A"
-        install_size: Some(1536),                  // -> "1.5 KiB"
+        download_size: None,      // -> "N/A"
+        install_size: Some(1536), // -> "1.5 KiB"
         owner: String::new(),
         build_date: String::new(),
         popularity: None,
@@ -380,13 +387,29 @@ fn ui_helpers_details_lines_sizes_and_lists() {
     let lines = ui_helpers::format_details_lines(&app, 80, &th);
 
     // Download size shows N/A
-    assert!(lines.iter().any(|l| l.spans.iter().any(|s| s.content.contains("N/A"))));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.spans.iter().any(|s| s.content.contains("N/A")))
+    );
     // Install size shows human bytes
-    assert!(lines.iter().any(|l| l.spans.iter().any(|s| s.content.contains("1.5 KiB"))));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.spans.iter().any(|s| s.content.contains("1.5 KiB")))
+    );
     // Licences shows "-"
-    assert!(lines.iter().any(|l| l.spans.iter().any(|s| s.content.contains("Licences") || s.content.contains("-"))));
+    assert!(lines.iter().any(|l| {
+        l.spans
+            .iter()
+            .any(|s| s.content.contains("Licences") || s.content.contains("-"))
+    }));
     // Provides shows comma-separated
-    assert!(lines.iter().any(|l| l.spans.iter().any(|s| s.content.contains("prov1, prov2"))));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.spans.iter().any(|s| s.content.contains("prov1, prov2")))
+    );
 }
 
 #[tokio::test]
@@ -398,7 +421,9 @@ async fn ui_helpers_trigger_recent_preview_noop_when_not_recent_or_invalid() {
     app.focus = crate_root::state::Focus::Search;
     ui_helpers::trigger_recent_preview(&app, &tx);
     let none1 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
-        .await.ok().flatten();
+        .await
+        .ok()
+        .flatten();
     assert!(none1.is_none());
 
     // Recent focus but no selection
@@ -407,7 +432,9 @@ async fn ui_helpers_trigger_recent_preview_noop_when_not_recent_or_invalid() {
     app.history_state.select(None);
     ui_helpers::trigger_recent_preview(&app, &tx);
     let none2 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
-        .await.ok().flatten();
+        .await
+        .ok()
+        .flatten();
     assert!(none2.is_none());
 
     // Selection out of bounds after filtering
@@ -415,7 +442,9 @@ async fn ui_helpers_trigger_recent_preview_noop_when_not_recent_or_invalid() {
     app.pane_find = Some("zzz".into()); // filter to empty => idx >= inds.len()
     ui_helpers::trigger_recent_preview(&app, &tx);
     let none3 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
-        .await.ok().flatten();
+        .await
+        .ok()
+        .flatten();
     assert!(none3.is_none());
 }
 
@@ -423,13 +452,34 @@ async fn ui_helpers_trigger_recent_preview_noop_when_not_recent_or_invalid() {
 fn state_sortmode_config_roundtrip_and_aliases() {
     use crate_root::state::SortMode;
     assert_eq!(SortMode::RepoThenName.as_config_key(), "alphabetical");
-    assert_eq!(SortMode::from_config_key("alphabetical"), Some(SortMode::RepoThenName));
-    assert_eq!(SortMode::from_config_key("repo_then_name"), Some(SortMode::RepoThenName));
-    assert_eq!(SortMode::from_config_key("pacman"), Some(SortMode::RepoThenName));
-    assert_eq!(SortMode::from_config_key("aur_popularity"), Some(SortMode::AurPopularityThenOfficial));
-    assert_eq!(SortMode::from_config_key("popularity"), Some(SortMode::AurPopularityThenOfficial));
-    assert_eq!(SortMode::from_config_key("best_matches"), Some(SortMode::BestMatches));
-    assert_eq!(SortMode::from_config_key("relevance"), Some(SortMode::BestMatches));
+    assert_eq!(
+        SortMode::from_config_key("alphabetical"),
+        Some(SortMode::RepoThenName)
+    );
+    assert_eq!(
+        SortMode::from_config_key("repo_then_name"),
+        Some(SortMode::RepoThenName)
+    );
+    assert_eq!(
+        SortMode::from_config_key("pacman"),
+        Some(SortMode::RepoThenName)
+    );
+    assert_eq!(
+        SortMode::from_config_key("aur_popularity"),
+        Some(SortMode::AurPopularityThenOfficial)
+    );
+    assert_eq!(
+        SortMode::from_config_key("popularity"),
+        Some(SortMode::AurPopularityThenOfficial)
+    );
+    assert_eq!(
+        SortMode::from_config_key("best_matches"),
+        Some(SortMode::BestMatches)
+    );
+    assert_eq!(
+        SortMode::from_config_key("relevance"),
+        Some(SortMode::BestMatches)
+    );
     assert_eq!(SortMode::from_config_key("unknown"), None);
 }
 
@@ -459,14 +509,20 @@ fn logic_apply_filters_eos_toggle() {
             name: "e1".into(),
             version: "1".into(),
             description: "".into(),
-            source: Source::Official { repo: "eos".into(), arch: "x86_64".into() },
+            source: Source::Official {
+                repo: "eos".into(),
+                arch: "x86_64".into(),
+            },
             popularity: None,
         },
         PackageItem {
             name: "e2".into(),
             version: "1".into(),
             description: "".into(),
-            source: Source::Official { repo: "endeavouros".into(), arch: "x86_64".into() },
+            source: Source::Official {
+                repo: "endeavouros".into(),
+                arch: "x86_64".into(),
+            },
             popularity: None,
         },
         item_official("core1", "core"),

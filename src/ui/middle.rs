@@ -154,6 +154,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     let x = std::cmp::min(middle[1].x + 1 + 2 + caret_cols, right);
     let y = middle[1].y + 1;
     f.set_cursor_position(Position::new(x, y));
+    // No status footer here; it is rendered on the Results pane bottom border
 
     // Recent searches (left) with filtering
     let recent_focused = matches!(app.focus, Focus::Recent);

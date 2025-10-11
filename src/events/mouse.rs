@@ -35,6 +35,60 @@ pub fn handle_mouse_event(
     // Track last mouse position for dynamic capture toggling
     app.last_mouse_pos = Some((mx, my));
 
+    // A) Modal-first handling: if News modal is open, intercept mouse events before anything else
+    if let crate::state::Modal::News { items, selected } = &mut app.modal {
+        // Left click: select/open or close on outside
+        if is_left_down {
+            if let Some((x, y, w, h)) = app.news_list_rect
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+            {
+                let row = my.saturating_sub(y) as usize;
+                if !items.is_empty() {
+                    let idx = std::cmp::min(row, items.len().saturating_sub(1));
+                    *selected = idx;
+                    if let Some(it) = items.get(*selected) {
+                        let url = it.url.clone();
+                        std::thread::spawn(move || {
+                            let _ = std::process::Command::new("xdg-open")
+                                .arg(url)
+                                .stdin(std::process::Stdio::null())
+                                .stdout(std::process::Stdio::null())
+                                .stderr(std::process::Stdio::null())
+                                .spawn();
+                        });
+                    }
+                }
+            } else if let Some((x, y, w, h)) = app.news_rect
+                && (mx < x || mx >= x + w || my < y || my >= y + h)
+            {
+                // Click outside closes the modal
+                app.modal = crate::state::Modal::None;
+            }
+            return false;
+        }
+        // Scroll within modal: move selection
+        match m.kind {
+            MouseEventKind::ScrollUp => {
+                if *selected > 0 {
+                    *selected -= 1;
+                }
+                return false;
+            }
+            MouseEventKind::ScrollDown => {
+                if *selected + 1 < items.len() {
+                    *selected += 1;
+                }
+                return false;
+            }
+            _ => {}
+        }
+        // If modal is open and event wasn't handled above, consume it
+        return false;
+    }
+
     // 1) Handle modifier-clicks in details first, even when selection is enabled
     if is_left_down && ctrl && shift {
         // URL click
@@ -193,6 +247,23 @@ pub fn handle_mouse_event(
 
     // 4) Sort button, filters, options button, and dropdowns in Results title
     if is_left_down {
+        // Click on Arch status label (opens status URL)
+        if let Some((x, y, w, h)) = app.arch_status_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            std::thread::spawn(move || {
+                let _ = std::process::Command::new("xdg-open")
+                    .arg("https://status.archlinux.org")
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+            });
+            return false;
+        }
         // Toggle sort menu when clicking the button on the title
         if let Some((x, y, w, h)) = app.sort_button_rect
             && mx >= x
@@ -316,7 +387,7 @@ pub fn handle_mouse_event(
             && my >= y
             && my < y + h
         {
-            let row = my.saturating_sub(y) as usize; // rows: 0 toggle, 1 update system
+            let row = my.saturating_sub(y) as usize; // rows: 0 toggle, 1 update system, 2 news
             match row {
                 0 => {
                     if app.installed_only_mode {
@@ -399,6 +470,41 @@ pub fn handle_mouse_event(
                         countries,
                         cursor: 0,
                     };
+                }
+                2 => {
+                    // Fetch latest news (top 10) and open modal
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    std::thread::spawn(move || {
+                        // Use a small Tokio runtime to await async fetch
+                        let rt = tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build();
+                        let res = match rt {
+                            Ok(rt) => rt.block_on(crate::net::fetch_arch_news(10)),
+                            Err(e) => {
+                                Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into())
+                            }
+                        };
+                        let _ = tx.send(res);
+                    });
+                    match rx.recv_timeout(std::time::Duration::from_secs(3)) {
+                        Ok(Ok(list)) => {
+                            app.modal = crate::state::Modal::News {
+                                items: list,
+                                selected: 0,
+                            };
+                        }
+                        Ok(Err(e)) => {
+                            app.modal = crate::state::Modal::Alert {
+                                message: format!("Failed to fetch news: {e}"),
+                            };
+                        }
+                        Err(_) => {
+                            app.modal = crate::state::Modal::Alert {
+                                message: "Timed out fetching news".to_string(),
+                            };
+                        }
+                    }
                 }
                 _ => {}
             }

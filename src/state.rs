@@ -8,6 +8,17 @@ use crate::theme::KeyMap;
 use ratatui::widgets::ListState;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
+/// Minimal news entry for Arch news modal.
+#[derive(Clone, Debug)]
+pub struct NewsItem {
+    /// Publication date (short, e.g., 2025-10-11)
+    pub date: String,
+    /// Title text
+    pub title: String,
+    /// Link URL
+    pub url: String,
+}
+
 /// Package source origin.
 ///
 /// Indicates whether a package originates from the official repositories or
@@ -115,6 +126,17 @@ pub enum SortMode {
     BestMatches,
 }
 
+/// Visual indicator for Arch status line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchStatusColor {
+    /// No color known yet.
+    None,
+    /// Everything operational (green).
+    Operational,
+    /// Relevant incident today (yellow).
+    IncidentToday,
+}
+
 impl SortMode {
     pub fn as_config_key(&self) -> &'static str {
         match self {
@@ -162,6 +184,13 @@ pub enum Modal {
         countries: Vec<String>,
         /// Cursor row in the dialog (0..=4)
         cursor: usize,
+    },
+    /// Arch Linux News: list of recent items with selection.
+    News {
+        /// Latest news items (date, title, link).
+        items: Vec<NewsItem>,
+        /// Selected row index.
+        selected: usize,
     },
 }
 
@@ -285,6 +314,14 @@ pub struct AppState {
     /// Rectangle of the clickable URL button in terminal cell coordinates.
     pub url_button_rect: Option<(u16, u16, u16, u16)>,
 
+    // Arch status label (middle row footer)
+    /// Latest fetched status message from `status.archlinux.org`.
+    pub arch_status_text: String,
+    /// Clickable rectangle for the status label (x, y, w, h).
+    pub arch_status_rect: Option<(u16, u16, u16, u16)>,
+    /// Optional status color indicator (e.g., operational vs. current incident).
+    pub arch_status_color: ArchStatusColor,
+
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
     pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,
@@ -298,6 +335,12 @@ pub struct AppState {
     pub pkgb_scroll: u16,
     /// Content rectangle of the PKGBUILD viewer (x, y, w, h) when visible.
     pub pkgb_rect: Option<(u16, u16, u16, u16)>,
+
+    // Transient toast message (bottom-right)
+    /// Optional short-lived info message rendered at the bottom-right corner.
+    pub toast_message: Option<String>,
+    /// Deadline (Instant) after which the toast is automatically hidden.
+    pub toast_expires_at: Option<Instant>,
 
     // User settings loaded at startup
     pub layout_left_pct: u16,
@@ -321,6 +364,12 @@ pub struct AppState {
     pub last_mouse_pos: Option<(u16, u16)>,
     /// Whether global terminal mouse capture is currently enabled.
     pub mouse_capture_enabled: bool,
+
+    // News modal mouse hit-testing
+    /// Outer rectangle of the News modal (including borders) when visible.
+    pub news_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner list rectangle for clickable news rows.
+    pub news_list_rect: Option<(u16, u16, u16, u16)>,
 
     // Results sorting UI
     /// Current sort mode for results.
@@ -424,12 +473,18 @@ impl Default for AppState {
             ring_resume_at: None,
             need_ring_prefetch: false,
             url_button_rect: None,
+            arch_status_text: "Arch Status: loading…".to_string(),
+            arch_status_rect: None,
+            arch_status_color: ArchStatusColor::None,
             pkgb_button_rect: None,
             pkgb_check_button_rect: None,
             pkgb_visible: false,
             pkgb_text: None,
             pkgb_scroll: 0,
             pkgb_rect: None,
+
+            toast_message: None,
+            toast_expires_at: None,
 
             layout_left_pct: 20,
             layout_center_pct: 60,
@@ -443,6 +498,9 @@ impl Default for AppState {
             mouse_disabled_in_details: false,
             last_mouse_pos: None,
             mouse_capture_enabled: true,
+
+            news_rect: None,
+            news_list_rect: None,
 
             // Sorting
             sort_mode: SortMode::RepoThenName,

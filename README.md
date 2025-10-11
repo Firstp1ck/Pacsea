@@ -62,6 +62,10 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - 🟣 EndeavourOS repos supported (`eos`, `endeavouros`) with an [EOS] filter
 - 🔧 System Update dialog (Options → "Update System") for mirrors, pacman, AUR, and cache
 
+- 📰 Arch Linux News popup (Options → "Arch Linux News"): latest items; titles containing "critical" or "require(s) manual intervention" are highlighted in red; Enter opens the link
+- 🚀 Startup news check: if there is news dated today (UTC), the News popup opens automatically; otherwise a bottom‑right toast shows "No new News today" for 10 seconds
+- 🟢 AUR/Arch status indicator: brief status fetched from `status.archlinux.org` with color cue (operational/incident today)
+
 ## Installation
 ### Prerequisites
 - Arch Linux (or derivative) with pacman
@@ -145,6 +149,8 @@ Development note:
 - Focused details: The bottom Package Info panel shows details for the selection in the currently focused pane (Results, Recent, or Install).
 
 Pacsea prefetches details for the first few results to keep it snappy.
+
+- Tips: Options → "Arch Linux News" to view the latest news; use Up/Down to select and Enter to open. Critical/manual‑intervention items are marked in red.
 
 ### Installed‑only mode and removal
 
@@ -351,6 +357,9 @@ XDG locations (env overrides respected):
 - [x] Remove List pane and uninstall confirmation flow
 - [x] EndeavourOS repos support (`eos`, `endeavouros`) with [EOS] filter
 - [x] System Update dialog (mirrors, pacman, AUR, cache)
+- [x] Arch Linux News popup with critical/manual‑intervention highlighting
+- [x] Startup news check
+- [x] AUR/Arch status indicator (operational/incident‑today cue)
 
 ### Not implemented
 - [ ] Rollback/downgrade flows
@@ -359,10 +368,8 @@ XDG locations (env overrides respected):
 - [ ] Adjustable pane proportions (resizable three‑pane layout)
 - [ ] Toggle visibility of panes/sections
 - [ ] Multi‑select (checkbox‑style) for bulk actions
-- [ ] Selection persistence across searches
 - [ ] Dependency tree and conflict insights
 - [ ] Package statistics (sizes, install dates, update frequency)
-- [ ] Arch news integration in context
 - [ ] Settings persistence across sessions
 - [ ] Smarter caching and performance (intelligent prefetch, async enrichment, offline mode)
 - [ ] Progress indicators for long tasks
