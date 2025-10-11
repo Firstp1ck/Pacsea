@@ -508,7 +508,7 @@ pub fn handle_mouse_event(
                             .enable_all()
                             .build();
                         let res = match rt {
-                            Ok(rt) => rt.block_on(crate::net::fetch_arch_news(10)),
+                            Ok(rt) => rt.block_on(crate::sources::fetch_arch_news(10)),
                             Err(e) => {
                                 Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into())
                             }

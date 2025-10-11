@@ -134,7 +134,7 @@ pub async fn fetch_first_match_for_query(q: String) -> Option<crate::state::Pack
     {
         return Some(off);
     }
-    let (aur, _errors) = crate::net::fetch_all_with_errors(q.clone()).await;
+    let (aur, _errors) = crate::sources::fetch_all_with_errors(q.clone()).await;
     if let Some(a) = aur
         .iter()
         .find(|it| it.name.eq_ignore_ascii_case(&q))

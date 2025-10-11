@@ -1,0 +1,160 @@
+//! Core value types used by Pacsea state.
+
+/// Minimal news entry for Arch news modal.
+#[derive(Clone, Debug)]
+pub struct NewsItem {
+    /// Publication date (short, e.g., 2025-10-11)
+    pub date: String,
+    /// Title text
+    pub title: String,
+    /// Link URL
+    pub url: String,
+}
+
+/// Package source origin.
+///
+/// Indicates whether a package originates from the official repositories or
+/// the Arch User Repository.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub enum Source {
+    /// Official repository package and its associated repository and target
+    /// architecture.
+    Official { repo: String, arch: String },
+    /// AUR package.
+    Aur,
+}
+
+/// Minimal package summary used in lists and search results.
+///
+/// This is compact enough to render in lists and panes. For a richer, detailed
+/// view, see [`PackageDetails`].
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PackageItem {
+    /// Canonical package name.
+    pub name: String,
+    /// Version string as reported by the source.
+    pub version: String,
+    /// One-line description suitable for list display.
+    pub description: String,
+    /// Origin of the package (official repo or AUR).
+    pub source: Source,
+    /// AUR popularity score when available (AUR only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<f64>,
+}
+
+/// Full set of details for a package, suitable for a dedicated information
+/// pane.
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct PackageDetails {
+    /// Repository name (e.g., "extra").
+    pub repository: String,
+    /// Package name.
+    pub name: String,
+    /// Full version string.
+    pub version: String,
+    /// Long description.
+    pub description: String,
+    /// Target architecture.
+    pub architecture: String,
+    /// Upstream project URL (may be empty if unknown).
+    pub url: String,
+    /// SPDX or human-readable license identifiers.
+    pub licenses: Vec<String>,
+    /// Group memberships.
+    pub groups: Vec<String>,
+    /// Virtual provisions supplied by this package.
+    pub provides: Vec<String>,
+    /// Required dependencies.
+    pub depends: Vec<String>,
+    /// Optional dependencies with annotations.
+    pub opt_depends: Vec<String>,
+    /// Packages that require this package.
+    pub required_by: Vec<String>,
+    /// Packages for which this package is optional.
+    pub optional_for: Vec<String>,
+    /// Conflicting packages.
+    pub conflicts: Vec<String>,
+    /// Packages that this package replaces.
+    pub replaces: Vec<String>,
+    /// Download size in bytes, if available.
+    pub download_size: Option<u64>,
+    /// Installed size in bytes, if available.
+    pub install_size: Option<u64>,
+    /// Packager or maintainer name.
+    pub owner: String, // packager/maintainer
+    /// Build or packaging date (string-formatted for display).
+    pub build_date: String,
+    /// AUR popularity score when available (AUR only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub popularity: Option<f64>,
+}
+
+/// Search query sent to the background search worker.
+#[derive(Clone, Debug)]
+pub struct QueryInput {
+    /// Monotonic identifier used to correlate responses.
+    pub id: u64,
+    /// Raw query text entered by the user.
+    pub text: String,
+}
+
+/// Results corresponding to a prior [`QueryInput`].
+#[derive(Clone, Debug)]
+pub struct SearchResults {
+    /// Echoed identifier from the originating query.
+    pub id: u64,
+    /// Matching packages in rank order.
+    pub items: Vec<PackageItem>,
+}
+
+/// Sorting mode for the Results list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortMode {
+    /// Default: Pacman (core/extra/other official) first, then AUR; name tiebreak.
+    RepoThenName,
+    /// AUR first (by highest popularity), then official repos; name tiebreak.
+    AurPopularityThenOfficial,
+    /// Best matches: Relevance by name to current query, then repo order, then name.
+    BestMatches,
+}
+
+impl SortMode {
+    pub fn as_config_key(&self) -> &'static str {
+        match self {
+            SortMode::RepoThenName => "alphabetical",
+            SortMode::AurPopularityThenOfficial => "aur_popularity",
+            SortMode::BestMatches => "best_matches",
+        }
+    }
+    pub fn from_config_key(s: &str) -> Option<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "alphabetical" | "repo_then_name" | "pacman" => Some(SortMode::RepoThenName),
+            "aur_popularity" | "popularity" => Some(SortMode::AurPopularityThenOfficial),
+            "best_matches" | "relevance" => Some(SortMode::BestMatches),
+            _ => None,
+        }
+    }
+}
+
+/// Visual indicator for Arch status line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchStatusColor {
+    /// No color known yet.
+    None,
+    /// Everything operational (green).
+    Operational,
+    /// Relevant incident today (yellow).
+    IncidentToday,
+}
+
+/// Which UI pane currently has keyboard focus.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    /// Center pane: search input and results.
+    Search,
+    /// Left pane: recent queries list.
+    Recent,
+    /// Right pane: pending install list.
+    Install,
+}

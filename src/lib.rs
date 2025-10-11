@@ -2,7 +2,7 @@
 
 pub mod index;
 pub mod logic;
-pub mod net;
+pub mod sources;
 pub mod state;
 pub mod theme;
 pub mod ui_helpers;

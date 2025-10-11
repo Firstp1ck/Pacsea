@@ -1,166 +1,28 @@
-//! Pacsea application runtime (terminal lifecycle, async workers, and event loop).
-//!
-//! This module encapsulates the entire TUI runtime previously in `main.rs` so
-//! that the binary entrypoint stays minimal.
-
 use std::collections::HashMap;
-use std::fs;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event as CEvent},
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
+use crossterm::event::Event as CEvent;
 use ratatui::{Terminal, backend::CrosstermBackend};
-use tokio::{select, sync::mpsc, time::sleep};
+use tokio::{
+    select,
+    sync::mpsc,
+    time::{Duration, sleep},
+};
 
 use crate::index as pkgindex;
 use crate::logic::{add_to_install_list, send_query};
-use crate::net;
-use crate::net::fetch_details;
+use crate::sources;
+use crate::sources::fetch_details;
 use crate::state::*;
 use crate::ui::ui;
 use crate::util::{match_rank, repo_order};
 
-/// Start the Pacsea TUI runtime and run the main event loop.
-///
-/// - Initializes the terminal (raw mode, alternate screen, mouse capture)
-/// - Loads persisted caches and settings; spawns background workers for search,
-///   details retrieval, PKGBUILD fetch, and periodic ticks
-/// - Drives rendering via `ratatui` and delegates input handling to `events`
-/// - Persists state periodically (recent searches, details cache, install list)
-///
-/// Returns `Ok(())` on normal shutdown or an error if initialization fails.
-fn setup_terminal() -> Result<()> {
-    enable_raw_mode()?;
-    execute!(std::io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
-    Ok(())
-}
-
-fn restore_terminal() -> Result<()> {
-    disable_raw_mode()?;
-    execute!(std::io::stdout(), DisableMouseCapture, LeaveAlternateScreen)?;
-    Ok(())
-}
-
-fn maybe_flush_cache(app: &mut AppState) {
-    if !app.cache_dirty {
-        return;
-    }
-    if let Ok(s) = serde_json::to_string(&app.details_cache) {
-        let _ = fs::write(&app.cache_path, s);
-        app.cache_dirty = false;
-    }
-}
-
-fn maybe_flush_recent(app: &mut AppState) {
-    if !app.recent_dirty {
-        return;
-    }
-    if let Ok(s) = serde_json::to_string(&app.recent) {
-        let _ = fs::write(&app.recent_path, s);
-        app.recent_dirty = false;
-    }
-}
-
-fn maybe_flush_install(app: &mut AppState) {
-    if !app.install_dirty {
-        return;
-    }
-    if let Ok(s) = serde_json::to_string(&app.install_list) {
-        let _ = fs::write(&app.install_path, s);
-        app.install_dirty = false;
-    }
-}
-
-fn maybe_save_recent(app: &mut AppState) {
-    let now = Instant::now();
-    if app.input.trim().is_empty() {
-        return;
-    }
-    if now.duration_since(app.last_input_change) < Duration::from_secs(3) {
-        return;
-    }
-    if app.last_saved_value.as_deref() == Some(app.input.trim()) {
-        return;
-    }
-
-    let value = app.input.trim().to_string();
-    if let Some(pos) = app
-        .recent
-        .iter()
-        .position(|s| s.eq_ignore_ascii_case(&value))
-    {
-        app.recent.remove(pos);
-    }
-    app.recent.insert(0, value.clone());
-    if app.recent.len() > 20 {
-        app.recent.truncate(20);
-    }
-    app.last_saved_value = Some(value);
-    app.recent_dirty = true;
-}
-
-/// Return today's UTC date as (year, month, day) using the system `date` command.
-fn today_ymd_utc() -> Option<(i32, u32, u32)> {
-    let out = std::process::Command::new("date")
-        .args(["-u", "+%Y-%m-%d"]) // e.g., 2025-10-11
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let s = String::from_utf8(out.stdout).ok()?;
-    let s = s.trim();
-    let mut it = s.split('-');
-    let y = it.next()?.parse::<i32>().ok()?;
-    let m = it.next()?.parse::<u32>().ok()?;
-    let d = it.next()?.parse::<u32>().ok()?;
-    Some((y, m, d))
-}
-
-/// Try to parse various short date formats used by Arch RSS into (Y,M,D).
-fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
-    let t = s.trim();
-    // Case 1: ISO: YYYY-MM-DD
-    if t.len() >= 10 && t.as_bytes().get(4) == Some(&b'-') && t.as_bytes().get(7) == Some(&b'-') {
-        let y = t[0..4].parse::<i32>().ok()?;
-        let m = t[5..7].parse::<u32>().ok()?;
-        let d = t[8..10].parse::<u32>().ok()?;
-        return Some((y, m, d));
-    }
-    // Case 2: "Sat, 05 Oct 2024" or "05 Oct 2024"
-    let part = if let Some((_, rhs)) = t.split_once(',') {
-        rhs.trim()
-    } else {
-        t
-    };
-    let mut it = part.split_whitespace();
-    let d_s = it.next()?; // e.g., 05
-    let m_s = it.next()?; // e.g., Oct
-    let y_s = it.next()?; // e.g., 2024
-    let d = d_s.parse::<u32>().ok()?;
-    let y = y_s.parse::<i32>().ok()?;
-    let m = match m_s {
-        "Jan" | "January" => 1,
-        "Feb" | "February" => 2,
-        "Mar" | "March" => 3,
-        "Apr" | "April" => 4,
-        "May" => 5,
-        "Jun" | "June" => 6,
-        "Jul" | "July" => 7,
-        "Aug" | "August" => 8,
-        "Sep" | "Sept" | "September" => 9,
-        "Oct" | "October" => 10,
-        "Nov" | "November" => 11,
-        "Dec" | "December" => 12,
-        _ => return None,
-    };
-    Some((y, m, d))
-}
+use super::news::{parse_news_date_to_ymd, today_ymd_utc};
+use super::persist::{maybe_flush_cache, maybe_flush_install, maybe_flush_recent};
+use super::recent::maybe_save_recent;
+use super::terminal::{restore_terminal, setup_terminal};
 
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     setup_terminal()?;
@@ -191,12 +53,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Apply initial keybind footer visibility (default true if not present)
     app.show_keybinds_footer = prefs.show_keybinds_footer;
 
-    if let Ok(s) = fs::read_to_string(&app.cache_path)
+    if let Ok(s) = std::fs::read_to_string(&app.cache_path)
         && let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s)
     {
         app.details_cache = map;
     }
-    if let Ok(s) = fs::read_to_string(&app.recent_path)
+    if let Ok(s) = std::fs::read_to_string(&app.recent_path)
         && let Ok(list) = serde_json::from_str::<Vec<String>>(&s)
     {
         app.recent = list;
@@ -204,7 +66,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             app.history_state.select(Some(0));
         }
     }
-    if let Ok(s) = fs::read_to_string(&app.install_path)
+    if let Ok(s) = std::fs::read_to_string(&app.install_path)
         && let Ok(list) = serde_json::from_str::<Vec<PackageItem>>(&s)
     {
         app.install_list = list;
@@ -281,7 +143,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     tokio::spawn(async move {
         while let Some(item) = pkgb_req_rx.recv().await {
             let name = item.name.clone();
-            match net::fetch_pkgbuild_fast(&item).await {
+            match sources::fetch_pkgbuild_fast(&item).await {
                 Ok(txt) => {
                     let _ = pkgb_res_tx.send((name, txt));
                 }
@@ -295,7 +157,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Fetch Arch status text in background once at startup, then occasionally refresh
     let status_tx_once = status_tx.clone();
     tokio::spawn(async move {
-        if let Ok((txt, color)) = net::fetch_arch_status_text().await {
+        if let Ok((txt, color)) = sources::fetch_arch_status_text().await {
             let _ = status_tx_once.send((txt, color));
         }
     });
@@ -303,7 +165,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Fetch Arch news once at startup; if any items are dated today (UTC), show modal
     let news_tx_once = news_tx.clone();
     tokio::spawn(async move {
-        if let Ok(list) = net::fetch_arch_news(10).await {
+        if let Ok(list) = sources::fetch_arch_news(10).await {
             let today = today_ymd_utc();
             let todays: Vec<NewsItem> = match today {
                 Some((ty, tm, td)) => list
@@ -333,8 +195,8 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
 
     std::thread::spawn(move || {
         loop {
-            if let Ok(true) = event::poll(Duration::from_millis(50))
-                && let Ok(ev) = event::read()
+            if let Ok(true) = crossterm::event::poll(Duration::from_millis(50))
+                && let Ok(ev) = crossterm::event::read()
             {
                 let _ = event_tx.send(ev);
             }
@@ -398,7 +260,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 }
                 let mut items = pkgindex::search_official(&qtext);
                 let q_for_net = qtext.clone();
-                let (aur_items, errors) = net::fetch_all_with_errors(q_for_net).await;
+                let (aur_items, errors) = sources::fetch_all_with_errors(q_for_net).await;
                 items.extend(aur_items);
                 let ql = qtext.trim().to_lowercase();
                 items.sort_by(|a, b| {

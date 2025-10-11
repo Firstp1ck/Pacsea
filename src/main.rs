@@ -5,7 +5,7 @@ mod events;
 mod index;
 mod install;
 mod logic;
-mod net;
+mod sources;
 mod state;
 mod theme;
 mod ui;
