@@ -292,6 +292,21 @@ pub fn handle_mouse_event(
             app.options_menu_open = !app.options_menu_open;
             if app.options_menu_open {
                 app.panels_menu_open = false;
+                app.config_menu_open = false;
+            }
+            return false;
+        }
+        // Toggle Config/Lists menu when clicking the button
+        if let Some((x, y, w, h)) = app.config_button_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.config_menu_open = !app.config_menu_open;
+            if app.config_menu_open {
+                app.options_menu_open = false;
+                app.panels_menu_open = false;
             }
             return false;
         }
@@ -305,6 +320,7 @@ pub fn handle_mouse_event(
             app.panels_menu_open = !app.panels_menu_open;
             if app.panels_menu_open {
                 app.options_menu_open = false;
+                app.config_menu_open = false;
             }
             return false;
         }
@@ -539,6 +555,75 @@ pub fn handle_mouse_event(
             app.options_menu_open = false;
             return false;
         }
+        // If config menu open, handle clicks inside menu
+        if app.config_menu_open
+            && let Some((x, y, w, h)) = app.config_menu_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let row = my.saturating_sub(y) as usize; // rows: 0 pacsea.conf, 1 install_list, 2 installed_list, 3 recent_searches
+            // Resolve file paths
+            let conf_path = crate::theme::config_dir().join("pacsea.conf");
+            let install_path = app.install_path.clone();
+            let recent_path = app.recent_path.clone();
+            // For installed list, write a transient file under config dir (keep as requested name)
+            let installed_list_path = crate::theme::config_dir().join("installed_list.json");
+            if row == 2 {
+                // Build installed names JSON array (explicit set is closer to user expectation? use explicit_names for stability)
+                let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
+                names.sort();
+                let body = serde_json::to_string_pretty(&names).unwrap_or("[]".to_string());
+                let _ = std::fs::write(&installed_list_path, body);
+            }
+
+            let target = match row {
+                0 => conf_path,
+                1 => install_path,
+                2 => installed_list_path,
+                3 => recent_path,
+                _ => {
+                    app.config_menu_open = false;
+                    return false;
+                }
+            };
+
+            // Build command to open file in terminal editor
+            let mut cmds: Vec<String> = Vec::new();
+            let path_str = target.display().to_string();
+            // Prefer nvim, then vim, then helix/hx, fallback nano
+            cmds.push(format!(
+                "(command -v nvim >/dev/null 2>&1 && nvim '{}') || true",
+                path_str
+            ));
+            cmds.push(format!(
+                "(command -v vim >/dev/null 2>&1 && vim '{}') || true",
+                path_str
+            ));
+            cmds.push(format!(
+                "(command -v hx >/dev/null 2>&1 && hx '{}') || true",
+                path_str
+            ));
+            cmds.push(format!(
+                "(command -v helix >/dev/null 2>&1 && helix '{}') || true",
+                path_str
+            ));
+            cmds.push(format!(
+                "(command -v nano >/dev/null 2>&1 && nano '{}') || true",
+                path_str
+            ));
+            // If none matched, just cat with hint to install an editor
+            cmds.push(format!("(echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {}'; read -rn1 -s _ || true)", path_str));
+
+            // Run in external terminal window
+            std::thread::spawn(move || {
+                crate::install::spawn_shell_commands_in_terminal(&cmds);
+            });
+
+            app.config_menu_open = false;
+            return false;
+        }
         // If panels menu open, handle clicks inside menu
         if app.panels_menu_open
             && let Some((x, y, w, h)) = app.panels_menu_rect
@@ -582,6 +667,9 @@ pub fn handle_mouse_event(
         }
         if app.panels_menu_open {
             app.panels_menu_open = false;
+        }
+        if app.config_menu_open {
+            app.config_menu_open = false;
         }
     }
 

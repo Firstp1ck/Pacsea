@@ -209,6 +209,14 @@ pub struct AppState {
     /// Inner content rectangle of the panels dropdown menu when visible (x, y, w, h).
     pub panels_menu_rect: Option<(u16, u16, u16, u16)>,
 
+    // Config/Lists dropdown UI (left of Panels)
+    /// Whether the Config/Lists dropdown is currently visible.
+    pub config_menu_open: bool,
+    /// Clickable rectangle for the Config/Lists button in the Results title (x, y, w, h).
+    pub config_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the Config/Lists dropdown menu when visible (x, y, w, h).
+    pub config_menu_rect: Option<(u16, u16, u16, u16)>,
+
     /// Whether Results is currently showing only explicitly installed packages.
     pub installed_only_mode: bool,
 
@@ -345,6 +353,11 @@ impl Default for AppState {
             panels_menu_open: false,
             panels_button_rect: None,
             panels_menu_rect: None,
+
+            // Config/Lists dropdown (top-right of Results)
+            config_menu_open: false,
+            config_button_rect: None,
+            config_menu_rect: None,
 
             installed_only_mode: false,
 

@@ -48,22 +48,20 @@ Pacsea is a keyboard‑first package explorer for Arch Linux. It unifies officia
 - 🧠 Caching of details and local index for faster subsequent usage
 - 📝 Install log written to `install_log.txt`
 - 🧪 `--dry-run` mode for safe testing
- - 🖱️ Click the URL in Package Info to open it in your browser (uses `xdg-open`)
- - 📦 PKGBUILD preview via "Show PKGBUILD" / "Hide PKGBUILD" in Package Info (mouse click; Esc to close)
- - 🧠 New sort option: Best matches (relevance) added alongside AUR popularity and alphabetical
+- 🖱️ Click the URL in Package Info to open it in your browser (uses `xdg-open`)
+- 📦 PKGBUILD preview via "Show PKGBUILD" / "Hide PKGBUILD" in Package Info (mouse click; Esc to close)
+- 🧠 New sort option: Best matches (relevance) added alongside AUR popularity and alphabetical
 - 🔘 Clickable repo filters in Results title: [AUR], [core], [extra], [multilib], [EOS]
- - ⌨️ Vim‑style Search modes: toggle Normal/Insert; select with h/l, delete with d
- - 🪄 Package Info follows the focused pane (Results/Recent/Install)
- - 📋 PKGBUILD: One‑click "Check Package Build" copies the PKGBUILD to clipboard with a configurable suffix
-
+- ⌨️ Vim‑style Search modes: toggle Normal/Insert; select with h/l, delete with d
+- 🪄 Package Info follows the focused pane (Results/Recent/Install)
+- 📋 PKGBUILD: One‑click "Check Package Build" copies the PKGBUILD to clipboard with a configurable suffix
 - 🧩 Panels dropdown: quickly hide/show the Recent pane, the Install/Remove pane, and the Keybinds footer; your choices persist in `pacsea.conf`
-
+- ⚙️ Config/Lists dropdown: quick links to open `pacsea.conf`, `install_list.json`, `installed_list.json`, and `recent_searches.json`
 - 📋 List installed packages view (Options → "List installed packages")
 - 🗑️ Remove List pane for uninstalling packages with confirmation
 - ⚠️ Core‑package warning shown when uninstalling core packages
 - 🟣 EndeavourOS repos supported (`eos`, `endeavouros`) with an [EOS] filter
 - 🔧 System Update dialog (Options → "Update System") for mirrors, pacman, AUR, and cache
-
 - 📰 Arch Linux News popup (Options → "Arch Linux News"): latest items; titles containing "critical" or "require(s) manual intervention" are highlighted in red; Enter opens the link
 - 🚀 Startup news check: if there is news dated today (UTC), the News popup opens automatically; otherwise a bottom‑right toast shows "No new News today" for 10 seconds
 - 🟢 AUR/Arch status indicator: brief status fetched from `status.archlinux.org` with color cue (operational/incident today)

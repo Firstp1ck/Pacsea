@@ -34,6 +34,14 @@ fn new_app() -> AppState {
     }
 }
 
+// Test-only helper: reset global allowed set via public API
+fn test_reset_allowed() {
+    // With an empty app, set_allowed_ring writes an empty set into the global
+    // allowed gating, which effectively clears it.
+    let app = new_app();
+    logic::set_allowed_ring(&app, 0);
+}
+
 #[test]
 fn util_percent_encode() {
     assert_eq!(util::percent_encode(""), "");
@@ -331,6 +339,8 @@ async fn logic_move_sel_cached_uses_details_cache() {
 
 #[tokio::test]
 async fn logic_ring_prefetch_sends_neighbors_respecting_allowed_and_cache() {
+    // Ensure global gating state is clean for this test run
+    test_reset_allowed();
     let mut app = new_app();
     app.results = vec![
         item_official("a", "core"),
