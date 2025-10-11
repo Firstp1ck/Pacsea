@@ -34,7 +34,6 @@ fn new_app() -> AppState {
     }
 }
 
-
 #[test]
 fn util_percent_encode() {
     assert_eq!(util::percent_encode(""), "");
@@ -329,7 +328,6 @@ async fn logic_move_sel_cached_uses_details_cache() {
     assert!(none.is_none());
     assert_eq!(app.details.name, "pkg");
 }
-
 
 #[test]
 fn ui_helpers_details_lines_sizes_and_lists() {

@@ -400,7 +400,9 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     };
     // If file is missing or empty, seed with the built-in skeleton content first
     if created_new || lines.is_empty() {
-        if let Some(dir) = p.parent() { let _ = fs::create_dir_all(dir); }
+        if let Some(dir) = p.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
         lines = SKELETON_CONFIG_CONTENT
             .lines()
             .map(|s| s.to_string())

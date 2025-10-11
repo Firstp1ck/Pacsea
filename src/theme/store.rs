@@ -18,16 +18,21 @@ fn load_initial_theme_or_exit() -> Theme {
             Ok(t) => return t,
             Err(msg) => {
                 // If the file exists but is empty (0 bytes), treat as first-run and write skeleton.
-                if let Ok(meta) = fs::metadata(&path) {
-                    if meta.len() == 0 {
-                        if let Some(dir) = path.parent() { let _ = fs::create_dir_all(dir); }
+                if let Ok(meta) = fs::metadata(&path)
+                    && meta.len() == 0 {
+                        if let Some(dir) = path.parent() {
+                            let _ = fs::create_dir_all(dir);
+                        }
                         let _ = fs::write(&path, SKELETON_CONFIG_CONTENT);
                         if let Some(t) = load_theme_from_file(&path) {
                             return t;
                         }
                     }
-                }
-                eprintln!("Pacsea: theme configuration errors in {}:\n{}", path.display(), msg);
+                eprintln!(
+                    "Pacsea: theme configuration errors in {}:\n{}",
+                    path.display(),
+                    msg
+                );
             }
         }
         std::process::exit(1);
