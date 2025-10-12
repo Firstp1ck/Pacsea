@@ -24,11 +24,17 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     } else {
         0
     };
-    let right_pct = if app.show_install_pane {
+    let mut right_pct = if app.show_install_pane {
         app.layout_right_pct.min(100)
     } else {
         0
     };
+    // In installed-only mode, enlarge the right pane so Downgrade and Remove lists are each ~50% wider
+    if app.installed_only_mode && right_pct > 0 {
+        let max_right = 100u16.saturating_sub(left_pct);
+        let widened = ((right_pct as u32 * 3) / 2) as u16; // 1.5x
+        right_pct = widened.min(max_right);
+    }
     let center_pct = 100u16
         .saturating_sub(left_pct)
         .saturating_sub(right_pct)

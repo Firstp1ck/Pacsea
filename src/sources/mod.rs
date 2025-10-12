@@ -6,7 +6,7 @@ mod details;
 mod news;
 mod pkgbuild;
 mod search;
-mod status;
+pub mod status;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 

@@ -368,6 +368,10 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             dot = "●";
             dot_color = th.yellow;
         }
+        crate::state::ArchStatusColor::IncidentSevereToday => {
+            dot = "●";
+            dot_color = th.red;
+        }
         crate::state::ArchStatusColor::None => {
             // If we have a nominal message, still show a green dot
             if app

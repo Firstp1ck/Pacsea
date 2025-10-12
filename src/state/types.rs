@@ -146,6 +146,8 @@ pub enum ArchStatusColor {
     Operational,
     /// Relevant incident today (yellow).
     IncidentToday,
+    /// Severe incident today (red).
+    IncidentSevereToday,
 }
 
 /// Which UI pane currently has keyboard focus.

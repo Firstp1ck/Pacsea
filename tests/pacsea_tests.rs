@@ -1,6 +1,7 @@
 use pacsea as crate_root; // alias for clarity in imports
 
 use crate_root::logic;
+use crate_root::state::ArchStatusColor;
 use crate_root::state::{AppState, PackageDetails, PackageItem, SortMode, Source};
 use crate_root::ui_helpers;
 use crate_root::util;
@@ -512,4 +513,128 @@ fn util_ts_to_date_boundaries() {
     assert_eq!(util::ts_to_date(Some(946_684_800)), "2000-01-01 00:00:00");
     // One second before
     assert_eq!(util::ts_to_date(Some(946_684_799)), "1999-12-31 23:59:59");
+}
+
+#[test]
+fn status_parse_color_by_percentage_and_outage() {
+    // Build an HTML snippet approximating the relevant parts of the status page.
+    // We include today's date and vary the percent and outage text.
+    let (y, m, d) = {
+        // Same helper used by the parser (UTC). If it fails, skip this test conservatively.
+        let out = std::process::Command::new("date")
+            .args(["-u", "+%Y-%m-%d"])
+            .output()
+            .expect("date");
+        let s = String::from_utf8(out.stdout).unwrap();
+        let mut it = s.trim().split('-');
+        (
+            it.next().unwrap().parse::<i32>().unwrap(),
+            it.next().unwrap().parse::<u32>().unwrap(),
+            it.next().unwrap().parse::<u32>().unwrap(),
+        )
+    };
+    let months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    let month_name = months[(m - 1) as usize];
+    let date_str = format!("{month_name} {d}, {y}");
+
+    let make_html = |percent: u32, outage: bool| -> String {
+        format!(
+            r#"
+            <html>
+              <body>
+                <h2>Uptime Last 90 days</h2>
+                <div>Monitors (default)</div>
+                <div>AUR</div>
+                <div>{date_str}</div>
+                <div>{percent}% uptime</div>
+                {outage_block}
+              </body>
+            </html>
+            "#,
+            outage_block = if outage {
+                "<h4>The AUR is currently experiencing an outage</h4>"
+            } else {
+                ""
+            }
+        )
+    };
+
+    // >95 -> green
+    let html_green = make_html(97, false);
+    let (_txt, color) = crate_root::sources::status::parse_arch_status_from_html(&html_green);
+    assert_eq!(color, ArchStatusColor::Operational);
+
+    // 90-95 -> yellow
+    let html_yellow = make_html(95, false);
+    let (_txt, color) = crate_root::sources::status::parse_arch_status_from_html(&html_yellow);
+    assert_eq!(color, ArchStatusColor::IncidentToday);
+
+    // <90 -> red
+    let html_red = make_html(89, false);
+    let (_txt, color) = crate_root::sources::status::parse_arch_status_from_html(&html_red);
+    assert_eq!(color, ArchStatusColor::IncidentSevereToday);
+
+    // Outage present today: force at least yellow even if >95
+    let html_outage = make_html(97, true);
+    let (_txt, color) = crate_root::sources::status::parse_arch_status_from_html(&html_outage);
+    assert_eq!(color, ArchStatusColor::IncidentToday);
+
+    // Outage present today and <90 -> red
+    let html_outage_red = make_html(80, true);
+    let (_txt, color) = crate_root::sources::status::parse_arch_status_from_html(&html_outage_red);
+    assert_eq!(color, ArchStatusColor::IncidentSevereToday);
+}
+
+#[test]
+fn status_parse_prefers_svg_rect_color() {
+    // Build HTML with a green-ish percentage but explicitly yellow rect fill for today's cell.
+    let (y, m, d) = {
+        let out = std::process::Command::new("date")
+            .args(["-u", "+%Y-%m-%d"])
+            .output()
+            .expect("date");
+        let s = String::from_utf8(out.stdout).unwrap();
+        let mut it = s.trim().split('-');
+        (
+            it.next().unwrap().parse::<i32>().unwrap(),
+            it.next().unwrap().parse::<u32>().unwrap(),
+            it.next().unwrap().parse::<u32>().unwrap(),
+        )
+    };
+    let months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    let month_name = months[(m - 1) as usize];
+    let date_str = format!("{month_name} {d}, {y}");
+
+    let html = format!(
+        "<html>\n          <body>\n            <h2>Uptime Last 90 days</h2>\n            <div>Monitors (default)</div>\n            <div>AUR</div>\n            <svg>\n              <rect x=\"900\" y=\"0\" width=\"10\" height=\"10\" fill=\"#f59e0b\"></rect>\n            </svg>\n            <div>{}</div>\n            <div>97% uptime</div>\n          </body>\n        </html>",
+        date_str
+    );
+    let (_txt, color) = crate_root::sources::status::parse_arch_status_from_html(&html);
+    assert_eq!(color, ArchStatusColor::IncidentToday);
 }
