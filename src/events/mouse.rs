@@ -486,6 +486,7 @@ pub fn handle_mouse_event(
                             app.all_results = prev;
                         }
                         app.installed_only_mode = false;
+                        app.right_pane_focus = crate::state::RightPaneFocus::Install;
                         crate::logic::apply_filters_and_sort_preserve_selection(app);
                         super::utils::refresh_selected_details(app, details_tx);
                     } else {
@@ -525,6 +526,7 @@ pub fn handle_mouse_event(
                         }
                         app.all_results = items;
                         app.installed_only_mode = true;
+                        app.right_pane_focus = crate::state::RightPaneFocus::Remove;
                         crate::logic::apply_filters_and_sort_preserve_selection(app);
                         super::utils::refresh_selected_details(app, details_tx);
 
@@ -768,7 +770,63 @@ pub fn handle_mouse_event(
         }
     }
 
-    // 8) Install/Remove pane: scroll with mouse wheel to change selection
+    // 8) Right panes: click to focus/select rows and scroll to change selection
+    // Click inside Remove/Install area (right subpane or full right pane)
+    if is_left_down
+        && let Some((x, y, w, h)) = app.install_rect
+        && mx >= x
+        && mx < x + w
+        && my >= y
+        && my < y + h
+    {
+        app.focus = crate::state::Focus::Install;
+        if app.installed_only_mode {
+            app.right_pane_focus = crate::state::RightPaneFocus::Remove;
+            let row = my.saturating_sub(y) as usize;
+            let max = app.remove_list.len().saturating_sub(1);
+            if !app.remove_list.is_empty() {
+                let idx = std::cmp::min(row, max);
+                app.remove_state.select(Some(idx));
+                super::utils::refresh_remove_details(app, details_tx);
+            }
+        } else {
+            app.right_pane_focus = crate::state::RightPaneFocus::Install;
+            let row = my.saturating_sub(y) as usize;
+            let inds = crate::ui_helpers::filtered_install_indices(app);
+            if !inds.is_empty() {
+                let max = inds.len().saturating_sub(1);
+                let vis_idx = std::cmp::min(row, max);
+                app.install_state.select(Some(vis_idx));
+                super::utils::refresh_install_details(app, details_tx);
+            }
+        }
+        return false;
+    }
+
+    // Click inside Downgrade subpane (left half in installed-only mode)
+    if app.installed_only_mode
+        && is_left_down
+        && let Some((x, y, w, h)) = app.downgrade_rect
+        && mx >= x
+        && mx < x + w
+        && my >= y
+        && my < y + h
+    {
+        app.focus = crate::state::Focus::Install;
+        app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
+        let row = my.saturating_sub(y) as usize;
+        let max = app.downgrade_list.len().saturating_sub(1);
+        if !app.downgrade_list.is_empty() {
+            let idx = std::cmp::min(row, max);
+            app.downgrade_state.select(Some(idx));
+            super::utils::refresh_downgrade_details(app, details_tx);
+        }
+        return false;
+    }
+
+    // Scroll inside Remove/Install area
+    // 8a) Right panes: scroll with mouse wheel to change selection
+    // Remove (or Install in normal mode)
     if let Some((x, y, w, h)) = app.install_rect
         && mx >= x
         && mx < x + w
@@ -816,6 +874,36 @@ pub fn handle_mouse_event(
                     }
                     _ => {}
                 }
+            }
+        }
+    }
+
+    // 8b) Downgrade subpane scroll
+    if app.installed_only_mode
+        && let Some((x, y, w, h)) = app.downgrade_rect
+        && mx >= x
+        && mx < x + w
+        && my >= y
+        && my < y + h
+    {
+        let len = app.downgrade_list.len();
+        if len > 0 {
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    if let Some(sel) = app.downgrade_state.selected() {
+                        let new = sel.saturating_sub(1);
+                        app.downgrade_state.select(Some(new));
+                        super::utils::refresh_downgrade_details(app, details_tx);
+                    }
+                }
+                MouseEventKind::ScrollDown => {
+                    let sel = app.downgrade_state.selected().unwrap_or(0);
+                    let max = len.saturating_sub(1);
+                    let new = std::cmp::min(sel.saturating_add(1), max);
+                    app.downgrade_state.select(Some(new));
+                    super::utils::refresh_downgrade_details(app, details_tx);
+                }
+                _ => {}
             }
         }
     }

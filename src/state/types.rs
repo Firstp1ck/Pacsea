@@ -158,3 +158,14 @@ pub enum Focus {
     /// Right pane: pending install list.
     Install,
 }
+
+/// Which sub-pane within the right column is currently focused when applicable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RightPaneFocus {
+    /// Normal mode: single Install list occupies the right column.
+    Install,
+    /// Installed-only mode: left subpane for planned downgrades.
+    Downgrade,
+    /// Installed-only mode: right subpane for removals.
+    Remove,
+}

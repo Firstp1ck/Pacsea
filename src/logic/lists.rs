@@ -33,3 +33,18 @@ pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
     app.remove_list.insert(0, item);
     app.remove_state.select(Some(0));
 }
+
+/// Add a `PackageItem` to the downgrade list if it is not already present.
+///
+/// Inserts at the front and selects the first entry to keep it visible.
+pub fn add_to_downgrade_list(app: &mut AppState, item: PackageItem) {
+    if app
+        .downgrade_list
+        .iter()
+        .any(|p| p.name.eq_ignore_ascii_case(&item.name))
+    {
+        return;
+    }
+    app.downgrade_list.insert(0, item);
+    app.downgrade_state.select(Some(0));
+}

@@ -240,125 +240,267 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Install/Remove List (right) with filtering (render only if visible and has width)
     if app.show_install_pane && middle[2].width > 0 {
         let install_focused = matches!(app.focus, Focus::Install);
-        let using_remove = app.installed_only_mode;
-        let indices: Vec<usize> = if using_remove {
-            // No filtering helper for remove_list yet; show all
-            (0..app.remove_list.len()).collect()
-        } else {
-            crate::ui_helpers::filtered_install_indices(app)
-        };
-        let install_items: Vec<ListItem> = indices
-            .iter()
-            .filter_map(|&i| {
-                if using_remove {
-                    app.remove_list.get(i)
-                } else {
-                    app.install_list.get(i)
-                }
-            })
-            .map(|p| {
-                let (src, color) = match &p.source {
-                    Source::Official { repo, .. } => (repo.to_string(), th.green),
-                    Source::Aur => ("AUR".to_string(), th.yellow),
-                };
-                let mut segs: Vec<Span> = Vec::new();
-                // Popularity (AUR) shown before repo label when available, like Results pane
-                if let Some(pop) = p.popularity {
+
+        if app.installed_only_mode {
+            // In installed-only mode, split the right pane into Downgrade (left) and Remove (right)
+            let right_split = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(middle[2]);
+
+            // Downgrade List (left)
+            let dg_indices: Vec<usize> = (0..app.downgrade_list.len()).collect();
+            let downgrade_items: Vec<ListItem> = dg_indices
+                .iter()
+                .filter_map(|&i| app.downgrade_list.get(i))
+                .map(|p| {
+                    let (src, color) = match &p.source {
+                        Source::Official { repo, .. } => (repo.to_string(), th.green),
+                        Source::Aur => ("AUR".to_string(), th.yellow),
+                    };
+                    let mut segs: Vec<Span> = Vec::new();
+                    if let Some(pop) = p.popularity {
+                        segs.push(Span::styled(
+                            format!("Pop: {pop:.2} "),
+                            Style::default().fg(th.overlay1),
+                        ));
+                    }
+                    segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
                     segs.push(Span::styled(
-                        format!("Pop: {pop:.2} "),
-                        Style::default().fg(th.overlay1),
+                        p.name.clone(),
+                        Style::default()
+                            .fg(if install_focused {
+                                th.text
+                            } else {
+                                th.subtext0
+                            })
+                            .add_modifier(Modifier::BOLD),
                     ));
-                }
-                // Repo / source label
-                segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
-                // Name and version
-                segs.push(Span::styled(
-                    p.name.clone(),
+                    segs.push(Span::styled(
+                        format!("  {}", p.version),
+                        Style::default().fg(if install_focused {
+                            th.overlay1
+                        } else {
+                            th.surface2
+                        }),
+                    ));
+                    ListItem::new(Line::from(segs))
+                })
+                .collect();
+            let downgrade_is_focused = install_focused
+                && matches!(
+                    app.right_pane_focus,
+                    crate::state::RightPaneFocus::Downgrade
+                );
+            let downgrade_title = if downgrade_is_focused {
+                "Downgrade List (focused)"
+            } else {
+                "Downgrade List"
+            };
+            let downgrade_block = Block::default()
+                .title(Line::from(vec![Span::styled(
+                    downgrade_title,
+                    Style::default().fg(if downgrade_is_focused {
+                        th.mauve
+                    } else {
+                        th.overlay1
+                    }),
+                )]))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(if downgrade_is_focused {
+                    th.mauve
+                } else {
+                    th.surface1
+                }));
+            let downgrade_list = List::new(downgrade_items)
+                .style(
+                    Style::default()
+                        .fg(if downgrade_is_focused {
+                            th.text
+                        } else {
+                            th.subtext0
+                        })
+                        .bg(th.base),
+                )
+                .block(downgrade_block)
+                .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+                .highlight_symbol("▶ ");
+            f.render_stateful_widget(downgrade_list, right_split[0], &mut app.downgrade_state);
+            // Record inner Downgrade rect
+            app.downgrade_rect = Some((
+                right_split[0].x + 1,
+                right_split[0].y + 1,
+                right_split[0].width.saturating_sub(2),
+                right_split[0].height.saturating_sub(2),
+            ));
+
+            // Remove List (right)
+            let rm_indices: Vec<usize> = (0..app.remove_list.len()).collect();
+            let remove_items: Vec<ListItem> = rm_indices
+                .iter()
+                .filter_map(|&i| app.remove_list.get(i))
+                .map(|p| {
+                    let (src, color) = match &p.source {
+                        Source::Official { repo, .. } => (repo.to_string(), th.green),
+                        Source::Aur => ("AUR".to_string(), th.yellow),
+                    };
+                    let mut segs: Vec<Span> = Vec::new();
+                    if let Some(pop) = p.popularity {
+                        segs.push(Span::styled(
+                            format!("Pop: {pop:.2} "),
+                            Style::default().fg(th.overlay1),
+                        ));
+                    }
+                    segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
+                    segs.push(Span::styled(
+                        p.name.clone(),
+                        Style::default()
+                            .fg(if install_focused {
+                                th.text
+                            } else {
+                                th.subtext0
+                            })
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                    segs.push(Span::styled(
+                        format!("  {}", p.version),
+                        Style::default().fg(if install_focused {
+                            th.overlay1
+                        } else {
+                            th.surface2
+                        }),
+                    ));
+                    ListItem::new(Line::from(segs))
+                })
+                .collect();
+            let remove_is_focused = install_focused
+                && matches!(app.right_pane_focus, crate::state::RightPaneFocus::Remove);
+            let remove_title = if remove_is_focused {
+                "Remove List (focused)"
+            } else {
+                "Remove List"
+            };
+            let remove_block = Block::default()
+                .title(Line::from(vec![Span::styled(
+                    remove_title,
+                    Style::default().fg(if remove_is_focused {
+                        th.mauve
+                    } else {
+                        th.overlay1
+                    }),
+                )]))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(if remove_is_focused {
+                    th.mauve
+                } else {
+                    th.surface1
+                }));
+            let remove_list = List::new(remove_items)
+                .style(
+                    Style::default()
+                        .fg(if remove_is_focused {
+                            th.text
+                        } else {
+                            th.subtext0
+                        })
+                        .bg(th.base),
+                )
+                .block(remove_block)
+                .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+                .highlight_symbol("▶ ");
+            f.render_stateful_widget(remove_list, right_split[1], &mut app.remove_state);
+
+            // Record inner Install rect for mouse hit-testing (map to Remove list area)
+            app.install_rect = Some((
+                right_split[1].x + 1,
+                right_split[1].y + 1,
+                right_split[1].width.saturating_sub(2),
+                right_split[1].height.saturating_sub(2),
+            ));
+        } else {
+            // Normal Install List (single right pane)
+            let indices: Vec<usize> = crate::ui_helpers::filtered_install_indices(app);
+            let install_items: Vec<ListItem> = indices
+                .iter()
+                .filter_map(|&i| app.install_list.get(i))
+                .map(|p| {
+                    let (src, color) = match &p.source {
+                        Source::Official { repo, .. } => (repo.to_string(), th.green),
+                        Source::Aur => ("AUR".to_string(), th.yellow),
+                    };
+                    let mut segs: Vec<Span> = Vec::new();
+                    if let Some(pop) = p.popularity {
+                        segs.push(Span::styled(
+                            format!("Pop: {pop:.2} "),
+                            Style::default().fg(th.overlay1),
+                        ));
+                    }
+                    segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
+                    segs.push(Span::styled(
+                        p.name.clone(),
+                        Style::default()
+                            .fg(if install_focused {
+                                th.text
+                            } else {
+                                th.subtext0
+                            })
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                    segs.push(Span::styled(
+                        format!("  {}", p.version),
+                        Style::default().fg(if install_focused {
+                            th.overlay1
+                        } else {
+                            th.surface2
+                        }),
+                    ));
+                    ListItem::new(Line::from(segs))
+                })
+                .collect();
+            let title_text = if install_focused {
+                "Install List (focused)"
+            } else {
+                "Install List"
+            };
+            let install_block = Block::default()
+                .title(Line::from(vec![Span::styled(
+                    title_text,
+                    Style::default().fg(if install_focused {
+                        th.mauve
+                    } else {
+                        th.overlay1
+                    }),
+                )]))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(if install_focused {
+                    th.mauve
+                } else {
+                    th.surface1
+                }));
+            let install_list = List::new(install_items)
+                .style(
                     Style::default()
                         .fg(if install_focused {
                             th.text
                         } else {
                             th.subtext0
                         })
-                        .add_modifier(Modifier::BOLD),
-                ));
-                segs.push(Span::styled(
-                    format!("  {}", p.version),
-                    Style::default().fg(if install_focused {
-                        th.overlay1
-                    } else {
-                        th.surface2
-                    }),
-                ));
-                ListItem::new(Line::from(segs))
-            })
-            .collect();
-        let title_text = if app.installed_only_mode {
-            if install_focused {
-                "Remove List (focused)"
-            } else {
-                "Remove List"
-            }
-        } else if install_focused {
-            "Install List (focused)"
-        } else {
-            "Install List"
-        };
-        let mut install_title_spans: Vec<Span> = vec![Span::styled(
-            title_text,
-            Style::default().fg(if install_focused {
-                th.mauve
-            } else {
-                th.overlay1
-            }),
-        )];
-        if !using_remove
-            && install_focused
-            && let Some(pat) = &app.pane_find
-        {
-            install_title_spans.push(Span::raw("  "));
-            install_title_spans.push(Span::styled(
-                "/",
-                Style::default()
-                    .fg(th.sapphire)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            install_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text)));
-        }
-        let install_block = Block::default()
-            .title(Line::from(install_title_spans))
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(if install_focused {
-                th.mauve
-            } else {
-                th.surface1
-            }));
-        let install_list = List::new(install_items)
-            .style(
-                Style::default()
-                    .fg(if install_focused {
-                        th.text
-                    } else {
-                        th.subtext0
-                    })
-                    .bg(th.base),
-            )
-            .block(install_block)
-            .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
-            .highlight_symbol("▶ ");
-        if using_remove {
-            f.render_stateful_widget(install_list, middle[2], &mut app.remove_state);
-        } else {
+                        .bg(th.base),
+                )
+                .block(install_block)
+                .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+                .highlight_symbol("▶ ");
             f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
+            app.install_rect = Some((
+                middle[2].x + 1,
+                middle[2].y + 1,
+                middle[2].width.saturating_sub(2),
+                middle[2].height.saturating_sub(2),
+            ));
         }
-        // Record inner Install rect for mouse hit-testing (inside borders)
-        app.install_rect = Some((
-            middle[2].x + 1,
-            middle[2].y + 1,
-            middle[2].width.saturating_sub(2),
-            middle[2].height.saturating_sub(2),
-        ));
     } else {
         app.install_rect = None;
         // If Install pane is hidden and currently focused, move focus to Search

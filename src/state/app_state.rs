@@ -4,7 +4,9 @@ use ratatui::widgets::ListState;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 use crate::state::modal::Modal;
-use crate::state::types::{ArchStatusColor, Focus, PackageDetails, PackageItem, SortMode};
+use crate::state::types::{
+    ArchStatusColor, Focus, PackageDetails, PackageItem, RightPaneFocus, SortMode,
+};
 use crate::theme::KeyMap;
 
 /// Global application state shared by the event, networking, and UI layers.
@@ -71,6 +73,10 @@ pub struct AppState {
     pub remove_list: Vec<PackageItem>,
     /// List selection state for the Remove pane.
     pub remove_state: ListState,
+    /// Separate list of packages selected for downgrade (shown in installed-only mode).
+    pub downgrade_list: Vec<PackageItem>,
+    /// List selection state for the Downgrade pane.
+    pub downgrade_state: ListState,
     // Persisted install list
     /// Path where the install list is persisted as JSON.
     pub install_path: PathBuf,
@@ -168,6 +174,8 @@ pub struct AppState {
     pub recent_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle of the Install pane list (x, y, w, h).
     pub install_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the Downgrade subpane when visible.
+    pub downgrade_rect: Option<(u16, u16, u16, u16)>,
     /// Whether mouse capture is temporarily disabled to allow text selection in details.
     pub mouse_disabled_in_details: bool,
     /// Last observed mouse position (column, row) in terminal cells.
@@ -225,6 +233,8 @@ pub struct AppState {
 
     /// Whether Results is currently showing only explicitly installed packages.
     pub installed_only_mode: bool,
+    /// Which right subpane is focused when installed-only mode splits the pane.
+    pub right_pane_focus: RightPaneFocus,
 
     // Results filters UI
     /// Whether to include AUR packages in the Results view.
@@ -287,6 +297,8 @@ impl Default for AppState {
             install_state: ListState::default(),
             remove_list: Vec::new(),
             remove_state: ListState::default(),
+            downgrade_list: Vec::new(),
+            downgrade_state: ListState::default(),
             // Install list (XDG state)
             install_path: crate::theme::state_dir().join("install_list.json"),
             install_dirty: false,
@@ -336,6 +348,7 @@ impl Default for AppState {
             details_rect: None,
             recent_rect: None,
             install_rect: None,
+            downgrade_rect: None,
             mouse_disabled_in_details: false,
             last_mouse_pos: None,
             mouse_capture_enabled: true,
@@ -369,6 +382,7 @@ impl Default for AppState {
             config_menu_rect: None,
 
             installed_only_mode: false,
+            right_pane_focus: RightPaneFocus::Install,
 
             // Filters default to showing everything
             results_filter_show_aur: true,

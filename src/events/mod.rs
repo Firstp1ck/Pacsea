@@ -3,7 +3,7 @@
 //! This module re-exports `handle_event` and delegates pane-specific logic
 //! and mouse handling to submodules to keep files small and maintainable.
 
-use crossterm::event::{Event as CEvent, KeyCode, KeyEventKind};
+use crossterm::event::{Event as CEvent, KeyCode, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
 use crate::state::{AppState, Focus, PackageItem, QueryInput};
@@ -238,7 +238,13 @@ pub fn handle_event(
         }
 
         let km = &app.keymap;
-        let chord = (ke.code, ke.modifiers);
+        // Normalize BackTab so that SHIFT modifier does not affect matching across terminals
+        let normalized_mods = if matches!(ke.code, KeyCode::BackTab) {
+            KeyModifiers::empty()
+        } else {
+            ke.modifiers
+        };
+        let chord = (ke.code, normalized_mods);
         let matches_any =
             |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
         if matches_any(&km.help_overlay) {
@@ -273,12 +279,7 @@ pub fn handle_event(
         }
 
         // Global: Change sorting via configured keybind
-        if app
-            .keymap
-            .change_sort
-            .iter()
-            .any(|c| (c.code, c.mods) == (ke.code, ke.modifiers))
-        {
+        if matches_any(&km.change_sort) {
             // Cycle through sort modes in fixed order
             app.sort_mode = match app.sort_mode {
                 crate::state::SortMode::RepoThenName => {

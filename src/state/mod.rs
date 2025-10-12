@@ -11,6 +11,6 @@ pub mod types;
 pub use app_state::AppState;
 pub use modal::Modal;
 pub use types::{
-    ArchStatusColor, Focus, NewsItem, PackageDetails, PackageItem, QueryInput, SearchResults,
-    SortMode, Source,
+    ArchStatusColor, Focus, NewsItem, PackageDetails, PackageItem, QueryInput, RightPaneFocus,
+    SearchResults, SortMode, Source,
 };

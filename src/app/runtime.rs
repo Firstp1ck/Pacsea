@@ -298,7 +298,43 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             Some(new_results) = results_rx.recv() => {
                 if new_results.id != app.latest_query_id { continue; }
                 let prev_selected_name = app.results.get(app.selected).map(|p| p.name.clone());
-                app.all_results = new_results.items;
+                // Respect installed-only mode: keep results restricted to explicit installs
+                let mut incoming = new_results.items;
+                if app.installed_only_mode {
+                    let explicit = crate::index::explicit_names();
+                    if app.input.trim().is_empty() {
+                        // For empty query, reconstruct full installed list (official + AUR fallbacks)
+                        let mut items: Vec<PackageItem> = crate::index::all_official()
+                            .into_iter()
+                            .filter(|p| explicit.contains(&p.name))
+                            .collect();
+                        use std::collections::HashSet;
+                        let official_names: HashSet<String> =
+                            items.iter().map(|p| p.name.clone()).collect();
+                        for name in explicit.into_iter() {
+                            if !official_names.contains(&name) {
+                                let is_eos = name.to_lowercase().contains("eos-");
+                                let src = if is_eos {
+                                    Source::Official { repo: "EOS".to_string(), arch: String::new() }
+                                } else {
+                                    Source::Aur
+                                };
+                                items.push(PackageItem {
+                                    name: name.clone(),
+                                    version: String::new(),
+                                    description: String::new(),
+                                    source: src,
+                                    popularity: None,
+                                });
+                            }
+                        }
+                        incoming = items;
+                    } else {
+                        // For non-empty query, just intersect results with explicit installed set
+                        incoming.retain(|p| explicit.contains(&p.name));
+                    }
+                }
+                app.all_results = incoming;
                 crate::logic::apply_filters_and_sort_preserve_selection(&mut app);
                 let new_sel = prev_selected_name
                     .and_then(|name| app.results.iter().position(|p| p.name == name))

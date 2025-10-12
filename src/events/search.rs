@@ -16,7 +16,7 @@ pub fn handle_search_key(
     query_tx: &mpsc::UnboundedSender<QueryInput>,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     add_tx: &mpsc::UnboundedSender<PackageItem>,
-    _preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    preview_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
     let km = &app.keymap;
     let chord = (ke.code, ke.modifiers);
@@ -89,6 +89,14 @@ pub fn handle_search_key(
             (KeyCode::Char('k'), _) => move_sel_cached(app, -1, details_tx),
             (KeyCode::Char('d'), KeyModifiers::CONTROL) => move_sel_cached(app, 10, details_tx),
             (KeyCode::Char('u'), KeyModifiers::CONTROL) => move_sel_cached(app, -10, details_tx),
+            (KeyCode::Char(' '), KeyModifiers::CONTROL) => {
+                if app.installed_only_mode
+                    && let Some(item) = app.results.get(app.selected).cloned() {
+                        crate::logic::add_to_downgrade_list(app, item);
+                        // Do not change focus; only update details to reflect the new selection
+                        super::utils::refresh_downgrade_details(app, details_tx);
+                    }
+            }
             (KeyCode::Char(' '), _) => {
                 if let Some(item) = app.results.get(app.selected).cloned() {
                     if app.installed_only_mode {
@@ -105,25 +113,47 @@ pub fn handle_search_key(
                 }
             }
             (c, m) if matches_any(&km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
-                if app.install_state.selected().is_none() && !app.install_list.is_empty() {
-                    app.install_state.select(Some(0));
+                // Desired cycle: Recent -> Search -> Downgrade -> Remove -> Recent
+                if app.installed_only_mode {
+                    // From Search move to Downgrade first
+                    app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
+                    if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
+                        app.downgrade_state.select(Some(0));
+                    }
+                    app.focus = crate::state::Focus::Install;
+                    super::utils::refresh_downgrade_details(app, details_tx);
+                } else {
+                    if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                        app.install_state.select(Some(0));
+                    }
+                    app.focus = crate::state::Focus::Install;
+                    refresh_install_details(app, details_tx);
                 }
-                app.focus = crate::state::Focus::Install;
-                refresh_install_details(app, details_tx);
             }
             (KeyCode::Right, _) => {
-                if app.install_state.selected().is_none() && !app.install_list.is_empty() {
-                    app.install_state.select(Some(0));
+                // Search -> Install (adjacent)
+                if app.installed_only_mode {
+                    // Target Downgrade first in installed-only mode
+                    app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
+                    if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
+                        app.downgrade_state.select(Some(0));
+                    }
+                    app.focus = crate::state::Focus::Install;
+                    super::utils::refresh_downgrade_details(app, details_tx);
+                } else {
+                    if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                        app.install_state.select(Some(0));
+                    }
+                    app.focus = crate::state::Focus::Install;
+                    refresh_install_details(app, details_tx);
                 }
-                app.focus = crate::state::Focus::Install;
-                refresh_install_details(app, details_tx);
             }
             (KeyCode::Left, _) => {
                 if app.history_state.selected().is_none() && !app.recent.is_empty() {
                     app.history_state.select(Some(0));
                 }
                 app.focus = crate::state::Focus::Recent;
-                crate::ui_helpers::trigger_recent_preview(app, &dummy_preview());
+                crate::ui_helpers::trigger_recent_preview(app, preview_tx);
             }
             _ => {}
         }
@@ -134,21 +164,40 @@ pub fn handle_search_key(
     match (ke.code, ke.modifiers) {
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
         (c, m) if matches_any(&km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
-            // Search -> Install (cycle)
-            if app.install_state.selected().is_none() && !app.install_list.is_empty() {
-                app.install_state.select(Some(0));
+            // Desired cycle: Recent -> Search -> Downgrade -> Remove -> Recent
+            if app.installed_only_mode {
+                app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
+                if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
+                    app.downgrade_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Install;
+                super::utils::refresh_downgrade_details(app, details_tx);
+            } else {
+                if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                    app.install_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Install;
+                refresh_install_details(app, details_tx);
             }
-            app.focus = crate::state::Focus::Install;
-            refresh_install_details(app, details_tx);
         }
         // previous pane removed
         (KeyCode::Right, _) => {
             // Search -> Install (adjacent)
-            if app.install_state.selected().is_none() && !app.install_list.is_empty() {
-                app.install_state.select(Some(0));
+            if app.installed_only_mode {
+                // Always target Downgrade first from Search
+                app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
+                if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
+                    app.downgrade_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Install;
+                super::utils::refresh_downgrade_details(app, details_tx);
+            } else {
+                if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                    app.install_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Install;
+                refresh_install_details(app, details_tx);
             }
-            app.focus = crate::state::Focus::Install;
-            refresh_install_details(app, details_tx);
         }
         (KeyCode::Left, _) => {
             // Search -> Recent (adjacent)
@@ -156,7 +205,15 @@ pub fn handle_search_key(
                 app.history_state.select(Some(0));
             }
             app.focus = crate::state::Focus::Recent;
-            crate::ui_helpers::trigger_recent_preview(app, &dummy_preview());
+            crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+        }
+        (KeyCode::Char(' '), KeyModifiers::CONTROL) => {
+            if app.installed_only_mode
+                && let Some(item) = app.results.get(app.selected).cloned() {
+                    crate::logic::add_to_downgrade_list(app, item);
+                    // Do not change focus; only update details to reflect the new selection
+                    super::utils::refresh_downgrade_details(app, details_tx);
+                }
         }
         (KeyCode::Char(' '), _) => {
             if let Some(item) = app.results.get(app.selected).cloned() {
@@ -198,8 +255,4 @@ pub fn handle_search_key(
         _ => {}
     }
     false
-}
-
-fn dummy_preview<T>() -> mpsc::UnboundedSender<T> {
-    panic!("preview_tx should be provided by caller")
 }

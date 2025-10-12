@@ -355,9 +355,15 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
-            if let Some(k) = km.install_remove.first() {
+            if !km.install_remove.is_empty() {
+                let keys = km
+                    .install_remove
+                    .iter()
+                    .map(|c| c.label())
+                    .collect::<Vec<_>>()
+                    .join(" / ");
                 i_spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::styled(format!("[{keys}]"), key_style),
                     Span::raw(" remove"),
                     sep.clone(),
                 ]);
@@ -445,9 +451,15 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
-            if let Some(k) = km.recent_remove.first() {
+            if !km.recent_remove.is_empty() {
+                let keys = km
+                    .recent_remove
+                    .iter()
+                    .map(|c| c.label())
+                    .collect::<Vec<_>>()
+                    .join(" / ");
                 r_spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::styled(format!("[{keys}]"), key_style),
                     Span::raw(" delete"),
                     sep.clone(),
                 ]);
