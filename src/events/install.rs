@@ -115,12 +115,12 @@ pub fn handle_install_key(
             } else if matches!(
                 app.right_pane_focus,
                 crate::state::RightPaneFocus::Downgrade
-            )
-                && let Some(sel) = app.downgrade_state.selected() {
-                    let new = sel.saturating_sub(1);
-                    app.downgrade_state.select(Some(new));
-                    super::utils::refresh_downgrade_details(app, details_tx);
-                }
+            ) && let Some(sel) = app.downgrade_state.selected()
+            {
+                let new = sel.saturating_sub(1);
+                app.downgrade_state.select(Some(new));
+                super::utils::refresh_downgrade_details(app, details_tx);
+            }
         }
         KeyCode::Char('/') => {
             app.pane_find = Some(String::new());
@@ -253,31 +253,33 @@ pub fn handle_install_key(
                 match app.right_pane_focus {
                     crate::state::RightPaneFocus::Downgrade => {
                         if let Some(sel) = app.downgrade_state.selected()
-                            && sel < app.downgrade_list.len() {
-                                app.downgrade_list.remove(sel);
-                                let len = app.downgrade_list.len();
-                                if len == 0 {
-                                    app.downgrade_state.select(None);
-                                } else {
-                                    let new_sel = sel.min(len - 1);
-                                    app.downgrade_state.select(Some(new_sel));
-                                    super::utils::refresh_downgrade_details(app, details_tx);
-                                }
+                            && sel < app.downgrade_list.len()
+                        {
+                            app.downgrade_list.remove(sel);
+                            let len = app.downgrade_list.len();
+                            if len == 0 {
+                                app.downgrade_state.select(None);
+                            } else {
+                                let new_sel = sel.min(len - 1);
+                                app.downgrade_state.select(Some(new_sel));
+                                super::utils::refresh_downgrade_details(app, details_tx);
                             }
+                        }
                     }
                     crate::state::RightPaneFocus::Remove => {
                         if let Some(sel) = app.remove_state.selected()
-                            && sel < app.remove_list.len() {
-                                app.remove_list.remove(sel);
-                                let len = app.remove_list.len();
-                                if len == 0 {
-                                    app.remove_state.select(None);
-                                } else {
-                                    let new_sel = sel.min(len - 1);
-                                    app.remove_state.select(Some(new_sel));
-                                    refresh_remove_details(app, details_tx);
-                                }
+                            && sel < app.remove_list.len()
+                        {
+                            app.remove_list.remove(sel);
+                            let len = app.remove_list.len();
+                            if len == 0 {
+                                app.remove_state.select(None);
+                            } else {
+                                let new_sel = sel.min(len - 1);
+                                app.remove_state.select(Some(new_sel));
+                                refresh_remove_details(app, details_tx);
                             }
+                        }
                     }
                     crate::state::RightPaneFocus::Install => {
                         // Installed-only mode: when Install subpane is focused, delete from Install list
@@ -451,12 +453,12 @@ pub fn handle_install_key(
             } else if matches!(
                 app.right_pane_focus,
                 crate::state::RightPaneFocus::Downgrade
-            )
-                && let Some(sel) = app.downgrade_state.selected() {
-                    let new = sel.saturating_sub(1);
-                    app.downgrade_state.select(Some(new));
-                    super::utils::refresh_downgrade_details(app, details_tx);
-                }
+            ) && let Some(sel) = app.downgrade_state.selected()
+            {
+                let new = sel.saturating_sub(1);
+                app.downgrade_state.select(Some(new));
+                super::utils::refresh_downgrade_details(app, details_tx);
+            }
         }
         KeyCode::Down => {
             if !app.installed_only_mode

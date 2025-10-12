@@ -91,11 +91,12 @@ pub fn handle_search_key(
             (KeyCode::Char('u'), KeyModifiers::CONTROL) => move_sel_cached(app, -10, details_tx),
             (KeyCode::Char(' '), KeyModifiers::CONTROL) => {
                 if app.installed_only_mode
-                    && let Some(item) = app.results.get(app.selected).cloned() {
-                        crate::logic::add_to_downgrade_list(app, item);
-                        // Do not change focus; only update details to reflect the new selection
-                        super::utils::refresh_downgrade_details(app, details_tx);
-                    }
+                    && let Some(item) = app.results.get(app.selected).cloned()
+                {
+                    crate::logic::add_to_downgrade_list(app, item);
+                    // Do not change focus; only update details to reflect the new selection
+                    super::utils::refresh_downgrade_details(app, details_tx);
+                }
             }
             (KeyCode::Char(' '), _) => {
                 if let Some(item) = app.results.get(app.selected).cloned() {
@@ -209,11 +210,12 @@ pub fn handle_search_key(
         }
         (KeyCode::Char(' '), KeyModifiers::CONTROL) => {
             if app.installed_only_mode
-                && let Some(item) = app.results.get(app.selected).cloned() {
-                    crate::logic::add_to_downgrade_list(app, item);
-                    // Do not change focus; only update details to reflect the new selection
-                    super::utils::refresh_downgrade_details(app, details_tx);
-                }
+                && let Some(item) = app.results.get(app.selected).cloned()
+            {
+                crate::logic::add_to_downgrade_list(app, item);
+                // Do not change focus; only update details to reflect the new selection
+                super::utils::refresh_downgrade_details(app, details_tx);
+            }
         }
         (KeyCode::Char(' '), _) => {
             if let Some(item) = app.results.get(app.selected).cloned() {
