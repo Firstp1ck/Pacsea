@@ -39,6 +39,15 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         ..Default::default()
     };
 
+    // Log resolved configuration/state file locations at startup
+    tracing::info!(
+        recent = %app.recent_path.display(),
+        install = %app.install_path.display(),
+        details_cache = %app.cache_path.display(),
+        index = %app.official_index_path.display(),
+        "resolved state file paths"
+    );
+
     let prefs = crate::theme::settings();
     // Ensure config has all known settings keys (non-destructive append)
     crate::theme::ensure_settings_keys_present(&prefs);
@@ -57,6 +66,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         && let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s)
     {
         app.details_cache = map;
+        tracing::info!(path = %app.cache_path.display(), "loaded details cache");
     }
     if let Ok(s) = std::fs::read_to_string(&app.recent_path)
         && let Ok(list) = serde_json::from_str::<Vec<String>>(&s)
@@ -65,6 +75,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         if !app.recent.is_empty() {
             app.history_state.select(Some(0));
         }
+        tracing::info!(path = %app.recent_path.display(), count = app.recent.len(), "loaded recent searches");
     }
     if let Ok(s) = std::fs::read_to_string(&app.install_path)
         && let Ok(list) = serde_json::from_str::<Vec<PackageItem>>(&s)
@@ -73,9 +84,11 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         if !app.install_list.is_empty() {
             app.install_state.select(Some(0));
         }
+        tracing::info!(path = %app.install_path.display(), count = app.install_list.len(), "loaded install list");
     }
 
     pkgindex::load_from_disk(&app.official_index_path);
+    tracing::info!(path = %app.official_index_path.display(), "attempted to load official index from disk");
 
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<CEvent>();
     let (search_result_tx, mut results_rx) = mpsc::unbounded_channel::<SearchResults>();
@@ -383,6 +396,61 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
             Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_install(&mut app);
+                // If we recently triggered install/remove, poll installed/explicit caches briefly
+                if let Some(deadline) = app.refresh_installed_until {
+                    let now = Instant::now();
+                    if now >= deadline {
+                        app.refresh_installed_until = None;
+                        app.next_installed_refresh_at = None;
+                        app.pending_install_names = None;
+                    } else {
+                        let should_poll = app
+                            .next_installed_refresh_at
+                            .map(|t| now >= t)
+                            .unwrap_or(true);
+                        if should_poll {
+                            let maybe_pending_installs = app.pending_install_names.clone();
+                            let maybe_pending_removes = app.pending_remove_names.clone();
+                            tokio::spawn(async move {
+                                // Refresh caches in background; ignore errors
+                                crate::index::refresh_installed_cache().await;
+                                crate::index::refresh_explicit_cache().await;
+                            });
+                            // Schedule next poll ~1s later
+                            app.next_installed_refresh_at = Some(now + Duration::from_millis(1000));
+                            // If installed-only mode, results depend on explicit set; re-run query soon
+                            send_query(&mut app, &query_tx);
+                            // If we are tracking pending installs, check if all are installed now
+                            if let Some(pending) = maybe_pending_installs {
+                                let all_installed = pending
+                                    .iter()
+                                    .all(|n| crate::index::is_installed(n));
+                                if all_installed {
+                                    // Clear install list and stop tracking
+                                    app.install_list.clear();
+                                    app.install_dirty = true;
+                                    app.pending_install_names = None;
+                                    // End polling soon to avoid extra work
+                                    app.refresh_installed_until = Some(now + Duration::from_secs(1));
+                                }
+                            }
+                            // If tracking pending removals, log once all are uninstalled
+                            if let Some(pending_rm) = maybe_pending_removes {
+                                let all_removed = pending_rm
+                                    .iter()
+                                    .all(|n| !crate::index::is_installed(n));
+                                if all_removed {
+                                    if let Err(e) = crate::install::log_removed(&pending_rm) {
+                                        let _ = e; // ignore logging errors
+                                    }
+                                    app.pending_remove_names = None;
+                                    // End polling soon to avoid extra work
+                                    app.refresh_installed_until = Some(now + Duration::from_secs(1));
+                                }
+                            }
+                        }
+                    }
+                }
                 if app.need_ring_prefetch && app.ring_resume_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
                     crate::logic::set_allowed_ring(&app, 30);
                     crate::logic::ring_prefetch_from_selected(&mut app, &details_req_tx);

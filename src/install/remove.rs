@@ -5,6 +5,8 @@ use super::utils::command_on_path;
 
 #[cfg(not(target_os = "windows"))]
 pub fn spawn_remove_all(names: &[String], dry_run: bool) {
+    let names_str = names.join(" ");
+    tracing::info!(names = %names_str, total = names.len(), dry_run, "spawning removal");
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
     let cmd_str = if dry_run {
         format!(
@@ -32,16 +34,30 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
     let mut launched = false;
     for (term, args, _hold) in terms {
         if command_on_path(term) {
-            let _ = Command::new(term)
+            let spawn_res = Command::new(term)
                 .args(args.iter().copied())
                 .arg(&cmd_str)
                 .spawn();
+            match spawn_res {
+                Ok(_) => {
+                    tracing::info!(terminal = %term, names = %names_str, total = names.len(), dry_run, "launched terminal for removal")
+                }
+                Err(e) => {
+                    tracing::warn!(terminal = %term, error = %e, names = %names_str, "failed to spawn terminal, trying next");
+                    continue;
+                }
+            }
             launched = true;
             break;
         }
     }
     if !launched {
-        let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+        let res = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+        if let Err(e) = res {
+            tracing::error!(error = %e, names = %names_str, "failed to spawn bash to run removal command");
+        } else {
+            tracing::info!(names = %names_str, total = names.len(), dry_run, "launched bash for removal");
+        }
     }
 }
 
@@ -51,6 +67,8 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
     if names.is_empty() {
         names.push("nothing".into());
     }
+    let names_str = names.join(" ");
+    tracing::info!(names = %names_str, total = names.len(), dry_run, "spawning removal");
     let msg = if dry_run {
         format!("DRY RUN: remove {}", names.join(" "))
     } else {
@@ -66,4 +84,5 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
             &format!("echo {msg}"),
         ])
         .spawn();
+    tracing::info!(names = %names_str, total = names.len(), dry_run, "launched cmd for removal");
 }

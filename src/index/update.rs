@@ -12,8 +12,10 @@ pub async fn update_in_background(
     notify_tx: tokio::sync::mpsc::UnboundedSender<()>,
 ) {
     tokio::spawn(async move {
+        tracing::info!("refreshing official index in background");
         match fetch_official_pkg_names().await {
             Ok(new_pkgs) => {
+                let new_count = new_pkgs.len();
                 let (different, merged): (bool, Vec<OfficialPkg>) = {
                     let guard = idx().read().ok();
                     if let Some(g) = guard {
@@ -50,10 +52,17 @@ pub async fn update_in_background(
                     }
                     save_to_disk(&persist_path);
                     let _ = notify_tx.send(());
+                    tracing::info!(count = new_count, "official index updated (names changed)");
+                } else {
+                    tracing::debug!(
+                        count = new_count,
+                        "official index up-to-date (no name changes)"
+                    );
                 }
             }
             Err(e) => {
                 let _ = net_err_tx.send(format!("Failed to refresh official index: {e}"));
+                tracing::warn!(error = %e, "failed to refresh official index");
             }
         }
     });

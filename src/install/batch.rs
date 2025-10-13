@@ -18,6 +18,15 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
             Source::Aur => aur.push(it.name.clone()),
         }
     }
+    let names_vec: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+    tracing::info!(
+        total = items.len(),
+        aur_count = aur.len(),
+        official_count = official.len(),
+        dry_run,
+        names = %names_vec.join(" "),
+        "spawning install"
+    );
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
 
     let cmd_str = if dry_run {
@@ -68,22 +77,38 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let mut launched = false;
     for (term, args, _hold) in terms {
         if command_on_path(term) {
-            let _ = Command::new(term)
+            let spawn_res = Command::new(term)
                 .args(args.iter().copied())
                 .arg(&cmd_str)
                 .spawn();
+            match spawn_res {
+                Ok(_) => {
+                    tracing::info!(terminal = %term, total = items.len(), aur_count = aur.len(), official_count = official.len(), dry_run, names = %names_vec.join(" "), "launched terminal for install");
+                }
+                Err(e) => {
+                    tracing::warn!(terminal = %term, error = %e, names = %names_vec.join(" "), "failed to spawn terminal, trying next");
+                    continue;
+                }
+            }
             launched = true;
             break;
         }
     }
     if !launched {
-        let _ = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+        let res = Command::new("bash").args(["-lc", &cmd_str]).spawn();
+        if let Err(e) = res {
+            tracing::error!(error = %e, names = %names_vec.join(" "), "failed to spawn bash to run install command");
+        } else {
+            tracing::info!(total = items.len(), aur_count = aur.len(), official_count = official.len(), dry_run, names = %names_vec.join(" "), "launched bash for install");
+        }
     }
 
     if !dry_run {
         let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-        if !names.is_empty() {
-            let _ = log_installed(&names);
+        if !names.is_empty()
+            && let Err(e) = log_installed(&names)
+        {
+            tracing::warn!(error = %e, count = names.len(), "failed to write install audit log");
         }
     }
 }

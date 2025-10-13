@@ -261,6 +261,20 @@ pub struct AppState {
     pub results_filter_eos_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the CachyOS filter toggle in the Results title (x, y, w, h).
     pub results_filter_cachyos_rect: Option<(u16, u16, u16, u16)>,
+
+    // Background refresh of installed/explicit caches after package mutations
+    /// If `Some`, keep polling pacman/yay to refresh installed/explicit caches until this time.
+    pub refresh_installed_until: Option<Instant>,
+    /// Next scheduled time to poll caches while `refresh_installed_until` is active.
+    pub next_installed_refresh_at: Option<Instant>,
+
+    // Pending installs to detect completion and clear Install list
+    /// Names of packages we just triggered to install; when all appear installed, clear Install list.
+    pub pending_install_names: Option<Vec<String>>,
+
+    // Pending removals to detect completion and log
+    /// Names of packages we just triggered to remove; when all disappear, append to removed log.
+    pub pending_remove_names: Option<Vec<String>>,
 }
 
 impl Default for AppState {
@@ -397,6 +411,14 @@ impl Default for AppState {
             results_filter_multilib_rect: None,
             results_filter_eos_rect: None,
             results_filter_cachyos_rect: None,
+
+            // Package mutation cache refresh state (inactive by default)
+            refresh_installed_until: None,
+            next_installed_refresh_at: None,
+
+            // Pending install tracking
+            pending_install_names: None,
+            pending_remove_names: None,
         }
     }
 }

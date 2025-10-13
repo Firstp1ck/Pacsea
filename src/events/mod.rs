@@ -138,9 +138,26 @@ pub fn handle_event(
                         if list.len() <= 1 {
                             if let Some(it) = list.first() {
                                 crate::install::spawn_install(it, None, app.dry_run);
+                                if !app.dry_run {
+                                    // Begin a short polling window to refresh installed caches
+                                    app.refresh_installed_until = Some(
+                                        std::time::Instant::now()
+                                            + std::time::Duration::from_secs(12),
+                                    );
+                                    app.next_installed_refresh_at = None;
+                                    app.pending_install_names = Some(vec![it.name.clone()]);
+                                }
                             }
                         } else {
                             crate::install::spawn_install_all(&list, app.dry_run);
+                            if !app.dry_run {
+                                app.refresh_installed_until = Some(
+                                    std::time::Instant::now() + std::time::Duration::from_secs(12),
+                                );
+                                app.next_installed_refresh_at = None;
+                                app.pending_install_names =
+                                    Some(list.iter().map(|p| p.name.clone()).collect());
+                            }
                         }
                     }
                     _ => {}
@@ -159,28 +176,19 @@ pub fn handle_event(
                                     .retain(|p| !names.iter().any(|n| n == &p.name));
                                 app.remove_state.select(None);
                             } else {
-                                // Run removal synchronously in a background thread and update state on success
-                                let names_for_proc = names.clone();
-                                let names_for_log = names.clone();
-                                std::thread::spawn(move || {
-                                    // Best-effort: run pacman -Rns directly and wait
-                                    let status = std::process::Command::new("sudo")
-                                        .args(["pacman", "-Rns", "--noconfirm"])
-                                        .args(names_for_proc.iter())
-                                        .status();
-                                    if let Ok(st) = status
-                                        && st.success()
-                                    {
-                                        // On success, log removed packages
-                                        let _ = crate::install::log_removed(&names_for_log);
-                                    }
-                                });
-                                // Also launch a terminal view for visibility (non-blocking)
+                                // Launch a terminal view to perform removal (non-blocking)
                                 crate::install::spawn_remove_all(&names, false);
                                 // Remove from remove_list in app state
                                 app.remove_list
                                     .retain(|p| !names.iter().any(|n| n == &p.name));
                                 app.remove_state.select(None);
+                                // Begin a short polling window to refresh installed caches
+                                app.refresh_installed_until = Some(
+                                    std::time::Instant::now() + std::time::Duration::from_secs(8),
+                                );
+                                app.next_installed_refresh_at = None;
+                                // Track pending removals to log after confirmation
+                                app.pending_remove_names = Some(names);
                             }
                         }
                         app.modal = crate::state::Modal::None;

@@ -15,7 +15,10 @@ static THEME_STORE: OnceLock<RwLock<Theme>> = OnceLock::new();
 fn load_initial_theme_or_exit() -> Theme {
     if let Some(path) = resolve_config_path() {
         match try_load_theme_with_diagnostics(&path) {
-            Ok(t) => return t,
+            Ok(t) => {
+                tracing::info!(path = %path.display(), "loaded theme configuration");
+                return t;
+            }
             Err(msg) => {
                 // If the file exists but is empty (0 bytes), treat as first-run and write skeleton.
                 if let Ok(meta) = fs::metadata(&path)
@@ -26,13 +29,14 @@ fn load_initial_theme_or_exit() -> Theme {
                     }
                     let _ = fs::write(&path, SKELETON_CONFIG_CONTENT);
                     if let Some(t) = load_theme_from_file(&path) {
+                        tracing::info!(path = %path.display(), "wrote default theme skeleton and loaded");
                         return t;
                     }
                 }
-                eprintln!(
-                    "Pacsea: theme configuration errors in {}:\n{}",
-                    path.display(),
-                    msg
+                tracing::error!(
+                    path = %path.display(),
+                    error = %msg,
+                    "theme configuration errors"
                 );
             }
         }
@@ -52,11 +56,12 @@ fn load_initial_theme_or_exit() -> Theme {
                 let _ = fs::write(&target, SKELETON_CONFIG_CONTENT);
             }
             if let Some(t) = load_theme_from_file(&target) {
+                tracing::info!(path = %target.display(), "initialized theme from default path");
                 return t;
             }
         }
-        eprintln!(
-            "Pacsea: theme configuration missing or incomplete. Please edit $XDG_CONFIG_HOME/pacsea/pacsea.conf (or ~/.config/pacsea/pacsea.conf)."
+        tracing::error!(
+            "theme configuration missing or incomplete. Please edit $XDG_CONFIG_HOME/pacsea/pacsea.conf (or ~/.config/pacsea/pacsea.conf)."
         );
         std::process::exit(1);
     }
