@@ -134,7 +134,7 @@ cargo run
 ```
 
 Development note:
-- When running with `cargo run`, Pacsea looks for `config/pacsea.conf` in the repo first. If not found, it writes a skeleton to `$XDG_CONFIG_HOME/pacsea/pacsea.conf`.
+- When running with `cargo run`, Pacsea looks for `config/pacsea.conf` in the repo first. If not found, it writes a skeleton to `~/.config/pacsea/pacsea.conf` (or `$XDG_CONFIG_HOME/pacsea/pacsea.conf`).
 
 ## Usage
 1) Start typing to search. With an empty query, Pacsea shows the official index (after the first refresh).
@@ -222,11 +222,11 @@ Note: Esc does not quit the app. It cancels dialogs or navigates between panes, 
 Pacsea supports a configurable color theme and basic app settings via a simple `key = value` config file.
 
 - Locations (first match wins):
-  - `$XDG_CONFIG_HOME/pacsea/pacsea.conf` (fallback: `~/.config/pacsea/pacsea.conf`)
+  - `~/.config/pacsea/pacsea.conf` (fallback: `$XDG_CONFIG_HOME/pacsea/pacsea.conf`)
   - Development: `config/pacsea.conf` in the repo is preferred during development
 
 - First‑run generation:
-  - If no config exists, Pacsea creates `$XDG_CONFIG_HOME/pacsea/pacsea.conf` (fallback: `~/.config/pacsea/pacsea.conf`).
+  - If no config exists, Pacsea creates `~/.config/pacsea/pacsea.conf` (fallback: `$XDG_CONFIG_HOME/pacsea/pacsea.conf`).
   - It copies your repo `config/pacsea.conf` if present; otherwise it writes a complete default theme.
   - On startup, Pacsea appends any missing known settings keys to your config (non‑destructive; comments preserved).
 
@@ -323,17 +323,17 @@ An optional commented “Light” theme block is included in the generated confi
 
 | File                   | Purpose                                                            |
 |------------------------|--------------------------------------------------------------------|
-| `official_index.json`  | Local cache of official packages (repo/name/arch/description) — XDG cache dir |
-| `details_cache.json`   | Package name → detailed metadata used in Package Info — XDG cache dir |
-| `recent_searches.json` | Recent queries (deduped, MRU) — XDG state dir                     |
-| `install_list.json`    | Persisted install queue — XDG state dir                            |
-| `install_log.txt`      | Timestamped record of packages you initiated installs for — XDG state dir |
-| `removed_packages.txt` | Names of removed packages (one per line) — XDG config dir                 |
+| `official_index.json`  | Local cache of official packages (repo/name/arch/description) — lists dir |
+| `details_cache.json`   | Package name → detailed metadata used in Package Info — lists dir |
+| `recent_searches.json` | Recent queries (deduped, MRU) — lists dir                     |
+| `install_list.json`    | Persisted install queue — lists dir                            |
+| `install_log.txt`      | Timestamped record of packages you initiated installs for — logs dir |
+| `remove_log.txt`       | Names of removed packages (one per line) — logs dir                 |
 
 XDG locations (env overrides respected):
-- Config: `$XDG_CONFIG_HOME/pacsea/pacsea.conf` (fallback `~/.config/pacsea/pacsea.conf`)
-- Cache: `$XDG_CACHE_HOME/pacsea/`
-- State: `$XDG_STATE_HOME/pacsea/`
+- Config: `~/.config/pacsea/pacsea.conf` (fallback `$XDG_CONFIG_HOME/pacsea/pacsea.conf`)
+- Logs: `~/.config/pacsea/logs/`
+- Lists: `~/.config/pacsea/lists/`
 - Data: `$XDG_DATA_HOME/pacsea/`
 
 ## Troubleshooting
@@ -353,7 +353,7 @@ XDG locations (env overrides respected):
 ### Implemented
 - [x] Theme customization system (themes, color palettes, glyph styles; adaptive terminal colors)
 - [x] Prebuilt binaries / packaging (Arch User Repository)
-- [x] XDG‑compliant configuration with persistent settings (config/cache/state dirs; basic app settings)
+ - [x] XDG‑aware configuration with persistent settings (config subdirectories: logs/lists; basic app settings)
 - [x] Customizable keybindings and context help overlay
 - [x] Richer package info: PKGBUILD preview
 - [x] Repo filters in Results (AUR/core/extra/multilib/EOS)

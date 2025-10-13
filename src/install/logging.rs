@@ -1,7 +1,7 @@
 use std::io::Write;
 
 pub fn log_installed(names: &[String]) -> std::io::Result<()> {
-    let mut path = crate::theme::state_dir();
+    let mut path = crate::theme::logs_dir();
     path.push("install_log.txt");
     let mut f = std::fs::OpenOptions::new()
         .create(true)
@@ -19,8 +19,8 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
 }
 
 pub fn log_removed(names: &[String]) -> std::io::Result<()> {
-    let mut path = crate::theme::config_dir();
-    path.push("removed_packages.txt");
+    let mut path = crate::theme::logs_dir();
+    path.push("remove_log.txt");
     let mut f = std::fs::OpenOptions::new()
         .create(true)
         .append(true)

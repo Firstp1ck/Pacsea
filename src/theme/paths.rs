@@ -24,8 +24,6 @@ pub(crate) fn resolve_config_path() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-// Removed repo-local config directory support for dev; always prefer HOME config.
-
 fn xdg_base_dir(var: &str, home_default: &[&str]) -> PathBuf {
     if let Ok(p) = env::var(var)
         && !p.trim().is_empty()
@@ -45,47 +43,38 @@ fn xdg_base_dir(var: &str, home_default: &[&str]) -> PathBuf {
 fn home_config_dir() -> Option<PathBuf> {
     if let Ok(home) = env::var("HOME") {
         let dir = Path::new(&home).join(".config").join("pacsea");
-        let _ = std::fs::create_dir_all(&dir);
-        return Some(dir);
+        if std::fs::create_dir_all(&dir).is_ok() {
+            return Some(dir);
+        }
     }
     None
 }
 
-/// XDG cache directory for Pacsea (ensured to exist)
-pub fn cache_dir() -> PathBuf {
-    // Unify under HOME config dir first.
-    if let Some(dir) = home_config_dir() {
-        return dir;
-    }
-    // Fallback to XDG cache when HOME not available
-    let base = xdg_base_dir("XDG_CACHE_HOME", &[".cache"]);
-    let dir = base.join("pacsea");
-    let _ = std::fs::create_dir_all(&dir);
-    dir
-}
-
-/// XDG state directory for Pacsea (ensured to exist)
-pub fn state_dir() -> PathBuf {
-    // Unify under HOME config dir first.
-    if let Some(dir) = home_config_dir() {
-        return dir;
-    }
-    // Fallback to XDG state when HOME not available
-    let base = xdg_base_dir("XDG_STATE_HOME", &[".local", "state"]);
-    let dir = base.join("pacsea");
-    let _ = std::fs::create_dir_all(&dir);
-    dir
-}
-
 /// XDG config directory for Pacsea (ensured to exist)
 pub fn config_dir() -> PathBuf {
-    // Prefer HOME config first.
+    // Prefer HOME ~/.config/pacsea first
     if let Some(dir) = home_config_dir() {
         return dir;
     }
-    // Fallback to XDG config when HOME not available
+    // Fallback: use XDG_CONFIG_HOME (or default to ~/.config) and ensure
     let base = xdg_base_dir("XDG_CONFIG_HOME", &[".config"]);
     let dir = base.join("pacsea");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+/// Logs directory under config: "$HOME/.config/pacsea/logs" (ensured to exist)
+pub fn logs_dir() -> PathBuf {
+    let base = config_dir();
+    let dir = base.join("logs");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+/// Lists directory under config: "$HOME/.config/pacsea/lists" (ensured to exist)
+pub fn lists_dir() -> PathBuf {
+    let base = config_dir();
+    let dir = base.join("lists");
     let _ = std::fs::create_dir_all(&dir);
     dir
 }

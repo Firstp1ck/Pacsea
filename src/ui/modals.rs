@@ -380,7 +380,6 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             if let Some(k) = km.pane_next.first().copied() {
                 lines.push(fmt("Next pane", k));
             }
-            // Previous pane binding removed
             if let Some(k) = km.pane_left.first().copied() {
                 lines.push(fmt("Focus left", k));
             }

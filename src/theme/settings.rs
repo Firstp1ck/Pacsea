@@ -109,7 +109,6 @@ pub fn settings() -> Settings {
                     out.keymap.pane_next = vec![ch];
                 }
             }
-            // keybind_pane_prev has been removed; ignore for compatibility
             "keybind_pane_left" => {
                 if let Some(ch) = parse_key_chord(val) {
                     out.keymap.pane_left = vec![ch];

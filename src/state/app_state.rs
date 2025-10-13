@@ -296,15 +296,15 @@ impl Default for AppState {
             focus: Focus::Search,
             last_input_change: Instant::now(),
             last_saved_value: None,
-            // Persisted recent searches (XDG state)
-            recent_path: crate::theme::state_dir().join("recent_searches.json"),
+            // Persisted recent searches (lists dir under config)
+            recent_path: crate::theme::lists_dir().join("recent_searches.json"),
             recent_dirty: false,
 
             latest_query_id: 0,
             next_query_id: 1,
             details_cache: HashMap::new(),
-            // Details cache (XDG cache)
-            cache_path: crate::theme::cache_dir().join("details_cache.json"),
+            // Details cache (lists dir under config)
+            cache_path: crate::theme::lists_dir().join("details_cache.json"),
             cache_dirty: false,
 
             install_list: Vec::new(),
@@ -313,8 +313,8 @@ impl Default for AppState {
             remove_state: ListState::default(),
             downgrade_list: Vec::new(),
             downgrade_state: ListState::default(),
-            // Install list (XDG state)
-            install_path: crate::theme::state_dir().join("install_list.json"),
+            // Install list (lists dir under config)
+            install_path: crate::theme::lists_dir().join("install_list.json"),
             install_dirty: false,
 
             // Middle row panes visible by default
@@ -329,8 +329,8 @@ impl Default for AppState {
             search_caret: 0,
             search_select_anchor: None,
 
-            // Official index (XDG cache)
-            official_index_path: crate::theme::cache_dir().join("official_index.json"),
+            // Official index (lists dir under config)
+            official_index_path: crate::theme::lists_dir().join("official_index.json"),
 
             loading_index: false,
 

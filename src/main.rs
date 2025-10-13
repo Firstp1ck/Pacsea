@@ -17,9 +17,9 @@ static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLo
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing logger writing to ~/.config/pacsea/pacsea.log
+    // Initialize tracing logger writing to ~/.config/pacsea/logs/pacsea.log
     {
-        let mut log_path = crate::theme::config_dir();
+        let mut log_path = crate::theme::logs_dir();
         log_path.push("pacsea.log");
         // Ensure directory exists (theme::config_dir already ensures it)
         match std::fs::OpenOptions::new()

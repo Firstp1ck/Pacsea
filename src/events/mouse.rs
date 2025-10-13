@@ -616,8 +616,8 @@ pub fn handle_mouse_event(
             let conf_path = crate::theme::config_dir().join("pacsea.conf");
             let install_path = app.install_path.clone();
             let recent_path = app.recent_path.clone();
-            // For installed list, write a transient file under config dir (keep as requested name)
-            let installed_list_path = crate::theme::config_dir().join("installed_list.json");
+            // For installed list, write a transient file under lists dir (keep as requested name)
+            let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
             if row == 2 {
                 // Build installed names JSON array (explicit set is closer to user expectation? use explicit_names for stability)
                 let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();

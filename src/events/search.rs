@@ -181,7 +181,6 @@ pub fn handle_search_key(
                 refresh_install_details(app, details_tx);
             }
         }
-        // previous pane removed
         (KeyCode::Right, _) => {
             // Search -> Install (adjacent)
             if app.installed_only_mode {
