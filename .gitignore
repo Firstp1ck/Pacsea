@@ -31,3 +31,5 @@ RELEASE*.md
 Documents/
 .jj
 AUR_BUILD/
+
+.vscode/

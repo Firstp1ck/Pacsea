@@ -1,5 +1,5 @@
-use std::process::Command;
 use crate::state::Source;
+use std::process::Command;
 
 use crate::state::PackageItem;
 
