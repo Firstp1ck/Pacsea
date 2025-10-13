@@ -26,6 +26,7 @@ mod details;
 mod middle;
 mod modals;
 mod results;
+pub mod helpers;
 
 /// Render a full frame of the Pacsea TUI.
 ///

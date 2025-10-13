@@ -154,7 +154,7 @@ pub fn handle_search_key(
                     app.history_state.select(Some(0));
                 }
                 app.focus = crate::state::Focus::Recent;
-                crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                crate::ui::helpers::trigger_recent_preview(app, preview_tx);
             }
             _ => {}
         }
@@ -206,7 +206,7 @@ pub fn handle_search_key(
                 app.history_state.select(Some(0));
             }
             app.focus = crate::state::Focus::Recent;
-            crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+            crate::ui::helpers::trigger_recent_preview(app, preview_tx);
         }
         (KeyCode::Char(' '), KeyModifiers::CONTROL) => {
             if app.installed_only_mode

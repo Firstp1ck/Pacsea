@@ -749,21 +749,21 @@ pub fn handle_mouse_event(
         && my >= y
         && my < y + h
     {
-        let inds = crate::ui_helpers::filtered_recent_indices(app);
+        let inds = crate::ui::helpers::filtered_recent_indices(app);
         if !inds.is_empty() {
             match m.kind {
                 MouseEventKind::ScrollUp => {
                     let sel = app.history_state.selected().unwrap_or(0);
                     let new = sel.saturating_sub(1);
                     app.history_state.select(Some(new));
-                    crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                    crate::ui::helpers::trigger_recent_preview(app, preview_tx);
                 }
                 MouseEventKind::ScrollDown => {
                     let sel = app.history_state.selected().unwrap_or(0);
                     let max = inds.len().saturating_sub(1);
                     let new = std::cmp::min(sel.saturating_add(1), max);
                     app.history_state.select(Some(new));
-                    crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                    crate::ui::helpers::trigger_recent_preview(app, preview_tx);
                 }
                 _ => {}
             }
@@ -792,7 +792,7 @@ pub fn handle_mouse_event(
         } else {
             app.right_pane_focus = crate::state::RightPaneFocus::Install;
             let row = my.saturating_sub(y) as usize;
-            let inds = crate::ui_helpers::filtered_install_indices(app);
+            let inds = crate::ui::helpers::filtered_install_indices(app);
             if !inds.is_empty() {
                 let max = inds.len().saturating_sub(1);
                 let vis_idx = std::cmp::min(row, max);
@@ -855,7 +855,7 @@ pub fn handle_mouse_event(
                 }
             }
         } else {
-            let inds = crate::ui_helpers::filtered_install_indices(app);
+            let inds = crate::ui::helpers::filtered_install_indices(app);
             if !inds.is_empty() {
                 match m.kind {
                     MouseEventKind::ScrollUp => {

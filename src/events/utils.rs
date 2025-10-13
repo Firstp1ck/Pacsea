@@ -26,7 +26,7 @@ pub fn find_in_recent(app: &mut AppState, forward: bool) {
     let Some(pattern) = app.pane_find.clone() else {
         return;
     };
-    let inds = crate::ui_helpers::filtered_recent_indices(app);
+    let inds = crate::ui::helpers::filtered_recent_indices(app);
     if inds.is_empty() {
         return;
     }
@@ -57,7 +57,7 @@ pub fn find_in_install(app: &mut AppState, forward: bool) {
     let Some(pattern) = app.pane_find.clone() else {
         return;
     };
-    let inds = crate::ui_helpers::filtered_install_indices(app);
+    let inds = crate::ui::helpers::filtered_install_indices(app);
     if inds.is_empty() {
         return;
     }
@@ -107,7 +107,7 @@ pub fn refresh_install_details(
     let Some(vsel) = app.install_state.selected() else {
         return;
     };
-    let inds = crate::ui_helpers::filtered_install_indices(app);
+    let inds = crate::ui::helpers::filtered_install_indices(app);
     if inds.is_empty() || vsel >= inds.len() {
         return;
     }

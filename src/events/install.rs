@@ -58,7 +58,7 @@ pub fn handle_install_key(
             if !app.installed_only_mode
                 || matches!(app.right_pane_focus, crate::state::RightPaneFocus::Install)
             {
-                let inds = crate::ui_helpers::filtered_install_indices(app);
+                let inds = crate::ui::helpers::filtered_install_indices(app);
                 if inds.is_empty() {
                     return false;
                 }
@@ -97,7 +97,7 @@ pub fn handle_install_key(
             if !app.installed_only_mode
                 || matches!(app.right_pane_focus, crate::state::RightPaneFocus::Install)
             {
-                let inds = crate::ui_helpers::filtered_install_indices(app);
+                let inds = crate::ui::helpers::filtered_install_indices(app);
                 if inds.is_empty() {
                     return false;
                 }
@@ -187,7 +187,7 @@ pub fn handle_install_key(
                             app.history_state.select(Some(0));
                         }
                         app.focus = crate::state::Focus::Recent;
-                        crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
                         return false;
                     }
                     crate::state::RightPaneFocus::Install => {}
@@ -198,7 +198,7 @@ pub fn handle_install_key(
                 app.history_state.select(Some(0));
             }
             app.focus = crate::state::Focus::Recent;
-            crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+            crate::ui::helpers::trigger_recent_preview(app, preview_tx);
         }
         KeyCode::Left => {
             // In installed-only mode, follow reverse: Remove -> Downgrade -> Search
@@ -283,7 +283,7 @@ pub fn handle_install_key(
                     }
                     crate::state::RightPaneFocus::Install => {
                         // Installed-only mode: when Install subpane is focused, delete from Install list
-                        let inds = crate::ui_helpers::filtered_install_indices(app);
+                        let inds = crate::ui::helpers::filtered_install_indices(app);
                         if inds.is_empty() {
                             return false;
                         }
@@ -306,7 +306,7 @@ pub fn handle_install_key(
                 }
             } else {
                 // Normal mode: delete from Install list
-                let inds = crate::ui_helpers::filtered_install_indices(app);
+                let inds = crate::ui::helpers::filtered_install_indices(app);
                 if inds.is_empty() {
                     return false;
                 }
@@ -387,7 +387,7 @@ pub fn handle_install_key(
                     }
                     crate::state::RightPaneFocus::Install => {
                         // Fall through to normal install list removal logic below
-                        let inds = crate::ui_helpers::filtered_install_indices(app);
+                        let inds = crate::ui::helpers::filtered_install_indices(app);
                         if inds.is_empty() {
                             return false;
                         }
@@ -410,7 +410,7 @@ pub fn handle_install_key(
                 }
             } else {
                 // Normal mode: remove from Install list
-                let inds = crate::ui_helpers::filtered_install_indices(app);
+                let inds = crate::ui::helpers::filtered_install_indices(app);
                 if inds.is_empty() {
                     return false;
                 }
@@ -435,7 +435,7 @@ pub fn handle_install_key(
             if !app.installed_only_mode
                 || matches!(app.right_pane_focus, crate::state::RightPaneFocus::Install)
             {
-                let inds = crate::ui_helpers::filtered_install_indices(app);
+                let inds = crate::ui::helpers::filtered_install_indices(app);
                 if inds.is_empty() {
                     return false;
                 }
@@ -464,7 +464,7 @@ pub fn handle_install_key(
             if !app.installed_only_mode
                 || matches!(app.right_pane_focus, crate::state::RightPaneFocus::Install)
             {
-                let inds = crate::ui_helpers::filtered_install_indices(app);
+                let inds = crate::ui::helpers::filtered_install_indices(app);
                 if inds.is_empty() {
                     return false;
                 }

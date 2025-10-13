@@ -24,7 +24,7 @@ pub fn handle_recent_key(
         match ke.code {
             KeyCode::Enter => {
                 find_in_recent(app, true);
-                crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                crate::ui::helpers::trigger_recent_preview(app, preview_tx);
             }
             KeyCode::Esc => {
                 app.pane_find = None;
@@ -52,7 +52,7 @@ pub fn handle_recent_key(
     match ke.code {
         KeyCode::Char('j') => {
             // vim down
-            let inds = crate::ui_helpers::filtered_recent_indices(app);
+            let inds = crate::ui::helpers::filtered_recent_indices(app);
             if inds.is_empty() {
                 return false;
             }
@@ -60,18 +60,18 @@ pub fn handle_recent_key(
             let max = inds.len().saturating_sub(1);
             let new = std::cmp::min(sel + 1, max);
             app.history_state.select(Some(new));
-            crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+            crate::ui::helpers::trigger_recent_preview(app, preview_tx);
         }
         KeyCode::Char('k') => {
             // vim up
-            let inds = crate::ui_helpers::filtered_recent_indices(app);
+            let inds = crate::ui::helpers::filtered_recent_indices(app);
             if inds.is_empty() {
                 return false;
             }
             let sel = app.history_state.selected().unwrap_or(0);
             let new = sel.saturating_sub(1);
             app.history_state.select(Some(new));
-            crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+            crate::ui::helpers::trigger_recent_preview(app, preview_tx);
         }
         KeyCode::Char('/') => {
             app.pane_find = Some(String::new());
@@ -98,7 +98,7 @@ pub fn handle_recent_key(
         }
         // Single delete in Recent via configured keys (default: d or Delete)
         code if matches_any(&km.recent_remove) && code == ke.code => {
-            let inds = crate::ui_helpers::filtered_recent_indices(app);
+            let inds = crate::ui::helpers::filtered_recent_indices(app);
             if inds.is_empty() {
                 return false;
             }
@@ -113,13 +113,13 @@ pub fn handle_recent_key(
                     } else {
                         let new_sel = if vsel >= vis_len { vis_len - 1 } else { vsel };
                         app.history_state.select(Some(new_sel));
-                        crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+                        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
                     }
                 }
             }
         }
         KeyCode::Down => {
-            let inds = crate::ui_helpers::filtered_recent_indices(app);
+            let inds = crate::ui::helpers::filtered_recent_indices(app);
             if inds.is_empty() {
                 return false;
             }
@@ -127,20 +127,20 @@ pub fn handle_recent_key(
             let max = inds.len().saturating_sub(1);
             let new = std::cmp::min(sel + 1, max);
             app.history_state.select(Some(new));
-            crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+            crate::ui::helpers::trigger_recent_preview(app, preview_tx);
         }
         KeyCode::Up => {
-            let inds = crate::ui_helpers::filtered_recent_indices(app);
+            let inds = crate::ui::helpers::filtered_recent_indices(app);
             if inds.is_empty() {
                 return false;
             }
             let sel = app.history_state.selected().unwrap_or(0);
             let new = sel.saturating_sub(1);
             app.history_state.select(Some(new));
-            crate::ui_helpers::trigger_recent_preview(app, preview_tx);
+            crate::ui::helpers::trigger_recent_preview(app, preview_tx);
         }
         KeyCode::Char(' ') => {
-            let inds = crate::ui_helpers::filtered_recent_indices(app);
+            let inds = crate::ui::helpers::filtered_recent_indices(app);
             if inds.is_empty() {
                 return false;
             }
@@ -149,7 +149,7 @@ pub fn handle_recent_key(
                 if let Some(q) = app.recent.get(i).cloned() {
                     let tx = add_tx.clone();
                     tokio::spawn(async move {
-                        if let Some(item) = crate::ui_helpers::fetch_first_match_for_query(q).await
+                        if let Some(item) = crate::ui::helpers::fetch_first_match_for_query(q).await
                         {
                             let _ = tx.send(item);
                         }
@@ -158,7 +158,7 @@ pub fn handle_recent_key(
             }
         }
         KeyCode::Enter => {
-            let inds = crate::ui_helpers::filtered_recent_indices(app);
+            let inds = crate::ui::helpers::filtered_recent_indices(app);
             if inds.is_empty() {
                 return false;
             }

@@ -62,6 +62,6 @@ pub async fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
     if !items.is_empty() {
         return items;
     }
-    super::persistence::load_from_disk(path);
+    super::persist::load_from_disk(path);
     all_official()
 }

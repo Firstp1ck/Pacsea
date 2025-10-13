@@ -180,7 +180,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Recent searches (left) with filtering (render only if visible and has width)
     if app.show_recent_pane && middle[0].width > 0 {
         let recent_focused = matches!(app.focus, Focus::Recent);
-        let rec_inds = crate::ui_helpers::filtered_recent_indices(app);
+        let rec_inds = crate::ui::helpers::filtered_recent_indices(app);
         let rec_items: Vec<ListItem> = rec_inds
             .iter()
             .filter_map(|&i| app.recent.get(i))
@@ -427,7 +427,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
             ));
         } else {
             // Normal Install List (single right pane)
-            let indices: Vec<usize> = crate::ui_helpers::filtered_install_indices(app);
+            let indices: Vec<usize> = crate::ui::helpers::filtered_install_indices(app);
             let install_items: Vec<ListItem> = indices
                 .iter()
                 .filter_map(|&i| app.install_list.get(i))

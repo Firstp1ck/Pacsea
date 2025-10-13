@@ -42,7 +42,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
         (content_container, None)
     };
 
-    let mut details_lines = crate::ui_helpers::format_details_lines(app, details_area.width, &th);
+    let mut details_lines = crate::ui::helpers::format_details_lines(app, details_area.width, &th);
     // Record details inner rect for mouse hit-testing
     app.details_rect = Some((
         details_area.x + 1,

@@ -56,7 +56,7 @@ mod enrich;
 mod explicit;
 mod fetch;
 mod installed;
-mod persistence;
+mod persist;
 mod query;
 mod update;
 
@@ -64,6 +64,6 @@ pub use enrich::*;
 pub use explicit::*;
 pub use fetch::*;
 pub use installed::*;
-pub use persistence::*;
+pub use persist::*;
 pub use query::*;
 pub use update::*;
