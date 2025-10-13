@@ -26,7 +26,7 @@ pub fn log_removed(names: &[String]) -> std::io::Result<()> {
         .append(true)
         .open(path)?;
     for n in names {
-        writeln!(f, "{}", n)?;
+        writeln!(f, "{n}")?;
     }
     Ok(())
 }

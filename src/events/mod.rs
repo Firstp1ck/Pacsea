@@ -101,7 +101,7 @@ pub fn handle_event(
                             if country.eq("Worldwide") {
                                 cmds.push("sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist".to_string());
                             } else {
-                                cmds.push(format!("sudo reflector --verbose --country '{}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist", country));
+                                cmds.push(format!("sudo reflector --verbose --country '{country}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist"));
                             }
                         }
                         if *do_pacman {

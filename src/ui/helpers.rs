@@ -246,5 +246,3 @@ pub fn trigger_recent_preview(
         }
     });
 }
-
-

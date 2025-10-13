@@ -632,8 +632,7 @@ fn status_parse_prefers_svg_rect_color() {
     let date_str = format!("{month_name} {d}, {y}");
 
     let html = format!(
-        "<html>\n          <body>\n            <h2>Uptime Last 90 days</h2>\n            <div>Monitors (default)</div>\n            <div>AUR</div>\n            <svg>\n              <rect x=\"900\" y=\"0\" width=\"10\" height=\"10\" fill=\"#f59e0b\"></rect>\n            </svg>\n            <div>{}</div>\n            <div>97% uptime</div>\n          </body>\n        </html>",
-        date_str
+        "<html>\n          <body>\n            <h2>Uptime Last 90 days</h2>\n            <div>Monitors (default)</div>\n            <div>AUR</div>\n            <svg>\n              <rect x=\"900\" y=\"0\" width=\"10\" height=\"10\" fill=\"#f59e0b\"></rect>\n            </svg>\n            <div>{date_str}</div>\n            <div>97% uptime</div>\n          </body>\n        </html>"
     );
     let (_txt, color) = crate_root::sources::status::parse_arch_status_from_html(&html);
     assert_eq!(color, ArchStatusColor::IncidentToday);

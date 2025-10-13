@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use crate::state::{PackageItem, Source};
+use crate::state::PackageItem;
 
 #[cfg(not(target_os = "windows"))]
 use super::logging::log_installed;

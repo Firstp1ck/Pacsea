@@ -556,7 +556,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     let mut appended_any = false;
     for (k, v) in pairs.iter() {
         if !have.contains(*k) {
-            lines.push(format!("{} = {}", k, v));
+            lines.push(format!("{k} = {v}"));
             appended_any = true;
         }
     }

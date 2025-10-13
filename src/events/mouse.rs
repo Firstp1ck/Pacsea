@@ -640,13 +640,12 @@ pub fn handle_mouse_event(
             // Build a single OR-chained command so only the first available editor runs
             let path_str = target.display().to_string();
             let editor_cmd = format!(
-                "(command -v nvim >/dev/null 2>&1 && nvim '{p}') || \
-                 (command -v vim >/dev/null 2>&1 && vim '{p}') || \
-                 (command -v hx >/dev/null 2>&1 && hx '{p}') || \
-                 (command -v helix >/dev/null 2>&1 && helix '{p}') || \
-                 (command -v nano >/dev/null 2>&1 && nano '{p}') || \
-                 (echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {p}'; read -rn1 -s _ || true)",
-                p = path_str,
+                "(command -v nvim >/dev/null 2>&1 && nvim '{path_str}') || \
+                 (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \
+                 (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \
+                 (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \
+                 (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \
+                 (echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)",
             );
             let cmds = vec![editor_cmd];
 
