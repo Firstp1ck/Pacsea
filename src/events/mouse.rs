@@ -390,6 +390,52 @@ pub fn handle_mouse_event(
             });
             return false;
         }
+        // Click on Install pane bottom Export button
+        if let Some((x, y, w, h)) = app.install_export_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            // Export current Install List package names to config export dir
+            let mut names: Vec<String> = app.install_list.iter().map(|p| p.name.clone()).collect();
+            names.sort();
+            if names.is_empty() {
+                app.toast_message = Some("Install List is empty".to_string());
+                app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                return false;
+            }
+            // Build export directory and file name install_list_YYYYMMDD_serial
+            let export_dir = crate::theme::config_dir().join("export");
+            let _ = std::fs::create_dir_all(&export_dir);
+            let date_str = crate::util::today_yyyymmdd_utc();
+            let mut serial: u32 = 1;
+            let file_path = loop {
+                let fname = format!(
+                    "install_list_{}_{}.txt",
+                    date_str,
+                    serial
+                );
+                let path = export_dir.join(&fname);
+                if !path.exists() {
+                    break path;
+                }
+                serial += 1;
+                if serial > 9999 { break export_dir.join(format!("install_list_{}_fallback.txt", date_str)); }
+            };
+            let body = names.join("\n");
+            match std::fs::write(&file_path, body) {
+                Ok(_) => {
+                    app.toast_message = Some(format!("Exported to {}", file_path.display()));
+                    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                }
+                Err(e) => {
+                    app.toast_message = Some(format!("Export failed: {}", e));
+                    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                }
+            }
+            return false;
+        }
         // Click on Arch status label (opens status URL)
         if let Some((x, y, w, h)) = app.arch_status_rect
             && mx >= x

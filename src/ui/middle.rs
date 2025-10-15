@@ -425,8 +425,9 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 right_split[1].width.saturating_sub(2),
                 right_split[1].height.saturating_sub(2),
             ));
-            // Import button not shown in installed-only mode
+            // Import/Export buttons not shown in installed-only mode
             app.install_import_rect = None;
+            app.install_export_rect = None;
         } else {
             // Normal Install List (single right pane)
             let indices: Vec<usize> = crate::ui::helpers::filtered_install_indices(app);
@@ -509,38 +510,62 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 middle[2].height.saturating_sub(2),
             ));
 
-            // Bottom border action button: Import
+            // Bottom border action buttons: Export (left) and Import (right)
             let th = theme();
-            let btn_label = "Import";
+            let import_label = "Import";
+            let export_label = "Export";
             // Style similar to other title buttons
-            let btn_style = if install_focused {
-                Style::default()
-                    .fg(th.crust)
-                    .bg(th.mauve)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-                    .fg(th.mauve)
-                    .bg(th.surface2)
-                    .add_modifier(Modifier::BOLD)
-            };
-            let line = Paragraph::new(Line::from(vec![Span::styled(
-                btn_label.to_string(),
-                btn_style,
-            )]));
+            let btn_style_active = Style::default()
+                .fg(th.crust)
+                .bg(th.mauve)
+                .add_modifier(Modifier::BOLD);
+            let btn_style_inactive = Style::default()
+                .fg(th.mauve)
+                .bg(th.surface2)
+                .add_modifier(Modifier::BOLD);
+            let style = if install_focused { btn_style_active } else { btn_style_inactive };
+
             let inner_w = middle[2].width.saturating_sub(2);
-            let w = btn_label.len() as u16;
-            let sx = middle[2].x + 1 + inner_w.saturating_sub(w);
             let sy = middle[2].y + middle[2].height.saturating_sub(1);
-            let rect = ratatui::prelude::Rect {
-                x: sx,
+
+            // Import button on the far right
+            let import_w = import_label.len() as u16;
+            let import_sx = middle[2].x + 1 + inner_w.saturating_sub(import_w);
+            let import_rect = ratatui::prelude::Rect {
+                x: import_sx,
                 y: sy,
-                width: w.min(inner_w),
+                width: import_w.min(inner_w),
                 height: 1,
             };
-            // Record clickable rect for Import button
-            app.install_import_rect = Some((rect.x, rect.y, rect.width, rect.height));
-            f.render_widget(line, rect);
+            let import_line = Paragraph::new(Line::from(vec![Span::styled(
+                import_label.to_string(),
+                style,
+            )]));
+            app.install_import_rect = Some((import_rect.x, import_rect.y, import_rect.width, import_rect.height));
+            f.render_widget(import_line, import_rect);
+
+            // Export button to the left of Import with 2 spaces gap
+            let gap: u16 = 2;
+            let export_w = export_label.len() as u16;
+            let export_max_w = inner_w;
+            let export_right = import_rect.x.saturating_sub(gap);
+            let export_sx = if export_w > export_right.saturating_sub(middle[2].x + 1) {
+                middle[2].x + 1
+            } else {
+                export_right.saturating_sub(export_w)
+            };
+            let export_rect = ratatui::prelude::Rect {
+                x: export_sx,
+                y: sy,
+                width: export_w.min(export_max_w),
+                height: 1,
+            };
+            let export_line = Paragraph::new(Line::from(vec![Span::styled(
+                export_label.to_string(),
+                style,
+            )]));
+            app.install_export_rect = Some((export_rect.x, export_rect.y, export_rect.width, export_rect.height));
+            f.render_widget(export_line, export_rect);
         }
     } else {
         app.install_rect = None;

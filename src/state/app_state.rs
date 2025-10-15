@@ -135,6 +135,8 @@ pub struct AppState {
     // Install pane bottom action (Import)
     /// Clickable rectangle for the Install pane bottom "Import" button (x, y, w, h).
     pub install_import_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Install pane bottom "Export" button (x, y, w, h).
+    pub install_export_rect: Option<(u16, u16, u16, u16)>,
 
     // Arch status label (middle row footer)
     /// Latest fetched status message from `status.archlinux.org`.
@@ -348,6 +350,7 @@ impl Default for AppState {
             need_ring_prefetch: false,
             url_button_rect: None,
             install_import_rect: None,
+            install_export_rect: None,
             arch_status_text: "Arch Status: loading…".to_string(),
             arch_status_rect: None,
             arch_status_color: ArchStatusColor::None,
