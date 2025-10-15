@@ -48,6 +48,8 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         "resolved state file paths"
     );
 
+    // Migrate legacy single-file config to split files before reading settings
+    crate::theme::maybe_migrate_legacy_confs();
     let prefs = crate::theme::settings();
     // Ensure config has all known settings keys (non-destructive append)
     crate::theme::ensure_settings_keys_present(&prefs);

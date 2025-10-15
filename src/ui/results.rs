@@ -481,7 +481,9 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     app.config_menu_rect = None;
     if app.config_menu_open {
         let opts = [
-            "Config -> pacsea.conf",
+            "Settings -> settings.conf",
+            "Theme -> theme.conf",
+            "Keybindings -> keybinds.conf",
             "Install List -> install_list.json",
             "Installed Packages -> installed_list.json",
             "Recent Searches -> recent_searches.json",

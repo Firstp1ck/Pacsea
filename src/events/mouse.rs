@@ -411,7 +411,8 @@ pub fn handle_mouse_event(
             names.sort();
             if names.is_empty() {
                 app.toast_message = Some("Install List is empty".to_string());
-                app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 return false;
             }
             // Build export directory and file name install_list_YYYYMMDD_serial
@@ -420,28 +421,28 @@ pub fn handle_mouse_event(
             let date_str = crate::util::today_yyyymmdd_utc();
             let mut serial: u32 = 1;
             let file_path = loop {
-                let fname = format!(
-                    "install_list_{}_{}.txt",
-                    date_str,
-                    serial
-                );
+                let fname = format!("install_list_{}_{}.txt", date_str, serial);
                 let path = export_dir.join(&fname);
                 if !path.exists() {
                     break path;
                 }
                 serial += 1;
-                if serial > 9999 { break export_dir.join(format!("install_list_{}_fallback.txt", date_str)); }
+                if serial > 9999 {
+                    break export_dir.join(format!("install_list_{}_fallback.txt", date_str));
+                }
             };
             let body = names.join("\n");
             match std::fs::write(&file_path, body) {
                 Ok(_) => {
                     app.toast_message = Some(format!("Exported to {}", file_path.display()));
-                    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
                     tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
                 }
                 Err(e) => {
                     app.toast_message = Some(format!("Export failed: {}", e));
-                    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
                     tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
                 }
             }
@@ -763,14 +764,16 @@ pub fn handle_mouse_event(
             && my >= y
             && my < y + h
         {
-            let row = my.saturating_sub(y) as usize; // rows: 0 pacsea.conf, 1 install_list, 2 installed_list, 3 recent_searches
+            let row = my.saturating_sub(y) as usize; // rows: 0 settings.conf, 1 theme.conf, 2 keybinds.conf, 3 install_list, 4 installed_list, 5 recent_searches
             // Resolve file paths
-            let conf_path = crate::theme::config_dir().join("pacsea.conf");
+            let settings_path = crate::theme::config_dir().join("settings.conf");
+            let theme_path = crate::theme::config_dir().join("theme.conf");
+            let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
             let install_path = app.install_path.clone();
             let recent_path = app.recent_path.clone();
             // For installed list, write a transient file under lists dir (keep as requested name)
             let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
-            if row == 2 {
+            if row == 4 {
                 // Build installed names JSON array (explicit set is closer to user expectation? use explicit_names for stability)
                 let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
                 names.sort();
@@ -779,10 +782,12 @@ pub fn handle_mouse_event(
             }
 
             let target = match row {
-                0 => conf_path,
-                1 => install_path,
-                2 => installed_list_path,
-                3 => recent_path,
+                0 => settings_path,
+                1 => theme_path,
+                2 => keybinds_path,
+                3 => install_path,
+                4 => installed_list_path,
+                5 => recent_path,
                 _ => {
                     app.config_menu_open = false;
                     return false;

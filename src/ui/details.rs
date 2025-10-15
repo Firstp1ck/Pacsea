@@ -23,7 +23,11 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Reserve footer height: baseline lines + optional Normal Mode line
     // Baseline: GLOBALS, SEARCH, INSTALL, RECENT (4). In installed-only mode, split to 5 lines: GLOBALS, SEARCH, DOWNGRADE, REMOVE, RECENT.
     let baseline_lines: u16 = if app.installed_only_mode { 5 } else { 4 };
-    let base_help_h: u16 = if app.show_keybinds_footer { baseline_lines } else { 0 };
+    let base_help_h: u16 = if app.show_keybinds_footer {
+        baseline_lines
+    } else {
+        0
+    };
     let help_h: u16 = if matches!(app.focus, Focus::Search) && app.search_normal_mode {
         base_help_h.saturating_add(1)
     } else {
@@ -335,10 +339,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     (km.install_move_up.first(), km.install_move_down.first())
                 {
                     spans.extend([
-                        Span::styled(
-                            format!("[{} / {}]", up.label(), dn.label()),
-                            key_style,
-                        ),
+                        Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
                         Span::raw(" Move"),
                         sep.clone(),
                     ]);
@@ -388,8 +389,13 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
 
             let (right_lines_install, right_lines_split) = if app.installed_only_mode {
-                let d_spans = build_right_spans("DOWNGRADE:", downgrade_label_color, "Confirm package Downgrade");
-                let r_spans = build_right_spans("REMOVE:   ", remove_label_color, "Confirm package Removal");
+                let d_spans = build_right_spans(
+                    "DOWNGRADE:",
+                    downgrade_label_color,
+                    "Confirm package Downgrade",
+                );
+                let r_spans =
+                    build_right_spans("REMOVE:   ", remove_label_color, "Confirm package Removal");
                 (None, Some((Line::from(d_spans), Line::from(r_spans))))
             } else {
                 let mut i_spans: Vec<Span> = vec![
@@ -405,10 +411,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     (km.install_move_up.first(), km.install_move_down.first())
                 {
                     i_spans.extend([
-                        Span::styled(
-                            format!("[{} / {}]", up.label(), dn.label()),
-                            key_style,
-                        ),
+                        Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
                         Span::raw(" Move"),
                         sep.clone(),
                     ]);
@@ -573,8 +576,10 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             let content_lines: u16 = if matches!(app.focus, Focus::Search) && app.search_normal_mode
             {
                 if app.installed_only_mode { 6 } else { 5 }
+            } else if app.installed_only_mode {
+                5
             } else {
-                if app.installed_only_mode { 5 } else { 4 }
+                4
             };
             let content_y = y_top + h.saturating_sub(content_lines);
             let content_rect = ratatui::prelude::Rect {

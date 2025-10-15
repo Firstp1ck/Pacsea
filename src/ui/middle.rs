@@ -523,7 +523,11 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .fg(th.mauve)
                 .bg(th.surface2)
                 .add_modifier(Modifier::BOLD);
-            let style = if install_focused { btn_style_active } else { btn_style_inactive };
+            let style = if install_focused {
+                btn_style_active
+            } else {
+                btn_style_inactive
+            };
 
             let inner_w = middle[2].width.saturating_sub(2);
             let sy = middle[2].y + middle[2].height.saturating_sub(1);
@@ -541,7 +545,12 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 import_label.to_string(),
                 style,
             )]));
-            app.install_import_rect = Some((import_rect.x, import_rect.y, import_rect.width, import_rect.height));
+            app.install_import_rect = Some((
+                import_rect.x,
+                import_rect.y,
+                import_rect.width,
+                import_rect.height,
+            ));
             f.render_widget(import_line, import_rect);
 
             // Export button to the left of Import with 2 spaces gap
@@ -564,7 +573,12 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 export_label.to_string(),
                 style,
             )]));
-            app.install_export_rect = Some((export_rect.x, export_rect.y, export_rect.width, export_rect.height));
+            app.install_export_rect = Some((
+                export_rect.x,
+                export_rect.y,
+                export_rect.width,
+                export_rect.height,
+            ));
             f.render_widget(export_line, export_rect);
         }
     } else {

@@ -8,7 +8,7 @@ use super::paths::{config_dir, resolve_settings_config_path};
 use super::types::{Settings, Theme};
 
 /// Skeleton configuration file content with default color values.
-pub(crate) const SKELETON_CONFIG_CONTENT: &str = "# Pacsea theme configuration\n\
+pub(crate) const THEME_SKELETON_CONTENT: &str = "# Pacsea theme configuration\n\
 #\n\
 # Format: key = value\n\
 # Value formats supported:\n\
@@ -163,98 +163,7 @@ semantic_error = #f38ba8\n\
 # semantic_warning = #f1fa8c\n\
 # semantic_error = #ff5555\n\
 #\n\
-#-----------------------------------------------------------------------------------------------------------------------\n\
-#\n\
-# Application settings\n\
-# Layout percentages for the middle row panes (must sum to 100)\n\
-layout_left_pct = 20\n\
-layout_center_pct = 60\n\
-layout_right_pct = 20\n\
-# Default dry-run behavior when starting the app (overridden by --dry-run)\n\
-app_dry_run_default = false\n\
-# Middle row visibility (default true)\n\
-show_recent_pane = true\n\
-show_install_pane = true\n\
-show_keybinds_footer = true\n\
-\n\
-# Results sorting\n\
-# Allowed values: alphabetical | aur_popularity | best_matches\n\
-sort_mode = best_matches\n\
-\n\
-# Clipboard\n\
-# Text appended when copying PKGBUILD to the clipboard\n\
-clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activities\n\
-\n\
-# Keybindings (defaults)\n\
-# Modifiers can be one of: SUPER, CTRL, SHIFT, ALT.\n\
-\n\
-# GLOBAL — App\n\
-keybind_help = F1\n\
-# Alternative help shortcut\n\
-keybind_help = ?\n\
-keybind_reload_theme = CTRL+R\n\
-keybind_exit = CTRL+Q\n\
-keybind_show_pkgbuild = CTRL+X\n\
-\n\
-# GLOBAL — Pane switching\n\
-keybind_pane_left = Left\n\
-keybind_pane_right = Right\n\
-keybind_pane_next = Tab\n\
-# GLOBAL — Sorting\n\
-keybind_change_sort = BackTab\n\
-\n\
-# SEARCH — Navigation\n\
-keybind_search_move_up = Up\n\
-keybind_search_move_down = Down\n\
-keybind_search_page_up = PgUp\n\
-keybind_search_page_down = PgDn\n\
-\n\
-# SEARCH — Actions\n\
-keybind_search_add = Space\n\
-keybind_search_install = Enter\n\
-\n\
-# SEARCH — Focus/Edit\n\
-keybind_search_focus_left = Left\n\
-keybind_search_focus_right = Right\n\
-keybind_search_backspace = Backspace\n\
-\n\
-# SEARCH — Normal Mode (Focused Search Window)\n\
-keybind_search_normal_toggle = Esc\n\
-keybind_search_normal_insert = i\n\
-keybind_search_normal_select_left = h\n\
-keybind_search_normal_select_right = l\n\
-keybind_search_normal_delete = d\n\
-\n\
-# RECENT — Navigation\n\
-keybind_recent_move_up = k\n\
-keybind_recent_move_down = j\n\
-\n\
-# RECENT — Actions\n\
-keybind_recent_use = Enter\n\
-keybind_recent_add = Space\n\
-keybind_recent_remove = d\n\
-keybind_recent_remove = Del\n\
-keybind_recent_clear = Shift+Del\n\
-\n\
-# RECENT — Find/Focus\n\
-keybind_recent_find = /\n\
-keybind_recent_to_search = Esc\n\
-keybind_recent_focus_right = Right\n\
-\n\
-# INSTALL — Navigation\n\
-keybind_install_move_up = k\n\
-keybind_install_move_down = j\n\
-\n\
-# INSTALL — Actions\n\
-keybind_install_confirm = Enter\n\
-keybind_install_remove = Del\n\
-keybind_install_remove = d\n\
-keybind_install_clear = Shift+Del\n\
-\n\
-# INSTALL — Find/Focus\n\
-keybind_install_find = /\n\
-keybind_install_to_search = Esc\n\
-keybind_install_focus_left = Left\n";
+#-----------------------------------------------------------------------------------------------------------------------\n";
 
 /// Standalone settings skeleton used when initializing a separate settings.conf
 pub(crate) const SETTINGS_SKELETON_CONTENT: &str = "# Pacsea settings configuration\n\
@@ -661,7 +570,146 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     // Ensure keybinds file exists with skeleton if missing (best-effort)
     let kb = config_dir().join("keybinds.conf");
     if !kb.exists() {
-        if let Some(dir) = kb.parent() { let _ = fs::create_dir_all(dir); }
+        if let Some(dir) = kb.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
         let _ = fs::write(kb, KEYBINDS_SKELETON_CONTENT);
+    }
+}
+
+/// If legacy `pacsea.conf` is present and the new split configs are missing,
+/// generate `theme.conf` and `settings.conf` by taking over the values from `pacsea.conf`.
+///
+/// - Theme lines are any keys that are NOT recognized as preference/settings keys.
+/// - Settings lines are recognized preference keys EXCLUDING any `keybind_*` keys.
+/// - Existing non-empty `theme.conf`/`settings.conf` are left untouched.
+pub fn maybe_migrate_legacy_confs() {
+    let base = config_dir();
+    let legacy = base.join("pacsea.conf");
+    if !legacy.is_file() {
+        // No legacy file: ensure split configs exist with skeletons
+        let theme_path = base.join("theme.conf");
+        let settings_path = base.join("settings.conf");
+        let keybinds_path = base.join("keybinds.conf");
+
+        // theme.conf
+        let theme_missing_or_empty = match std::fs::metadata(&theme_path) {
+            Ok(m) => m.len() == 0,
+            Err(_) => true,
+        };
+        if theme_missing_or_empty {
+            if let Some(dir) = theme_path.parent() {
+                let _ = fs::create_dir_all(dir);
+            }
+            let _ = fs::write(&theme_path, THEME_SKELETON_CONTENT);
+        }
+
+        // settings.conf
+        let settings_missing_or_empty = match std::fs::metadata(&settings_path) {
+            Ok(m) => m.len() == 0,
+            Err(_) => true,
+        };
+        if settings_missing_or_empty {
+            if let Some(dir) = settings_path.parent() {
+                let _ = fs::create_dir_all(dir);
+            }
+            let _ = fs::write(&settings_path, SETTINGS_SKELETON_CONTENT);
+        }
+
+        // keybinds.conf
+        let keybinds_missing_or_empty = match std::fs::metadata(&keybinds_path) {
+            Ok(m) => m.len() == 0,
+            Err(_) => true,
+        };
+        if keybinds_missing_or_empty {
+            if let Some(dir) = keybinds_path.parent() {
+                let _ = fs::create_dir_all(dir);
+            }
+            let _ = fs::write(&keybinds_path, KEYBINDS_SKELETON_CONTENT);
+        }
+        return;
+    }
+    let theme_path = base.join("theme.conf");
+    let settings_path = base.join("settings.conf");
+
+    let theme_missing_or_empty = match std::fs::metadata(&theme_path) {
+        Ok(m) => m.len() == 0,
+        Err(_) => true,
+    };
+    let settings_missing_or_empty = match std::fs::metadata(&settings_path) {
+        Ok(m) => m.len() == 0,
+        Err(_) => true,
+    };
+    if !theme_missing_or_empty && !settings_missing_or_empty {
+        // Nothing to do
+        return;
+    }
+    let Ok(content) = fs::read_to_string(&legacy) else {
+        return;
+    };
+
+    let mut theme_lines: Vec<String> = Vec::new();
+    let mut settings_lines: Vec<String> = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if !trimmed.contains('=') {
+            continue;
+        }
+        let mut parts = trimmed.splitn(2, '=');
+        let raw_key = parts.next().unwrap_or("");
+        let key = raw_key.trim();
+        let norm = key.to_lowercase().replace(['.', '-', ' '], "_");
+        // Same classification as theme parsing: treat these as non-theme preference keys
+        let is_pref_key = norm.starts_with("pref_")
+            || norm.starts_with("settings_")
+            || norm.starts_with("layout_")
+            || norm.starts_with("keybind_")
+            || norm.starts_with("app_")
+            || norm.starts_with("sort_")
+            || norm.starts_with("clipboard_")
+            || norm.starts_with("show_")
+            || norm == "results_sort";
+        if is_pref_key {
+            // Exclude keybinds from settings.conf; those live in keybinds.conf
+            if !norm.starts_with("keybind_") {
+                settings_lines.push(trimmed.to_string());
+            }
+        } else {
+            theme_lines.push(trimmed.to_string());
+        }
+    }
+
+    if theme_missing_or_empty {
+        if let Some(dir) = theme_path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if theme_lines.is_empty() {
+            let _ = fs::write(&theme_path, THEME_SKELETON_CONTENT);
+        } else {
+            let mut out = String::new();
+            out.push_str("# Pacsea theme configuration (migrated from pacsea.conf)\n");
+            out.push_str(&theme_lines.join("\n"));
+            out.push('\n');
+            let _ = fs::write(&theme_path, out);
+        }
+    }
+
+    if settings_missing_or_empty {
+        if let Some(dir) = settings_path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        if settings_lines.is_empty() {
+            let _ = fs::write(&settings_path, SETTINGS_SKELETON_CONTENT);
+        } else {
+            let mut out = String::new();
+            out.push_str("# Pacsea settings configuration (migrated from pacsea.conf)\n");
+            out.push_str(&settings_lines.join("\n"));
+            out.push('\n');
+            let _ = fs::write(&settings_path, out);
+        }
     }
 }

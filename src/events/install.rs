@@ -55,9 +55,13 @@ pub fn handle_install_key(
                 return true;
             }
             match (c.code, ke.code) {
-                (crossterm::event::KeyCode::Char(cfg_ch), crossterm::event::KeyCode::Char(ev_ch)) => {
+                (
+                    crossterm::event::KeyCode::Char(cfg_ch),
+                    crossterm::event::KeyCode::Char(ev_ch),
+                ) => {
                     let cfg_has_shift = c.mods.contains(crossterm::event::KeyModifiers::SHIFT);
-                    let ev_has_no_shift = !ke.modifiers.contains(crossterm::event::KeyModifiers::SHIFT);
+                    let ev_has_no_shift =
+                        !ke.modifiers.contains(crossterm::event::KeyModifiers::SHIFT);
                     cfg_has_shift && ev_has_no_shift && ev_ch == cfg_ch.to_ascii_uppercase()
                 }
                 _ => false,

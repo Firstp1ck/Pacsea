@@ -362,7 +362,10 @@ impl Default for KeyMap {
                     mods: none,
                 },
             ],
-            recent_clear: vec![KeyChord { code: Delete, mods: shift }],
+            recent_clear: vec![KeyChord {
+                code: Delete,
+                mods: shift,
+            }],
 
             install_move_up: vec![
                 KeyChord {

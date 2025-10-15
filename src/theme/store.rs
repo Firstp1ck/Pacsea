@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{OnceLock, RwLock};
 
 use super::config::{
-    SKELETON_CONFIG_CONTENT, load_theme_from_file, try_load_theme_with_diagnostics,
+    THEME_SKELETON_CONTENT, load_theme_from_file, try_load_theme_with_diagnostics,
 };
 use super::paths::resolve_theme_config_path;
 use super::types::Theme;
@@ -27,7 +27,7 @@ fn load_initial_theme_or_exit() -> Theme {
                     if let Some(dir) = path.parent() {
                         let _ = fs::create_dir_all(dir);
                     }
-                    let _ = fs::write(&path, SKELETON_CONFIG_CONTENT);
+                    let _ = fs::write(&path, THEME_SKELETON_CONTENT);
                     if let Some(t) = load_theme_from_file(&path) {
                         tracing::info!(path = %path.display(), "wrote default theme skeleton and loaded");
                         return t;
@@ -53,7 +53,7 @@ fn load_initial_theme_or_exit() -> Theme {
                 if let Some(dir) = target.parent() {
                     let _ = fs::create_dir_all(dir);
                 }
-                let _ = fs::write(&target, SKELETON_CONFIG_CONTENT);
+                let _ = fs::write(&target, THEME_SKELETON_CONTENT);
             }
             if let Some(t) = load_theme_from_file(&target) {
                 tracing::info!(path = %target.display(), "initialized theme from default path");

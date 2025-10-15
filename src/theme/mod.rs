@@ -11,8 +11,8 @@ mod store;
 mod types;
 
 pub use config::{
-    ensure_settings_keys_present, save_show_install_pane, save_show_keybinds_footer,
-    save_show_recent_pane, save_sort_mode,
+    ensure_settings_keys_present, maybe_migrate_legacy_confs, save_show_install_pane,
+    save_show_keybinds_footer, save_show_recent_pane, save_sort_mode,
 };
 pub use paths::{config_dir, lists_dir, logs_dir};
 pub use settings::settings;
