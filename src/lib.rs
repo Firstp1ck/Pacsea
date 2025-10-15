@@ -1,6 +1,7 @@
 //! Library entry for Pacsea exposing core logic for integration tests.
 
 pub mod index;
+pub mod install;
 pub mod logic;
 pub mod sources;
 pub mod state;

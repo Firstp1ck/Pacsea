@@ -1,5 +1,6 @@
 use pacsea as crate_root; // alias for clarity in imports
 
+use crate_root::install::command::build_install_command;
 use crate_root::logic;
 use crate_root::state::ArchStatusColor;
 use crate_root::state::{AppState, PackageDetails, PackageItem, SortMode, Source};
@@ -636,4 +637,232 @@ fn status_parse_prefers_svg_rect_color() {
     );
     let (_txt, color) = crate_root::sources::status::parse_arch_status_from_html(&html);
     assert_eq!(color, ArchStatusColor::IncidentToday);
+}
+
+#[test]
+fn install_build_install_command_official_variants() {
+    let pkg = PackageItem {
+        name: "ripgrep".into(),
+        version: "14".into(),
+        description: String::new(),
+        source: Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+        popularity: None,
+    };
+
+    // No password
+    let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
+    assert!(uses_sudo1);
+    assert!(cmd1.starts_with("sudo pacman -S --needed --noconfirm ripgrep"));
+    assert!(cmd1.contains("Press any key to close"));
+
+    // With password (ensure it's piped to sudo -S and quotes are escaped)
+    let (cmd2, uses_sudo2) = build_install_command(&pkg, Some("pa's"), false);
+    assert!(uses_sudo2);
+    assert!(cmd2.contains("echo "));
+    assert!(cmd2.contains("sudo -S pacman -S --needed --noconfirm ripgrep"));
+
+    // Dry run
+    let (cmd3, uses_sudo3) = build_install_command(&pkg, None, true);
+    assert!(uses_sudo3);
+    assert!(cmd3.starts_with("echo DRY RUN: sudo pacman -S --needed --noconfirm ripgrep"));
+}
+
+#[test]
+fn install_build_install_command_aur_variants() {
+    let pkg = PackageItem {
+        name: "yay-bin".into(),
+        version: "1".into(),
+        description: String::new(),
+        source: Source::Aur,
+        popularity: None,
+    };
+
+    // AUR normal: does not use sudo, prefers paru then yay, includes fallback message
+    let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
+    assert!(!uses_sudo1);
+    assert!(cmd1.contains("command -v paru"));
+    assert!(cmd1.contains("paru -S --needed --noconfirm yay-bin"));
+    assert!(cmd1.contains("|| (command -v yay"));
+    assert!(cmd1.contains("No AUR helper"));
+    assert!(cmd1.contains("Press any key to close"));
+
+    // Dry run: echoed helper command
+    let (cmd2, uses_sudo2) = build_install_command(&pkg, None, true);
+    assert!(!uses_sudo2);
+    assert!(cmd2.starts_with("echo DRY RUN: paru -S --needed --noconfirm yay-bin"));
+}
+
+#[test]
+fn theme_keychord_label_variants() {
+    use crate_root::theme::KeyChord;
+    use crossterm::event::{KeyCode, KeyModifiers};
+
+    let kc = KeyChord {
+        code: KeyCode::Char('r'),
+        mods: KeyModifiers::CONTROL,
+    };
+    assert_eq!(kc.label(), "Ctrl+R");
+
+    let kc2 = KeyChord {
+        code: KeyCode::Char(' '),
+        mods: KeyModifiers::empty(),
+    };
+    assert_eq!(kc2.label(), "Space");
+
+    let kc3 = KeyChord {
+        code: KeyCode::F(5),
+        mods: KeyModifiers::empty(),
+    };
+    assert_eq!(kc3.label(), "F5");
+
+    let kc4 = KeyChord {
+        code: KeyCode::BackTab,
+        mods: KeyModifiers::SHIFT,
+    };
+    assert_eq!(kc4.label(), "Shift+Tab");
+
+    let kc5 = KeyChord {
+        code: KeyCode::Left,
+        mods: KeyModifiers::empty(),
+    };
+    assert_eq!(kc5.label(), "←");
+
+    let kc6 = KeyChord {
+        code: KeyCode::Char('x'),
+        mods: KeyModifiers::ALT | KeyModifiers::SHIFT,
+    };
+    assert_eq!(kc6.label(), "Alt+Shift+X");
+}
+
+#[tokio::test]
+async fn logic_ring_prefetch_from_selected_behavior() {
+    use crate_root::logic::ring_prefetch_from_selected;
+    use crate_root::logic::set_allowed_ring;
+
+    let mut app = new_app();
+    app.results = vec![
+        item_official("a", "core"),
+        item_official("b", "extra"),
+        item_aur("c", None),
+        item_official("d", "extra"),
+    ];
+    app.selected = 1; // "b"
+
+    // Allow a ring radius 1 around selection: {a, b, c}
+    set_allowed_ring(&app, 1);
+
+    // Pre-insert one into cache to ensure it's skipped
+    app.details_cache.insert(
+        "a".into(),
+        crate_root::state::PackageDetails {
+            name: "a".into(),
+            ..Default::default()
+        },
+    );
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    ring_prefetch_from_selected(&mut app, &tx);
+
+    // Collect quickly what was sent
+    let mut names = Vec::new();
+    while let Ok(Some(it)) =
+        tokio::time::timeout(std::time::Duration::from_millis(20), rx.recv()).await
+    {
+        names.push(it.name);
+    }
+    // Should include only neighbor(s) within radius and allowed; not the selected itself
+    assert!(names.contains(&"c".to_string()));
+    assert!(!names.contains(&"b".to_string()));
+    assert!(!names.contains(&"a".to_string()));
+    assert!(!names.contains(&"d".to_string()));
+}
+
+#[test]
+fn logic_add_to_downgrade_list_behavior() {
+    use crate_root::logic::add_to_downgrade_list;
+    let mut app = new_app();
+    add_to_downgrade_list(&mut app, item_official("PkgX", "extra"));
+    add_to_downgrade_list(&mut app, item_official("pkgx", "extra")); // duplicate by name, different case
+    assert_eq!(app.downgrade_list.len(), 1);
+    assert_eq!(app.downgrade_state.selected(), Some(0));
+}
+
+#[tokio::test]
+async fn index_persist_and_all_official_or_fetch_roundtrip() {
+    use std::fs;
+    use std::path::PathBuf;
+
+    // Prepare an index and persist it
+    let mut path: PathBuf = std::env::temp_dir();
+    let uniq = format!(
+        "pacsea_idx_{}_{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    path.push(uniq);
+
+    // Manually write a small OfficialIndex JSON to disk
+    let idx_json = serde_json::json!({
+        "pkgs": [
+            {"name": "ripgrep", "repo": "extra", "arch": "x86_64", "version": "14", "description": "desc"},
+            {"name": "fd", "repo": "extra", "arch": "x86_64", "version": "9", "description": "desc"}
+        ]
+    });
+    fs::write(&path, serde_json::to_string(&idx_json).unwrap()).unwrap();
+
+    // Load via persist::load_from_disk and query via all_official
+    crate_root::index::load_from_disk(&path);
+    let all = crate_root::index::all_official();
+    assert!(all.iter().any(|p| p.name == "ripgrep"));
+
+    // Now call all_official_or_fetch which should return current view (already on disk)
+    let got = crate_root::index::all_official_or_fetch(&path).await;
+    assert!(got.iter().any(|p| p.name == "fd"));
+
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
+fn logic_filter_unknown_official_inclusion_policy() {
+    // When an official repo is unknown, include it only if all known-official toggles are enabled
+    let mut app = new_app();
+    app.all_results = vec![
+        PackageItem {
+            name: "x1".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: Source::Official {
+                repo: "weirdrepo".into(),
+                arch: "x86_64".into(),
+            },
+            popularity: None,
+        },
+        item_official("core1", "core"),
+    ];
+    // Disable one of the official toggles -> unknown should be filtered out
+    app.results_filter_show_aur = true;
+    app.results_filter_show_core = true;
+    app.results_filter_show_extra = true;
+    app.results_filter_show_multilib = false; // one disabled
+    app.results_filter_show_eos = true;
+    app.results_filter_show_cachyos = true;
+    crate_root::logic::apply_filters_and_sort_preserve_selection(&mut app);
+    assert!(app.results.iter().all(|p| match &p.source {
+        Source::Official { repo, .. } => repo.eq_ignore_ascii_case("core"),
+        _ => false,
+    }));
+
+    // Enable all official toggles -> unknown should be included
+    app.results_filter_show_multilib = true;
+    crate_root::logic::apply_filters_and_sort_preserve_selection(&mut app);
+    assert!(app.results.iter().any(|p| match &p.source {
+        Source::Official { repo, .. } => repo.eq_ignore_ascii_case("weirdrepo"),
+        _ => false,
+    }));
 }
