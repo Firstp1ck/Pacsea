@@ -167,3 +167,6 @@ cargo run
 
 ## License
 MIT — see [LICENSE](LICENSE).
+
+## Wiki
+Check out the [Wiki](https://github.com/Firstp1ck/Pacsea/wiki) for more information.
