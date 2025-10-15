@@ -354,38 +354,47 @@ pub fn handle_mouse_event(
                     .or_else(|| try_cmd("kdialog", &["--getopenfilename", ".", "*.txt"]))
                 };
 
-                if let Some(path) = path_opt
-                    && let Ok(body) = std::fs::read_to_string(&path)
-                {
-                    // Parse as lines; each line a package name, skip blanks and comments
-                    // Determine source via official index if available; else default to AUR
-                    use std::collections::HashSet;
-                    let mut official_names: HashSet<String> = HashSet::new();
-                    for it in crate::index::all_official().iter() {
-                        official_names.insert(it.name.to_lowercase());
-                    }
-                    for line in body.lines() {
-                        let name = line.trim();
-                        if name.is_empty() || name.starts_with('#') {
-                            continue;
+                if let Some(path) = path_opt {
+                    tracing::info!(path = %path, "import: selected file");
+                    if let Ok(body) = std::fs::read_to_string(&path) {
+                        // Parse as lines; each line a package name, skip blanks and comments
+                        // Determine source via official index if available; else default to AUR
+                        use std::collections::HashSet;
+                        let mut official_names: HashSet<String> = HashSet::new();
+                        for it in crate::index::all_official().iter() {
+                            official_names.insert(it.name.to_lowercase());
                         }
-                        let src = if official_names.contains(&name.to_lowercase()) {
-                            crate::state::Source::Official {
-                                repo: String::new(),
-                                arch: String::new(),
+                        let mut imported: usize = 0;
+                        for line in body.lines() {
+                            let name = line.trim();
+                            if name.is_empty() || name.starts_with('#') {
+                                continue;
                             }
-                        } else {
-                            crate::state::Source::Aur
-                        };
-                        let item = crate::state::PackageItem {
-                            name: name.to_string(),
-                            version: String::new(),
-                            description: String::new(),
-                            source: src,
-                            popularity: None,
-                        };
-                        let _ = add_tx_clone.send(item);
+                            let src = if official_names.contains(&name.to_lowercase()) {
+                                crate::state::Source::Official {
+                                    repo: String::new(),
+                                    arch: String::new(),
+                                }
+                            } else {
+                                crate::state::Source::Aur
+                            };
+                            let item = crate::state::PackageItem {
+                                name: name.to_string(),
+                                version: String::new(),
+                                description: String::new(),
+                                source: src,
+                                popularity: None,
+                            };
+                            if add_tx_clone.send(item).is_ok() {
+                                imported += 1;
+                            }
+                        }
+                        tracing::info!(path = %path, imported, "import: queued items from list");
+                    } else {
+                        tracing::warn!(path = %path, "import: failed to read file");
                     }
+                } else {
+                    tracing::info!("import: canceled by user");
                 }
             });
             return false;
@@ -428,10 +437,12 @@ pub fn handle_mouse_event(
                 Ok(_) => {
                     app.toast_message = Some(format!("Exported to {}", file_path.display()));
                     app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                    tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
                 }
                 Err(e) => {
                     app.toast_message = Some(format!("Export failed: {}", e));
                     app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                    tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
                 }
             }
             return false;
