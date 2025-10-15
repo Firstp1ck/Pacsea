@@ -82,6 +82,8 @@ pub struct AppState {
     pub install_path: PathBuf,
     /// Dirty flag indicating `install_list` needs to be saved.
     pub install_dirty: bool,
+    /// Timestamp of the most recent change to the install list for throttling disk writes.
+    pub last_install_change: Option<Instant>,
 
     // Visibility toggles for middle row panes
     /// Whether the Recent pane is visible in the middle row.
@@ -320,6 +322,7 @@ impl Default for AppState {
             // Install list (lists dir under config)
             install_path: crate::theme::lists_dir().join("install_list.json"),
             install_dirty: false,
+            last_install_change: None,
 
             // Middle row panes visible by default
             show_recent_pane: true,

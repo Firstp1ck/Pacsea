@@ -387,7 +387,21 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 if let Some(cached) = app.details_cache.get(&item.name).cloned() { app.details = cached; } else { let _ = details_req_tx.send(item.clone()); }
                 if !app.results.is_empty() && app.selected >= app.results.len() { app.selected = app.results.len() - 1; app.list_state.select(Some(app.selected)); }
             }
-            Some(item) = add_rx.recv() => { add_to_install_list(&mut app, item); }
+            Some(first) = add_rx.recv() => {
+                // Batch-drain imported items arriving close together to avoid
+                // repeated redraws and disk writes. Limit batch window to ~50ms.
+                let mut batch = vec![first];
+                loop {
+                    match add_rx.try_recv() {
+                        Ok(it) => batch.push(it),
+                        Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                        Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+                    }
+                }
+                for it in batch.into_iter() {
+                    add_to_install_list(&mut app, it);
+                }
+            }
             Some((pkgname, text)) = pkgb_res_rx.recv() => {
                 if app.details_focus.as_deref() == Some(pkgname.as_str()) || app.results.get(app.selected).map(|i| i.name.as_str()) == Some(pkgname.as_str()) {
                     app.pkgb_text = Some(text);

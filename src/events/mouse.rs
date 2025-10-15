@@ -337,7 +337,9 @@ pub fn handle_mouse_event(
                             .stdin(std::process::Stdio::null())
                             .output()
                             .ok()?;
-                        if !res.status.success() { return None; }
+                        if !res.status.success() {
+                            return None;
+                        }
                         let s = String::from_utf8_lossy(&res.stdout).trim().to_string();
                         if s.is_empty() { None } else { Some(s) }
                     };
@@ -352,32 +354,37 @@ pub fn handle_mouse_event(
                     .or_else(|| try_cmd("kdialog", &["--getopenfilename", ".", "*.txt"]))
                 };
 
-                if let Some(path) = path_opt {
-                    if let Ok(body) = std::fs::read_to_string(&path) {
-                        // Parse as lines; each line a package name, skip blanks and comments
-                        // Determine source via official index if available; else default to AUR
-                        use std::collections::HashSet;
-                        let mut official_names: HashSet<String> = HashSet::new();
-                        for it in crate::index::all_official().iter() {
-                            official_names.insert(it.name.to_lowercase());
+                if let Some(path) = path_opt
+                    && let Ok(body) = std::fs::read_to_string(&path)
+                {
+                    // Parse as lines; each line a package name, skip blanks and comments
+                    // Determine source via official index if available; else default to AUR
+                    use std::collections::HashSet;
+                    let mut official_names: HashSet<String> = HashSet::new();
+                    for it in crate::index::all_official().iter() {
+                        official_names.insert(it.name.to_lowercase());
+                    }
+                    for line in body.lines() {
+                        let name = line.trim();
+                        if name.is_empty() || name.starts_with('#') {
+                            continue;
                         }
-                        for line in body.lines() {
-                            let name = line.trim();
-                            if name.is_empty() || name.starts_with('#') { continue; }
-                            let src = if official_names.contains(&name.to_lowercase()) {
-                                crate::state::Source::Official { repo: String::new(), arch: String::new() }
-                            } else {
-                                crate::state::Source::Aur
-                            };
-                            let item = crate::state::PackageItem {
-                                name: name.to_string(),
-                                version: String::new(),
-                                description: String::new(),
-                                source: src,
-                                popularity: None,
-                            };
-                            let _ = add_tx_clone.send(item);
-                        }
+                        let src = if official_names.contains(&name.to_lowercase()) {
+                            crate::state::Source::Official {
+                                repo: String::new(),
+                                arch: String::new(),
+                            }
+                        } else {
+                            crate::state::Source::Aur
+                        };
+                        let item = crate::state::PackageItem {
+                            name: name.to_string(),
+                            version: String::new(),
+                            description: String::new(),
+                            source: src,
+                            popularity: None,
+                        };
+                        let _ = add_tx_clone.send(item);
                     }
                 }
             });
