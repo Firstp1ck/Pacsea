@@ -97,6 +97,9 @@ show_install_pane = true
 show_keybinds_footer = true
 ```
 
+### Panels hidden
+![Panels hidden (v0.4.1)](Images/PaneHided_v0.4.1.png "Panels hidden (v0.4.1)")
+
 ### Example: theme.conf
 ```ini
 # Background
@@ -142,9 +145,6 @@ keybind_install_confirm = Enter
 keybind_install_remove = Delete
 keybind_install_clear = Shift+Delete
 ```
-### Panels hidden
-![Panels hidden (v0.4.1)](Images/PaneHided_v0.4.1.png "Panels hidden (v0.4.1)")
-
 ## Optional: build from source
 ```bash
 sudo pacman -S rustup && rustup default stable
