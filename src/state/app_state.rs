@@ -82,6 +82,8 @@ pub struct AppState {
     pub install_path: PathBuf,
     /// Dirty flag indicating `install_list` needs to be saved.
     pub install_dirty: bool,
+    /// Timestamp of the most recent change to the install list for throttling disk writes.
+    pub last_install_change: Option<Instant>,
 
     // Visibility toggles for middle row panes
     /// Whether the Recent pane is visible in the middle row.
@@ -129,6 +131,12 @@ pub struct AppState {
     // Clickable URL button rectangle (x, y, w, h) in terminal cells
     /// Rectangle of the clickable URL button in terminal cell coordinates.
     pub url_button_rect: Option<(u16, u16, u16, u16)>,
+
+    // Install pane bottom action (Import)
+    /// Clickable rectangle for the Install pane bottom "Import" button (x, y, w, h).
+    pub install_import_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Install pane bottom "Export" button (x, y, w, h).
+    pub install_export_rect: Option<(u16, u16, u16, u16)>,
 
     // Arch status label (middle row footer)
     /// Latest fetched status message from `status.archlinux.org`.
@@ -316,6 +324,7 @@ impl Default for AppState {
             // Install list (lists dir under config)
             install_path: crate::theme::lists_dir().join("install_list.json"),
             install_dirty: false,
+            last_install_change: None,
 
             // Middle row panes visible by default
             show_recent_pane: true,
@@ -340,6 +349,8 @@ impl Default for AppState {
             ring_resume_at: None,
             need_ring_prefetch: false,
             url_button_rect: None,
+            install_import_rect: None,
+            install_export_rect: None,
             arch_status_text: "Arch Status: loading…".to_string(),
             arch_status_rect: None,
             arch_status_color: ArchStatusColor::None,

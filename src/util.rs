@@ -227,3 +227,54 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
 fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
+
+/// Return today's UTC date formatted as `YYYYMMDD` using only the standard library.
+///
+/// This uses a simple conversion from Unix epoch seconds to a UTC calendar date,
+/// matching the same leap-year logic as `ts_to_date`.
+pub fn today_yyyymmdd_utc() -> String {
+    let secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(dur) => dur.as_secs() as i64,
+        Err(_) => 0, // fallback to epoch if clock is before 1970
+    };
+    let mut days = secs / 86_400;
+    // Derive year
+    let mut year: i32 = 1970;
+    loop {
+        let leap = is_leap(year);
+        let diy = if leap { 366 } else { 365 } as i64;
+        if days >= diy {
+            days -= diy;
+            year += 1;
+        } else {
+            break;
+        }
+    }
+    // Derive month/day within the year
+    let leap = is_leap(year);
+    let mut month: u32 = 1;
+    let mdays = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
+    for &len in mdays.iter() {
+        if days >= len as i64 {
+            days -= len as i64;
+            month += 1;
+        } else {
+            break;
+        }
+    }
+    let day = (days + 1) as u32;
+    format!("{year:04}{month:02}{day:02}")
+}

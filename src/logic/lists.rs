@@ -15,6 +15,7 @@ pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
     }
     app.install_list.insert(0, item);
     app.install_dirty = true;
+    app.last_install_change = Some(std::time::Instant::now());
     // Always keep cursor on top after adding
     app.install_state.select(Some(0));
 }

@@ -295,6 +295,158 @@ pub fn handle_mouse_event(
 
     // 4) Sort button, filters, options button, and dropdowns in Results title
     if is_left_down {
+        // Click on Install pane bottom Import button
+        if let Some((x, y, w, h)) = app.install_import_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            // Open a native-ish file picker, then import lines as packages
+            // Execute in a background thread to avoid blocking event loop
+            let add_tx_clone = _add_tx.clone();
+            std::thread::spawn(move || {
+                #[cfg(target_os = "windows")]
+                let path_opt: Option<String> = {
+                    // PowerShell OpenFileDialog (single selection, .txt default filter)
+                    // Returns selected path on stdout. If cancelled, returns empty.
+                    let script = r#"
+                    Add-Type -AssemblyName System.Windows.Forms
+                    $ofd = New-Object System.Windows.Forms.OpenFileDialog
+                    $ofd.Filter = 'Text Files (*.txt)|*.txt|All Files (*.*)|*.*'
+                    $ofd.Multiselect = $false
+                    if ($ofd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $ofd.FileName }
+                    "#;
+                    let output = std::process::Command::new("powershell")
+                        .args(["-NoProfile", "-Command", script])
+                        .stdin(std::process::Stdio::null())
+                        .output()
+                        .ok();
+                    output.and_then(|o| {
+                        let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                        if s.is_empty() { None } else { Some(s) }
+                    })
+                };
+
+                #[cfg(not(target_os = "windows"))]
+                let path_opt: Option<String> = {
+                    // Try zenity, then kdialog; else fall back to reading a default file path
+                    let try_cmd = |prog: &str, args: &[&str]| -> Option<String> {
+                        let res = std::process::Command::new(prog)
+                            .args(args)
+                            .stdin(std::process::Stdio::null())
+                            .output()
+                            .ok()?;
+                        if !res.status.success() {
+                            return None;
+                        }
+                        let s = String::from_utf8_lossy(&res.stdout).trim().to_string();
+                        if s.is_empty() { None } else { Some(s) }
+                    };
+                    try_cmd(
+                        "zenity",
+                        &[
+                            "--file-selection",
+                            "--title=Import packages",
+                            "--file-filter=*.txt",
+                        ],
+                    )
+                    .or_else(|| try_cmd("kdialog", &["--getopenfilename", ".", "*.txt"]))
+                };
+
+                if let Some(path) = path_opt {
+                    tracing::info!(path = %path, "import: selected file");
+                    if let Ok(body) = std::fs::read_to_string(&path) {
+                        // Parse as lines; each line a package name, skip blanks and comments
+                        // Determine source via official index if available; else default to AUR
+                        use std::collections::HashSet;
+                        let mut official_names: HashSet<String> = HashSet::new();
+                        for it in crate::index::all_official().iter() {
+                            official_names.insert(it.name.to_lowercase());
+                        }
+                        let mut imported: usize = 0;
+                        for line in body.lines() {
+                            let name = line.trim();
+                            if name.is_empty() || name.starts_with('#') {
+                                continue;
+                            }
+                            let src = if official_names.contains(&name.to_lowercase()) {
+                                crate::state::Source::Official {
+                                    repo: String::new(),
+                                    arch: String::new(),
+                                }
+                            } else {
+                                crate::state::Source::Aur
+                            };
+                            let item = crate::state::PackageItem {
+                                name: name.to_string(),
+                                version: String::new(),
+                                description: String::new(),
+                                source: src,
+                                popularity: None,
+                            };
+                            if add_tx_clone.send(item).is_ok() {
+                                imported += 1;
+                            }
+                        }
+                        tracing::info!(path = %path, imported, "import: queued items from list");
+                    } else {
+                        tracing::warn!(path = %path, "import: failed to read file");
+                    }
+                } else {
+                    tracing::info!("import: canceled by user");
+                }
+            });
+            return false;
+        }
+        // Click on Install pane bottom Export button
+        if let Some((x, y, w, h)) = app.install_export_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            // Export current Install List package names to config export dir
+            let mut names: Vec<String> = app.install_list.iter().map(|p| p.name.clone()).collect();
+            names.sort();
+            if names.is_empty() {
+                app.toast_message = Some("Install List is empty".to_string());
+                app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                return false;
+            }
+            // Build export directory and file name install_list_YYYYMMDD_serial
+            let export_dir = crate::theme::config_dir().join("export");
+            let _ = std::fs::create_dir_all(&export_dir);
+            let date_str = crate::util::today_yyyymmdd_utc();
+            let mut serial: u32 = 1;
+            let file_path = loop {
+                let fname = format!(
+                    "install_list_{}_{}.txt",
+                    date_str,
+                    serial
+                );
+                let path = export_dir.join(&fname);
+                if !path.exists() {
+                    break path;
+                }
+                serial += 1;
+                if serial > 9999 { break export_dir.join(format!("install_list_{}_fallback.txt", date_str)); }
+            };
+            let body = names.join("\n");
+            match std::fs::write(&file_path, body) {
+                Ok(_) => {
+                    app.toast_message = Some(format!("Exported to {}", file_path.display()));
+                    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                    tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
+                }
+                Err(e) => {
+                    app.toast_message = Some(format!("Export failed: {}", e));
+                    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                    tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
+                }
+            }
+            return false;
+        }
         // Click on Arch status label (opens status URL)
         if let Some((x, y, w, h)) = app.arch_status_rect
             && mx >= x

@@ -12,6 +12,21 @@ mod ui;
 mod util;
 
 use std::sync::OnceLock;
+use std::{fmt, time::SystemTime};
+
+struct PacseaTimer;
+
+impl tracing_subscriber::fmt::time::FormatTime for PacseaTimer {
+    fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer<'_>) -> fmt::Result {
+        let secs = match SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(d) => d.as_secs() as i64,
+            Err(_) => 0,
+        };
+        let s = crate::util::ts_to_date(Some(secs)); // "YYYY-MM-DD HH:MM:SS"
+        let ts = s.replacen(' ', "-T", 1); // "YYYY-MM-DD-T HH:MM:SS"
+        w.write_str(&ts)
+    }
+}
 
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
 
@@ -36,6 +51,7 @@ async fn main() {
                     .with_target(false)
                     .with_ansi(false)
                     .with_writer(non_blocking)
+                    .with_timer(PacseaTimer)
                     .init();
                 let _ = LOG_GUARD.set(guard);
                 tracing::info!(path = %log_path.display(), "logging initialized");
@@ -48,6 +64,7 @@ async fn main() {
                     .with_env_filter(env_filter)
                     .with_target(false)
                     .with_ansi(true)
+                    .with_timer(PacseaTimer)
                     .init();
                 tracing::warn!(error = %e, "failed to open log file; using stderr");
             }
