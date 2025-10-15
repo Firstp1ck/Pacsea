@@ -149,7 +149,7 @@ pub struct AppState {
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
     pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,
-    /// Rectangle of the clickable "Check Package Build" button in PKGBUILD title.
+    /// Rectangle of the clickable "Copy Package Build" button in PKGBUILD title.
     pub pkgb_check_button_rect: Option<(u16, u16, u16, u16)>,
     /// Whether the PKGBUILD viewer is visible (details pane split in half).
     pub pkgb_visible: bool,

@@ -14,7 +14,7 @@ use crate::logic::move_sel_cached;
 /// Behavior summary:
 /// - Clickable URL in the details pane with Ctrl+Shift+LeftClick (opens via `xdg-open`).
 /// - Clickable "Show/Hide PKGBUILD" action in the details content.
-/// - Clickable "Check Package Build" button in the PKGBUILD title (copies to clipboard).
+/// - Clickable "Copy Package Build" button in the PKGBUILD title (copies to clipboard).
 /// - Clickable Sort button and filter toggles in the Results title.
 /// - Click-to-select in Results; mouse wheel scroll moves selection in Results/Recent/Install.
 /// - Mouse wheel scroll within the PKGBUILD viewer scrolls the content.
@@ -184,7 +184,7 @@ pub fn handle_mouse_event(
         return false;
     }
 
-    // 2b) Click on "Check Package Build" title button
+    // 2b) Click on "Copy Package Build" title button
     if is_left_down
         && let Some((x, y, w, h)) = app.pkgb_check_button_rect
         && mx >= x

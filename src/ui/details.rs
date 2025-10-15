@@ -147,8 +147,8 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             visible.push_str(line);
             visible.push('\n');
         }
-        // Title with clickable "Check Package Build" button
-        let check_button_label = "Check Package Build".to_string();
+        // Title with clickable "Copy Package Build" button
+        let check_button_label = "Copy Package Build".to_string();
         let mut pkgb_title_spans: Vec<Span> =
             vec![Span::styled("PKGBUILD", Style::default().fg(th.overlay1))];
         pkgb_title_spans.push(Span::raw("  "));

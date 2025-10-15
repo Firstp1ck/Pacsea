@@ -156,7 +156,7 @@ cargo run
 ## Troubleshooting
 - **AUR search errors**: Check your network and try again.
 - **Installs don’t start**: Ensure you have a terminal installed (e.g. alacritty, kitty, xterm) and `sudo` working in a terminal.
-- **PKGBUILD copy**: For the “Check Package Build” button, install `wl-clipboard` (Wayland) or `xclip` (X11).
+- **PKGBUILD copy**: For the "Copy Package Build” button, install `wl-clipboard` (Wayland) or `xclip` (X11).
 
 ## Roadmap
 - Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/4)

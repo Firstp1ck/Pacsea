@@ -580,7 +580,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details",
             )));
             lines.push(Line::from(Span::raw(
-                "  • Copy 'Check Package Build': click the title button in PKGBUILD",
+                "  • Copy 'Copy Package Build': click the title button in PKGBUILD",
             )));
             lines.push(Line::from(Span::raw(
                 "  • Open details URL: Ctrl+Shift+Left click on the URL",
