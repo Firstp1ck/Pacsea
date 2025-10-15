@@ -7,7 +7,7 @@ pub fn maybe_save_recent(app: &mut AppState) {
     if app.input.trim().is_empty() {
         return;
     }
-    if now.duration_since(app.last_input_change) < Duration::from_secs(3) {
+    if now.duration_since(app.last_input_change) < Duration::from_secs(2) {
         return;
     }
     if app.last_saved_value.as_deref() == Some(app.input.trim()) {

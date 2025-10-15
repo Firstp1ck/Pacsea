@@ -234,6 +234,7 @@ keybind_recent_use = Enter\n\
 keybind_recent_add = Space\n\
 keybind_recent_remove = d\n\
 keybind_recent_remove = Del\n\
+keybind_recent_clear = Shift+Del\n\
 \n\
 # RECENT — Find/Focus\n\
 keybind_recent_find = /\n\

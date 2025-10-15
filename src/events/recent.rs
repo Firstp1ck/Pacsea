@@ -45,9 +45,24 @@ pub fn handle_recent_key(
     }
 
     let km = &app.keymap;
-    let chord = (ke.code, ke.modifiers);
-    let matches_any =
-        |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
+    // Match helper that treats Shift+<char> from config as equivalent to uppercase char without Shift from terminal
+    let matches_any = |list: &Vec<crate::theme::KeyChord>| {
+        list.iter().any(|c| {
+            // Exact match first
+            if (c.code, c.mods) == (ke.code, ke.modifiers) {
+                return true;
+            }
+            // Equivalence: config Shift+char vs event uppercase char (no Shift)
+            match (c.code, ke.code) {
+                (crossterm::event::KeyCode::Char(cfg_ch), crossterm::event::KeyCode::Char(ev_ch)) => {
+                    let cfg_has_shift = c.mods.contains(crossterm::event::KeyModifiers::SHIFT);
+                    let ev_has_no_shift = !ke.modifiers.contains(crossterm::event::KeyModifiers::SHIFT);
+                    cfg_has_shift && ev_has_no_shift && ev_ch == cfg_ch.to_ascii_uppercase()
+                }
+                _ => false,
+            }
+        })
+    };
 
     match ke.code {
         KeyCode::Char('j') => {
@@ -85,13 +100,31 @@ pub fn handle_recent_key(
             app.focus = crate::state::Focus::Search;
             refresh_selected_details(app, details_tx);
         }
-        KeyCode::Left => { /* no-op: already at leftmost pane */ }
+        KeyCode::Left => {
+            // Wrap-around: Recent (leftmost) -> Install (rightmost)
+            if app.installed_only_mode {
+                // In installed-only mode, land on the Remove subpane when wrapping
+                app.right_pane_focus = crate::state::RightPaneFocus::Remove;
+                if app.remove_state.selected().is_none() && !app.remove_list.is_empty() {
+                    app.remove_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Install;
+                super::utils::refresh_remove_details(app, details_tx);
+            } else {
+                if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                    app.install_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Install;
+                super::utils::refresh_install_details(app, details_tx);
+            }
+        }
         KeyCode::Right => {
             // Recent -> Search (adjacent)
             app.focus = crate::state::Focus::Search;
             refresh_selected_details(app, details_tx);
         }
-        KeyCode::Delete if ke.modifiers.contains(KeyModifiers::SHIFT) => {
+        // Configurable clear-all for Recent (default: Shift+Del)
+        code if matches_any(&km.recent_clear) && code == ke.code => {
             app.recent.clear();
             app.history_state.select(None);
             app.recent_dirty = true;

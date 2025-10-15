@@ -48,9 +48,22 @@ pub fn handle_install_key(
     }
 
     let km = &app.keymap;
-    let chord = (ke.code, ke.modifiers);
-    let matches_any =
-        |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
+    // Match helper that treats Shift+<char> from config as equivalent to uppercase char without Shift from terminal
+    let matches_any = |list: &Vec<crate::theme::KeyChord>| {
+        list.iter().any(|c| {
+            if (c.code, c.mods) == (ke.code, ke.modifiers) {
+                return true;
+            }
+            match (c.code, ke.code) {
+                (crossterm::event::KeyCode::Char(cfg_ch), crossterm::event::KeyCode::Char(ev_ch)) => {
+                    let cfg_has_shift = c.mods.contains(crossterm::event::KeyModifiers::SHIFT);
+                    let ev_has_no_shift = !ke.modifiers.contains(crossterm::event::KeyModifiers::SHIFT);
+                    cfg_has_shift && ev_has_no_shift && ev_ch == cfg_ch.to_ascii_uppercase()
+                }
+                _ => false,
+            }
+        })
+    };
 
     match ke.code {
         KeyCode::Char('j') => {
@@ -232,7 +245,7 @@ pub fn handle_install_key(
             }
         }
         KeyCode::Right => {
-            // In installed-only mode, follow: Downgrade -> Remove -> Recent
+            // In installed-only mode, follow: Downgrade -> Remove -> Recent; else wrap to Recent
             if app.installed_only_mode {
                 match app.right_pane_focus {
                     crate::state::RightPaneFocus::Downgrade => {
@@ -242,9 +255,30 @@ pub fn handle_install_key(
                         }
                         refresh_remove_details(app, details_tx);
                     }
-                    crate::state::RightPaneFocus::Remove => { /* no-op: rightmost subpane */ }
-                    crate::state::RightPaneFocus::Install => {}
+                    crate::state::RightPaneFocus::Remove => {
+                        // Wrap-around to Recent from rightmost subpane
+                        if app.history_state.selected().is_none() && !app.recent.is_empty() {
+                            app.history_state.select(Some(0));
+                        }
+                        app.focus = crate::state::Focus::Recent;
+                        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+                    }
+                    crate::state::RightPaneFocus::Install => {
+                        // Normal Install subpane: wrap directly to Recent
+                        if app.history_state.selected().is_none() && !app.recent.is_empty() {
+                            app.history_state.select(Some(0));
+                        }
+                        app.focus = crate::state::Focus::Recent;
+                        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+                    }
                 }
+            } else {
+                // Normal mode: Install -> Recent (wrap)
+                if app.history_state.selected().is_none() && !app.recent.is_empty() {
+                    app.history_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Recent;
+                crate::ui::helpers::trigger_recent_preview(app, preview_tx);
             }
         }
         KeyCode::Delete if !ke.modifiers.contains(KeyModifiers::SHIFT) => {
@@ -327,7 +361,7 @@ pub fn handle_install_key(
                 }
             }
         }
-        KeyCode::Delete if ke.modifiers.contains(KeyModifiers::SHIFT) => {
+        code if matches_any(&km.install_clear) && code == ke.code => {
             if app.installed_only_mode {
                 match app.right_pane_focus {
                     crate::state::RightPaneFocus::Downgrade => {
@@ -339,7 +373,6 @@ pub fn handle_install_key(
                         app.remove_state.select(None);
                     }
                     crate::state::RightPaneFocus::Install => {
-                        // Fallback to normal Install clear
                         app.install_list.clear();
                         app.install_state.select(None);
                         app.install_dirty = true;

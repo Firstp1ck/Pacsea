@@ -240,6 +240,11 @@ pub fn settings() -> Settings {
                     out.keymap.recent_remove.push(ch);
                 }
             }
+            "keybind_recent_clear" => {
+                if let Some(ch) = parse_key_chord(val) {
+                    out.keymap.recent_clear = vec![ch];
+                }
+            }
 
             // Install pane
             "keybind_install_move_up" => {

@@ -193,6 +193,8 @@ pub struct KeyMap {
     pub recent_focus_right: Vec<KeyChord>,
     /// Remove one entry from Recent
     pub recent_remove: Vec<KeyChord>,
+    /// Clear all entries in Recent
+    pub recent_clear: Vec<KeyChord>,
 
     // Install
     pub install_move_up: Vec<KeyChord>,
@@ -360,6 +362,7 @@ impl Default for KeyMap {
                     mods: none,
                 },
             ],
+            recent_clear: vec![KeyChord { code: Delete, mods: shift }],
 
             install_move_up: vec![
                 KeyChord {
