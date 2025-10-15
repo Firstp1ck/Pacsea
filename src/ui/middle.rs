@@ -425,6 +425,8 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 right_split[1].width.saturating_sub(2),
                 right_split[1].height.saturating_sub(2),
             ));
+            // Import button not shown in installed-only mode
+            app.install_import_rect = None;
         } else {
             // Normal Install List (single right pane)
             let indices: Vec<usize> = crate::ui::helpers::filtered_install_indices(app);
@@ -506,6 +508,39 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 middle[2].width.saturating_sub(2),
                 middle[2].height.saturating_sub(2),
             ));
+
+            // Bottom border action button: Import
+            let th = theme();
+            let btn_label = "Import";
+            // Style similar to other title buttons
+            let btn_style = if install_focused {
+                Style::default()
+                    .fg(th.crust)
+                    .bg(th.mauve)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+                    .fg(th.mauve)
+                    .bg(th.surface2)
+                    .add_modifier(Modifier::BOLD)
+            };
+            let line = Paragraph::new(Line::from(vec![Span::styled(
+                btn_label.to_string(),
+                btn_style,
+            )]));
+            let inner_w = middle[2].width.saturating_sub(2);
+            let w = btn_label.len() as u16;
+            let sx = middle[2].x + 1 + inner_w.saturating_sub(w);
+            let sy = middle[2].y + middle[2].height.saturating_sub(1);
+            let rect = ratatui::prelude::Rect {
+                x: sx,
+                y: sy,
+                width: w.min(inner_w),
+                height: 1,
+            };
+            // Record clickable rect for Import button
+            app.install_import_rect = Some((rect.x, rect.y, rect.width, rect.height));
+            f.render_widget(line, rect);
         }
     } else {
         app.install_rect = None;

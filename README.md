@@ -315,9 +315,9 @@ An optional commented “Light” theme block is included in the generated confi
 - AUR
   - AUR RPC v5 is used for search and details
   - AUR popularity is fetched from RPC and shown when available
- - PKGBUILD preview
-   - AUR packages: `https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=<name>`
-   - Official packages: Arch GitLab raw `PKGBUILD` (tries `main`, falls back to `master`)
+- PKGBUILD preview
+  - AUR packages: `https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=<name>`
+  - Official packages: Arch GitLab raw `PKGBUILD` (tries `main`, falls back to `master`)
 
 ## Files created
 
@@ -343,17 +343,17 @@ XDG locations (env overrides respected):
   - Check network connectivity (AUR RPC is online).
 - Installs don’t start
   - Pacsea opens a terminal to run commands. It tries common emulators in this order (if found on PATH): `alacritty`, `kitty`, `xterm`, `gnome-terminal`, `konsole`, `xfce4-terminal`, `tilix`, `mate-terminal`. If none are found, it falls back to `bash`. Ensure at least one is installed.
-  - Official installs use `sudo pacman`; make sure you can authenticate with sudo in a terminal.
+- Official installs use `sudo pacman`; make sure you can authenticate with sudo in a terminal.
 
 ## Roadmap
 
- ### Vote for next Feature:
+### Vote for next Feature:
 - [Vote for Feature](https://github.com/Firstp1ck/Pacsea/discussions/4)
 
 ### Implemented
 - [x] Theme customization system (themes, color palettes, glyph styles; adaptive terminal colors)
 - [x] Prebuilt binaries / packaging (Arch User Repository)
- - [x] XDG‑aware configuration with persistent settings (config subdirectories: logs/lists; basic app settings)
+- [x] XDG‑aware configuration with persistent settings (config subdirectories: logs/lists; basic app settings)
 - [x] Customizable keybindings and context help overlay
 - [x] Richer package info: PKGBUILD preview
 - [x] Repo filters in Results (AUR/core/extra/multilib/EOS)
@@ -369,25 +369,18 @@ XDG locations (env overrides respected):
 - [x] Startup news check
 - [x] AUR/Arch status indicator (operational/incident‑today cue)
 - [x] Toggle visibility of panes/sections
+- [x] Rollback/downgrade flows
+- [x] Adjustable pane proportions (resizable three‑pane layout)
+- [x] Settings persistence across sessions
 
 ### Not implemented
-- [ ] Rollback/downgrade flows
 - [ ] Search modes: contains / starts‑with / regex
-- [ ] Quick actions: refresh, clear cache, toggle views
-- [ ] Adjustable pane proportions (resizable three‑pane layout)
-- [ ] Multi‑select (checkbox‑style) for bulk actions
 - [ ] Dependency tree and conflict insights
 - [ ] Package statistics (sizes, install dates, update frequency)
-- [ ] Settings persistence across sessions
-- [ ] Smarter caching and performance (intelligent prefetch, async enrichment, offline mode)
-- [ ] Progress indicators for long tasks
-- [ ] Improved paru/yay workflows
+- [ ] Offline mode for checking installed packages
 - [ ] Export/import package lists (backup/share)
 - [ ] Richer package info (dependency visualization)
 - [ ] Batch operations (filter installed vs available, apply to selection)
-- [ ] Multiple profiles for different workflows
-- [ ] Background operations (parallel/async installs)
-- [ ] Pacman hooks/post‑install integration
 - [ ] Internationalization (multi‑language)
 - [ ] Responsive layouts for small terminals
 - [ ] Screen reader/accessibility support
@@ -395,8 +388,6 @@ XDG locations (env overrides respected):
 - [ ] Selective updates, pinning/version policies
 - [ ] System maintenance helpers
 - [ ] Signature verification indicators
-- [ ] Enhanced dry‑run with impact analysis
-- [ ] Sorting: name/date/size (beyond current repo/popularity modes)
 
 ## Inspiration and credits
 - Omarchy Distro — UX/workflow inspiration
