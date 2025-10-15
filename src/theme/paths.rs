@@ -1,25 +1,59 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-/// Determine the configuration file path for Pacsea's theme, searching in priority order:
-/// 1) "$HOME/.config/pacsea/pacsea.conf"
-/// 2) "$XDG_CONFIG_HOME/pacsea/pacsea.conf" or "$XDG_CONFIG_HOME/pacsea.conf"
-pub(crate) fn resolve_config_path() -> Option<PathBuf> {
+/// Determine the configuration file path for Pacsea's THEME, searching in priority order.
+/// New layout prefers `theme.conf`; falls back to legacy `pacsea.conf`.
+pub(crate) fn resolve_theme_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Some(h) = home.as_deref() {
-        candidates.push(
-            Path::new(h)
-                .join(".config")
-                .join("pacsea")
-                .join("pacsea.conf"),
-        );
+        let base = Path::new(h).join(".config").join("pacsea");
+        candidates.push(base.join("theme.conf"));
+        candidates.push(base.join("pacsea.conf")); // legacy
     }
     if let Some(xdg) = xdg_config.as_deref() {
-        let x = Path::new(xdg);
-        candidates.push(x.join("pacsea").join("pacsea.conf"));
-        candidates.push(x.join("pacsea.conf"));
+        let x = Path::new(xdg).join("pacsea");
+        candidates.push(x.join("theme.conf"));
+        candidates.push(x.join("pacsea.conf")); // legacy
+    }
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+/// Determine the configuration file path for Pacsea's SETTINGS.
+/// Prefers `settings.conf`; falls back to legacy `pacsea.conf`.
+pub(crate) fn resolve_settings_config_path() -> Option<PathBuf> {
+    let home = env::var("HOME").ok();
+    let xdg_config = env::var("XDG_CONFIG_HOME").ok();
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(h) = home.as_deref() {
+        let base = Path::new(h).join(".config").join("pacsea");
+        candidates.push(base.join("settings.conf"));
+        candidates.push(base.join("pacsea.conf")); // legacy
+    }
+    if let Some(xdg) = xdg_config.as_deref() {
+        let x = Path::new(xdg).join("pacsea");
+        candidates.push(x.join("settings.conf"));
+        candidates.push(x.join("pacsea.conf")); // legacy
+    }
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+/// Determine the configuration file path for Pacsea's KEYBINDS.
+/// Prefers `keybinds.conf`; falls back to legacy `pacsea.conf`.
+pub(crate) fn resolve_keybinds_config_path() -> Option<PathBuf> {
+    let home = env::var("HOME").ok();
+    let xdg_config = env::var("XDG_CONFIG_HOME").ok();
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(h) = home.as_deref() {
+        let base = Path::new(h).join(".config").join("pacsea");
+        candidates.push(base.join("keybinds.conf"));
+        candidates.push(base.join("pacsea.conf")); // legacy
+    }
+    if let Some(xdg) = xdg_config.as_deref() {
+        let x = Path::new(xdg).join("pacsea");
+        candidates.push(x.join("keybinds.conf"));
+        candidates.push(x.join("pacsea.conf")); // legacy
     }
     candidates.into_iter().find(|p| p.is_file())
 }

@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use super::parsing::{apply_override_to_map, canonical_to_preferred};
-use super::paths::resolve_config_path;
+use super::paths::{config_dir, resolve_settings_config_path};
 use super::types::{Settings, Theme};
 
 /// Skeleton configuration file content with default color values.
@@ -256,6 +256,98 @@ keybind_install_find = /\n\
 keybind_install_to_search = Esc\n\
 keybind_install_focus_left = Left\n";
 
+/// Standalone settings skeleton used when initializing a separate settings.conf
+pub(crate) const SETTINGS_SKELETON_CONTENT: &str = "# Pacsea settings configuration\n\
+# Layout percentages for the middle row panes (must sum to 100)\n\
+layout_left_pct = 20\n\
+layout_center_pct = 60\n\
+layout_right_pct = 20\n\
+# Default dry-run behavior when starting the app (overridden by --dry-run)\n\
+app_dry_run_default = false\n\
+# Middle row visibility (default true)\n\
+show_recent_pane = true\n\
+show_install_pane = true\n\
+show_keybinds_footer = true\n\
+\n\
+# Results sorting\n\
+# Allowed values: alphabetical | aur_popularity | best_matches\n\
+sort_mode = best_matches\n\
+\n\
+# Clipboard\n\
+# Text appended when copying PKGBUILD to the clipboard\n\
+clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activities\n";
+
+/// Standalone keybinds skeleton used when initializing a separate keybinds.conf
+pub(crate) const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\
+# Modifiers can be one of: SUPER, CTRL, SHIFT, ALT.\n\
+\n\
+# GLOBAL — App\n\
+keybind_help = F1\n\
+# Alternative help shortcut\n\
+keybind_help = ?\n\
+keybind_reload_theme = CTRL+R\n\
+keybind_exit = CTRL+Q\n\
+keybind_show_pkgbuild = CTRL+X\n\
+\n\
+# GLOBAL — Pane switching\n\
+keybind_pane_left = Left\n\
+keybind_pane_right = Right\n\
+keybind_pane_next = Tab\n\
+# GLOBAL — Sorting\n\
+keybind_change_sort = BackTab\n\
+\n\
+# SEARCH — Navigation\n\
+keybind_search_move_up = Up\n\
+keybind_search_move_down = Down\n\
+keybind_search_page_up = PgUp\n\
+keybind_search_page_down = PgDn\n\
+\n\
+# SEARCH — Actions\n\
+keybind_search_add = Space\n\
+keybind_search_install = Enter\n\
+\n\
+# SEARCH — Focus/Edit\n\
+keybind_search_focus_left = Left\n\
+keybind_search_focus_right = Right\n\
+keybind_search_backspace = Backspace\n\
+\n\
+# SEARCH — Normal Mode (Focused Search Window)\n\
+keybind_search_normal_toggle = Esc\n\
+keybind_search_normal_insert = i\n\
+keybind_search_normal_select_left = h\n\
+keybind_search_normal_select_right = l\n\
+keybind_search_normal_delete = d\n\
+\n\
+# RECENT — Navigation\n\
+keybind_recent_move_up = k\n\
+keybind_recent_move_down = j\n\
+\n\
+# RECENT — Actions\n\
+keybind_recent_use = Enter\n\
+keybind_recent_add = Space\n\
+keybind_recent_remove = d\n\
+keybind_recent_remove = Del\n\
+\n\
+# RECENT — Find/Focus\n\
+keybind_recent_find = /\n\
+keybind_recent_to_search = Esc\n\
+keybind_recent_focus_right = Right\n\
+\n\
+# INSTALL — Navigation\n\
+keybind_install_move_up = k\n\
+keybind_install_move_down = j\n\
+\n\
+# INSTALL — Actions\n\
+keybind_install_confirm = Enter\n\
+keybind_install_remove = Del\n\
+keybind_install_remove = d\n\
+keybind_install_clear = Shift+Del\n\
+\n\
+# INSTALL — Find/Focus\n\
+keybind_install_find = /\n\
+keybind_install_to_search = Esc\n\
+keybind_install_focus_left = Left\n";
+
 /// Attempt to parse a theme from a configuration file with simple `key = value` pairs.
 pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
     let content = fs::read_to_string(path).map_err(|e| format!("{e}"))?;
@@ -346,9 +438,9 @@ pub(crate) fn load_theme_from_file(path: &Path) -> Option<Theme> {
     try_load_theme_with_diagnostics(path).ok()
 }
 
-/// Persist selected sort mode back to `pacsea.conf`, preserving comments and other keys.
+/// Persist selected sort mode back to settings.conf (or legacy pacsea.conf), preserving comments and other keys.
 pub fn save_sort_mode(sm: crate::state::SortMode) {
-    let path = resolve_config_path().or_else(|| {
+    let path = resolve_settings_config_path().or_else(|| {
         std::env::var("XDG_CONFIG_HOME")
             .ok()
             .map(std::path::PathBuf::from)
@@ -357,7 +449,7 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
                     .ok()
                     .map(|h| Path::new(&h).join(".config"))
             })
-            .map(|base| base.join("pacsea").join("pacsea.conf"))
+            .map(|base| base.join("pacsea").join("settings.conf"))
     });
     let Some(p) = path else {
         return;
@@ -396,9 +488,9 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
     let _ = fs::write(p, new_content);
 }
 
-/// Persist a boolean key to pacsea.conf, preserving other content.
+/// Persist a boolean key to settings.conf (or legacy pacsea.conf), preserving other content.
 fn save_boolean_key(key_norm: &str, value: bool) {
-    let path = resolve_config_path().or_else(|| {
+    let path = resolve_settings_config_path().or_else(|| {
         std::env::var("XDG_CONFIG_HOME")
             .ok()
             .map(std::path::PathBuf::from)
@@ -407,7 +499,7 @@ fn save_boolean_key(key_norm: &str, value: bool) {
                     .ok()
                     .map(|h| Path::new(&h).join(".config"))
             })
-            .map(|base| base.join("pacsea").join("pacsea.conf"))
+            .map(|base| base.join("pacsea").join("settings.conf"))
     });
     let Some(p) = path else {
         return;
@@ -461,12 +553,12 @@ pub fn save_show_keybinds_footer(value: bool) {
     save_boolean_key("show_keybinds_footer", value)
 }
 
-/// Ensure core application settings keys exist in the config file; append missing with current/default values.
+/// Ensure core application settings keys exist in the settings file; append missing with current/default values.
 ///
 /// This preserves existing lines and comments, only appending keys that are not present.
 pub fn ensure_settings_keys_present(prefs: &Settings) {
     // Always resolve to HOME/XDG path similar to save_sort_mode
-    let path = resolve_config_path().or_else(|| {
+    let path = resolve_settings_config_path().or_else(|| {
         std::env::var("XDG_CONFIG_HOME")
             .ok()
             .map(std::path::PathBuf::from)
@@ -475,7 +567,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
                     .ok()
                     .map(|h| Path::new(&h).join(".config"))
             })
-            .map(|base| base.join("pacsea").join("pacsea.conf"))
+            .map(|base| base.join("pacsea").join("settings.conf"))
     });
     let Some(p) = path else {
         return;
@@ -492,7 +584,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         if let Some(dir) = p.parent() {
             let _ = fs::create_dir_all(dir);
         }
-        lines = SKELETON_CONFIG_CONTENT
+        lines = SETTINGS_SKELETON_CONTENT
             .lines()
             .map(|s| s.to_string())
             .collect();
@@ -564,5 +656,12 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     if created_new || appended_any {
         let new_content = lines.join("\n");
         let _ = fs::write(p, new_content);
+    }
+
+    // Ensure keybinds file exists with skeleton if missing (best-effort)
+    let kb = config_dir().join("keybinds.conf");
+    if !kb.exists() {
+        if let Some(dir) = kb.parent() { let _ = fs::create_dir_all(dir); }
+        let _ = fs::write(kb, KEYBINDS_SKELETON_CONTENT);
     }
 }

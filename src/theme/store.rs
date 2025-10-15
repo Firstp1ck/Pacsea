@@ -6,14 +6,14 @@ use std::sync::{OnceLock, RwLock};
 use super::config::{
     SKELETON_CONFIG_CONTENT, load_theme_from_file, try_load_theme_with_diagnostics,
 };
-use super::paths::resolve_config_path;
+use super::paths::resolve_theme_config_path;
 use super::types::Theme;
 
 /// Global theme store with live-reload capability.
 static THEME_STORE: OnceLock<RwLock<Theme>> = OnceLock::new();
 
 fn load_initial_theme_or_exit() -> Theme {
-    if let Some(path) = resolve_config_path() {
+    if let Some(path) = resolve_theme_config_path() {
         match try_load_theme_with_diagnostics(&path) {
             Ok(t) => {
                 tracing::info!(path = %path.display(), "loaded theme configuration");
@@ -42,13 +42,13 @@ fn load_initial_theme_or_exit() -> Theme {
         }
         std::process::exit(1);
     } else {
-        // No config found: write default skeleton to $XDG_CONFIG_HOME/pacsea/pacsea.conf
+        // No config found: write default skeleton to $XDG_CONFIG_HOME/pacsea/theme.conf
         let xdg_base = env::var("XDG_CONFIG_HOME")
             .ok()
             .map(PathBuf::from)
             .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")));
         if let Some(base) = xdg_base {
-            let target = base.join("pacsea").join("pacsea.conf");
+            let target = base.join("pacsea").join("theme.conf");
             if !target.exists() {
                 if let Some(dir) = target.parent() {
                     let _ = fs::create_dir_all(dir);
@@ -61,7 +61,7 @@ fn load_initial_theme_or_exit() -> Theme {
             }
         }
         tracing::error!(
-            "theme configuration missing or incomplete. Please edit $XDG_CONFIG_HOME/pacsea/pacsea.conf (or ~/.config/pacsea/pacsea.conf)."
+            "theme configuration missing or incomplete. Please edit $XDG_CONFIG_HOME/pacsea/theme.conf (or ~/.config/pacsea/theme.conf)."
         );
         std::process::exit(1);
     }
@@ -84,12 +84,12 @@ pub fn theme() -> Theme {
 /// Reload the theme from disk without restarting the app.
 /// Returns Ok(()) on success; Err(msg) if the config is missing or incomplete.
 pub fn reload_theme() -> std::result::Result<(), String> {
-    let path = resolve_config_path().or_else(|| {
+    let path = resolve_theme_config_path().or_else(|| {
         env::var("HOME").ok().map(|h| {
             Path::new(&h)
                 .join(".config")
                 .join("pacsea")
-                .join("pacsea.conf")
+                .join("theme.conf")
         })
     });
     let Some(p) = path else {
