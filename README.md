@@ -63,7 +63,8 @@ pacsea
 
 ### Handy shortcuts
 - **Help**: F1 or ?
-- **Switch panes**: Tab / Shift+Tab, ← / →
+- **Switch panes**: Tab , ← / →
+- **Change sorting**: Shift+Tab
 - **Add / Install**: Space / Enter
 - **Toggle PKGBUILD viewer**: Ctrl+X (or click the label)
 - **Quit**: Ctrl+C
