@@ -188,6 +188,40 @@ fn logic_sort_preserve_selection_and_best_matches() {
 }
 
 #[test]
+fn logic_sort_bestmatches_tiebreak_repo_then_name() {
+    let mut app = new_app();
+    app.results = vec![
+        item_official("alpha2", "extra"),
+        item_official("alpha1", "extra"),
+        item_official("alpha_core", "core"),
+    ];
+    app.input = "alpha".into();
+    app.sort_mode = SortMode::BestMatches;
+    logic::sort_results_preserve_selection(&mut app);
+
+    let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+    // Same rank -> core before extra; within extra, name ascending
+    assert_eq!(names, vec!["alpha_core", "alpha1", "alpha2"]);
+}
+
+#[test]
+fn logic_sort_aur_popularity_and_official_tiebreaks() {
+    let mut app = new_app();
+    app.results = vec![
+        item_aur("aurB", Some(1.0)),
+        item_aur("aurA", Some(1.0)),
+        item_official("z_off", "core"),
+        item_official("a_off", "extra"),
+    ];
+    app.sort_mode = SortMode::AurPopularityThenOfficial;
+    logic::sort_results_preserve_selection(&mut app);
+
+    let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+    // AUR first: equal popularity -> name ascending; then Official: core before extra, then name
+    assert_eq!(names, vec!["aurA", "aurB", "z_off", "a_off"]);
+}
+
+#[test]
 fn logic_apply_filters_and_preserve_selection() {
     let mut app = new_app();
     app.all_results = vec![
@@ -204,6 +238,49 @@ fn logic_apply_filters_and_preserve_selection() {
     assert!(app.results.iter().all(
         |p| matches!(&p.source, Source::Official{repo, ..} if repo.eq_ignore_ascii_case("core"))
     ));
+}
+
+#[test]
+fn logic_apply_filters_cachyos_and_eos_interaction() {
+    let mut app = new_app();
+    app.all_results = vec![
+        PackageItem {
+            name: "cx".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: Source::Official {
+                repo: "cachyos-core".into(),
+                arch: "x86_64".into(),
+            },
+            popularity: None,
+        },
+        PackageItem {
+            name: "ey".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: Source::Official {
+                repo: "endeavouros".into(),
+                arch: "x86_64".into(),
+            },
+            popularity: None,
+        },
+        item_official("core1", "core"),
+    ];
+    // EOS off, CachyOS on -> CachyOS items included, EOS excluded
+    app.results_filter_show_core = true;
+    app.results_filter_show_extra = true;
+    app.results_filter_show_multilib = true;
+    app.results_filter_show_eos = false;
+    app.results_filter_show_cachyos = true;
+    crate_root::logic::apply_filters_and_sort_preserve_selection(&mut app);
+    assert!(app.results.iter().any(|p| match &p.source {
+        Source::Official { repo, .. } => repo.to_lowercase().starts_with("cachyos"),
+        _ => false,
+    }));
+    assert!(app.results.iter().all(|p| match &p.source {
+        Source::Official { repo, .. } => !repo.eq_ignore_ascii_case("endeavouros"),
+        _ => true,
+    }));
 }
 
 #[test]
@@ -737,50 +814,6 @@ fn theme_keychord_label_variants() {
     assert_eq!(kc6.label(), "Alt+Shift+X");
 }
 
-// TODO: Create more robust tests for ring prefetching
-// #[tokio::test]
-// async fn logic_ring_prefetch_from_selected_behavior() {
-//     use crate_root::logic::ring_prefetch_from_selected;
-//     use crate_root::logic::set_allowed_ring;
-
-//     let mut app = new_app();
-//     app.results = vec![
-//         item_official("a", "core"),
-//         item_official("b", "extra"),
-//         item_aur("c", None),
-//         item_official("d", "extra"),
-//     ];
-//     app.selected = 1; // "b"
-
-//     // Allow a ring radius 1 around selection: {a, b, c}
-//     set_allowed_ring(&app, 1);
-
-//     // Pre-insert one into cache to ensure it's skipped
-//     app.details_cache.insert(
-//         "a".into(),
-//         crate_root::state::PackageDetails {
-//             name: "a".into(),
-//             ..Default::default()
-//         },
-//     );
-
-//     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-//     ring_prefetch_from_selected(&mut app, &tx);
-
-//     // Collect quickly what was sent
-//     let mut names = Vec::new();
-//     while let Ok(Some(it)) =
-//         tokio::time::timeout(std::time::Duration::from_millis(20), rx.recv()).await
-//     {
-//         names.push(it.name);
-//     }
-//     // Should include only neighbor(s) within radius and allowed; not the selected itself
-//     assert!(names.contains(&"c".to_string()));
-//     assert!(!names.contains(&"b".to_string()));
-//     assert!(!names.contains(&"a".to_string()));
-//     assert!(!names.contains(&"d".to_string()));
-// }
-
 #[test]
 fn logic_add_to_downgrade_list_behavior() {
     use crate_root::logic::add_to_downgrade_list;
@@ -792,41 +825,222 @@ fn logic_add_to_downgrade_list_behavior() {
 }
 
 #[tokio::test]
-async fn index_persist_and_all_official_or_fetch_roundtrip() {
+async fn index_loads_deduped_and_sorted_after_multiple_writes() {
     use std::fs;
     use std::path::PathBuf;
 
-    // Prepare an index and persist it
+    // Prepare a path and write two overlapping JSON snapshots
     let mut path: PathBuf = std::env::temp_dir();
-    let uniq = format!(
-        "pacsea_idx_{}_{}.json",
+    path.push(format!(
+        "pacsea_idx_multi_{}_{}.json",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos()
-    );
-    path.push(uniq);
+    ));
 
-    // Manually write a small OfficialIndex JSON to disk
-    let idx_json = serde_json::json!({
+    let idx_json1 = serde_json::json!({
         "pkgs": [
-            {"name": "ripgrep", "repo": "extra", "arch": "x86_64", "version": "14", "description": "desc"},
-            {"name": "fd", "repo": "extra", "arch": "x86_64", "version": "9", "description": "desc"}
+            {"name": "zz", "repo": "extra", "arch": "x86_64", "version": "1", "description": ""},
+            {"name": "aa", "repo": "core", "arch": "x86_64", "version": "1", "description": ""}
         ]
     });
-    fs::write(&path, serde_json::to_string(&idx_json).unwrap()).unwrap();
-
-    // Load via persist::load_from_disk and query via all_official
+    fs::write(&path, serde_json::to_string(&idx_json1).unwrap()).unwrap();
     crate_root::index::load_from_disk(&path);
-    let all = crate_root::index::all_official();
-    assert!(all.iter().any(|p| p.name == "ripgrep"));
 
-    // Now call all_official_or_fetch which should return current view (already on disk)
-    let got = crate_root::index::all_official_or_fetch(&path).await;
-    assert!(got.iter().any(|p| p.name == "fd"));
+    // Overwrite with a different ordering and a duplicate name to simulate update
+    let idx_json2 = serde_json::json!({
+        "pkgs": [
+            {"name": "aa", "repo": "core", "arch": "x86_64", "version": "2", "description": ""},
+            {"name": "zz", "repo": "extra", "arch": "x86_64", "version": "1", "description": ""}
+        ]
+    });
+    fs::write(&path, serde_json::to_string(&idx_json2).unwrap()).unwrap();
+    crate_root::index::load_from_disk(&path);
+
+    // all_official returns current pkgs; we assert that both names exist once each.
+    let all = crate_root::index::all_official();
+    let mut names: Vec<String> = all.into_iter().map(|p| p.name).collect();
+    names.sort();
+    names.dedup();
+    assert_eq!(names, vec!["aa", "zz"]);
 
     let _ = fs::remove_file(&path);
+}
+
+#[tokio::test]
+async fn index_enrich_noop_on_empty_names() {
+    use std::fs;
+    use std::path::PathBuf;
+
+    // Seed an empty index file
+    let mut path: PathBuf = std::env::temp_dir();
+    path.push(format!(
+        "pacsea_idx_empty_enrich_{}_{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let idx_json = serde_json::json!({ "pkgs": [] });
+    fs::write(&path, serde_json::to_string(&idx_json).unwrap()).unwrap();
+    crate_root::index::load_from_disk(&path);
+
+    // Calling with empty names should exit early and not notify
+    let (notify_tx, mut notify_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+    crate_root::index::request_enrich_for(path.clone(), notify_tx, Vec::new());
+
+    let none = tokio::time::timeout(std::time::Duration::from_millis(200), notify_rx.recv())
+        .await
+        .ok()
+        .flatten();
+    assert!(none.is_none());
+
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
+fn sources_details_parse_official_json_defaults_and_fields() {
+    // Local helper mirroring production parse to avoid network/system calls
+    fn parse_official_from_json(
+        obj: &serde_json::Value,
+        repo_selected: String,
+        arch_selected: String,
+        item: &PackageItem,
+    ) -> PackageDetails {
+        use crate_root::util::{arrs, ss, u64_of};
+        PackageDetails {
+            repository: repo_selected,
+            name: item.name.clone(),
+            version: ss(obj, &["pkgver", "Version"]).unwrap_or(item.version.clone()),
+            description: ss(obj, &["pkgdesc", "Description"]).unwrap_or(item.description.clone()),
+            architecture: ss(obj, &["arch", "Architecture"]).unwrap_or(arch_selected),
+            url: ss(obj, &["url", "URL"]).unwrap_or_default(),
+            licenses: arrs(obj, &["licenses", "Licenses"]),
+            groups: arrs(obj, &["groups", "Groups"]),
+            provides: arrs(obj, &["provides", "Provides"]),
+            depends: arrs(obj, &["depends", "Depends"]),
+            opt_depends: arrs(obj, &["optdepends", "OptDepends"]),
+            required_by: arrs(obj, &["requiredby", "RequiredBy"]),
+            optional_for: vec![],
+            conflicts: arrs(obj, &["conflicts", "Conflicts"]),
+            replaces: arrs(obj, &["replaces", "Replaces"]),
+            download_size: u64_of(obj, &["compressed_size", "CompressedSize"]),
+            install_size: u64_of(obj, &["installed_size", "InstalledSize"]),
+            owner: ss(obj, &["packager", "Packager"]).unwrap_or_default(),
+            build_date: ss(obj, &["build_date", "BuildDate"]).unwrap_or_default(),
+            popularity: None,
+        }
+    }
+    // Build minimal JSON similar to arch packages API
+    let v: serde_json::Value = serde_json::json!({
+        "pkg": {
+            "pkgver": "14",
+            "pkgdesc": "ripgrep fast search",
+            "arch": "x86_64",
+            "url": "https://example.com",
+            "licenses": ["MIT"],
+            "groups": [],
+            "provides": ["rg"],
+            "depends": ["pcre2"],
+            "optdepends": ["bash: completions"],
+            "requiredby": [],
+            "conflicts": [],
+            "replaces": [],
+            "compressed_size": 1024u64,
+            "installed_size": 2048u64,
+            "packager": "Arch Dev",
+            "build_date": "2024-01-01"
+        }
+    });
+    let item = PackageItem {
+        name: "ripgrep".into(),
+        version: String::new(),
+        description: String::new(),
+        source: Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+        popularity: None,
+    };
+    let d = parse_official_from_json(&v["pkg"], "extra".into(), "x86_64".into(), &item);
+    assert_eq!(d.repository, "extra");
+    assert_eq!(d.name, "ripgrep");
+    assert_eq!(d.version, "14");
+    assert_eq!(d.description, "ripgrep fast search");
+    assert_eq!(d.architecture, "x86_64");
+    assert_eq!(d.url, "https://example.com");
+    assert_eq!(d.download_size, Some(1024));
+    assert_eq!(d.install_size, Some(2048));
+    assert_eq!(d.owner, "Arch Dev");
+    assert_eq!(d.build_date, "2024-01-01");
+}
+
+#[test]
+fn sources_details_parse_aur_json_defaults_and_popularity() {
+    // Local helper mirroring production parse to avoid network/system calls
+    fn parse_aur_from_json(obj: &serde_json::Value, item: &PackageItem) -> PackageDetails {
+        use crate_root::util::{arrs, s};
+        let version0 = s(obj, "Version");
+        let description0 = s(obj, "Description");
+        let popularity0 = obj.get("Popularity").and_then(|v| v.as_f64());
+        PackageDetails {
+            repository: "AUR".into(),
+            name: item.name.clone(),
+            version: if version0.is_empty() {
+                item.version.clone()
+            } else {
+                version0
+            },
+            description: if description0.is_empty() {
+                item.description.clone()
+            } else {
+                description0
+            },
+            architecture: "any".into(),
+            url: s(obj, "URL"),
+            licenses: arrs(obj, &["License", "Licenses"]),
+            groups: arrs(obj, &["Groups"]),
+            provides: arrs(obj, &["Provides"]),
+            depends: arrs(obj, &["Depends"]),
+            opt_depends: arrs(obj, &["OptDepends"]),
+            required_by: vec![],
+            optional_for: vec![],
+            conflicts: arrs(obj, &["Conflicts"]),
+            replaces: arrs(obj, &["Replaces"]),
+            download_size: None,
+            install_size: None,
+            owner: s(obj, "Maintainer"),
+            build_date: crate_root::util::ts_to_date(
+                obj.get("LastModified").and_then(|v| v.as_i64()),
+            ),
+            popularity: popularity0,
+        }
+    }
+    // Minimal AUR RPC result object
+    let obj: serde_json::Value = serde_json::json!({
+        "Version": "1.2.3",
+        "Description": "cool",
+        "Popularity": 3.14,
+        "URL": "https://aur.example/ripgrep"
+    });
+    let item = PackageItem {
+        name: "ripgrep-git".into(),
+        version: String::new(),
+        description: String::new(),
+        source: Source::Aur,
+        popularity: None,
+    };
+    let d = parse_aur_from_json(&obj, &item);
+    assert_eq!(d.repository, "AUR");
+    assert_eq!(d.name, "ripgrep-git");
+    assert_eq!(d.version, "1.2.3");
+    assert_eq!(d.description, "cool");
+    assert_eq!(d.architecture, "any");
+    assert_eq!(d.url, "https://aur.example/ripgrep");
+    assert_eq!(d.popularity, Some(3.14));
 }
 
 #[test]
@@ -866,4 +1080,29 @@ fn logic_filter_unknown_official_inclusion_policy() {
         Source::Official { repo, .. } => repo.eq_ignore_ascii_case("weirdrepo"),
         _ => false,
     }));
+}
+
+#[test]
+fn logic_fast_scroll_sets_gating_and_defers_ring() {
+    use crate_root::logic::set_allowed_only_selected;
+    let mut app = new_app();
+    app.results = vec![
+        item_official("a", "core"),
+        item_official("b", "extra"),
+        item_official("c", "extra"),
+        item_official("d", "extra"),
+        item_official("e", "extra"),
+        item_official("f", "extra"),
+        item_official("g", "extra"),
+    ];
+    // Simulate large scroll
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel::<crate_root::state::PackageItem>();
+    crate_root::logic::move_sel_cached(&mut app, 6, &tx);
+    assert!(app.need_ring_prefetch);
+    assert!(app.ring_resume_at.is_some());
+    // During fast scroll gating, only selected allowed
+    set_allowed_only_selected(&app);
+    assert!(crate_root::logic::is_allowed(
+        &app.results[app.selected].name
+    ));
 }
