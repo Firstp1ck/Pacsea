@@ -6,6 +6,11 @@
 
 Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages — built for speed and minimal keystrokes written in Rust.
 
+<p align="center">
+✨ Idea or bug? <strong><a href="https://github.com/Firstp1ck/Pacsea/issues">Open an issue</a></strong>.<br/>
+❤️ Thank you to the Pacsea community for your ideas, reports, and support!
+</p>
+
 ### Main app view
 ![Main app view (v0.4.1)](Images/Appview_v0.4.1_noPKGBUILD.png "Main app view (v0.4.1)")
 
