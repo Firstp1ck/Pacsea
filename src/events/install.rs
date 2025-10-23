@@ -171,17 +171,23 @@ pub fn handle_install_key(
         }
         KeyCode::Enter => {
             if !app.installed_only_mode && !app.install_list.is_empty() {
-                // Open confirmation modal listing all items to be installed
-                app.modal = crate::state::Modal::ConfirmInstall {
+                // Open Preflight modal listing all items to be installed
+                app.modal = crate::state::Modal::Preflight {
                     items: app.install_list.clone(),
+                    action: crate::state::PreflightAction::Install,
+                    tab: crate::state::PreflightTab::Summary,
                 };
+                app.toast_message = Some("Preflight: Install list".to_string());
             } else if app.installed_only_mode
                 && matches!(app.right_pane_focus, crate::state::RightPaneFocus::Remove)
             {
                 if !app.remove_list.is_empty() {
-                    app.modal = crate::state::Modal::ConfirmRemove {
+                    app.modal = crate::state::Modal::Preflight {
                         items: app.remove_list.clone(),
+                        action: crate::state::PreflightAction::Remove,
+                        tab: crate::state::PreflightTab::Summary,
                     };
+                    app.toast_message = Some("Preflight: Remove list".to_string());
                 }
             } else if app.installed_only_mode
                 && matches!(
