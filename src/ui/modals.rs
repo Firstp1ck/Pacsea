@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::state::AppState;
+use tracing;
 use crate::theme::{KeyChord, theme};
 
 /// Render modal overlays: Alert, ConfirmInstall, and Help.
@@ -153,6 +154,255 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Double)
                         .border_style(Style::default().fg(th.mauve))
+                        .style(Style::default().bg(th.mantle)),
+                );
+            f.render_widget(boxw, rect);
+        }
+        crate::state::Modal::Preflight { items, action, tab } => {
+            tracing::info!(count = items.len(), ?action, "rendering Preflight modal");
+            let w = area.width.saturating_sub(6).min(96);
+            let h = area.height.saturating_sub(8).min(22);
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            f.render_widget(Clear, rect);
+
+            let title = match action {
+                crate::state::PreflightAction::Install => " Preflight: Install ",
+                crate::state::PreflightAction::Remove => " Preflight: Remove ",
+            };
+            let border_color = th.lavender;
+            let bg_color = th.crust;
+
+            // Build header tab labels
+            let tab_labels = ["Summary", "Deps", "Files", "Services", "Sandbox"];
+            let mut header = String::new();
+            for (i, lbl) in tab_labels.iter().enumerate() {
+                let is = match (i, tab) {
+                    (0, crate::state::PreflightTab::Summary) => true,
+                    (1, crate::state::PreflightTab::Deps) => true,
+                    (2, crate::state::PreflightTab::Files) => true,
+                    (3, crate::state::PreflightTab::Services) => true,
+                    (4, crate::state::PreflightTab::Sandbox) => true,
+                    _ => false,
+                };
+                if i > 0 { header.push_str("  "); }
+                if is { header.push_str("["); header.push_str(lbl); header.push_str("]"); }
+                else { header.push_str(lbl); }
+            }
+
+            let mut lines: Vec<Line<'static>> = Vec::new();
+            lines.push(Line::from(Span::styled(
+                header,
+                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+
+            match tab {
+                crate::state::PreflightTab::Summary => {
+                    lines.push(Line::from(Span::styled(
+                        "Summary (placeholder)",
+                        Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+                    )));
+                    lines.push(Line::from(""));
+                    if items.is_empty() {
+                        lines.push(Line::from(Span::styled(
+                            "No items selected.",
+                            Style::default().fg(th.subtext1),
+                        )));
+                    } else {
+                        for p in items.iter().take((h as usize).saturating_sub(8)) {
+                            lines.push(Line::from(Span::styled(
+                                format!("- {}", p.name),
+                                Style::default().fg(th.text),
+                            )));
+                        }
+                    }
+                }
+                crate::state::PreflightTab::Deps => {
+                    lines.push(Line::from(Span::styled(
+                        "Deps (placeholder) — dependency graph preview will appear here",
+                        Style::default().fg(th.text),
+                    )));
+                }
+                crate::state::PreflightTab::Files => {
+                    lines.push(Line::from(Span::styled(
+                        "Files (placeholder) — file list diff/pacnew prediction will appear here",
+                        Style::default().fg(th.text),
+                    )));
+                }
+                crate::state::PreflightTab::Services => {
+                    lines.push(Line::from(Span::styled(
+                        "Services (placeholder) — impacted services/restarts will appear here",
+                        Style::default().fg(th.text),
+                    )));
+                }
+                crate::state::PreflightTab::Sandbox => {
+                    lines.push(Line::from(Span::styled(
+                        "Sandbox (placeholder) — AUR preflight build checks will appear here",
+                        Style::default().fg(th.text),
+                    )));
+                }
+            }
+
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Left/Right: tabs  •  s: sandbox  •  d: dry-run  •  p: proceed (disabled)  •  q: close",
+                Style::default().fg(th.subtext1),
+            )));
+
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(bg_color))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            title,
+                            Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(border_color))
+                        .style(Style::default().bg(bg_color)),
+                );
+            f.render_widget(boxw, rect);
+        }
+        crate::state::Modal::PreflightExec { items, action, tab, verbose, log_lines, abortable } => {
+            let th = theme();
+            let w = area.width.saturating_sub(4).min(110);
+            let h = area.height.saturating_sub(4).min(area.height);
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            f.render_widget(Clear, rect);
+
+            let border_color = th.lavender;
+            let bg_color = th.crust;
+            let title = match action {
+                crate::state::PreflightAction::Install => " Execute: Install ",
+                crate::state::PreflightAction::Remove => " Execute: Remove ",
+            };
+
+            // Split inner content: left (sidebar) 30%, right (log) 70%
+            let inner = ratatui::prelude::Rect { x: rect.x + 1, y: rect.y + 1, width: rect.width.saturating_sub(2), height: rect.height.saturating_sub(2) };
+            let cols = ratatui::layout::Layout::default()
+                .direction(ratatui::layout::Direction::Horizontal)
+                .constraints([ratatui::layout::Constraint::Percentage(30), ratatui::layout::Constraint::Percentage(70)])
+                .split(inner);
+
+            // Sidebar: show selected tab header and items
+            let mut s_lines: Vec<Line<'static>> = Vec::new();
+            let tab_labels = ["Summary", "Deps", "Files", "Services", "Sandbox"];
+            let mut header = String::new();
+            for (i, lbl) in tab_labels.iter().enumerate() {
+                let is = match (i, tab) {
+                    (0, crate::state::PreflightTab::Summary) => true,
+                    (1, crate::state::PreflightTab::Deps) => true,
+                    (2, crate::state::PreflightTab::Files) => true,
+                    (3, crate::state::PreflightTab::Services) => true,
+                    (4, crate::state::PreflightTab::Sandbox) => true,
+                    _ => false,
+                };
+                if i > 0 { header.push_str("  "); }
+                if is { header.push_str("["); header.push_str(lbl); header.push_str("]"); } else { header.push_str(lbl); }
+            }
+            s_lines.push(Line::from(Span::styled(header, Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD))));
+            s_lines.push(Line::from(""));
+            for p in items.iter().take(12) {
+                s_lines.push(Line::from(Span::styled(format!("- {}", p.name), Style::default().fg(th.text))));
+            }
+            let sidebar = Paragraph::new(s_lines)
+                .style(Style::default().fg(th.text).bg(bg_color))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(" Plan ", Style::default().fg(border_color).add_modifier(Modifier::BOLD)))
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(border_color))
+                        .style(Style::default().bg(bg_color)),
+                );
+            f.render_widget(sidebar, cols[0]);
+
+            // Log panel
+            let mut log_text: Vec<Line<'static>> = Vec::new();
+            if log_lines.is_empty() {
+                log_text.push(Line::from(Span::styled(
+                    "Starting… (placeholder; real logs will stream here)",
+                    Style::default().fg(th.subtext1),
+                )));
+            } else {
+                for l in log_lines.iter().rev().take(cols[1].height as usize - 2).rev() {
+                    log_text.push(Line::from(Span::styled(l.clone(), Style::default().fg(th.text))));
+                }
+            }
+            log_text.push(Line::from(""));
+            let footer = format!("l: verbose={}  •  x: abort{}  •  q/Esc/Enter: close", if *verbose {"ON"} else {"OFF"}, if *abortable {" (available)"} else {""});
+            log_text.push(Line::from(Span::styled(footer, Style::default().fg(th.subtext1))));
+
+            let logw = Paragraph::new(log_text)
+                .style(Style::default().fg(th.text).bg(th.base))
+                .wrap(Wrap { trim: false })
+                .block(
+                    Block::default()
+                        .title(Span::styled(title, Style::default().fg(border_color).add_modifier(Modifier::BOLD)))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(border_color))
+                        .style(Style::default().bg(th.base)),
+                );
+            f.render_widget(logw, cols[1]);
+        }
+        crate::state::Modal::PostSummary { success, changed_files, pacnew_count, pacsave_count, services_pending, snapshot_label } => {
+            let th = theme();
+            let w = area.width.saturating_sub(8).min(96);
+            let h = area.height.saturating_sub(6).min(20);
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            f.render_widget(Clear, rect);
+
+            let border_color = if *success { th.green } else { th.red };
+            let mut lines: Vec<Line<'static>> = Vec::new();
+            lines.push(Line::from(Span::styled(
+                if *success { "Success" } else { "Failed" },
+                Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                format!("Changed files: {} (pacnew: {}, pacsave: {})", changed_files, pacnew_count, pacsave_count),
+                Style::default().fg(th.text),
+            )));
+            if let Some(label) = snapshot_label {
+                lines.push(Line::from(Span::styled(
+                    format!("Snapshot: {}", label),
+                    Style::default().fg(th.text),
+                )));
+            }
+            if !services_pending.is_empty() {
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled("Services pending restart:", Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD))));
+                for s in services_pending.iter().take((h as usize).saturating_sub(10)) {
+                    lines.push(Line::from(Span::styled(format!("- {}", s), Style::default().fg(th.text))));
+                }
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "r: rollback  •  s: restart services  •  Enter/Esc: close",
+                Style::default().fg(th.subtext1),
+            )));
+
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.mantle))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            " Post-Transaction Summary ",
+                            Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(border_color))
                         .style(Style::default().bg(th.mantle)),
                 );
             f.render_widget(boxw, rect);

@@ -43,6 +43,103 @@ pub fn handle_event(
                 }
                 return false;
             }
+            crate::state::Modal::Preflight { tab, items, action } => {
+                match ke.code {
+                    KeyCode::Esc | KeyCode::Enter => app.modal = crate::state::Modal::None,
+                    KeyCode::Left => {
+                        *tab = match tab {
+                            crate::state::PreflightTab::Summary => crate::state::PreflightTab::Services,
+                            crate::state::PreflightTab::Deps => crate::state::PreflightTab::Summary,
+                            crate::state::PreflightTab::Files => crate::state::PreflightTab::Deps,
+                            crate::state::PreflightTab::Services => crate::state::PreflightTab::Files,
+                            crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Services,
+                        };
+                    }
+                    KeyCode::Right => {
+                        *tab = match tab {
+                            crate::state::PreflightTab::Summary => crate::state::PreflightTab::Deps,
+                            crate::state::PreflightTab::Deps => crate::state::PreflightTab::Files,
+                            crate::state::PreflightTab::Files => crate::state::PreflightTab::Services,
+                            crate::state::PreflightTab::Services => crate::state::PreflightTab::Sandbox,
+                            crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Summary,
+                        };
+                    }
+                    KeyCode::Char('s') => {
+                        *tab = crate::state::PreflightTab::Sandbox;
+                    }
+                    KeyCode::Char('d') => {
+                        // toggle dry-run globally pre-apply
+                        app.dry_run = !app.dry_run;
+                        app.toast_message = Some(format!("Dry-run: {}", if app.dry_run { "ON" } else { "OFF" }));
+                    }
+                    KeyCode::Char('p') => {
+                        // Transition to execution screen with initial empty log
+                        let list = items.clone();
+                        let action0 = *action;
+                        let tab0 = *tab;
+                        app.modal = crate::state::Modal::PreflightExec {
+                            items: list,
+                            action: action0,
+                            tab: tab0,
+                            verbose: false,
+                            log_lines: Vec::new(),
+                            abortable: false,
+                        };
+                    }
+                    KeyCode::Char('c') => {
+                        // Snapshot placeholder
+                        app.toast_message = Some("Snapshot (placeholder)".to_string());
+                    }
+                    KeyCode::Char('q') => app.modal = crate::state::Modal::None,
+                    _ => {}
+                }
+                return false;
+            }
+            crate::state::Modal::PreflightExec { verbose, log_lines: _, abortable, items, .. } => {
+                match ke.code {
+                    KeyCode::Esc | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
+                    KeyCode::Enter => {
+                        // Compute real counts best-effort and show summary
+                        let data = crate::logic::compute_post_summary(items);
+                        app.modal = crate::state::Modal::PostSummary {
+                            success: data.success,
+                            changed_files: data.changed_files,
+                            pacnew_count: data.pacnew_count,
+                            pacsave_count: data.pacsave_count,
+                            services_pending: data.services_pending,
+                            snapshot_label: data.snapshot_label,
+                        };
+                    }
+                    KeyCode::Char('l') => {
+                        *verbose = !*verbose;
+                        app.toast_message = Some(format!("Verbose: {}", if *verbose { "ON" } else { "OFF" }));
+                    }
+                    KeyCode::Char('x') => {
+                        if *abortable {
+                            app.toast_message = Some("Abort requested (placeholder)".to_string());
+                        }
+                    }
+                    _ => {}
+                }
+                return false;
+            }
+            crate::state::Modal::PostSummary { success: _, changed_files: _, pacnew_count: _, pacsave_count: _, services_pending, snapshot_label: _ } => {
+                match ke.code {
+                    KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
+                    KeyCode::Char('r') => {
+                        app.toast_message = Some("Rollback (placeholder)".to_string());
+                    }
+                    KeyCode::Char('s') => {
+                        if services_pending.is_empty() {
+                            app.toast_message = Some("No services to restart".to_string());
+                        } else {
+                            app.toast_message = Some("Restart services (placeholder)".to_string());
+                        }
+                    }
+                    _ => {}
+                }
+                return false;
+            }
             crate::state::Modal::SystemUpdate {
                 do_mirrors,
                 do_pacman,

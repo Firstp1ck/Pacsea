@@ -2,6 +2,21 @@
 
 use crate::state::types::{NewsItem, PackageItem};
 
+#[derive(Debug, Clone, Copy)]
+pub enum PreflightAction {
+    Install,
+    Remove,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PreflightTab {
+    Summary,
+    Deps,
+    Files,
+    Services,
+    Sandbox,
+}
+
 #[derive(Debug, Clone, Default)]
 pub enum Modal {
     #[default]
@@ -10,6 +25,26 @@ pub enum Modal {
     Alert { message: String },
     /// Confirmation dialog for installing the given items.
     ConfirmInstall { items: Vec<PackageItem> },
+    /// Preflight summary before executing any action.
+    Preflight { items: Vec<PackageItem>, action: PreflightAction, tab: PreflightTab },
+    /// Preflight execution screen with log and sticky sidebar.
+    PreflightExec {
+        items: Vec<PackageItem>,
+        action: PreflightAction,
+        tab: PreflightTab,
+        verbose: bool,
+        log_lines: Vec<String>,
+        abortable: bool,
+    },
+    /// Post-transaction summary with results and follow-ups.
+    PostSummary {
+        success: bool,
+        changed_files: usize,
+        pacnew_count: usize,
+        pacsave_count: usize,
+        services_pending: Vec<String>,
+        snapshot_label: Option<String>,
+    },
     /// Help overlay with keybindings. Non-interactive; dismissed with Esc/Enter.
     Help,
     /// Confirmation dialog for removing the given items.
