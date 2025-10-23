@@ -1201,8 +1201,8 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
     let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
-    // Reproduce the problematic shape for xfce4-terminal: -e, bash, -lc, <cmd>
-    assert_eq!(lines[0], "-e");
+    // Expect the safe shape for xfce4-terminal: --, bash, -lc, <cmd>
+    assert_eq!(lines[0], "--");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
 
@@ -1307,8 +1307,8 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
-    // Current mapping uses -e bash -lc for tilix
-    assert_eq!(lines[0], "-e");
+    // Expect the safe shape for tilix: --, bash, -lc, <cmd>
+    assert_eq!(lines[0], "--");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
 
@@ -1413,8 +1413,8 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
-    // Current mapping uses -e bash -lc for mate-terminal
-    assert_eq!(lines[0], "-e");
+    // Expect the safe shape for mate-terminal: --, bash, -lc, <cmd>
+    assert_eq!(lines[0], "--");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
 
