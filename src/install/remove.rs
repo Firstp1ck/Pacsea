@@ -27,9 +27,9 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("gnome-terminal", &["--", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
-        ("xfce4-terminal", &["-e", "bash", "-lc"], false),
-        ("tilix", &["-e", "bash", "-lc"], false),
-        ("mate-terminal", &["-e", "bash", "-lc"], false),
+        ("xfce4-terminal", &["--", "bash", "-lc"], false),
+        ("tilix", &["--", "bash", "-lc"], false),
+        ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
     let mut launched = false;
     for (term, args, _hold) in terms {
