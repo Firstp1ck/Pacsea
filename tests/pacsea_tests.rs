@@ -1888,7 +1888,7 @@ fn install_single_uses_gnome_terminal_double_dash() {
 
     // Call install single (dry run to avoid logging)
     let pkg = item_official("ripgrep", "extra");
-    crate_root::install::single::spawn_install(&pkg, None, true);
+    crate_root::install::spawn_install(&pkg, None, true);
 
     std::thread::sleep(std::time::Duration::from_millis(50));
 
@@ -1944,7 +1944,7 @@ fn install_batch_uses_gnome_terminal_double_dash() {
 
     // Call batch install (dry run)
     let items = vec![item_official("rg", "extra"), item_official("fd", "extra")];
-    crate_root::install::batch::spawn_install_all(&items, true);
+    crate_root::install::spawn_install_all(&items, true);
 
     std::thread::sleep(std::time::Duration::from_millis(50));
 
@@ -2000,7 +2000,7 @@ fn remove_all_uses_gnome_terminal_double_dash() {
 
     // Call remove all (dry run)
     let names = vec!["ripgrep".to_string(), "fd".to_string()];
-    crate_root::install::remove::spawn_remove_all(&names, true);
+    crate_root::install::spawn_remove_all(&names, true);
 
     std::thread::sleep(std::time::Duration::from_millis(50));
 
