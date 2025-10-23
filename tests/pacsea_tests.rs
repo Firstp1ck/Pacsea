@@ -1138,9 +1138,14 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
     perms.set_mode(0o755);
     fs::set_permissions(&term_path, perms).unwrap();
 
-    // Limit PATH to only our temp dir to force xfce4-terminal selection
+    // Prepend our temp dir to PATH to force terminal selection while keeping system tools available
+    let orig_path = std::env::var_os("PATH");
+    let combined_path = match std::env::var("PATH") {
+        Ok(p) => format!("{}:{}", dir.display(), p),
+        Err(_) => dir.display().to_string(),
+    };
     unsafe {
-        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
     }
 
@@ -1200,6 +1205,12 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
     assert_eq!(lines[0], "-e");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
+
+    // Restore PATH and clean environment override
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -1233,9 +1244,14 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     perms.set_mode(0o755);
     fs::set_permissions(&term_path, perms).unwrap();
 
-    // Limit PATH to only our temp dir to force tilix selection
+    // Prepend temp dir to PATH to force tilix selection while keeping system tools available
+    let orig_path = std::env::var_os("PATH");
+    let combined_path = match std::env::var("PATH") {
+        Ok(p) => format!("{}:{}", dir.display(), p),
+        Err(_) => dir.display().to_string(),
+    };
     unsafe {
-        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
     }
 
@@ -1295,6 +1311,12 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     assert_eq!(lines[0], "-e");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
+
+    // Restore PATH and clean environment override
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -1328,9 +1350,14 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     perms.set_mode(0o755);
     fs::set_permissions(&term_path, perms).unwrap();
 
-    // Limit PATH to only our temp dir to force mate-terminal selection
+    // Prepend temp dir to PATH to force mate-terminal selection while keeping system tools available
+    let orig_path = std::env::var_os("PATH");
+    let combined_path = match std::env::var("PATH") {
+        Ok(p) => format!("{}:{}", dir.display(), p),
+        Err(_) => dir.display().to_string(),
+    };
     unsafe {
-        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
     }
 
@@ -1390,4 +1417,10 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     assert_eq!(lines[0], "-e");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
+
+    // Restore PATH and clean environment override
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
 }
