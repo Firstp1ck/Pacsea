@@ -17,6 +17,21 @@ pub enum PreflightTab {
     Sandbox,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum PreflightAction {
+    Install,
+    Remove,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PreflightTab {
+    Summary,
+    Deps,
+    Files,
+    Services,
+    Sandbox,
+}
+
 #[derive(Debug, Clone, Default)]
 pub enum Modal {
     #[default]
