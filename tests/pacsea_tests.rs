@@ -599,13 +599,26 @@ fn status_parse_color_by_percentage_and_outage() {
     // We include today's date and vary the percent and outage text.
     let (y, m, d) = {
         // Same helper used by the parser (UTC). If it fails, skip this test conservatively.
-        let out = std::process::Command::new("date").args(["-u", "+%Y-%m-%d"]).output();
-        let Ok(o) = out else { return; };
-        if !o.status.success() { return; }
-        let s = match String::from_utf8(o.stdout) { Ok(x) => x, Err(_) => return };
+        let out = std::process::Command::new("date")
+            .args(["-u", "+%Y-%m-%d"])
+            .output();
+        let Ok(o) = out else {
+            return;
+        };
+        if !o.status.success() {
+            return;
+        }
+        let s = match String::from_utf8(o.stdout) {
+            Ok(x) => x,
+            Err(_) => return,
+        };
         let mut it = s.trim().split('-');
-        let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else { return };
-        let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>()) else { return };
+        let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
+            return;
+        };
+        let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>()) else {
+            return;
+        };
         (y, m, d)
     };
     let months = [
@@ -677,13 +690,26 @@ fn status_parse_color_by_percentage_and_outage() {
 fn status_parse_prefers_svg_rect_color() {
     // Build HTML with a green-ish percentage but explicitly yellow rect fill for today's cell.
     let (y, m, d) = {
-        let out = std::process::Command::new("date").args(["-u", "+%Y-%m-%d"]).output();
-        let Ok(o) = out else { return; };
-        if !o.status.success() { return; }
-        let s = match String::from_utf8(o.stdout) { Ok(x) => x, Err(_) => return };
+        let out = std::process::Command::new("date")
+            .args(["-u", "+%Y-%m-%d"])
+            .output();
+        let Ok(o) = out else {
+            return;
+        };
+        if !o.status.success() {
+            return;
+        }
+        let s = match String::from_utf8(o.stdout) {
+            Ok(x) => x,
+            Err(_) => return,
+        };
         let mut it = s.trim().split('-');
-        let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else { return };
-        let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>()) else { return };
+        let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
+            return;
+        };
+        let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>()) else {
+            return;
+        };
         (y, m, d)
     };
     let months = [
@@ -1104,7 +1130,9 @@ fn logic_fast_scroll_sets_gating_and_defers_ring() {
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
-    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
@@ -1159,7 +1187,8 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ =
+        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     assert!(app.options_menu_open);
 
     // Pretend the UI rendered the options menu at a known rect with 3 rows
@@ -1172,11 +1201,25 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
         row: 7, // y=6 + row index 1
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        click_menu_update,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
 
     // SystemUpdate modal should be open with defaults
     match &app.modal {
-        crate_root::state::Modal::SystemUpdate { do_mirrors, do_pacman, do_aur, do_cache, .. } => {
+        crate_root::state::Modal::SystemUpdate {
+            do_mirrors,
+            do_pacman,
+            do_aur,
+            do_cache,
+            ..
+        } => {
             assert!(!*do_mirrors);
             assert!(*do_pacman);
             assert!(*do_aur);
@@ -1202,7 +1245,11 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
 
     // Restore PATH and clean environment override
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1210,7 +1257,9 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn ui_options_update_system_enter_triggers_tilix_args_shape() {
-    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
@@ -1265,7 +1314,8 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ =
+        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     assert!(app.options_menu_open);
 
     // Pretend the UI rendered the options menu at a known rect with 3 rows
@@ -1278,11 +1328,25 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         row: 7, // y=6 + row index 1
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        click_menu_update,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
 
     // SystemUpdate modal should be open with defaults
     match &app.modal {
-        crate_root::state::Modal::SystemUpdate { do_mirrors, do_pacman, do_aur, do_cache, .. } => {
+        crate_root::state::Modal::SystemUpdate {
+            do_mirrors,
+            do_pacman,
+            do_aur,
+            do_cache,
+            ..
+        } => {
             assert!(!*do_mirrors);
             assert!(*do_pacman);
             assert!(*do_aur);
@@ -1308,7 +1372,11 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
 
     // Restore PATH and clean environment override
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1316,7 +1384,9 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
-    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
@@ -1371,7 +1441,8 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ =
+        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     assert!(app.options_menu_open);
 
     // Pretend the UI rendered the options menu at a known rect with 3 rows
@@ -1384,11 +1455,25 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         row: 7, // y=6 + row index 1
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        click_menu_update,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
 
     // SystemUpdate modal should be open with defaults
     match &app.modal {
-        crate_root::state::Modal::SystemUpdate { do_mirrors, do_pacman, do_aur, do_cache, .. } => {
+        crate_root::state::Modal::SystemUpdate {
+            do_mirrors,
+            do_pacman,
+            do_aur,
+            do_cache,
+            ..
+        } => {
             assert!(!*do_mirrors);
             assert!(*do_pacman);
             assert!(*do_aur);
@@ -1414,7 +1499,11 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
 
     // Restore PATH and clean environment override
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1422,7 +1511,9 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
-    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
@@ -1473,7 +1564,8 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ =
+        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     assert!(app.options_menu_open);
 
     // Pretend the UI rendered the options menu at a known rect with 3 rows
@@ -1486,7 +1578,15 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         row: 7, // y=6 + row index 1
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        click_menu_update,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
 
     // Press Enter to run the update with defaults, which spawns gnome-terminal
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
@@ -1505,7 +1605,11 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
 
     // Restore PATH and clean environment override
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1513,7 +1617,9 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn ui_options_update_system_enter_triggers_konsole_args_shape() {
-    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
@@ -1564,7 +1670,8 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ =
+        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     assert!(app.options_menu_open);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
@@ -1573,7 +1680,15 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         row: 7,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        click_menu_update,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
 
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
     let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
@@ -1589,7 +1704,11 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
     assert_eq!(lines[2], "-lc");
 
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1597,7 +1716,9 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
-    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
@@ -1647,7 +1768,8 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ =
+        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     assert!(app.options_menu_open);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
@@ -1656,7 +1778,15 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         row: 7,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        click_menu_update,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
 
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
     let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
@@ -1672,7 +1802,11 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
     assert_eq!(lines[2], "-lc");
 
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1680,7 +1814,9 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn ui_options_update_system_enter_triggers_kitty_args_shape() {
-    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
@@ -1730,7 +1866,8 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ =
+        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     assert!(app.options_menu_open);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
@@ -1739,7 +1876,15 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         row: 7,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        click_menu_update,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
 
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
     let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
@@ -1754,7 +1899,11 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
     assert_eq!(lines[1], "-lc");
 
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1762,7 +1911,9 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
 #[cfg(not(target_os = "windows"))]
 #[test]
 fn ui_options_update_system_enter_triggers_xterm_args_shape() {
-    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
@@ -1812,7 +1963,8 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ =
+        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     assert!(app.options_menu_open);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
@@ -1821,7 +1973,15 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         row: 7,
         modifiers: KeyModifiers::empty(),
     });
-    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        click_menu_update,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
 
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
     let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
@@ -1838,7 +1998,11 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
     assert_eq!(lines[3], "-lc");
 
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1894,7 +2058,11 @@ fn install_single_uses_gnome_terminal_double_dash() {
     assert_eq!(lines[2], "-lc");
 
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -1950,7 +2118,11 @@ fn install_batch_uses_gnome_terminal_double_dash() {
     assert_eq!(lines[2], "-lc");
 
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
@@ -2006,7 +2178,11 @@ fn remove_all_uses_gnome_terminal_double_dash() {
     assert_eq!(lines[2], "-lc");
 
     unsafe {
-        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        if let Some(v) = orig_path {
+            std::env::set_var("PATH", v);
+        } else {
+            std::env::remove_var("PATH");
+        }
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
