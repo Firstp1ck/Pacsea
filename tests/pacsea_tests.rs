@@ -1112,7 +1112,6 @@ fn logic_fast_scroll_sets_gating_and_defers_ring() {
 fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
     use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
     use std::fs;
-    use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
@@ -1140,8 +1139,10 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
     fs::set_permissions(&term_path, perms).unwrap();
 
     // Limit PATH to only our temp dir to force xfce4-terminal selection
-    std::env::set_var("PATH", dir.display().to_string());
-    std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
 
     // Build minimal AppState and channels
     let mut app = new_app();
@@ -1193,7 +1194,7 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
 
     let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
-    let mut lines: Vec<&str> = body.lines().collect();
+    let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
     // Reproduce the problematic shape for xfce4-terminal: -e, bash, -lc, <cmd>
     assert_eq!(lines[0], "-e");
@@ -1206,7 +1207,6 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
 fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
     use std::fs;
-    use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
@@ -1234,8 +1234,10 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     fs::set_permissions(&term_path, perms).unwrap();
 
     // Limit PATH to only our temp dir to force tilix selection
-    std::env::set_var("PATH", dir.display().to_string());
-    std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
 
     // Build minimal AppState and channels
     let mut app = new_app();
@@ -1287,7 +1289,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
 
     let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
-    let mut lines: Vec<&str> = body.lines().collect();
+    let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
     // Current mapping uses -e bash -lc for tilix
     assert_eq!(lines[0], "-e");
@@ -1300,7 +1302,6 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
 fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
     use std::fs;
-    use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
@@ -1328,8 +1329,10 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     fs::set_permissions(&term_path, perms).unwrap();
 
     // Limit PATH to only our temp dir to force mate-terminal selection
-    std::env::set_var("PATH", dir.display().to_string());
-    std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
 
     // Build minimal AppState and channels
     let mut app = new_app();
@@ -1381,7 +1384,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
 
     let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
-    let mut lines: Vec<&str> = body.lines().collect();
+    let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
     // Current mapping uses -e bash -lc for mate-terminal
     assert_eq!(lines[0], "-e");
