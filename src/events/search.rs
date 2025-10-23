@@ -305,9 +305,26 @@ pub fn handle_search_key(
                     }
                 }
             }
+            // Open Preflight using configured search_install key (default: Enter)
+            (c, m) if matches_any(&km.search_install) && (c, m) == (ke.code, ke.modifiers) => {
+                if let Some(item) = app.results.get(app.selected).cloned() {
+                    app.modal = crate::state::Modal::Preflight {
+                        items: vec![item],
+                        action: crate::state::PreflightAction::Install,
+                        tab: crate::state::PreflightTab::Summary,
+                    };
+                    app.toast_message = Some("Preflight opened".to_string());
+                }
+            }
+            // Fallback on raw Enter
             (KeyCode::Char('\n') | KeyCode::Enter, _) => {
                 if let Some(item) = app.results.get(app.selected).cloned() {
-                    app.modal = crate::state::Modal::ConfirmInstall { items: vec![item] };
+                    app.modal = crate::state::Modal::Preflight {
+                        items: vec![item],
+                        action: crate::state::PreflightAction::Install,
+                        tab: crate::state::PreflightTab::Summary,
+                    };
+                    app.toast_message = Some("Preflight opened".to_string());
                 }
             }
             (c, m) if matches_any(&km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
@@ -434,8 +451,12 @@ pub fn handle_search_key(
         }
         (KeyCode::Char('\n') | KeyCode::Enter, _) => {
             if let Some(item) = app.results.get(app.selected).cloned() {
-                // Confirm single install
-                app.modal = crate::state::Modal::ConfirmInstall { items: vec![item] };
+                app.modal = crate::state::Modal::Preflight {
+                    items: vec![item],
+                    action: crate::state::PreflightAction::Install,
+                    tab: crate::state::PreflightTab::Summary,
+                };
+                app.toast_message = Some("Preflight opened".to_string());
             }
         }
         (KeyCode::Char(ch), _) => {
