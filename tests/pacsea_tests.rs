@@ -599,17 +599,14 @@ fn status_parse_color_by_percentage_and_outage() {
     // We include today's date and vary the percent and outage text.
     let (y, m, d) = {
         // Same helper used by the parser (UTC). If it fails, skip this test conservatively.
-        let out = std::process::Command::new("date")
-            .args(["-u", "+%Y-%m-%d"])
-            .output()
-            .expect("date");
-        let s = String::from_utf8(out.stdout).unwrap();
+        let out = std::process::Command::new("date").args(["-u", "+%Y-%m-%d"]).output();
+        let Ok(o) = out else { return; };
+        if !o.status.success() { return; }
+        let s = match String::from_utf8(o.stdout) { Ok(x) => x, Err(_) => return };
         let mut it = s.trim().split('-');
-        (
-            it.next().unwrap().parse::<i32>().unwrap(),
-            it.next().unwrap().parse::<u32>().unwrap(),
-            it.next().unwrap().parse::<u32>().unwrap(),
-        )
+        let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else { return };
+        let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>()) else { return };
+        (y, m, d)
     };
     let months = [
         "January",
@@ -680,17 +677,14 @@ fn status_parse_color_by_percentage_and_outage() {
 fn status_parse_prefers_svg_rect_color() {
     // Build HTML with a green-ish percentage but explicitly yellow rect fill for today's cell.
     let (y, m, d) = {
-        let out = std::process::Command::new("date")
-            .args(["-u", "+%Y-%m-%d"])
-            .output()
-            .expect("date");
-        let s = String::from_utf8(out.stdout).unwrap();
+        let out = std::process::Command::new("date").args(["-u", "+%Y-%m-%d"]).output();
+        let Ok(o) = out else { return; };
+        if !o.status.success() { return; }
+        let s = match String::from_utf8(o.stdout) { Ok(x) => x, Err(_) => return };
         let mut it = s.trim().split('-');
-        (
-            it.next().unwrap().parse::<i32>().unwrap(),
-            it.next().unwrap().parse::<u32>().unwrap(),
-            it.next().unwrap().parse::<u32>().unwrap(),
-        )
+        let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else { return };
+        let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>()) else { return };
+        (y, m, d)
     };
     let months = [
         "January",
@@ -1132,7 +1126,7 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
 
     let mut term_path = dir.clone();
     term_path.push("xfce4-terminal");
-    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    let script = "#!/bin/sh\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1238,7 +1232,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
 
     let mut term_path = dir.clone();
     term_path.push("tilix");
-    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    let script = "#!/bin/sh\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1344,7 +1338,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
 
     let mut term_path = dir.clone();
     term_path.push("mate-terminal");
-    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    let script = "#!/bin/sh\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1450,7 +1444,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
 
     let mut term_path = dir.clone();
     term_path.push("gnome-terminal");
-    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    let script = "#!/bin/sh\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1541,7 +1535,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
 
     let mut term_path = dir.clone();
     term_path.push("konsole");
-    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    let script = "#!/bin/sh\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1625,7 +1619,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
 
     let mut term_path = dir.clone();
     term_path.push("alacritty");
-    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    let script = "#!/bin/sh\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1708,7 +1702,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
 
     let mut term_path = dir.clone();
     term_path.push("kitty");
-    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    let script = "#!/bin/sh\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1790,7 +1784,7 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
 
     let mut term_path = dir.clone();
     term_path.push("xterm");
-    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    let script = "#!/bin/sh\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1873,7 +1867,7 @@ fn install_single_uses_gnome_terminal_double_dash() {
 
     let mut term_path = dir.clone();
     term_path.push("gnome-terminal");
-    let script = "#!/usr/bin/env bash\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+    let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1929,7 +1923,7 @@ fn install_batch_uses_gnome_terminal_double_dash() {
 
     let mut term_path = dir.clone();
     term_path.push("gnome-terminal");
-    let script = "#!/usr/bin/env bash\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+    let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
@@ -1985,7 +1979,7 @@ fn remove_all_uses_gnome_terminal_double_dash() {
 
     let mut term_path = dir.clone();
     term_path.push("gnome-terminal");
-    let script = "#!/usr/bin/env bash\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+    let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
     fs::write(&term_path, script.as_bytes()).unwrap();
     let mut perms = fs::metadata(&term_path).unwrap().permissions();
     perms.set_mode(0o755);
