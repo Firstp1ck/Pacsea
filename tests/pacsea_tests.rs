@@ -1424,3 +1424,595 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         std::env::remove_var("PACSEA_TEST_OUT");
     }
 }
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
+    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare a temp dir with a fake gnome-terminal that records its argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_term_gnome_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("gnome-terminal");
+    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    // Isolate PATH to only our temp dir for deterministic terminal selection
+    let orig_path = std::env::var_os("PATH");
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
+
+    // Build minimal AppState and channels
+    let mut app = new_app();
+    let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
+    let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
+    let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
+    let (atx, _arx) = tokio::sync::mpsc::unbounded_channel();
+    let (pkgb_tx, _pkgb_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Place an Options button and click it to open the menu
+    app.options_button_rect = Some((5, 5, 10, 1));
+    let click_options = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    assert!(app.options_menu_open);
+
+    // Pretend the UI rendered the options menu at a known rect with 3 rows
+    app.options_menu_rect = Some((5, 6, 20, 3));
+
+    // Click the second row (index 1): "Update System"
+    let click_menu_update = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 7, // y=6 + row index 1
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    // Press Enter to run the update with defaults, which spawns gnome-terminal
+    let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    // Allow the fake terminal to write its args
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    // Expect the safe shape for gnome-terminal: --, bash, -lc, <cmd>
+    assert_eq!(lines[0], "--");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+
+    // Restore PATH and clean environment override
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn ui_options_update_system_enter_triggers_konsole_args_shape() {
+    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare a temp dir with a fake konsole that records its argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_term_konsole_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("konsole");
+    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    // Isolate PATH to only our temp dir
+    let orig_path = std::env::var_os("PATH");
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
+
+    // Build minimal AppState and channels
+    let mut app = new_app();
+    let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
+    let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
+    let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
+    let (atx, _arx) = tokio::sync::mpsc::unbounded_channel();
+    let (pkgb_tx, _pkgb_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Open Options and trigger Update System
+    app.options_button_rect = Some((5, 5, 10, 1));
+    let click_options = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    assert!(app.options_menu_open);
+    app.options_menu_rect = Some((5, 6, 20, 3));
+    let click_menu_update = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 7,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    // Expect konsole shape: -e, bash, -lc, <cmd>
+    assert_eq!(lines[0], "-e");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
+    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare a temp dir with a fake alacritty that records its argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_term_alacritty_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("alacritty");
+    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    let orig_path = std::env::var_os("PATH");
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
+
+    // Build minimal AppState and channels
+    let mut app = new_app();
+    let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
+    let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
+    let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
+    let (atx, _arx) = tokio::sync::mpsc::unbounded_channel();
+    let (pkgb_tx, _pkgb_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Open Options and trigger Update System
+    app.options_button_rect = Some((5, 5, 10, 1));
+    let click_options = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    assert!(app.options_menu_open);
+    app.options_menu_rect = Some((5, 6, 20, 3));
+    let click_menu_update = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 7,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    // Expect alacritty shape: -e, bash, -lc, <cmd>
+    assert_eq!(lines[0], "-e");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn ui_options_update_system_enter_triggers_kitty_args_shape() {
+    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare a temp dir with a fake kitty that records its argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_term_kitty_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("kitty");
+    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    let orig_path = std::env::var_os("PATH");
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
+
+    // Build minimal AppState and channels
+    let mut app = new_app();
+    let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
+    let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
+    let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
+    let (atx, _arx) = tokio::sync::mpsc::unbounded_channel();
+    let (pkgb_tx, _pkgb_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Open Options and trigger Update System
+    app.options_button_rect = Some((5, 5, 10, 1));
+    let click_options = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    assert!(app.options_menu_open);
+    app.options_menu_rect = Some((5, 6, 20, 3));
+    let click_menu_update = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 7,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 2, "expected at least 2 args, got: {}", body);
+    // Expect kitty shape: bash, -lc, <cmd>
+    assert_eq!(lines[0], "bash");
+    assert_eq!(lines[1], "-lc");
+
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn ui_options_update_system_enter_triggers_xterm_args_shape() {
+    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare a temp dir with a fake xterm that records its argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_term_xterm_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("xterm");
+    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    let orig_path = std::env::var_os("PATH");
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
+
+    // Build minimal AppState and channels
+    let mut app = new_app();
+    let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
+    let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
+    let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
+    let (atx, _arx) = tokio::sync::mpsc::unbounded_channel();
+    let (pkgb_tx, _pkgb_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Open Options and trigger Update System
+    app.options_button_rect = Some((5, 5, 10, 1));
+    let click_options = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    assert!(app.options_menu_open);
+    app.options_menu_rect = Some((5, 6, 20, 3));
+    let click_menu_update = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 7,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 4, "expected at least 4 args, got: {}", body);
+    // Expect xterm shape: -hold, -e, bash, -lc, <cmd>
+    assert_eq!(lines[0], "-hold");
+    assert_eq!(lines[1], "-e");
+    assert_eq!(lines[2], "bash");
+    assert_eq!(lines[3], "-lc");
+
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn install_single_uses_gnome_terminal_double_dash() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare fake gnome-terminal that records argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_inst_single_gnome_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("gnome-terminal");
+    let script = "#!/usr/bin/env bash\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    // Isolate PATH
+    let orig_path = std::env::var_os("PATH");
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
+
+    // Call install single (dry run to avoid logging)
+    let pkg = item_official("ripgrep", "extra");
+    crate_root::install::single::spawn_install(&pkg, None, true);
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    assert_eq!(lines[0], "--");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn install_batch_uses_gnome_terminal_double_dash() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare fake gnome-terminal that records argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_inst_batch_gnome_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("gnome-terminal");
+    let script = "#!/usr/bin/env bash\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    // Isolate PATH
+    let orig_path = std::env::var_os("PATH");
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
+
+    // Call batch install (dry run)
+    let items = vec![item_official("rg", "extra"), item_official("fd", "extra")];
+    crate_root::install::batch::spawn_install_all(&items, true);
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    assert_eq!(lines[0], "--");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn remove_all_uses_gnome_terminal_double_dash() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare fake gnome-terminal that records argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_remove_gnome_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("gnome-terminal");
+    let script = "#!/usr/bin/env bash\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    // Isolate PATH
+    let orig_path = std::env::var_os("PATH");
+    unsafe {
+        std::env::set_var("PATH", dir.display().to_string());
+        std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+    }
+
+    // Call remove all (dry run)
+    let names = vec!["ripgrep".to_string(), "fd".to_string()];
+    crate_root::install::remove::spawn_remove_all(&names, true);
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    assert_eq!(lines[0], "--");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+
+    unsafe {
+        if let Some(v) = orig_path { std::env::set_var("PATH", v); } else { std::env::remove_var("PATH"); }
+        std::env::remove_var("PACSEA_TEST_OUT");
+    }
+}
