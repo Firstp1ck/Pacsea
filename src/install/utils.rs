@@ -53,12 +53,11 @@ pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Opt
         for dir in std::env::split_paths(&paths) {
             for (i, (name, _args, _hold)) in terms.iter().enumerate() {
                 let candidate = dir.join(name);
-                if candidate.is_file() {
-                    if let Ok(meta) = std::fs::metadata(&candidate) {
-                        if meta.permissions().mode() & 0o111 != 0 {
-                            return Some(i);
-                        }
-                    }
+                if candidate.is_file()
+                    && let Ok(meta) = std::fs::metadata(&candidate)
+                    && meta.permissions().mode() & 0o111 != 0
+                {
+                    return Some(i);
                 }
             }
         }
@@ -74,7 +73,11 @@ pub fn shell_single_quote(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('\'');
     for ch in s.chars() {
-        if ch == '\'' { out.push_str("'\"'\"'"); } else { out.push(ch); }
+        if ch == '\'' {
+            out.push_str("'\"'\"'");
+        } else {
+            out.push(ch);
+        }
     }
     out.push('\'');
     out
