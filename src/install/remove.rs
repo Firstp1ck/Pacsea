@@ -1,7 +1,7 @@
 use std::process::Command;
 
 #[cfg(not(target_os = "windows"))]
-use super::utils::command_on_path;
+use super::utils::{choose_terminal_index_prefer_path, command_on_path};
 
 #[cfg(not(target_os = "windows"))]
 pub fn spawn_remove_all(names: &[String], dry_run: bool) {
@@ -32,23 +32,50 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
     let mut launched = false;
-    for (term, args, _hold) in terms {
-        if command_on_path(term) {
-            let spawn_res = Command::new(term)
-                .args(args.iter().copied())
-                .arg(&cmd_str)
-                .spawn();
-            match spawn_res {
-                Ok(_) => {
-                    tracing::info!(terminal = %term, names = %names_str, total = names.len(), dry_run, "launched terminal for removal")
-                }
-                Err(e) => {
-                    tracing::warn!(terminal = %term, error = %e, names = %names_str, "failed to spawn terminal, trying next");
-                    continue;
-                }
+    if let Some(idx) = choose_terminal_index_prefer_path(terms) {
+        let (term, args, _hold) = terms[idx];
+        let mut cmd = Command::new(term);
+        cmd.args(args.iter().copied()).arg(&cmd_str);
+        if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
+            if let Some(parent) = std::path::Path::new(&p).parent() {
+                let _ = std::fs::create_dir_all(parent);
             }
-            launched = true;
-            break;
+            cmd.env("PACSEA_TEST_OUT", p);
+        }
+        let spawn_res = cmd.spawn();
+        match spawn_res {
+            Ok(_) => {
+                tracing::info!(terminal = %term, names = %names_str, total = names.len(), dry_run, "launched terminal for removal")
+            }
+            Err(e) => {
+                tracing::warn!(terminal = %term, error = %e, names = %names_str, "failed to spawn terminal, trying next");
+            }
+        }
+        launched = true;
+    } else {
+        for (term, args, _hold) in terms {
+            if command_on_path(term) {
+                let mut cmd = Command::new(term);
+                cmd.args(args.iter().copied()).arg(&cmd_str);
+                if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
+                    if let Some(parent) = std::path::Path::new(&p).parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    cmd.env("PACSEA_TEST_OUT", p);
+                }
+                let spawn_res = cmd.spawn();
+                match spawn_res {
+                    Ok(_) => {
+                        tracing::info!(terminal = %term, names = %names_str, total = names.len(), dry_run, "launched terminal for removal")
+                    }
+                    Err(e) => {
+                        tracing::warn!(terminal = %term, error = %e, names = %names_str, "failed to spawn terminal, trying next");
+                        continue;
+                    }
+                }
+                launched = true;
+                break;
+            }
         }
     }
     if !launched {

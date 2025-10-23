@@ -45,3 +45,23 @@ pub fn command_on_path(cmd: &str) -> bool {
     }
     false
 }
+
+#[cfg(not(target_os = "windows"))]
+pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Option<usize> {
+    use std::os::unix::fs::PermissionsExt;
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            for (i, (name, _args, _hold)) in terms.iter().enumerate() {
+                let candidate = dir.join(name);
+                if candidate.is_file() {
+                    if let Ok(meta) = std::fs::metadata(&candidate) {
+                        if meta.permissions().mode() & 0o111 != 0 {
+                            return Some(i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
