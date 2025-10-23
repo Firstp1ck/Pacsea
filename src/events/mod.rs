@@ -92,6 +92,8 @@ pub fn handle_event(
                         // Build the command lines and run in a terminal
                         let mut cmds: Vec<String> = Vec::new();
                         if *do_mirrors {
+                            // Ensure reflector is installed before attempting to use it
+                            cmds.push("(command -v reflector >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm reflector)".to_string());
                             let country = if *country_idx < countries.len() {
                                 &countries[*country_idx]
                             } else {
@@ -99,9 +101,9 @@ pub fn handle_event(
                             };
                             // For Worldwide, reflect without --country
                             if country.eq("Worldwide") {
-                                cmds.push("sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist".to_string());
+                                cmds.push("(command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'".to_string());
                             } else {
-                                cmds.push(format!("sudo reflector --verbose --country '{country}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist"));
+                                cmds.push(format!("(command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{country}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'"));
                             }
                         }
                         if *do_pacman {
