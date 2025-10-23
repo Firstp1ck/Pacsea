@@ -1106,3 +1106,285 @@ fn logic_fast_scroll_sets_gating_and_defers_ring() {
         &app.results[app.selected].name
     ));
 }
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
+    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use std::fs;
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare a temp dir with a fake xfce4-terminal that records its argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_term_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("xfce4-terminal");
+    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    // Limit PATH to only our temp dir to force xfce4-terminal selection
+    std::env::set_var("PATH", dir.display().to_string());
+    std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+
+    // Build minimal AppState and channels
+    let mut app = new_app();
+    let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
+    let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
+    let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
+    let (atx, _arx) = tokio::sync::mpsc::unbounded_channel();
+    let (pkgb_tx, _pkgb_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Place an Options button and click it to open the menu
+    app.options_button_rect = Some((5, 5, 10, 1));
+    let click_options = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    assert!(app.options_menu_open);
+
+    // Pretend the UI rendered the options menu at a known rect with 3 rows
+    app.options_menu_rect = Some((5, 6, 20, 3));
+
+    // Click the second row (index 1): "Update System"
+    let click_menu_update = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 7, // y=6 + row index 1
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    // SystemUpdate modal should be open with defaults
+    match &app.modal {
+        crate_root::state::Modal::SystemUpdate { do_mirrors, do_pacman, do_aur, do_cache, .. } => {
+            assert!(!*do_mirrors);
+            assert!(*do_pacman);
+            assert!(*do_aur);
+            assert!(!*do_cache);
+        }
+        _ => panic!("SystemUpdate modal not opened"),
+    }
+
+    // Press Enter to run the update with defaults, which spawns xfce4-terminal
+    let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    // Allow the fake terminal to write its args
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let mut lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    // Reproduce the problematic shape for xfce4-terminal: -e, bash, -lc, <cmd>
+    assert_eq!(lines[0], "-e");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn ui_options_update_system_enter_triggers_tilix_args_shape() {
+    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use std::fs;
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare a temp dir with a fake tilix that records its argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_term_tilix_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("tilix");
+    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    // Limit PATH to only our temp dir to force tilix selection
+    std::env::set_var("PATH", dir.display().to_string());
+    std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+
+    // Build minimal AppState and channels
+    let mut app = new_app();
+    let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
+    let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
+    let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
+    let (atx, _arx) = tokio::sync::mpsc::unbounded_channel();
+    let (pkgb_tx, _pkgb_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Place an Options button and click it to open the menu
+    app.options_button_rect = Some((5, 5, 10, 1));
+    let click_options = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    assert!(app.options_menu_open);
+
+    // Pretend the UI rendered the options menu at a known rect with 3 rows
+    app.options_menu_rect = Some((5, 6, 20, 3));
+
+    // Click the second row (index 1): "Update System"
+    let click_menu_update = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 7, // y=6 + row index 1
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    // SystemUpdate modal should be open with defaults
+    match &app.modal {
+        crate_root::state::Modal::SystemUpdate { do_mirrors, do_pacman, do_aur, do_cache, .. } => {
+            assert!(!*do_mirrors);
+            assert!(*do_pacman);
+            assert!(*do_aur);
+            assert!(!*do_cache);
+        }
+        _ => panic!("SystemUpdate modal not opened"),
+    }
+
+    // Press Enter to run the update with defaults, which spawns tilix
+    let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    // Allow the fake terminal to write its args
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let mut lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    // Current mapping uses -e bash -lc for tilix
+    assert_eq!(lines[0], "-e");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
+    use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+    use std::fs;
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    // Prepare a temp dir with a fake mate-terminal that records its argv
+    let mut dir: PathBuf = std::env::temp_dir();
+    dir.push(format!(
+        "pacsea_test_term_mate_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::create_dir_all(&dir);
+
+    let mut out_path = dir.clone();
+    out_path.push("args.txt");
+
+    let mut term_path = dir.clone();
+    term_path.push("mate-terminal");
+    let script = "#!/usr/bin/env bash\n# record all args, one per line\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do\n  printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"\ndone\n";
+    fs::write(&term_path, script.as_bytes()).unwrap();
+    let mut perms = fs::metadata(&term_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&term_path, perms).unwrap();
+
+    // Limit PATH to only our temp dir to force mate-terminal selection
+    std::env::set_var("PATH", dir.display().to_string());
+    std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+
+    // Build minimal AppState and channels
+    let mut app = new_app();
+    let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
+    let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
+    let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
+    let (atx, _arx) = tokio::sync::mpsc::unbounded_channel();
+    let (pkgb_tx, _pkgb_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // Place an Options button and click it to open the menu
+    app.options_button_rect = Some((5, 5, 10, 1));
+    let click_options = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    assert!(app.options_menu_open);
+
+    // Pretend the UI rendered the options menu at a known rect with 3 rows
+    app.options_menu_rect = Some((5, 6, 20, 3));
+
+    // Click the second row (index 1): "Update System"
+    let click_menu_update = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 7, // y=6 + row index 1
+        modifiers: KeyModifiers::empty(),
+    });
+    let _ = crate_root::events::handle_event(click_menu_update, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    // SystemUpdate modal should be open with defaults
+    match &app.modal {
+        crate_root::state::Modal::SystemUpdate { do_mirrors, do_pacman, do_aur, do_cache, .. } => {
+            assert!(!*do_mirrors);
+            assert!(*do_pacman);
+            assert!(*do_aur);
+            assert!(!*do_cache);
+        }
+        _ => panic!("SystemUpdate modal not opened"),
+    }
+
+    // Press Enter to run the update with defaults, which spawns mate-terminal
+    let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+    // Allow the fake terminal to write its args
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+    let mut lines: Vec<&str> = body.lines().collect();
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    // Current mapping uses -e bash -lc for mate-terminal
+    assert_eq!(lines[0], "-e");
+    assert_eq!(lines[1], "bash");
+    assert_eq!(lines[2], "-lc");
+}

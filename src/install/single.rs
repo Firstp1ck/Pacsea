@@ -1,6 +1,8 @@
 use std::process::Command;
 
-use crate::state::{PackageItem, Source};
+use crate::state::PackageItem;
+#[cfg(not(target_os = "windows"))]
+use crate::state::Source;
 
 use super::command::build_install_command;
 #[cfg(not(target_os = "windows"))]

@@ -1,3 +1,4 @@
+#[cfg(not(target_os = "windows"))]
 use crate::state::Source;
 use std::process::Command;
 
