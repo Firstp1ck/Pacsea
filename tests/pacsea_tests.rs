@@ -1237,11 +1237,10 @@ fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
 
     let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
-    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
-    // Expect the safe shape for xfce4-terminal: --, bash, -lc, <cmd>
-    assert_eq!(lines[0], "--");
-    assert_eq!(lines[1], "bash");
-    assert_eq!(lines[2], "-lc");
+    assert!(lines.len() >= 2, "expected at least 2 args, got: {}", body);
+    // Expect xfce4-terminal safe shape: --command, "bash -lc '<cmd>'"
+    assert_eq!(lines[0], "--command");
+    assert!(lines[1].starts_with("bash -lc "));
 
     // Restore PATH and clean environment override
     unsafe {

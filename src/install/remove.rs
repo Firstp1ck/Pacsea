@@ -1,7 +1,7 @@
 use std::process::Command;
 
 #[cfg(not(target_os = "windows"))]
-use super::utils::{choose_terminal_index_prefer_path, command_on_path};
+use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
 pub fn spawn_remove_all(names: &[String], dry_run: bool) {
@@ -27,15 +27,20 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("gnome-terminal", &["--", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
-        ("xfce4-terminal", &["--", "bash", "-lc"], false),
+        ("xfce4-terminal", &[], true),
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
-        let (term, args, _hold) = terms[idx];
+        let (term, args, needs_xfce_command) = terms[idx];
         let mut cmd = Command::new(term);
-        cmd.args(args.iter().copied()).arg(&cmd_str);
+        if needs_xfce_command && term == "xfce4-terminal" {
+            let quoted = shell_single_quote(&cmd_str);
+            cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+        } else {
+            cmd.args(args.iter().copied()).arg(&cmd_str);
+        }
         if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
             if let Some(parent) = std::path::Path::new(&p).parent() {
                 let _ = std::fs::create_dir_all(parent);
@@ -53,10 +58,15 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
         }
         launched = true;
     } else {
-        for (term, args, _hold) in terms {
+        for (term, args, needs_xfce_command) in terms {
             if command_on_path(term) {
                 let mut cmd = Command::new(term);
-                cmd.args(args.iter().copied()).arg(&cmd_str);
+                if *needs_xfce_command && *term == "xfce4-terminal" {
+                    let quoted = shell_single_quote(&cmd_str);
+                    cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+                } else {
+                    cmd.args(args.iter().copied()).arg(&cmd_str);
+                }
                 if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
                     if let Some(parent) = std::path::Path::new(&p).parent() {
                         let _ = std::fs::create_dir_all(parent);

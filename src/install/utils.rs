@@ -65,3 +65,17 @@ pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Opt
     }
     None
 }
+
+#[cfg(not(target_os = "windows"))]
+pub fn shell_single_quote(s: &str) -> String {
+    if s.is_empty() {
+        return "''".to_string();
+    }
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for ch in s.chars() {
+        if ch == '\'' { out.push_str("'\"'\"'"); } else { out.push(ch); }
+    }
+    out.push('\'');
+    out
+}
