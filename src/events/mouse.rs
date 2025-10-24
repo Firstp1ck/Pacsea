@@ -18,6 +18,30 @@ use crate::logic::move_sel_cached;
 /// - Clickable Sort button and filter toggles in the Results title.
 /// - Click-to-select in Results; mouse wheel scroll moves selection in Results/Recent/Install.
 /// - Mouse wheel scroll within the PKGBUILD viewer scrolls the content.
+///
+/// What: Handle a single mouse event and update application state and UI accordingly.
+///
+/// Inputs:
+/// - `m`: Mouse event including position, button, and modifiers
+/// - `app`: Mutable application state (rects, focus, lists, details)
+/// - `details_tx`: Channel to request package details when selection changes
+/// - `preview_tx`: Channel to request preview details for Recent pane interactions
+/// - `_add_tx`: Channel for adding items (used by Import button handler)
+/// - `pkgb_tx`: Channel to request PKGBUILD content for the current selection
+///
+/// Output:
+/// - `true` to request application exit (never used here); otherwise `false`.
+///
+/// Details:
+/// - Modal-first: When Help or News is open, clicks/scroll are handled within modal bounds
+///   (close on outside click), consuming the event.
+/// - Details area: Ctrl+Shift+LeftClick opens URL; PKGBUILD toggle and copy button respond to clicks;
+///   while text selection is enabled, clicks inside details are ignored by the app.
+/// - Title bar: Sort/options/panels/config buttons toggle menus; filter toggles apply filters.
+/// - Results: Click selects; scroll wheel moves selection and triggers details fetch.
+/// - Recent/Install/Remove/Downgrade panes: Scroll moves selection; click focuses/sets selection.
+/// - Import/Export buttons: Import opens a system file picker to enqueue names; Export writes the
+///   current Install list to a timestamped file and shows a toast.
 pub fn handle_mouse_event(
     m: MouseEvent,
     app: &mut AppState,

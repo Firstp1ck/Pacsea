@@ -4,6 +4,13 @@ use ratatui::style::Color;
 use super::types::KeyChord;
 use crossterm::event::KeyModifiers;
 
+/// Parse a single key identifier (e.g., "F5", "Esc", "?", "r") into a KeyCode.
+///
+/// Inputs:
+/// - `s`: Key identifier token
+///
+/// Output:
+/// - `Some(KeyCode)` on success; `None` for unknown tokens or invalid strings.
 pub(crate) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
     let t = s.trim();
     // Function keys
@@ -39,6 +46,16 @@ pub(crate) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
     }
 }
 
+/// Parse a key chord like "Ctrl+R", "Shift+Tab", or "F1" into a KeyChord.
+///
+/// Inputs:
+/// - `spec`: Chord specification with modifiers and a key token
+///
+/// Output:
+/// - `Some(KeyChord)` on success; `None` when the chord cannot be parsed.
+///
+/// Notes:
+/// - Supports Ctrl/Alt/Shift/Super modifiers (case-insensitive) and normalizes Shift+Tab→BackTab.
 pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
     // Accept formats like: CTRL+R, Alt+?, Shift+Del, F1, Tab, BackTab, Super+F2
     let mut mods = KeyModifiers::empty();
@@ -70,6 +87,12 @@ pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
 }
 
 /// Parse a color value from a configuration string.
+///
+/// Inputs:
+/// - `s`: Color specification
+///
+/// Output:
+/// - `Some(Color)` for supported formats; `None` for invalid values.
 ///
 /// Supported formats:
 /// - "#RRGGBB" (hex)
@@ -115,6 +138,13 @@ pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
     None
 }
 
+/// Map a normalized theme key (lowercase, separators as underscores) to a canonical key.
+///
+/// Inputs:
+/// - `norm`: Normalized key string
+///
+/// Output:
+/// - `Some(canonical)` when recognized; `None` otherwise.
 pub(crate) fn canonical_for_key(norm: &str) -> Option<&'static str> {
     match norm {
         // Legacy and comprehensive keys mapped to canonical names
@@ -138,6 +168,13 @@ pub(crate) fn canonical_for_key(norm: &str) -> Option<&'static str> {
     }
 }
 
+/// Convert a canonical key into a preferred user-facing form for hints/messages.
+///
+/// Inputs:
+/// - `canon`: Canonical key
+///
+/// Output:
+/// - Preferred display key string.
 pub(crate) fn canonical_to_preferred(canon: &str) -> String {
     match canon {
         "base" => "background_base",
@@ -161,6 +198,17 @@ pub(crate) fn canonical_to_preferred(canon: &str) -> String {
     .to_string()
 }
 
+/// Apply a single theme override `key=value` into a color map with validation and diagnostics.
+///
+/// Inputs:
+/// - `map`: Destination color map to update
+/// - `key`: Raw key from config
+/// - `value`: Raw value from config
+/// - `errors`: Collector for diagnostics
+/// - `line_no`: 1-based configuration line number (for messages)
+///
+/// Output:
+/// - Updates `map` in-place; appends human-readable messages to `errors` on problems.
 pub(crate) fn apply_override_to_map(
     map: &mut std::collections::HashMap<String, Color>,
     key: &str,
@@ -196,6 +244,13 @@ pub(crate) fn apply_override_to_map(
     }
 }
 
+/// Return the canonical key closest to `input` by Levenshtein distance (threshold <= 3).
+///
+/// Inputs:
+/// - `input`: Possibly misspelled key
+///
+/// Output:
+/// - `Some(canonical)` when a close match exists; `None` otherwise.
 pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
     // Very small domain; simple Levenshtein distance is fine
     const CANON: [&str; 16] = [
@@ -212,6 +267,14 @@ pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
     best.and_then(|(k, d)| if d <= 3 { Some(k) } else { None })
 }
 
+/// Compute Levenshtein edit distance between two strings.
+///
+/// Inputs:
+/// - `a`: First string
+/// - `b`: Second string
+///
+/// Output:
+/// - The edit distance as a non-negative integer.
 pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
     let m = b.len();
     let mut dp: Vec<usize> = (0..=m).collect();
@@ -228,6 +291,13 @@ pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
     dp[m]
 }
 
+/// Strip trailing inline comments starting with // or a secondary # (hex-safe), then trim.
+///
+/// Inputs:
+/// - `s`: Input string potentially containing inline comments
+///
+/// Output:
+/// - The input without inline comments and surrounding whitespace.
 pub(crate) fn strip_inline_comment(mut s: &str) -> &str {
     if let Some(i) = s.find("//") {
         s = &s[..i];

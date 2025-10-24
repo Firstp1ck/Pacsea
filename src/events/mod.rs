@@ -17,9 +17,24 @@ mod utils;
 
 // re-export intentionally omitted; handled internally
 
-/// Dispatch a single terminal event and mutate the [`AppState`].
+/// What: Dispatch a single terminal event (keyboard/mouse) and mutate the [`AppState`].
 ///
-/// Returns `true` to signal the application should exit; otherwise `false`.
+/// Inputs:
+/// - `ev`: Terminal event (key or mouse)
+/// - `app`: Mutable application state
+/// - `query_tx`: Channel to send search queries
+/// - `details_tx`: Channel to request package details
+/// - `preview_tx`: Channel to request preview details for Recent
+/// - `add_tx`: Channel to enqueue items into the install list
+/// - `pkgb_tx`: Channel to request PKGBUILD content for the current selection
+///
+/// Output:
+/// - `true` to signal the application should exit; otherwise `false`.
+///
+/// Details:
+/// - Handles active modal interactions first (Alert/SystemUpdate/ConfirmInstall/ConfirmRemove/Help/News).
+/// - Supports global shortcuts (help overlay, theme reload, exit, PKGBUILD viewer toggle, change sort).
+/// - Delegates pane-specific handling to `search`, `recent`, and `install` submodules.
 pub fn handle_event(
     ev: CEvent,
     app: &mut AppState,

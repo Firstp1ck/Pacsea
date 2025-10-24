@@ -1,11 +1,19 @@
 use super::{OfficialPkg, fetch_official_pkg_names, idx, save_to_disk};
 
-/// Spawn a background task to refresh the official index and notify on changes.
+/// What: Spawn a background task to refresh the official index and notify on changes.
 ///
-/// On success, merges new names while preserving previously enriched fields
-/// (repo, arch, version, description) for packages that still exist. Persists
-/// the updated index and sends a unit message on `notify_tx` when the set of
-/// names changes. On failure, sends a human-readable error on `net_err_tx`.
+/// Inputs:
+/// - `persist_path`: File path to persist the updated index JSON
+/// - `net_err_tx`: Channel to send human-readable errors on failure
+/// - `notify_tx`: Channel to notify the UI when the set of names changes
+///
+/// Output:
+/// - Launches a task that updates the in-memory index and persists to disk when the set of names
+///   changes; sends notifications/errors via the provided channels.
+///
+/// Details:
+/// - Merges new names while preserving previously enriched fields (repo, arch, version, description)
+///   for still-existing packages.
 pub async fn update_in_background(
     persist_path: std::path::PathBuf,
     net_err_tx: tokio::sync::mpsc::UnboundedSender<String>,

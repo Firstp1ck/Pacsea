@@ -7,10 +7,37 @@ use super::utils::{
     find_in_install, refresh_install_details, refresh_remove_details, refresh_selected_details,
 };
 
-/// Handle key events while the Install pane is focused.
+/// What: Handle key events while the Install pane (right column) is focused.
 ///
-/// Supports navigation, in-pane find, removal/clear actions, and opening the
-/// batch install confirmation modal. Returns `true` to exit the app.
+/// Inputs:
+/// - `ke`: Key event received from the terminal
+/// - `app`: Mutable application state (selection, lists, pane focus)
+/// - `details_tx`: Channel to request package details for the focused item
+/// - `preview_tx`: Channel to request preview details (used for some focus changes)
+/// - `_add_tx`: Channel for adding items (not used directly in Install handler)
+///
+/// Output:
+/// - `true` to request application exit (e.g., Ctrl+C); `false` to continue.
+///
+/// Details:
+/// - In-pane find: `/` enters find mode; typing edits the pattern; Enter jumps to next match;
+///   Esc cancels. Find matches against name/description (Install) or name-only (Remove/Downgrade).
+/// - Navigation: `j/k` and `Down/Up` move selection in the active subpane. Behavior adapts to
+///   installed-only mode (`app.installed_only_mode`) and current `right_pane_focus`:
+///   - Normal mode: selection moves in Install list only.
+///   - Installed-only: selection moves in Downgrade/Remove/Install subpane depending on focus.
+/// - Pane cycling: Configured `pane_next` chord cycles focus across panes. In installed-only mode
+///   it cycles Search → Downgrade → Remove → Recent → Search; otherwise Search → Install → Recent.
+/// - Arrow focus: Left/Right move focus between Search/Install/Recent (and subpanes when installed-only).
+/// - Deletion: `Delete` (or configured `install_remove`) removes the selected entry from the active
+///   list (Install/Remove/Downgrade) and updates selection and details.
+/// - Clear list: Configured `install_clear` clears the respective list (or all in normal mode),
+///   and resets selection.
+/// - Enter:
+///   - Normal mode with non-empty Install list: opens `Modal::ConfirmInstall` for batch install.
+///   - Installed-only Remove focus with non-empty list: opens `Modal::ConfirmRemove`.
+///   - Installed-only Downgrade focus with non-empty list: runs `downgrade` tool (or dry-run).
+/// - Esc: Returns focus to Search and refreshes the selected result's details.
 pub fn handle_install_key(
     ke: KeyEvent,
     app: &mut AppState,

@@ -28,29 +28,21 @@ mod middle;
 mod modals;
 mod results;
 
-/// Render a full frame of the Pacsea TUI.
+/// What: Render a full frame of the Pacsea TUI.
 ///
-/// This function is the single entry point for drawing the interface and is
-/// meant to be called each tick or after state changes.
-///
-/// Arguments:
-///
+/// Inputs:
 /// - `f`: `ratatui` frame to render into
-/// - `app`: mutable application state; updated during rendering for selection
-///   offsets, cursor position, and clickable URL geometry
+/// - `app`: Mutable application state; updated during rendering for selection offsets,
+///   cursor position, and clickable geometry
 ///
-/// Behavior summary:
+/// Output:
+/// - Draws the entire interface and updates hit-test rectangles used by mouse handlers.
 ///
-/// - Applies the global theme and background
-/// - Ensures the results selection remains centered within the list viewport
-///   by adjusting the list state's internal offset
-/// - Renders the top results list with source badges and install markers
-/// - Renders the middle row with Recent, Search (with visible cursor), and
-///   Install panes; titles and colors reflect focus
-/// - Computes and stores a clickable rectangle for the details URL when it is
-///   present, enabling mouse interactions handled elsewhere
-/// - Shows a help footer with keybindings inside the details area
-/// - Draws modal overlays for network alerts and install confirmations
+/// Details:
+/// - Applies global theme/background; renders Results (top), Middle (left/center/right), Details
+///   (bottom), and Modal overlays.
+/// - Keeps results selection centered by adjusting list offset.
+/// - Computes and records clickable rects (URL, Sort/Filters, Options/Config/Panels, status label).
 pub fn ui(f: &mut Frame, app: &mut AppState) {
     let th = theme();
     let area = f.area();

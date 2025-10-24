@@ -2,10 +2,14 @@ use crate::state::{PackageItem, Source};
 
 use super::idx;
 
-/// Search the official index for packages whose names contain `query`.
+/// What: Search the official index for packages whose names contain `query`.
 ///
-/// Returns `PackageItem`s with fields populated from the index; enrichment is
-/// not performed here. An empty or whitespace-only query returns an empty list.
+/// Inputs:
+/// - `query`: Raw query string
+///
+/// Output:
+/// - Vector of `PackageItem`s populated from the index; enrichment is not performed here.
+///   An empty or whitespace-only query returns an empty list.
 pub fn search_official(query: &str) -> Vec<PackageItem> {
     let ql = query.trim().to_lowercase();
     if ql.is_empty() {
@@ -33,7 +37,13 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
     items
 }
 
-/// Return the entire official index as a list of `PackageItem`s.
+/// What: Return the entire official index as a list of `PackageItem`s.
+///
+/// Inputs:
+/// - None
+///
+/// Output:
+/// - Vector of all official items mapped to `PackageItem`.
 pub fn all_official() -> Vec<PackageItem> {
     let guard = idx().read().ok();
     let mut items = Vec::new();
@@ -55,8 +65,13 @@ pub fn all_official() -> Vec<PackageItem> {
     items
 }
 
-/// Return the entire official index as a list of `PackageItem`s; if empty, try
-/// to populate from disk and return the now-current view.
+/// What: Return the entire official list; if empty, try to populate from disk and return it.
+///
+/// Inputs:
+/// - `path`: Path to on-disk JSON index to load as a fallback
+///
+/// Output:
+/// - Vector of `PackageItem`s representing the current in-memory (or loaded) index.
 pub async fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
     let items = all_official();
     if !items.is_empty() {

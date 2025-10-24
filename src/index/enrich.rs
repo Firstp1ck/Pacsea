@@ -1,10 +1,19 @@
 use super::{idx, save_to_disk};
 
-/// Request enrichment (`pacman -Si`) for a set of package `names` in the
-/// background, merge fields into the index, persist, and notify.
+/// What: Request enrichment (`pacman -Si`) for a set of package `names` in the background,
+/// merge fields into the index, persist, and notify.
 ///
-/// Only non-empty results are applied. Field updates prefer non-empty values
-/// from `-Si` output and leave existing values untouched when `-Si` omits them.
+/// Inputs:
+/// - `persist_path`: Path to write the updated index JSON
+/// - `notify_tx`: Channel to notify the UI after enrichment/persist
+/// - `names`: Package names to enrich
+///
+/// Output:
+/// - Spawns a task that enriches and persists the index; sends a unit notification on completion.
+///
+/// Details:
+/// - Only non-empty results are applied; fields prefer non-empty values from `-Si` output and leave
+///   existing values untouched when omitted.
 pub fn request_enrich_for(
     persist_path: std::path::PathBuf,
     notify_tx: tokio::sync::mpsc::UnboundedSender<()>,

@@ -120,6 +120,11 @@ pub enum SortMode {
 }
 
 impl SortMode {
+    /// Return the string key used in settings files for this sort mode.
+    ///
+    /// Inputs: none
+    ///
+    /// Output: Static config key string.
     pub fn as_config_key(&self) -> &'static str {
         match self {
             SortMode::RepoThenName => "alphabetical",
@@ -127,6 +132,11 @@ impl SortMode {
             SortMode::BestMatches => "best_matches",
         }
     }
+    /// Parse a sort mode from its settings key or legacy aliases.
+    ///
+    /// Inputs: `s` config string (case-insensitive).
+    ///
+    /// Output: `Some(SortMode)` on recognized value; `None` otherwise.
     pub fn from_config_key(s: &str) -> Option<Self> {
         match s.trim().to_lowercase().as_str() {
             "alphabetical" | "repo_then_name" | "pacman" => Some(SortMode::RepoThenName),

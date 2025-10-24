@@ -2,12 +2,26 @@ use crate::state::ArchStatusColor;
 
 type Result<T> = super::Result<T>;
 
+/// Fetch a short status text and color indicator from status.archlinux.org.
+///
+/// Inputs: none
+///
+/// Output:
+/// - `Ok((text, color))` where `text` summarizes current status and `color` indicates severity.
+/// - `Err` on network or parse failures.
 pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     let url = "https://status.archlinux.org";
     let body = tokio::task::spawn_blocking(move || super::curl_text(url)).await??;
     Ok(parse_arch_status_from_html(&body))
 }
 
+/// Parse a status message and color from the HTML of a status page.
+///
+/// Inputs:
+/// - `body`: Raw HTML content to analyze.
+///
+/// Output:
+/// - Tuple `(message, color)` representing a concise status and visual color classification.
 pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
     let lowered = body.to_lowercase();
     let has_all_ok = lowered.contains("all systems operational");
@@ -264,6 +278,13 @@ mod tests {
     }
 }
 
+/// Return today's UTC date as (year, month, day) using the system `date` command.
+///
+/// Inputs:
+/// - None
+///
+/// Output:
+/// - `Some((year, month, day))` on success; `None` if the command is unavailable or parsing fails.
 fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     let out = std::process::Command::new("date")
         .args(["-u", "+%Y-%m-%d"])
@@ -284,6 +305,13 @@ fn today_ymd_utc() -> Option<(i32, u32, u32)> {
 /// Attempt to extract today's AUR uptime percentage from the Arch status page HTML.
 /// Heuristic-based parsing: look near "Uptime Last 90 days" → "Monitors (default)" → "AUR",
 /// then find today's date string and the closest percentage like "97%" around it.
+/// Heuristically extract today's AUR uptime percentage from status HTML.
+///
+/// Inputs:
+/// - `body`: Full HTML body string
+///
+/// Output:
+/// - `Some(percent)` like 97 for today's cell; `None` if not found.
 fn extract_aur_today_percent(body: &str) -> Option<u32> {
     let (year, month, day) = today_ymd_utc()?;
     let months = [
@@ -341,6 +369,14 @@ fn extract_aur_today_percent(body: &str) -> Option<u32> {
     None
 }
 
+/// Collect up to 3 digits immediately preceding a '%' at `pct_idx` in `s`.
+///
+/// Inputs:
+/// - `s`: Source string (typically a lowercase HTML slice)
+/// - `pct_idx`: Index of the '%' character in `s`
+///
+/// Output:
+/// - `Some(String)` containing the digits if present; otherwise `None`.
 fn digits_before_percent(s: &str, pct_idx: usize) -> Option<String> {
     if pct_idx == 0 || pct_idx > s.len() {
         return None;

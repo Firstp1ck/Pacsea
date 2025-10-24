@@ -224,6 +224,16 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
 }
 
 /// Leap year predicate for the proleptic Gregorian calendar.
+/// Return `true` if year `y` is a leap year.
+///
+/// Inputs:
+/// - `y`: Year (Gregorian calendar)
+///
+/// Output:
+/// - `true` when `y` is a leap year; `false` otherwise.
+///
+/// Notes:
+/// - Follows Gregorian rule: divisible by 4 and not by 100, unless divisible by 400.
 fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }

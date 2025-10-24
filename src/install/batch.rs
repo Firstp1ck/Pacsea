@@ -10,6 +10,14 @@ use super::logging::log_installed;
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
+/// Spawn a terminal to install a batch of packages.
+///
+/// Inputs:
+/// - `items`: Packages to install (official are grouped for pacman, AUR via paru/yay).
+/// - `dry_run`: When `true`, prints commands instead of executing.
+///
+/// Output:
+/// - Launches a terminal (or falls back to `bash`) running the composed install commands.
 pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let mut official: Vec<String> = Vec::new();
     let mut aur: Vec<String> = Vec::new();

@@ -6,6 +6,26 @@ use crate::state::{AppState, PackageItem, QueryInput};
 
 use super::utils::{char_count, find_in_recent, refresh_selected_details};
 
+/// What: Handle key events while the Recent pane (left column) is focused.
+///
+/// Inputs:
+/// - `ke`: Key event received from the terminal
+/// - `app`: Mutable application state (recent list, selection, find pattern)
+/// - `query_tx`: Channel to send a new query to Search when Enter is pressed
+/// - `details_tx`: Channel to request details when focus moves back to Search
+/// - `preview_tx`: Channel to request preview of the selected recent item
+/// - `add_tx`: Channel to enqueue adding a best-effort match to the install list
+///
+/// Output:
+/// - `true` to request application exit (e.g., Ctrl+C); `false` to continue.
+///
+/// Details:
+/// - In-pane find: `/` enters find mode; typing edits the pattern; Enter jumps to next match;
+///   Esc cancels. Matches are case-insensitive on recent query strings.
+/// - Navigation: `j/k` or `Down/Up` move selection within the filtered view and trigger preview.
+/// - Use item: `Enter` copies the selected recent query into Search and triggers a new search.
+/// - Add item: Space resolves a best-effort match asynchronously and enqueues it to install list.
+/// - Removal: Configured keys (`recent_remove`/`recent_clear`) remove one/all entries.
 pub fn handle_recent_key(
     ke: KeyEvent,
     app: &mut AppState,

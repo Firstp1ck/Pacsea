@@ -1,10 +1,13 @@
 use super::OfficialPkg;
 
-/// Fetch a minimal list of official packages using `pacman -Sl`.
+/// What: Fetch a minimal list of official packages using `pacman -Sl`.
 ///
-/// Returns `OfficialPkg` entries with `name`, `repo`, and `version` set when
-/// available. The `arch` and `description` fields are left empty for speed. The
-/// result is deduplicated by `(repo, name)`.
+/// Inputs:
+/// - None (calls `pacman -Sl` for known repositories in the background)
+///
+/// Output:
+/// - `Ok(Vec<OfficialPkg>)` where `name`, `repo`, and `version` are set; `arch` and `description`
+///   are empty for speed. The result is deduplicated by `(repo, name)`.
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
     fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {

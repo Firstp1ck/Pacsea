@@ -9,11 +9,21 @@ use ratatui::{
 use crate::state::{AppState, SortMode, Source};
 use crate::theme::theme;
 
-/// Render the top results list and title controls.
+/// What: Render the top results list and title controls.
 ///
-/// Keeps the selection centered when possible, displays badges and descriptions,
-/// and records hit-test rectangles for the Sort button, dropdown, and filter
-/// toggles.
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (results, selection, rects)
+/// - `area`: Target rectangle for the results block
+///
+/// Output:
+/// - Draws the results list and updates hit-test rectangles for Sort/Filters/Buttons and status.
+///
+/// Details:
+/// - Keeps selection centered when possible; shows repo/labels, versions, descriptions, and
+///   install markers.
+/// - Builds the title with Sort button, filter toggles, and right-aligned options/config/panels.
+/// - Renders dropdown overlays for Sort/Options/Config/Panels when open, and records rects.
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 

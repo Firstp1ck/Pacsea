@@ -1,4 +1,9 @@
 #[cfg(not(target_os = "windows"))]
+/// Return `true` if an executable named `cmd` can be found in the current `PATH`.
+///
+/// Inputs: `cmd` program name or absolute/relative path.
+///
+/// Output: `true` when an executable file is found (Unix executable bit respected).
 pub fn command_on_path(cmd: &str) -> bool {
     use std::path::Path;
 
@@ -47,6 +52,11 @@ pub fn command_on_path(cmd: &str) -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
+/// Return the index of the first available terminal from `terms` as found in `PATH`.
+///
+/// Inputs: `terms` list of (binary name, args, needs_xfce_command).
+///
+/// Output: `Some(index)` of the first present terminal; `None` if none found.
 pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Option<usize> {
     use std::os::unix::fs::PermissionsExt;
     if let Some(paths) = std::env::var_os("PATH") {
@@ -66,6 +76,12 @@ pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Opt
 }
 
 #[cfg(not(target_os = "windows"))]
+/// Safely single-quote an arbitrary string for POSIX shells.
+///
+/// Inputs: `s` string to quote.
+///
+/// Output: New string wrapped in single quotes, with inner quotes escaped via `'
+/// '"'"'` pattern.
 pub fn shell_single_quote(s: &str) -> String {
     if s.is_empty() {
         return "''".to_string();

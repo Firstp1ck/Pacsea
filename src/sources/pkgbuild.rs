@@ -3,6 +3,13 @@ use crate::util::percent_encode;
 
 type Result<T> = super::Result<T>;
 
+/// Fetch PKGBUILD content for a package from AUR or official Git packaging repos.
+///
+/// Inputs:
+/// - `item`: Package whose PKGBUILD should be retrieved.
+///
+/// Output:
+/// - `Ok(String)` with PKGBUILD text when available; `Err` on network or lookup failure.
 pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
     match &item.source {
         Source::Aur => {

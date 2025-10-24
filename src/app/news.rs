@@ -1,4 +1,10 @@
-/// Return today's UTC date as (year, month, day) using the system `date` command.
+/// What: Return today's UTC date as (year, month, day) using the system `date` command.
+///
+/// Inputs:
+/// - None
+///
+/// Output:
+/// - `Some((year, month, day))` when available; `None` if the command fails or output is invalid.
 pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     let out = std::process::Command::new("date")
         .args(["-u", "+%Y-%m-%d"]) // e.g., 2025-10-11
@@ -16,7 +22,16 @@ pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     Some((y, m, d))
 }
 
-/// Try to parse various short date formats used by Arch RSS into (Y,M,D).
+/// What: Parse various short Arch news date formats into `(year, month, day)`.
+///
+/// Inputs:
+/// - `s`: Input date string. Supported formats include:
+///   - ISO: `YYYY-MM-DD`
+///   - RFC-like: `Sat, 05 Oct 2024`
+///   - Short: `05 Oct 2024` or `05 October 2024`
+///
+/// Output:
+/// - `Some((y, m, d))` for recognized and valid dates; `None` otherwise.
 pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
     let t = s.trim();
     // Case 1: ISO: YYYY-MM-DD

@@ -58,6 +58,13 @@ pub(crate) fn resolve_keybinds_config_path() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
+/// Resolve an XDG base directory from environment or default to `$HOME` + segments.
+///
+/// Inputs:
+/// - `var`: Environment variable to check (e.g., `XDG_CONFIG_HOME`).
+/// - `home_default`: Fallback path segments relative to `$HOME` if `var` is unset/empty.
+///
+/// Output: Resolved base directory path.
 fn xdg_base_dir(var: &str, home_default: &[&str]) -> PathBuf {
     if let Ok(p) = env::var(var)
         && !p.trim().is_empty()
@@ -74,6 +81,11 @@ fn xdg_base_dir(var: &str, home_default: &[&str]) -> PathBuf {
 
 /// User's HOME config directory: "$HOME/.config/pacsea" if HOME is set.
 /// Ensures it exists. Returns None if HOME is unavailable.
+/// Return `$HOME/.config/pacsea`, ensuring it exists.
+///
+/// Inputs: none
+///
+/// Output: `Some(PathBuf)` when HOME is set and directory can be created; `None` otherwise.
 fn home_config_dir() -> Option<PathBuf> {
     if let Ok(home) = env::var("HOME") {
         let dir = Path::new(&home).join(".config").join("pacsea");

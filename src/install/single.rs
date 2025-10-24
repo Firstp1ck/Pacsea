@@ -11,6 +11,15 @@ use super::logging::log_installed;
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
+/// Spawn a terminal to install a single package.
+///
+/// Inputs:
+/// - `item`: Package to install.
+/// - `password`: Optional sudo password to be piped for official installs.
+/// - `dry_run`: When `true`, prints commands rather than executing them.
+///
+/// Output:
+/// - Launches a terminal (or `bash`) running the appropriate pacman/paru/yay command.
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, uses_sudo) = build_install_command(item, password, dry_run);
     let src = match item.source {
@@ -168,6 +177,12 @@ mod tests {
 }
 
 #[cfg(target_os = "windows")]
+/// On Windows, open a shell window showing the intended install action (no-op).
+///
+/// Inputs: same as Unix variant (password unused on Windows).
+///
+/// Output:
+/// - Launches a `cmd` window with the composed command.
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
     let _ = Command::new("cmd")

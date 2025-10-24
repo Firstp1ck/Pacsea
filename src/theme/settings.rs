@@ -8,8 +8,13 @@ use super::paths::{resolve_keybinds_config_path, resolve_settings_config_path};
 // Repo-local config is disabled; always use HOME/XDG.
 use super::types::Settings;
 
-/// Load user settings from the same config file as the theme.
-/// Falls back to `Settings::default()` when missing or invalid.
+/// What: Load user settings and keybinds from config files under HOME/XDG.
+///
+/// Inputs:
+/// - None (reads `settings.conf` and `keybinds.conf` if present)
+///
+/// Output:
+/// - A `Settings` value; falls back to `Settings::default()` when missing or invalid.
 pub fn settings() -> Settings {
     let mut out = Settings::default();
     // Load settings from settings.conf (or legacy pacsea.conf)

@@ -3,9 +3,13 @@ use std::path::Path;
 
 use super::{OfficialIndex, idx};
 
-/// Load the official index from `path` if a valid JSON exists.
+/// What: Load the official index from `path` if a valid JSON exists.
 ///
-/// Silently ignores errors and leaves the index unchanged on failure.
+/// Inputs:
+/// - `path`: File path to read JSON from
+///
+/// Output:
+/// - Replaces the in-memory index on success; ignores errors and leaves it unchanged on failure.
 pub fn load_from_disk(path: &Path) {
     if let Ok(s) = fs::read_to_string(path)
         && let Ok(new_idx) = serde_json::from_str::<OfficialIndex>(&s)
@@ -15,9 +19,13 @@ pub fn load_from_disk(path: &Path) {
     }
 }
 
-/// Persist the current official index to `path` as JSON.
+/// What: Persist the current official index to `path` as JSON.
 ///
-/// Silently ignores errors to avoid interrupting the UI.
+/// Inputs:
+/// - `path`: File path to write JSON to
+///
+/// Output:
+/// - Writes JSON to disk; errors are ignored to avoid interrupting the UI.
 pub fn save_to_disk(path: &Path) {
     if let Ok(guard) = idx().read()
         && let Ok(s) = serde_json::to_string(&*guard)

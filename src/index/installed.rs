@@ -1,7 +1,12 @@
 use super::installed_lock;
 
-/// Refresh the process-wide cache of installed package names using
-/// `pacman -Qq` and store them in `INSTALLED_SET`.
+/// What: Refresh the process-wide cache of installed package names using `pacman -Qq`.
+///
+/// Inputs:
+/// - None (spawns a blocking task to run pacman)
+///
+/// Output:
+/// - Updates the global installed-name set; ignores errors.
 pub async fn refresh_installed_cache() {
     // pacman -Qq to list installed names
     fn run_pacman_q() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -22,9 +27,13 @@ pub async fn refresh_installed_cache() {
     }
 }
 
-/// Query whether `name` appears in the cached set of installed packages.
+/// What: Query whether `name` appears in the cached set of installed packages.
 ///
-/// Returns `false` if the cache is unavailable.
+/// Inputs:
+/// - `name`: Package name
+///
+/// Output:
+/// - `true` if `name` is present; `false` when absent or if the cache is unavailable.
 pub fn is_installed(name: &str) -> bool {
     installed_lock()
         .read()

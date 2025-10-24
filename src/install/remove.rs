@@ -4,6 +4,14 @@ use std::process::Command;
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
+/// Spawn a terminal to remove all given packages with pacman.
+///
+/// Inputs:
+/// - `names`: Package names to remove.
+/// - `dry_run`: When `true`, prints the removal command instead of executing.
+///
+/// Output:
+/// - Launches a terminal (or `bash`) to run `sudo pacman -Rns` for the provided names.
 pub fn spawn_remove_all(names: &[String], dry_run: bool) {
     let names_str = names.join(" ");
     tracing::info!(names = %names_str, total = names.len(), dry_run, "spawning removal");
@@ -159,6 +167,12 @@ mod tests {
 }
 
 #[cfg(target_os = "windows")]
+/// On Windows, open a shell window showing the intended remove action (no-op).
+///
+/// Inputs: same as Unix variant.
+///
+/// Output:
+/// - Launches a `cmd` window with a message; actual removal is unsupported on Windows.
 pub fn spawn_remove_all(names: &[String], dry_run: bool) {
     let mut names = names.to_vec();
     if names.is_empty() {

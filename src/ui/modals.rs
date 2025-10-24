@@ -9,10 +9,19 @@ use ratatui::{
 use crate::state::AppState;
 use crate::theme::{KeyChord, theme};
 
-/// Render modal overlays: Alert, ConfirmInstall, and Help.
+/// What: Render modal overlays (Alert, ConfirmInstall, ConfirmRemove, SystemUpdate, Help, News).
 ///
-/// Clears the area behind the modal and draws a styled box centered on the
-/// screen. The Help modal dynamically reflects the current keymap.
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (modal state, rects)
+/// - `area`: Full available area; modals are centered within it
+///
+/// Output:
+/// - Draws the active modal overlay and updates any modal-specific rects for hit-testing.
+///
+/// Details:
+/// - Clears the area behind the modal; draws a styled centered box; content varies by modal.
+/// - Help dynamically reflects keymap; News draws a selectable list and records list rect.
 pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 

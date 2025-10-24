@@ -2,6 +2,13 @@ use std::fs;
 
 use crate::state::AppState;
 
+/// What: Persist the details cache to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state whose `details_cache` and `cache_path` are used
+///
+/// Output:
+/// - Writes `details_cache` JSON to `cache_path` and clears the dirty flag on success.
 pub fn maybe_flush_cache(app: &mut AppState) {
     if !app.cache_dirty {
         return;
@@ -12,6 +19,13 @@ pub fn maybe_flush_cache(app: &mut AppState) {
     }
 }
 
+/// What: Persist the recent searches list to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `recent` and `recent_path`
+///
+/// Output:
+/// - Writes `recent` JSON to `recent_path` and clears the dirty flag on success.
 pub fn maybe_flush_recent(app: &mut AppState) {
     if !app.recent_dirty {
         return;
@@ -22,6 +36,13 @@ pub fn maybe_flush_recent(app: &mut AppState) {
     }
 }
 
+/// What: Persist the install list to disk if marked dirty, throttled to ~1s.
+///
+/// Inputs:
+/// - `app`: Application state with `install_list`, `install_path`, and throttle timestamps
+///
+/// Output:
+/// - Writes `install_list` JSON to `install_path` and clears dirty flags when written.
 pub fn maybe_flush_install(app: &mut AppState) {
     // Throttle disk writes: only flush if dirty and either never written
     // before or the last change is at least 1s ago.

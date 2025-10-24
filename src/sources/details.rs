@@ -5,6 +5,14 @@ use crate::util::{arrs, s, ss, u64_of};
 
 type Result<T> = super::Result<T>;
 
+/// Run `pacman -Si` for a package, parsing its key-value output into PackageDetails.
+///
+/// Inputs:
+/// - `repo`: Preferred repository prefix (may be empty to let pacman resolve)
+/// - `name`: Package name
+///
+/// Output:
+/// - `Ok(PackageDetails)` on success; `Err` if command fails or parse errors occur.
 fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
     let spec = if repo.is_empty() {
         name.to_string()
@@ -48,6 +56,13 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
         }
     }
 
+    /// Split a whitespace-separated field to Vec<String>, treating "None"/missing as empty.
+    ///
+    /// Inputs:
+    /// - `s`: Optional string field from pacman output
+    ///
+    /// Output:
+    /// - Vector of tokens, or empty when field is missing or "None".
     fn split_ws_or_none(s: Option<&String>) -> Vec<String> {
         match s {
             Some(v) if v != "None" => v.split_whitespace().map(|x| x.to_string()).collect(),
@@ -127,6 +142,13 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
     Ok(pd)
 }
 
+/// Parse a pacman human-readable size like "1.5 MiB" into bytes.
+///
+/// Inputs:
+/// - `s`: Size string containing a number and unit
+///
+/// Output:
+/// - `Some(bytes)` when parsed; `None` for invalid strings. Accepts B, KiB, MiB, GiB, TiB, PiB.
 fn parse_size_bytes(s: &str) -> Option<u64> {
     let mut it = s.split_whitespace();
     let num = it.next()?.parse::<f64>().ok()?;
@@ -161,6 +183,13 @@ mod size_tests {
     }
 }
 
+/// Fetch package details for either official repositories or AUR, based on the item's source.
+///
+/// Inputs:
+/// - `item`: Package to fetch details for.
+///
+/// Output:
+/// - `Ok(PackageDetails)` on success; `Err` if retrieval or parsing fails.
 pub async fn fetch_details(item: PackageItem) -> Result<PackageDetails> {
     match item.source.clone() {
         Source::Official { repo, arch } => fetch_official_details(repo, arch, item).await,
@@ -168,6 +197,11 @@ pub async fn fetch_details(item: PackageItem) -> Result<PackageDetails> {
     }
 }
 
+/// Fetch AUR package details via the AUR RPC API.
+///
+/// Inputs: `item` with `Source::Aur`.
+///
+/// Output: Parsed `PackageDetails` populated with AUR fields or an error.
 pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
     let url = format!(
         "https://aur.archlinux.org/rpc/v5/info?arg={}",
@@ -218,6 +252,14 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
     Ok(d)
 }
 
+/// Fetch official repository package details via pacman JSON endpoints.
+///
+/// Inputs:
+/// - `repo`: Repository name to prefer when multiple are available.
+/// - `arch`: Architecture string to prefer.
+/// - `item`: Package to fetch.
+///
+/// Output: `Ok(PackageDetails)` with repository fields filled; `Err` on network/parse failure.
 pub async fn fetch_official_details(
     repo: String,
     arch: String,

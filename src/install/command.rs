@@ -1,8 +1,14 @@
 use crate::state::{PackageItem, Source};
 
-/// Build a shell command to install `item` and indicate whether `sudo` is used.
+/// What: Build a shell command to install `item` and indicate whether `sudo` is used.
 ///
-/// Returns `(command_string, uses_sudo)`.
+/// Inputs:
+/// - `item`: Package to install (Official uses pacman; AUR uses paru/yay)
+/// - `password`: Optional sudo password (when provided, uses `sudo -S` pipe)
+/// - `dry_run`: When `true`, prints the command instead of executing
+///
+/// Output:
+/// - Tuple `(command_string, uses_sudo)` with a shell-ready command and whether it requires sudo.
 pub fn build_install_command(
     item: &PackageItem,
     password: Option<&str>,

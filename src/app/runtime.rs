@@ -24,6 +24,26 @@ use super::persist::{maybe_flush_cache, maybe_flush_install, maybe_flush_recent}
 use super::recent::maybe_save_recent;
 use super::terminal::{restore_terminal, setup_terminal};
 
+/// What: Run the Pacsea TUI application end-to-end: initialize terminal and state, spawn
+/// background workers (index, search, details, status/news), drive the event loop, persist
+/// caches, and restore the terminal on exit.
+///
+/// Inputs:
+/// - `dry_run_flag`: When `true`, install/remove/downgrade actions are displayed but not executed
+///   (overrides the config default for the session).
+///
+/// Output:
+/// - `Ok(())` when the UI exits cleanly; `Err` on unrecoverable terminal or runtime errors.
+///
+/// Details:
+/// - Config/state: Migrates legacy configs, loads settings (layout, keymap, sort), and reads
+///   persisted files (details cache, recent queries, install list, on-disk official index).
+/// - Background tasks: Spawns channels and tasks for batched details fetch, AUR/official search,
+///   PKGBUILD retrieval, official index refresh/enrichment, Arch status text, and Arch news.
+/// - Event loop: Renders UI frames and handles keyboard, mouse, tick, and channel messages to
+///   update results, details, ring-prefetch, PKGBUILD viewer, installed-only mode, and modals.
+/// - Persistence: Debounces and periodically writes recent, details cache, and install list.
+/// - Cleanup: Flushes pending writes and restores terminal modes before returning.
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     setup_terminal()?;
 

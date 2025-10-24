@@ -2,11 +2,17 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
 
-/// Prefetch details for items near the current selection, alternating above and
-/// below within a fixed radius.
+/// What: Prefetch details for items near the current selection (alternating above/below).
 ///
-/// Only enqueues requests for names allowed by `is_allowed` and not already in
-/// the cache. This function is designed to be cheap and safe to call often.
+/// Inputs:
+/// - `app`: Mutable application state (results, selected, details_cache)
+/// - `details_tx`: Channel to enqueue detail requests
+///
+/// Output:
+/// - Enqueues requests for allowed, uncached neighbors within a fixed radius; no return value.
+///
+/// Details:
+/// - Respects `logic::is_allowed` and skips names present in the cache; designed to be cheap.
 pub fn ring_prefetch_from_selected(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,

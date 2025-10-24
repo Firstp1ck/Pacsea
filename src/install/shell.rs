@@ -4,6 +4,13 @@ use std::process::Command;
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
+/// Spawn a terminal to run a sequence of shell commands joined by `&&` with a hold tail.
+///
+/// Inputs:
+/// - `cmds`: List of shell command strings to execute in order.
+///
+/// Output:
+/// - Launches a terminal (or `bash`) executing the composite command.
 pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     if cmds.is_empty() {
         return;
@@ -128,6 +135,11 @@ mod tests {
 }
 
 #[cfg(target_os = "windows")]
+/// On Windows, open a shell window echoing the provided command sequence.
+///
+/// Inputs: `cmds` to display.
+///
+/// Output: Launches a `cmd` window displaying the message.
 pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     let msg = if cmds.is_empty() {
         "Nothing to run".to_string()

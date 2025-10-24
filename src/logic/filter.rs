@@ -1,8 +1,16 @@
 use crate::state::{AppState, PackageItem, Source};
 
-/// Apply current repo/AUR filters to `app.all_results`, write into `app.results`, then sort.
+/// What: Apply current repo/AUR filters to `app.all_results`, write into `app.results`, then sort.
 ///
-/// Attempts to preserve the selection by name; falls back to clamping.
+/// Inputs:
+/// - `app`: Mutable application state containing `all_results`, filter toggles, and selection
+///
+/// Output:
+/// - Updates `app.results`, applies sorting, and preserves selection when possible.
+///
+/// Details:
+/// - Unknown official repos are included only when all official filters are enabled.
+/// - Selection is restored by name when present; otherwise clamped or cleared if list is empty.
 pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
     // Capture previous selected name to preserve when possible
     let prev_name = app.results.get(app.selected).map(|p| p.name.clone());

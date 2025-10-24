@@ -17,11 +17,15 @@ use crate::{
     theme::Theme,
 };
 
-/// Format the current [`AppState::details`] into themed `ratatui` lines.
+/// What: Format the current [`AppState::details`] into themed `ratatui` lines.
 ///
-/// Returns key/value rows for commonly displayed metadata followed by a
-/// trailing "Show PKGBUILD" action line. The `_area_width` parameter is
-/// reserved for future wrapping/layout needs and is currently unused.
+/// Inputs:
+/// - `app`: Read-only application state; uses `app.details` to render fields
+/// - `_area_width`: Reserved for future wrapping/layout needs (currently unused)
+/// - `th`: Active theme for colors/styles
+///
+/// Output:
+/// - Vector of formatted lines for the Details pane, ending with a Show/Hide PKGBUILD action line.
 pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec<Line<'static>> {
     /// Build a key-value display line with themed styling.
     ///
@@ -90,6 +94,13 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
 /// Join a list of strings into a comma-separated value.
 ///
 /// Returns "-" when the list is empty to keep the UI compact and readable.
+/// What: Join a slice of strings with ", ", or return "-" when empty.
+///
+/// Inputs:
+/// - `list`: Slice of strings to join
+///
+/// Output:
+/// - Comma-separated string or "-" when `list` is empty.
 fn join(list: &[String]) -> String {
     if list.is_empty() {
         "-".into()
@@ -101,6 +112,13 @@ fn join(list: &[String]) -> String {
 /// Convert a byte count to a concise human-readable string using binary units.
 ///
 /// Uses 1024-based units (KiB, MiB, GiB, ...) with one decimal place.
+/// What: Format bytes using binary units with one decimal place (e.g., 1.5 KiB).
+///
+/// Inputs:
+/// - `n`: Byte count
+///
+/// Output:
+/// - Human-friendly size string using 1024-based units.
 fn human_bytes(n: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
     let mut v = n as f64;
@@ -112,18 +130,21 @@ fn human_bytes(n: u64) -> String {
     format!("{:.1} {}", v, UNITS[i])
 }
 
-/// Resolve a free-form query string to a best-effort matching package.
+/// What: Resolve a free-form query string to a best-effort matching package.
 ///
-/// Selection priority:
+/// Inputs:
+/// - `q`: Query string to resolve
 ///
-/// 1. Exact-name match from the official index
-/// 2. Exact-name match from AUR
-/// 3. First result from the official index
-/// 4. Otherwise, first AUR result (if any)
+/// Output:
+/// - `Some(PackageItem)` per the priority rules below; `None` if nothing usable is found.
 ///
-/// This function performs network I/O to fetch AUR results and therefore is
-/// asynchronous. Errors from network calls are tolerated; the function simply
-/// returns `None` if nothing usable is found.
+/// Details (selection priority):
+///   1) Exact-name match from the official index;
+///   2) Exact-name match from AUR;
+///   3) First official result;
+///   4) Otherwise, first AUR result.
+///
+/// Performs network I/O for AUR; tolerates errors.
 pub async fn fetch_first_match_for_query(q: String) -> Option<crate::state::PackageItem> {
     // Prefer exact match from official index, then from AUR, else first official, then first AUR
     let official = crate::index::search_official(&q);
@@ -148,11 +169,13 @@ pub async fn fetch_first_match_for_query(q: String) -> Option<crate::state::Pack
     aur.into_iter().next()
 }
 
-/// Produce the list of visible indices into `app.recent`, respecting pane-find
-/// filtering only when the Recent pane has focus and a non-empty pattern is
-/// set.
+/// What: Produce visible indices into `app.recent` considering pane-find when applicable.
 ///
-/// Returns indices in ascending order without modifying application state.
+/// Inputs:
+/// - `app`: Application state (focus, pane_find, recent list)
+///
+/// Output:
+/// - Vector of indices in ascending order without modifying application state.
 pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
     let apply = matches!(app.focus, Focus::Recent)
         && app
@@ -177,11 +200,13 @@ pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
         .collect()
 }
 
-/// Produce the list of visible indices into `app.install_list`, respecting
-/// pane-find filtering only when the Install pane has focus and a non-empty
-/// pattern is set.
+/// What: Produce visible indices into `app.install_list` with optional pane-find filtering.
 ///
-/// Returns indices in ascending order without modifying application state.
+/// Inputs:
+/// - `app`: Application state (focus, pane_find, install list)
+///
+/// Output:
+/// - Vector of indices in ascending order without modifying application state.
 pub fn filtered_install_indices(app: &AppState) -> Vec<usize> {
     let apply = matches!(app.focus, Focus::Install)
         && app
@@ -208,19 +233,18 @@ pub fn filtered_install_indices(app: &AppState) -> Vec<usize> {
         .collect()
 }
 
-/// Trigger an asynchronous preview fetch for the currently selected Recent
-/// query, if applicable.
+/// What: Trigger an asynchronous preview fetch for the selected Recent query when applicable.
 ///
-/// This function exits early unless:
+/// Inputs:
+/// - `app`: Application state (focus, selection, recent list)
+/// - `preview_tx`: Channel to send the preview `PackageItem`
 ///
-/// - The Recent pane has focus
-/// - There is a valid selection within bounds of the filtered view
-/// - The corresponding query string exists
+/// Output:
+/// - Spawns a task to resolve and send a preview item; no return payload; exits early when inapplicable.
 ///
-/// When conditions are met, a Tokio task is spawned to resolve the query to a
-/// candidate package (via [`fetch_first_match_for_query`]) and send it over the
-/// provided `preview_tx`. Send errors are ignored to keep the UI responsive even
-/// if downstream receivers were dropped.
+/// Details:
+/// - Requires: focus on Recent, a valid selection within the filtered view, and a query string present.
+/// - Resolves via [`fetch_first_match_for_query`] and sends over `preview_tx`; ignores send errors.
 pub fn trigger_recent_preview(
     app: &crate::state::AppState,
     preview_tx: &tokio::sync::mpsc::UnboundedSender<crate::state::PackageItem>,

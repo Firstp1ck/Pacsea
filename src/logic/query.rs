@@ -2,14 +2,17 @@ use tokio::sync::mpsc;
 
 use crate::state::AppState;
 
-/// Send the current query text over the search channel with a fresh id.
+/// What: Send the current query text over the search channel with a fresh id.
 ///
-/// Side effects on `app`:
-/// - Increments and records `next_query_id`
-/// - Updates `latest_query_id` to the id sent
+/// Inputs:
+/// - `app`: Mutable application state; updates `next_query_id` and `latest_query_id`
+/// - `query_tx`: Channel to send the `QueryInput`
 ///
-/// The id allows the receiver to tag results so the UI can discard any stale
-/// responses that arrive out of order.
+/// Output:
+/// - Sends a `QueryInput` with incremented id and current text; updates ids in `app`.
+///
+/// Details:
+/// - The id allows correlating responses so the UI can discard stale results.
 pub fn send_query(app: &mut AppState, query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>) {
     let id = app.next_query_id;
     app.next_query_id += 1;

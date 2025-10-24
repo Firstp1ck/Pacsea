@@ -1,6 +1,14 @@
 use crate::state::{PackageItem, Source};
 use crate::util::{percent_encode, s};
 
+/// Fetch search results from AUR and return items along with any error messages.
+///
+/// Inputs:
+/// - `query`: Raw query string to search.
+///
+/// Output:
+/// - Tuple `(items, errors)` where `items` are `PackageItem`s found and `errors` are human-readable
+///   messages for partial failures.
 pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<String>) {
     let q = percent_encode(query.trim());
     let aur_url = format!("https://aur.archlinux.org/rpc/v5/search?by=name&arg={q}");

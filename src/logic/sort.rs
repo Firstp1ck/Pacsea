@@ -1,9 +1,12 @@
 use crate::state::{AppState, SortMode, Source};
 
-/// Apply the currently selected sorting mode to `app.results` in-place.
+/// What: Apply the currently selected sorting mode to `app.results` in-place.
 ///
-/// Preserves the selection by trying to keep the same package name selected
-/// after sorting, falling back to index clamping.
+/// Inputs:
+/// - `app`: Mutable application state (results, selected, input, sort_mode)
+///
+/// Output:
+/// - Sorts `app.results` and preserves selection by name when possible; otherwise clamps index.
 pub fn sort_results_preserve_selection(app: &mut AppState) {
     if app.results.is_empty() {
         return;

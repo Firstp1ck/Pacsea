@@ -2,8 +2,13 @@ use std::collections::HashSet;
 
 use super::explicit_lock;
 
-/// Refresh the process-wide cache of explicitly installed package names using
-/// `pacman -Qqe` and store them in `EXPLICIT_SET`.
+/// What: Refresh the process-wide cache of explicitly installed (leaf) package names via `pacman -Qetq`.
+///
+/// Inputs:
+/// - None (spawns a blocking task to run pacman)
+///
+/// Output:
+/// - Updates the global explicit-name set; ignores errors.
 pub async fn refresh_explicit_cache() {
     fn run_pacman_qe() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let out = std::process::Command::new("pacman")
@@ -22,7 +27,13 @@ pub async fn refresh_explicit_cache() {
     }
 }
 
-/// Return a cloned set of explicitly installed package names.
+/// What: Return a cloned set of explicitly installed package names.
+///
+/// Inputs:
+/// - None
+///
+/// Output:
+/// - A cloned `HashSet<String>` of explicit names (empty on lock failure).
 pub fn explicit_names() -> HashSet<String> {
     explicit_lock()
         .read()

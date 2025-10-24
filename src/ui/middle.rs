@@ -10,10 +10,20 @@ use ratatui::{
 use crate::state::{AppState, Focus, Source};
 use crate::theme::theme;
 
-/// Render the middle row: Recent (left), Search input (center), Install list (right).
+/// What: Render the middle row: Recent (left), Search input (center), Install list (right).
 ///
-/// Also positions the cursor within the input, shows in-pane find indicators,
-/// and records inner rectangles for mouse hit-testing.
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (focus, rects, lists, input)
+/// - `area`: Target rectangle for the middle row
+///
+/// Output:
+/// - Draws middle panes and updates rects for mouse hit-testing and cursor position.
+///
+/// Details:
+/// - Titles and colors reflect focus; when installed-only mode is active the right column shows
+///   Downgrade and Remove subpanes side-by-side.
+/// - Records inner rects for Recent/Install/Downgrade and sets the caret position for the Search input.
 pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 

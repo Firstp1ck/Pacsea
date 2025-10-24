@@ -2,6 +2,13 @@ use crate::state::NewsItem;
 
 type Result<T> = super::Result<T>;
 
+/// Fetch recent Arch Linux news items.
+///
+/// Inputs:
+/// - `limit`: Maximum number of items to return (best-effort).
+///
+/// Output:
+/// - `Ok(Vec<NewsItem>)` with date/title/url; `Err` on network or parse failures.
 pub async fn fetch_arch_news(limit: usize) -> Result<Vec<NewsItem>> {
     let url = "https://archlinux.org/feeds/news/";
     let body = tokio::task::spawn_blocking(move || super::curl_text(url)).await??;
@@ -34,12 +41,28 @@ pub async fn fetch_arch_news(limit: usize) -> Result<Vec<NewsItem>> {
     Ok(items)
 }
 
+/// Return substring strictly between `start` and `end` markers, if both exist in order.
+///
+/// Inputs:
+/// - `s`: Source text
+/// - `start`: Opening marker
+/// - `end`: Closing marker
+///
+/// Output:
+/// - `Some(String)` of the enclosed content; `None` if markers are missing.
 fn extract_between(s: &str, start: &str, end: &str) -> Option<String> {
     let i = s.find(start)? + start.len();
     let j = s[i..].find(end)? + i;
     Some(s[i..j].to_string())
 }
 
+/// Strip trailing time portion and optional timezone from an RFC-like date line.
+///
+/// Inputs:
+/// - `s`: Full date string like "Mon, 23 Oct 2023 12:34:56 +0000"
+///
+/// Output:
+/// - Date-only portion, e.g., "Mon, 23 Oct 2023".
 fn strip_time_and_tz(s: &str) -> String {
     let mut t = s.trim().to_string();
     if let Some(pos) = t.rfind(" +") {

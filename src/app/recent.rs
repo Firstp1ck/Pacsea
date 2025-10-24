@@ -2,6 +2,14 @@ use std::time::{Duration, Instant};
 
 use crate::state::AppState;
 
+/// What: Debounced persistence of the current search input into the Recent list.
+///
+/// Inputs:
+/// - `app`: Mutable application state providing the input text and timing markers
+///
+/// Output:
+/// - Updates `recent` (deduped, clamped to 20), sets `recent_dirty`, and records last-saved value
+///   when conditions are met (non-empty, past debounce window, changed since last save).
 pub fn maybe_save_recent(app: &mut AppState) {
     let now = Instant::now();
     if app.input.trim().is_empty() {

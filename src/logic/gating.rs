@@ -14,11 +14,13 @@ fn allowed_set() -> &'static RwLock<HashSet<String>> {
     ALLOWED.get_or_init(|| RwLock::new(HashSet::new()))
 }
 
-/// Returns whether details loading is currently allowed for the given package
-/// `name`.
+/// What: Check whether details loading is currently allowed for a package name.
 ///
-/// If the lock cannot be acquired, this conservatively returns `true` to avoid
-/// blocking the UI with spurious denials.
+/// Inputs:
+/// - `name`: Package name to test
+///
+/// Output:
+/// - `true` when the name is currently allowed; otherwise `false` (or `true` if the lock fails).
 pub fn is_allowed(name: &str) -> bool {
     allowed_set()
         .read()
@@ -27,10 +29,13 @@ pub fn is_allowed(name: &str) -> bool {
         .unwrap_or(true)
 }
 
-/// Restrict details loading to only the currently selected package.
+/// What: Restrict details loading to only the currently selected package.
 ///
-/// This is used during fast scrolling to minimize wasted work. If there is no
-/// current selection, this function is a no-op.
+/// Inputs:
+/// - `app`: Application state to read the current selection from
+///
+/// Output:
+/// - Updates the internal allowed set to contain only the selected package; no-op if none.
 pub fn set_allowed_only_selected(app: &AppState) {
     if let Some(sel) = app.results.get(app.selected)
         && let Ok(mut w) = allowed_set().write()
@@ -40,11 +45,14 @@ pub fn set_allowed_only_selected(app: &AppState) {
     }
 }
 
-/// Allow details loading for a "ring" around the current selection.
+/// What: Allow details loading for a "ring" around the current selection.
 ///
-/// The ring consists of the selected package plus up to `radius` neighbors
-/// above and below (clamped to list bounds). This enables background prefetch
-/// for items the user is likely to navigate to next.
+/// Inputs:
+/// - `app`: Application state to read the current selection and results from
+/// - `radius`: Number of neighbors above and below to include
+///
+/// Output:
+/// - Updates the internal allowed set to the ring of names around the selection.
 pub fn set_allowed_ring(app: &AppState, radius: usize) {
     let mut ring: HashSet<String> = HashSet::new();
     if let Some(sel) = app.results.get(app.selected) {

@@ -1,10 +1,13 @@
 use crate::state::{AppState, PackageItem};
 
-/// Add a `PackageItem` to the install list if it is not already present.
+/// What: Add a `PackageItem` to the install list if it is not already present.
 ///
-/// The insertion happens at the front of the list. The list is de-duplicated by
-/// case-insensitive package name. This marks the install list dirty and moves
-/// the install list cursor to the first item to keep it visible.
+/// Inputs:
+/// - `app`: Mutable application state (install_list and selection)
+/// - `item`: Package to add
+///
+/// Output:
+/// - Inserts at the front on success, marks list dirty, and selects index 0; no-op on dedup.
 pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
     if app
         .install_list
@@ -20,9 +23,14 @@ pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
     app.install_state.select(Some(0));
 }
 
-/// Add a `PackageItem` to the remove list if it is not already present.
+/// What: Add a `PackageItem` to the remove list if it is not already present.
 ///
-/// Inserts at the front and selects the first entry to keep it visible.
+/// Inputs:
+/// - `app`: Mutable application state (remove_list and selection)
+/// - `item`: Package to add
+///
+/// Output:
+/// - Inserts at the front and selects index 0; no-op on dedup.
 pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
     if app
         .remove_list
@@ -35,9 +43,14 @@ pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
     app.remove_state.select(Some(0));
 }
 
-/// Add a `PackageItem` to the downgrade list if it is not already present.
+/// What: Add a `PackageItem` to the downgrade list if it is not already present.
 ///
-/// Inserts at the front and selects the first entry to keep it visible.
+/// Inputs:
+/// - `app`: Mutable application state (downgrade_list and selection)
+/// - `item`: Package to add
+///
+/// Output:
+/// - Inserts at the front and selects index 0; no-op on dedup.
 pub fn add_to_downgrade_list(app: &mut AppState, item: PackageItem) {
     if app
         .downgrade_list

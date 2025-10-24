@@ -12,6 +12,14 @@ use super::types::Theme;
 /// Global theme store with live-reload capability.
 static THEME_STORE: OnceLock<RwLock<Theme>> = OnceLock::new();
 
+/// Load theme from the first matching config path, writing a default skeleton if needed.
+///
+/// Inputs:
+/// - None
+///
+/// Output:
+/// - A `Theme` loaded from disk; exits the process with an error message when configuration
+///   cannot be recovered.
 fn load_initial_theme_or_exit() -> Theme {
     if let Some(path) = resolve_theme_config_path() {
         match try_load_theme_with_diagnostics(&path) {

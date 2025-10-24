@@ -6,10 +6,26 @@ use crate::state::{AppState, PackageItem, QueryInput};
 
 use super::utils::{byte_index_for_char, char_count, refresh_install_details};
 
-/// Handle key events while the Search pane is focused.
+/// What: Handle key events while the Search pane is focused.
 ///
-/// Supports insert mode (default) and a Vim-like normal mode with selection.
-/// Returns `true` to exit the app, `false` to continue.
+/// Inputs:
+/// - `ke`: Key event received from the terminal
+/// - `app`: Mutable application state (input, selection, sort, modes)
+/// - `query_tx`: Channel to send debounced search queries
+/// - `details_tx`: Channel to request details for the focused item
+/// - `add_tx`: Channel to add items to the Install/Remove lists
+/// - `preview_tx`: Channel to request preview details when moving focus
+///
+/// Output:
+/// - `true` to request application exit (e.g., Ctrl+C); `false` to continue processing.
+///
+/// Details:
+/// - Insert mode (default): typing edits the query, triggers debounced network/idx search, and
+///   moves caret; Backspace edits; Space adds to list (Install by default, Remove in installed-only).
+/// - Normal mode: toggled via configured chord; supports selection (h/l), deletion (d), navigation
+///   (j/k, Ctrl+U/D), and list add/remove with Space/ Ctrl+Space (downgrade).
+/// - Pane navigation: Left/Right and configured `pane_next` cycle focus across panes and subpanes,
+///   differing slightly when installed-only mode is active.
 pub fn handle_search_key(
     ke: KeyEvent,
     app: &mut AppState,
