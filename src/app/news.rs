@@ -24,6 +24,9 @@ pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
         let y = t[0..4].parse::<i32>().ok()?;
         let m = t[5..7].parse::<u32>().ok()?;
         let d = t[8..10].parse::<u32>().ok()?;
+        if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+            return None;
+        }
         return Some((y, m, d));
     }
     // Case 2: "Sat, 05 Oct 2024" or "05 Oct 2024"
@@ -37,6 +40,9 @@ pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
     let m_s = it.next()?; // e.g., Oct
     let y_s = it.next()?; // e.g., 2024
     let d = d_s.parse::<u32>().ok()?;
+    if !(1..=31).contains(&d) {
+        return None;
+    }
     let y = y_s.parse::<i32>().ok()?;
     let m = match m_s {
         "Jan" | "January" => 1,
@@ -54,4 +60,30 @@ pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
         _ => return None,
     };
     Some((y, m, d))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Parse various Arch news date formats into (Y,M,D)
+    ///
+    /// - Input: ISO "2024-10-05", RFC-like "Sat, 05 Oct 2024", and "05 Oct 2024"
+    /// - Output: Some((2024,10,5)) for all supported formats; None for invalid
+    fn parse_news_date_variants() {
+        assert_eq!(parse_news_date_to_ymd("2024-10-05"), Some((2024, 10, 5)));
+        assert_eq!(
+            parse_news_date_to_ymd("Sat, 05 Oct 2024"),
+            Some((2024, 10, 5))
+        );
+        assert_eq!(parse_news_date_to_ymd("05 Oct 2024"), Some((2024, 10, 5)));
+        assert_eq!(
+            parse_news_date_to_ymd("05 October 2024"),
+            Some((2024, 10, 5))
+        );
+        assert_eq!(parse_news_date_to_ymd("05 Sept 2024"), Some((2024, 9, 5)));
+        assert_eq!(parse_news_date_to_ymd("not a date"), None);
+        assert_eq!(parse_news_date_to_ymd("2024-13-40"), None);
+    }
 }

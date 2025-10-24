@@ -278,3 +278,99 @@ pub fn today_yyyymmdd_utc() -> String {
     let day = (days + 1) as u32;
     format!("{year:04}{month:02}{day:02}")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::Source;
+
+    #[test]
+    /// What: Verify URL percent-encoding rules (unreserved, space, plus, unicode)
+    ///
+    /// - Input: "", "abc-_.~", "a b", "C++", "π"
+    /// - Output: "", "abc-_.~", "a%20b", "C%2B%2B", "%CF%80"
+    fn util_percent_encode() {
+        assert_eq!(percent_encode(""), "");
+        assert_eq!(percent_encode("abc-_.~"), "abc-_.~");
+        assert_eq!(percent_encode("a b"), "a%20b");
+        assert_eq!(percent_encode("C++"), "C%2B%2B");
+        assert_eq!(percent_encode("π"), "%CF%80");
+    }
+
+    #[test]
+    /// What: Validate JSON extractors (s/ss/arrs/u64_of) over mixed types
+    ///
+    /// - Input: JSON with strings, array, u64, negative i64, numeric string
+    /// - Output: Correct extractions; negatives rejected for u64; missing -> defaults
+    fn util_json_extractors_and_u64() {
+        let v: serde_json::Value = serde_json::json!({
+            "a": "str",
+            "b": ["x", 1, "y"],
+            "c": 42u64,
+            "d": -5,
+            "e": "123",
+        });
+        assert_eq!(s(&v, "a"), "str");
+        assert_eq!(s(&v, "missing"), "");
+        assert_eq!(ss(&v, &["z", "a"]).as_deref(), Some("str"));
+        assert_eq!(
+            arrs(&v, &["b", "missing"]),
+            vec!["x".to_string(), "y".to_string()]
+        );
+        assert_eq!(u64_of(&v, &["c"]), Some(42));
+        assert_eq!(u64_of(&v, &["d"]), None);
+        assert_eq!(u64_of(&v, &["e"]), Some(123));
+        assert_eq!(u64_of(&v, &["missing"]), None);
+    }
+
+    #[test]
+    /// What: Ensure repo ordering and name-match ranking are correct
+    ///
+    /// - Input: Sources core/extra/other/AUR; names vs queries
+    /// - Output: core < extra < other < AUR; exact/prefix/substr/no-match ranks 0/1/2/3
+    fn util_repo_order_and_rank() {
+        let core = Source::Official {
+            repo: "core".into(),
+            arch: "x86_64".into(),
+        };
+        let extra = Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        };
+        let other = Source::Official {
+            repo: "community".into(),
+            arch: "x86_64".into(),
+        };
+        let aur = Source::Aur;
+        assert!(repo_order(&core) < repo_order(&extra));
+        assert!(repo_order(&extra) < repo_order(&other));
+        assert!(repo_order(&other) < repo_order(&aur));
+
+        assert_eq!(match_rank("ripgrep", "ripgrep"), 0);
+        assert_eq!(match_rank("ripgrep", "rip"), 1);
+        assert_eq!(match_rank("ripgrep", "pg"), 2);
+        assert_eq!(match_rank("ripgrep", "zzz"), 3);
+    }
+
+    #[test]
+    /// What: Convert timestamps to UTC date strings, including leap year
+    ///
+    /// - Input: None, -1, 0, 951782400 (2000-02-29)
+    /// - Output: "", "-1", epoch start, and leap day string
+    fn util_ts_to_date_and_leap() {
+        assert_eq!(ts_to_date(None), "");
+        assert_eq!(ts_to_date(Some(-1)), "-1");
+        assert_eq!(ts_to_date(Some(0)), "1970-01-01 00:00:00");
+        assert_eq!(ts_to_date(Some(951_782_400)), "2000-02-29 00:00:00");
+    }
+
+    #[test]
+    /// What: Boundary around Y2K conversion for ts_to_date
+    ///
+    /// - Input: 946684800 (2000-01-01), 946684799 (one second before)
+    /// - Output: "2000-01-01 00:00:00" and "1999-12-31 23:59:59"
+    fn util_ts_to_date_boundaries() {
+        assert_eq!(ts_to_date(Some(946_684_800)), "2000-01-01 00:00:00");
+        assert_eq!(ts_to_date(Some(946_684_799)), "1999-12-31 23:59:59");
+    }
+}

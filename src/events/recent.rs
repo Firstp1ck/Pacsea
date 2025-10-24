@@ -217,3 +217,94 @@ pub fn handle_recent_key(
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_app() -> AppState {
+        AppState {
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    /// What: '/' enters pane find, chars append, Enter triggers preview, Esc exits mode
+    ///
+    /// - Input: Key sequence '/', 'a', Enter, Esc
+    /// - Output: pane_find populated then cleared; no exit requested
+    fn recent_pane_find_flow() {
+        let mut app = new_app();
+        let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+
+        // Enter find mode
+        let _ = handle_recent_key(
+            KeyEvent::new(KeyCode::Char('/'), KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+        );
+        assert_eq!(app.pane_find.as_deref(), Some(""));
+        // Type 'a'
+        let _ = handle_recent_key(
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+        );
+        assert_eq!(app.pane_find.as_deref(), Some("a"));
+        // Press Enter
+        let _ = handle_recent_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+        );
+        // Exit find with Esc
+        let _ = handle_recent_key(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+        );
+        assert!(app.pane_find.is_none());
+    }
+
+    #[test]
+    /// What: Enter on a selected recent item moves query to Search and sends query
+    ///
+    /// - Input: Recent contains one item, selection at 0, press Enter
+    /// - Output: Focus becomes Search, input set, latest query sent
+    fn recent_enter_uses_query() {
+        let mut app = new_app();
+        app.recent = vec!["ripgrep".into()];
+        app.history_state.select(Some(0));
+        let (qtx, mut qrx) = mpsc::unbounded_channel::<QueryInput>();
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+        let _ = handle_recent_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+        );
+        assert!(matches!(app.focus, crate::state::Focus::Search));
+        let msg = qrx.try_recv().ok();
+        assert!(msg.is_some());
+        assert_eq!(app.input, "ripgrep");
+    }
+}

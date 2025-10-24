@@ -241,3 +241,39 @@ pub(crate) fn strip_inline_comment(mut s: &str) -> &str {
     }
     s.trim()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parsing_key_identifier_and_chord() {
+        assert_eq!(parse_key_identifier("F5"), Some(KeyCode::F(5)));
+        assert_eq!(parse_key_identifier("?"), Some(KeyCode::Char('?')));
+        assert_eq!(parse_key_identifier("Backspace"), Some(KeyCode::Backspace));
+        let kc = parse_key_chord("Ctrl+R").unwrap();
+        assert_eq!(kc.code, KeyCode::Char('r'));
+        assert!(kc.mods.contains(KeyModifiers::CONTROL));
+        let bt = parse_key_chord("Shift+Tab").unwrap();
+        assert_eq!(bt.code, KeyCode::BackTab);
+        assert!(bt.mods.is_empty());
+    }
+
+    #[test]
+    fn parsing_color_and_canon() {
+        assert_eq!(parse_color_value("#ff0000"), Some(Color::Rgb(255, 0, 0)));
+        assert_eq!(parse_color_value("255,0,10"), Some(Color::Rgb(255, 0, 10)));
+        assert!(parse_color_value("").is_none());
+        assert_eq!(canonical_for_key("background_base"), Some("base"));
+        assert_eq!(canonical_to_preferred("overlay1"), "overlay_primary");
+        assert!(nearest_key("bas").is_some());
+    }
+
+    #[test]
+    fn parsing_strip_inline_comment_variants() {
+        // Leading '#' preserved for hex; we only strip after first character to allow '#RRGGBB'
+        assert_eq!(strip_inline_comment("#foo"), "#foo");
+        assert_eq!(strip_inline_comment("abc // hi"), "abc");
+        assert_eq!(strip_inline_comment("#ff00ff # tail"), "#ff00ff");
+    }
+}

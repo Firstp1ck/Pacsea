@@ -257,3 +257,99 @@ pub fn handle_search_key(
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_app() -> AppState {
+        AppState {
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    /// What: Insert mode typing updates input, caret, and sends query; Backspace updates too
+    ///
+    /// - Input: 'r','g', Backspace
+    /// - Output: input transitions "r"->"rg"->"r"; query messages sent
+    fn search_insert_typing_and_backspace() {
+        let mut app = new_app();
+        let (qtx, mut qrx) = mpsc::unbounded_channel::<QueryInput>();
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+
+        let _ = handle_search_key(
+            KeyEvent::new(KeyCode::Char('r'), KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &atx,
+            &ptx,
+        );
+        let _ = handle_search_key(
+            KeyEvent::new(KeyCode::Char('g'), KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &atx,
+            &ptx,
+        );
+        let _ = handle_search_key(
+            KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &atx,
+            &ptx,
+        );
+        assert_eq!(app.input, "r");
+        // At least one query should have been sent
+        assert!(qrx.try_recv().ok().is_some());
+    }
+
+    #[test]
+    /// What: Normal mode selection commands set anchor and adjust caret
+    ///
+    /// - Input: Toggle normal mode, press select-right then select-left
+    /// - Output: Anchor Some, caret stays within bounds
+    fn search_normal_mode_selection() {
+        let mut app = new_app();
+        app.input = "rip".into();
+        let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+
+        // Toggle into normal mode (Esc by default per KeyMap)
+        let _ = handle_search_key(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &atx,
+            &ptx,
+        );
+        // Select right (default 'l')
+        let _ = handle_search_key(
+            KeyEvent::new(KeyCode::Char('l'), KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &atx,
+            &ptx,
+        );
+        assert!(app.search_select_anchor.is_some());
+        // Select left (default 'h')
+        let _ = handle_search_key(
+            KeyEvent::new(KeyCode::Char('h'), KeyModifiers::empty()),
+            &mut app,
+            &qtx,
+            &dtx,
+            &atx,
+            &ptx,
+        );
+        assert!(app.search_caret <= crate::events::utils::char_count(&app.input));
+    }
+}

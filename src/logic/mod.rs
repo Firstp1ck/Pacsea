@@ -16,3 +16,11 @@ pub use prefetch::ring_prefetch_from_selected;
 pub use query::send_query;
 pub use selection::move_sel_cached;
 pub use sort::sort_results_preserve_selection;
+
+#[cfg(test)]
+static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+
+#[cfg(test)]
+pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
+    TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
+}

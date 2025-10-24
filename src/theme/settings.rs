@@ -567,3 +567,53 @@ pub fn settings() -> Settings {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn settings_parse_values_and_keybinds_with_defaults_on_invalid_sum() {
+        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let orig_home = std::env::var_os("HOME");
+        let base = std::env::temp_dir().join(format!(
+            "pacsea_test_settings_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let cfg = base.join(".config").join("pacsea");
+        let _ = std::fs::create_dir_all(&cfg);
+        unsafe { std::env::set_var("HOME", base.display().to_string()) };
+
+        // Write settings.conf with values and bad sum (should reset to defaults)
+        let settings_path = cfg.join("settings.conf");
+        std::fs::write(
+            &settings_path,
+            "layout_left_pct=10\nlayout_center_pct=10\nlayout_right_pct=10\nsort_mode=aur_popularity\nclipboard_suffix=OK\nshow_recent_pane=true\nshow_install_pane=false\nshow_keybinds_footer=true\n",
+        )
+        .unwrap();
+        // Write keybinds.conf
+        let keybinds_path = cfg.join("keybinds.conf");
+        std::fs::write(&keybinds_path, "keybind_exit = Ctrl+Q\nkeybind_help = F1\n").unwrap();
+
+        let s = super::settings();
+        // Invalid layout sum -> defaults
+        assert_eq!(
+            s.layout_left_pct + s.layout_center_pct + s.layout_right_pct,
+            100
+        );
+        // Keybinds parsed
+        assert!(!s.keymap.exit.is_empty());
+        assert!(!s.keymap.help_overlay.is_empty());
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+}

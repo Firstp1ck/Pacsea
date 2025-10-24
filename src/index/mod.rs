@@ -67,3 +67,11 @@ pub use installed::*;
 pub use persist::*;
 pub use query::*;
 pub use update::*;
+
+#[cfg(test)]
+static TEST_MUTEX: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
+
+#[cfg(test)]
+pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
+    TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
+}

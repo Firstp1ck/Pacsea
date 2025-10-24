@@ -78,3 +78,22 @@ async fn main() {
     }
     tracing::info!("Pacsea exited");
 }
+
+#[cfg(test)]
+mod tests {
+    /// What: FormatTime impl writes a non-empty timestamp without panicking
+    ///
+    /// - Input: Tracing writer buffer
+    /// - Output: Buffer receives some content
+    #[test]
+    fn pacsea_timer_formats_time_without_panic() {
+        use tracing_subscriber::fmt::time::FormatTime;
+        // Smoke test FormatTime impl doesn't panic
+        let mut buf = String::new();
+        let mut writer = tracing_subscriber::fmt::format::Writer::new(&mut buf);
+        let t = super::PacseaTimer;
+        let _ = t.format_time(&mut writer);
+        // Ensure something was written
+        assert!(!buf.is_empty());
+    }
+}

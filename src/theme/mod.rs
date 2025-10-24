@@ -18,3 +18,11 @@ pub use paths::{config_dir, lists_dir, logs_dir};
 pub use settings::settings;
 pub use store::{reload_theme, theme};
 pub use types::{KeyChord, KeyMap, Settings, Theme};
+
+#[cfg(test)]
+static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+
+#[cfg(test)]
+pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
+    TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
+}

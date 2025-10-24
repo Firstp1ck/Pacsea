@@ -59,3 +59,29 @@ fn strip_time_and_tz(s: &str) -> String {
     }
     t.trim_end().to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn news_extract_between_and_strip_time_tz() {
+        // extract_between
+        assert_eq!(
+            super::extract_between("<a>hi</a>", "<a>", "</a>").unwrap(),
+            "hi"
+        );
+        assert!(super::extract_between("nope", "<a>", "</a>").is_none());
+        // strip_time_and_tz
+        assert_eq!(
+            super::strip_time_and_tz("Mon, 23 Oct 2023 12:34:56 +0000"),
+            "Mon, 23 Oct 2023"
+        );
+        assert_eq!(
+            super::strip_time_and_tz("Mon, 23 Oct 2023 12:34:56"),
+            "Mon, 23 Oct 2023"
+        );
+        assert_eq!(
+            super::strip_time_and_tz("Mon, 23 Oct 2023"),
+            "Mon, 23 Oct 2023"
+        );
+    }
+}

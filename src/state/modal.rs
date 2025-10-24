@@ -39,3 +39,31 @@ pub enum Modal {
         selected: usize,
     },
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn modal_default_and_variants_construct() {
+        let m: super::Modal = Default::default();
+        matches!(m, super::Modal::None);
+        let _ = super::Modal::Alert {
+            message: "hi".into(),
+        };
+        let _ = super::Modal::ConfirmInstall { items: Vec::new() };
+        let _ = super::Modal::Help;
+        let _ = super::Modal::ConfirmRemove { items: Vec::new() };
+        let _ = super::Modal::SystemUpdate {
+            do_mirrors: true,
+            do_pacman: true,
+            do_aur: true,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["US".into()],
+            cursor: 0,
+        };
+        let _ = super::Modal::News {
+            items: Vec::new(),
+            selected: 0,
+        };
+    }
+}

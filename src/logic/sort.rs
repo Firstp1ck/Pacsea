@@ -75,3 +75,117 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
+        crate::state::PackageItem {
+            name: name.to_string(),
+            version: "1.0".to_string(),
+            description: format!("{name} desc"),
+            source: crate::state::Source::Official {
+                repo: repo.to_string(),
+                arch: "x86_64".to_string(),
+            },
+            popularity: None,
+        }
+    }
+    fn item_aur(name: &str, pop: Option<f64>) -> crate::state::PackageItem {
+        crate::state::PackageItem {
+            name: name.to_string(),
+            version: "1.0".to_string(),
+            description: format!("{name} desc"),
+            source: crate::state::Source::Aur,
+            popularity: pop,
+        }
+    }
+
+    #[test]
+    /// What: Sorting preserves selection and honors BestMatches relevance
+    ///
+    /// - Input: Mixed AUR/official results; change sort modes; set input "bb"
+    /// - Output: Official first for RepoThenName; AUR first for popularity; relevant names early
+    fn sort_preserve_selection_and_best_matches() {
+        let mut app = AppState {
+            ..Default::default()
+        };
+        app.results = vec![
+            item_aur("zzz", Some(1.0)),
+            item_official("aaa", "core"),
+            item_official("bbb", "extra"),
+            item_aur("ccc", Some(10.0)),
+        ];
+        app.selected = 2;
+        app.list_state.select(Some(2));
+        app.sort_mode = SortMode::RepoThenName;
+        sort_results_preserve_selection(&mut app);
+        assert_eq!(
+            app.results
+                .iter()
+                .filter(|p| matches!(p.source, Source::Official { .. }))
+                .count(),
+            2
+        );
+        assert_eq!(app.results[app.selected].name, "bbb");
+
+        app.sort_mode = SortMode::AurPopularityThenOfficial;
+        sort_results_preserve_selection(&mut app);
+        let aur_first = &app.results[0];
+        assert!(matches!(aur_first.source, Source::Aur));
+
+        app.input = "bb".into();
+        app.sort_mode = SortMode::BestMatches;
+        sort_results_preserve_selection(&mut app);
+        assert!(
+            app.results
+                .iter()
+                .position(|p| p.name.contains("bb"))
+                .unwrap()
+                <= 1
+        );
+    }
+
+    #[test]
+    /// What: Tiebreakers in BestMatches use repo order then name
+    ///
+    /// - Input: All names matching "alpha" with core/extra repos
+    /// - Output: core wins before extra; extra sorted by name
+    fn sort_bestmatches_tiebreak_repo_then_name() {
+        let mut app = AppState {
+            ..Default::default()
+        };
+        app.results = vec![
+            item_official("alpha2", "extra"),
+            item_official("alpha1", "extra"),
+            item_official("alpha_core", "core"),
+        ];
+        app.input = "alpha".into();
+        app.sort_mode = SortMode::BestMatches;
+        sort_results_preserve_selection(&mut app);
+        let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+        assert_eq!(names, vec!["alpha_core", "alpha1", "alpha2"]);
+    }
+
+    #[test]
+    /// What: AUR popularity sort then official tiebreakers
+    ///
+    /// - Input: AUR items with equal popularity and official items core/extra
+    /// - Output: AUR name-asc for ties; official core before extra, name tiebreak
+    fn sort_aur_popularity_and_official_tiebreaks() {
+        let mut app = AppState {
+            ..Default::default()
+        };
+        app.results = vec![
+            item_aur("aurB", Some(1.0)),
+            item_aur("aurA", Some(1.0)),
+            item_official("z_off", "core"),
+            item_official("a_off", "extra"),
+        ];
+        app.sort_mode = SortMode::AurPopularityThenOfficial;
+        sort_results_preserve_selection(&mut app);
+        let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+        assert_eq!(names, vec!["aurA", "aurB", "z_off", "a_off"]);
+    }
+}

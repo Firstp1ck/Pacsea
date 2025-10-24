@@ -5,7 +5,7 @@ use ratatui::style::Color;
 ///
 /// All colors are provided as [`ratatui::style::Color`] and are suitable for
 /// direct use with widgets and styles.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Theme {
     /// Primary background color for the canvas.
     pub base: Color,
@@ -141,6 +141,54 @@ impl KeyChord {
         } else {
             format!("{}+{}", parts.join("+"), key)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Format KeyChord labels across common keys and modifiers
+    ///
+    /// - Input: Ctrl+Char, Space, F5, Shift+BackTab, arrows, Alt+Shift+Char
+    /// - Output: Labels like "Ctrl+R", "Space", "F5", "Shift+Tab", "←", "Alt+Shift+X"
+    fn theme_keychord_label_variants() {
+        let kc = KeyChord {
+            code: KeyCode::Char('r'),
+            mods: KeyModifiers::CONTROL,
+        };
+        assert_eq!(kc.label(), "Ctrl+R");
+
+        let kc2 = KeyChord {
+            code: KeyCode::Char(' '),
+            mods: KeyModifiers::empty(),
+        };
+        assert_eq!(kc2.label(), "Space");
+
+        let kc3 = KeyChord {
+            code: KeyCode::F(5),
+            mods: KeyModifiers::empty(),
+        };
+        assert_eq!(kc3.label(), "F5");
+
+        let kc4 = KeyChord {
+            code: KeyCode::BackTab,
+            mods: KeyModifiers::SHIFT,
+        };
+        assert_eq!(kc4.label(), "Shift+Tab");
+
+        let kc5 = KeyChord {
+            code: KeyCode::Left,
+            mods: KeyModifiers::empty(),
+        };
+        assert_eq!(kc5.label(), "←");
+
+        let kc6 = KeyChord {
+            code: KeyCode::Char('x'),
+            mods: KeyModifiers::ALT | KeyModifiers::SHIFT,
+        };
+        assert_eq!(kc6.label(), "Alt+Shift+X");
     }
 }
 

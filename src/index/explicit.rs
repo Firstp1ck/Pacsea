@@ -29,3 +29,40 @@ pub fn explicit_names() -> HashSet<String> {
         .map(|s| s.clone())
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests {
+    /// What: explicit_names returns empty when cache uninitialized
+    ///
+    /// - Input: Clear EXPLICIT_SET
+    /// - Output: Returned set is empty
+    #[test]
+    fn explicit_names_returns_empty_when_uninitialized() {
+        let _guard = crate::index::test_mutex().lock().unwrap();
+        // Ensure empty state
+        if let Ok(mut g) = super::explicit_lock().write() {
+            g.clear();
+        }
+        let set = super::explicit_names();
+        assert!(set.is_empty());
+    }
+
+    /// What: explicit_names clones the underlying set
+    ///
+    /// - Input: Insert {a,b} into EXPLICIT_SET
+    /// - Output: Returned set contains a and b
+    #[test]
+    fn explicit_names_returns_cloned_set() {
+        let _guard = crate::index::test_mutex().lock().unwrap();
+        if let Ok(mut g) = super::explicit_lock().write() {
+            g.clear();
+            g.insert("a".to_string());
+            g.insert("b".to_string());
+        }
+        let mut set = super::explicit_names();
+        assert_eq!(set.len(), 2);
+        let mut v: Vec<String> = set.drain().collect();
+        v.sort();
+        assert_eq!(v, vec!["a", "b"]);
+    }
+}

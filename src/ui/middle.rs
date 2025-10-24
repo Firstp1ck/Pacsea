@@ -589,3 +589,42 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// What: Middle render sets pane rects and corrects focus when Install hidden
+    ///
+    /// - Input: Show Recent/Install; then hide Install while focused there
+    /// - Output: Rects are Some; focus changes back to Search
+    #[test]
+    fn middle_sets_rects_and_cursor_positions() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let backend = TestBackend::new(120, 30);
+        let mut term = Terminal::new(backend).unwrap();
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        app.show_recent_pane = true;
+        app.show_install_pane = true;
+        app.focus = crate::state::Focus::Search;
+        app.input = "hello".into();
+
+        term.draw(|f| {
+            let area = f.area();
+            super::render_middle(f, &mut app, area);
+        })
+        .unwrap();
+
+        assert!(app.recent_rect.is_some());
+        assert!(app.install_rect.is_some());
+        // Move focus to Install and re-render; ensure focus fix-up when hidden
+        app.focus = crate::state::Focus::Install;
+        app.show_install_pane = false;
+        term.draw(|f| {
+            let area = f.area();
+            super::render_middle(f, &mut app, area);
+        })
+        .unwrap();
+        assert!(matches!(app.focus, crate::state::Focus::Search));
+    }
+}

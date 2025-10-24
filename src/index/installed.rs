@@ -32,3 +32,34 @@ pub fn is_installed(name: &str) -> bool {
         .map(|s| s.contains(name))
         .unwrap_or(false)
 }
+
+#[cfg(test)]
+mod tests {
+    /// What: is_installed returns false when cache missing or name absent
+    ///
+    /// - Input: Clear INSTALLED_SET; query unknown name
+    /// - Output: false
+    #[test]
+    fn is_installed_returns_false_when_uninitialized_or_missing() {
+        let _guard = crate::index::test_mutex().lock().unwrap();
+        if let Ok(mut g) = super::installed_lock().write() {
+            g.clear();
+        }
+        assert!(!super::is_installed("foo"));
+    }
+
+    /// What: is_installed checks membership correctly
+    ///
+    /// - Input: Insert "bar" into INSTALLED_SET
+    /// - Output: true for bar, false for baz
+    #[test]
+    fn is_installed_checks_membership_in_cached_set() {
+        let _guard = crate::index::test_mutex().lock().unwrap();
+        if let Ok(mut g) = super::installed_lock().write() {
+            g.clear();
+            g.insert("bar".to_string());
+        }
+        assert!(super::is_installed("bar"));
+        assert!(!super::is_installed("baz"));
+    }
+}

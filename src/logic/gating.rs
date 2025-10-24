@@ -70,3 +70,45 @@ pub fn set_allowed_ring(app: &AppState, radius: usize) {
         *w = ring;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
+        crate::state::PackageItem {
+            name: name.to_string(),
+            version: "1.0".to_string(),
+            description: format!("{name} desc"),
+            source: crate::state::Source::Official {
+                repo: repo.to_string(),
+                arch: "x86_64".to_string(),
+            },
+            popularity: None,
+        }
+    }
+
+    #[test]
+    /// What: Allowed set behavior for only-selected and ring modes
+    ///
+    /// - Input: Results with selected index; toggle only-selected then ring radius 1
+    /// - Output: Only selected allowed first; after ring, neighbors allowed
+    fn allowed_only_selected_and_ring() {
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        app.results = vec![
+            item_official("a", "core"),
+            item_official("b", "extra"),
+            item_official("c", "extra"),
+            item_official("d", "other"),
+        ];
+        app.selected = 1;
+        set_allowed_only_selected(&app);
+        assert!(is_allowed("b"));
+        assert!(!is_allowed("a") || !is_allowed("c") || !is_allowed("d"));
+
+        set_allowed_ring(&app, 1);
+        assert!(is_allowed("a") || is_allowed("c"));
+    }
+}

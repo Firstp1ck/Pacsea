@@ -203,3 +203,103 @@ pub fn refresh_downgrade_details(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_app() -> AppState {
+        AppState {
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    /// What: char_count returns Unicode scalar count
+    ///
+    /// - Input: "abc", "π", "aπb"
+    /// - Output: 3, 1, 3
+    fn char_count_basic() {
+        assert_eq!(char_count("abc"), 3);
+        assert_eq!(char_count("π"), 1);
+        assert_eq!(char_count("aπb"), 3);
+    }
+
+    #[test]
+    /// What: byte_index_for_char maps char index to UTF-8 byte index safely
+    ///
+    /// - Input: "aπb" for ci 0,1,2,3
+    /// - Output: 0, 1, 3, len
+    fn byte_index_for_char_basic() {
+        let s = "aπb";
+        assert_eq!(byte_index_for_char(s, 0), 0);
+        assert_eq!(byte_index_for_char(s, 1), 1);
+        assert_eq!(byte_index_for_char(s, 2), 1 + "π".len());
+        assert_eq!(byte_index_for_char(s, 3), s.len());
+    }
+
+    #[test]
+    /// What: find_in_recent rotates selection to next match respecting filter
+    ///
+    /// - Input: recent ["alpha","beta","gamma"], pane_find="a"
+    /// - Output: selection moves among items containing 'a'
+    fn find_in_recent_basic() {
+        let mut app = new_app();
+        app.recent = vec!["alpha".into(), "beta".into(), "gamma".into()];
+        app.pane_find = Some("a".into());
+        app.history_state.select(Some(0));
+        find_in_recent(&mut app, true);
+        assert!(app.history_state.selected().is_some());
+    }
+
+    #[test]
+    /// What: find_in_install rotates selection to next match in name/description
+    ///
+    /// - Input: install list with names/descriptions; pane_find pattern
+    /// - Output: selection moves to next visible matching entry
+    fn find_in_install_basic() {
+        let mut app = new_app();
+        app.install_list = vec![
+            crate::state::PackageItem {
+                name: "ripgrep".into(),
+                version: "1".into(),
+                description: "fast search".into(),
+                source: crate::state::Source::Aur,
+                popularity: None,
+            },
+            crate::state::PackageItem {
+                name: "fd".into(),
+                version: "1".into(),
+                description: "find".into(),
+                source: crate::state::Source::Aur,
+                popularity: None,
+            },
+        ];
+        app.pane_find = Some("rip".into());
+        // Start from visible selection 1 so advancing wraps to 0 matching "ripgrep"
+        app.install_state.select(Some(1));
+        find_in_install(&mut app, true);
+        assert_eq!(app.install_state.selected(), Some(0));
+    }
+
+    #[test]
+    /// What: refresh_selected_details sends request when not cached and focuses details
+    ///
+    /// - Input: results with one item; empty cache
+    /// - Output: details_tx receives item; placeholder fields set
+    fn refresh_selected_details_requests_when_missing() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "rg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+        }];
+        app.selected = 0;
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        refresh_selected_details(&mut app, &tx);
+        let got = rx.try_recv().ok();
+        assert!(got.is_some());
+    }
+}

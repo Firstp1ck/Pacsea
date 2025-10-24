@@ -82,3 +82,89 @@ pub fn shell_single_quote(s: &str) -> String {
     out.push('\'');
     out
 }
+
+#[cfg(all(test, not(target_os = "windows")))]
+mod tests {
+    #[test]
+    fn utils_command_on_path_detects_executable() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::PathBuf;
+
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_utils_path_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+        let mut cmd_path = dir.clone();
+        cmd_path.push("mycmd");
+        fs::write(&cmd_path, b"#!/bin/sh\nexit 0\n").unwrap();
+        let mut perms = fs::metadata(&cmd_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&cmd_path, perms).unwrap();
+
+        let orig_path = std::env::var_os("PATH");
+        unsafe { std::env::set_var("PATH", dir.display().to_string()) };
+        assert!(super::command_on_path("mycmd"));
+        assert!(!super::command_on_path("notexist"));
+        unsafe {
+            if let Some(v) = orig_path {
+                std::env::set_var("PATH", v);
+            } else {
+                std::env::remove_var("PATH");
+            }
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn utils_choose_terminal_index_prefers_first_present_in_terms_order() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::PathBuf;
+
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_utils_terms_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+        let mut kitty = dir.clone();
+        kitty.push("kitty");
+        fs::write(&kitty, b"#!/bin/sh\nexit 0\n").unwrap();
+        let mut perms = fs::metadata(&kitty).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&kitty, perms).unwrap();
+
+        let terms: &[(&str, &[&str], bool)] =
+            &[("gnome-terminal", &[], false), ("kitty", &[], false)];
+        let orig_path = std::env::var_os("PATH");
+        unsafe { std::env::set_var("PATH", dir.display().to_string()) };
+        let idx = super::choose_terminal_index_prefer_path(terms).expect("index");
+        assert_eq!(idx, 1);
+        unsafe {
+            if let Some(v) = orig_path {
+                std::env::set_var("PATH", v);
+            } else {
+                std::env::remove_var("PATH");
+            }
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn utils_shell_single_quote_handles_edges() {
+        assert_eq!(super::shell_single_quote(""), "''");
+        assert_eq!(super::shell_single_quote("abc"), "'abc'");
+        assert_eq!(super::shell_single_quote("a'b"), "'a'\"'\"'b'");
+    }
+}

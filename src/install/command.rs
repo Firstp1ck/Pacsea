@@ -46,3 +46,67 @@ pub fn build_install_command(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Build pacman command for official package across variants
+    ///
+    /// - Input: Official pkg, with/without password, dry-run toggle
+    /// - Output: sudo pacman command shape, sudo -S when password, DRY RUN prefix
+    fn install_build_install_command_official_variants() {
+        let pkg = PackageItem {
+            name: "ripgrep".into(),
+            version: "14".into(),
+            description: String::new(),
+            source: Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+            popularity: None,
+        };
+
+        let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
+        assert!(uses_sudo1);
+        assert!(cmd1.starts_with("sudo pacman -S --needed --noconfirm ripgrep"));
+        assert!(cmd1.contains("Press any key to close"));
+
+        let (cmd2, uses_sudo2) = build_install_command(&pkg, Some("pa's"), false);
+        assert!(uses_sudo2);
+        assert!(cmd2.contains("echo "));
+        assert!(cmd2.contains("sudo -S pacman -S --needed --noconfirm ripgrep"));
+
+        let (cmd3, uses_sudo3) = build_install_command(&pkg, None, true);
+        assert!(uses_sudo3);
+        assert!(cmd3.starts_with("echo DRY RUN: sudo pacman -S --needed --noconfirm ripgrep"));
+    }
+
+    #[test]
+    /// What: Build AUR install command with helper preference and dry-run
+    ///
+    /// - Input: AUR pkg, dry-run false/true
+    /// - Output: Paru preferred with yay fallback; DRY RUN echoes helper command
+    fn install_build_install_command_aur_variants() {
+        let pkg = PackageItem {
+            name: "yay-bin".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: Source::Aur,
+            popularity: None,
+        };
+
+        let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
+        assert!(!uses_sudo1);
+        assert!(cmd1.contains("command -v paru"));
+        assert!(cmd1.contains("paru -S --needed --noconfirm yay-bin"));
+        assert!(cmd1.contains("|| (command -v yay"));
+        assert!(cmd1.contains("No AUR helper"));
+        assert!(cmd1.contains("Press any key to close"));
+
+        let (cmd2, uses_sudo2) = build_install_command(&pkg, None, true);
+        assert!(!uses_sudo2);
+        assert!(cmd2.starts_with("echo DRY RUN: paru -S --needed --noconfirm yay-bin"));
+    }
+}

@@ -112,3 +112,35 @@ pub fn lists_dir() -> PathBuf {
     let _ = std::fs::create_dir_all(&dir);
     dir
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn paths_config_lists_logs_under_home() {
+        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let orig_home = std::env::var_os("HOME");
+        let base = std::env::temp_dir().join(format!(
+            "pacsea_test_paths_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::create_dir_all(&base);
+        unsafe { std::env::set_var("HOME", base.display().to_string()) };
+        let cfg = super::config_dir();
+        let logs = super::logs_dir();
+        let lists = super::lists_dir();
+        assert!(cfg.ends_with("pacsea"));
+        assert!(logs.ends_with("logs"));
+        assert!(lists.ends_with("lists"));
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+    }
+}

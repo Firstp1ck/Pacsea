@@ -433,3 +433,44 @@ impl Default for AppState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn app_state_default_initializes_paths_and_flags() {
+        let _guard = crate::state::test_mutex().lock().unwrap();
+        // Shim HOME so lists_dir() resolves under a temp dir
+        let orig_home = std::env::var_os("HOME");
+        let dir = std::env::temp_dir().join(format!(
+            "pacsea_test_state_default_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+
+        let app = super::AppState::default();
+        assert_eq!(app.selected, 0);
+        assert!(app.results.is_empty());
+        assert!(app.all_results.is_empty());
+        assert!(!app.loading_index);
+        assert!(!app.dry_run);
+        // Paths should point under lists_dir
+        let lists = crate::theme::lists_dir();
+        assert!(app.recent_path.starts_with(&lists));
+        assert!(app.cache_path.starts_with(&lists));
+        assert!(app.install_path.starts_with(&lists));
+        assert!(app.official_index_path.starts_with(&lists));
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+    }
+}

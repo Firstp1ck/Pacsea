@@ -725,3 +725,83 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
         crate::state::Modal::None => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// What: Render all modal variants and record expected rects
+    ///
+    /// - Input: Cycle Alert, ConfirmInstall, ConfirmRemove(core), Help, News
+    /// - Output: No panic; Help/news rects populated where applicable
+    #[test]
+    fn modals_set_rects_and_render_variants() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let backend = TestBackend::new(100, 28);
+        let mut term = Terminal::new(backend).unwrap();
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+
+        // Alert
+        app.modal = crate::state::Modal::Alert {
+            message: "Test".into(),
+        };
+        term.draw(|f| {
+            let area = f.area();
+            super::render_modals(f, &mut app, area)
+        })
+        .unwrap();
+
+        // ConfirmInstall
+        app.modal = crate::state::Modal::ConfirmInstall { items: vec![] };
+        term.draw(|f| {
+            let area = f.area();
+            super::render_modals(f, &mut app, area)
+        })
+        .unwrap();
+
+        // ConfirmRemove with core warn
+        app.modal = crate::state::Modal::ConfirmRemove {
+            items: vec![crate::state::PackageItem {
+                name: "glibc".into(),
+                version: "1".into(),
+                description: String::new(),
+                source: crate::state::Source::Official {
+                    repo: "core".into(),
+                    arch: "x86_64".into(),
+                },
+                popularity: None,
+            }],
+        };
+        term.draw(|f| {
+            let area = f.area();
+            super::render_modals(f, &mut app, area)
+        })
+        .unwrap();
+
+        // Help
+        app.modal = crate::state::Modal::Help;
+        term.draw(|f| {
+            let area = f.area();
+            super::render_modals(f, &mut app, area)
+        })
+        .unwrap();
+        assert!(app.help_rect.is_some());
+
+        // News
+        app.modal = crate::state::Modal::News {
+            items: vec![crate::state::NewsItem {
+                date: "2025-10-11".into(),
+                title: "Test".into(),
+                url: "".into(),
+            }],
+            selected: 0,
+        };
+        term.draw(|f| {
+            let area = f.area();
+            super::render_modals(f, &mut app, area)
+        })
+        .unwrap();
+        assert!(app.news_rect.is_some());
+        assert!(app.news_list_rect.is_some());
+    }
+}

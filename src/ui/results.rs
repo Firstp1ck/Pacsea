@@ -648,3 +648,43 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         area.height.saturating_sub(2),
     ));
 }
+
+#[cfg(test)]
+mod tests {
+    /// What: Results render computes title button rects and status label rect
+    ///
+    /// - Input: One result, operational status message
+    /// - Output: Sort/Options/Config/Panels rects and arch_status/results rects are Some
+    #[test]
+    fn results_sets_title_button_rects_and_status_rect() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let backend = TestBackend::new(120, 20);
+        let mut term = Terminal::new(backend).unwrap();
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        // Seed minimal results to render
+        app.results = vec![crate::state::PackageItem {
+            name: "pkg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: Some(1.0),
+        }];
+        app.arch_status_text = "All systems operational".into();
+        app.arch_status_color = crate::state::ArchStatusColor::Operational;
+
+        term.draw(|f| {
+            let area = f.area();
+            super::render_results(f, &mut app, area);
+        })
+        .unwrap();
+
+        assert!(app.sort_button_rect.is_some());
+        assert!(app.options_button_rect.is_some());
+        assert!(app.config_button_rect.is_some());
+        assert!(app.panels_button_rect.is_some());
+        assert!(app.arch_status_rect.is_some());
+        assert!(app.results_rect.is_some());
+    }
+}

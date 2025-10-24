@@ -1083,3 +1083,45 @@ pub fn handle_mouse_event(
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_app() -> AppState {
+        AppState {
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    /// What: Clicking PKGBUILD toggle opens viewer and enqueues fetch
+    ///
+    /// - Input: Click inside pkgb_button_rect with a selected result
+    /// - Output: pkgb_visible=true and item sent to pkgb_tx
+    fn click_pkgb_toggle_opens() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "rg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+        }];
+        app.selected = 0;
+        app.pkgb_button_rect = Some((10, 10, 5, 1));
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, mut pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let ev = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 11,
+            row: 10,
+            modifiers: KeyModifiers::empty(),
+        };
+        let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx);
+        assert!(app.pkgb_visible);
+        assert!(pkgb_rx.try_recv().ok().is_some());
+    }
+}

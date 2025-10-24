@@ -130,6 +130,140 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
     )
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Parse Arch status HTML to derive AUR color by % and outage
+    ///
+    /// - Input: Synthetic HTML around today's date with 97/95/89% and outage flag
+    /// - Output: Green for >95, Yellow for 90-95, Red for <90; outage forces >= Yellow
+    fn status_parse_color_by_percentage_and_outage() {
+        let (y, m, d) = {
+            let out = std::process::Command::new("date")
+                .args(["-u", "+%Y-%m-%d"])
+                .output();
+            let Ok(o) = out else { return };
+            if !o.status.success() {
+                return;
+            }
+            let s = match String::from_utf8(o.stdout) {
+                Ok(x) => x,
+                Err(_) => return,
+            };
+            let mut it = s.trim().split('-');
+            let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
+                return;
+            };
+            let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>())
+            else {
+                return;
+            };
+            (y, m, d)
+        };
+        let months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ];
+        let month_name = months[(m - 1) as usize];
+        let date_str = format!("{month_name} {d}, {y}");
+
+        let make_html = |percent: u32, outage: bool| -> String {
+            format!(
+                r#"<html><body><h2>Uptime Last 90 days</h2><div>Monitors (default)</div><div>AUR</div><div>{date_str}</div><div>{percent}% uptime</div>{outage_block}</body></html>"#,
+                outage_block = if outage {
+                    "<h4>The AUR is currently experiencing an outage</h4>"
+                } else {
+                    ""
+                }
+            )
+        };
+
+        let html_green = make_html(97, false);
+        let (_txt, color) = parse_arch_status_from_html(&html_green);
+        assert_eq!(color, ArchStatusColor::Operational);
+
+        let html_yellow = make_html(95, false);
+        let (_txt, color) = parse_arch_status_from_html(&html_yellow);
+        assert_eq!(color, ArchStatusColor::IncidentToday);
+
+        let html_red = make_html(89, false);
+        let (_txt, color) = parse_arch_status_from_html(&html_red);
+        assert_eq!(color, ArchStatusColor::IncidentSevereToday);
+
+        let html_outage = make_html(97, true);
+        let (_txt, color) = parse_arch_status_from_html(&html_outage);
+        assert_eq!(color, ArchStatusColor::IncidentToday);
+
+        let html_outage_red = make_html(80, true);
+        let (_txt, color) = parse_arch_status_from_html(&html_outage_red);
+        assert_eq!(color, ArchStatusColor::IncidentSevereToday);
+    }
+
+    #[test]
+    /// What: Prefer SVG rect fill color over percentage when present
+    ///
+    /// - Input: HTML with greenish % but rect fill set to yellow near today
+    /// - Output: Yellow color classification
+    fn status_parse_prefers_svg_rect_color() {
+        let (y, m, d) = {
+            let out = std::process::Command::new("date")
+                .args(["-u", "+%Y-%m-%d"])
+                .output();
+            let Ok(o) = out else { return };
+            if !o.status.success() {
+                return;
+            }
+            let s = match String::from_utf8(o.stdout) {
+                Ok(x) => x,
+                Err(_) => return,
+            };
+            let mut it = s.trim().split('-');
+            let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
+                return;
+            };
+            let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>())
+            else {
+                return;
+            };
+            (y, m, d)
+        };
+        let months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ];
+        let month_name = months[(m - 1) as usize];
+        let date_str = format!("{month_name} {d}, {y}");
+
+        let html = format!(
+            "<html>\n  <body>\n    <h2>Uptime Last 90 days</h2>\n    <div>Monitors (default)</div>\n    <div>AUR</div>\n    <svg>\n      <rect x=\"900\" y=\"0\" width=\"10\" height=\"10\" fill=\"#f59e0b\"></rect>\n    </svg>\n    <div>{date_str}</div>\n    <div>97% uptime</div>\n  </body>\n</html>"
+        );
+        let (_txt, color) = parse_arch_status_from_html(&html);
+        assert_eq!(color, ArchStatusColor::IncidentToday);
+    }
+}
+
 fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     let out = std::process::Command::new("date")
         .args(["-u", "+%Y-%m-%d"])

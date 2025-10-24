@@ -37,3 +37,11 @@ pub use news::fetch_arch_news;
 pub use pkgbuild::fetch_pkgbuild_fast;
 pub use search::fetch_all_with_errors;
 pub use status::fetch_arch_status_text;
+
+#[cfg(test)]
+static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+
+#[cfg(test)]
+pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
+    TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
+}

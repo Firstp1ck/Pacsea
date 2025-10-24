@@ -88,3 +88,116 @@ pub fn move_sel_cached(
     crate::logic::set_allowed_ring(app, 30);
     crate::logic::ring_prefetch_from_selected(app, details_tx);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
+        crate::state::PackageItem {
+            name: name.to_string(),
+            version: "1.0".to_string(),
+            description: format!("{name} desc"),
+            source: crate::state::Source::Official {
+                repo: repo.to_string(),
+                arch: "x86_64".to_string(),
+            },
+            popularity: None,
+        }
+    }
+
+    #[tokio::test]
+    /// What: Move selection with bounds, placeholder details, and request flow
+    ///
+    /// - Input: Results with AUR and official; delta +1, -100, 0
+    /// - Output: Clamped indices; details placeholders set; request sent when uncached
+    async fn move_sel_cached_clamps_and_requests_details() {
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        app.results = vec![
+            crate::state::PackageItem {
+                name: "aur1".into(),
+                version: "1".into(),
+                description: String::new(),
+                source: crate::state::Source::Aur,
+                popularity: None,
+            },
+            item_official("pkg2", "core"),
+        ];
+        app.selected = 0;
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        move_sel_cached(&mut app, 1, &tx);
+        assert_eq!(app.selected, 1);
+        assert_eq!(app.details.repository.to_lowercase(), "core");
+        assert_eq!(app.details.architecture.to_lowercase(), "x86_64");
+        let got = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv())
+            .await
+            .ok()
+            .flatten();
+        assert!(got.is_some());
+        move_sel_cached(&mut app, -100, &tx);
+        assert_eq!(app.selected, 0);
+        move_sel_cached(&mut app, 0, &tx);
+        assert_eq!(app.details.repository, "AUR");
+        assert_eq!(app.details.architecture, "any");
+    }
+
+    #[tokio::test]
+    /// What: Reuse details from cache to avoid sending a new request
+    ///
+    /// - Input: Results with cached details for selected item
+    /// - Output: No message sent; details filled from cache
+    async fn move_sel_cached_uses_details_cache() {
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        let pkg = item_official("pkg", "core");
+        app.results = vec![pkg.clone()];
+        app.details_cache.insert(
+            pkg.name.clone(),
+            crate::state::PackageDetails {
+                repository: "core".into(),
+                name: pkg.name.clone(),
+                version: pkg.version.clone(),
+                architecture: "x86_64".into(),
+                ..Default::default()
+            },
+        );
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        move_sel_cached(&mut app, 0, &tx);
+        let none = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
+            .await
+            .ok()
+            .flatten();
+        assert!(none.is_none());
+        assert_eq!(app.details.name, "pkg");
+    }
+
+    #[test]
+    /// What: Fast scroll gating triggers ring deferral and selected-only allowance
+    ///
+    /// - Input: Large positive delta; ring prefetch state
+    /// - Output: need_ring_prefetch set; ring_resume_at present; only selected allowed
+    fn fast_scroll_sets_gating_and_defers_ring() {
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        app.results = vec![
+            item_official("a", "core"),
+            item_official("b", "extra"),
+            item_official("c", "extra"),
+            item_official("d", "extra"),
+            item_official("e", "extra"),
+            item_official("f", "extra"),
+            item_official("g", "extra"),
+        ];
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel::<crate::state::PackageItem>();
+        move_sel_cached(&mut app, 6, &tx);
+        assert!(app.need_ring_prefetch);
+        assert!(app.ring_resume_at.is_some());
+        crate::logic::set_allowed_only_selected(&app);
+        assert!(crate::logic::is_allowed(&app.results[app.selected].name));
+    }
+}

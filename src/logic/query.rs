@@ -19,3 +19,30 @@ pub fn send_query(app: &mut AppState, query_tx: &mpsc::UnboundedSender<crate::st
         text: app.input.clone(),
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    /// What: send_query updates ids and sends QueryInput with current text
+    ///
+    /// - Input: AppState with input "hello"
+    /// - Output: latest_query_id becomes 1; channel receives matching QueryInput
+    async fn send_query_increments_and_sends() {
+        let mut app = AppState {
+            ..Default::default()
+        };
+        app.input = "hello".into();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        send_query(&mut app, &tx);
+        assert_eq!(app.latest_query_id, 1);
+        let q = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv())
+            .await
+            .ok()
+            .flatten()
+            .expect("query sent");
+        assert_eq!(q.id, app.latest_query_id);
+        assert_eq!(q.text, "hello");
+    }
+}

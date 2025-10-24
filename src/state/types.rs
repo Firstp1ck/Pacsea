@@ -137,6 +137,49 @@ impl SortMode {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::SortMode;
+
+    #[test]
+    /// What: SortMode config key mapping roundtrip and alias handling
+    ///
+    /// - Input: Known keys and aliases; unknown key
+    /// - Output: Correct mapping to enum variants; None for unknown
+    fn state_sortmode_config_roundtrip_and_aliases() {
+        assert_eq!(SortMode::RepoThenName.as_config_key(), "alphabetical");
+        assert_eq!(
+            SortMode::from_config_key("alphabetical"),
+            Some(SortMode::RepoThenName)
+        );
+        assert_eq!(
+            SortMode::from_config_key("repo_then_name"),
+            Some(SortMode::RepoThenName)
+        );
+        assert_eq!(
+            SortMode::from_config_key("pacman"),
+            Some(SortMode::RepoThenName)
+        );
+        assert_eq!(
+            SortMode::from_config_key("aur_popularity"),
+            Some(SortMode::AurPopularityThenOfficial)
+        );
+        assert_eq!(
+            SortMode::from_config_key("popularity"),
+            Some(SortMode::AurPopularityThenOfficial)
+        );
+        assert_eq!(
+            SortMode::from_config_key("best_matches"),
+            Some(SortMode::BestMatches)
+        );
+        assert_eq!(
+            SortMode::from_config_key("relevance"),
+            Some(SortMode::BestMatches)
+        );
+        assert_eq!(SortMode::from_config_key("unknown"), None);
+    }
+}
+
 /// Visual indicator for Arch status line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArchStatusColor {

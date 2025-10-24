@@ -67,6 +67,66 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     }
 }
 
+#[cfg(all(test, not(target_os = "windows")))]
+mod tests {
+    #[test]
+    /// What: Ensure gnome-terminal is invoked with double dash for shell commands
+    ///
+    /// - Input: Fake gnome-terminal on PATH; spawn_shell_commands_in_terminal
+    /// - Output: First args are "--", "bash", "-lc" (safe arg shape)
+    fn shell_uses_gnome_terminal_double_dash() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::PathBuf;
+
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_shell_gnome_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+        let mut out_path = dir.clone();
+        out_path.push("args.txt");
+        let mut term_path = dir.clone();
+        term_path.push("gnome-terminal");
+        let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+        fs::write(&term_path, script.as_bytes()).unwrap();
+        let mut perms = fs::metadata(&term_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&term_path, perms).unwrap();
+
+        let orig_path = std::env::var_os("PATH");
+        unsafe {
+            std::env::set_var("PATH", dir.display().to_string());
+            std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        }
+
+        let cmds = vec!["echo hi".to_string()];
+        super::spawn_shell_commands_in_terminal(&cmds);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+        let lines: Vec<&str> = body.lines().collect();
+        assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+        assert_eq!(lines[0], "--");
+        assert_eq!(lines[1], "bash");
+        assert_eq!(lines[2], "-lc");
+
+        unsafe {
+            if let Some(v) = orig_path {
+                std::env::set_var("PATH", v);
+            } else {
+                std::env::remove_var("PATH");
+            }
+            std::env::remove_var("PACSEA_TEST_OUT");
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     let msg = if cmds.is_empty() {

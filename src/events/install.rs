@@ -539,3 +539,81 @@ pub fn handle_install_key(
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn new_app() -> AppState {
+        AppState {
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    /// What: Enter opens ConfirmInstall modal when Install list not empty and not installed-only
+    ///
+    /// - Input: One install item; press Enter
+    /// - Output: Modal::ConfirmInstall with 1 item
+    fn install_enter_opens_confirm_install() {
+        let mut app = new_app();
+        app.install_list = vec![PackageItem {
+            name: "rg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+        }];
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+        let _ = handle_install_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            &dtx,
+            &ptx,
+            &atx,
+        );
+        match app.modal {
+            crate::state::Modal::ConfirmInstall { ref items } => assert_eq!(items.len(), 1),
+            _ => panic!("ConfirmInstall not opened"),
+        }
+    }
+
+    #[test]
+    /// What: Delete removes selected item from Install list in normal mode
+    ///
+    /// - Input: Two items in install_list; select first; press Delete
+    /// - Output: One item remains
+    fn install_delete_removes_item() {
+        let mut app = new_app();
+        app.install_list = vec![
+            PackageItem {
+                name: "rg".into(),
+                version: "1".into(),
+                description: String::new(),
+                source: crate::state::Source::Aur,
+                popularity: None,
+            },
+            PackageItem {
+                name: "fd".into(),
+                version: "1".into(),
+                description: String::new(),
+                source: crate::state::Source::Aur,
+                popularity: None,
+            },
+        ];
+        app.install_state.select(Some(0));
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+        let _ = handle_install_key(
+            KeyEvent::new(KeyCode::Delete, KeyModifiers::empty()),
+            &mut app,
+            &dtx,
+            &ptx,
+            &atx,
+        );
+        assert_eq!(app.install_list.len(), 1);
+    }
+}

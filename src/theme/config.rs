@@ -347,6 +347,43 @@ pub(crate) fn load_theme_from_file(path: &Path) -> Option<Theme> {
     try_load_theme_with_diagnostics(path).ok()
 }
 
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn config_try_load_theme_success_and_errors() {
+        use std::fs;
+        use std::io::Write;
+        use std::path::PathBuf;
+        // Minimal valid theme with required canonical keys
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_theme_cfg_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+        let mut p = dir.clone();
+        p.push("theme.conf");
+        let content = "base=#000000\nmantle=#000000\ncrust=#000000\nsurface1=#000000\nsurface2=#000000\noverlay1=#000000\noverlay2=#000000\ntext=#000000\nsubtext0=#000000\nsubtext1=#000000\nsapphire=#000000\nmauve=#000000\ngreen=#000000\nyellow=#000000\nred=#000000\nlavender=#000000\n";
+        fs::write(&p, content).unwrap();
+        let t = super::try_load_theme_with_diagnostics(&p).expect("valid theme");
+        let _ = t.base; // use
+
+        // Error case: unknown key + missing required
+        let mut pe = dir.clone();
+        pe.push("bad.conf");
+        let mut f = fs::File::create(&pe).unwrap();
+        writeln!(f, "unknown_key = #fff").unwrap();
+        let err = super::try_load_theme_with_diagnostics(&pe).unwrap_err();
+        assert!(err.contains("Unknown key"));
+        assert!(err.contains("Missing required keys"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
 /// Persist selected sort mode back to settings.conf (or legacy pacsea.conf), preserving comments and other keys.
 pub fn save_sort_mode(sm: crate::state::SortMode) {
     let path = resolve_settings_config_path().or_else(|| {

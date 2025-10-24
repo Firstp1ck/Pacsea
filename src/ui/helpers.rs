@@ -246,3 +246,187 @@ pub fn trigger_recent_preview(
         }
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
+        crate::state::PackageItem {
+            name: name.to_string(),
+            version: "1.0".to_string(),
+            description: format!("{name} desc"),
+            source: crate::state::Source::Official {
+                repo: repo.to_string(),
+                arch: "x86_64".to_string(),
+            },
+            popularity: None,
+        }
+    }
+
+    #[test]
+    /// What: Validate filtered indices for Recent/Install and details formatting labels
+    ///
+    /// - Input: Recent entries with pane_find; Install list with search; details with fields
+    /// - Output: Correct filtered indices; Show/Hide PKGBUILD label toggles
+    fn filtered_indices_and_details_lines() {
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        app.recent = vec!["alpha".into(), "bravo".into(), "charlie".into()];
+        assert_eq!(filtered_recent_indices(&app), vec![0, 1, 2]);
+        app.focus = crate::state::Focus::Recent;
+        app.pane_find = Some("a".into());
+        let inds = filtered_recent_indices(&app);
+        assert_eq!(inds, vec![0, 1, 2]);
+
+        app.install_list = vec![
+            item_official("ripgrep", "extra"),
+            crate::state::PackageItem {
+                name: "fd".into(),
+                version: "1".into(),
+                description: String::new(),
+                source: crate::state::Source::Aur,
+                popularity: None,
+            },
+        ];
+        app.focus = crate::state::Focus::Install;
+        app.pane_find = Some("rip".into());
+        let inds2 = filtered_install_indices(&app);
+        assert_eq!(inds2, vec![0]);
+
+        app.details = crate::state::PackageDetails {
+            repository: "extra".into(),
+            name: "ripgrep".into(),
+            version: "14".into(),
+            description: "desc".into(),
+            architecture: "x86_64".into(),
+            url: "https://example.com".into(),
+            licenses: vec!["MIT".into()],
+            groups: vec![],
+            provides: vec![],
+            depends: vec![],
+            opt_depends: vec![],
+            required_by: vec![],
+            optional_for: vec![],
+            conflicts: vec![],
+            replaces: vec![],
+            download_size: None,
+            install_size: None,
+            owner: "owner".into(),
+            build_date: "date".into(),
+            popularity: None,
+        };
+        let th = crate::theme::theme();
+        let lines = format_details_lines(&app, 80, &th);
+        assert!(
+            lines.last().unwrap().spans[0]
+                .content
+                .contains("Show PKGBUILD")
+        );
+        let mut app2 = crate::state::AppState {
+            ..Default::default()
+        };
+        app2.details = app.details.clone();
+        app2.pkgb_visible = true;
+        let lines2 = format_details_lines(&app2, 80, &th);
+        assert!(
+            lines2.last().unwrap().spans[0]
+                .content
+                .contains("Hide PKGBUILD")
+        );
+    }
+
+    #[test]
+    /// What: Validate details field rendering for sizes and list formatting
+    ///
+    /// - Input: Details with empty licenses, provides list, Some install_size
+    /// - Output: Shows N/A for missing; 1.5 KiB formatting; lists joined with commas
+    fn details_lines_sizes_and_lists() {
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        app.details = crate::state::PackageDetails {
+            repository: "extra".into(),
+            name: "ripgrep".into(),
+            version: "14".into(),
+            description: "desc".into(),
+            architecture: "x86_64".into(),
+            url: String::new(),
+            licenses: vec![],
+            groups: vec![],
+            provides: vec!["prov1".into(), "prov2".into()],
+            depends: vec![],
+            opt_depends: vec![],
+            required_by: vec![],
+            optional_for: vec![],
+            conflicts: vec![],
+            replaces: vec![],
+            download_size: None,
+            install_size: Some(1536),
+            owner: String::new(),
+            build_date: String::new(),
+            popularity: None,
+        };
+        let th = crate::theme::theme();
+        let lines = format_details_lines(&app, 80, &th);
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.spans.iter().any(|s| s.content.contains("N/A")))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.spans.iter().any(|s| s.content.contains("1.5 KiB")))
+        );
+        assert!(lines.iter().any(|l| {
+            l.spans
+                .iter()
+                .any(|s| s.content.contains("Licences") || s.content.contains("-"))
+        }));
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.spans.iter().any(|s| s.content.contains("prov1, prov2")))
+        );
+    }
+
+    #[tokio::test]
+    /// What: Ensure recent preview trigger is a no-op for non-Recent or invalid selection
+    ///
+    /// - Input: Focus not Recent; Recent without selection; filtered-out index
+    /// - Output: No messages sent on preview channel
+    async fn trigger_recent_preview_noop_when_not_recent_or_invalid() {
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        app.focus = crate::state::Focus::Search;
+        trigger_recent_preview(&app, &tx);
+        let none1 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
+            .await
+            .ok()
+            .flatten();
+        assert!(none1.is_none());
+
+        app.focus = crate::state::Focus::Recent;
+        app.recent = vec!["abc".into()];
+        app.history_state.select(None);
+        trigger_recent_preview(&app, &tx);
+        let none2 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
+            .await
+            .ok()
+            .flatten();
+        assert!(none2.is_none());
+
+        app.history_state.select(Some(0));
+        app.pane_find = Some("zzz".into());
+        trigger_recent_preview(&app, &tx);
+        let none3 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
+            .await
+            .ok()
+            .flatten();
+        assert!(none3.is_none());
+    }
+}

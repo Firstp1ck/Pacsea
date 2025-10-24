@@ -348,3 +348,101 @@ pub fn handle_event(
     }
     false
 }
+
+#[cfg(all(test, not(target_os = "windows")))]
+mod tests {
+    use super::*;
+    use crossterm::event::{
+        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    #[test]
+    /// What: SystemUpdate Enter path spawns xfce4-terminal with safe args
+    ///
+    /// - Input: Fake xfce4-terminal on PATH; open Options->Update System, press Enter
+    /// - Output: Args start with "--command" and value begins with "bash -lc "
+    fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
+        // fake xfce4-terminal
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_term_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+        let mut out_path = dir.clone();
+        out_path.push("args.txt");
+        let mut term_path = dir.clone();
+        term_path.push("xfce4-terminal");
+        let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+        fs::write(&term_path, script.as_bytes()).unwrap();
+        let mut perms = fs::metadata(&term_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&term_path, perms).unwrap();
+        let orig_path = std::env::var_os("PATH");
+        let combined_path = match std::env::var("PATH") {
+            Ok(p) => format!("{}:{}", dir.display(), p),
+            Err(_) => dir.display().to_string(),
+        };
+        unsafe {
+            std::env::set_var("PATH", combined_path);
+            std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        }
+
+        let mut app = AppState {
+            ..Default::default()
+        };
+        let (qtx, _qrx) = mpsc::unbounded_channel();
+        let (dtx, _drx) = mpsc::unbounded_channel();
+        let (ptx, _prx) = mpsc::unbounded_channel();
+        let (atx, _arx) = mpsc::unbounded_channel();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        app.options_button_rect = Some((5, 5, 10, 1));
+        let click_options = CEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 6,
+            row: 5,
+            modifiers: KeyModifiers::empty(),
+        });
+        let _ = super::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        assert!(app.options_menu_open);
+        app.options_menu_rect = Some((5, 6, 20, 3));
+        let click_menu_update = CEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 6,
+            row: 7,
+            modifiers: KeyModifiers::empty(),
+        });
+        let _ = super::handle_event(
+            click_menu_update,
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+        );
+        let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+        let _ = super::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+        let lines: Vec<&str> = body.lines().collect();
+        assert!(lines.len() >= 2);
+        assert_eq!(lines[0], "--command");
+        assert!(lines[1].starts_with("bash -lc "));
+        unsafe {
+            if let Some(v) = orig_path {
+                std::env::set_var("PATH", v);
+            } else {
+                std::env::remove_var("PATH");
+            }
+            std::env::remove_var("PACSEA_TEST_OUT");
+        }
+    }
+}

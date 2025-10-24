@@ -110,3 +110,48 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         f.render_widget(p, rect);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// What: Render full UI, set rects, and render toast without panic
+    ///
+    /// - Input: Minimal app state; first with a toast message, then without
+    /// - Output: Key rects (results/details/url) are Some; no rendering errors
+    #[test]
+    fn ui_renders_frame_and_sets_rects_and_toast() {
+        use ratatui::{Terminal, backend::TestBackend};
+
+        let backend = TestBackend::new(120, 40);
+        let mut term = Terminal::new(backend).unwrap();
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        // Seed minimal data to exercise all three sections
+        app.results = vec![crate::state::PackageItem {
+            name: "pkg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+        }];
+        app.details.url = "https://example.com".into();
+        app.toast_message = Some("Copied to clipboard".into());
+
+        term.draw(|f| {
+            super::ui(f, &mut app);
+        })
+        .unwrap();
+
+        // Expect rects set by sub-renderers
+        assert!(app.results_rect.is_some());
+        assert!(app.details_rect.is_some());
+        assert!(app.url_button_rect.is_some());
+
+        // Second render without toast should still work
+        app.toast_message = None;
+        term.draw(|f| {
+            super::ui(f, &mut app);
+        })
+        .unwrap();
+    }
+}

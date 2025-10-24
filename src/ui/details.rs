@@ -600,3 +600,59 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// What: Details render sets URL/PKGBUILD rects and mouse flags
+    ///
+    /// - Input: AppState with URL present and PKGBUILD visible
+    /// - Output: details/url/PKGBUILD rects are Some; mouse is disabled in details
+    #[test]
+    fn details_sets_url_and_pkgb_rects() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let backend = TestBackend::new(80, 20);
+        let mut term = Terminal::new(backend).unwrap();
+
+        let mut app = crate::state::AppState {
+            ..Default::default()
+        };
+        app.details = crate::state::PackageDetails {
+            repository: "extra".into(),
+            name: "ripgrep".into(),
+            version: "14".into(),
+            description: String::new(),
+            architecture: "x86_64".into(),
+            url: "https://example.com".into(),
+            licenses: vec![],
+            groups: vec![],
+            provides: vec![],
+            depends: vec![],
+            opt_depends: vec![],
+            required_by: vec![],
+            optional_for: vec![],
+            conflicts: vec![],
+            replaces: vec![],
+            download_size: None,
+            install_size: None,
+            owner: String::new(),
+            build_date: String::new(),
+            popularity: None,
+        };
+        // Show PKGBUILD area
+        app.pkgb_visible = true;
+        app.pkgb_text = Some("line1\nline2\nline3".into());
+
+        term.draw(|f| {
+            let area = f.area();
+            super::render_details(f, &mut app, area);
+        })
+        .unwrap();
+
+        assert!(app.details_rect.is_some());
+        assert!(app.url_button_rect.is_some());
+        assert!(app.pkgb_button_rect.is_some());
+        assert!(app.pkgb_check_button_rect.is_some());
+        assert!(app.pkgb_rect.is_some());
+        assert!(app.mouse_disabled_in_details);
+    }
+}
