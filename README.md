@@ -165,7 +165,7 @@ cargo run
 - **PKGBUILD copy**: For the "Copy Package Build” button, install `wl-clipboard` (Wayland) or `xclip` (X11).
 
 ## Roadmap
-- Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/4)
+- Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/11)
 - Upcoming focus: better dependency insights, accessibility, and update controls.
 
 ## Credits
