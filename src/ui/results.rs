@@ -84,6 +84,8 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                         "EOS".to_string()
                     } else if rl.starts_with("cachyos") {
                         "CachyOS".to_string()
+                    } else if rl == "manjaro" {
+                        "Manjaro".to_string()
                     } else {
                         repo.to_string()
                     };
