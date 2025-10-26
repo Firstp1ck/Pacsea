@@ -45,10 +45,15 @@ use super::terminal::{restore_terminal, setup_terminal};
 /// - Persistence: Debounces and periodically writes recent, details cache, and install list.
 /// - Cleanup: Flushes pending writes and restores terminal modes before returning.
 pub async fn run(dry_run_flag: bool) -> Result<()> {
-    setup_terminal()?;
-
     let headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
-    let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
+    if !headless {
+        setup_terminal()?;
+    }
+    let mut terminal = if headless {
+        None
+    } else {
+        Some(Terminal::new(CrosstermBackend::new(std::io::stdout()))?)
+    };
 
     let mut app = AppState {
         dry_run: if dry_run_flag {
@@ -328,8 +333,8 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     send_query(&mut app, &query_tx);
 
     loop {
-        if !headless {
-            let _ = terminal.draw(|f| ui(f, &mut app));
+        if let Some(t) = terminal.as_mut() {
+            let _ = t.draw(|f| ui(f, &mut app));
         }
 
         select! {
@@ -531,6 +536,8 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     maybe_flush_recent(&mut app);
     maybe_flush_install(&mut app);
 
-    restore_terminal()?;
+    if !headless {
+        restore_terminal()?;
+    }
     Ok(())
 }
