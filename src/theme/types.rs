@@ -238,6 +238,10 @@ pub struct KeyMap {
     pub search_normal_delete: Vec<KeyChord>,
     /// Normal mode: open Arch status page in browser (default: Shift+S)
     pub search_normal_open_status: Vec<KeyChord>,
+    /// Normal mode: trigger Import packages dialog
+    pub search_normal_import: Vec<KeyChord>,
+    /// Normal mode: trigger Export Install list
+    pub search_normal_export: Vec<KeyChord>,
 
     // Recent
     pub recent_move_up: Vec<KeyChord>,
@@ -383,6 +387,14 @@ impl Default for KeyMap {
             }],
             search_normal_open_status: vec![KeyChord {
                 code: Char('s'),
+                mods: shift,
+            }],
+            search_normal_import: vec![KeyChord {
+                code: Char('i'),
+                mods: shift,
+            }],
+            search_normal_export: vec![KeyChord {
+                code: Char('e'),
                 mods: shift,
             }],
 

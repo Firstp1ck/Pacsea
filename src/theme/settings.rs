@@ -243,6 +243,16 @@ pub fn settings() -> Settings {
                             out.keymap.search_normal_open_status = vec![ch];
                         }
                     }
+                    "keybind_search_normal_import" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.search_normal_import = vec![ch];
+                        }
+                    }
+                    "keybind_search_normal_export" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.search_normal_export = vec![ch];
+                        }
+                    }
 
                     // Recent pane
                     "keybind_recent_move_up" => {
@@ -498,6 +508,16 @@ pub fn settings() -> Settings {
                     | "keybind_open_status" => {
                         if let Some(ch) = parse_key_chord(val) {
                             out.keymap.search_normal_open_status = vec![ch];
+                        }
+                    }
+                    "keybind_search_normal_import" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.search_normal_import = vec![ch];
+                        }
+                    }
+                    "keybind_search_normal_export" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.search_normal_export = vec![ch];
                         }
                     }
                     // Recent

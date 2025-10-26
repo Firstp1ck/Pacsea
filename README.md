@@ -172,6 +172,8 @@ cargo run
 - **Default Mirrors, Mirror Search and extensive Mirror Selection**
 - **Adjustable Width of the Middle Panes**
 - **Adjustable Height of the Results and Package Info Panes**
+- **Add Multiple CLI Commands like: `pacsea -S FILENAME.txt`, `pacsea -R FILENAME.txt`, `pacsea --news`, `pacsea -Syu` and more**
+- **
 - **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
 - **Add custom Repository Support (e.g Add Cachy/Manjaro/EOS Repositories to other Arch based Systems)**
 - **Extensive Testing**

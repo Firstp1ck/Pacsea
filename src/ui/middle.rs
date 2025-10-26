@@ -527,7 +527,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
             // Style similar to other title buttons
             let btn_style_active = Style::default()
                 .fg(th.crust)
-                .bg(th.mauve)
+                .bg(th.green)
                 .add_modifier(Modifier::BOLD);
             let btn_style_inactive = Style::default()
                 .fg(th.mauve)
@@ -551,10 +551,10 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 width: import_w.min(inner_w),
                 height: 1,
             };
-            let import_line = Paragraph::new(Line::from(vec![Span::styled(
-                import_label.to_string(),
-                style,
-            )]));
+            let import_line = Paragraph::new(Line::from(vec![
+                Span::styled(&import_label[..1], style.add_modifier(Modifier::UNDERLINED)),
+                Span::styled(&import_label[1..], style),
+            ]));
             app.install_import_rect = Some((
                 import_rect.x,
                 import_rect.y,
@@ -579,10 +579,10 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 width: export_w.min(export_max_w),
                 height: 1,
             };
-            let export_line = Paragraph::new(Line::from(vec![Span::styled(
-                export_label.to_string(),
-                style,
-            )]));
+            let export_line = Paragraph::new(Line::from(vec![
+                Span::styled(&export_label[..1], style.add_modifier(Modifier::UNDERLINED)),
+                Span::styled(&export_label[1..], style),
+            ]));
             app.install_export_rect = Some((
                 export_rect.x,
                 export_rect.y,

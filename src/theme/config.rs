@@ -236,6 +236,10 @@ keybind_toggle_panels = Shift+P\n\
 # SEARCH — Normal Mode (Other)\n\
 # Open Arch status page in default browser\n\
 keybind_search_normal_open_status = Shift+S\n\
+# Import packages list into Install list\n\
+keybind_search_normal_import = Shift+I\n\
+# Export current Install list to a file\n\
+keybind_search_normal_export = Shift+E\n\
 \n\
 # RECENT — Navigation\n\
 keybind_recent_move_up = k\n\
