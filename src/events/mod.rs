@@ -114,9 +114,21 @@ pub fn handle_event(
                             };
                             // Support both Arch (reflector) and Manjaro (pacman-mirrors)
                             if country.eq("Worldwide") {
-                                cmds.push("if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then (command -v pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && sudo pacman-mirrors --fasttrack 20 && sudo pacman -Syy; else (command -v reflector >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm reflector) && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist; fi".to_string());
+                                cmds.push("(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
+    (command -v pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && \
+    sudo pacman-mirrors --fasttrack 20 && \
+    sudo pacman -Syy; \
+  else \
+    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+  fi)".to_string());
                             } else {
-                                cmds.push(format!("if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then (command -v pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && sudo pacman-mirrors --country {country} --method rank && sudo pacman -Syy; else (command -v reflector >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm reflector) && sudo reflector --verbose --country '{country}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist; fi"));
+                                cmds.push(format!("(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
+    (command -v pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && \
+    sudo pacman-mirrors --country '{country}' --method rank && \
+    sudo pacman -Syy; \
+  else \
+    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{country}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+  fi)"));
                             }
                         }
                         if *do_pacman {
@@ -260,6 +272,29 @@ pub fn handle_event(
             return false;
         }
 
+        // If any dropdown is open, ESC closes it instead of changing modes
+        if ke.code == KeyCode::Esc
+            && (app.sort_menu_open
+                || app.options_menu_open
+                || app.panels_menu_open
+                || app.config_menu_open)
+        {
+            if app.sort_menu_open {
+                app.sort_menu_open = false;
+                app.sort_menu_auto_close_at = None;
+            }
+            if app.options_menu_open {
+                app.options_menu_open = false;
+            }
+            if app.panels_menu_open {
+                app.panels_menu_open = false;
+            }
+            if app.config_menu_open {
+                app.config_menu_open = false;
+            }
+            return false;
+        }
+
         let km = &app.keymap;
         // Normalize BackTab so that SHIFT modifier does not affect matching across terminals
         let normalized_mods = if matches!(ke.code, KeyCode::BackTab) {
@@ -329,6 +364,206 @@ pub fn handle_event(
             app.sort_menu_auto_close_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
             return false;
+        }
+
+        // Note: menu toggles (Shift+C/O/P) handled in Search Normal mode and not globally
+
+        // Global: When a dropdown is open, allow numeric selection 1..9 to activate rows
+        if let crossterm::event::KeyCode::Char(ch) = ke.code
+            && ch.is_ascii_digit()
+            && ch != '0'
+        {
+            let idx = (ch as u8 - b'1') as usize; // '1' -> 0
+            // Options menu rows: 0 toggle installed-only, 1 update system, 2 news
+            if app.options_menu_open {
+                match idx {
+                    0 => {
+                        // same as mouse options handler row 0
+                        if app.installed_only_mode {
+                            if let Some(prev) = app.results_backup_for_toggle.take() {
+                                app.all_results = prev;
+                            }
+                            app.installed_only_mode = false;
+                            app.right_pane_focus = crate::state::RightPaneFocus::Install;
+                            crate::logic::apply_filters_and_sort_preserve_selection(app);
+                            utils::refresh_selected_details(app, details_tx);
+                        } else {
+                            app.results_backup_for_toggle = Some(app.all_results.clone());
+                            let explicit = crate::index::explicit_names();
+                            let mut items: Vec<crate::state::PackageItem> =
+                                crate::index::all_official()
+                                    .into_iter()
+                                    .filter(|p| explicit.contains(&p.name))
+                                    .collect();
+                            use std::collections::HashSet;
+                            let official_names: HashSet<String> =
+                                items.iter().map(|p| p.name.clone()).collect();
+                            for name in explicit.into_iter() {
+                                if !official_names.contains(&name) {
+                                    let is_eos = name.to_lowercase().contains("eos-");
+                                    let src = if is_eos {
+                                        crate::state::Source::Official {
+                                            repo: "EOS".to_string(),
+                                            arch: String::new(),
+                                        }
+                                    } else {
+                                        crate::state::Source::Aur
+                                    };
+                                    items.push(crate::state::PackageItem {
+                                        name: name.clone(),
+                                        version: String::new(),
+                                        description: String::new(),
+                                        source: src,
+                                        popularity: None,
+                                    });
+                                }
+                            }
+                            app.all_results = items;
+                            app.installed_only_mode = true;
+                            app.right_pane_focus = crate::state::RightPaneFocus::Remove;
+                            crate::logic::apply_filters_and_sort_preserve_selection(app);
+                            utils::refresh_selected_details(app, details_tx);
+                            let path = crate::theme::config_dir().join("installed_packages.txt");
+                            let mut names: Vec<String> =
+                                crate::index::explicit_names().into_iter().collect();
+                            names.sort();
+                            let body = names.join("\n");
+                            let _ = std::fs::write(path, body);
+                        }
+                    }
+                    1 => {
+                        let countries = vec![
+                            "Worldwide".to_string(),
+                            "Germany".to_string(),
+                            "United States".to_string(),
+                            "United Kingdom".to_string(),
+                            "France".to_string(),
+                            "Netherlands".to_string(),
+                            "Sweden".to_string(),
+                            "Canada".to_string(),
+                            "Australia".to_string(),
+                            "Japan".to_string(),
+                        ];
+                        app.modal = crate::state::Modal::SystemUpdate {
+                            do_mirrors: false,
+                            do_pacman: true,
+                            do_aur: true,
+                            do_cache: false,
+                            country_idx: 0,
+                            countries,
+                            cursor: 0,
+                        };
+                    }
+                    2 => {
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        std::thread::spawn(move || {
+                            let rt = tokio::runtime::Builder::new_current_thread()
+                                .enable_all()
+                                .build();
+                            let res = match rt {
+                                Ok(rt) => rt.block_on(crate::sources::fetch_arch_news(10)),
+                                Err(e) => {
+                                    Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into())
+                                }
+                            };
+                            let _ = tx.send(res);
+                        });
+                        match rx.recv_timeout(std::time::Duration::from_secs(3)) {
+                            Ok(Ok(list)) => {
+                                app.modal = crate::state::Modal::News {
+                                    items: list,
+                                    selected: 0,
+                                };
+                            }
+                            Ok(Err(e)) => {
+                                app.modal = crate::state::Modal::Alert {
+                                    message: format!("Failed to fetch news: {e}"),
+                                };
+                            }
+                            Err(_) => {
+                                app.modal = crate::state::Modal::Alert {
+                                    message: "Timed out fetching news".to_string(),
+                                };
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                app.options_menu_open = false;
+                return false;
+            }
+            // Panels menu rows: 0 recent, 1 install, 2 keybinds
+            if app.panels_menu_open {
+                match idx {
+                    0 => {
+                        app.show_recent_pane = !app.show_recent_pane;
+                        if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent)
+                        {
+                            app.focus = crate::state::Focus::Search;
+                        }
+                        crate::theme::save_show_recent_pane(app.show_recent_pane);
+                    }
+                    1 => {
+                        app.show_install_pane = !app.show_install_pane;
+                        if !app.show_install_pane
+                            && matches!(app.focus, crate::state::Focus::Install)
+                        {
+                            app.focus = crate::state::Focus::Search;
+                        }
+                        crate::theme::save_show_install_pane(app.show_install_pane);
+                    }
+                    2 => {
+                        app.show_keybinds_footer = !app.show_keybinds_footer;
+                        crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+                    }
+                    _ => {}
+                }
+                app.panels_menu_open = false;
+                return false;
+            }
+            // Config menu rows: 0 settings, 1 theme, 2 keybinds, 3 install list, 4 installed list, 5 recent
+            if app.config_menu_open {
+                let settings_path = crate::theme::config_dir().join("settings.conf");
+                let theme_path = crate::theme::config_dir().join("theme.conf");
+                let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
+                let install_path = app.install_path.clone();
+                let recent_path = app.recent_path.clone();
+                let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
+                if idx == 4 {
+                    let mut names: Vec<String> =
+                        crate::index::explicit_names().into_iter().collect();
+                    names.sort();
+                    let body = serde_json::to_string_pretty(&names).unwrap_or("[]".to_string());
+                    let _ = std::fs::write(&installed_list_path, body);
+                }
+                let target = match idx {
+                    0 => settings_path,
+                    1 => theme_path,
+                    2 => keybinds_path,
+                    3 => install_path,
+                    4 => installed_list_path,
+                    5 => recent_path,
+                    _ => {
+                        app.config_menu_open = false;
+                        return false;
+                    }
+                };
+                let path_str = target.display().to_string();
+                let editor_cmd = format!(
+                    "(command -v nvim >/dev/null 2>&1 && nvim '{path_str}') || \\
+                     (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \\
+                     (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \\
+                     (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \\
+                     (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \\
+                     (echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
+                );
+                let cmds = vec![editor_cmd];
+                std::thread::spawn(move || {
+                    crate::install::spawn_shell_commands_in_terminal(&cmds);
+                });
+                app.config_menu_open = false;
+                return false;
+            }
         }
 
         // Recent pane focused

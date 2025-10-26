@@ -113,6 +113,22 @@ pub fn settings() -> Settings {
                             out.keymap.help_overlay = vec![ch];
                         }
                     }
+                    // New: dropdown toggles
+                    "keybind_toggle_config" | "keybind_config_menu" | "keybind_config_lists" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.config_menu_toggle = vec![ch];
+                        }
+                    }
+                    "keybind_toggle_options" | "keybind_options_menu" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.options_menu_toggle = vec![ch];
+                        }
+                    }
+                    "keybind_toggle_panels" | "keybind_panels_menu" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.panels_menu_toggle = vec![ch];
+                        }
+                    }
                     "keybind_reload_theme" | "keybind_reload" => {
                         if let Some(ch) = parse_key_chord(val) {
                             out.keymap.reload_theme = vec![ch];
@@ -218,6 +234,13 @@ pub fn settings() -> Settings {
                     "keybind_search_normal_delete" => {
                         if let Some(ch) = parse_key_chord(val) {
                             out.keymap.search_normal_delete = vec![ch];
+                        }
+                    }
+                    "keybind_search_normal_open_status"
+                    | "keybind_normal_open_status"
+                    | "keybind_open_status" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.search_normal_open_status = vec![ch];
                         }
                     }
 
@@ -348,6 +371,22 @@ pub fn settings() -> Settings {
                             out.keymap.help_overlay = vec![ch];
                         }
                     }
+                    // New: dropdown toggles (legacy fallback)
+                    "keybind_toggle_config" | "keybind_config_menu" | "keybind_config_lists" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.config_menu_toggle = vec![ch];
+                        }
+                    }
+                    "keybind_toggle_options" | "keybind_options_menu" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.options_menu_toggle = vec![ch];
+                        }
+                    }
+                    "keybind_toggle_panels" | "keybind_panels_menu" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.panels_menu_toggle = vec![ch];
+                        }
+                    }
                     "keybind_reload_theme" | "keybind_reload" => {
                         if let Some(ch) = parse_key_chord(val) {
                             out.keymap.reload_theme = vec![ch];
@@ -452,6 +491,13 @@ pub fn settings() -> Settings {
                     "keybind_search_normal_delete" => {
                         if let Some(ch) = parse_key_chord(val) {
                             out.keymap.search_normal_delete = vec![ch];
+                        }
+                    }
+                    "keybind_search_normal_open_status"
+                    | "keybind_normal_open_status"
+                    | "keybind_open_status" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.search_normal_open_status = vec![ch];
                         }
                     }
                     // Recent

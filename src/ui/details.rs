@@ -263,6 +263,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
+            // Menu toggles are shown under Search (Normal mode) now
             if let Some(k) = km.show_pkgbuild.first() {
                 g_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
@@ -318,6 +319,14 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 s_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
                     Span::raw(" Install"),
+                    sep.clone(),
+                ]);
+            }
+            // Normal Mode toggle (always visible in footer)
+            if let Some(k) = km.search_normal_toggle.first() {
+                s_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" Normal Mode"),
                     sep.clone(),
                 ]);
             }
@@ -569,6 +578,56 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Span::raw(" select, "),
                     Span::styled(format!("[{delete_label}]"), key_style),
                     Span::raw(" delete"),
+                    // Menus: show configured Normal-mode menu toggles
+                    // Add only when at least one is configured
+                    if !km.config_menu_toggle.is_empty()
+                        || !km.options_menu_toggle.is_empty()
+                        || !km.panels_menu_toggle.is_empty()
+                    {
+                        Span::raw("  •  menus: ")
+                    } else {
+                        Span::raw("")
+                    },
+                    if let Some(k) = km.config_menu_toggle.first() {
+                        Span::styled(format!("[{}]", k.label()), key_style)
+                    } else {
+                        Span::raw("")
+                    },
+                    if !km.config_menu_toggle.is_empty() {
+                        Span::raw(" Config")
+                    } else {
+                        Span::raw("")
+                    },
+                    if !km.options_menu_toggle.is_empty() {
+                        Span::raw(", ")
+                    } else {
+                        Span::raw("")
+                    },
+                    if let Some(k) = km.options_menu_toggle.first() {
+                        Span::styled(format!("[{}]", k.label()), key_style)
+                    } else {
+                        Span::raw("")
+                    },
+                    if !km.options_menu_toggle.is_empty() {
+                        Span::raw(" Options")
+                    } else {
+                        Span::raw("")
+                    },
+                    if !km.panels_menu_toggle.is_empty() {
+                        Span::raw(", ")
+                    } else {
+                        Span::raw("")
+                    },
+                    if let Some(k) = km.panels_menu_toggle.first() {
+                        Span::styled(format!("[{}]", k.label()), key_style)
+                    } else {
+                        Span::raw("")
+                    },
+                    if !km.panels_menu_toggle.is_empty() {
+                        Span::raw(" Panels")
+                    } else {
+                        Span::raw("")
+                    },
                 ];
                 lines.push(Line::from(n_spans));
             }

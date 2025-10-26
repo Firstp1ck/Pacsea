@@ -227,6 +227,16 @@ keybind_search_normal_select_left = h\n\
 keybind_search_normal_select_right = l\n\
 keybind_search_normal_delete = d\n\
 \n\
+# SEARCH — Normal Mode (Menus)\n\
+# Toggle dropdown menus while in Normal Mode\n\
+keybind_toggle_config = Shift+C\n\
+keybind_toggle_options = Shift+O\n\
+keybind_toggle_panels = Shift+P\n\
+\n\
+# SEARCH — Normal Mode (Other)\n\
+# Open Arch status page in default browser\n\
+keybind_search_normal_open_status = Shift+S\n\
+\n\
 # RECENT — Navigation\n\
 keybind_recent_move_up = k\n\
 keybind_recent_move_down = j\n\

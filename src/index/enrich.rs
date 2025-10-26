@@ -63,6 +63,12 @@ pub fn request_enrich_for(
                         let d = cur_desc.take().unwrap_or_default();
                         let a = cur_arch.take().unwrap_or_default();
                         let mut r = cur_repo.take().unwrap_or_default();
+                        // Detect Manjaro packages: name starts with "manjaro-" or packager contains "manjaro"
+                        let packager = cur_packager.take().unwrap_or_default();
+                        if n.starts_with("manjaro-") || packager.to_lowercase().contains("manjaro")
+                        {
+                            r = "manjaro".to_string();
+                        }
                         let v = cur_ver.take().unwrap_or_default();
                         let packager = cur_packager.take().unwrap_or_default();
 
@@ -83,6 +89,7 @@ pub fn request_enrich_for(
                         "Description" => cur_desc = Some(val.to_string()),
                         "Architecture" => cur_arch = Some(val.to_string()),
                         "Repository" => cur_repo = Some(val.to_string()),
+                        "Packager" => cur_packager = Some(val.to_string()),
                         "Version" => cur_ver = Some(val.to_string()),
                         "Packager" => cur_packager = Some(val.to_string()),
                         _ => {}

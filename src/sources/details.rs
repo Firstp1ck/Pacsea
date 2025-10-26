@@ -116,9 +116,9 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
 
     let pd = PackageDetails {
         repository: {
+            // Detect Manjaro packages: name starts with "manjaro-" or packager contains "manjaro"
             let pkg_name = map.get("Name").map(|s| s.as_str()).unwrap_or(name);
             let packager = map.get("Packager").map(|s| s.as_str()).unwrap_or("");
-            // Detect Manjaro packages: name starts with "manjaro-" or packager contains "manjaro"
             if pkg_name.starts_with("manjaro-") || packager.to_lowercase().contains("manjaro") {
                 "manjaro".to_string()
             } else {

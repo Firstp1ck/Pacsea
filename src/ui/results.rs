@@ -295,7 +295,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .bg(th.surface2)
                 .add_modifier(Modifier::BOLD)
         };
-        title_spans.push(Span::styled(config_button_label.clone(), cfg_btn_style));
+        // Render Config/Lists button with underlined first char (C)
+        if let Some(first) = config_button_label.chars().next() {
+            let rest = &config_button_label[first.len_utf8()..];
+            title_spans.push(Span::styled(
+                first.to_string(),
+                cfg_btn_style.add_modifier(Modifier::UNDERLINED),
+            ));
+            title_spans.push(Span::styled(rest.to_string(), cfg_btn_style));
+        } else {
+            title_spans.push(Span::styled(config_button_label.clone(), cfg_btn_style));
+        }
         title_spans.push(Span::raw(" "));
         let pan_btn_style = if app.panels_menu_open {
             Style::default()
@@ -308,7 +318,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .bg(th.surface2)
                 .add_modifier(Modifier::BOLD)
         };
-        title_spans.push(Span::styled(panels_button_label.clone(), pan_btn_style));
+        // Render Panels button with underlined first char (P)
+        if let Some(first) = panels_button_label.chars().next() {
+            let rest = &panels_button_label[first.len_utf8()..];
+            title_spans.push(Span::styled(
+                first.to_string(),
+                pan_btn_style.add_modifier(Modifier::UNDERLINED),
+            ));
+            title_spans.push(Span::styled(rest.to_string(), pan_btn_style));
+        } else {
+            title_spans.push(Span::styled(panels_button_label.clone(), pan_btn_style));
+        }
         title_spans.push(Span::raw(" "));
         let opt_btn_style = if app.options_menu_open {
             Style::default()
@@ -321,7 +341,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .bg(th.surface2)
                 .add_modifier(Modifier::BOLD)
         };
-        title_spans.push(Span::styled(options_button_label.clone(), opt_btn_style));
+        // Render Options button with underlined first char (O)
+        if let Some(first) = options_button_label.chars().next() {
+            let rest = &options_button_label[first.len_utf8()..];
+            title_spans.push(Span::styled(
+                first.to_string(),
+                opt_btn_style.add_modifier(Modifier::UNDERLINED),
+            ));
+            title_spans.push(Span::styled(rest.to_string(), opt_btn_style));
+        } else {
+            title_spans.push(Span::styled(options_button_label.clone(), opt_btn_style));
+        }
 
         // Record clickable rects at the computed right edge (Panels to the left of Options)
         let opt_x = area
@@ -359,7 +389,24 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     // Draw status label on the bottom border line of the Results block
     // Bottom border y coordinate is area.y + area.height - 1
-    let status_text = format!("Status: {}", app.arch_status_text);
+    // Append the Normal-mode keybind used to open the status page only when Search Normal mode is active
+    let key_label_opt = app
+        .keymap
+        .search_normal_open_status
+        .first()
+        .map(|c| c.label());
+    let show_key = matches!(app.focus, crate::state::Focus::Search)
+        && app.search_normal_mode
+        && key_label_opt.is_some();
+    let status_text = if show_key {
+        format!(
+            "Status: {} [{}]",
+            app.arch_status_text,
+            key_label_opt.unwrap()
+        )
+    } else {
+        format!("Status: {}", app.arch_status_text)
+    };
     let sx = area.x.saturating_add(2); // a bit of left padding after corner
     let sy = area.y.saturating_add(area.height.saturating_sub(1));
     let maxw = area.width.saturating_sub(4); // avoid right corner
@@ -521,22 +568,33 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         // Record inner list area for hit-testing (exclude borders)
         app.config_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
 
+        // Build lines with right-aligned row numbers 1..N
         let mut lines: Vec<Line> = Vec::new();
-        for text in opts.iter() {
-            lines.push(Line::from(vec![Span::styled(
-                text.to_string(),
-                Style::default().fg(th.text),
-            )]));
+        for (i, text) in opts.iter().enumerate() {
+            let num = format!("{}", i + 1);
+            let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
+            let padding = " ".repeat(pad as usize);
+            lines.push(Line::from(vec![
+                Span::styled(text.to_string(), Style::default().fg(th.text)),
+                Span::raw(padding),
+                Span::styled(num, Style::default().fg(th.overlay1)),
+            ]));
         }
         let menu = Paragraph::new(lines)
-            .style(Style::default().fg(th.text).bg(th.base))
+            .style(Style::default().fg(th.text).bg(th.surface2))
             .wrap(Wrap { trim: true })
             .block(
                 Block::default()
-                    .title(Span::styled(
-                        " Config/Lists ",
-                        Style::default().fg(th.overlay1),
-                    ))
+                    .title(Line::from(vec![
+                        Span::styled(" ", Style::default().fg(th.overlay1)),
+                        Span::styled(
+                            "C",
+                            Style::default()
+                                .fg(th.overlay1)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
+                        Span::styled("onfig/Lists ", Style::default().fg(th.overlay1)),
+                    ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(th.surface2)),
@@ -583,18 +641,31 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         app.panels_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
 
         let mut lines: Vec<Line> = Vec::new();
-        for text in opts.iter() {
-            lines.push(Line::from(vec![Span::styled(
-                text.to_string(),
-                Style::default().fg(th.text),
-            )]));
+        for (i, text) in opts.iter().enumerate() {
+            let num = format!("{}", i + 1);
+            let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
+            let padding = " ".repeat(pad as usize);
+            lines.push(Line::from(vec![
+                Span::styled(text.to_string(), Style::default().fg(th.text)),
+                Span::raw(padding),
+                Span::styled(num, Style::default().fg(th.overlay1)),
+            ]));
         }
         let menu = Paragraph::new(lines)
-            .style(Style::default().fg(th.text).bg(th.base))
+            .style(Style::default().fg(th.text).bg(th.surface2))
             .wrap(Wrap { trim: true })
             .block(
                 Block::default()
-                    .title(Span::styled(" Panels ", Style::default().fg(th.overlay1)))
+                    .title(Line::from(vec![
+                        Span::styled(" ", Style::default().fg(th.overlay1)),
+                        Span::styled(
+                            "P",
+                            Style::default()
+                                .fg(th.overlay1)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
+                        Span::styled("anels ", Style::default().fg(th.overlay1)),
+                    ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(th.surface2)),
@@ -630,20 +701,33 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         // Record inner list area for hit-testing (exclude borders)
         app.options_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
 
-        // Build lines (single selectable option)
+        // Build lines with right-aligned row numbers 1..N
         let mut lines: Vec<Line> = Vec::new();
-        for text in opts.iter() {
-            lines.push(Line::from(vec![Span::styled(
-                text.to_string(),
-                Style::default().fg(th.text),
-            )]));
+        for (i, text) in opts.iter().enumerate() {
+            let num = format!("{}", i + 1);
+            let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
+            let padding = " ".repeat(pad as usize);
+            lines.push(Line::from(vec![
+                Span::styled(text.to_string(), Style::default().fg(th.text)),
+                Span::raw(padding),
+                Span::styled(num, Style::default().fg(th.overlay1)),
+            ]));
         }
         let menu = Paragraph::new(lines)
-            .style(Style::default().fg(th.text).bg(th.base))
+            .style(Style::default().fg(th.text).bg(th.surface2))
             .wrap(Wrap { trim: true })
             .block(
                 Block::default()
-                    .title(Span::styled(" Options ", Style::default().fg(th.overlay1)))
+                    .title(Line::from(vec![
+                        Span::styled(" ", Style::default().fg(th.overlay1)),
+                        Span::styled(
+                            "O",
+                            Style::default()
+                                .fg(th.overlay1)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
+                        Span::styled("ptions ", Style::default().fg(th.overlay1)),
+                    ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(th.surface2)),

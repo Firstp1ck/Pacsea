@@ -207,6 +207,12 @@ pub struct KeyMap {
     pub pane_next: Vec<KeyChord>,
     pub pane_left: Vec<KeyChord>,
     pub pane_right: Vec<KeyChord>,
+    /// Global: Toggle Config/Lists dropdown
+    pub config_menu_toggle: Vec<KeyChord>,
+    /// Global: Toggle Options dropdown
+    pub options_menu_toggle: Vec<KeyChord>,
+    /// Global: Toggle Panels dropdown
+    pub panels_menu_toggle: Vec<KeyChord>,
 
     // Search
     pub search_move_up: Vec<KeyChord>,
@@ -230,6 +236,8 @@ pub struct KeyMap {
     pub search_normal_select_right: Vec<KeyChord>,
     /// Normal mode: delete selected text (default: d)
     pub search_normal_delete: Vec<KeyChord>,
+    /// Normal mode: open Arch status page in browser (default: Shift+S)
+    pub search_normal_open_status: Vec<KeyChord>,
 
     // Recent
     pub recent_move_up: Vec<KeyChord>,
@@ -301,6 +309,20 @@ impl Default for KeyMap {
                 mods: none,
             }],
 
+            // Dropdown toggles (defaults: Shift+C / Shift+O / Shift+P)
+            config_menu_toggle: vec![KeyChord {
+                code: Char('c'),
+                mods: shift,
+            }],
+            options_menu_toggle: vec![KeyChord {
+                code: Char('o'),
+                mods: shift,
+            }],
+            panels_menu_toggle: vec![KeyChord {
+                code: Char('p'),
+                mods: shift,
+            }],
+
             search_move_up: vec![KeyChord {
                 code: Up,
                 mods: none,
@@ -358,6 +380,10 @@ impl Default for KeyMap {
             search_normal_delete: vec![KeyChord {
                 code: Char('d'),
                 mods: none,
+            }],
+            search_normal_open_status: vec![KeyChord {
+                code: Char('s'),
+                mods: shift,
             }],
 
             recent_move_up: vec![

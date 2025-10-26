@@ -117,6 +117,8 @@ pub fn handle_recent_key(
         }
         KeyCode::Esc => {
             app.focus = crate::state::Focus::Search;
+            // Activate Search Normal mode when returning with Esc
+            app.search_normal_mode = true;
             refresh_selected_details(app, details_tx);
         }
         code if matches_any(&km.pane_next) && code == ke.code => {

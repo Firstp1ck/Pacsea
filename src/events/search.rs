@@ -35,9 +35,37 @@ pub fn handle_search_key(
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
     let km = &app.keymap;
-    let chord = (ke.code, ke.modifiers);
-    let matches_any =
-        |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
+    // Match helper that treats Shift+<char> from config as equivalent to uppercase char without Shift from terminal
+    let matches_any = |list: &Vec<crate::theme::KeyChord>| {
+        list.iter().any(|c| {
+            if (c.code, c.mods) == (ke.code, ke.modifiers) {
+                return true;
+            }
+            match (c.code, ke.code) {
+                (
+                    crossterm::event::KeyCode::Char(cfg_ch),
+                    crossterm::event::KeyCode::Char(ev_ch),
+                ) => {
+                    let cfg_has_shift = c.mods.contains(crossterm::event::KeyModifiers::SHIFT);
+                    if !cfg_has_shift {
+                        return false;
+                    }
+                    // Accept uppercase event regardless of SHIFT flag
+                    if ev_ch == cfg_ch.to_ascii_uppercase() {
+                        return true;
+                    }
+                    // Accept lowercase char if terminal reports SHIFT in modifiers
+                    if ke.modifiers.contains(crossterm::event::KeyModifiers::SHIFT)
+                        && ev_ch.to_ascii_lowercase() == cfg_ch
+                    {
+                        return true;
+                    }
+                    false
+                }
+                _ => false,
+            }
+        })
+    };
 
     // Toggle Normal mode (configurable)
     if matches_any(&km.search_normal_toggle) {
@@ -47,7 +75,93 @@ pub fn handle_search_key(
 
     // Normal mode: Vim-like navigation without editing input
     if app.search_normal_mode {
+        // If any dropdown is open, allow numeric selection 1..9 here as a fallback
+        if let KeyCode::Char(ch) = ke.code
+            && ch.is_ascii_digit() && ch != '0' {
+                let idx = (ch as u8 - b'1') as usize;
+                // Config/Lists menu numeric selection (rows 0..5)
+                if app.config_menu_open {
+                    let settings_path = crate::theme::config_dir().join("settings.conf");
+                    let theme_path = crate::theme::config_dir().join("theme.conf");
+                    let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
+                    let install_path = app.install_path.clone();
+                    let recent_path = app.recent_path.clone();
+                    let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
+                    if idx == 4 {
+                        let mut names: Vec<String> =
+                            crate::index::explicit_names().into_iter().collect();
+                        names.sort();
+                        let body = serde_json::to_string_pretty(&names).unwrap_or("[]".to_string());
+                        let _ = std::fs::write(&installed_list_path, body);
+                    }
+                    let target = match idx {
+                        0 => settings_path,
+                        1 => theme_path,
+                        2 => keybinds_path,
+                        3 => install_path,
+                        4 => installed_list_path,
+                        5 => recent_path,
+                        _ => {
+                            app.config_menu_open = false;
+                            return false;
+                        }
+                    };
+                    let path_str = target.display().to_string();
+                    let editor_cmd = format!(
+                        "(command -v nvim >/dev/null 2>&1 && nvim '{path_str}') || \\\n                         (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \\\n                         (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \\\n                         (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \\\n                         (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \\\n                         (echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
+                    );
+                    let cmds = vec![editor_cmd];
+                    std::thread::spawn(move || {
+                        crate::install::spawn_shell_commands_in_terminal(&cmds);
+                    });
+                    app.config_menu_open = false;
+                    return false;
+                }
+            }
+
         match (ke.code, ke.modifiers) {
+            // Menu toggles in Normal mode
+            (c, m) if matches_any(&km.config_menu_toggle) && (c, m) == (ke.code, ke.modifiers) => {
+                app.config_menu_open = !app.config_menu_open;
+                if app.config_menu_open {
+                    app.options_menu_open = false;
+                    app.panels_menu_open = false;
+                    app.sort_menu_open = false;
+                    app.sort_menu_auto_close_at = None;
+                }
+            }
+            (c, m) if matches_any(&km.options_menu_toggle) && (c, m) == (ke.code, ke.modifiers) => {
+                app.options_menu_open = !app.options_menu_open;
+                if app.options_menu_open {
+                    app.config_menu_open = false;
+                    app.panels_menu_open = false;
+                    app.sort_menu_open = false;
+                    app.sort_menu_auto_close_at = None;
+                }
+            }
+            (c, m) if matches_any(&km.panels_menu_toggle) && (c, m) == (ke.code, ke.modifiers) => {
+                app.panels_menu_open = !app.panels_menu_open;
+                if app.panels_menu_open {
+                    app.config_menu_open = false;
+                    app.options_menu_open = false;
+                    app.sort_menu_open = false;
+                    app.sort_menu_auto_close_at = None;
+                }
+            }
+            // Open Arch status page in default browser
+            (c, m)
+                if matches_any(&km.search_normal_open_status)
+                    && (c, m) == (ke.code, ke.modifiers) =>
+            {
+                std::thread::spawn(move || {
+                    let _ = std::process::Command::new("xdg-open")
+                        .arg("https://status.archlinux.org")
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn();
+                });
+            }
             (c, m)
                 if matches_any(&km.search_normal_insert) && (c, m) == (ke.code, ke.modifiers) =>
             {

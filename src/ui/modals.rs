@@ -386,6 +386,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             if let Some(k) = km.reload_theme.first().copied() {
                 lines.push(fmt("Reload theme", k));
             }
+            // Move menu toggles into Normal Mode section; omit here
             if let Some(k) = km.pane_next.first().copied() {
                 lines.push(fmt("Next pane", k));
             }
@@ -461,6 +462,10 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .or(km.search_normal_select_left.first())
                 .or(km.search_normal_select_right.first())
                 .or(km.search_normal_delete.first())
+                .or(km.search_normal_open_status.first())
+                .or(km.config_menu_toggle.first())
+                .or(km.options_menu_toggle.first())
+                .or(km.panels_menu_toggle.first())
                 .is_some()
             {
                 lines.push(Line::from(""));
@@ -484,6 +489,18 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 }
                 if let Some(k) = km.search_normal_delete.first().copied() {
                     lines.push(fmt("  Delete", k));
+                }
+                if let Some(k) = km.search_normal_open_status.first().copied() {
+                    lines.push(fmt("  Open Arch status", k));
+                }
+                if let Some(k) = km.config_menu_toggle.first().copied() {
+                    lines.push(fmt("  Config/Lists menu", k));
+                }
+                if let Some(k) = km.options_menu_toggle.first().copied() {
+                    lines.push(fmt("  Options menu", k));
+                }
+                if let Some(k) = km.panels_menu_toggle.first().copied() {
+                    lines.push(fmt("  Panels menu", k));
                 }
             }
 
