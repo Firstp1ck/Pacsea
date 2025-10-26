@@ -15,5 +15,3 @@ mod tests {
         assert!(!super::is_name_manjaro("alsa"));
     }
 }
-
-

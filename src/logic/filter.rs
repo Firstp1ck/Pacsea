@@ -1,5 +1,12 @@
 use crate::state::{AppState, PackageItem, Source};
 
+#[inline]
+fn return_if_true(cond: bool, it: PackageItem, out: &mut Vec<PackageItem>) {
+    if cond {
+        out.push(it);
+    }
+}
+
 /// What: Apply current repo/AUR filters to `app.all_results`, write into `app.results`, then sort.
 ///
 /// Inputs:
@@ -21,6 +28,11 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
         let include = match &it.source {
             Source::Aur => app.results_filter_show_aur,
             Source::Official { repo, .. } => {
+                // Manjaro identification is strictly by name prefix "manjaro-"
+                if crate::index::is_name_manjaro(&it.name) {
+                    return_if_true(app.results_filter_show_manjaro, it, &mut filtered);
+                    continue;
+                }
                 let r = repo.to_lowercase();
                 if r == "core" {
                     app.results_filter_show_core
@@ -32,8 +44,6 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
                     app.results_filter_show_eos
                 } else if r.starts_with("cachyos") {
                     app.results_filter_show_cachyos
-                } else if r == "manjaro" {
-                    app.results_filter_show_manjaro
                 } else {
                     // Unknown official repo: include only when all official filters are enabled
                     app.results_filter_show_core
@@ -41,7 +51,6 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
                         && app.results_filter_show_multilib
                         && app.results_filter_show_eos
                         && app.results_filter_show_cachyos
-                        && app.results_filter_show_manjaro
                 }
             }
         };

@@ -77,47 +77,49 @@ pub fn handle_search_key(
     if app.search_normal_mode {
         // If any dropdown is open, allow numeric selection 1..9 here as a fallback
         if let KeyCode::Char(ch) = ke.code
-            && ch.is_ascii_digit() && ch != '0' {
-                let idx = (ch as u8 - b'1') as usize;
-                // Config/Lists menu numeric selection (rows 0..5)
-                if app.config_menu_open {
-                    let settings_path = crate::theme::config_dir().join("settings.conf");
-                    let theme_path = crate::theme::config_dir().join("theme.conf");
-                    let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-                    let install_path = app.install_path.clone();
-                    let recent_path = app.recent_path.clone();
-                    let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
-                    if idx == 4 {
-                        let mut names: Vec<String> =
-                            crate::index::explicit_names().into_iter().collect();
-                        names.sort();
-                        let body = serde_json::to_string_pretty(&names).unwrap_or("[]".to_string());
-                        let _ = std::fs::write(&installed_list_path, body);
-                    }
-                    let target = match idx {
-                        0 => settings_path,
-                        1 => theme_path,
-                        2 => keybinds_path,
-                        3 => install_path,
-                        4 => installed_list_path,
-                        5 => recent_path,
-                        _ => {
-                            app.config_menu_open = false;
-                            return false;
-                        }
-                    };
-                    let path_str = target.display().to_string();
-                    let editor_cmd = format!(
-                        "(command -v nvim >/dev/null 2>&1 && nvim '{path_str}') || \\\n                         (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \\\n                         (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \\\n                         (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \\\n                         (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \\\n                         (echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
-                    );
-                    let cmds = vec![editor_cmd];
-                    std::thread::spawn(move || {
-                        crate::install::spawn_shell_commands_in_terminal(&cmds);
-                    });
-                    app.config_menu_open = false;
-                    return false;
+            && ch.is_ascii_digit()
+            && ch != '0'
+        {
+            let idx = (ch as u8 - b'1') as usize;
+            // Config/Lists menu numeric selection (rows 0..5)
+            if app.config_menu_open {
+                let settings_path = crate::theme::config_dir().join("settings.conf");
+                let theme_path = crate::theme::config_dir().join("theme.conf");
+                let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
+                let install_path = app.install_path.clone();
+                let recent_path = app.recent_path.clone();
+                let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
+                if idx == 4 {
+                    let mut names: Vec<String> =
+                        crate::index::explicit_names().into_iter().collect();
+                    names.sort();
+                    let body = serde_json::to_string_pretty(&names).unwrap_or("[]".to_string());
+                    let _ = std::fs::write(&installed_list_path, body);
                 }
+                let target = match idx {
+                    0 => settings_path,
+                    1 => theme_path,
+                    2 => keybinds_path,
+                    3 => install_path,
+                    4 => installed_list_path,
+                    5 => recent_path,
+                    _ => {
+                        app.config_menu_open = false;
+                        return false;
+                    }
+                };
+                let path_str = target.display().to_string();
+                let editor_cmd = format!(
+                    "(command -v nvim >/dev/null 2>&1 && nvim '{path_str}') || \\\n                         (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \\\n                         (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \\\n                         (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \\\n                         (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \\\n                         (echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
+                );
+                let cmds = vec![editor_cmd];
+                std::thread::spawn(move || {
+                    crate::install::spawn_shell_commands_in_terminal(&cmds);
+                });
+                app.config_menu_open = false;
+                return false;
             }
+        }
 
         match (ke.code, ke.modifiers) {
             // Menu toggles in Normal mode
