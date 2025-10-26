@@ -257,6 +257,8 @@ pub struct AppState {
     pub results_filter_show_eos: bool,
     /// Whether to include packages from `cachyos*` repos in the Results view.
     pub results_filter_show_cachyos: bool,
+    /// Whether to include packages labeled as `manjaro` in the Results view.
+    pub results_filter_show_manjaro: bool,
     /// Clickable rectangle for the AUR filter toggle in the Results title (x, y, w, h).
     pub results_filter_aur_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the core filter toggle in the Results title (x, y, w, h).
@@ -269,6 +271,8 @@ pub struct AppState {
     pub results_filter_eos_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the CachyOS filter toggle in the Results title (x, y, w, h).
     pub results_filter_cachyos_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Manjaro filter toggle in the Results title (x, y, w, h).
+    pub results_filter_manjaro_rect: Option<(u16, u16, u16, u16)>,
 
     // Background refresh of installed/explicit caches after package mutations
     /// If `Some`, keep polling pacman/yay to refresh installed/explicit caches until this time.
@@ -416,12 +420,14 @@ impl Default for AppState {
             results_filter_show_multilib: true,
             results_filter_show_eos: true,
             results_filter_show_cachyos: true,
+            results_filter_show_manjaro: true,
             results_filter_aur_rect: None,
             results_filter_core_rect: None,
             results_filter_extra_rect: None,
             results_filter_multilib_rect: None,
             results_filter_eos_rect: None,
             results_filter_cachyos_rect: None,
+            results_filter_manjaro_rect: None,
 
             // Package mutation cache refresh state (inactive by default)
             refresh_installed_until: None,

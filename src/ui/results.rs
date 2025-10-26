@@ -28,9 +28,10 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 
     // Detect availability of optional repos from the official index
-    let (has_eos, has_cachyos) = {
+    let (has_eos, has_cachyos, has_manjaro) = {
         let mut eos = false;
         let mut cach = false;
+        let mut manj = false;
         for it in crate::index::all_official().iter() {
             if let Source::Official { repo, .. } = &it.source {
                 let r = repo.to_lowercase();
@@ -40,12 +41,15 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                 if !cach && r.starts_with("cachyos") {
                     cach = true;
                 }
-                if eos && cach {
+                if !manj && r == "manjaro" {
+                    manj = true;
+                }
+                if eos && cach && manj {
                     break;
                 }
             }
         }
-        (eos, cach)
+        (eos, cach, manj)
     };
 
     // Keep selection centered within the visible results list when possible
@@ -198,6 +202,10 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         title_spans.push(Span::raw(" "));
         title_spans.push(filt("CachyOS", app.results_filter_show_cachyos));
     }
+    if has_manjaro {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt("Manjaro", app.results_filter_show_manjaro));
+    }
 
     // Estimate and record clickable rects for controls on the title line (top border row)
     let mut x_cursor = area
@@ -249,6 +257,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         app.results_filter_cachyos_rect = Some(rec_rect(x_cursor, cachyos_label));
     } else {
         app.results_filter_cachyos_rect = None;
+    }
+    if has_cachyos {
+        x_cursor = x_cursor
+            .saturating_add(cachyos_label.len() as u16)
+            .saturating_add(1);
+    }
+    let manjaro_label = "[Manjaro]";
+    if has_manjaro {
+        app.results_filter_manjaro_rect = Some(rec_rect(x_cursor, manjaro_label));
+    } else {
+        app.results_filter_manjaro_rect = None;
     }
 
     // Right-aligned Config/Lists, Panels and Options buttons: compute remaining space and append to title spans

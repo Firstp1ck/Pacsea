@@ -32,6 +32,8 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
                     app.results_filter_show_eos
                 } else if r.starts_with("cachyos") {
                     app.results_filter_show_cachyos
+                } else if r == "manjaro" {
+                    app.results_filter_show_manjaro
                 } else {
                     // Unknown official repo: include only when all official filters are enabled
                     app.results_filter_show_core
@@ -39,6 +41,7 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
                         && app.results_filter_show_multilib
                         && app.results_filter_show_eos
                         && app.results_filter_show_cachyos
+                        && app.results_filter_show_manjaro
                 }
             }
         };

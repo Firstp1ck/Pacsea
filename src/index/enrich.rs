@@ -64,18 +64,12 @@ pub fn request_enrich_for(
                         let a = cur_arch.take().unwrap_or_default();
                         let mut r = cur_repo.take().unwrap_or_default();
                         // Detect Manjaro packages: name starts with "manjaro-" or packager contains "manjaro"
-                        let packager = cur_packager.take().unwrap_or_default();
-                        if n.starts_with("manjaro-") || packager.to_lowercase().contains("manjaro")
+                        let packager_val = cur_packager.take().unwrap_or_default();
+                        if n.starts_with("manjaro-") || packager_val.to_lowercase().contains("manjaro")
                         {
                             r = "manjaro".to_string();
                         }
                         let v = cur_ver.take().unwrap_or_default();
-                        let packager = cur_packager.take().unwrap_or_default();
-
-                        // Detect Manjaro packages: name starts with "manjaro-" or packager contains "manjaro"
-                        if n.starts_with("manjaro-") || packager.to_lowercase().contains("manjaro") {
-                            r = "manjaro".to_string();
-                        }
 
                         desc_map.insert(n, (d, a, r, v));
                     }
@@ -91,7 +85,6 @@ pub fn request_enrich_for(
                         "Repository" => cur_repo = Some(val.to_string()),
                         "Packager" => cur_packager = Some(val.to_string()),
                         "Version" => cur_ver = Some(val.to_string()),
-                        "Packager" => cur_packager = Some(val.to_string()),
                         _ => {}
                     }
                 }
