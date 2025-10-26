@@ -28,8 +28,14 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
         let include = match &it.source {
             Source::Aur => app.results_filter_show_aur,
             Source::Official { repo, .. } => {
-                // Manjaro identification is strictly by name prefix "manjaro-"
-                if crate::index::is_name_manjaro(&it.name) {
+                // Unified Manjaro detection: name prefix or owner contains "manjaro" when available.
+                // Prefer details_cache owner if present; fall back to name-only rule.
+                let owner = app
+                    .details_cache
+                    .get(&it.name)
+                    .map(|d| d.owner.clone())
+                    .unwrap_or_default();
+                if crate::index::is_manjaro_name_or_owner(&it.name, &owner) {
                     return_if_true(app.results_filter_show_manjaro, it, &mut filtered);
                     continue;
                 }

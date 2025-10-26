@@ -43,15 +43,11 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
         ])
     }
     let d = &app.details;
-    // Compute display repository with Manjaro heuristic override for clarity in UI.
-    let repo_display = {
-        let name_l = d.name.to_lowercase();
-        let owner_l = d.owner.to_lowercase();
-        if name_l.starts_with("manjaro-") || owner_l.contains("manjaro") {
-            "manjaro".to_string()
-        } else {
-            d.repository.clone()
-        }
+    // Compute display repository using unified Manjaro detection (name prefix or owner).
+    let repo_display = if crate::index::is_manjaro_name_or_owner(&d.name, &d.owner) {
+        "manjaro".to_string()
+    } else {
+        d.repository.clone()
     };
     // Each line is a label/value pair derived from the current details view.
     let mut lines = vec![

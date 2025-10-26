@@ -95,13 +95,18 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             let (src, color) = match &p.source {
                 Source::Official { repo, .. } => {
                     let rl = repo.to_lowercase();
-                    // Show Manjaro label strictly by package name prefix as requested
-                    let name_is_manjaro = crate::index::is_name_manjaro(&p.name);
+                    // Use unified Manjaro detection: name prefix or owner contains "manjaro" from details cache
+                    let owner = app
+                        .details_cache
+                        .get(&p.name)
+                        .map(|d| d.owner.clone())
+                        .unwrap_or_default();
+                    let is_manjaro = crate::index::is_manjaro_name_or_owner(&p.name, &owner);
                     let label = if rl == "eos" || rl == "endeavouros" {
                         "EOS".to_string()
                     } else if rl.starts_with("cachyos") {
                         "CachyOS".to_string()
-                    } else if name_is_manjaro {
+                    } else if is_manjaro {
                         "Manjaro".to_string()
                     } else {
                         repo.to_string()

@@ -38,7 +38,7 @@ static INSTALLED_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 static EXPLICIT_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
 mod manjaro;
-pub use manjaro::is_name_manjaro;
+pub use manjaro::{is_manjaro_name_or_owner, is_name_manjaro};
 
 /// Get a reference to the global `OfficialIndex` lock, initializing it if needed.
 fn idx() -> &'static RwLock<OfficialIndex> {
