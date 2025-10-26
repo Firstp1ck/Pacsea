@@ -88,5 +88,3 @@ mod tests {
         assert!(!super::is_eos_name("hello"));
     }
 }
-
-

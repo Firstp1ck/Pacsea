@@ -9,12 +9,12 @@ use tokio::sync::mpsc;
 use crate::state::{AppState, Focus, PackageItem, QueryInput};
 use crate::theme::reload_theme;
 
+mod distro;
 mod install;
 mod mouse;
 mod recent;
 mod search;
 mod utils;
-mod distro;
 
 // re-export intentionally omitted; handled internally
 

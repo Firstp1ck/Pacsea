@@ -36,5 +36,3 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
         repo.to_string()
     }
 }
-
-

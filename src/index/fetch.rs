@@ -54,14 +54,10 @@ pub async fn fetch_official_pkg_names()
         cach_pairs.push((repo, body));
     }
     let mut pkgs: Vec<OfficialPkg> = Vec::new();
-    for (repo, text) in [
-        ("core", core),
-        ("extra", extra),
-        ("multilib", multilib),
-    ]
-    .into_iter()
-    .chain(eos_pairs.into_iter())
-    .chain(cach_pairs.into_iter())
+    for (repo, text) in [("core", core), ("extra", extra), ("multilib", multilib)]
+        .into_iter()
+        .chain(eos_pairs.into_iter())
+        .chain(cach_pairs.into_iter())
     {
         for line in text.lines() {
             // Format: "repo pkgname version [installed]"
