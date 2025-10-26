@@ -35,10 +35,10 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         for it in crate::index::all_official().iter() {
             if let Source::Official { repo, .. } = &it.source {
                 let r = repo.to_lowercase();
-                if !eos && (r == "eos" || r == "endeavouros") {
+                if !eos && crate::index::is_eos_repo(&r) {
                     eos = true;
                 }
-                if !cach && r.starts_with("cachyos") {
+                if !cach && crate::index::is_cachyos_repo(&r) {
                     cach = true;
                 }
             }
@@ -94,23 +94,12 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .map(|p| {
             let (src, color) = match &p.source {
                 Source::Official { repo, .. } => {
-                    let rl = repo.to_lowercase();
-                    // Use unified Manjaro detection: name prefix or owner contains "manjaro" from details cache
                     let owner = app
                         .details_cache
                         .get(&p.name)
                         .map(|d| d.owner.clone())
                         .unwrap_or_default();
-                    let is_manjaro = crate::index::is_manjaro_name_or_owner(&p.name, &owner);
-                    let label = if rl == "eos" || rl == "endeavouros" {
-                        "EOS".to_string()
-                    } else if rl.starts_with("cachyos") {
-                        "CachyOS".to_string()
-                    } else if is_manjaro {
-                        "Manjaro".to_string()
-                    } else {
-                        repo.to_string()
-                    };
+                    let label = crate::logic::distro::label_for_official(repo, &p.name, &owner);
                     (label, th.green)
                 }
                 Source::Aur => ("AUR".to_string(), th.yellow),

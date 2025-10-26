@@ -1,6 +1,7 @@
 //! Core non-UI logic split into modular submodules.
 
 pub mod filter;
+pub mod distro;
 pub mod gating;
 pub mod lists;
 pub mod prefetch;
