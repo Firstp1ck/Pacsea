@@ -69,8 +69,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             || !km.options_menu_toggle.is_empty()
             || !km.panels_menu_toggle.is_empty()
             || (!app.installed_only_mode
-                && (!km.search_normal_import.is_empty()
-                    || !km.search_normal_export.is_empty()))
+                && (!km.search_normal_import.is_empty() || !km.search_normal_export.is_empty()))
         {
             // Menus
             if !km.config_menu_toggle.is_empty()
@@ -96,14 +95,9 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             }
             // Import / Export
             if !app.installed_only_mode
-                && (!km.search_normal_import.is_empty()
-                    || !km.search_normal_export.is_empty())
+                && (!km.search_normal_import.is_empty() || !km.search_normal_export.is_empty())
             {
-                if !line2.is_empty() {
-                    line2.push_str("  •  ");
-                } else {
-                    line2.push_str("  •  ");
-                }
+                line2.push_str("  •  ");
                 if let Some(k) = km.search_normal_import.first() {
                     line2.push_str(&format!("[{}] Import", k.label()));
                     if let Some(k2) = km.search_normal_export.first() {
@@ -676,63 +670,63 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Span::styled(format!("[{delete_label}]"), key_style),
                     Span::raw(" Delete text"),
                     // Close first line (base Normal Mode help)
-                    ];
-                    lines.push(Line::from(n_spans));
+                ];
+                lines.push(Line::from(n_spans));
 
-                    // Second line: menus and import/export (if any)
-                    let mut n2_spans: Vec<Span> = Vec::new();
+                // Second line: menus and import/export (if any)
+                let mut n2_spans: Vec<Span> = Vec::new();
 
-                    // Menus: show configured Normal-mode menu toggles
-                    if !km.config_menu_toggle.is_empty()
-                        || !km.options_menu_toggle.is_empty()
-                        || !km.panels_menu_toggle.is_empty()
-                    {
-                        n2_spans.push(Span::raw("  •  Open Menus: "));
-                        let mut any = false;
-                        if let Some(k) = km.config_menu_toggle.first() {
-                            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                            n2_spans.push(Span::raw(" Config"));
-                            any = true;
-                        }
-                        if let Some(k) = km.options_menu_toggle.first() {
-                            if any {
-                                n2_spans.push(Span::raw(", "));
-                            }
-                            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                            n2_spans.push(Span::raw(" Options"));
-                            any = true;
-                        }
-                        if let Some(k) = km.panels_menu_toggle.first() {
-                            if any {
-                                n2_spans.push(Span::raw(", "));
-                            }
-                            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                            n2_spans.push(Span::raw(" Panels"));
-                        }
+                // Menus: show configured Normal-mode menu toggles
+                if !km.config_menu_toggle.is_empty()
+                    || !km.options_menu_toggle.is_empty()
+                    || !km.panels_menu_toggle.is_empty()
+                {
+                    n2_spans.push(Span::raw("  •  Open Menus: "));
+                    let mut any = false;
+                    if let Some(k) = km.config_menu_toggle.first() {
+                        n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+                        n2_spans.push(Span::raw(" Config"));
+                        any = true;
                     }
+                    if let Some(k) = km.options_menu_toggle.first() {
+                        if any {
+                            n2_spans.push(Span::raw(", "));
+                        }
+                        n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+                        n2_spans.push(Span::raw(" Options"));
+                        any = true;
+                    }
+                    if let Some(k) = km.panels_menu_toggle.first() {
+                        if any {
+                            n2_spans.push(Span::raw(", "));
+                        }
+                        n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+                        n2_spans.push(Span::raw(" Panels"));
+                    }
+                }
 
-                    // Import/Export shortcuts on the same second line
-                    if !app.installed_only_mode
-                        && (!km.search_normal_import.is_empty() || !km.search_normal_export.is_empty())
-                    {
-                        n2_spans.push(Span::raw("  • Install List:  "));
-                        if let Some(k) = km.search_normal_import.first() {
-                            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                            n2_spans.push(Span::raw(" Import"));
-                            if let Some(k2) = km.search_normal_export.first() {
-                                n2_spans.push(Span::raw(", "));
-                                n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                                n2_spans.push(Span::raw(" Export"));
-                            }
-                        } else if let Some(k) = km.search_normal_export.first() {
-                            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+                // Import/Export shortcuts on the same second line
+                if !app.installed_only_mode
+                    && (!km.search_normal_import.is_empty() || !km.search_normal_export.is_empty())
+                {
+                    n2_spans.push(Span::raw("  • Install List:  "));
+                    if let Some(k) = km.search_normal_import.first() {
+                        n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+                        n2_spans.push(Span::raw(" Import"));
+                        if let Some(k2) = km.search_normal_export.first() {
+                            n2_spans.push(Span::raw(", "));
+                            n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
                             n2_spans.push(Span::raw(" Export"));
                         }
+                    } else if let Some(k) = km.search_normal_export.first() {
+                        n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+                        n2_spans.push(Span::raw(" Export"));
                     }
+                }
 
-                    if !n2_spans.is_empty() {
-                        lines.push(Line::from(n2_spans));
-                    }
+                if !n2_spans.is_empty() {
+                    lines.push(Line::from(n2_spans));
+                }
             }
             // Bottom-align the content within the reserved footer area
             // Reserve exactly the number of wrapped rows needed
