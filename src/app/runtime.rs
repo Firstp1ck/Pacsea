@@ -203,6 +203,17 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     });
 
+    // Periodically refresh Arch status every 120 seconds
+    let status_tx_periodic = status_tx.clone();
+    tokio::spawn(async move {
+        loop {
+            sleep(Duration::from_secs(120)).await;
+            if let Ok((txt, color)) = sources::fetch_arch_status_text().await {
+                let _ = status_tx_periodic.send((txt, color));
+            }
+        }
+    });
+
     // Fetch Arch news once at startup; if any items are dated today (UTC), show modal
     let news_tx_once = news_tx.clone();
     tokio::spawn(async move {
