@@ -41,12 +41,13 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                 if !cach && r.starts_with("cachyos") {
                     cach = true;
                 }
-                if !manj && r == "manjaro" {
-                    manj = true;
-                }
-                if eos && cach && manj {
-                    break;
-                }
+            }
+            // Treat presence by name prefix rather than repo value
+            if !manj && crate::index::is_name_manjaro(&it.name) {
+                manj = true;
+            }
+            if eos && cach && manj {
+                break;
             }
         }
         (eos, cach, manj)
@@ -94,18 +95,13 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             let (src, color) = match &p.source {
                 Source::Official { repo, .. } => {
                     let rl = repo.to_lowercase();
-                    // Heuristic: treat as Manjaro when the name starts with "manjaro-" or owner contains "manjaro"
-                    let name_is_manjaro = p.name.to_lowercase().starts_with("manjaro-");
-                    let owner_has_manjaro = app
-                        .details_cache
-                        .get(&p.name)
-                        .map(|d| d.owner.to_lowercase().contains("manjaro"))
-                        .unwrap_or(false);
+                    // Show Manjaro label strictly by package name prefix as requested
+                    let name_is_manjaro = crate::index::is_name_manjaro(&p.name);
                     let label = if rl == "eos" || rl == "endeavouros" {
                         "EOS".to_string()
                     } else if rl.starts_with("cachyos") {
                         "CachyOS".to_string()
-                    } else if rl == "manjaro" || name_is_manjaro || owner_has_manjaro {
+                    } else if name_is_manjaro {
                         "Manjaro".to_string()
                     } else {
                         repo.to_string()

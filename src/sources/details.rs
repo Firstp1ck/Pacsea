@@ -115,18 +115,10 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
     let install_size = map.get("Installed Size").and_then(|s| parse_size_bytes(s));
 
     let pd = PackageDetails {
-        repository: {
-            // Detect Manjaro packages: name starts with "manjaro-" or packager contains "manjaro"
-            let pkg_name = map.get("Name").map(|s| s.as_str()).unwrap_or(name);
-            let packager = map.get("Packager").map(|s| s.as_str()).unwrap_or("");
-            if pkg_name.starts_with("manjaro-") || packager.to_lowercase().contains("manjaro") {
-                "manjaro".to_string()
-            } else {
-                map.get("Repository")
-                    .cloned()
-                    .unwrap_or_else(|| repo.to_string())
-            }
-        },
+        repository: map
+            .get("Repository")
+            .cloned()
+            .unwrap_or_else(|| repo.to_string()),
         name: map.get("Name").cloned().unwrap_or_else(|| name.to_string()),
         version: map.get("Version").cloned().unwrap_or_default(),
         description,

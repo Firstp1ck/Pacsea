@@ -37,6 +37,9 @@ static INSTALLED_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 /// Process-wide set of explicitly-installed package names (dependency-free set).
 static EXPLICIT_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
+mod manjaro;
+pub use manjaro::is_name_manjaro;
+
 /// Get a reference to the global `OfficialIndex` lock, initializing it if needed.
 fn idx() -> &'static RwLock<OfficialIndex> {
     OFFICIAL_INDEX.get_or_init(|| RwLock::new(OfficialIndex { pkgs: Vec::new() }))
