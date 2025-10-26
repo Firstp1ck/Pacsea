@@ -107,18 +107,16 @@ pub fn handle_event(
                         // Build the command lines and run in a terminal
                         let mut cmds: Vec<String> = Vec::new();
                         if *do_mirrors {
-                            // Ensure reflector is installed before attempting to use it
-                            cmds.push("(command -v reflector >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm reflector)".to_string());
                             let country = if *country_idx < countries.len() {
                                 &countries[*country_idx]
                             } else {
                                 "Worldwide"
                             };
-                            // For Worldwide, reflect without --country
+                            // Support both Arch (reflector) and Manjaro (pacman-mirrors)
                             if country.eq("Worldwide") {
-                                cmds.push("(command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'".to_string());
+                                cmds.push("if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then (command -v pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && sudo pacman-mirrors --fasttrack 20 && sudo pacman -Syy; else (command -v reflector >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm reflector) && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist; fi".to_string());
                             } else {
-                                cmds.push(format!("(command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{country}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'"));
+                                cmds.push(format!("if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then (command -v pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && sudo pacman-mirrors --country {country} --method rank && sudo pacman -Syy; else (command -v reflector >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm reflector) && sudo reflector --verbose --country '{country}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist; fi"));
                             }
                         }
                         if *do_pacman {
