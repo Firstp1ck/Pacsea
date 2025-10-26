@@ -166,16 +166,15 @@ cargo run
 
 ## Roadmap
 - Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/11)
-- Upcoming focus: better dependency insights, accessibility, and update controls.
 
 ### Potential future Features
+- **Extensive Preflight Check** (on going)
 - **Default Mirrors, Mirror Search and extensive Mirror Selection**
 - **Adjustable Width of the Middle Panes**
 - **Adjustable Height of the Results and Package Info Panes**
 - **Add Multiple CLI Commands like: `pacsea -S FILENAME.txt`, `pacsea -R FILENAME.txt`, `pacsea --news`, `pacsea -Syu` and more**
-- **
 - **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
-- **Add custom Repository Support (e.g Add Cachy/Manjaro/EOS Repositories to other Arch based Systems)**
+- **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)**
 - **Extensive Testing**
 - **Extensive Documentation**
 
