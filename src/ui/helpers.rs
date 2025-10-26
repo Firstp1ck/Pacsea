@@ -43,9 +43,19 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
         ])
     }
     let d = &app.details;
+    // Compute display repository with Manjaro heuristic override for clarity in UI.
+    let repo_display = {
+        let name_l = d.name.to_lowercase();
+        let owner_l = d.owner.to_lowercase();
+        if name_l.starts_with("manjaro-") || owner_l.contains("manjaro") {
+            "manjaro".to_string()
+        } else {
+            d.repository.clone()
+        }
+    };
     // Each line is a label/value pair derived from the current details view.
     let mut lines = vec![
-        kv("Repository", d.repository.clone(), th),
+        kv("Repository", repo_display, th),
         kv("Package Name", d.name.clone(), th),
         kv("Version", d.version.clone(), th),
         kv("Description", d.description.clone(), th),
