@@ -14,6 +14,10 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// Output:
 /// - `Ok(())` if the terminal was prepared; `Err` on I/O or terminal backend failure.
 pub fn setup_terminal() -> Result<()> {
+    if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {
+        // Skip raw TTY setup in headless/test mode
+        return Ok(());
+    }
     enable_raw_mode()?;
     execute!(std::io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
     Ok(())
@@ -27,6 +31,10 @@ pub fn setup_terminal() -> Result<()> {
 /// Output:
 /// - `Ok(())` when restoration succeeds; `Err` if underlying terminal operations fail.
 pub fn restore_terminal() -> Result<()> {
+    if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {
+        // Skip terminal restore in headless/test mode
+        return Ok(());
+    }
     disable_raw_mode()?;
     execute!(std::io::stdout(), DisableMouseCapture, LeaveAlternateScreen)?;
     Ok(())

@@ -47,6 +47,7 @@ use super::terminal::{restore_terminal, setup_terminal};
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     setup_terminal()?;
 
+    let headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
     let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
 
     let mut app = AppState {
@@ -228,15 +229,20 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     pkgindex::refresh_installed_cache().await;
     pkgindex::refresh_explicit_cache().await;
 
-    std::thread::spawn(move || {
-        loop {
-            if let Ok(true) = crossterm::event::poll(Duration::from_millis(50))
-                && let Ok(ev) = crossterm::event::read()
-            {
-                let _ = event_tx.send(ev);
+    if !headless {
+        std::thread::spawn(move || {
+            loop {
+                match crossterm::event::read() {
+                    Ok(ev) => {
+                        let _ = event_tx.send(ev);
+                    }
+                    Err(_) => {
+                        // ignore transient read errors and continue
+                    }
+                }
             }
-        }
-    });
+        });
+    }
 
     let tick_tx_bg = tick_tx.clone();
     tokio::spawn(async move {
@@ -322,7 +328,9 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     send_query(&mut app, &query_tx);
 
     loop {
-        let _ = terminal.draw(|f| ui(f, &mut app));
+        if !headless {
+            let _ = terminal.draw(|f| ui(f, &mut app));
+        }
 
         select! {
             Some(ev) = event_rx.recv() => { if crate::events::handle_event(ev, &mut app, &query_tx, &details_req_tx, &preview_tx, &add_tx, &pkgb_req_tx) { break; } }

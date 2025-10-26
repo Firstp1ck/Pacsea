@@ -168,6 +168,15 @@ cargo run
 - Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/11)
 - Upcoming focus: better dependency insights, accessibility, and update controls.
 
+### Potential future Features
+- **Default Mirrors, Mirror Search and extensive Mirror Selection**
+- **Adjustable Width of the Middle Panes**
+- **Adjustable Height of the Results and Package Info Panes**
+- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
+- **Add custom Repository Support (e.g Add Cachy/Manjaro/EOS Repositories to other Arch based Systems)**
+- **Extensive Testing**
+- **Extensive Documentation**
+
 ## Credits
 - Inspired by Omarchy workflows; built with ratatui + crossterm; powered by Arch + AUR.
 
