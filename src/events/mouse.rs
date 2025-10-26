@@ -693,7 +693,7 @@ pub fn handle_mouse_event(
                         for name in explicit.into_iter() {
                             if !official_names.contains(&name) {
                                 // If name indicates EOS, classify as official EOS
-                                let is_eos = name.to_lowercase().contains("eos-");
+                                let is_eos = crate::index::is_eos_name(&name);
                                 let src = if is_eos {
                                     crate::state::Source::Official {
                                         repo: "EOS".to_string(),

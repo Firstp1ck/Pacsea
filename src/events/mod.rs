@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use crate::state::{AppState, Focus, PackageItem, QueryInput};
 use crate::theme::reload_theme;
 
+mod distro;
 mod install;
 mod mouse;
 mod recent;
@@ -112,24 +113,8 @@ pub fn handle_event(
                             } else {
                                 "Worldwide"
                             };
-                            // Support both Arch (reflector) and Manjaro (pacman-mirrors)
-                            if country.eq("Worldwide") {
-                                cmds.push("(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
-    (command -v pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && \
-    sudo pacman-mirrors --fasttrack 20 && \
-    sudo pacman -Syy; \
-  else \
-    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
-  fi)".to_string());
-                            } else {
-                                cmds.push(format!("(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
-    (command -v pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && \
-    sudo pacman-mirrors --country '{country}' --method rank && \
-    sudo pacman -Syy; \
-  else \
-    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{country}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
-  fi)"));
-                            }
+                            // Build distro-aware mirror command via helper
+                            cmds.push(distro::mirror_update_command(country));
                         }
                         if *do_pacman {
                             cmds.push("sudo pacman -Syu --noconfirm".to_string());
@@ -400,7 +385,7 @@ pub fn handle_event(
                                 items.iter().map(|p| p.name.clone()).collect();
                             for name in explicit.into_iter() {
                                 if !official_names.contains(&name) {
-                                    let is_eos = name.to_lowercase().contains("eos-");
+                                    let is_eos = crate::index::is_eos_name(&name);
                                     let src = if is_eos {
                                         crate::state::Source::Official {
                                             repo: "EOS".to_string(),

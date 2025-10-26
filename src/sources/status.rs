@@ -14,7 +14,11 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     let body = tokio::task::spawn_blocking(move || super::curl_text(url)).await??;
 
     // Also try to read the AUR homepage where outage/maintenance banners are posted.
-    let aur_body_opt: Option<String> = match tokio::task::spawn_blocking(|| super::curl_text("https://aur.archlinux.org/")).await {
+    let aur_body_opt: Option<String> = match tokio::task::spawn_blocking(|| {
+        super::curl_text("https://aur.archlinux.org/")
+    })
+    .await
+    {
         Ok(Ok(s)) => Some(s),
         _ => None,
     };
@@ -210,13 +214,25 @@ fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
     {
         return Some(AurBannerCategory::PushDisabled);
     }
-    if t.contains("ddos") || t.contains("ddos protection") || t.contains("rate limiting") || t.contains("429") {
+    if t.contains("ddos")
+        || t.contains("ddos protection")
+        || t.contains("rate limiting")
+        || t.contains("429")
+    {
         return Some(AurBannerCategory::DdosProtection);
     }
-    if t.contains("port 22") || t.contains("ssh unavailable") || t.contains("git over ssh unavailable") || (t.contains("ssh") && t.contains("unavailable")) {
+    if t.contains("port 22")
+        || t.contains("ssh unavailable")
+        || t.contains("git over ssh unavailable")
+        || (t.contains("ssh") && t.contains("unavailable"))
+    {
         return Some(AurBannerCategory::SshUnavailable);
     }
-    if t.contains("maintenance") || t.contains("maintenance window") || t.contains("down for maintenance") || t.contains("scheduled maintenance") {
+    if t.contains("maintenance")
+        || t.contains("maintenance window")
+        || t.contains("down for maintenance")
+        || t.contains("scheduled maintenance")
+    {
         return Some(AurBannerCategory::ScheduledMaintenance);
     }
     if t.contains("rpc v5 degraded")

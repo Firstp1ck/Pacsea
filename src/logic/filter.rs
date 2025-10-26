@@ -39,25 +39,7 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
                     return_if_true(app.results_filter_show_manjaro, it, &mut filtered);
                     continue;
                 }
-                let r = repo.to_lowercase();
-                if r == "core" {
-                    app.results_filter_show_core
-                } else if r == "extra" {
-                    app.results_filter_show_extra
-                } else if r == "multilib" {
-                    app.results_filter_show_multilib
-                } else if r == "eos" || r == "endeavouros" {
-                    app.results_filter_show_eos
-                } else if r.starts_with("cachyos") {
-                    app.results_filter_show_cachyos
-                } else {
-                    // Unknown official repo: include only when all official filters are enabled
-                    app.results_filter_show_core
-                        && app.results_filter_show_extra
-                        && app.results_filter_show_multilib
-                        && app.results_filter_show_eos
-                        && app.results_filter_show_cachyos
-                }
+                crate::logic::distro::repo_toggle_for(repo, app)
             }
         };
         if include {

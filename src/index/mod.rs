@@ -37,8 +37,11 @@ static INSTALLED_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 /// Process-wide set of explicitly-installed package names (dependency-free set).
 static EXPLICIT_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
-mod manjaro;
-pub use manjaro::{is_manjaro_name_or_owner, is_name_manjaro};
+mod distro;
+pub use distro::{
+    cachyos_repo_names, eos_repo_names, is_cachyos_repo, is_eos_name, is_eos_repo,
+    is_manjaro_name_or_owner, is_name_manjaro,
+};
 
 /// Get a reference to the global `OfficialIndex` lock, initializing it if needed.
 fn idx() -> &'static RwLock<OfficialIndex> {
