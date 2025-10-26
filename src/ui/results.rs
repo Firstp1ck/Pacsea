@@ -27,12 +27,12 @@ use crate::theme::theme;
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 
-    // Detect availability of optional repos from the official index
+    // Detect availability of optional repos from current results
     let (has_eos, has_cachyos, has_manjaro) = {
         let mut eos = false;
         let mut cach = false;
         let mut manj = false;
-        for it in crate::index::all_official().iter() {
+        for it in app.results.iter() {
             if let Source::Official { repo, .. } = &it.source {
                 let r = repo.to_lowercase();
                 if !eos && crate::index::is_eos_repo(&r) {
@@ -88,10 +88,21 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     }
 
     // Results list (top)
+    // Build heavy item content only for the currently visible slice to speed up redraws.
+    let viewport_rows = area.height.saturating_sub(2) as usize; // account for borders
+    let start = app.list_state.offset();
+    let end = std::cmp::min(app.results.len(), start + viewport_rows);
+
     let items: Vec<ListItem> = app
         .results
         .iter()
-        .map(|p| {
+        .enumerate()
+        .map(|(i, p)| {
+            // For rows outside the viewport, render a cheap empty item
+            if i < start || i >= end {
+                return ListItem::new(Line::raw(""));
+            }
+
             let (src, color) = match &p.source {
                 Source::Official { repo, .. } => {
                     let owner = app
