@@ -12,7 +12,37 @@ type Result<T> = super::Result<T>;
 pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     let url = "https://status.archlinux.org";
     let body = tokio::task::spawn_blocking(move || super::curl_text(url)).await??;
-    Ok(parse_arch_status_from_html(&body))
+
+    // Also try to read the AUR homepage where outage/maintenance banners are posted.
+    let aur_body_opt: Option<String> = match tokio::task::spawn_blocking(|| super::curl_text("https://aur.archlinux.org/")).await {
+        Ok(Ok(s)) => Some(s),
+        _ => None,
+    };
+
+    let (mut text, mut color) = parse_arch_status_from_html(&body);
+
+    // Categorize any banner present on either page and raise severity/append suffix.
+    let aur_pct_opt = extract_aur_today_percent(&body);
+    let cat = aur_body_opt
+        .as_deref()
+        .and_then(categorize_aur_banner)
+        .or_else(|| categorize_aur_banner(&body));
+    if let Some(cat) = cat {
+        let mut suggested = category_base_color(&cat);
+        // If DDoS and uptime <90%, escalate to red.
+        if matches!(cat, AurBannerCategory::DdosProtection)
+            && aur_pct_opt.map(|p| p < 90).unwrap_or(false)
+        {
+            suggested = ArchStatusColor::IncidentSevereToday;
+        }
+        color = severity_max(color, suggested);
+        let suffix = category_suffix(&cat);
+        if !text.to_lowercase().contains(&suffix.to_lowercase()) {
+            text = format!("{text} {suffix}");
+        }
+    }
+
+    Ok((text, color))
 }
 
 /// Parse a status message and color from the HTML of a status page.
@@ -142,6 +172,107 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
             .or(aur_color_from_pct)
             .unwrap_or(ArchStatusColor::None),
     )
+}
+
+/// Heuristically detect whether the provided HTML/text contains a DDoS-related banner/message.
+//
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AurBannerCategory {
+    DdosProtection,
+    PushDisabled,
+    SshUnavailable,
+    ScheduledMaintenance,
+    Outage,
+    RpcDegraded,
+    AccountActionsLimited,
+    SecurityIncident,
+}
+
+fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
+    let t = s.to_lowercase();
+    // Order matters: match most severe/explicit first
+    if t.contains("security incident")
+        || t.contains("compromised package")
+        || t.contains("host keys rotated")
+        || (t.contains("security") && t.contains("incident"))
+    {
+        return Some(AurBannerCategory::SecurityIncident);
+    }
+    if t.contains("outage") || t.contains("unreachable") || t.contains("service interruption") {
+        return Some(AurBannerCategory::Outage);
+    }
+    if t.contains("pushing to the aur currently not possible")
+        || t.contains("push disabled")
+        || t.contains("uploads disabled")
+        || t.contains("submission disabled")
+        || t.contains("read-only mode")
+    {
+        return Some(AurBannerCategory::PushDisabled);
+    }
+    if t.contains("ddos") || t.contains("ddos protection") || t.contains("rate limiting") || t.contains("429") {
+        return Some(AurBannerCategory::DdosProtection);
+    }
+    if t.contains("port 22") || t.contains("ssh unavailable") || t.contains("git over ssh unavailable") || (t.contains("ssh") && t.contains("unavailable")) {
+        return Some(AurBannerCategory::SshUnavailable);
+    }
+    if t.contains("maintenance") || t.contains("maintenance window") || t.contains("down for maintenance") || t.contains("scheduled maintenance") {
+        return Some(AurBannerCategory::ScheduledMaintenance);
+    }
+    if t.contains("rpc v5 degraded")
+        || t.contains("search api degraded")
+        || t.contains("slow responses")
+        || t.contains("timeouts")
+        || t.contains("degraded")
+    {
+        return Some(AurBannerCategory::RpcDegraded);
+    }
+    if t.contains("registration disabled")
+        || t.contains("login disabled")
+        || t.contains("password reset disabled")
+        || t.contains("email delivery delayed")
+    {
+        return Some(AurBannerCategory::AccountActionsLimited);
+    }
+    None
+}
+
+fn category_base_color(cat: &AurBannerCategory) -> ArchStatusColor {
+    match cat {
+        AurBannerCategory::SecurityIncident => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::Outage => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::PushDisabled => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::SshUnavailable => ArchStatusColor::IncidentToday,
+        AurBannerCategory::ScheduledMaintenance => ArchStatusColor::IncidentToday,
+        AurBannerCategory::RpcDegraded => ArchStatusColor::IncidentToday,
+        AurBannerCategory::AccountActionsLimited => ArchStatusColor::IncidentToday,
+        AurBannerCategory::DdosProtection => ArchStatusColor::IncidentToday,
+    }
+}
+
+fn category_suffix(cat: &AurBannerCategory) -> &'static str {
+    match cat {
+        AurBannerCategory::DdosProtection => "— AUR DDoS/protection active",
+        AurBannerCategory::PushDisabled => "— AUR push disabled (read-only)",
+        AurBannerCategory::SshUnavailable => "— SSH unavailable (use HTTPS)",
+        AurBannerCategory::ScheduledMaintenance => "— Maintenance ongoing",
+        AurBannerCategory::Outage => "— AUR outage",
+        AurBannerCategory::RpcDegraded => "— AUR RPC degraded",
+        AurBannerCategory::AccountActionsLimited => "— Account actions limited",
+        AurBannerCategory::SecurityIncident => "— Security incident (see details)",
+    }
+}
+
+fn severity_max(a: ArchStatusColor, b: ArchStatusColor) -> ArchStatusColor {
+    fn rank(c: ArchStatusColor) -> u8 {
+        match c {
+            ArchStatusColor::None => 0,
+            ArchStatusColor::Operational => 1,
+            ArchStatusColor::IncidentToday => 2,
+            ArchStatusColor::IncidentSevereToday => 3,
+        }
+    }
+    if rank(a) >= rank(b) { a } else { b }
 }
 
 #[cfg(test)]
