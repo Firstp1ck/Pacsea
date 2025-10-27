@@ -305,6 +305,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                     }
                     a.name.to_lowercase().cmp(&b.name.to_lowercase())
                 });
+                // Deduplicate by package name, preferring earlier entries (core > extra > others)
+                {
+                    use std::collections::HashSet;
+                    let mut seen = HashSet::new();
+                    items.retain(|p| seen.insert(p.name.to_lowercase()));
+                }
                 let _ = search_result_tx.send(SearchResults {
                     id: latest.id,
                     items,
@@ -344,6 +350,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                     }
                     a.name.to_lowercase().cmp(&b.name.to_lowercase())
                 });
+                // Deduplicate by package name, preferring earlier entries (official over AUR)
+                {
+                    use std::collections::HashSet;
+                    let mut seen = HashSet::new();
+                    items.retain(|p| seen.insert(p.name.to_lowercase()));
+                }
                 for e in errors {
                     let _ = err_tx.send(e);
                 }
