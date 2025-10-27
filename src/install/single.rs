@@ -27,7 +27,22 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
         Source::Aur => "aur",
     };
     tracing::info!(names = %item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run, uses_sudo, "spawning install");
-    let terms: &[(&str, &[&str], bool)] = &[
+    // Prefer GNOME Terminal when running under GNOME desktop
+    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+        .ok()
+        .map(|v| v.to_uppercase().contains("GNOME"))
+        .unwrap_or(false);
+    let terms_gnome_first: &[(&str, &[&str], bool)] = &[
+        ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("alacritty", &["-e", "bash", "-lc"], false),
+        ("kitty", &["bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+        ("konsole", &["-e", "bash", "-lc"], false),
+        ("xfce4-terminal", &[], true),
+        ("tilix", &["--", "bash", "-lc"], false),
+        ("mate-terminal", &["--", "bash", "-lc"], false),
+    ];
+    let terms_default: &[(&str, &[&str], bool)] = &[
         ("alacritty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
@@ -37,6 +52,7 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
+    let terms = if is_gnome { terms_gnome_first } else { terms_default };
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
