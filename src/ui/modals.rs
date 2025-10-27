@@ -768,8 +768,95 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             let list_rows = inner_h.saturating_sub(4);
             app.news_list_rect = Some((list_inner_x, list_inner_y, list_inner_w, list_rows));
         }
+        crate::state::Modal::OptionalDeps { rows, selected } => {
+            // Build content lines with selection and install status markers
+            let mut lines: Vec<Line<'static>> = Vec::new();
+            lines.push(Line::from(Span::styled(
+                "TUI Optional Deps",
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+
+            for (i, row) in rows.iter().enumerate() {
+                let is_sel = *selected == i;
+                let (mark, color) = if row.installed {
+                    ("✔ installed", th.green)
+                } else {
+                    ("⏺ not installed", th.overlay1)
+                };
+                let style = if is_sel {
+                    Style::default()
+                        .fg(th.crust)
+                        .bg(th.lavender)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(th.text)
+                };
+                let mut segs: Vec<Span> = Vec::new();
+                segs.push(Span::styled(format!("{}  ", row.label), style));
+                segs.push(Span::styled(
+                    format!("[{}]", row.package),
+                    Style::default().fg(th.overlay1),
+                ));
+                segs.push(Span::raw("  "));
+                segs.push(Span::styled(mark.to_string(), Style::default().fg(color)));
+                if let Some(note) = &row.note {
+                    segs.push(Span::raw("  "));
+                    segs.push(Span::styled(
+                        format!("({})", note),
+                        Style::default().fg(th.overlay2),
+                    ));
+                }
+                lines.push(Line::from(segs));
+            }
+
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Up/Down: select  •  Enter: install  •  Esc: close",
+                Style::default().fg(th.subtext1),
+            )));
+
+            render_simple_list_modal(f, area, "Optional Deps", lines);
+        }
         crate::state::Modal::None => {}
     }
+}
+
+/// Render a centered, simple list modal with a title and provided content lines.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full available area
+/// - `box_title`: Title shown in the modal border
+/// - `lines`: Pre-built content lines
+fn render_simple_list_modal(f: &mut Frame, area: Rect, box_title: &str, lines: Vec<Line<'static>>) {
+    let th = theme();
+    let w = area.width.saturating_sub(8).min(80);
+    let h = area.height.saturating_sub(8).min(20);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    f.render_widget(Clear, rect);
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    format!(" {} ", box_title),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
 }
 
 #[cfg(test)]

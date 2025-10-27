@@ -224,3 +224,24 @@ pub enum RightPaneFocus {
     /// Installed-only mode: right subpane for removals.
     Remove,
 }
+
+/// Row model for the "TUI Optional Deps" modal/list.
+/// Each row represents a concrete package candidate such as an editor,
+/// terminal, clipboard tool, mirror updater, or AUR helper.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct OptionalDepRow {
+    /// Human-friendly label to display in the UI (e.g., "Editor: nvim", "Terminal: kitty").
+    pub label: String,
+    /// The concrete package name to check/install (e.g., "nvim", "kitty", "wl-clipboard",
+    /// "reflector", "pacman-mirrors", "paru", "yay").
+    pub package: String,
+    /// Whether this dependency is currently installed on the system.
+    #[serde(default)]
+    pub installed: bool,
+    /// Whether the user can select this row for installation (only when not installed).
+    #[serde(default)]
+    pub selectable: bool,
+    /// Optional note for environment/distro constraints (e.g., "Wayland", "X11", "Manjaro only").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}

@@ -796,6 +796,192 @@ pub fn handle_mouse_event(
                         }
                     }
                 }
+                3 => {
+                    // Build Optional Deps rows and open modal
+                    let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();
+                    let is_pkg_installed = |pkg: &str| crate::index::is_installed(pkg);
+                    let on_path = |cmd: &str| crate::install::command_on_path(cmd);
+
+                    // Editor: show the one installed, otherwise all possibilities
+                    // Map: (binary, package)
+                    let editor_candidates: &[(&str, &str)] = &[
+                        ("nvim", "neovim"),
+                        ("vim", "vim"),
+                        ("hx", "helix"),
+                        ("helix", "helix"),
+                        ("emacsclient", "emacs"),
+                        ("emacs", "emacs"),
+                        ("nano", "nano"),
+                    ];
+                    let mut editor_installed: Option<(&str, &str)> = None;
+                    for (bin, pkg) in editor_candidates.iter() {
+                        if on_path(bin) || is_pkg_installed(pkg) {
+                            editor_installed = Some((*bin, *pkg));
+                            break;
+                        }
+                    }
+                    if let Some((bin, pkg)) = editor_installed {
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: format!("Editor: {}", bin),
+                            package: pkg.to_string(),
+                            installed: (is_pkg_installed(pkg)
+                                || on_path(bin)
+                                || ((pkg == "helix") && (on_path("hx") || on_path("helix")))
+                                || ((pkg == "emacs")
+                                    && (on_path("emacs") || on_path("emacsclient")))),
+                            selectable: false,
+                            note: None,
+                        });
+                    } else {
+                        // Show unique packages (avoid hx+helix duplication)
+                        let mut seen = std::collections::HashSet::new();
+                        for (bin, pkg) in editor_candidates.iter() {
+                            if seen.insert(*pkg) {
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: format!("Editor: {}", bin),
+                                    package: pkg.to_string(),
+                                    installed: (is_pkg_installed(pkg)
+                                        || on_path(bin)
+                                        || ((*pkg == "helix")
+                                            && (on_path("hx") || on_path("helix")))
+                                        || ((*pkg == "emacs")
+                                            && (on_path("emacs") || on_path("emacsclient")))),
+                                    selectable: !(is_pkg_installed(pkg)
+                                        || on_path(bin)
+                                        || ((*pkg == "helix")
+                                            && (on_path("hx") || on_path("helix")))
+                                        || ((*pkg == "emacs")
+                                            && (on_path("emacs") || on_path("emacsclient")))),
+                                    note: None,
+                                });
+                            }
+                        }
+                    }
+
+                    // Terminal: show only the one installed, otherwise all possibilities
+                    let term_candidates: &[(&str, &str)] = &[
+                        ("alacritty", "alacritty"),
+                        ("kitty", "kitty"),
+                        ("xterm", "xterm"),
+                        ("gnome-terminal", "gnome-terminal"),
+                        ("konsole", "konsole"),
+                        ("xfce4-terminal", "xfce4-terminal"),
+                        ("tilix", "tilix"),
+                        ("mate-terminal", "mate-terminal"),
+                    ];
+                    let mut term_installed: Option<(&str, &str)> = None;
+                    for (bin, pkg) in term_candidates.iter() {
+                        if on_path(bin) || is_pkg_installed(pkg) {
+                            term_installed = Some((*bin, *pkg));
+                            break;
+                        }
+                    }
+                    if let Some((bin, pkg)) = term_installed {
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: format!("Terminal: {}", bin),
+                            package: pkg.to_string(),
+                            installed: (is_pkg_installed(pkg) || on_path(bin)),
+                            selectable: false,
+                            note: None,
+                        });
+                    } else {
+                        for (bin, pkg) in term_candidates.iter() {
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: format!("Terminal: {}", bin),
+                                package: pkg.to_string(),
+                                installed: (is_pkg_installed(pkg) || on_path(bin)),
+                                selectable: !(is_pkg_installed(pkg) || on_path(bin)),
+                                note: None,
+                            });
+                        }
+                    }
+
+                    // Clipboard: Wayland -> wl-clipboard; X11 -> xclip
+                    let is_wayland = std::env::var("WAYLAND_DISPLAY").is_ok();
+                    if is_wayland {
+                        let pkg = "wl-clipboard";
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Clipboard: wl-clipboard".to_string(),
+                            package: pkg.to_string(),
+                            installed: is_pkg_installed(pkg) || on_path("wl-copy"),
+                            selectable: !(is_pkg_installed(pkg) || on_path("wl-copy")),
+                            note: Some("Wayland".to_string()),
+                        });
+                    } else {
+                        let pkg = "xclip";
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Clipboard: xclip".to_string(),
+                            package: pkg.to_string(),
+                            installed: is_pkg_installed(pkg) || on_path("xclip"),
+                            selectable: !(is_pkg_installed(pkg) || on_path("xclip")),
+                            note: Some("X11".to_string()),
+                        });
+                    }
+
+                    // Reflector/pacman-mirrors: Manjaro -> pacman-mirrors, else reflector
+                    let manjaro = std::fs::read_to_string("/etc/os-release")
+                        .map(|s| s.contains("Manjaro"))
+                        .unwrap_or(false);
+                    if manjaro {
+                        let pkg = "pacman-mirrors";
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Mirrors: pacman-mirrors".to_string(),
+                            package: pkg.to_string(),
+                            installed: is_pkg_installed(pkg),
+                            selectable: !is_pkg_installed(pkg),
+                            note: Some("Manjaro".to_string()),
+                        });
+                    } else {
+                        let pkg = "reflector";
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Mirrors: reflector".to_string(),
+                            package: pkg.to_string(),
+                            installed: is_pkg_installed(pkg),
+                            selectable: !is_pkg_installed(pkg),
+                            note: None,
+                        });
+                    }
+
+                    // AUR helper: if one is installed show only that; else show both
+                    let paru_inst = on_path("paru") || is_pkg_installed("paru");
+                    let yay_inst = on_path("yay") || is_pkg_installed("yay");
+                    if paru_inst || yay_inst {
+                        if paru_inst {
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "AUR helper: paru".to_string(),
+                                package: "paru".to_string(),
+                                installed: true,
+                                selectable: false,
+                                note: None,
+                            });
+                        } else if yay_inst {
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "AUR helper: yay".to_string(),
+                                package: "yay".to_string(),
+                                installed: true,
+                                selectable: false,
+                                note: None,
+                            });
+                        }
+                    } else {
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "AUR helper: paru".to_string(),
+                            package: "paru".to_string(),
+                            installed: false,
+                            selectable: true,
+                            note: Some("Install via git clone + makepkg -si".to_string()),
+                        });
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "AUR helper: yay".to_string(),
+                            package: "yay".to_string(),
+                            installed: false,
+                            selectable: true,
+                            note: Some("Install via git clone + makepkg -si".to_string()),
+                        });
+                    }
+
+                    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
+                }
                 _ => {}
             }
             app.options_menu_open = false;

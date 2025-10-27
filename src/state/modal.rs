@@ -1,6 +1,6 @@
 //! Modal dialog state for the UI.
 
-use crate::state::types::{NewsItem, PackageItem};
+use crate::state::types::{NewsItem, OptionalDepRow, PackageItem};
 
 #[derive(Debug, Clone, Default)]
 pub enum Modal {
@@ -40,6 +40,13 @@ pub enum Modal {
         /// Selected row index.
         selected: usize,
     },
+    /// TUI Optional Dependencies chooser: selectable rows with install status.
+    OptionalDeps {
+        /// Rows to display (pre-filtered by environment/distro).
+        rows: Vec<OptionalDepRow>,
+        /// Selected row index.
+        selected: usize,
+    },
 }
 
 #[cfg(test)]
@@ -66,6 +73,10 @@ mod tests {
         };
         let _ = super::Modal::News {
             items: Vec::new(),
+            selected: 0,
+        };
+        let _ = super::Modal::OptionalDeps {
+            rows: Vec::new(),
             selected: 0,
         };
     }
