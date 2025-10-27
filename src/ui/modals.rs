@@ -270,10 +270,11 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
             let entries: [(&str, bool); 4] = [
                 ("Update Arch Mirrors", *do_mirrors),
-                ("Update Pacman (sudo pacman -Syu)", *do_pacman),
+                ("Update Pacman (sudo pacman -Syyu)", *do_pacman),
                 ("Update AUR (paru/yay)", *do_aur),
                 ("Remove Cache (pacman/yay)", *do_cache),
             ];
+
             for (i, (label, on)) in entries.iter().enumerate() {
                 let style = if *cursor == i {
                     Style::default()
