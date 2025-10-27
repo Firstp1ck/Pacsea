@@ -29,7 +29,22 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
             hold = hold_tail
         )
     };
-    let terms: &[(&str, &[&str], bool)] = &[
+    // Prefer GNOME Terminal when running under GNOME desktop
+    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+        .ok()
+        .map(|v| v.to_uppercase().contains("GNOME"))
+        .unwrap_or(false);
+    let terms_gnome_first: &[(&str, &[&str], bool)] = &[
+        ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("alacritty", &["-e", "bash", "-lc"], false),
+        ("kitty", &["bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+        ("konsole", &["-e", "bash", "-lc"], false),
+        ("xfce4-terminal", &[], true),
+        ("tilix", &["--", "bash", "-lc"], false),
+        ("mate-terminal", &["--", "bash", "-lc"], false),
+    ];
+    let terms_default: &[(&str, &[&str], bool)] = &[
         ("alacritty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
@@ -39,6 +54,7 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
+    let terms = if is_gnome { terms_gnome_first } else { terms_default };
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];

@@ -18,7 +18,24 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
     let joined = cmds.join(" && ");
     let cmd_str = format!("{joined}{hold}", hold = hold_tail);
-    let terms: &[(&str, &[&str], bool)] = &[
+    // Prefer GNOME Terminal when running under GNOME desktop
+    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+        .ok()
+        .map(|v| v.to_uppercase().contains("GNOME"))
+        .unwrap_or(false);
+    // (binary, args, needs_xfce_command)
+    let terms_gnome_first: &[(&str, &[&str], bool)] = &[
+        ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("alacritty", &["-e", "bash", "-lc"], false),
+        ("kitty", &["bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+        ("konsole", &["-e", "bash", "-lc"], false),
+        // For xfce4-terminal, use --command "bash -lc '<cmd>'" to avoid -lc being parsed by terminal
+        ("xfce4-terminal", &[], true),
+        ("tilix", &["--", "bash", "-lc"], false),
+        ("mate-terminal", &["--", "bash", "-lc"], false),
+    ];
+    let terms_default: &[(&str, &[&str], bool)] = &[
         ("alacritty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
@@ -29,6 +46,7 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
+    let terms = if is_gnome { terms_gnome_first } else { terms_default };
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
