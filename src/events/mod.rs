@@ -575,8 +575,10 @@ pub fn handle_event(
                      (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \\
                      (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \\
                      (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \\
+                     (command -v emacsclient >/dev/null 2>&1 && emacsclient -t '{path_str}') || \\
+                     (command -v emacs >/dev/null 2>&1 && emacs -nw '{path_str}') || \\
                      (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \\
-                     (echo 'No terminal editor found (nvim/vim/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
+                     (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
                 );
                 let cmds = vec![editor_cmd];
                 std::thread::spawn(move || {
