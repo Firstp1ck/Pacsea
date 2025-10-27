@@ -66,6 +66,7 @@ pub fn handle_event(
                 do_cache,
                 country_idx,
                 countries,
+                mirror_count,
                 cursor,
             } => {
                 match ke.code {
@@ -104,17 +105,41 @@ pub fn handle_event(
                         3 => *do_cache = !*do_cache,
                         _ => {}
                     },
+                    KeyCode::Char('-') => {
+                        // Decrease mirror count when focused on the country/count row
+                        if *mirror_count > 1 {
+                            *mirror_count -= 1;
+                            crate::theme::save_mirror_count(*mirror_count);
+                        }
+                    }
+                    KeyCode::Char('+') => {
+                        // Increase mirror count when focused on the country/count row
+                        if *mirror_count < 200 {
+                            *mirror_count += 1;
+                            crate::theme::save_mirror_count(*mirror_count);
+                        }
+                    }
                     KeyCode::Enter => {
                         // Build the command lines and run in a terminal
                         let mut cmds: Vec<String> = Vec::new();
                         if *do_mirrors {
-                            let country = if *country_idx < countries.len() {
-                                &countries[*country_idx]
+                            let sel = if *country_idx < countries.len() {
+                                countries[*country_idx].as_str()
                             } else {
                                 "Worldwide"
                             };
-                            // Build distro-aware mirror command via helper
-                            cmds.push(distro::mirror_update_command(country));
+                            // Build distro-aware mirror command via helper using user settings for multi-country and count
+                            let prefs = crate::theme::settings();
+                            let countries_arg = if sel == "Worldwide" {
+                                prefs.selected_countries.as_str()
+                            } else {
+                                sel
+                            };
+                            let count = *mirror_count;
+                            // Persist selection and mirror count to settings.conf
+                            crate::theme::save_selected_countries(countries_arg);
+                            crate::theme::save_mirror_count(count);
+                            cmds.push(distro::mirror_update_command(countries_arg, count));
                         }
                         if *do_pacman {
                             cmds.push("sudo pacman -Syu --noconfirm".to_string());
@@ -429,13 +454,24 @@ pub fn handle_event(
                             "Australia".to_string(),
                             "Japan".to_string(),
                         ];
+                        let prefs = crate::theme::settings();
+                        let initial_country_idx = {
+                            let sel = prefs
+                                .selected_countries
+                                .split(',')
+                                .next()
+                                .map(|s| s.trim().to_string())
+                                .unwrap_or_else(|| "Worldwide".to_string());
+                            countries.iter().position(|c| c == &sel).unwrap_or(0)
+                        };
                         app.modal = crate::state::Modal::SystemUpdate {
                             do_mirrors: false,
                             do_pacman: true,
                             do_aur: true,
                             do_cache: false,
-                            country_idx: 0,
+                            country_idx: initial_country_idx,
                             countries,
+                            mirror_count: prefs.mirror_count,
                             cursor: 0,
                         };
                     }

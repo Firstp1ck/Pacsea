@@ -101,6 +101,12 @@ sort_mode = best_matches  # best_matches | popularity | alphabetical
 show_recent_pane = true
 show_install_pane = true
 show_keybinds_footer = true
+
+# Mirrors
+# Select one or more countries (comma-separated). Example: "Switzerland, Germany, Austria"
+selected_countries = Worldwide
+# Number of HTTPS mirrors to consider when updating
+mirror_count = 20
 ```
 
 ### Panels hidden

@@ -28,6 +28,8 @@ pub enum Modal {
         country_idx: usize,
         /// Available countries to choose from for reflector.
         countries: Vec<String>,
+        /// Requested mirror count to fetch/rank.
+        mirror_count: u16,
         /// Cursor row in the dialog (0..=4)
         cursor: usize,
     },
@@ -59,6 +61,7 @@ mod tests {
             do_cache: false,
             country_idx: 0,
             countries: vec!["US".into()],
+            mirror_count: 20,
             cursor: 0,
         };
         let _ = super::Modal::News {

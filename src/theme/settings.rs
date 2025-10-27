@@ -83,10 +83,36 @@ pub fn settings() -> Settings {
                     out.show_keybinds_footer =
                         lv == "true" || lv == "1" || lv == "yes" || lv == "on";
                 }
+                "selected_countries" | "countries" | "country" => {
+                    // Accept comma-separated list; trimming occurs in normalization
+                    out.selected_countries = val.to_string();
+                }
+                "mirror_count" | "mirrors" => {
+                    if let Ok(v) = val.parse::<u16>() {
+                        out.mirror_count = v;
+                    }
+                }
                 // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
                 _ => {}
             }
         }
+    }
+
+    // Normalize mirror settings parsed from settings.conf
+    if out.mirror_count == 0 {
+        out.mirror_count = 20;
+    }
+    if out.mirror_count > 200 {
+        out.mirror_count = 200;
+    }
+    if !out.selected_countries.is_empty() {
+        out.selected_countries = out
+            .selected_countries
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(", ");
     }
 
     // Load keybinds from keybinds.conf if available; otherwise fall back to legacy keys in settings file

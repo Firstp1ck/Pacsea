@@ -245,6 +245,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             do_cache,
             country_idx,
             countries,
+            mirror_count,
             cursor,
         } => {
             let w = area.width.saturating_sub(8).min(80);
@@ -296,6 +297,19 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 "Worldwide"
             };
+            // Read configured countries and mirror count from settings for display
+            let prefs = crate::theme::settings();
+            let conf_countries = if prefs.selected_countries.trim().is_empty() {
+                "Worldwide".to_string()
+            } else {
+                prefs.selected_countries.clone()
+            };
+            // If Worldwide is selected, show the configured countries
+            let shown_countries = if country_label == "Worldwide" {
+                conf_countries.as_str()
+            } else {
+                country_label
+            };
             let style = if *cursor == entries.len() {
                 Style::default()
                     .fg(th.crust)
@@ -306,12 +320,17 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
             lines.push(Line::from(vec![
                 Span::styled("Country (Mirrors): ", Style::default().fg(th.overlay1)),
-                Span::styled(country_label.to_string(), style),
+                Span::styled(shown_countries.to_string(), style),
+                Span::raw("  •  "),
+                Span::styled(
+                    format!("Count: {}", mirror_count),
+                    Style::default().fg(th.overlay1),
+                ),
             ]));
 
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
-                "Space: toggle  •  Left/Right: change country  •  Enter: run  •  Esc: cancel",
+                "Space: toggle  •  Left/Right: change country  •  -/+ change count  •  Enter: run  •  Esc: cancel",
                 Style::default().fg(th.subtext1),
             )));
 

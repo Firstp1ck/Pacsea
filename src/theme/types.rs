@@ -65,6 +65,10 @@ pub struct Settings {
     pub show_install_pane: bool,
     /// Whether the keybinds footer should be shown on startup.
     pub show_keybinds_footer: bool,
+    /// Selected countries used when updating mirrors (comma-separated or multiple).
+    pub selected_countries: String,
+    /// Number of mirrors to fetch/rank when updating.
+    pub mirror_count: u16,
 }
 
 impl Default for Settings {
@@ -81,6 +85,8 @@ impl Default for Settings {
             show_recent_pane: true,
             show_install_pane: true,
             show_keybinds_footer: true,
+            selected_countries: "Worldwide".to_string(),
+            mirror_count: 20,
         }
     }
 }

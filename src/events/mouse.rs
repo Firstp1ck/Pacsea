@@ -740,13 +740,24 @@ pub fn handle_mouse_event(
                         "Australia".to_string(),
                         "Japan".to_string(),
                     ];
+                    let prefs = crate::theme::settings();
+                    let initial_country_idx = {
+                        let sel = prefs
+                            .selected_countries
+                            .split(',')
+                            .next()
+                            .map(|s| s.trim().to_string())
+                            .unwrap_or_else(|| "Worldwide".to_string());
+                        countries.iter().position(|c| c == &sel).unwrap_or(0)
+                    };
                     app.modal = crate::state::Modal::SystemUpdate {
                         do_mirrors: false,
                         do_pacman: true,
                         do_aur: true,
                         do_cache: false,
-                        country_idx: 0,
+                        country_idx: initial_country_idx,
                         countries,
+                        mirror_count: prefs.mirror_count,
                         cursor: 0,
                     };
                 }

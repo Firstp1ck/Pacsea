@@ -184,7 +184,88 @@ sort_mode = best_matches\n\
 \n\
 # Clipboard\n\
 # Text appended when copying PKGBUILD to the clipboard\n\
-clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activities\n";
+clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activities\n\
+\n\
+# Mirrors\n\
+# Select one or more countries (comma-separated). Example: \"Switzerland, Germany, Austria\"\n\
+selected_countries = Worldwide\n\
+# Number of HTTPS mirrors to consider when updating\n\
+mirror_count = 20\n\
+# Available countries (commented list; edit selected_countries above as needed):\n\
+# Worldwide\n\
+# Albania\n\
+# Algeria\n\
+# Argentina\n\
+# Armenia\n\
+# Australia\n\
+# Austria\n\
+# Azerbaijan\n\
+# Belarus\n\
+# Belgium\n\
+# Bosnia and Herzegovina\n\
+# Brazil\n\
+# Bulgaria\n\
+# Cambodia\n\
+# Canada\n\
+# Chile\n\
+# China\n\
+# Colombia\n\
+# Costa Rica\n\
+# Croatia\n\
+# Cyprus\n\
+# Czechia\n\
+# Denmark\n\
+# Ecuador\n\
+# Estonia\n\
+# Finland\n\
+# France\n\
+# Georgia\n\
+# Germany\n\
+# Greece\n\
+# Hong Kong\n\
+# Hungary\n\
+# Iceland\n\
+# India\n\
+# Indonesia\n\
+# Iran\n\
+# Ireland\n\
+# Israel\n\
+# Italy\n\
+# Japan\n\
+# Kazakhstan\n\
+# Latvia\n\
+# Lithuania\n\
+# Luxembourg\n\
+# Malaysia\n\
+# Mexico\n\
+# Moldova\n\
+# Netherlands\n\
+# New Caledonia\n\
+# New Zealand\n\
+# Norway\n\
+# Peru\n\
+# Philippines\n\
+# Poland\n\
+# Portugal\n\
+# Romania\n\
+# Russia\n\
+# Serbia\n\
+# Singapore\n\
+# Slovakia\n\
+# Slovenia\n\
+# South Africa\n\
+# South Korea\n\
+# Spain\n\
+# Sweden\n\
+# Switzerland\n\
+# Taiwan\n\
+# Thailand\n\
+# Turkey\n\
+# Ukraine\n\
+# United Kingdom\n\
+# United States\n\
+# Uruguay\n\
+# Vietnam\n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub(crate) const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\
@@ -503,6 +584,55 @@ fn save_boolean_key(key_norm: &str, value: bool) {
 }
 
 /// Persist Recent and Install pane visibility toggles.
+fn save_string_key(key_norm: &str, value: &str) {
+    let path = resolve_settings_config_path().or_else(|| {
+        std::env::var("XDG_CONFIG_HOME")
+            .ok()
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var("HOME")
+                    .ok()
+                    .map(|h| Path::new(&h).join(".config"))
+            })
+            .map(|base| base.join("pacsea").join("settings.conf"))
+    });
+    let Some(p) = path else {
+        return;
+    };
+    let mut lines: Vec<String> = if let Ok(content) = fs::read_to_string(&p) {
+        content.lines().map(|s| s.to_string()).collect()
+    } else {
+        Vec::new()
+    };
+    let mut replaced = false;
+    for line in lines.iter_mut() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if let Some(eq) = trimmed.find('=') {
+            let (kraw, _) = trimmed.split_at(eq);
+            let key = kraw.trim().to_lowercase().replace(['.', '-', ' '], "_");
+            if key == key_norm {
+                *line = format!("{key_norm} = {value}");
+                replaced = true;
+            }
+        }
+    }
+    if !replaced {
+        if let Some(dir) = p.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        lines.push(format!("{key_norm} = {value}"));
+    }
+    let new_content = if lines.is_empty() {
+        format!("{key_norm} = {value}\n")
+    } else {
+        lines.join("\n")
+    };
+    let _ = fs::write(p, new_content);
+}
+
 pub fn save_show_recent_pane(value: bool) {
     save_boolean_key("show_recent_pane", value)
 }
@@ -511,6 +641,14 @@ pub fn save_show_install_pane(value: bool) {
 }
 pub fn save_show_keybinds_footer(value: bool) {
     save_boolean_key("show_keybinds_footer", value)
+}
+
+/// Persist mirror settings
+pub fn save_selected_countries(value: &str) {
+    save_string_key("selected_countries", value)
+}
+pub fn save_mirror_count(value: u16) {
+    save_string_key("mirror_count", &value.to_string())
 }
 
 /// Ensure core application settings keys exist in the settings file; append missing with current/default values.
@@ -563,7 +701,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         }
     }
     // Desired keys and their values from prefs
-    let pairs: [(&str, String); 9] = [
+    let pairs: [(&str, String); 11] = [
         ("layout_left_pct", prefs.layout_left_pct.to_string()),
         ("layout_center_pct", prefs.layout_center_pct.to_string()),
         ("layout_right_pct", prefs.layout_right_pct.to_string()),
@@ -605,6 +743,8 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
             }
             .to_string(),
         ),
+        ("selected_countries", prefs.selected_countries.clone()),
+        ("mirror_count", prefs.mirror_count.to_string()),
     ];
     let mut appended_any = false;
     for (k, v) in pairs.iter() {
