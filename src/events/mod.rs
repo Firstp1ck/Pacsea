@@ -271,6 +271,64 @@ pub fn handle_event(
                 }
                 return false;
             }
+            crate::state::Modal::OptionalDeps { rows, selected } => {
+                match ke.code {
+                    KeyCode::Esc => {
+                        app.modal = crate::state::Modal::None;
+                    }
+                    KeyCode::Up => {
+                        if *selected > 0 {
+                            *selected -= 1;
+                        }
+                    }
+                    KeyCode::Down => {
+                        if *selected + 1 < rows.len() {
+                            *selected += 1;
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if let Some(row) = rows.get(*selected)
+                            && !row.installed
+                            && row.selectable
+                        {
+                            let pkg = row.package.clone();
+                            let cmd = if pkg == "paru" {
+                                "git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
+                            } else if pkg == "yay" {
+                                "git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
+                            } else {
+                                format!("sudo pacman -S --needed --noconfirm {}", pkg)
+                            };
+                            crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                            app.modal = crate::state::Modal::None;
+                        }
+                    }
+                    _ => {}
+                }
+                return false;
+            }
+            crate::state::Modal::GnomeTerminalPrompt => {
+                match ke.code {
+                    KeyCode::Enter => {
+                        // Install GNOME Terminal, then close the prompt
+                        let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
+                        crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                        app.modal = crate::state::Modal::None;
+                    }
+                    KeyCode::Esc => {
+                        // Warn user about potential unexpected behavior and close the prompt
+                        app.toast_message = Some(
+                            "Continuing without gnome-terminal may cause unexpected behavior"
+                                .to_string(),
+                        );
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
+                        app.modal = crate::state::Modal::None;
+                    }
+                    _ => {}
+                }
+                return false;
+            }
             crate::state::Modal::None => {}
         }
 
@@ -384,7 +442,7 @@ pub fn handle_event(
             && ch != '0'
         {
             let idx = (ch as u8 - b'1') as usize; // '1' -> 0
-            // Options menu rows: 0 toggle installed-only, 1 update system, 2 news
+            // Options menu rows: 0 toggle installed-only, 1 update system, 2 news, 3 optional deps
             if app.options_menu_open {
                 match idx {
                     0 => {
@@ -507,6 +565,204 @@ pub fn handle_event(
                                 };
                             }
                         }
+                    }
+                    3 => {
+                        // Open Optional Deps modal (same as mouse handler row 3)
+                        let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();
+                        let is_pkg_installed = |pkg: &str| crate::index::is_installed(pkg);
+                        let on_path = |cmd: &str| crate::install::command_on_path(cmd);
+                        // Editor
+                        let editor_candidates: &[(&str, &str)] = &[
+                            ("nvim", "neovim"),
+                            ("vim", "vim"),
+                            ("hx", "helix"),
+                            ("helix", "helix"),
+                            ("emacsclient", "emacs"),
+                            ("emacs", "emacs"),
+                            ("nano", "nano"),
+                        ];
+                        let mut editor_installed: Option<(&str, &str)> = None;
+                        for (bin, pkg) in editor_candidates.iter() {
+                            if on_path(bin) || is_pkg_installed(pkg) {
+                                editor_installed = Some((*bin, *pkg));
+                                break;
+                            }
+                        }
+                        if let Some((bin, pkg)) = editor_installed {
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: format!("Editor: {}", bin),
+                                package: pkg.to_string(),
+                                installed: (is_pkg_installed(pkg)
+                                    || on_path(bin)
+                                    || ((pkg == "helix") && (on_path("hx") || on_path("helix")))
+                                    || ((pkg == "emacs")
+                                        && (on_path("emacs") || on_path("emacsclient")))),
+                                selectable: false,
+                                note: None,
+                            });
+                        } else {
+                            let mut seen = std::collections::HashSet::new();
+                            for (bin, pkg) in editor_candidates.iter() {
+                                if seen.insert(*pkg) {
+                                    rows.push(crate::state::types::OptionalDepRow {
+                                        label: format!("Editor: {}", bin),
+                                        package: pkg.to_string(),
+                                        installed: (is_pkg_installed(pkg)
+                                            || on_path(bin)
+                                            || ((*pkg == "helix")
+                                                && (on_path("hx") || on_path("helix")))
+                                            || ((*pkg == "emacs")
+                                                && (on_path("emacs") || on_path("emacsclient")))),
+                                        selectable: !(is_pkg_installed(pkg)
+                                            || on_path(bin)
+                                            || ((*pkg == "helix")
+                                                && (on_path("hx") || on_path("helix")))
+                                            || ((*pkg == "emacs")
+                                                && (on_path("emacs") || on_path("emacsclient")))),
+                                        note: None,
+                                    });
+                                }
+                            }
+                        }
+                        // Terminal
+                        let term_candidates: &[(&str, &str)] = &[
+                            ("alacritty", "alacritty"),
+                            ("kitty", "kitty"),
+                            ("xterm", "xterm"),
+                            ("gnome-terminal", "gnome-terminal"),
+                            ("konsole", "konsole"),
+                            ("xfce4-terminal", "xfce4-terminal"),
+                            ("tilix", "tilix"),
+                            ("mate-terminal", "mate-terminal"),
+                        ];
+                        let mut term_installed: Option<(&str, &str)> = None;
+                        for (bin, pkg) in term_candidates.iter() {
+                            if on_path(bin) || is_pkg_installed(pkg) {
+                                term_installed = Some((*bin, *pkg));
+                                break;
+                            }
+                        }
+                        if let Some((bin, pkg)) = term_installed {
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: format!("Terminal: {}", bin),
+                                package: pkg.to_string(),
+                                installed: (is_pkg_installed(pkg) || on_path(bin)),
+                                selectable: false,
+                                note: None,
+                            });
+                        } else {
+                            for (bin, pkg) in term_candidates.iter() {
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: format!("Terminal: {}", bin),
+                                    package: pkg.to_string(),
+                                    installed: (is_pkg_installed(pkg) || on_path(bin)),
+                                    selectable: !(is_pkg_installed(pkg) || on_path(bin)),
+                                    note: None,
+                                });
+                            }
+                        }
+                        // Clipboard: Prefer Klipper when KDE session detected; else Wayland/X11 specific
+                        let is_kde = std::env::var("KDE_FULL_SESSION").is_ok()
+                            || std::env::var("XDG_CURRENT_DESKTOP")
+                                .ok()
+                                .map(|v| {
+                                    let u = v.to_uppercase();
+                                    u.contains("KDE") || u.contains("PLASMA")
+                                })
+                                .unwrap_or(false)
+                            || on_path("klipper");
+                        if is_kde {
+                            let pkg = "plasma-workspace";
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "Clipboard: Klipper (KDE)".to_string(),
+                                package: pkg.to_string(),
+                                installed: is_pkg_installed(pkg) || on_path("klipper"),
+                                selectable: !(is_pkg_installed(pkg) || on_path("klipper")),
+                                note: Some("KDE Plasma".to_string()),
+                            });
+                        } else {
+                            let is_wayland = std::env::var("WAYLAND_DISPLAY").is_ok();
+                            if is_wayland {
+                                let pkg = "wl-clipboard";
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "Clipboard: wl-clipboard".to_string(),
+                                    package: pkg.to_string(),
+                                    installed: is_pkg_installed(pkg) || on_path("wl-copy"),
+                                    selectable: !(is_pkg_installed(pkg) || on_path("wl-copy")),
+                                    note: Some("Wayland".to_string()),
+                                });
+                            } else {
+                                let pkg = "xclip";
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "Clipboard: xclip".to_string(),
+                                    package: pkg.to_string(),
+                                    installed: is_pkg_installed(pkg) || on_path("xclip"),
+                                    selectable: !(is_pkg_installed(pkg) || on_path("xclip")),
+                                    note: Some("X11".to_string()),
+                                });
+                            }
+                        }
+                        // Mirrors
+                        let manjaro = std::fs::read_to_string("/etc/os-release")
+                            .map(|s| s.contains("Manjaro"))
+                            .unwrap_or(false);
+                        if manjaro {
+                            let pkg = "pacman-mirrors";
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "Mirrors: pacman-mirrors".to_string(),
+                                package: pkg.to_string(),
+                                installed: is_pkg_installed(pkg),
+                                selectable: !is_pkg_installed(pkg),
+                                note: Some("Manjaro".to_string()),
+                            });
+                        } else {
+                            let pkg = "reflector";
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "Mirrors: reflector".to_string(),
+                                package: pkg.to_string(),
+                                installed: is_pkg_installed(pkg),
+                                selectable: !is_pkg_installed(pkg),
+                                note: None,
+                            });
+                        }
+                        // AUR helper
+                        let paru_inst = on_path("paru") || is_pkg_installed("paru");
+                        let yay_inst = on_path("yay") || is_pkg_installed("yay");
+                        if paru_inst || yay_inst {
+                            if paru_inst {
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "AUR helper: paru".to_string(),
+                                    package: "paru".to_string(),
+                                    installed: true,
+                                    selectable: false,
+                                    note: None,
+                                });
+                            } else if yay_inst {
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "AUR helper: yay".to_string(),
+                                    package: "yay".to_string(),
+                                    installed: true,
+                                    selectable: false,
+                                    note: None,
+                                });
+                            }
+                        } else {
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "AUR helper: paru".to_string(),
+                                package: "paru".to_string(),
+                                installed: false,
+                                selectable: true,
+                                note: Some("Install via git clone + makepkg -si".to_string()),
+                            });
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "AUR helper: yay".to_string(),
+                                package: "yay".to_string(),
+                                installed: false,
+                                selectable: true,
+                                note: Some("Install via git clone + makepkg -si".to_string()),
+                            });
+                        }
+                        app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
                     }
                     _ => {}
                 }
@@ -715,5 +971,236 @@ mod tests {
             }
             std::env::remove_var("PACSEA_TEST_OUT");
         }
+    }
+
+    #[test]
+    /// What: Optional Deps shows only installed editor/terminal, X11 clipboard, reflector, and both AUR helpers when none installed
+    ///
+    /// - Setup: Fake PATH with nvim and kitty present; ensure X11 (no WAYLAND_DISPLAY)
+    /// - Expect: Rows include:
+    ///     Editor: nvim (installed, not selectable)
+    ///     Terminal: kitty (installed, not selectable)
+    ///     Clipboard: xclip (not installed, selectable)
+    ///     Mirrors: reflector (not installed, selectable)
+    ///     AUR helper: paru and yay (both not installed, selectable)
+    fn optional_deps_rows_reflect_installed_and_x11_and_reflector() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::PathBuf;
+
+        // Create a temp directory with fake executables for editor and terminal
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_optional_deps_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+
+        // Helpers to create executable stubs
+        let make_exec = |name: &str| {
+            let mut p = dir.clone();
+            p.push(name);
+            fs::write(&p, b"#!/bin/sh\nexit 0\n").unwrap();
+            let mut perms = fs::metadata(&p).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&p, perms).unwrap();
+        };
+
+        // Present nvim and kitty on PATH
+        make_exec("nvim");
+        make_exec("kitty");
+
+        // Save and override PATH for deterministic detection; ensure X11 by clearing WAYLAND_DISPLAY
+        let orig_path = std::env::var_os("PATH");
+        unsafe { std::env::set_var("PATH", dir.display().to_string()) };
+        let orig_wl = std::env::var_os("WAYLAND_DISPLAY");
+        unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
+
+        // Drive the event handler: open Options then press '4' to open Optional Deps
+        let mut app = AppState {
+            ..Default::default()
+        };
+        let (qtx, _qrx) = mpsc::unbounded_channel();
+        let (dtx, _drx) = mpsc::unbounded_channel();
+        let (ptx, _prx) = mpsc::unbounded_channel();
+        let (atx, _arx) = mpsc::unbounded_channel();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+
+        // Open Options via click
+        app.options_button_rect = Some((5, 5, 12, 1));
+        let click_options = CEvent::Mouse(crossterm::event::MouseEvent {
+            kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
+            column: 6,
+            row: 5,
+            modifiers: KeyModifiers::empty(),
+        });
+        let _ = super::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        assert!(app.options_menu_open);
+
+        // Press '4' (row index 3) to open Optional Deps
+        let key_four = CEvent::Key(crossterm::event::KeyEvent::new(
+            KeyCode::Char('4'),
+            KeyModifiers::empty(),
+        ));
+        let _ = super::handle_event(key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+        match &app.modal {
+            crate::state::Modal::OptionalDeps { rows, .. } => {
+                // Find helper to locate row by label prefix
+                let find = |prefix: &str| rows.iter().find(|r| r.label.starts_with(prefix));
+
+                // Editor: nvim
+                let ed = find("Editor: nvim").expect("editor row nvim");
+                assert!(ed.installed, "nvim should be marked installed");
+                assert!(!ed.selectable, "installed editor should not be selectable");
+
+                // Terminal: kitty
+                let term = find("Terminal: kitty").expect("terminal row kitty");
+                assert!(term.installed, "kitty should be marked installed");
+                assert!(
+                    !term.selectable,
+                    "installed terminal should not be selectable"
+                );
+
+                // Clipboard: xclip (X11)
+                let clip = find("Clipboard: xclip").expect("clipboard xclip row");
+                assert!(
+                    !clip.installed,
+                    "xclip should not appear installed by default"
+                );
+                assert!(
+                    clip.selectable,
+                    "xclip should be selectable when not installed"
+                );
+                assert_eq!(clip.note.as_deref(), Some("X11"));
+
+                // Mirrors: reflector (non-Manjaro default)
+                let mirrors = find("Mirrors: reflector").expect("reflector row");
+                assert!(
+                    !mirrors.installed,
+                    "reflector should not be installed by default"
+                );
+                assert!(mirrors.selectable, "reflector should be selectable");
+
+                // AUR helper: both paru and yay should be present and selectable when not installed
+                let paru = find("AUR helper: paru").expect("paru row");
+                assert!(!paru.installed);
+                assert!(paru.selectable);
+                let yay = find("AUR helper: yay").expect("yay row");
+                assert!(!yay.installed);
+                assert!(yay.selectable);
+            }
+            other => panic!("Expected OptionalDeps modal, got {:?}", other),
+        }
+
+        // Restore environment
+        unsafe {
+            if let Some(v) = orig_path {
+                std::env::set_var("PATH", v);
+            } else {
+                std::env::remove_var("PATH");
+            }
+            if let Some(v) = orig_wl {
+                std::env::set_var("WAYLAND_DISPLAY", v);
+            } else {
+                std::env::remove_var("WAYLAND_DISPLAY");
+            }
+        }
+
+        // Cleanup temp dir
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    /// What: Optional Deps shows Wayland clipboard (wl-clipboard) when WAYLAND_DISPLAY is set
+    ///
+    /// - Setup: Empty PATH; set WAYLAND_DISPLAY
+    /// - Expect: A row "Clipboard: wl-clipboard" with note "Wayland", not installed and selectable
+    fn optional_deps_rows_wayland_shows_wl_clipboard() {
+        use std::fs;
+        use std::path::PathBuf;
+
+        // Temp PATH directory (empty)
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_optional_deps_wl_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+
+        let orig_path = std::env::var_os("PATH");
+        unsafe { std::env::set_var("PATH", dir.display().to_string()) };
+        let orig_wl = std::env::var_os("WAYLAND_DISPLAY");
+        unsafe { std::env::set_var("WAYLAND_DISPLAY", "1") };
+
+        let mut app = AppState {
+            ..Default::default()
+        };
+        let (qtx, _qrx) = mpsc::unbounded_channel();
+        let (dtx, _drx) = mpsc::unbounded_channel();
+        let (ptx, _prx) = mpsc::unbounded_channel();
+        let (atx, _arx) = mpsc::unbounded_channel();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+
+        // Open Options via click
+        app.options_button_rect = Some((5, 5, 12, 1));
+        let click_options = CEvent::Mouse(crossterm::event::MouseEvent {
+            kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
+            column: 6,
+            row: 5,
+            modifiers: KeyModifiers::empty(),
+        });
+        let _ = super::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        assert!(app.options_menu_open);
+
+        // Press '4' to open Optional Deps
+        let key_four = CEvent::Key(crossterm::event::KeyEvent::new(
+            KeyCode::Char('4'),
+            KeyModifiers::empty(),
+        ));
+        let _ = super::handle_event(key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+
+        match &app.modal {
+            crate::state::Modal::OptionalDeps { rows, .. } => {
+                let clip = rows
+                    .iter()
+                    .find(|r| r.label.starts_with("Clipboard: wl-clipboard"))
+                    .expect("wl-clipboard row");
+                assert_eq!(clip.note.as_deref(), Some("Wayland"));
+                assert!(!clip.installed);
+                assert!(clip.selectable);
+                // Ensure xclip is not presented when Wayland is active
+                assert!(
+                    rows.iter()
+                        .find(|r| r.label.starts_with("Clipboard: xclip"))
+                        .is_none(),
+                    "xclip should not be listed on Wayland"
+                );
+            }
+            other => panic!("Expected OptionalDeps modal, got {:?}", other),
+        }
+
+        // Restore env and cleanup
+        unsafe {
+            if let Some(v) = orig_path {
+                std::env::set_var("PATH", v);
+            } else {
+                std::env::remove_var("PATH");
+            }
+            if let Some(v) = orig_wl {
+                std::env::set_var("WAYLAND_DISPLAY", v);
+            } else {
+                std::env::remove_var("WAYLAND_DISPLAY");
+            }
+        }
+        let _ = fs::remove_dir_all(&dir);
     }
 }

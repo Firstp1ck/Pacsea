@@ -297,6 +297,9 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     if has_cachyos {
         consumed_left = consumed_left.saturating_add(1 + cachyos_label.len() as u16);
     }
+    if has_manjaro {
+        consumed_left = consumed_left.saturating_add(1 + manjaro_label.len() as u16);
+    }
     // Minimum single space before right-side buttons when possible
     let options_w = options_button_label.len() as u16;
     let panels_w = panels_button_label.len() as u16;
@@ -709,7 +712,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         } else {
             "List installed packages"
         };
-        let opts = [label_toggle, "Update System", "News"];
+        let opts = [label_toggle, "Update System", "News", "TUI Optional Dep's"];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
         // Place menu under the Options button aligned to its right edge

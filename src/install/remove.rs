@@ -29,16 +29,40 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
             hold = hold_tail
         )
     };
-    let terms: &[(&str, &[&str], bool)] = &[
+    // Prefer GNOME Terminal when running under GNOME desktop
+    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+        .ok()
+        .map(|v| v.to_uppercase().contains("GNOME"))
+        .unwrap_or(false);
+    let terms_gnome_first: &[(&str, &[&str], bool)] = &[
+        ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("gnome-console", &["--", "bash", "-lc"], false),
+        ("kgx", &["--", "bash", "-lc"], false),
         ("alacritty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
-        ("gnome-terminal", &["--", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
         ("xfce4-terminal", &[], true),
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
+    let terms_default: &[(&str, &[&str], bool)] = &[
+        ("alacritty", &["-e", "bash", "-lc"], false),
+        ("kitty", &["bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+        ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("gnome-console", &["--", "bash", "-lc"], false),
+        ("kgx", &["--", "bash", "-lc"], false),
+        ("konsole", &["-e", "bash", "-lc"], false),
+        ("xfce4-terminal", &[], true),
+        ("tilix", &["--", "bash", "-lc"], false),
+        ("mate-terminal", &["--", "bash", "-lc"], false),
+    ];
+    let terms = if is_gnome {
+        terms_gnome_first
+    } else {
+        terms_default
+    };
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
@@ -54,6 +78,13 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
                 let _ = std::fs::create_dir_all(parent);
             }
             cmd.env("PACSEA_TEST_OUT", p);
+        }
+        if term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
+        }
+        if term == "gnome-console" || term == "kgx" {
+            cmd.env("GSK_RENDERER", "cairo");
+            cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
         }
         let spawn_res = cmd.spawn();
         match spawn_res {
@@ -80,6 +111,13 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
                         let _ = std::fs::create_dir_all(parent);
                     }
                     cmd.env("PACSEA_TEST_OUT", p);
+                }
+                if *term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+                    cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
+                }
+                if *term == "gnome-console" || *term == "kgx" {
+                    cmd.env("GSK_RENDERER", "cairo");
+                    cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
                 }
                 let spawn_res = cmd.spawn();
                 match spawn_res {

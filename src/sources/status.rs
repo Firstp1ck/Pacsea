@@ -220,28 +220,29 @@ pub fn parse_status_api_summary(
                 .map(|n| n.to_lowercase().contains("aur"))
                 .unwrap_or(false)
         })
-            && let Some(state) = aur_comp.get("status").and_then(|s| s.as_str()) {
-                match state {
-                    "operational" => { /* no suffix */ }
-                    "degraded_performance" => {
-                        suffix = Some("— AUR RPC degraded".to_string());
-                        color = severity_max(color, ArchStatusColor::IncidentToday);
-                    }
-                    "partial_outage" => {
-                        suffix = Some("— AUR partial outage".to_string());
-                        color = severity_max(color, ArchStatusColor::IncidentToday);
-                    }
-                    "major_outage" => {
-                        suffix = Some("— AUR outage".to_string());
-                        color = severity_max(color, ArchStatusColor::IncidentSevereToday);
-                    }
-                    "under_maintenance" => {
-                        suffix = Some("— Maintenance ongoing".to_string());
-                        color = severity_max(color, ArchStatusColor::IncidentToday);
-                    }
-                    _ => {}
-                }
+        && let Some(state) = aur_comp.get("status").and_then(|s| s.as_str())
+    {
+        match state {
+            "operational" => { /* no suffix */ }
+            "degraded_performance" => {
+                suffix = Some("— AUR RPC degraded".to_string());
+                color = severity_max(color, ArchStatusColor::IncidentToday);
             }
+            "partial_outage" => {
+                suffix = Some("— AUR partial outage".to_string());
+                color = severity_max(color, ArchStatusColor::IncidentToday);
+            }
+            "major_outage" => {
+                suffix = Some("— AUR outage".to_string());
+                color = severity_max(color, ArchStatusColor::IncidentSevereToday);
+            }
+            "under_maintenance" => {
+                suffix = Some("— Maintenance ongoing".to_string());
+                color = severity_max(color, ArchStatusColor::IncidentToday);
+            }
+            _ => {}
+        }
+    }
 
     let text = if indicator == "none" {
         "All systems operational".to_string()

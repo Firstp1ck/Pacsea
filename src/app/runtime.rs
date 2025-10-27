@@ -90,6 +90,18 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Apply initial keybind footer visibility (default true if not present)
     app.show_keybinds_footer = prefs.show_keybinds_footer;
 
+    // GNOME desktop: prompt to install a GNOME terminal if none present (gnome-terminal or gnome-console/kgx)
+    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+        .ok()
+        .map(|v| v.to_uppercase().contains("GNOME"))
+        .unwrap_or(false);
+    let has_gterm = crate::install::command_on_path("gnome-terminal");
+    let has_gconsole =
+        crate::install::command_on_path("gnome-console") || crate::install::command_on_path("kgx");
+    if is_gnome && !(has_gterm || has_gconsole) {
+        app.modal = crate::state::Modal::GnomeTerminalPrompt;
+    }
+
     if let Ok(s) = std::fs::read_to_string(&app.cache_path)
         && let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s)
     {
@@ -294,6 +306,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                     }
                     a.name.to_lowercase().cmp(&b.name.to_lowercase())
                 });
+                // Deduplicate by package name, preferring earlier entries (core > extra > others)
+                {
+                    use std::collections::HashSet;
+                    let mut seen = HashSet::new();
+                    items.retain(|p| seen.insert(p.name.to_lowercase()));
+                }
                 let _ = search_result_tx.send(SearchResults {
                     id: latest.id,
                     items,
@@ -333,6 +351,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                     }
                     a.name.to_lowercase().cmp(&b.name.to_lowercase())
                 });
+                // Deduplicate by package name, preferring earlier entries (official over AUR)
+                {
+                    use std::collections::HashSet;
+                    let mut seen = HashSet::new();
+                    items.retain(|p| seen.insert(p.name.to_lowercase()));
+                }
                 for e in errors {
                     let _ = err_tx.send(e);
                 }
