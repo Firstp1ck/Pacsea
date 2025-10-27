@@ -71,6 +71,11 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
         if term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
             cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
         }
+        // Force software/cairo rendering for GNOME Console to avoid GPU/Vulkan errors
+        if term == "gnome-console" || term == "kgx" {
+            cmd.env("GSK_RENDERER", "cairo");
+            cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
+        }
         let _ = cmd.spawn();
         launched = true;
     } else {
@@ -92,6 +97,11 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
                 // Suppress Konsole Wayland textinput warnings on Wayland
                 if *term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
                     cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
+                }
+                // Force software/cairo rendering for GNOME Console to avoid GPU/Vulkan errors
+                if *term == "gnome-console" || *term == "kgx" {
+                    cmd.env("GSK_RENDERER", "cairo");
+                    cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
                 }
                 let _ = cmd.spawn();
                 launched = true;

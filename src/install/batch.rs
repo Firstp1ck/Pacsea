@@ -122,6 +122,10 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
         if term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
             cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
         }
+        if term == "gnome-console" || term == "kgx" {
+            cmd.env("GSK_RENDERER", "cairo");
+            cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
+        }
         let spawn_res = cmd.spawn();
         match spawn_res {
             Ok(_) => {
@@ -150,6 +154,10 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
                 }
                 if *term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
                     cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
+                }
+                if *term == "gnome-console" || *term == "kgx" {
+                    cmd.env("GSK_RENDERER", "cairo");
+                    cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
                 }
                 let spawn_res = cmd.spawn();
                 match spawn_res {
