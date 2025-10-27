@@ -818,6 +818,51 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
             render_simple_list_modal(f, area, "Optional Deps", lines);
         }
+        crate::state::Modal::GnomeTerminalPrompt => {
+            // Centered confirmation dialog for installing GNOME Terminal
+            let w = area.width.saturating_sub(10).min(90);
+            let h = 9;
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            f.render_widget(Clear, rect);
+
+            let mut lines: Vec<Line<'static>> = Vec::new();
+            lines.push(Line::from(Span::styled(
+                "GNOME Terminal or Console recommended",
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "GNOME was detected, but no GNOME terminal (gnome-terminal or gnome-console/kgx) is installed.",
+                Style::default().fg(th.text),
+            )));
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Press Enter to install gnome-terminal  •  Esc to cancel",
+                Style::default().fg(th.subtext1),
+            )));
+            lines.push(Line::from(Span::styled(
+                "Cancel may lead to unexpected behavior.",
+                Style::default().fg(th.yellow),
+            )));
+
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.mantle))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            " Install a GNOME Terminal ",
+                            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(th.mauve))
+                        .style(Style::default().bg(th.mantle)),
+                );
+            f.render_widget(boxw, rect);
+        }
         crate::state::Modal::None => {}
     }
 }

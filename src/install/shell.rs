@@ -26,6 +26,8 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     // (binary, args, needs_xfce_command)
     let terms_gnome_first: &[(&str, &[&str], bool)] = &[
         ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("gnome-console", &["--", "bash", "-lc"], false),
+        ("kgx", &["--", "bash", "-lc"], false),
         ("alacritty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
@@ -40,6 +42,8 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("gnome-console", &["--", "bash", "-lc"], false),
+        ("kgx", &["--", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
         // For xfce4-terminal, use --command "bash -lc '<cmd>'" to avoid -lc being parsed by terminal
         ("xfce4-terminal", &[], true),
@@ -63,6 +67,10 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
             }
             cmd.env("PACSEA_TEST_OUT", p);
         }
+        // Suppress Konsole Wayland textinput warnings on Wayland
+        if term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
+        }
         let _ = cmd.spawn();
         launched = true;
     } else {
@@ -80,6 +88,10 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
                         let _ = std::fs::create_dir_all(parent);
                     }
                     cmd.env("PACSEA_TEST_OUT", p);
+                }
+                // Suppress Konsole Wayland textinput warnings on Wayland
+                if *term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+                    cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
                 }
                 let _ = cmd.spawn();
                 launched = true;

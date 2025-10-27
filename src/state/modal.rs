@@ -47,6 +47,8 @@ pub enum Modal {
         /// Selected row index.
         selected: usize,
     },
+    /// Prompt to install GNOME Terminal at startup on GNOME when not present.
+    GnomeTerminalPrompt,
 }
 
 #[cfg(test)]
@@ -79,5 +81,6 @@ mod tests {
             rows: Vec::new(),
             selected: 0,
         };
+        let _ = super::Modal::GnomeTerminalPrompt;
     }
 }

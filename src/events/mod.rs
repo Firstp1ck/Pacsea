@@ -307,6 +307,24 @@ pub fn handle_event(
                 }
                 return false;
             }
+            crate::state::Modal::GnomeTerminalPrompt => {
+                match ke.code {
+                    KeyCode::Enter => {
+                        // Install GNOME Terminal, then close the prompt
+                        let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
+                        crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                        app.modal = crate::state::Modal::None;
+                    }
+                    KeyCode::Esc => {
+                        // Warn user about potential unexpected behavior and close the prompt
+                        app.toast_message = Some("Continuing without gnome-terminal may cause unexpected behavior".to_string());
+                        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
+                        app.modal = crate::state::Modal::None;
+                    }
+                    _ => {}
+                }
+                return false;
+            }
             crate::state::Modal::None => {}
         }
 

@@ -34,6 +34,8 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
         .unwrap_or(false);
     let terms_gnome_first: &[(&str, &[&str], bool)] = &[
         ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("gnome-console", &["--", "bash", "-lc"], false),
+        ("kgx", &["--", "bash", "-lc"], false),
         ("alacritty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
@@ -47,6 +49,8 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("gnome-terminal", &["--", "bash", "-lc"], false),
+        ("gnome-console", &["--", "bash", "-lc"], false),
+        ("kgx", &["--", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
         ("xfce4-terminal", &[], true),
         ("tilix", &["--", "bash", "-lc"], false),
