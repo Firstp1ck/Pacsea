@@ -96,7 +96,8 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         .map(|v| v.to_uppercase().contains("GNOME"))
         .unwrap_or(false);
     let has_gterm = crate::install::command_on_path("gnome-terminal");
-    let has_gconsole = crate::install::command_on_path("gnome-console") || crate::install::command_on_path("kgx");
+    let has_gconsole =
+        crate::install::command_on_path("gnome-console") || crate::install::command_on_path("kgx");
     if is_gnome && !(has_gterm || has_gconsole) {
         app.modal = crate::state::Modal::GnomeTerminalPrompt;
     }

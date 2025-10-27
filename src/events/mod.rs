@@ -317,8 +317,12 @@ pub fn handle_event(
                     }
                     KeyCode::Esc => {
                         // Warn user about potential unexpected behavior and close the prompt
-                        app.toast_message = Some("Continuing without gnome-terminal may cause unexpected behavior".to_string());
-                        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
+                        app.toast_message = Some(
+                            "Continuing without gnome-terminal may cause unexpected behavior"
+                                .to_string(),
+                        );
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
                         app.modal = crate::state::Modal::None;
                     }
                     _ => {}

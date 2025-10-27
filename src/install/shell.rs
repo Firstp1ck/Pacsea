@@ -50,7 +50,11 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
-    let terms = if is_gnome { terms_gnome_first } else { terms_default };
+    let terms = if is_gnome {
+        terms_gnome_first
+    } else {
+        terms_default
+    };
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
