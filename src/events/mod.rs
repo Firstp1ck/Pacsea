@@ -639,26 +639,46 @@ pub fn handle_event(
                                 });
                             }
                         }
-                        // Clipboard
-                        let is_wayland = std::env::var("WAYLAND_DISPLAY").is_ok();
-                        if is_wayland {
-                            let pkg = "wl-clipboard";
+                        // Clipboard: Prefer Klipper when KDE session detected; else Wayland/X11 specific
+                        let is_kde = std::env::var("KDE_FULL_SESSION").is_ok()
+                            || std::env::var("XDG_CURRENT_DESKTOP")
+                                .ok()
+                                .map(|v| {
+                                    let u = v.to_uppercase();
+                                    u.contains("KDE") || u.contains("PLASMA")
+                                })
+                                .unwrap_or(false)
+                            || on_path("klipper");
+                        if is_kde {
+                            let pkg = "plasma-workspace";
                             rows.push(crate::state::types::OptionalDepRow {
-                                label: "Clipboard: wl-clipboard".to_string(),
+                                label: "Clipboard: Klipper (KDE)".to_string(),
                                 package: pkg.to_string(),
-                                installed: is_pkg_installed(pkg) || on_path("wl-copy"),
-                                selectable: !(is_pkg_installed(pkg) || on_path("wl-copy")),
-                                note: Some("Wayland".to_string()),
+                                installed: is_pkg_installed(pkg) || on_path("klipper"),
+                                selectable: !(is_pkg_installed(pkg) || on_path("klipper")),
+                                note: Some("KDE Plasma".to_string()),
                             });
                         } else {
-                            let pkg = "xclip";
-                            rows.push(crate::state::types::OptionalDepRow {
-                                label: "Clipboard: xclip".to_string(),
-                                package: pkg.to_string(),
-                                installed: is_pkg_installed(pkg) || on_path("xclip"),
-                                selectable: !(is_pkg_installed(pkg) || on_path("xclip")),
-                                note: Some("X11".to_string()),
-                            });
+                            let is_wayland = std::env::var("WAYLAND_DISPLAY").is_ok();
+                            if is_wayland {
+                                let pkg = "wl-clipboard";
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "Clipboard: wl-clipboard".to_string(),
+                                    package: pkg.to_string(),
+                                    installed: is_pkg_installed(pkg) || on_path("wl-copy"),
+                                    selectable: !(is_pkg_installed(pkg) || on_path("wl-copy")),
+                                    note: Some("Wayland".to_string()),
+                                });
+                            } else {
+                                let pkg = "xclip";
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "Clipboard: xclip".to_string(),
+                                    package: pkg.to_string(),
+                                    installed: is_pkg_installed(pkg) || on_path("xclip"),
+                                    selectable: !(is_pkg_installed(pkg) || on_path("xclip")),
+                                    note: Some("X11".to_string()),
+                                });
+                            }
                         }
                         // Mirrors
                         let manjaro = std::fs::read_to_string("/etc/os-release")
