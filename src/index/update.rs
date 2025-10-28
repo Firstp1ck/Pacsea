@@ -76,6 +76,7 @@ pub async fn update_in_background(
     });
 }
 
+#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 mod tests {
     #[tokio::test]

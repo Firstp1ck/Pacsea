@@ -44,6 +44,7 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 mod tests {
     use super::*;

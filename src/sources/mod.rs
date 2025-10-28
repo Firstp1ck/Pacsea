@@ -50,9 +50,11 @@ pub use pkgbuild::fetch_pkgbuild_fast;
 pub use search::fetch_all_with_errors;
 pub use status::fetch_arch_status_text;
 
+#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
 
+#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
     TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))

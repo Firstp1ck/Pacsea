@@ -91,6 +91,7 @@ pub async fn fetch_official_pkg_names()
     Ok(pkgs)
 }
 
+#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 mod tests {
     #[tokio::test]

@@ -143,6 +143,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[tokio::test]
     /// What: Enrichment updates fields from pacman -Si and notifies
     ///

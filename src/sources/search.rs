@@ -45,6 +45,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
     (items, errors)
 }
 
+#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 mod tests {
     #[tokio::test]
