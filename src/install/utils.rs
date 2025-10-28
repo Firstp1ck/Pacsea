@@ -1,3 +1,8 @@
+#[cfg(target_os = "windows")]
+pub fn command_on_path(cmd: &str) -> bool {
+    which::which(cmd).is_ok()
+}
+
 #[cfg(not(target_os = "windows"))]
 /// Return `true` if an executable named `cmd` can be found in the current `PATH`.
 ///

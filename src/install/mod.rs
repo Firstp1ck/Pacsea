@@ -16,6 +16,5 @@ pub use logging::log_removed;
 pub use remove::spawn_remove_all;
 pub use shell::spawn_shell_commands_in_terminal;
 pub use single::spawn_install;
-#[cfg(not(target_os = "windows"))]
 pub use utils::command_on_path;
 // pub use command::build_install_command;
