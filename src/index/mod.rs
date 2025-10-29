@@ -39,7 +39,7 @@ static EXPLICIT_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
 mod distro;
 pub use distro::{
-    cachyos_repo_names, eos_repo_names, is_cachyos_repo, is_eos_name, is_eos_repo,
+    is_cachyos_repo, is_eos_name, is_eos_repo,
     is_manjaro_name_or_owner, is_name_manjaro,
 };
 
@@ -59,20 +59,35 @@ fn explicit_lock() -> &'static RwLock<HashSet<String>> {
 }
 
 mod enrich;
+
 mod explicit;
+
 mod fetch;
+
 mod installed;
+
 mod persist;
+
 mod query;
+
+#[cfg(windows)]
+mod mirrors;
 mod update;
 
 pub use enrich::*;
+
 pub use explicit::*;
+
 pub use fetch::*;
+
 pub use installed::*;
+
 pub use persist::*;
+
 pub use query::*;
-pub use update::*;
+
+#[cfg(windows)]
+pub use mirrors::*;
 
 #[cfg(test)]
 static TEST_MUTEX: OnceLock<std::sync::Mutex<()>> = OnceLock::new();

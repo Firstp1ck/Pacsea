@@ -59,8 +59,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             .unwrap_or_else(|| "d".to_string());
 
         let line1 = format!(
-            "Normal Mode (Focused Search Window):  [{}] toggle, [{}] insert, [j / k] move, [Ctrl+d / Ctrl+u] page, [{} / {}] Select text, [{}] Delete text",
-            toggle_label, insert_label, left_label, right_label, delete_label
+            "Normal Mode (Focused Search Window):  [{toggle_label}] toggle, [{insert_label}] insert, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text"
         );
         // Menus and Import/Export on an additional line when present
         let mut line2 = String::new();
@@ -512,7 +511,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 if let Some(k) = km.install_confirm.first() {
                     spans.extend([
                         Span::styled(format!("[{}]", k.label()), key_style),
-                        Span::raw(format!(" {}", confirm_text)),
+                        Span::raw(format!(" {confirm_text}")),
                         sep.clone(),
                     ]);
                 }

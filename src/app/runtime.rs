@@ -248,12 +248,27 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     });
 
-    pkgindex::update_in_background(
-        app.official_index_path.clone(),
-        net_err_tx.clone(),
-        index_notify_tx.clone(),
-    )
-    .await;
+    #[cfg(windows)]
+    {
+        // Save mirrors into the repository directory in the source tree and build the index via Arch API
+        let repo_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("repository");
+        crate::index::refresh_windows_mirrors_and_index(
+            app.official_index_path.clone(),
+            repo_dir,
+            net_err_tx.clone(),
+            index_notify_tx.clone(),
+        )
+        .await;
+    }
+    #[cfg(not(windows))]
+    {
+        pkgindex::update_in_background(
+            app.official_index_path.clone(),
+            net_err_tx.clone(),
+            index_notify_tx.clone(),
+        )
+        .await;
+    }
 
     pkgindex::refresh_installed_cache().await;
     pkgindex::refresh_explicit_cache().await;

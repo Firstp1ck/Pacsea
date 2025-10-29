@@ -8,6 +8,7 @@ use super::OfficialPkg;
 /// Output:
 /// - `Ok(Vec<OfficialPkg>)` where `name`, `repo`, and `version` are set; `arch` and `description`
 ///   are empty for speed. The result is deduplicated by `(repo, name)`.
+#[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
     fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -89,6 +90,12 @@ pub async fn fetch_official_pkg_names()
 
     // Do not enrich here; keep only fast fields for the initial on-disk index.
     Ok(pkgs)
+}
+
+#[cfg(windows)]
+pub async fn fetch_official_pkg_names()
+-> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
+    Err("official package index fetch is not implemented on Windows yet".into())
 }
 
 #[cfg(not(target_os = "windows"))]
