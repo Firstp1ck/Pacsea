@@ -445,14 +445,14 @@ pub fn handle_mouse_event(
             let date_str = crate::util::today_yyyymmdd_utc();
             let mut serial: u32 = 1;
             let file_path = loop {
-                let fname = format!("install_list_{}_{}.txt", date_str, serial);
+                let fname = format!("install_list_{date_str}_{serial}.txt");
                 let path = export_dir.join(&fname);
                 if !path.exists() {
                     break path;
                 }
                 serial += 1;
                 if serial > 9999 {
-                    break export_dir.join(format!("install_list_{}_fallback.txt", date_str));
+                    break export_dir.join(format!("install_list_{date_str}_fallback.txt"));
                 }
             };
             let body = names.join("\n");
@@ -464,7 +464,7 @@ pub fn handle_mouse_event(
                     tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
                 }
                 Err(e) => {
-                    app.toast_message = Some(format!("Export failed: {}", e));
+                    app.toast_message = Some(format!("Export failed: {e}"));
                     app.toast_expires_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
                     tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
