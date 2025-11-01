@@ -197,6 +197,15 @@ pub fn handle_event(
                             }
                         }
                     }
+                    KeyCode::Char('s') | KeyCode::Char('S') => {
+                        // Scan AUR package(s) before install
+                        let list = items.clone();
+                        for it in list.iter() {
+                            if matches!(it.source, crate::state::Source::Aur) {
+                                crate::install::spawn_aur_scan_for(&it.name);
+                            }
+                        }
+                    }
                     _ => {}
                 }
                 return false;
@@ -287,20 +296,88 @@ pub fn handle_event(
                         }
                     }
                     KeyCode::Enter => {
-                        if let Some(row) = rows.get(*selected)
-                            && !row.installed
-                            && row.selectable
-                        {
-                            let pkg = row.package.clone();
-                            let cmd = if pkg == "paru" {
-                                "git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
-                            } else if pkg == "yay" {
-                                "git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
-                            } else {
-                                format!("sudo pacman -S --needed --noconfirm {}", pkg)
-                            };
-                            crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                        if let Some(row) = rows.get(*selected) {
+                            if row.package == "virustotal-setup" {
+                                let current = crate::theme::settings().virustotal_api_key;
+                                let cur_len = current.len();
+                                app.modal = crate::state::Modal::VirusTotalSetup {
+                                    input: current,
+                                    cursor: cur_len,
+                                };
+                            } else if !row.installed && row.selectable {
+                                let pkg = row.package.clone();
+                                let cmd = if pkg == "paru" {
+                                    "git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
+                                } else if pkg == "yay" {
+                                    "git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
+                                } else if pkg == "semgrep-bin" {
+                                    "git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
+                                } else {
+                                    format!("sudo pacman -S --needed --noconfirm {}", pkg)
+                                };
+                                crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                                app.modal = crate::state::Modal::None;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                return false;
+            }
+            crate::state::Modal::VirusTotalSetup { input, cursor } => {
+                match ke.code {
+                    KeyCode::Esc => {
+                        app.modal = crate::state::Modal::None;
+                    }
+                    KeyCode::Enter => {
+                        let key = input.trim().to_string();
+                        if key.is_empty() {
+                            let url = "https://www.virustotal.com/gui/my-apikey";
+                            std::thread::spawn(move || {
+                                let _ = std::process::Command::new("xdg-open")
+                                    .arg(url)
+                                    .stdin(std::process::Stdio::null())
+                                    .stdout(std::process::Stdio::null())
+                                    .stderr(std::process::Stdio::null())
+                                    .spawn();
+                            });
+                            // Keep the setup modal open so the user can paste the key after opening the link
+                        } else {
+                            crate::theme::save_virustotal_api_key(&key);
                             app.modal = crate::state::Modal::None;
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        if *cursor > 0 && *cursor <= input.len() {
+                            input.remove(*cursor - 1);
+                            *cursor -= 1;
+                        }
+                    }
+                    KeyCode::Left => {
+                        if *cursor > 0 {
+                            *cursor -= 1;
+                        }
+                    }
+                    KeyCode::Right => {
+                        if *cursor < input.len() {
+                            *cursor += 1;
+                        }
+                    }
+                    KeyCode::Home => {
+                        *cursor = 0;
+                    }
+                    KeyCode::End => {
+                        *cursor = input.len();
+                    }
+                    KeyCode::Char(ch) => {
+                        if !ch.is_control() {
+                            if *cursor <= input.len() {
+                                input.insert(*cursor, ch);
+                                *cursor += 1;
+                            } else {
+                                input.push(ch);
+                                *cursor = input.len();
+                            }
                         }
                     }
                     _ => {}
@@ -330,6 +407,11 @@ pub fn handle_event(
                 return false;
             }
             crate::state::Modal::None => {}
+        }
+
+        // If any modal remains open after handling above, consume the key to prevent main window interaction
+        if !matches!(app.modal, crate::state::Modal::None) {
+            return false;
         }
 
         // Global keymap shortcuts (regardless of focus)
@@ -571,6 +653,7 @@ pub fn handle_event(
                         let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();
                         let is_pkg_installed = |pkg: &str| crate::index::is_installed(pkg);
                         let on_path = |cmd: &str| crate::install::command_on_path(cmd);
+                        // (Security rows will be appended after AUR helper for desired order)
                         // Editor
                         let editor_candidates: &[(&str, &str)] = &[
                             ("nvim", "neovim"),
@@ -725,6 +808,7 @@ pub fn handle_event(
                                 note: None,
                             });
                         }
+                        // (VirusTotal API row will be appended at the end for desired order)
                         // AUR helper
                         let paru_inst = on_path("paru") || is_pkg_installed("paru");
                         let yay_inst = on_path("yay") || is_pkg_installed("yay");
@@ -761,6 +845,51 @@ pub fn handle_event(
                                 selectable: true,
                                 note: Some("Install via git clone + makepkg -si".to_string()),
                             });
+                        }
+                        // Append Security rows after AUR helper
+                        {
+                            // Security: clamav (official)
+                            let pkg = "clamav";
+                            let installed = is_pkg_installed(pkg) || on_path("clamscan");
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "Security: clamav".to_string(),
+                                package: pkg.to_string(),
+                                installed,
+                                selectable: !installed,
+                                note: None,
+                            });
+                            // Security: trivy (official)
+                            let pkg = "trivy";
+                            let installed = is_pkg_installed(pkg) || on_path("trivy");
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "Security: trivy".to_string(),
+                                package: pkg.to_string(),
+                                installed,
+                                selectable: !installed,
+                                note: None,
+                            });
+                            // Security: semgrep-bin (AUR)
+                            let pkg = "semgrep-bin";
+                            let installed = is_pkg_installed(pkg) || on_path("semgrep");
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "Security: semgrep-bin".to_string(),
+                                package: pkg.to_string(),
+                                installed,
+                                selectable: !installed,
+                                note: Some("AUR".to_string()),
+                            });
+                            // Security: VirusTotal API (Setup)
+                            {
+                                let vt_key_present =
+                                    !crate::theme::settings().virustotal_api_key.is_empty();
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "Security: VirusTotal API".to_string(),
+                                    package: "virustotal-setup".to_string(),
+                                    installed: vt_key_present,
+                                    selectable: true,
+                                    note: Some("Setup".to_string()),
+                                });
+                            }
                         }
                         app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
                     }
@@ -978,11 +1107,11 @@ mod tests {
     ///
     /// - Setup: Fake PATH with nvim and kitty present; ensure X11 (no WAYLAND_DISPLAY)
     /// - Expect: Rows include:
-    ///     Editor: nvim (installed, not selectable)
-    ///     Terminal: kitty (installed, not selectable)
-    ///     Clipboard: xclip (not installed, selectable)
-    ///     Mirrors: reflector (not installed, selectable)
-    ///     AUR helper: paru and yay (both not installed, selectable)
+    ///   - Editor: nvim (installed, not selectable)
+    ///   - Terminal: kitty (installed, not selectable)
+    ///   - Clipboard: xclip (not installed, selectable)
+    ///   - Mirrors: reflector (not installed, selectable)
+    ///   - AUR helper: paru and yay (both not installed, selectable)
     fn optional_deps_rows_reflect_installed_and_x11_and_reflector() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
@@ -1179,9 +1308,7 @@ mod tests {
                 assert!(clip.selectable);
                 // Ensure xclip is not presented when Wayland is active
                 assert!(
-                    rows.iter()
-                        .find(|r| r.label.starts_with("Clipboard: xclip"))
-                        .is_none(),
+                    !rows.iter().any(|r| r.label.starts_with("Clipboard: xclip")),
                     "xclip should not be listed on Wayland"
                 );
             }

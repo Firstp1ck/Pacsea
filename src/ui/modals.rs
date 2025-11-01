@@ -24,6 +24,11 @@ use crate::theme::{KeyChord, theme};
 /// - Help dynamically reflects keymap; News draws a selectable list and records list rect.
 pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
+    // Draw a full-screen scrim behind any active modal to avoid underlying text bleed/concatenation
+    if !matches!(app.modal, crate::state::Modal::None) {
+        let scrim = Block::default().style(Style::default().bg(th.mantle));
+        f.render_widget(scrim, area);
+    }
 
     match &app.modal {
         crate::state::Modal::Alert { message } => {
@@ -149,6 +154,10 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             lines.push(Line::from(Span::styled(
                 "Press Enter to confirm or Esc to cancel",
                 Style::default().fg(th.subtext1),
+            )));
+            lines.push(Line::from(Span::styled(
+                "Press S to scan AUR package(s) before install",
+                Style::default().fg(th.overlay1),
             )));
             let boxw = Paragraph::new(lines)
                 .style(Style::default().fg(th.text).bg(th.mantle))
@@ -860,6 +869,81 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Block::default()
                         .title(Span::styled(
                             " Install a GNOME Terminal ",
+                            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(th.mauve))
+                        .style(Style::default().bg(th.mantle)),
+                );
+            f.render_widget(boxw, rect);
+        }
+        crate::state::Modal::VirusTotalSetup { input, cursor: _ } => {
+            // Centered dialog for VirusTotal API key setup with clickable URL and input field
+            let w = area.width.saturating_sub(10).min(90);
+            let h = 11;
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
+            f.render_widget(Clear, rect);
+
+            // Build content
+            let vt_url = "https://www.virustotal.com/gui/my-apikey";
+            // Show input buffer (not masked)
+            let shown = if input.is_empty() {
+                "<empty>".to_string()
+            } else {
+                input.clone()
+            };
+            let lines: Vec<Line<'static>> = vec![
+                Line::from(Span::styled(
+                    "VirusTotal API Setup",
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Open the link to view your API key:",
+                    Style::default().fg(th.text),
+                )),
+                Line::from(vec![
+                    // Surround with spaces to avoid visual concatenation with underlying content
+                    Span::styled(" ", Style::default().fg(th.text)),
+                    Span::styled(
+                        vt_url.to_string(),
+                        Style::default()
+                            .fg(th.lavender)
+                            .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
+                    ),
+                    Span::styled("  [Enter to open]", Style::default().fg(th.subtext1)),
+                ]),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Enter/paste your API key below and press Enter to save (Esc to cancel):",
+                    Style::default().fg(th.subtext1),
+                )),
+                Line::from(Span::styled(
+                    format!("API key: {}", shown),
+                    Style::default().fg(th.text),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Tip: After saving, scans will auto-query VirusTotal by file hash.",
+                    Style::default().fg(th.overlay1),
+                )),
+            ];
+
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.mantle))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            " VirusTotal ",
                             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                         ))
                         .borders(Borders::ALL)

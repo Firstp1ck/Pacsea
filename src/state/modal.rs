@@ -49,6 +49,13 @@ pub enum Modal {
     },
     /// Prompt to install GNOME Terminal at startup on GNOME when not present.
     GnomeTerminalPrompt,
+    /// Setup dialog for VirusTotal API key.
+    VirusTotalSetup {
+        /// User-entered API key buffer.
+        input: String,
+        /// Cursor position within the input buffer.
+        cursor: usize,
+    },
 }
 
 #[cfg(test)]
@@ -82,5 +89,9 @@ mod tests {
             selected: 0,
         };
         let _ = super::Modal::GnomeTerminalPrompt;
+        let _ = super::Modal::VirusTotalSetup {
+            input: String::new(),
+            cursor: 0,
+        };
     }
 }

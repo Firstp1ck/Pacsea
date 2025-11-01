@@ -92,6 +92,10 @@ pub fn settings() -> Settings {
                         out.mirror_count = v;
                     }
                 }
+                "virustotal_api_key" | "vt_api_key" | "virustotal" => {
+                    // VirusTotal API key; stored as-is and trimmed later
+                    out.virustotal_api_key = val.to_string();
+                }
                 // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
                 _ => {}
             }
@@ -114,6 +118,8 @@ pub fn settings() -> Settings {
             .collect::<Vec<_>>()
             .join(", ");
     }
+    // Normalize VirusTotal API key (trim whitespace)
+    out.virustotal_api_key = out.virustotal_api_key.trim().to_string();
 
     // Load keybinds from keybinds.conf if available; otherwise fall back to legacy keys in settings file
     let keybinds_path = resolve_keybinds_config_path();

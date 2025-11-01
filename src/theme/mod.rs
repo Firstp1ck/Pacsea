@@ -13,7 +13,7 @@ mod types;
 pub use config::{
     ensure_settings_keys_present, maybe_migrate_legacy_confs, save_mirror_count,
     save_selected_countries, save_show_install_pane, save_show_keybinds_footer,
-    save_show_recent_pane, save_sort_mode,
+    save_show_recent_pane, save_sort_mode, save_virustotal_api_key,
 };
 pub use paths::{config_dir, lists_dir, logs_dir};
 pub use settings::settings;

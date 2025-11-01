@@ -105,6 +105,23 @@ pub fn handle_mouse_event(
         return false;
     }
 
+    // If VirusTotalSetup modal is open, intercept mouse clicks to open the URL and consume the event
+    if let crate::state::Modal::VirusTotalSetup { .. } = &app.modal {
+        if is_left_down {
+            let url = "https://www.virustotal.com/gui/my-apikey";
+            std::thread::spawn(move || {
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(url)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+            });
+        }
+        // Consume all mouse events while VirusTotal setup modal is open
+        return false;
+    }
+
     // If News modal is open, intercept mouse events before anything else
     if let crate::state::Modal::News { items, selected } = &mut app.modal {
         // Left click: select/open or close on outside
@@ -156,6 +173,10 @@ pub fn handle_mouse_event(
             _ => {}
         }
         // If modal is open and event wasn't handled above, consume it
+        return false;
+    }
+    // While any modal is open, prevent main window interaction by consuming mouse events
+    if !matches!(app.modal, crate::state::Modal::None) {
         return false;
     }
 
@@ -802,6 +823,8 @@ pub fn handle_mouse_event(
                     let is_pkg_installed = |pkg: &str| crate::index::is_installed(pkg);
                     let on_path = |cmd: &str| crate::install::command_on_path(cmd);
 
+                    // Security scanners (moved below AUR helper)
+
                     // Editor: show the one installed, otherwise all possibilities
                     // Map: (binary, package)
                     let editor_candidates: &[(&str, &str)] = &[
@@ -997,6 +1020,52 @@ pub fn handle_mouse_event(
                             installed: false,
                             selectable: true,
                             note: Some("Install via git clone + makepkg -si".to_string()),
+                        });
+                    }
+
+                    // Security scanners (after AUR helper)
+                    {
+                        // ClamAV (official)
+                        let pkg = "clamav";
+                        let installed = is_pkg_installed(pkg) || on_path("clamscan");
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: clamav".to_string(),
+                            package: pkg.to_string(),
+                            installed,
+                            selectable: !installed,
+                            note: None,
+                        });
+                        // Trivy (official)
+                        let pkg = "trivy";
+                        let installed = is_pkg_installed(pkg) || on_path("trivy");
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: trivy".to_string(),
+                            package: pkg.to_string(),
+                            installed,
+                            selectable: !installed,
+                            note: None,
+                        });
+                        // Semgrep (AUR: semgrep-bin)
+                        let pkg = "semgrep-bin";
+                        let installed = is_pkg_installed(pkg) || on_path("semgrep");
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: semgrep-bin".to_string(),
+                            package: pkg.to_string(),
+                            installed,
+                            selectable: !installed,
+                            note: Some("AUR".to_string()),
+                        });
+                    }
+                    // VirusTotal API setup
+                    {
+                        let vt_key_present =
+                            !crate::theme::settings().virustotal_api_key.is_empty();
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: VirusTotal API".to_string(),
+                            package: "virustotal-setup".to_string(),
+                            installed: vt_key_present,
+                            selectable: true,
+                            note: Some("Setup".to_string()),
                         });
                     }
 
