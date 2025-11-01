@@ -174,6 +174,7 @@ cargo run
 - Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/11)
 
 ### Potential future Features
+- **Security Scan for AUR Packages (Source Code and PKGBUILD) using multiple tools: ClamAV, VirusTotal, Trivy and Semgrep** (on going)
 - **Extensive Preflight Check** (on going)
 - **Default Mirrors, Mirror Search and extensive Mirror Selection**
 - **Adjustable Width of the Middle Panes**
