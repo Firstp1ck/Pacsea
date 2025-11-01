@@ -6,6 +6,12 @@
 
 Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages — built for speed and minimal keystrokes written in Rust.
 
+### Top Priority due to the spreading of Malware in the AUR Repository
+<div align="center">
+  <p>❗<strong>Security-first approach</strong> for installing <strong>AUR Packages</strong>.❗<br>
+  ❗Target: <strong>Security Coverage of ~70% </strong> via automatic <strong>Scans</strong> and <strong>Optional Measures</strong> (e.g., converting AUR packages to <strong>Flatpak</strong>), and more❗</p>
+</div>
+
 <p align="center">
 ✨ Idea or bug? <strong><a href="https://github.com/Firstp1ck/Pacsea/issues">Open an issue</a></strong>.<br/>
 ❤️ Thank you to the Pacsea community for your ideas, reports, and support!
