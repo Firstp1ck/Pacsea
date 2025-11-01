@@ -11,15 +11,12 @@ use super::logging::log_installed;
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
-/// Spawn a terminal to install a single package.
+/// What: Spawn a terminal to install a single package.
 ///
-/// Inputs:
-/// - `item`: Package to install.
-/// - `password`: Optional sudo password to be piped for official installs.
-/// - `dry_run`: When `true`, prints commands rather than executing them.
+/// Input: item to install; password for sudo on official installs (optional); dry_run to print instead of execute
+/// Output: Launches a terminal (or bash) running pacman/paru/yay to perform the install
 ///
-/// Output:
-/// - Launches a terminal (or `bash`) running the appropriate pacman/paru/yay command.
+/// Details: Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.), falling back to bash. Uses pacman for official packages and paru/yay for AUR; appends a hold tail to keep the window open; logs installed names when not in dry_run.
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, uses_sudo) = build_install_command(item, password, dry_run);
     let src = match item.source {

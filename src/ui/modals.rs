@@ -919,7 +919,6 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                             .fg(th.lavender)
                             .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
                     ),
-                    Span::styled("  [Enter to open]", Style::default().fg(th.subtext1)),
                 ]),
                 Line::from(""),
                 Line::from(Span::styled(
@@ -937,6 +936,12 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 )),
             ];
 
+            let inner_x = rect.x + 1;
+            let inner_y = rect.y + 1;
+            let url_line_y = inner_y + 3;
+            let url_x = inner_x + 1;
+            let url_w = vt_url.len() as u16;
+            app.vt_url_rect = Some((url_x, url_line_y, url_w, 1));
             let boxw = Paragraph::new(lines)
                 .style(Style::default().fg(th.text).bg(th.mantle))
                 .wrap(Wrap { trim: true })

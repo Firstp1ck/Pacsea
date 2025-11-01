@@ -1,7 +1,19 @@
 //! Distro-specific helpers for events layer.
 
-/// Build mirror update shell snippet depending on distro.
-/// Uses pacman-mirrors for Manjaro, reflector for Arch/others.
+/// What: Build a shell snippet to refresh pacman mirrors depending on the detected distro.
+///
+/// Inputs:
+/// - `countries`: Either "Worldwide" to auto-rank mirrors, or a comma-separated list used by the underlying tool
+/// - `count`: Mirror count used by Manjaro fasttrack when `countries` is "Worldwide"
+///
+/// Output:
+/// - Shell command string suitable to run in a terminal
+///
+/// Details:
+/// - On Manjaro (detected via /etc/os-release), ensures pacman-mirrors exists, then:
+///   - Worldwide: `pacman-mirrors --fasttrack {count}` followed by `pacman -Syy`
+///   - Countries: `pacman-mirrors --method rank --country '{countries}'` followed by `pacman -Syy`
+/// - Otherwise, attempts to use `reflector` to write `/etc/pacman.d/mirrorlist`; if not found, prints a notice.
 pub fn mirror_update_command(countries: &str, count: u16) -> String {
     if countries.eq("Worldwide") {
         format!(

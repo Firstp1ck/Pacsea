@@ -1,11 +1,12 @@
 use std::io::Write;
 
-/// Append installed package names to an audit log under the logs directory.
+/// What: Append installed package names to an audit log under the logs directory.
 ///
-/// Inputs:
-/// - `names`: Package names to log with a timestamp prefix.
+/// Input: `names` slice of package names to log; each line is timestamped.
 ///
 /// Output: `Ok(())` on success; otherwise an I/O error.
+///
+/// Details: Writes to logs_dir/install_log.txt, prefixing each name with a UTC timestamp.
 pub fn log_installed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
     path.push("install_log.txt");
@@ -24,11 +25,13 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Append removed package names to an audit log under the logs directory.
+/// What: Append removed package names to an audit log under the logs directory.
 ///
-/// Inputs: `names` to append.
+/// Input: `names` slice of package names to append (one per line).
 ///
 /// Output: `Ok(())` on success; otherwise an I/O error.
+///
+/// Details: Appends to logs_dir/remove_log.txt without timestamps.
 pub fn log_removed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
     path.push("remove_log.txt");

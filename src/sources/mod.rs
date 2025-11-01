@@ -10,13 +10,12 @@ pub mod status;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// Fetch JSON from a URL using `curl -sSLf` and parse it with serde_json.
+/// What: Fetch JSON from a URL using curl and parse into `serde_json::Value`
 ///
-/// Inputs:
-/// - `url`: HTTP(S) URL to request.
+/// Input: `url` HTTP(S) to request
+/// Output: `Ok(Value)` on success; `Err` if curl fails or the response is not valid JSON
 ///
-/// Output:
-/// - `Ok(Value)` on success; `Err` if curl fails or the response is not valid JSON.
+/// Details: Executes `curl -sSLf` and parses the UTF-8 body with `serde_json`.
 fn curl_json(url: &str) -> Result<Value> {
     let out = std::process::Command::new("curl")
         .args(["-sSLf", url])
@@ -29,11 +28,12 @@ fn curl_json(url: &str) -> Result<Value> {
     Ok(v)
 }
 
-/// Fetch plain text from a URL using `curl -sSLf`.
+/// What: Fetch plain text from a URL using curl
 ///
-/// Inputs: `url` to request.
+/// Input: `url` to request
+/// Output: `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
 ///
-/// Output: `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails.
+/// Details: Executes `curl -sSLf` and returns the raw body as a `String`.
 fn curl_text(url: &str) -> Result<String> {
     let out = std::process::Command::new("curl")
         .args(["-sSLf", url])

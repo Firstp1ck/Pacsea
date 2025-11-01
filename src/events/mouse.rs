@@ -105,9 +105,15 @@ pub fn handle_mouse_event(
         return false;
     }
 
-    // If VirusTotalSetup modal is open, intercept mouse clicks to open the URL and consume the event
+    // If VirusTotalSetup modal is open, only open the URL when clicking on the link area; consume all mouse events
     if let crate::state::Modal::VirusTotalSetup { .. } = &app.modal {
-        if is_left_down {
+        if is_left_down
+            && let Some((x, y, w, h)) = app.vt_url_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
             let url = "https://www.virustotal.com/gui/my-apikey";
             std::thread::spawn(move || {
                 let _ = std::process::Command::new("xdg-open")

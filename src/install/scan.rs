@@ -1,18 +1,17 @@
 /*!
-AUR package scan launcher.
+What: AUR package scan launcher
 
-Provides functions to open a terminal that:
-- clones the AUR package repository
-- runs `makepkg -o` to download sources only
-- runs ClamAV (`clamscan`) if available
-- runs Trivy filesystem scan if available
-- runs Semgrep static analysis if available
-- looks up file hashes on VirusTotal if the `VT_API_KEY` environment variable is set
+Input:
+- Package name to scan (clone-and-scan), or a target directory to scan in-place
 
-Notes:
-- Semgrep will be installed via AUR helper (paru/yay) if missing; otherwise you'll be prompted to set up an AUR helper. Other tools are not installed.
-- VirusTotal lookups are hash-based; if a file has never been seen by VirusTotal, the API will report an error (no report found).
-- The working directory is a temporary directory printed to the terminal and left behind for inspection.
+Output:
+- Spawns a terminal that runs a sequence of shell commands to clone, download sources, and run optional scanners; results are printed/saved into files in a temp directory (or target dir)
+
+Details:
+- Steps: clone AUR repo; run `makepkg -o`; run optional scanners (ClamAV, Trivy, Semgrep); optional VirusTotal hash lookups when VT_API_KEY is present
+- Semgrep is installed via AUR helper (paru/yay) if missing; other tools are not installed automatically
+- VirusTotal lookups are hash-based; unknown files may report "no report found"
+- Working directory is a temporary directory printed to the terminal and preserved for inspection
 */
 
 #[cfg(not(target_os = "windows"))]
@@ -128,25 +127,29 @@ fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
     cmds
 }
 
-/// Launch a terminal that performs an AUR package scan for the given package name.
+/// What: Launch a terminal that performs an AUR package scan for a given package name
 ///
-/// Behavior (Unix):
-/// - Uses `git clone https://aur.archlinux.org/<pkg>.git`
-/// - `makepkg -o` to download sources
-/// - Optionally runs `clamscan`, `trivy fs`, `semgrep --config=auto`
-/// - If `VT_API_KEY` is set in the environment, performs hash lookups on PKGBUILD and downloaded sources
+/// Input: `pkg` AUR package name to scan
+/// Output: Spawns a terminal that runs the scan pipeline; artifacts are written under a temp working directory
+///
+/// Details:
+/// - Clones `https://aur.archlinux.org/<pkg>.git` and runs `makepkg -o` (download sources only)
+/// - Optionally runs ClamAV, Trivy (fs), and Semgrep scans
+/// - If `VT_API_KEY` is available (or configured in Pacsea settings), performs VirusTotal hash lookups for PKGBUILD/src files
 #[cfg(not(target_os = "windows"))]
 pub fn spawn_aur_scan_for(pkg: &str) {
     let cmds = build_scan_cmds_for_pkg(pkg);
     spawn_shell_commands_in_terminal(&cmds);
 }
 
-/// Launch a terminal to perform a scan in an already-unpacked AUR package directory.
+/// What: Launch a terminal to perform an in-place scan of an unpacked AUR package directory
 ///
-/// The current implementation simply runs the scanners in-place, without cloning or `makepkg -o`.
+/// Input: `path` directory containing PKGBUILD/src files
+/// Output: Spawns a terminal that runs optional scanners in-place; results are written to files within the directory
+///
+/// Details: Does not clone or run `makepkg -o`; only executes the scanners and optional VirusTotal lookups.
 #[cfg(not(target_os = "windows"))]
-#[allow(dead_code)]
-pub fn spawn_aur_scan_in_dir(path: &str) {
+fn build_scan_cmds_in_dir(path: &str) -> Vec<String> {
     let mut cmds: Vec<String> = Vec::new();
     cmds.push(format!("target_dir='{}'", path));
     cmds.push("if [ -d \"$target_dir\" ]; then cd \"$target_dir\"; else echo \"Directory not found: $target_dir\"; exit 1; fi".to_string());
@@ -229,11 +232,108 @@ pub fn spawn_aur_scan_in_dir(path: &str) {
     cmds.push("vtf=./.pacsea_scan_vt_summary.txt; if [ -f \"$vtf\" ]; then VT_TOTAL=$(grep -E '^VT_TOTAL=' \"$vtf\" | cut -d= -f2); VT_KNOWN=$(grep -E '^VT_KNOWN=' \"$vtf\" | cut -d= -f2); VT_UNKNOWN=$(grep -E '^VT_UNKNOWN=' \"$vtf\" | cut -d= -f2); VT_MAL=$(grep -E '^VT_MAL=' \"$vtf\" | cut -d= -f2); VT_SUS=$(grep -E '^VT_SUS=' \"$vtf\" | cut -d= -f2); VT_HAR=$(grep -E '^VT_HAR=' \"$vtf\" | cut -d= -f2); VT_UND=$(grep -E '^VT_UND=' \"$vtf\" | cut -d= -f2); echo \"VirusTotal: files=$VT_TOTAL known=$VT_KNOWN malicious=$VT_MAL suspicious=$VT_SUS harmless=$VT_HAR undetected=$VT_UND unknown=$VT_UNKNOWN\"; else echo 'VirusTotal: not configured or no files'; fi".to_string());
     cmds.push("echo".to_string());
     cmds.push("echo 'Pacsea: in-place scan finished.'".to_string());
+    cmds
+}
+
+#[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
+pub fn spawn_aur_scan_in_dir(path: &str) {
+    let cmds = build_scan_cmds_in_dir(path);
     spawn_shell_commands_in_terminal(&cmds);
 }
 
+#[cfg(all(test, not(target_os = "windows")))]
+mod tests {
+    #[test]
+    fn build_scan_cmds_for_pkg_has_core_steps() {
+        let cmds = super::build_scan_cmds_for_pkg("foobar");
+        let joined = cmds.join("\n");
+
+        assert!(
+            joined.contains("pkg='foobar'"),
+            "should export pkg variable with provided name"
+        );
+        assert!(
+            joined.contains("git clone --depth 1 \"https://aur.archlinux.org/${pkg}.git\""),
+            "should clone the AUR repo using the pkg variable"
+        );
+        assert!(
+            joined.contains("makepkg -o --noconfirm"),
+            "should attempt to download sources with makepkg -o"
+        );
+        assert!(
+            joined.contains("--- ClamAV scan (optional) ---"),
+            "should include ClamAV scan section"
+        );
+        assert!(
+            joined.contains("--- Trivy filesystem scan (optional) ---"),
+            "should include Trivy FS scan section"
+        );
+        assert!(
+            joined.contains("--- Semgrep static analysis (optional) ---"),
+            "should include Semgrep scan section"
+        );
+        assert!(
+            joined.contains("--- VirusTotal hash lookups (requires VT_API_KEY env var) ---"),
+            "should include VirusTotal lookup section"
+        );
+        assert!(
+            joined.contains("echo '--- Summary ---'"),
+            "should include final summary section"
+        );
+        assert!(
+            joined.contains("Pacsea: scan finished. Working directory preserved: $work"),
+            "should print final working directory note"
+        );
+    }
+
+    #[test]
+    fn build_scan_cmds_in_dir_has_core_steps() {
+        let cmds = super::build_scan_cmds_in_dir("/tmp/example");
+        let joined = cmds.join("\n");
+
+        assert!(
+            joined.contains("target_dir='/tmp/example'"),
+            "should define target_dir variable"
+        );
+        assert!(
+            joined.contains("cd \"$target_dir\""),
+            "should cd into target_dir"
+        );
+        assert!(
+            joined.contains("--- ClamAV scan (optional) ---"),
+            "should include ClamAV section"
+        );
+        assert!(
+            joined.contains("--- Trivy filesystem scan (optional) ---"),
+            "should include Trivy section"
+        );
+        assert!(
+            joined.contains("--- Semgrep static analysis (optional) ---"),
+            "should include Semgrep section"
+        );
+        assert!(
+            joined.contains("--- VirusTotal hash lookups (requires VT_API_KEY env var) ---"),
+            "should include VirusTotal section"
+        );
+        assert!(
+            joined.contains("echo '--- Summary ---'"),
+            "should include summary section"
+        );
+        assert!(
+            joined.contains("Pacsea: in-place scan finished."),
+            "should include final completion echo"
+        );
+    }
+}
+
 #[cfg(target_os = "windows")]
-/// Windows stub: AUR scan is not supported on Windows; show a message in a terminal.
+/// What: Windows stub for AUR package scan
+///
+/// Input: `pkg` AUR package name
+/// Output: Opens a terminal echoing that AUR scan is not supported on Windows
+///
+/// Details: No scanning is performed.
 pub fn spawn_aur_scan_for(pkg: &str) {
     let msg = format!(
         "AUR scan is not supported on Windows. Intended to scan AUR package: {}",
@@ -243,7 +343,12 @@ pub fn spawn_aur_scan_for(pkg: &str) {
 }
 
 #[cfg(target_os = "windows")]
-/// Windows stub: In-place scan is not supported; show a message in a terminal.
+/// What: Windows stub for in-place scan
+///
+/// Input: `path` target directory
+/// Output: Opens a terminal echoing that AUR scan is unsupported on Windows
+///
+/// Details: No scanning is performed.
 pub fn spawn_aur_scan_in_dir(path: &str) {
     let msg = format!(
         "AUR scan is not supported on Windows. Intended to scan directory: {}",
