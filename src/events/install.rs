@@ -198,7 +198,7 @@ pub fn handle_install_key(
                         format!("echo DRY RUN: downgrade {joined}")
                     } else {
                         format!(
-                            "(command -v downgrade >/dev/null 2>&1 && downgrade {joined}) || echo 'downgrade tool not found. Install \"downgrade\" from AUR.'"
+                            "((command -v downgrade >/dev/null 2>&1) || sudo pacman -Qi downgrade >/dev/null 2>&1) && downgrade {joined} || echo 'downgrade tool not found. Install \"downgrade\" from AUR.'"
                         )
                     };
                     crate::install::spawn_shell_commands_in_terminal(&[cmd]);

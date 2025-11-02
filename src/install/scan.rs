@@ -29,7 +29,7 @@ fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
     cmds.push("echo \"Pacsea: scanning AUR package '$pkg'\"".to_string());
     cmds.push("echo \"Working directory: $work\"".to_string());
     cmds.push("cd \"$work\"".to_string());
-    cmds.push("if command -v git >/dev/null 2>&1; then :; else echo 'git not found. Cannot clone AUR repo.'; exit 1; fi".to_string());
+    cmds.push("if command -v git >/dev/null 2>&1 || sudo pacman -Qi git >/dev/null 2>&1; then :; else echo 'git not found. Cannot clone AUR repo.'; exit 1; fi".to_string());
 
     // 1) Clone AUR repo
     cmds.push("echo 'Cloning AUR repository…'".to_string());
@@ -44,15 +44,15 @@ fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
 
     // 3) ClamAV scan
     cmds.push("echo '--- ClamAV scan (optional) ---'".to_string());
-    cmds.push("(command -v clamscan >/dev/null 2>&1 && { if find /var/lib/clamav -maxdepth 1 -type f \\( -name '*.cvd' -o -name '*.cld' \\) 2>/dev/null | grep -q .; then clamscan -r . | tee ./.pacsea_scan_clamav.txt; else echo 'ClamAV found but no signature database in /var/lib/clamav'; echo 'Tip: run: sudo freshclam  (or start the updater: sudo systemctl start clamav-freshclam)'; fi; } || echo 'ClamAV (clamscan) encountered an error; skipping') || echo 'ClamAV not found; skipping'".to_string());
+    cmds.push("((command -v clamscan >/dev/null 2>&1 || sudo pacman -Qi clamav >/dev/null 2>&1) && { if find /var/lib/clamav -maxdepth 1 -type f \\( -name '*.cvd' -o -name '*.cld' \\) 2>/dev/null | grep -q .; then clamscan -r . | tee ./.pacsea_scan_clamav.txt; else echo 'ClamAV found but no signature database in /var/lib/clamav'; echo 'Tip: run: sudo freshclam  (or start the updater: sudo systemctl start clamav-freshclam)'; fi; } || echo 'ClamAV (clamscan) encountered an error; skipping') || echo 'ClamAV not found; skipping'".to_string());
 
     // 4) Trivy filesystem scan
     cmds.push("echo '--- Trivy filesystem scan (optional) ---'".to_string());
-    cmds.push("(command -v trivy >/dev/null 2>&1 && (trivy fs --quiet --format json . > ./.pacsea_scan_trivy.json || trivy fs --quiet . | tee ./.pacsea_scan_trivy.txt) || echo 'Trivy not found or failed; skipping')".to_string());
+    cmds.push("((command -v trivy >/dev/null 2>&1 || sudo pacman -Qi trivy >/dev/null 2>&1) && (trivy fs --quiet --format json . > ./.pacsea_scan_trivy.json || trivy fs --quiet . | tee ./.pacsea_scan_trivy.txt) || echo 'Trivy not found or failed; skipping')".to_string());
 
     // 5) Semgrep static analysis
     cmds.push("echo '--- Semgrep static analysis (optional) ---'".to_string());
-    cmds.push("(command -v semgrep >/dev/null 2>&1 && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping')".to_string());
+    cmds.push("((command -v semgrep >/dev/null 2>&1 || sudo pacman -Qi semgrep >/dev/null 2>&1) && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping')".to_string());
 
     // 6) VirusTotal hash lookups
     cmds.push("echo '--- VirusTotal hash lookups (requires VT_API_KEY env var) ---'".to_string());
@@ -156,13 +156,13 @@ fn build_scan_cmds_in_dir(path: &str) -> Vec<String> {
 
     // Optional scanners
     cmds.push("echo '--- ClamAV scan (optional) ---'".to_string());
-    cmds.push("(command -v clamscan >/dev/null 2>&1 && { if find /var/lib/clamav -maxdepth 1 -type f \\( -name '*.cvd' -o -name '*.cld' \\) 2>/dev/null | grep -q .; then clamscan -r . | tee ./.pacsea_scan_clamav.txt; else echo 'ClamAV found but no signature database in /var/lib/clamav'; echo 'Tip: run: sudo freshclam  (or start the updater: sudo systemctl start clamav-freshclam)'; fi; } || echo 'ClamAV (clamscan) encountered an error; skipping') || echo 'ClamAV not found; skipping'".to_string());
+    cmds.push("((command -v clamscan >/dev/null 2>&1 || sudo pacman -Qi clamav >/dev/null 2>&1) && { if find /var/lib/clamav -maxdepth 1 -type f \\( -name '*.cvd' -o -name '*.cld' \\) 2>/dev/null | grep -q .; then clamscan -r . | tee ./.pacsea_scan_clamav.txt; else echo 'ClamAV found but no signature database in /var/lib/clamav'; echo 'Tip: run: sudo freshclam  (or start the updater: sudo systemctl start clamav-freshclam)'; fi; } || echo 'ClamAV (clamscan) encountered an error; skipping') || echo 'ClamAV not found; skipping'".to_string());
 
     cmds.push("echo '--- Trivy filesystem scan (optional) ---'".to_string());
-    cmds.push("(command -v trivy >/dev/null 2>&1 && (trivy fs --quiet --format json . > ./.pacsea_scan_trivy.json || trivy fs --quiet . | tee ./.pacsea_scan_trivy.txt) || echo 'Trivy not found or failed; skipping')".to_string());
+    cmds.push("((command -v trivy >/dev/null 2>&1 || sudo pacman -Qi trivy >/dev/null 2>&1) && (trivy fs --quiet --format json . > ./.pacsea_scan_trivy.json || trivy fs --quiet . | tee ./.pacsea_scan_trivy.txt) || echo 'Trivy not found or failed; skipping')".to_string());
 
     cmds.push("echo '--- Semgrep static analysis (optional) ---'".to_string());
-    cmds.push("(command -v semgrep >/dev/null 2>&1 && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping')".to_string());
+    cmds.push("((command -v semgrep >/dev/null 2>&1 || sudo pacman -Qi semgrep >/dev/null 2>&1) && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping')".to_string());
 
     // VirusTotal hash lookups
     cmds.push("echo '--- VirusTotal hash lookups (requires VT_API_KEY env var) ---'".to_string());

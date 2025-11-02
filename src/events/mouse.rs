@@ -1123,13 +1123,13 @@ pub fn handle_mouse_event(
             // Build a single OR-chained command so only the first available editor runs
             let path_str = target.display().to_string();
             let editor_cmd = format!(
-                "(command -v nvim >/dev/null 2>&1 && nvim '{path_str}') || \
-                 (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \
-                 (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \
-                 (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \
-                 (command -v emacsclient >/dev/null 2>&1 && emacsclient -t '{path_str}') || \
-                 (command -v emacs >/dev/null 2>&1 && emacs -nw '{path_str}') || \
-                 (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \
+                "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \
+                 ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \
+                 ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \
+                 ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \
+                 ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \
+                 ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \
+                 ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \
                  (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)",
             );
             let cmds = vec![editor_cmd];

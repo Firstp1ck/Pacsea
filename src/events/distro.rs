@@ -20,14 +20,14 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
     if countries.eq("Worldwide") {
         format!(
             "(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
-    ((command -v pacman-mirrors >/dev/null 2>&1) || sudo pacman -S --needed --noconfirm pacman-mirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm pacman-mirrors)) && \
+    ((command -v pacman-mirrors >/dev/null 2>&1) || sudo pacman -Qi pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm pacman-mirrors)) && \
     sudo pacman-mirrors --fasttrack {count} && \
     sudo pacman -Syy; \
   elif grep -q 'EndeavourOS' /etc/os-release 2>/dev/null; then \
-    ((command -v eos-rankmirrors >/dev/null 2>&1) || sudo pacman -S --needed --noconfirm eos-rankmirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm eos-rankmirrors)) && (sudo eos-rankmirrors || (sudo pacman -Syy && sudo eos-rankmirrors)) || echo 'eos-rankmirrors failed'; \
+    ((command -v eos-rankmirrors >/dev/null 2>&1) || sudo pacman -Qi eos-rankmirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm eos-rankmirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm eos-rankmirrors)) && (sudo eos-rankmirrors || (sudo pacman -Syy && sudo eos-rankmirrors)) || echo 'eos-rankmirrors failed'; \
     (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   elif grep -q 'CachyOS' /etc/os-release 2>/dev/null; then \
-    ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || sudo pacman -S --needed --noconfirm cachyos-rate-mirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm cachyos-rate-mirrors)) && (sudo cachyos-rate-mirrors || (sudo pacman -Syy && sudo cachyos-rate-mirrors)) || echo 'cachyos-rate-mirrors failed'; \
+    ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || sudo pacman -Qi cachyos-rate-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm cachyos-rate-mirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm cachyos-rate-mirrors)) && (sudo cachyos-rate-mirrors || (sudo pacman -Syy && sudo cachyos-rate-mirrors)) || echo 'cachyos-rate-mirrors failed'; \
     (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   else \
     (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
@@ -36,14 +36,14 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
     } else {
         format!(
             "(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
-    ((command -v pacman-mirrors >/dev/null 2>&1) || sudo pacman -S --needed --noconfirm pacman-mirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm pacman-mirrors)) && \
+    ((command -v pacman-mirrors >/dev/null 2>&1) || sudo pacman -Qi pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm pacman-mirrors)) && \
     sudo pacman-mirrors --method rank --country '{countries}' && \
     sudo pacman -Syy; \
   elif grep -q 'EndeavourOS' /etc/os-release 2>/dev/null; then \
-    ((command -v eos-rankmirrors >/dev/null 2>&1) || sudo pacman -S --needed --noconfirm eos-rankmirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm eos-rankmirrors)) && (sudo eos-rankmirrors || (sudo pacman -Syy && sudo eos-rankmirrors)) || echo 'eos-rankmirrors failed'; \
+    ((command -v eos-rankmirrors >/dev/null 2>&1) || sudo pacman -Qi eos-rankmirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm eos-rankmirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm eos-rankmirrors)) && (sudo eos-rankmirrors || (sudo pacman -Syy && sudo eos-rankmirrors)) || echo 'eos-rankmirrors failed'; \
     (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   elif grep -q 'CachyOS' /etc/os-release 2>/dev/null; then \
-    ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || sudo pacman -S --needed --noconfirm cachyos-rate-mirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm cachyos-rate-mirrors)) && (sudo cachyos-rate-mirrors || (sudo pacman -Syy && sudo cachyos-rate-mirrors)) || echo 'cachyos-rate-mirrors failed'; \
+    ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || sudo pacman -Qi cachyos-rate-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm cachyos-rate-mirrors || (sudo pacman -Syy && sudo pacman -S --needed --noconfirm cachyos-rate-mirrors)) && (sudo cachyos-rate-mirrors || (sudo pacman -Syy && sudo cachyos-rate-mirrors)) || echo 'cachyos-rate-mirrors failed'; \
     (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   else \
     (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
