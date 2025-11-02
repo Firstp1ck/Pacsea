@@ -9,7 +9,7 @@ Output:
 
 Details:
 - Steps: clone AUR repo; run `makepkg -o`; run optional scanners (ClamAV, Trivy, Semgrep); optional VirusTotal hash lookups when VT_API_KEY is present
-- Semgrep is installed via AUR helper (paru/yay) if missing; other tools are not installed automatically
+- Semgrep is not installed automatically; if missing, a warning is printed and the scan is skipped
 - VirusTotal lookups are hash-based; unknown files may report "no report found"
 - Working directory is a temporary directory printed to the terminal and preserved for inspection
 */
@@ -52,7 +52,7 @@ fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
 
     // 5) Semgrep static analysis
     cmds.push("echo '--- Semgrep static analysis (optional) ---'".to_string());
-    cmds.push("(command -v semgrep >/dev/null 2>&1 && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || { echo 'Semgrep not found; attempting install via AUR helper (semgrep-bin)'; if command -v paru >/dev/null 2>&1; then paru -S --needed --noconfirm semgrep-bin || echo 'Failed to install semgrep-bin with paru'; elif command -v yay >/dev/null 2>&1; then yay -S --needed --noconfirm semgrep-bin || echo 'Failed to install semgrep-bin with yay'; else echo 'No AUR helper (paru/yay) found. Please set up an AUR helper first to enable Semgrep scanning.'; fi; if command -v semgrep >/dev/null 2>&1; then semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt; else echo 'Semgrep not available; skipping'; fi; })".to_string());
+    cmds.push("(command -v semgrep >/dev/null 2>&1 && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping')".to_string());
 
     // 6) VirusTotal hash lookups
     cmds.push("echo '--- VirusTotal hash lookups (requires VT_API_KEY env var) ---'".to_string());
@@ -162,7 +162,7 @@ fn build_scan_cmds_in_dir(path: &str) -> Vec<String> {
     cmds.push("(command -v trivy >/dev/null 2>&1 && (trivy fs --quiet --format json . > ./.pacsea_scan_trivy.json || trivy fs --quiet . | tee ./.pacsea_scan_trivy.txt) || echo 'Trivy not found or failed; skipping')".to_string());
 
     cmds.push("echo '--- Semgrep static analysis (optional) ---'".to_string());
-    cmds.push("(command -v semgrep >/dev/null 2>&1 && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || { echo 'Semgrep not found; attempting install via AUR helper (semgrep-bin)'; if command -v paru >/dev/null 2>&1; then paru -S --needed --noconfirm semgrep-bin || echo 'Failed to install semgrep-bin with paru'; elif command -v yay >/dev/null 2>&1; then yay -S --needed --noconfirm semgrep-bin || echo 'Failed to install semgrep-bin with yay'; else echo 'No AUR helper (paru/yay) found. Please set up an AUR helper first to enable Semgrep scanning.'; fi; if command -v semgrep >/dev/null 2>&1; then semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt; else echo 'Semgrep not available; skipping'; fi; })".to_string());
+    cmds.push("(command -v semgrep >/dev/null 2>&1 && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping')".to_string());
 
     // VirusTotal hash lookups
     cmds.push("echo '--- VirusTotal hash lookups (requires VT_API_KEY env var) ---'".to_string());
