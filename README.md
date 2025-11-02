@@ -14,7 +14,7 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 
 ## Community
 <p align="center">
-✨ Idea or bug? <strong><a href="https://github.com/Firstp1ck/Pacsea/issues">Open an issue</a></strong>.<br/>
+✨ Idea or bug? <strong><a href="https://github.com/Firstp1ck/Pacsea/issues">Open an issue</a></strong> or check out <strong><a href="https://github.com/Firstp1ck/Pacsea/discussions/11">Idea Discussions</a></strong><br/>
 ❤️ Thank you to the Pacsea community for your ideas, reports, and support!
 </p>
 
