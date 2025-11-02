@@ -80,6 +80,7 @@ pub async fn update_in_background(
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn update_merges_preserving_enriched_fields_and_notifies_on_name_changes() {
         let _guard = crate::index::test_mutex().lock().unwrap();
 

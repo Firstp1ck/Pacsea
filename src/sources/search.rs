@@ -47,6 +47,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn search_returns_items_on_success_and_error_on_failure() {
         let _guard = crate::sources::test_mutex().lock().unwrap();
         // Shim PATH curl to return a small JSON for success call, then fail on a second invocation

@@ -69,6 +69,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn prefetch_noop_on_empty_results() {
         let _guard = crate::logic::test_mutex().lock().unwrap();
         let mut app = AppState {
@@ -84,6 +85,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn prefetch_respects_allowed_and_cache() {
         let _guard = crate::logic::test_mutex().lock().unwrap();
         let mut app = AppState {

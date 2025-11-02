@@ -145,6 +145,7 @@ mod tests {
 
     #[cfg(not(target_os = "windows"))]
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     /// What: Enrichment updates fields from pacman -Si and notifies
     ///
     /// - Input: Seed index with empty fields; fake pacman -Si output for name
