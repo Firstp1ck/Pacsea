@@ -363,7 +363,10 @@ keybind_install_clear = Shift+Del\n\
 # INSTALL — Find/Focus\n\
 keybind_install_find = /\n\
 keybind_install_to_search = Esc\n\
-keybind_install_focus_left = Left\n";
+keybind_install_focus_left = Left\n\
+\n\
+# NEWS — Actions\n\
+keybind_news_mark_all_read = CTRL+R\n";
 
 /// Attempt to parse a theme from a configuration file with simple `key = value` pairs.
 pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {

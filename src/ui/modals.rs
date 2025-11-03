@@ -758,12 +758,17 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 format!(
-                    "Up/Down: select  •  Enter: open  •  {}: mark read  •  Esc: close",
+                    "Up/Down: select  •  Enter: open  •  {}: mark read  •  {}: mark all read  •  Esc: close",
                     app.keymap
                         .news_mark_read
                         .first()
                         .map(|k| k.label())
-                        .unwrap_or_else(|| "R".to_string())
+                        .unwrap_or_else(|| "R".to_string()),
+                    app.keymap
+                        .news_mark_all_read
+                        .first()
+                        .map(|k| k.label())
+                        .unwrap_or_else(|| "Ctrl+R".to_string())
                 ),
                 Style::default().fg(th.subtext1),
             )));

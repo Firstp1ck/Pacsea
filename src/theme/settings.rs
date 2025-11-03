@@ -412,6 +412,11 @@ pub fn settings() -> Settings {
                             out.keymap.install_focus_left = vec![ch];
                         }
                     }
+                    "keybind_news_mark_all_read" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.news_mark_all_read = vec![ch];
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -675,6 +680,11 @@ pub fn settings() -> Settings {
                     "keybind_install_focus_left" => {
                         if let Some(ch) = parse_key_chord(val) {
                             out.keymap.install_focus_left = vec![ch];
+                        }
+                    }
+                    "keybind_news_mark_all_read" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.news_mark_all_read = vec![ch];
                         }
                     }
                     _ => {}

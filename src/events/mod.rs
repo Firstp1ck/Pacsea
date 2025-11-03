@@ -272,6 +272,17 @@ pub fn handle_event(
                     }
                     return false;
                 }
+                if km
+                    .news_mark_all_read
+                    .iter()
+                    .any(|c| (c.code, c.mods) == chord)
+                {
+                    for it in items.iter() {
+                        app.news_read_urls.insert(it.url.clone());
+                    }
+                    app.news_read_dirty = true;
+                    return false;
+                }
                 match ke.code {
                     KeyCode::Esc => app.modal = crate::state::Modal::None,
                     KeyCode::Up => {

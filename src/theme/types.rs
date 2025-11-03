@@ -293,6 +293,8 @@ pub struct KeyMap {
     // News modal
     /// Mark currently listed News items as read (without opening URL)
     pub news_mark_read: Vec<KeyChord>,
+    /// Mark all listed News items as read
+    pub news_mark_all_read: Vec<KeyChord>,
 }
 
 impl Default for KeyMap {
@@ -536,6 +538,10 @@ impl Default for KeyMap {
             news_mark_read: vec![KeyChord {
                 code: Char('r'),
                 mods: none,
+            }],
+            news_mark_all_read: vec![KeyChord {
+                code: Char('r'),
+                mods: ctrl,
             }],
         }
     }
