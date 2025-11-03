@@ -96,6 +96,26 @@ pub fn settings() -> Settings {
                     // VirusTotal API key; stored as-is and trimmed later
                     out.virustotal_api_key = val.to_string();
                 }
+                "scan_do_clamav" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_clamav = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "scan_do_trivy" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_trivy = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "scan_do_semgrep" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_semgrep = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "scan_do_shellcheck" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_shellcheck = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "scan_do_virustotal" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_virustotal = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
                 // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
                 _ => {}
             }

@@ -47,6 +47,21 @@ pub enum Modal {
         /// Selected row index.
         selected: usize,
     },
+    /// Select which scans to run before executing the AUR scan.
+    ScanConfig {
+        /// Whether to run ClamAV (clamscan).
+        do_clamav: bool,
+        /// Whether to run Trivy filesystem scan.
+        do_trivy: bool,
+        /// Whether to run Semgrep static analysis.
+        do_semgrep: bool,
+        /// Whether to run ShellCheck on PKGBUILD/.install.
+        do_shellcheck: bool,
+        /// Whether to run VirusTotal hash lookups.
+        do_virustotal: bool,
+        /// Cursor row in the dialog.
+        cursor: usize,
+    },
     /// Prompt to install GNOME Terminal at startup on GNOME when not present.
     GnomeTerminalPrompt,
     /// Setup dialog for VirusTotal API key.

@@ -827,6 +827,51 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
             render_simple_list_modal(f, area, "Optional Deps", lines);
         }
+        crate::state::Modal::ScanConfig {
+            do_clamav,
+            do_trivy,
+            do_semgrep,
+            do_shellcheck,
+            do_virustotal,
+            cursor,
+        } => {
+            let th = crate::theme::theme();
+            let mut lines: Vec<Line<'static>> = Vec::new();
+
+            let items: [(&str, bool); 5] = [
+                ("ClamAV (antivirus)", *do_clamav),
+                ("Trivy (filesystem)", *do_trivy),
+                ("Semgrep (static analysis)", *do_semgrep),
+                ("ShellCheck (PKGBUILD/.install)", *do_shellcheck),
+                ("VirusTotal (hash lookups)", *do_virustotal),
+            ];
+
+            for (i, (label, checked)) in items.iter().enumerate() {
+                let mark = if *checked { "[x]" } else { "[ ]" };
+                let mut spans: Vec<Span> = Vec::new();
+                spans.push(Span::styled(
+                    format!("{} ", mark),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ));
+                let style = if i == *cursor {
+                    Style::default()
+                        .fg(th.text)
+                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                } else {
+                    Style::default().fg(th.subtext1)
+                };
+                spans.push(Span::styled((*label).to_string(), style));
+                lines.push(Line::from(spans));
+            }
+
+            lines.push(Line::from(Span::raw("")));
+            lines.push(Line::from(Span::styled(
+                "Up/Down: select  •  Space: toggle  •  Enter: run  •  Esc: cancel",
+                Style::default().fg(th.overlay1),
+            )));
+
+            render_simple_list_modal(f, area, "Scan Configuration", lines);
+        }
         crate::state::Modal::GnomeTerminalPrompt => {
             // Centered confirmation dialog for installing GNOME Terminal
             let w = area.width.saturating_sub(10).min(90);

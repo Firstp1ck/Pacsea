@@ -198,13 +198,25 @@ pub fn handle_event(
                         }
                     }
                     KeyCode::Char('s') | KeyCode::Char('S') => {
-                        // Scan AUR package(s) before install
+                        // Build AUR package name list to scan
                         let list = items.clone();
+                        let mut names: Vec<String> = Vec::new();
                         for it in list.iter() {
                             if matches!(it.source, crate::state::Source::Aur) {
-                                crate::install::spawn_aur_scan_for(&it.name);
+                                names.push(it.name.clone());
                             }
                         }
+                        app.pending_install_names = Some(names);
+                        // Open Scan Configuration modal initialized from settings.conf
+                        let prefs = crate::theme::settings();
+                        app.modal = crate::state::Modal::ScanConfig {
+                            do_clamav: prefs.scan_do_clamav,
+                            do_trivy: prefs.scan_do_trivy,
+                            do_semgrep: prefs.scan_do_semgrep,
+                            do_shellcheck: prefs.scan_do_shellcheck,
+                            do_virustotal: prefs.scan_do_virustotal,
+                            cursor: 0,
+                        };
                     }
                     _ => {}
                 }
@@ -319,6 +331,65 @@ pub fn handle_event(
                                 app.modal = crate::state::Modal::None;
                             }
                         }
+                    }
+                    _ => {}
+                }
+                return false;
+            }
+            crate::state::Modal::ScanConfig {
+                do_clamav,
+                do_trivy,
+                do_semgrep,
+                do_shellcheck,
+                do_virustotal,
+                cursor,
+            } => {
+                match ke.code {
+                    KeyCode::Esc => {
+                        app.modal = crate::state::Modal::None;
+                    }
+                    KeyCode::Up => {
+                        if *cursor > 0 {
+                            *cursor -= 1;
+                        }
+                    }
+                    KeyCode::Down => {
+                        if *cursor < 4 {
+                            *cursor += 1;
+                        }
+                    }
+                    KeyCode::Char(' ') => match *cursor {
+                        0 => *do_clamav = !*do_clamav,
+                        1 => *do_trivy = !*do_trivy,
+                        2 => *do_semgrep = !*do_semgrep,
+                        3 => *do_shellcheck = !*do_shellcheck,
+                        4 => *do_virustotal = !*do_virustotal,
+                        _ => {}
+                    },
+                    KeyCode::Enter => {
+                        // Persist scan selection to settings.conf
+                        crate::theme::save_scan_do_clamav(*do_clamav);
+                        crate::theme::save_scan_do_trivy(*do_trivy);
+                        crate::theme::save_scan_do_semgrep(*do_semgrep);
+                        crate::theme::save_scan_do_shellcheck(*do_shellcheck);
+                        crate::theme::save_scan_do_virustotal(*do_virustotal);
+
+                        // PACSEA_SCAN_DO_* flags are injected into the spawned terminal by spawn_aur_scan_for_with_config
+
+                        // Spawn scans for pending names (set when opening modal)
+                        if let Some(names) = app.pending_install_names.clone() {
+                            for n in names.iter() {
+                                crate::install::spawn_aur_scan_for_with_config(
+                                    n,
+                                    *do_clamav,
+                                    *do_trivy,
+                                    *do_semgrep,
+                                    *do_shellcheck,
+                                    *do_virustotal,
+                                );
+                            }
+                        }
+                        app.modal = crate::state::Modal::None;
                     }
                     _ => {}
                 }
@@ -877,6 +948,16 @@ pub fn handle_event(
                                 installed,
                                 selectable: !installed,
                                 note: Some("AUR".to_string()),
+                            });
+                            // Security: shellcheck (official)
+                            let pkg = "shellcheck";
+                            let installed = is_pkg_installed(pkg) || on_path("shellcheck");
+                            rows.push(crate::state::types::OptionalDepRow {
+                                label: "Security: shellcheck".to_string(),
+                                package: pkg.to_string(),
+                                installed,
+                                selectable: !installed,
+                                note: None,
                             });
                             // Security: VirusTotal API (Setup)
                             {

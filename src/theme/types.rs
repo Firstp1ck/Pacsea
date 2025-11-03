@@ -70,6 +70,11 @@ pub struct Settings {
     /// Number of mirrors to fetch/rank when updating.
     pub mirror_count: u16,
     pub virustotal_api_key: String,
+    pub scan_do_clamav: bool,
+    pub scan_do_trivy: bool,
+    pub scan_do_semgrep: bool,
+    pub scan_do_shellcheck: bool,
+    pub scan_do_virustotal: bool,
 }
 
 impl Default for Settings {
@@ -89,6 +94,11 @@ impl Default for Settings {
             selected_countries: "Worldwide".to_string(),
             mirror_count: 20,
             virustotal_api_key: String::new(),
+            scan_do_clamav: true,
+            scan_do_trivy: true,
+            scan_do_semgrep: true,
+            scan_do_shellcheck: true,
+            scan_do_virustotal: true,
         }
     }
 }

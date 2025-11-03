@@ -1061,6 +1061,16 @@ pub fn handle_mouse_event(
                             selectable: !installed,
                             note: Some("AUR".to_string()),
                         });
+                        // ShellCheck (official)
+                        let pkg = "shellcheck";
+                        let installed = is_pkg_installed(pkg) || on_path("shellcheck");
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: shellcheck".to_string(),
+                            package: pkg.to_string(),
+                            installed,
+                            selectable: !installed,
+                            note: None,
+                        });
                     }
                     // VirusTotal API setup
                     {
