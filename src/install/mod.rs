@@ -15,7 +15,9 @@ mod utils;
 pub use batch::spawn_install_all;
 pub use logging::log_removed;
 pub use remove::spawn_remove_all;
+#[allow(unused_imports)]
 pub use scan::spawn_aur_scan_for;
+pub use scan::spawn_aur_scan_for_with_config;
 // pub use scan::spawn_aur_scan_in_dir;
 pub use shell::spawn_shell_commands_in_terminal;
 pub use single::spawn_install;

@@ -265,7 +265,20 @@ mirror_count = 20\n\
 # United Kingdom\n\
 # United States\n\
 # Uruguay\n\
-# Vietnam\n";
+# Vietnam\n\
+\n\
+# Scans\n\
+# Default scan configuration used when opening Scan Configuration\n\
+scan_do_clamav = true\n\
+scan_do_trivy = true\n\
+scan_do_semgrep = true\n\
+scan_do_shellcheck = true\n\
+scan_do_virustotal = true\n\
+\n\
+# News\n\
+# Symbols for read/unread indicators in the News popup\n\
+news_read_symbol = ✓\n\
+news_unread_symbol = ∘\n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub(crate) const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\
@@ -350,7 +363,10 @@ keybind_install_clear = Shift+Del\n\
 # INSTALL — Find/Focus\n\
 keybind_install_find = /\n\
 keybind_install_to_search = Esc\n\
-keybind_install_focus_left = Left\n";
+keybind_install_focus_left = Left\n\
+\n\
+# NEWS — Actions\n\
+keybind_news_mark_all_read = CTRL+R\n";
 
 /// Attempt to parse a theme from a configuration file with simple `key = value` pairs.
 pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
@@ -656,6 +672,22 @@ pub fn save_virustotal_api_key(value: &str) {
     save_string_key("virustotal_api_key", value)
 }
 
+pub fn save_scan_do_clamav(value: bool) {
+    save_boolean_key("scan_do_clamav", value)
+}
+pub fn save_scan_do_trivy(value: bool) {
+    save_boolean_key("scan_do_trivy", value)
+}
+pub fn save_scan_do_semgrep(value: bool) {
+    save_boolean_key("scan_do_semgrep", value)
+}
+pub fn save_scan_do_shellcheck(value: bool) {
+    save_boolean_key("scan_do_shellcheck", value)
+}
+pub fn save_scan_do_virustotal(value: bool) {
+    save_boolean_key("scan_do_virustotal", value)
+}
+
 /// Ensure core application settings keys exist in the settings file; append missing with current/default values.
 ///
 /// This preserves existing lines and comments, only appending keys that are not present.
@@ -753,6 +785,20 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         ("virustotal_api_key", prefs.virustotal_api_key.clone()),
     ];
     let mut appended_any = false;
+    // Ensure scan toggles exist; default to true when missing
+    let scan_keys: [(&str, &str); 5] = [
+        ("scan_do_clamav", "true"),
+        ("scan_do_trivy", "true"),
+        ("scan_do_semgrep", "true"),
+        ("scan_do_shellcheck", "true"),
+        ("scan_do_virustotal", "true"),
+    ];
+    for (k, v) in scan_keys.iter() {
+        if !have.contains(*k) {
+            lines.push(format!("{k} = {v}"));
+            appended_any = true;
+        }
+    }
     for (k, v) in pairs.iter() {
         if !have.contains(*k) {
             lines.push(format!("{k} = {v}"));

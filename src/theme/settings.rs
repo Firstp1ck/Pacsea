@@ -96,6 +96,32 @@ pub fn settings() -> Settings {
                     // VirusTotal API key; stored as-is and trimmed later
                     out.virustotal_api_key = val.to_string();
                 }
+                "scan_do_clamav" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_clamav = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "scan_do_trivy" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_trivy = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "scan_do_semgrep" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_semgrep = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "scan_do_shellcheck" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_shellcheck = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "scan_do_virustotal" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_virustotal = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
+                "news_read_symbol" | "news_read_mark" => {
+                    out.news_read_symbol = val.to_string();
+                }
+                "news_unread_symbol" | "news_unread_mark" => {
+                    out.news_unread_symbol = val.to_string();
+                }
                 // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
                 _ => {}
             }
@@ -386,6 +412,11 @@ pub fn settings() -> Settings {
                             out.keymap.install_focus_left = vec![ch];
                         }
                     }
+                    "keybind_news_mark_all_read" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.news_mark_all_read = vec![ch];
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -649,6 +680,11 @@ pub fn settings() -> Settings {
                     "keybind_install_focus_left" => {
                         if let Some(ch) = parse_key_chord(val) {
                             out.keymap.install_focus_left = vec![ch];
+                        }
+                    }
+                    "keybind_news_mark_all_read" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.news_mark_all_read = vec![ch];
                         }
                     }
                     _ => {}

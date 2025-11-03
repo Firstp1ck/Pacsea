@@ -741,13 +741,35 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         let fg = if is_critical { th.red } else { th.text };
                         Style::default().fg(fg)
                     };
-                    let line = format!("{}  {}", it.date, it.title);
+                    let prefs = crate::theme::settings();
+                    let line = format!(
+                        "{} {}  {}",
+                        if app.news_read_urls.contains(&it.url) {
+                            &prefs.news_read_symbol
+                        } else {
+                            &prefs.news_unread_symbol
+                        },
+                        it.date,
+                        it.title
+                    );
                     lines.push(Line::from(Span::styled(line, style)));
                 }
             }
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
-                "Up/Down: select  •  Enter: open  •  Esc: close",
+                format!(
+                    "Up/Down: select  •  Enter: open  •  {}: mark read  •  {}: mark all read  •  Esc: close",
+                    app.keymap
+                        .news_mark_read
+                        .first()
+                        .map(|k| k.label())
+                        .unwrap_or_else(|| "R".to_string()),
+                    app.keymap
+                        .news_mark_all_read
+                        .first()
+                        .map(|k| k.label())
+                        .unwrap_or_else(|| "Ctrl+R".to_string())
+                ),
                 Style::default().fg(th.subtext1),
             )));
 
@@ -826,6 +848,51 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             )));
 
             render_simple_list_modal(f, area, "Optional Deps", lines);
+        }
+        crate::state::Modal::ScanConfig {
+            do_clamav,
+            do_trivy,
+            do_semgrep,
+            do_shellcheck,
+            do_virustotal,
+            cursor,
+        } => {
+            let th = crate::theme::theme();
+            let mut lines: Vec<Line<'static>> = Vec::new();
+
+            let items: [(&str, bool); 5] = [
+                ("ClamAV (antivirus)", *do_clamav),
+                ("Trivy (filesystem)", *do_trivy),
+                ("Semgrep (static analysis)", *do_semgrep),
+                ("ShellCheck (PKGBUILD/.install)", *do_shellcheck),
+                ("VirusTotal (hash lookups)", *do_virustotal),
+            ];
+
+            for (i, (label, checked)) in items.iter().enumerate() {
+                let mark = if *checked { "[x]" } else { "[ ]" };
+                let mut spans: Vec<Span> = Vec::new();
+                spans.push(Span::styled(
+                    format!("{} ", mark),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ));
+                let style = if i == *cursor {
+                    Style::default()
+                        .fg(th.text)
+                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                } else {
+                    Style::default().fg(th.subtext1)
+                };
+                spans.push(Span::styled((*label).to_string(), style));
+                lines.push(Line::from(spans));
+            }
+
+            lines.push(Line::from(Span::raw("")));
+            lines.push(Line::from(Span::styled(
+                "Up/Down: select  •  Space: toggle  •  Enter: run  •  Esc: cancel",
+                Style::default().fg(th.overlay1),
+            )));
+
+            render_simple_list_modal(f, area, "Scan Configuration", lines);
         }
         crate::state::Modal::GnomeTerminalPrompt => {
             // Centered confirmation dialog for installing GNOME Terminal
