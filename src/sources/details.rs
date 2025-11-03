@@ -480,7 +480,7 @@ mod tests {
         let obj: serde_json::Value = serde_json::json!({
             "Version": "1.2.3",
             "Description": "cool",
-            "Popularity": 3.14,
+            "Popularity": std::f64::consts::PI,
             "URL": "https://aur.example/ripgrep"
         });
         let item = crate::state::PackageItem {
@@ -497,6 +497,6 @@ mod tests {
         assert_eq!(d.description, "cool");
         assert_eq!(d.architecture, "any");
         assert_eq!(d.url, "https://aur.example/ripgrep");
-        assert_eq!(d.popularity, Some(3.14));
+        assert_eq!(d.popularity, Some(std::f64::consts::PI));
     }
 }

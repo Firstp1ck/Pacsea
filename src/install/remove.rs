@@ -4,14 +4,12 @@ use std::process::Command;
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
-/// Spawn a terminal to remove all given packages with pacman.
+/// What: Spawn a terminal to remove all given packages with pacman.
 ///
-/// Inputs:
-/// - `names`: Package names to remove.
-/// - `dry_run`: When `true`, prints the removal command instead of executing.
+/// Input: names slice of package names; dry_run prints the removal command instead of executing
+/// Output: Launches a terminal (or bash) to run sudo pacman -Rns for the provided names.
 ///
-/// Output:
-/// - Launches a terminal (or `bash`) to run `sudo pacman -Rns` for the provided names.
+/// Details: Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.); falls back to bash. Appends a hold tail so the window remains open after command completion.
 pub fn spawn_remove_all(names: &[String], dry_run: bool) {
     let names_str = names.join(" ");
     tracing::info!(names = %names_str, total = names.len(), dry_run, "spawning removal");

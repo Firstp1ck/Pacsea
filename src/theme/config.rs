@@ -443,6 +443,7 @@ pub(crate) fn load_theme_from_file(path: &Path) -> Option<Theme> {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     #[test]
     fn config_try_load_theme_success_and_errors() {
@@ -651,6 +652,10 @@ pub fn save_mirror_count(value: u16) {
     save_string_key("mirror_count", &value.to_string())
 }
 
+pub fn save_virustotal_api_key(value: &str) {
+    save_string_key("virustotal_api_key", value)
+}
+
 /// Ensure core application settings keys exist in the settings file; append missing with current/default values.
 ///
 /// This preserves existing lines and comments, only appending keys that are not present.
@@ -701,7 +706,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         }
     }
     // Desired keys and their values from prefs
-    let pairs: [(&str, String); 11] = [
+    let pairs: [(&str, String); 12] = [
         ("layout_left_pct", prefs.layout_left_pct.to_string()),
         ("layout_center_pct", prefs.layout_center_pct.to_string()),
         ("layout_right_pct", prefs.layout_right_pct.to_string()),
@@ -745,6 +750,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         ),
         ("selected_countries", prefs.selected_countries.clone()),
         ("mirror_count", prefs.mirror_count.to_string()),
+        ("virustotal_api_key", prefs.virustotal_api_key.clone()),
     ];
     let mut appended_any = false;
     for (k, v) in pairs.iter() {

@@ -69,6 +69,7 @@ pub struct Settings {
     pub selected_countries: String,
     /// Number of mirrors to fetch/rank when updating.
     pub mirror_count: u16,
+    pub virustotal_api_key: String,
 }
 
 impl Default for Settings {
@@ -87,6 +88,7 @@ impl Default for Settings {
             show_keybinds_footer: true,
             selected_countries: "Worldwide".to_string(),
             mirror_count: 20,
+            virustotal_api_key: String::new(),
         }
     }
 }

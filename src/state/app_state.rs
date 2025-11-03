@@ -132,6 +132,10 @@ pub struct AppState {
     /// Rectangle of the clickable URL button in terminal cell coordinates.
     pub url_button_rect: Option<(u16, u16, u16, u16)>,
 
+    // VirusTotal API setup modal clickable URL rectangle
+    /// Rectangle of the clickable VirusTotal API URL in the setup modal (x, y, w, h).
+    pub vt_url_rect: Option<(u16, u16, u16, u16)>,
+
     // Install pane bottom action (Import)
     /// Clickable rectangle for the Install pane bottom "Import" button (x, y, w, h).
     pub install_import_rect: Option<(u16, u16, u16, u16)>,
@@ -353,6 +357,7 @@ impl Default for AppState {
             ring_resume_at: None,
             need_ring_prefetch: false,
             url_button_rect: None,
+            vt_url_rect: None,
             install_import_rect: None,
             install_export_rect: None,
             arch_status_text: "Arch Status: loading…".to_string(),

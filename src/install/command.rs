@@ -16,7 +16,12 @@ pub fn build_install_command(
 ) -> (String, bool) {
     match &item.source {
         Source::Official { .. } => {
-            let base_cmd = format!("pacman -S --needed --noconfirm {}", item.name);
+            let reinstall = crate::index::is_installed(&item.name);
+            let base_cmd = if reinstall {
+                format!("pacman -S --noconfirm {}", item.name)
+            } else {
+                format!("pacman -S --needed --noconfirm {}", item.name)
+            };
             let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             if dry_run {
                 let bash = format!("echo DRY RUN: sudo {base_cmd}{hold_tail}");
@@ -35,17 +40,25 @@ pub fn build_install_command(
         }
         Source::Aur => {
             let hold_tail = "; echo; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
+            let reinstall = crate::index::is_installed(&item.name);
+            let flags = if reinstall {
+                "-S --noconfirm"
+            } else {
+                "-S --needed --noconfirm"
+            };
             let aur_cmd = if dry_run {
                 format!(
-                    "echo DRY RUN: paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n}{hold}",
+                    "echo DRY RUN: paru {flags} {n} || yay {flags} {n}{hold}",
                     n = item.name,
-                    hold = hold_tail
+                    hold = hold_tail,
+                    flags = flags
                 )
             } else {
                 format!(
-                    "(command -v paru >/dev/null 2>&1 && paru -S --needed --noconfirm {n}) || (command -v yay >/dev/null 2>&1 && yay -S --needed --noconfirm {n}) || (echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1; then paru -S --needed --noconfirm {n}; elif command -v yay >/dev/null 2>&1; then yay -S --needed --noconfirm {n}; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi){hold}",
+                    "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru {flags} {n}; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay {flags} {n}; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru {flags} {n}; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay {flags} {n}; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi){hold}",
                     n = item.name,
-                    hold = hold_tail
+                    hold = hold_tail,
+                    flags = flags
                 )
             };
             (aur_cmd, false)
@@ -107,7 +120,7 @@ mod tests {
         assert!(!uses_sudo1);
         assert!(cmd1.contains("command -v paru"));
         assert!(cmd1.contains("paru -S --needed --noconfirm yay-bin"));
-        assert!(cmd1.contains("|| (command -v yay"));
+        assert!(cmd1.contains("elif command -v yay"));
         assert!(cmd1.contains("No AUR helper"));
         assert!(cmd1.contains("Press any key to close"));
 

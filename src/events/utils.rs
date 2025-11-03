@@ -2,13 +2,23 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
 
-/// Return the number of Unicode scalar values (characters) in the input.
+/// What: Return the number of Unicode scalar values (characters) in the input.
+///
+/// Input: `s` string to measure
+/// Output: Character count as `usize`
+///
+/// Details: Counts Unicode scalar values using `s.chars().count()`.
 pub fn char_count(s: &str) -> usize {
     s.chars().count()
 }
 
-/// Convert a character index to a byte index for slicing.
-/// If `ci` equals the number of characters, returns `s.len()`.
+/// What: Convert a character index to a byte index for slicing.
+///
+/// Input: `s` source string; `ci` character index
+/// Output: Byte index into `s` corresponding to `ci`
+///
+/// Details: Returns 0 for `ci==0`; returns `s.len()` when `ci>=char_count(s)`; otherwise maps
+/// the character index to a byte offset via `char_indices()`.
 pub fn byte_index_for_char(s: &str, ci: usize) -> usize {
     let cc = char_count(s);
     if ci == 0 {
@@ -20,8 +30,13 @@ pub fn byte_index_for_char(s: &str, ci: usize) -> usize {
     s.char_indices().map(|(i, _)| i).nth(ci).unwrap_or(s.len())
 }
 
-/// Advance selection in the Recent pane to the next or previous item matching
-/// the current pane-find pattern.
+/// What: Advance selection in the Recent pane to the next/previous match of the pane-find pattern.
+///
+/// Input: `app` mutable application state; `forward` when true searches downward, else upward
+/// Output: No return value; updates `history_state` selection when a match is found
+///
+/// Details: Searches within the filtered Recent indices and wraps around the list; matching is
+/// case-insensitive against the current pane-find pattern.
 pub fn find_in_recent(app: &mut AppState, forward: bool) {
     let Some(pattern) = app.pane_find.clone() else {
         return;
@@ -51,8 +66,13 @@ pub fn find_in_recent(app: &mut AppState, forward: bool) {
     }
 }
 
-/// Advance selection in the Install pane to the next or previous item whose
-/// name or description matches the pane-find pattern.
+/// What: Advance selection in the Install pane to the next/previous item matching the pane-find pattern.
+///
+/// Input: `app` mutable application state; `forward` when true searches downward, else upward
+/// Output: No return value; updates `install_state` selection when a match is found
+///
+/// Details: Operates on visible indices and tests case-insensitive matches against package name
+/// or description; wraps around the list.
 pub fn find_in_install(app: &mut AppState, forward: bool) {
     let Some(pattern) = app.pane_find.clone() else {
         return;
@@ -85,7 +105,13 @@ pub fn find_in_install(app: &mut AppState, forward: bool) {
     }
 }
 
-/// Ensure `app.details` reflects the currently selected result.
+/// What: Ensure details reflect the currently selected result.
+///
+/// Input: `app` mutable application state; `details_tx` channel for details requests
+/// Output: No return value; uses cache or sends a details request
+///
+/// Details: If details for the selected item exist in the cache, they are applied immediately;
+/// otherwise, the item is sent over `details_tx` to be fetched asynchronously.
 pub fn refresh_selected_details(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
@@ -99,7 +125,13 @@ pub fn refresh_selected_details(
     }
 }
 
-/// Ensure `app.details` reflects the currently selected item in the Install pane.
+/// What: Ensure details reflect the selected item in the Install pane.
+///
+/// Input: `app` mutable application state; `details_tx` channel for details requests
+/// Output: No return value; focuses details on the selected Install item and uses cache or requests fetch
+///
+/// Details: Sets `details_focus`, populates a placeholder from the selected item, then uses the
+/// cache when present; otherwise sends a request over `details_tx`.
 pub fn refresh_install_details(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
@@ -139,7 +171,13 @@ pub fn refresh_install_details(
     }
 }
 
-/// Ensure `app.details` reflects the currently selected item in the Remove pane.
+/// What: Ensure details reflect the selected item in the Remove pane.
+///
+/// Input: `app` mutable application state; `details_tx` channel for details requests
+/// Output: No return value; focuses details on the selected Remove item and uses cache or requests fetch
+///
+/// Details: Sets `details_focus`, populates a placeholder from the selected item, then uses the
+/// cache when present; otherwise sends a request over `details_tx`.
 pub fn refresh_remove_details(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
     let Some(vsel) = app.remove_state.selected() else {
         return;
@@ -170,7 +208,13 @@ pub fn refresh_remove_details(app: &mut AppState, details_tx: &mpsc::UnboundedSe
     }
 }
 
-/// Ensure `app.details` reflects the currently selected item in the Downgrade pane.
+/// What: Ensure details reflect the selected item in the Downgrade pane.
+///
+/// Input: `app` mutable application state; `details_tx` channel for details requests
+/// Output: No return value; focuses details on the selected Downgrade item and uses cache or requests fetch
+///
+/// Details: Sets `details_focus`, populates a placeholder from the selected item, then uses the
+/// cache when present; otherwise sends a request over `details_tx`.
 pub fn refresh_downgrade_details(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,

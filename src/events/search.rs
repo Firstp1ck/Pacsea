@@ -88,12 +88,12 @@ pub fn handle_search_key(
                 let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
                 let install_path = app.install_path.clone();
                 let recent_path = app.recent_path.clone();
-                let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
+                let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
                 if idx == 4 {
                     let mut names: Vec<String> =
                         crate::index::explicit_names().into_iter().collect();
                     names.sort();
-                    let body = serde_json::to_string_pretty(&names).unwrap_or("[]".to_string());
+                    let body = names.join("\n");
                     let _ = std::fs::write(&installed_list_path, body);
                 }
                 let target = match idx {
@@ -110,7 +110,7 @@ pub fn handle_search_key(
                 };
                 let path_str = target.display().to_string();
                 let editor_cmd = format!(
-                    "(command -v nvim >/dev/null 2>&1 && nvim '{path_str}') || \\\n                         (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \\\n                         (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \\\n                         (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \\\n                         (command -v emacsclient >/dev/null 2>&1 && emacsclient -t '{path_str}') || \\\n                         (command -v emacs >/dev/null 2>&1 && emacs -nw '{path_str}') || \\\n                         (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \\\n                         (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
+                    "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \\\n                         ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \\\n                         ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \\\n                         ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \\\n                         ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \\\n                         ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \\\n                         ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \\\n                         (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
                 );
                 let cmds = vec![editor_cmd];
                 std::thread::spawn(move || {

@@ -95,6 +95,7 @@ pub async fn fetch_official_pkg_names()
 #[cfg(test)]
 mod tests {
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn fetch_parses_sl_and_dedups_by_repo_and_name() {
         let _guard = crate::index::test_mutex().lock().unwrap();
 

@@ -1,39 +1,63 @@
 //! Distro-specific helpers used across the app.
 
-/// Return true when a package name should be considered Manjaro-branded.
-/// Current rule: name starts with "manjaro-" (case-insensitive).
+/// What: Determine if a package name is Manjaro-branded
+///
+/// Input: `name` package name
+/// Output: `true` if it starts with "manjaro-" (case-insensitive)
+///
+/// Details: Compares a lowercased name with the "manjaro-" prefix.
 pub fn is_name_manjaro(name: &str) -> bool {
     name.to_lowercase().starts_with("manjaro-")
 }
 
-/// Return true when either the package name or the owner indicates Manjaro.
+/// What: Determine if a package or its owner indicates Manjaro
 ///
-/// - Name rule: starts with "manjaro-"
-/// - Owner rule: contains the substring "manjaro" (case-insensitive)
+/// Input: `name` package name; `owner` maintainer/owner string
+/// Output: `true` if name starts with "manjaro-" or owner contains "manjaro" (case-insensitive)
+///
+/// Details: Lowercases both inputs and checks the prefix/substring rules.
 pub fn is_manjaro_name_or_owner(name: &str, owner: &str) -> bool {
     let name_l = name.to_lowercase();
     let owner_l = owner.to_lowercase();
     name_l.starts_with("manjaro-") || owner_l.contains("manjaro")
 }
 
-/// Return true if repo name maps to EndeavourOS official repos.
+/// What: Check if a repo name is an EndeavourOS repo
+///
+/// Input: `repo` repository name
+/// Output: `true` for "eos" or "endeavouros" (case-insensitive)
+///
+/// Details: Lowercases and matches exact names.
 pub fn is_eos_repo(repo: &str) -> bool {
     let r = repo.to_lowercase();
     r == "eos" || r == "endeavouros"
 }
 
-/// Return true if repo name maps to any CachyOS official repos.
+/// What: Check if a repo name belongs to CachyOS
+///
+/// Input: `repo` repository name
+/// Output: `true` if it starts with "cachyos" (case-insensitive)
+///
+/// Details: Lowercases and checks the "cachyos" prefix.
 pub fn is_cachyos_repo(repo: &str) -> bool {
     let r = repo.to_lowercase();
     r.starts_with("cachyos")
 }
 
-/// Known EndeavourOS repo names we may query with pacman -Sl.
+/// What: Known EndeavourOS repo names usable with pacman -Sl
+///
+/// Output: Static slice of repo names
+///
+/// Details: Returns ["eos", "endeavouros"].
 pub fn eos_repo_names() -> &'static [&'static str] {
     &["eos", "endeavouros"]
 }
 
-/// Known CachyOS repo names we may query with pacman -Sl.
+/// What: Known CachyOS repo names usable with pacman -Sl
+///
+/// Output: Static slice of repo names
+///
+/// Details: Includes multiple generation-specific names (v3/v4) for compatibility.
 pub fn cachyos_repo_names() -> &'static [&'static str] {
     &[
         "cachyos",
@@ -48,8 +72,12 @@ pub fn cachyos_repo_names() -> &'static [&'static str] {
     ]
 }
 
-/// Heuristic: treat names containing "eos-" as EndeavourOS-branded when
-/// reconstructing installed-only items not present in the official index.
+/// What: Heuristic to treat a name as EndeavourOS-branded
+///
+/// Input: `name` package name
+/// Output: `true` if it contains "eos-" (case-insensitive)
+///
+/// Details: Used when reconstructing installed-only items not present in the official index.
 pub fn is_eos_name(name: &str) -> bool {
     name.to_lowercase().contains("eos-")
 }

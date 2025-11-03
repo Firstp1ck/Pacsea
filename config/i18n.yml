@@ -1,0 +1,390 @@
+# Pacsea i18n configuration
+# Purpose:
+# - Centralize per-locale punctuation and typography preferences.
+# - Provide defaults the app can consult when formatting messages later.
+#
+# Notes:
+# - This file is data-only. No code depends on it yet.
+# - Keys favor human-readability and easy extension.
+# - All punctuation characters are explicitly listed so rendering can be locale-aware.
+#
+# How to add a new locale:
+# 1) Copy an existing locale block and adjust:
+#    - name, direction
+#    - number_format (decimal/thousand separators, group size)
+#    - typography.sentence start/end markers (e.g., ¿/¡ in es-ES, 。 in ja-JP)
+#    - typography.quotes (primary/secondary/open/close/apostrophe)
+#    - typography.separators (comma/period/colon/semicolon/etc.)
+#    - typography.dashes (hyphen/en/em)
+#    - typography.ellipsis
+#    - typography.brackets
+#    - typography.spacing (non-breaking space usage rules)
+# 2) Optionally add a fallback in `fallbacks`.
+#
+# Conventions:
+# - Use literal Unicode characters where possible (avoid HTML entities).
+# - Use \uXXXX escapes for spaces that are otherwise invisible in editors (NBSP, NNBSP).
+# - Keep booleans and lists simple; the formatter can interpret these rules later.
+
+schema_version: 1
+default_locale: en-US
+
+# Fallbacks used if a more specific locale is missing
+fallbacks:
+  en: en-US
+  de: de-DE
+  fr: fr-FR
+  es: es-ES
+  ja: ja-JP
+  ar: ar-SA
+
+locales:
+  en-US:
+    name: English (United States)
+    direction: ltr
+    number_format:
+      decimal: "."
+      thousand: ","
+      group: 3
+    typography:
+      sentence:
+        start: []
+        end: [".", "?", "!"]
+      quotes:
+        primary:
+          open: "“"
+          close: "”"
+        secondary:
+          open: "‘"
+          close: "’"
+        apostrophe: "’"
+      separators:
+        comma: ","
+        period: "."
+        colon: ":"
+        semicolon: ";"
+        question: "?"
+        exclamation: "!"
+        slash: "/"
+        backslash: "\\"
+        pipe: "|"
+      dashes:
+        hyphen: "-"
+        en: "–"
+        em: "—"
+      ellipsis: "…"
+      interpuncts:
+        middle_dot: "·"
+      brackets:
+        round: { open: "(", close: ")" }
+        square: { open: "[", close: "]" }
+        curly: { open: "{", close: "}" }
+        angle: { open: "<", close: ">" }
+      spacing:
+        nbsp: "\u00A0"
+        thin_nbsp: "\u202F"
+        word_joiner: "\u2060"
+        use_nbsp_inside_guillemets: false
+        use_narrow_nbsp_before: []
+        space_before_punctuation: []
+        space_after_punctuation: [",", ";", ":", ".", "?", "!"]
+
+  de-DE:
+    name: Deutsch (Deutschland)
+    direction: ltr
+    number_format:
+      decimal: ","
+      thousand: "."
+      group: 3
+    typography:
+      sentence:
+        start: []
+        end: [".", "?", "!"]
+      quotes:
+        primary:
+          open: "„"
+          close: "“"
+        secondary:
+          open: "‚"
+          close: "‘"
+        apostrophe: "’"
+      separators:
+        comma: ","
+        period: "."
+        colon: ":"
+        semicolon: ";"
+        question: "?"
+        exclamation: "!"
+        slash: "/"
+        backslash: "\\"
+        pipe: "|"
+      dashes:
+        hyphen: "-"
+        en: "–"
+        em: "—"
+      ellipsis: "…"
+      interpuncts:
+        middle_dot: "·"
+      brackets:
+        round: { open: "(", close: ")" }
+        square: { open: "[", close: "]" }
+        curly: { open: "{", close: "}" }
+        angle: { open: "<", close: ">" }
+      spacing:
+        nbsp: "\u00A0"
+        thin_nbsp: "\u202F"
+        word_joiner: "\u2060"
+        use_nbsp_inside_guillemets: false
+        use_narrow_nbsp_before: []
+        space_before_punctuation: []
+        space_after_punctuation: [",", ";", ":", ".", "?", "!"]
+
+  fr-FR:
+    name: Français (France)
+    direction: ltr
+    number_format:
+      decimal: ","
+      thousand: "\u00A0" # NBSP often used as thousands separator in French
+      group: 3
+    typography:
+      sentence:
+        start: []
+        end: [".", "?", "!"]
+      quotes:
+        primary:
+          open: "«"
+          close: "»"
+        secondary:
+          open: "‹"
+          close: "›"
+        apostrophe: "’"
+      separators:
+        comma: ","
+        period: "."
+        colon: ":"
+        semicolon: ";"
+        question: "?"
+        exclamation: "!"
+        slash: "/"
+        backslash: "\\"
+        pipe: "|"
+      dashes:
+        hyphen: "-"
+        en: "–"
+        em: "—"
+      ellipsis: "…"
+      interpuncts:
+        middle_dot: "·"
+      brackets:
+        round: { open: "(", close: ")" }
+        square: { open: "[", close: "]" }
+        curly: { open: "{", close: "}" }
+        angle: { open: "<", close: ">" }
+      spacing:
+        nbsp: "\u00A0"
+        thin_nbsp: "\u202F"
+        word_joiner: "\u2060"
+        # French typography: narrow NBSP before ; : ! ? and inside guillemets
+        use_nbsp_inside_guillemets: true
+        guillemet_inner_space: "\u202F"
+        use_narrow_nbsp_before: [";", ":", "!", "?"]
+        space_before_punctuation: []
+        space_after_punctuation: [",", ";", ":", ".", "?", "!"]
+
+  es-ES:
+    name: Español (España)
+    direction: ltr
+    number_format:
+      decimal: ","
+      thousand: "."
+      group: 3
+    typography:
+      sentence:
+        start: ["¿", "¡"]
+        end: [".", "?", "!"]
+      quotes:
+        primary:
+          open: "«"
+          close: "»"
+        secondary:
+          open: "“"
+          close: "”"
+        apostrophe: "’"
+      separators:
+        comma: ","
+        period: "."
+        colon: ":"
+        semicolon: ";"
+        question: "?"
+        exclamation: "!"
+        slash: "/"
+        backslash: "\\"
+        pipe: "|"
+      dashes:
+        hyphen: "-"
+        en: "–"
+        em: "—"
+      ellipsis: "…"
+      interpuncts:
+        middle_dot: "·"
+      brackets:
+        round: { open: "(", close: ")" }
+        square: { open: "[", close: "]" }
+        curly: { open: "{", close: "}" }
+        angle: { open: "<", close: ">" }
+      spacing:
+        nbsp: "\u00A0"
+        thin_nbsp: "\u202F"
+        word_joiner: "\u2060"
+        use_nbsp_inside_guillemets: true
+        guillemet_inner_space: " "
+        use_narrow_nbsp_before: []
+        space_before_punctuation: []
+        space_after_punctuation: [",", ";", ":", ".", "?", "!"]
+
+  ja-JP:
+    name: 日本語 (日本)
+    direction: ltr
+    number_format:
+      decimal: "."
+      thousand: ","
+      group: 3
+    typography:
+      sentence:
+        start: []
+        end: ["。", "？", "！"]
+      quotes:
+        primary:
+          open: "「"
+          close: "」"
+        secondary:
+          open: "『"
+          close: "』"
+        apostrophe: "’"
+      separators:
+        comma: "、"
+        period: "。"
+        colon: "："
+        semicolon: "；"
+        question: "？"
+        exclamation: "！"
+        slash: "／"
+        backslash: "＼"
+        pipe: "｜"
+      dashes:
+        hyphen: "‐"
+        en: "–"
+        em: "—"
+      ellipsis: "…"
+      interpuncts:
+        middle_dot: "・"
+      brackets:
+        round: { open: "（", close: "）" }
+        square: { open: "［", close: "］" }
+        curly: { open: "｛", close: "｝" }
+        angle: { open: "〈", close: "〉" }
+      spacing:
+        # Japanese uses minimal spaces around punctuation
+        nbsp: "\u00A0"
+        thin_nbsp: "\u202F"
+        word_joiner: "\u2060"
+        use_nbsp_inside_guillemets: false
+        use_narrow_nbsp_before: []
+        space_before_punctuation: []
+        space_after_punctuation: []
+
+  ar-SA:
+    name: العربية (السعودية)
+    direction: rtl
+    number_format:
+      decimal: "٫"     # U+066B Arabic decimal separator
+      thousand: "٬"    # U+066C Arabic thousands separator
+      group: 3
+    typography:
+      sentence:
+        start: []
+        end: [".", "؟", "!"]
+      quotes:
+        primary:
+          open: "«"
+          close: "»"
+        secondary:
+          open: "“"
+          close: "”"
+        apostrophe: "’"
+      separators:
+        comma: "،"      # Arabic comma U+060C
+        period: "."
+        colon: ":"
+        semicolon: "؛"  # Arabic semicolon U+061B
+        question: "؟"   # Arabic question mark U+061F
+        exclamation: "!"
+        slash: "/"
+        backslash: "\\"
+        pipe: "|"
+      dashes:
+        hyphen: "-"
+        en: "–"
+        em: "—"
+      ellipsis: "…"
+      interpuncts:
+        middle_dot: "·"
+      brackets:
+        round: { open: "(", close: ")" }
+        square: { open: "[", close: "]" }
+        curly: { open: "{", close: "}" }
+        angle: { open: "<", close: ">" }
+      spacing:
+        nbsp: "\u00A0"
+        thin_nbsp: "\u202F"
+        word_joiner: "\u2060"
+        use_nbsp_inside_guillemets: false
+        use_narrow_nbsp_before: []
+        space_before_punctuation: []
+        space_after_punctuation: [",", ";", ":", ".", "؟", "!"]
+
+# Optional normalization presets that a future formatter can use to "smartify" ASCII text
+# by locale. This does not perform any changes by itself; it documents intended behavior.
+normalization_presets:
+  # Example: how to smarten quotes/dashes per-locale if the app enables it later.
+  en-US:
+    ascii_to_smart:
+      double_quote: { open: "“", close: "”" }
+      single_quote: { open: "‘", close: "’", apostrophe: "’" }
+      dashes: { "--": "–", "---": "—" }
+      ellipsis: { "...": "…" }
+  de-DE:
+    ascii_to_smart:
+      double_quote: { open: "„", close: "“" }
+      single_quote: { open: "‚", close: "‘", apostrophe: "’" }
+      dashes: { "--": "–", "---": "—" }
+      ellipsis: { "...": "…" }
+  fr-FR:
+    ascii_to_smart:
+      double_quote: { open: "«", close: "»" }
+      single_quote: { open: "‹", close: "›", apostrophe: "’" }
+      dashes: { "--": "–", "---": "—" }
+      ellipsis: { "...": "…" }
+      spaces:
+        thin_nbsp_before: [";", ":", "!", "?"]
+        guillemet_inner_space: "\u202F"
+  es-ES:
+    ascii_to_smart:
+      double_quote: { open: "«", close: "»" }
+      single_quote: { open: "“", close: "”", apostrophe: "’" }
+      dashes: { "--": "–", "---": "—" }
+      ellipsis: { "...": "…" }
+      sentence_start_markers: ["¿", "¡"]
+  ja-JP:
+    ascii_to_smart:
+      quotes: { primary_open: "「", primary_close: "」", secondary_open: "『", secondary_close: "』" }
+      comma: "、"
+      period: "。"
+      ellipsis: { "...": "…" }
+  ar-SA:
+    ascii_to_smart:
+      comma: "،"
+      semicolon: "؛"
+      question: "؟"
+      dashes: { "--": "–", "---": "—" }
+      ellipsis: { "...": "…" }

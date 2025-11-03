@@ -105,6 +105,29 @@ pub fn handle_mouse_event(
         return false;
     }
 
+    // If VirusTotalSetup modal is open, only open the URL when clicking on the link area; consume all mouse events
+    if let crate::state::Modal::VirusTotalSetup { .. } = &app.modal {
+        if is_left_down
+            && let Some((x, y, w, h)) = app.vt_url_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let url = "https://www.virustotal.com/gui/my-apikey";
+            std::thread::spawn(move || {
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(url)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+            });
+        }
+        // Consume all mouse events while VirusTotal setup modal is open
+        return false;
+    }
+
     // If News modal is open, intercept mouse events before anything else
     if let crate::state::Modal::News { items, selected } = &mut app.modal {
         // Left click: select/open or close on outside
@@ -156,6 +179,10 @@ pub fn handle_mouse_event(
             _ => {}
         }
         // If modal is open and event wasn't handled above, consume it
+        return false;
+    }
+    // While any modal is open, prevent main window interaction by consuming mouse events
+    if !matches!(app.modal, crate::state::Modal::None) {
         return false;
     }
 
@@ -802,6 +829,8 @@ pub fn handle_mouse_event(
                     let is_pkg_installed = |pkg: &str| crate::index::is_installed(pkg);
                     let on_path = |cmd: &str| crate::install::command_on_path(cmd);
 
+                    // Security scanners (moved below AUR helper)
+
                     // Editor: show the one installed, otherwise all possibilities
                     // Map: (binary, package)
                     let editor_candidates: &[(&str, &str)] = &[
@@ -1000,6 +1029,52 @@ pub fn handle_mouse_event(
                         });
                     }
 
+                    // Security scanners (after AUR helper)
+                    {
+                        // ClamAV (official)
+                        let pkg = "clamav";
+                        let installed = is_pkg_installed(pkg) || on_path("clamscan");
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: clamav".to_string(),
+                            package: pkg.to_string(),
+                            installed,
+                            selectable: !installed,
+                            note: None,
+                        });
+                        // Trivy (official)
+                        let pkg = "trivy";
+                        let installed = is_pkg_installed(pkg) || on_path("trivy");
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: trivy".to_string(),
+                            package: pkg.to_string(),
+                            installed,
+                            selectable: !installed,
+                            note: None,
+                        });
+                        // Semgrep (AUR: semgrep-bin)
+                        let pkg = "semgrep-bin";
+                        let installed = is_pkg_installed(pkg) || on_path("semgrep");
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: semgrep-bin".to_string(),
+                            package: pkg.to_string(),
+                            installed,
+                            selectable: !installed,
+                            note: Some("AUR".to_string()),
+                        });
+                    }
+                    // VirusTotal API setup
+                    {
+                        let vt_key_present =
+                            !crate::theme::settings().virustotal_api_key.is_empty();
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: VirusTotal API".to_string(),
+                            package: "virustotal-setup".to_string(),
+                            installed: vt_key_present,
+                            selectable: true,
+                            note: Some("Setup".to_string()),
+                        });
+                    }
+
                     app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
                 }
                 _ => {}
@@ -1022,13 +1097,13 @@ pub fn handle_mouse_event(
             let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
             let install_path = app.install_path.clone();
             let recent_path = app.recent_path.clone();
-            // For installed list, write a transient file under lists dir (keep as requested name)
-            let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
+            // Export installed package names to config directory as plaintext list
+            let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
             if row == 4 {
-                // Build installed names JSON array (explicit set is closer to user expectation? use explicit_names for stability)
+                // Build installed names as newline-separated list
                 let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
                 names.sort();
-                let body = serde_json::to_string_pretty(&names).unwrap_or("[]".to_string());
+                let body = names.join("\n");
                 let _ = std::fs::write(&installed_list_path, body);
             }
 
@@ -1048,13 +1123,13 @@ pub fn handle_mouse_event(
             // Build a single OR-chained command so only the first available editor runs
             let path_str = target.display().to_string();
             let editor_cmd = format!(
-                "(command -v nvim >/dev/null 2>&1 && nvim '{path_str}') || \
-                 (command -v vim >/dev/null 2>&1 && vim '{path_str}') || \
-                 (command -v hx >/dev/null 2>&1 && hx '{path_str}') || \
-                 (command -v helix >/dev/null 2>&1 && helix '{path_str}') || \
-                 (command -v emacsclient >/dev/null 2>&1 && emacsclient -t '{path_str}') || \
-                 (command -v emacs >/dev/null 2>&1 && emacs -nw '{path_str}') || \
-                 (command -v nano >/dev/null 2>&1 && nano '{path_str}') || \
+                "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \
+                 ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \
+                 ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \
+                 ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \
+                 ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \
+                 ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \
+                 ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \
                  (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)",
             );
             let cmds = vec![editor_cmd];

@@ -50,6 +50,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn pkgbuild_fetches_aur_via_curl_text() {
         let _guard = crate::sources::test_mutex().lock().unwrap();
         // Shim PATH with fake curl
@@ -96,6 +97,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn pkgbuild_fetches_official_main_then_master() {
         let _guard = crate::sources::test_mutex().lock().unwrap();
         let old_path = std::env::var("PATH").unwrap_or_default();
