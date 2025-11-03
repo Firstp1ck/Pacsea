@@ -34,3 +34,4 @@ AUR_BUILD/
 
 .vscode/
 semgrep-bin/
+*/logs/*

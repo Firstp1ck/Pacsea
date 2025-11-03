@@ -574,7 +574,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             "Theme -> theme.conf",
             "Keybindings -> keybinds.conf",
             "Install List -> install_list.json",
-            "Installed Packages -> installed_list.json",
+            "Installed Packages -> installed_packages.txt",
             "Recent Searches -> recent_searches.json",
         ];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;

@@ -934,12 +934,12 @@ pub fn handle_event(
                 let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
                 let install_path = app.install_path.clone();
                 let recent_path = app.recent_path.clone();
-                let installed_list_path = crate::theme::lists_dir().join("installed_list.json");
+                let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
                 if idx == 4 {
                     let mut names: Vec<String> =
                         crate::index::explicit_names().into_iter().collect();
                     names.sort();
-                    let body = serde_json::to_string_pretty(&names).unwrap_or("[]".to_string());
+                    let body = names.join("\n");
                     let _ = std::fs::write(&installed_list_path, body);
                 }
                 let target = match idx {
