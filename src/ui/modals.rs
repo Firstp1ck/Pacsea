@@ -741,13 +741,30 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         let fg = if is_critical { th.red } else { th.text };
                         Style::default().fg(fg)
                     };
-                    let line = format!("{}  {}", it.date, it.title);
+                    let prefs = crate::theme::settings();
+                    let line = format!(
+                        "{} {}  {}",
+                        if app.news_read_urls.contains(&it.url) {
+                            &prefs.news_read_symbol
+                        } else {
+                            &prefs.news_unread_symbol
+                        },
+                        it.date,
+                        it.title
+                    );
                     lines.push(Line::from(Span::styled(line, style)));
                 }
             }
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
-                "Up/Down: select  •  Enter: open  •  Esc: close",
+                format!(
+                    "Up/Down: select  •  Enter: open  •  {}: mark read  •  Esc: close",
+                    app.keymap
+                        .news_mark_read
+                        .first()
+                        .map(|k| k.label())
+                        .unwrap_or_else(|| "R".to_string())
+                ),
                 Style::default().fg(th.subtext1),
             )));
 

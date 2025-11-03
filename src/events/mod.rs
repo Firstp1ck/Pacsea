@@ -263,6 +263,15 @@ pub fn handle_event(
                 return false;
             }
             crate::state::Modal::News { items, selected } => {
+                let chord = (ke.code, ke.modifiers);
+                let km = &app.keymap;
+                if km.news_mark_read.iter().any(|c| (c.code, c.mods) == chord) {
+                    if let Some(it) = items.get(*selected) {
+                        app.news_read_urls.insert(it.url.clone());
+                        app.news_read_dirty = true;
+                    }
+                    return false;
+                }
                 match ke.code {
                     KeyCode::Esc => app.modal = crate::state::Modal::None,
                     KeyCode::Up => {

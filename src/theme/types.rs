@@ -75,6 +75,10 @@ pub struct Settings {
     pub scan_do_semgrep: bool,
     pub scan_do_shellcheck: bool,
     pub scan_do_virustotal: bool,
+    /// Symbol used to mark a news item as read in the News modal.
+    pub news_read_symbol: String,
+    /// Symbol used to mark a news item as unread in the News modal.
+    pub news_unread_symbol: String,
 }
 
 impl Default for Settings {
@@ -99,6 +103,8 @@ impl Default for Settings {
             scan_do_semgrep: true,
             scan_do_shellcheck: true,
             scan_do_virustotal: true,
+            news_read_symbol: "✓".to_string(),
+            news_unread_symbol: "∘".to_string(),
         }
     }
 }
@@ -283,6 +289,10 @@ pub struct KeyMap {
     pub install_find: Vec<KeyChord>,
     pub install_to_search: Vec<KeyChord>,
     pub install_focus_left: Vec<KeyChord>,
+
+    // News modal
+    /// Mark currently listed News items as read (without opening URL)
+    pub news_mark_read: Vec<KeyChord>,
 }
 
 impl Default for KeyMap {
@@ -519,6 +529,12 @@ impl Default for KeyMap {
             }],
             install_focus_left: vec![KeyChord {
                 code: Left,
+                mods: none,
+            }],
+
+            // News modal
+            news_mark_read: vec![KeyChord {
+                code: Char('r'),
                 mods: none,
             }],
         }

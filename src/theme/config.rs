@@ -273,7 +273,12 @@ scan_do_clamav = true\n\
 scan_do_trivy = true\n\
 scan_do_semgrep = true\n\
 scan_do_shellcheck = true\n\
-scan_do_virustotal = true\n";
+scan_do_virustotal = true\n\
+\n\
+# News\n\
+# Symbols for read/unread indicators in the News popup\n\
+news_read_symbol = ✓\n\
+news_unread_symbol = ∘\n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub(crate) const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\
