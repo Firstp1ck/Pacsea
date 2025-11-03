@@ -12,6 +12,12 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
   ❗Target: <strong>Security Coverage </strong> via automatic <strong>Scans</strong> and <strong>Optional Measures</strong> (e.g., converting AUR packages to <strong>Flatpak</strong>), and more❗</p>
 </div>
 
+### New: Security scans for AUR
+Pacsea adds a security‑first workflow for AUR installs. Before building you can run one or more checks — ClamAV (antivirus), Trivy (filesystem), Semgrep (static analysis), ShellCheck for PKGBUILD/.install, and VirusTotal hash lookups.
+Future implementation will include: AI Security Scan (of course Optional)
+
+![Scan configuration (v0.4.5)](Images/AUR_Scan_v0.4.5.png "Scan configuration (v0.4.5)")
+
 ## Community
 <p align="center">
 ✨ Idea or bug? <strong><a href="https://github.com/Firstp1ck/Pacsea/issues">Open an issue</a></strong> or check out <strong><a href="https://github.com/Firstp1ck/Pacsea/discussions/11">Idea Discussions</a></strong><br/>
@@ -65,6 +71,11 @@ pacsea
 
 ### System update dialog
 ![System update dialog (v0.4.1)](Images/SystemUpdateView_v0.4.1.png "System update dialog (v0.4.1)")
+
+### TUI Optional Deps
+Install and verify recommended helper tools directly from a dedicated view (editor, terminal, AUR helper, and security utilities like ClamAV, Trivy, ShellCheck, and the VirusTotal API). Quickly see what's installed and press Enter to install missing packages.
+
+![TUI Optional Deps (v0.4.5)](Images/Optional_Deps_v0.4.5.png "TUI Optional Deps (v0.4.5)")
 
 ## Usage
 1. Start typing to search.
