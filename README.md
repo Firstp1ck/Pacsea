@@ -60,6 +60,7 @@ pacsea
 > Prefer a dry run first? Add `--dry-run`.
 
 ## Features
+- **Security Scan for AUR Packages**: Scan AUR for security vulnerabilities.
 - **Unified search**: Fast results across official repos and the AUR.
 - **Keyboard‑first**: Minimal keystrokes, Vim‑friendly navigation.
 - **Queue & install**: Space to add, Enter to confirm installs.
@@ -192,9 +193,9 @@ cargo run
 - Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/11)
 
 ### Potential future Features
-- **Security Scan for AUR Packages (Source Code and PKGBUILD) using multiple tools: ClamAV, VirusTotal, Trivy and Semgrep** (on going)
 - **Extensive Preflight Check** (on going)
-- **Additional Language Support**
+- **Additional Language Support** (on going)
+- **Security Scan for AUR Packages (Source Code and PKGBUILD) using AI**
 - **Default Mirrors, Mirror Search and extensive Mirror Selection**
 - **Adjustable Width of the Middle Panes**
 - **Adjustable Height of the Results and Package Info Panes**

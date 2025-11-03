@@ -64,6 +64,14 @@ pub struct AppState {
     /// Dirty flag indicating `details_cache` needs to be saved.
     pub cache_dirty: bool,
 
+    // News read/unread tracking (persisted)
+    /// Set of Arch news item URLs the user has marked as read.
+    pub news_read_urls: std::collections::HashSet<String>,
+    /// Path where the read news URLs are persisted as JSON.
+    pub news_read_path: PathBuf,
+    /// Dirty flag indicating `news_read_urls` needs to be saved.
+    pub news_read_dirty: bool,
+
     // Install list pane
     /// Packages selected for installation.
     pub install_list: Vec<PackageItem>,
@@ -322,6 +330,11 @@ impl Default for AppState {
             // Details cache (lists dir under config)
             cache_path: crate::theme::lists_dir().join("details_cache.json"),
             cache_dirty: false,
+
+            // News read/unread tracking (lists dir under config)
+            news_read_urls: std::collections::HashSet::new(),
+            news_read_path: crate::theme::lists_dir().join("news_read_urls.json"),
+            news_read_dirty: false,
 
             install_list: Vec::new(),
             install_state: ListState::default(),

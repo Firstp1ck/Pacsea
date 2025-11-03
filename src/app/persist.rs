@@ -36,6 +36,23 @@ pub fn maybe_flush_recent(app: &mut AppState) {
     }
 }
 
+/// What: Persist the set of read Arch news URLs to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_read_urls` and `news_read_path`
+///
+/// Output:
+/// - Writes `news_read_urls` JSON to `news_read_path` and clears the dirty flag on success.
+pub fn maybe_flush_news_read(app: &mut AppState) {
+    if !app.news_read_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_read_urls) {
+        let _ = fs::write(&app.news_read_path, s);
+        app.news_read_dirty = false;
+    }
+}
+
 /// What: Persist the install list to disk if marked dirty, throttled to ~1s.
 ///
 /// Inputs:
@@ -164,5 +181,32 @@ mod tests {
         let body = std::fs::read_to_string(&app.install_path).unwrap();
         assert!(body.contains("rg"));
         let _ = std::fs::remove_file(&app.install_path);
+    }
+
+    #[test]
+    /// What: maybe_flush_news_read writes set JSON and clears dirty flag
+    ///
+    /// - Input: AppState with news_read_dirty=true and temp news_read_path
+    /// - Output: File contains a URL; news_read_dirty=false
+    fn flush_news_read_writes_and_clears_flag() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        app.news_read_path = path.clone();
+        app.news_read_urls
+            .insert("https://archlinux.org/news/example/".into());
+        app.news_read_dirty = true;
+        maybe_flush_news_read(&mut app);
+        assert!(!app.news_read_dirty);
+        let body = std::fs::read_to_string(&app.news_read_path).unwrap();
+        assert!(body.contains("archlinux.org/news"));
+        let _ = std::fs::remove_file(&app.news_read_path);
     }
 }

@@ -19,8 +19,9 @@ use crate::state::*;
 use crate::ui::ui;
 use crate::util::{match_rank, repo_order};
 
-use super::news::{parse_news_date_to_ymd, today_ymd_utc};
-use super::persist::{maybe_flush_cache, maybe_flush_install, maybe_flush_recent};
+use super::persist::{
+    maybe_flush_cache, maybe_flush_install, maybe_flush_news_read, maybe_flush_recent,
+};
 use super::recent::maybe_save_recent;
 use super::terminal::{restore_terminal, setup_terminal};
 
@@ -71,6 +72,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         install = %app.install_path.display(),
         details_cache = %app.cache_path.display(),
         index = %app.official_index_path.display(),
+        news_read = %app.news_read_path.display(),
         "resolved state file paths"
     );
 
@@ -125,6 +127,13 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             app.install_state.select(Some(0));
         }
         tracing::info!(path = %app.install_path.display(), count = app.install_list.len(), "loaded install list");
+    }
+
+    if let Ok(s) = std::fs::read_to_string(&app.news_read_path)
+        && let Ok(set) = serde_json::from_str::<std::collections::HashSet<String>>(&s)
+    {
+        app.news_read_urls = set;
+        tracing::info!(path = %app.news_read_path.display(), count = app.news_read_urls.len(), "loaded read news urls");
     }
 
     pkgindex::load_from_disk(&app.official_index_path);
@@ -226,24 +235,16 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     });
 
-    // Fetch Arch news once at startup; if any items are dated today (UTC), show modal
+    // Fetch Arch news once at startup; show unread items (by URL) if any
     let news_tx_once = news_tx.clone();
+    let read_set = app.news_read_urls.clone();
     tokio::spawn(async move {
         if let Ok(list) = sources::fetch_arch_news(10).await {
-            let today = today_ymd_utc();
-            let todays: Vec<NewsItem> = match today {
-                Some((ty, tm, td)) => list
-                    .into_iter()
-                    .filter(|it| parse_news_date_to_ymd(&it.date) == Some((ty, tm, td)))
-                    .collect(),
-                None => Vec::new(),
-            };
-            if !todays.is_empty() {
-                let _ = news_tx_once.send(todays);
-            } else {
-                // Signal "no news today" by sending an empty list
-                let _ = news_tx_once.send(Vec::new());
-            }
+            let unread: Vec<NewsItem> = list
+                .into_iter()
+                .filter(|it| !read_set.contains(&it.url))
+                .collect();
+            let _ = news_tx_once.send(unread);
         }
     });
 
@@ -479,7 +480,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 let _ = tick_tx.send(());
             }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
-            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_install(&mut app);
+            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_news_read(&mut app); maybe_flush_install(&mut app);
                 // If we recently triggered install/remove, poll installed/explicit caches briefly
                 if let Some(deadline) = app.refresh_installed_until {
                     let now = Instant::now();
@@ -555,8 +556,8 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                     app.toast_message = Some("No new News today".to_string());
                     app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
                 } else {
-                    // Show just today's news items; default to first selected
-                    app.modal = Modal::News { items: todays, selected: 0 };
+                    // Show unread news items; default to first selected
+                    app.modal = Modal::News { items: todays.clone(), selected: 0 };
                 }
             }
             Some((txt, color)) = status_rx.recv() => {
@@ -569,6 +570,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
 
     maybe_flush_cache(&mut app);
     maybe_flush_recent(&mut app);
+    maybe_flush_news_read(&mut app);
     maybe_flush_install(&mut app);
 
     if !headless {

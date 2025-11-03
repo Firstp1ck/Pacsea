@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// What: Return today's UTC date as (year, month, day) using the system `date` command.
 ///
 /// Inputs:
@@ -5,6 +6,7 @@
 ///
 /// Output:
 /// - `Some((year, month, day))` when available; `None` if the command fails or output is invalid.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     let out = std::process::Command::new("date")
         .args(["-u", "+%Y-%m-%d"]) // e.g., 2025-10-11
@@ -32,6 +34,7 @@ pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
 ///
 /// Output:
 /// - `Some((y, m, d))` for recognized and valid dates; `None` otherwise.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
     let t = s.trim();
     // Case 1: ISO: YYYY-MM-DD
