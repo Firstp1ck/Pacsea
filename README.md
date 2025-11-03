@@ -8,8 +8,8 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 
 ## Top Priority due to the spreading of Malware in the AUR Repository
 <div align="center">
-  <p>❗<strong>Security-first approach</strong> for installing <strong>AUR Packages</strong>.❗<br>
-  ❗Target: <strong>Security Coverage of ~70%</strong> by Testing with "newest" Malware via automatic <strong>Scans</strong> and <strong>Optional Measures</strong> (e.g., converting AUR packages to <strong>Flatpak</strong>), and more❗</p>
+  <p>❗<strong>On-going: Security-first approach</strong> for installing <strong>AUR Packages</strong>.❗<br>
+  ❗Target: <strong>Security Coverage </strong> via automatic <strong>Scans</strong> and <strong>Optional Measures</strong> (e.g., converting AUR packages to <strong>Flatpak</strong>), and more❗</p>
 </div>
 
 ## Community
