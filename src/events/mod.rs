@@ -213,17 +213,24 @@ pub fn handle_event(
                                 names.push(it.name.clone());
                             }
                         }
-                        app.pending_install_names = Some(names);
-                        // Open Scan Configuration modal initialized from settings.conf
-                        let prefs = crate::theme::settings();
-                        app.modal = crate::state::Modal::ScanConfig {
-                            do_clamav: prefs.scan_do_clamav,
-                            do_trivy: prefs.scan_do_trivy,
-                            do_semgrep: prefs.scan_do_semgrep,
-                            do_shellcheck: prefs.scan_do_shellcheck,
-                            do_virustotal: prefs.scan_do_virustotal,
-                            cursor: 0,
-                        };
+                        if names.is_empty() {
+                            app.modal = crate::state::Modal::Alert {
+                                message: "No AUR packages selected to scan.\nSelect AUR results or add AUR packages to the Install list, then press 's'.".into(),
+                            };
+                        } else {
+                            app.pending_install_names = Some(names);
+                            // Open Scan Configuration modal initialized from settings.conf
+                            let prefs = crate::theme::settings();
+                            app.modal = crate::state::Modal::ScanConfig {
+                                do_clamav: prefs.scan_do_clamav,
+                                do_trivy: prefs.scan_do_trivy,
+                                do_semgrep: prefs.scan_do_semgrep,
+                                do_shellcheck: prefs.scan_do_shellcheck,
+                                do_virustotal: prefs.scan_do_virustotal,
+                                do_custom: prefs.scan_do_custom,
+                                cursor: 0,
+                            };
+                        }
                     }
                     _ => {}
                 }
@@ -374,6 +381,7 @@ pub fn handle_event(
                 do_semgrep,
                 do_shellcheck,
                 do_virustotal,
+                do_custom,
                 cursor,
             } => {
                 match ke.code {
@@ -386,7 +394,7 @@ pub fn handle_event(
                         }
                     }
                     KeyCode::Down => {
-                        if *cursor < 4 {
+                        if *cursor < 5 {
                             *cursor += 1;
                         }
                     }
@@ -396,15 +404,30 @@ pub fn handle_event(
                         2 => *do_semgrep = !*do_semgrep,
                         3 => *do_shellcheck = !*do_shellcheck,
                         4 => *do_virustotal = !*do_virustotal,
+                        5 => *do_custom = !*do_custom,
                         _ => {}
                     },
                     KeyCode::Enter => {
+                        tracing::info!(
+                            event = "scan_config_confirm",
+                            dry_run = app.dry_run,
+                            do_clamav = *do_clamav,
+                            do_trivy = *do_trivy,
+                            do_semgrep = *do_semgrep,
+                            do_shellcheck = *do_shellcheck,
+                            do_virustotal = *do_virustotal,
+                            do_custom = *do_custom,
+                            pending_count =
+                                app.pending_install_names.as_ref().map_or(0, |v| v.len()),
+                            "Scan Configuration confirmed"
+                        );
                         // Persist scan selection to settings.conf
                         crate::theme::save_scan_do_clamav(*do_clamav);
                         crate::theme::save_scan_do_trivy(*do_trivy);
                         crate::theme::save_scan_do_semgrep(*do_semgrep);
                         crate::theme::save_scan_do_shellcheck(*do_shellcheck);
                         crate::theme::save_scan_do_virustotal(*do_virustotal);
+                        crate::theme::save_scan_do_custom(*do_custom);
 
                         // PACSEA_SCAN_DO_* flags are injected into the spawned terminal by spawn_aur_scan_for_with_config
 
@@ -412,21 +435,42 @@ pub fn handle_event(
 
                         #[cfg(not(target_os = "windows"))]
                         if let Some(names) = app.pending_install_names.clone() {
+                            tracing::info!(
+                                names = ?names,
+                                count = names.len(),
+                                dry_run = app.dry_run,
+                                "Launching AUR scans"
+                            );
                             if app.dry_run {
                                 for n in names.iter() {
+                                    tracing::info!(
+                                        package = %n,
+                                        "Dry-run: spawning AUR scan terminal"
+                                    );
                                     let msg = format!(
-                                        "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={})",
+                                        "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={} custom={})",
                                         n,
                                         *do_clamav,
                                         *do_trivy,
                                         *do_semgrep,
                                         *do_shellcheck,
-                                        *do_virustotal
+                                        *do_virustotal,
+                                        *do_custom
                                     );
                                     crate::install::spawn_shell_commands_in_terminal(&[msg]);
                                 }
                             } else {
                                 for n in names.iter() {
+                                    tracing::info!(
+                                        package = %n,
+                                        do_clamav = *do_clamav,
+                                        do_trivy = *do_trivy,
+                                        do_semgrep = *do_semgrep,
+                                        do_shellcheck = *do_shellcheck,
+                                        do_virustotal = *do_virustotal,
+                                        do_custom = *do_custom,
+                                        "Spawning AUR scan terminal"
+                                    );
                                     crate::install::spawn_aur_scan_for_with_config(
                                         n,
                                         *do_clamav,
@@ -434,9 +478,14 @@ pub fn handle_event(
                                         *do_semgrep,
                                         *do_shellcheck,
                                         *do_virustotal,
+                                        *do_custom,
                                     );
                                 }
                             }
+                        } else {
+                            tracing::warn!(
+                                "Scan confirmed but no pending AUR package names were found"
+                            );
                         }
 
                         app.modal = crate::state::Modal::None;
@@ -547,11 +596,7 @@ pub fn handle_event(
 
         // Global keymap shortcuts (regardless of focus)
         // First: allow ESC to close the PKGBUILD viewer if it is open
-        if ke.code == KeyCode::Esc && app.pkgb_visible {
-            app.pkgb_visible = false;
-            app.pkgb_text = None;
-            return false;
-        }
+        // Esc does not close the PKGBUILD viewer here
 
         // If any dropdown is open, ESC closes it instead of changing modes
         if ke.code == KeyCode::Esc
@@ -607,6 +652,8 @@ pub fn handle_event(
             if app.pkgb_visible {
                 app.pkgb_visible = false;
                 app.pkgb_text = None;
+                app.pkgb_scroll = 0;
+                app.pkgb_rect = None;
             } else {
                 app.pkgb_visible = true;
                 app.pkgb_text = None;

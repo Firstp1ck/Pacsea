@@ -224,6 +224,8 @@ pub fn handle_mouse_event(
             // Close if already open
             app.pkgb_visible = false;
             app.pkgb_text = None;
+            app.pkgb_scroll = 0;
+            app.pkgb_rect = None;
         } else {
             // Open and (re)load
             app.pkgb_visible = true;
@@ -1461,5 +1463,46 @@ mod tests {
         let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx);
         assert!(app.pkgb_visible);
         assert!(pkgb_rx.try_recv().ok().is_some());
+    }
+
+    #[test]
+    /// What: Clicking Hide PKGBUILD closes viewer and resets scroll/rect state
+    ///
+    /// - Input: PKGBUILD viewer visible with non-zero scroll and rect set; click inside pkgb_button_rect
+    /// - Output: pkgb_visible=false; pkgb_text=None; pkgb_scroll==0; pkgb_rect=None
+    fn click_pkgb_toggle_closes_and_resets() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "rg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+        }];
+        app.selected = 0;
+        app.pkgb_button_rect = Some((10, 10, 5, 1));
+        // Pre-set PKGBUILD viewer as open with state to be reset
+        app.pkgb_visible = true;
+        app.pkgb_text = Some("dummy".into());
+        app.pkgb_scroll = 7;
+        app.pkgb_rect = Some((50, 50, 20, 5));
+
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        // Click inside the toggle area to hide
+        let ev = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 11,
+            row: 10,
+            modifiers: KeyModifiers::empty(),
+        };
+        let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx);
+
+        assert!(!app.pkgb_visible);
+        assert!(app.pkgb_text.is_none());
+        assert_eq!(app.pkgb_scroll, 0);
+        assert!(app.pkgb_rect.is_none());
     }
 }

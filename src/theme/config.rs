@@ -274,6 +274,7 @@ scan_do_trivy = true\n\
 scan_do_semgrep = true\n\
 scan_do_shellcheck = true\n\
 scan_do_virustotal = true\n\
+scan_do_custom = true\n\
 \n\
 # News\n\
 # Symbols for read/unread indicators in the News popup\n\
@@ -687,6 +688,9 @@ pub fn save_scan_do_shellcheck(value: bool) {
 pub fn save_scan_do_virustotal(value: bool) {
     save_boolean_key("scan_do_virustotal", value)
 }
+pub fn save_scan_do_custom(value: bool) {
+    save_boolean_key("scan_do_custom", value)
+}
 
 /// Ensure core application settings keys exist in the settings file; append missing with current/default values.
 ///
@@ -786,12 +790,13 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     ];
     let mut appended_any = false;
     // Ensure scan toggles exist; default to true when missing
-    let scan_keys: [(&str, &str); 5] = [
+    let scan_keys: [(&str, &str); 6] = [
         ("scan_do_clamav", "true"),
         ("scan_do_trivy", "true"),
         ("scan_do_semgrep", "true"),
         ("scan_do_shellcheck", "true"),
         ("scan_do_virustotal", "true"),
+        ("scan_do_custom", "true"),
     ];
     for (k, v) in scan_keys.iter() {
         if !have.contains(*k) {

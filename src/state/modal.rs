@@ -59,6 +59,8 @@ pub enum Modal {
         do_shellcheck: bool,
         /// Whether to run VirusTotal hash lookups.
         do_virustotal: bool,
+        /// Whether to run custom suspicious-pattern scan (PKGBUILD/.install).
+        do_custom: bool,
         /// Cursor row in the dialog.
         cursor: usize,
     },

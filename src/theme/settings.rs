@@ -116,11 +116,18 @@ pub fn settings() -> Settings {
                     let lv = val.to_ascii_lowercase();
                     out.scan_do_virustotal = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
                 }
+                "scan_do_custom" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_custom = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
                 "news_read_symbol" | "news_read_mark" => {
                     out.news_read_symbol = val.to_string();
                 }
                 "news_unread_symbol" | "news_unread_mark" => {
                     out.news_unread_symbol = val.to_string();
+                }
+                "preferred_terminal" | "terminal_preferred" | "terminal" => {
+                    out.preferred_terminal = val.to_string();
                 }
                 // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
                 _ => {}
