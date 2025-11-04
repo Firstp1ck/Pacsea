@@ -61,6 +61,8 @@ pub enum Modal {
         do_virustotal: bool,
         /// Whether to run custom suspicious-pattern scan (PKGBUILD/.install).
         do_custom: bool,
+        /// Whether to run aur-sleuth (LLM audit).
+        do_sleuth: bool,
         /// Cursor row in the dialog.
         cursor: usize,
     },

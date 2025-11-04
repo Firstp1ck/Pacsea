@@ -228,6 +228,7 @@ pub fn handle_event(
                                 do_shellcheck: prefs.scan_do_shellcheck,
                                 do_virustotal: prefs.scan_do_virustotal,
                                 do_custom: prefs.scan_do_custom,
+                                do_sleuth: prefs.scan_do_sleuth,
                                 cursor: 0,
                             };
                         }
@@ -350,6 +351,62 @@ pub fn handle_event(
                                     input: current,
                                     cursor: cur_len,
                                 };
+                            } else if row.package == "aur-sleuth-setup" {
+                                let cmd = r##"(set -e
+if ! command -v aur-sleuth >/dev/null 2>&1; then
+  echo "aur-sleuth not found."
+  echo
+  echo "Install aur-sleuth:"
+  echo "  1) system (/usr/local) requires sudo"
+  echo "  2) user (~/.local)"
+  echo "  3) cancel"
+  read -rp "Choose [1/2/3]: " choice
+  case "$choice" in
+    1)
+      tmp="$(mktemp -d)"; cd "$tmp"
+      git clone https://github.com/mgalgs/aur-sleuth.git
+      cd aur-sleuth
+      sudo make install
+      ;;
+    2)
+      tmp="$(mktemp -d)"; cd "$tmp"
+      git clone https://github.com/mgalgs/aur-sleuth.git
+      cd aur-sleuth
+      make install PREFIX="$HOME/.local"
+      ;;
+    *)
+      echo "Cancelled."; echo "Press any key to close..."; read -rn1 -s _; exit 0;;
+  esac
+else
+  echo "aur-sleuth already installed; continuing to setup"
+fi
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/aur-sleuth.conf"
+mkdir -p "$(dirname "$conf")"
+echo "# aur-sleuth configuration" > "$conf"
+echo "[default]" >> "$conf"
+read -rp "OPENAI_BASE_URL (e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1): " base
+read -rp "OPENAI_MODEL (e.g. qwen/qwen3-30b-a3b-instruct-2507 or llama3.1:8b): " model
+read -rp "OPENAI_API_KEY: " key
+read -rp "MAX_LLM_JOBS (default 3): " jobs
+read -rp "AUDIT_FAILURE_FATAL (true/false) [true]: " fatal
+jobs=${jobs:-3}
+fatal=${fatal:-true}
+[ -n "$base" ] && echo "OPENAI_BASE_URL = $base" >> "$conf"
+[ -n "$model" ] && echo "OPENAI_MODEL = $model" >> "$conf"
+echo "OPENAI_API_KEY = $key" >> "$conf"
+echo "MAX_LLM_JOBS = $jobs" >> "$conf"
+echo "AUDIT_FAILURE_FATAL = $fatal" >> "$conf"
+echo; echo "Wrote $conf"
+echo "Tip: You can run 'aur-sleuth package-name' or audit a local pkgdir with '--pkgdir .'"
+echo; echo "Press any key to close..."; read -rn1 -s _)"##
+                                    .to_string();
+                                let to_run = if app.dry_run {
+                                    vec![format!("echo DRY RUN: {}", cmd)]
+                                } else {
+                                    vec![cmd]
+                                };
+                                crate::install::spawn_shell_commands_in_terminal(&to_run);
+                                app.modal = crate::state::Modal::None;
                             } else if !row.installed && row.selectable {
                                 let pkg = row.package.clone();
                                 let cmd = if pkg == "paru" {
@@ -382,6 +439,7 @@ pub fn handle_event(
                 do_shellcheck,
                 do_virustotal,
                 do_custom,
+                do_sleuth,
                 cursor,
             } => {
                 match ke.code {
@@ -394,7 +452,7 @@ pub fn handle_event(
                         }
                     }
                     KeyCode::Down => {
-                        if *cursor < 5 {
+                        if *cursor < 6 {
                             *cursor += 1;
                         }
                     }
@@ -405,6 +463,7 @@ pub fn handle_event(
                         3 => *do_shellcheck = !*do_shellcheck,
                         4 => *do_virustotal = !*do_virustotal,
                         5 => *do_custom = !*do_custom,
+                        6 => *do_sleuth = !*do_sleuth,
                         _ => {}
                     },
                     KeyCode::Enter => {
@@ -428,6 +487,7 @@ pub fn handle_event(
                         crate::theme::save_scan_do_shellcheck(*do_shellcheck);
                         crate::theme::save_scan_do_virustotal(*do_virustotal);
                         crate::theme::save_scan_do_custom(*do_custom);
+                        crate::theme::save_scan_do_sleuth(*do_sleuth);
 
                         // PACSEA_SCAN_DO_* flags are injected into the spawned terminal by spawn_aur_scan_for_with_config
 
@@ -448,14 +508,15 @@ pub fn handle_event(
                                         "Dry-run: spawning AUR scan terminal"
                                     );
                                     let msg = format!(
-                                        "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={} custom={})",
+                                        "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={} custom={} sleuth={})",
                                         n,
                                         *do_clamav,
                                         *do_trivy,
                                         *do_semgrep,
                                         *do_shellcheck,
                                         *do_virustotal,
-                                        *do_custom
+                                        *do_custom,
+                                        *do_sleuth
                                     );
                                     crate::install::spawn_shell_commands_in_terminal(&[msg]);
                                 }
@@ -479,6 +540,7 @@ pub fn handle_event(
                                         *do_shellcheck,
                                         *do_virustotal,
                                         *do_custom,
+                                        *do_sleuth,
                                     );
                                 }
                             }
@@ -1074,6 +1136,29 @@ pub fn handle_event(
                                     label: "Security: VirusTotal API".to_string(),
                                     package: "virustotal-setup".to_string(),
                                     installed: vt_key_present,
+                                    selectable: true,
+                                    note: Some("Setup".to_string()),
+                                });
+                                // aur-sleuth (LLM audit) setup
+                                let sleuth_installed = {
+                                    let onpath = on_path("aur-sleuth");
+                                    let home = std::env::var("HOME").ok();
+                                    let user_local = home
+                                        .as_deref()
+                                        .map(|h| {
+                                            std::path::Path::new(h)
+                                                .join(".local/bin/aur-sleuth")
+                                                .exists()
+                                        })
+                                        .unwrap_or(false);
+                                    let usr_local =
+                                        std::path::Path::new("/usr/local/bin/aur-sleuth").exists();
+                                    onpath || user_local || usr_local
+                                };
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "Security: aur-sleuth".to_string(),
+                                    package: "aur-sleuth-setup".to_string(),
+                                    installed: sleuth_installed,
                                     selectable: true,
                                     note: Some("Setup".to_string()),
                                 });

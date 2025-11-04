@@ -1087,6 +1087,31 @@ pub fn handle_mouse_event(
                         });
                     }
 
+                    // aur-sleuth setup
+                    {
+                        let sleuth_installed = {
+                            let onpath = on_path("aur-sleuth");
+                            let home = std::env::var("HOME").ok();
+                            let user_local = home
+                                .as_deref()
+                                .map(|h| {
+                                    std::path::Path::new(h)
+                                        .join(".local/bin/aur-sleuth")
+                                        .exists()
+                                })
+                                .unwrap_or(false);
+                            let usr_local =
+                                std::path::Path::new("/usr/local/bin/aur-sleuth").exists();
+                            onpath || user_local || usr_local
+                        };
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: aur-sleuth".to_string(),
+                            package: "aur-sleuth-setup".to_string(),
+                            installed: sleuth_installed,
+                            selectable: true,
+                            note: Some("Setup".to_string()),
+                        });
+                    }
                     app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
                 }
                 _ => {}

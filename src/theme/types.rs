@@ -76,6 +76,7 @@ pub struct Settings {
     pub scan_do_shellcheck: bool,
     pub scan_do_virustotal: bool,
     pub scan_do_custom: bool,
+    pub scan_do_sleuth: bool,
     /// Symbol used to mark a news item as read in the News modal.
     pub news_read_symbol: String,
     /// Symbol used to mark a news item as unread in the News modal.
@@ -108,6 +109,7 @@ impl Default for Settings {
             scan_do_shellcheck: true,
             scan_do_virustotal: true,
             scan_do_custom: true,
+            scan_do_sleuth: true,
             news_read_symbol: "✓".to_string(),
             news_unread_symbol: "∘".to_string(),
             preferred_terminal: String::new(),

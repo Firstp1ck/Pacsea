@@ -114,6 +114,10 @@ fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
 
     // 6) VirusTotal hash lookups
     // 6) ShellCheck lint (PKGBUILD and *.install) and Risk evaluation
+    // --- aur-sleuth audit (optional) ---
+    cmds.push("echo '--- aur-sleuth audit (optional) ---'".to_string());
+    cmds.push("echo -e '\\033[1;34m[🔎] aur-sleuth audit (optional)\\033[0m'".to_string());
+    cmds.push("(if [ \"${PACSEA_SCAN_DO_SLEUTH:-1}\" = \"1\" ]; then A_SLEUTH=\"$(command -v aur-sleuth 2>/dev/null || true)\"; if [ -z \"$A_SLEUTH\" ] && [ -x \"${HOME}/.local/bin/aur-sleuth\" ]; then A_SLEUTH=\"${HOME}/.local/bin/aur-sleuth\"; fi; if [ -z \"$A_SLEUTH\" ] && [ -x \"/usr/local/bin/aur-sleuth\" ]; then A_SLEUTH=\"/usr/local/bin/aur-sleuth\"; fi; if [ -z \"$A_SLEUTH\" ] && [ -x \"/usr/bin/aur-sleuth\" ]; then A_SLEUTH=\"/usr/bin/aur-sleuth\"; fi; if [ -n \"$A_SLEUTH\" ]; then cfg=\"${XDG_CONFIG_HOME:-$HOME/.config}/pacsea/settings.conf\"; if [ -f \"$cfg\" ]; then get_key() { awk -F= -v k=\"$1\" 'tolower($0) ~ \"^[[:space:]]*\"k\"[[:space:]]*=\" {sub(/#.*/,\"\",$2); gsub(/^[[:space:]]+|[[:space:]]+$/,\"\",$2); print $2; exit }' \"$cfg\"; }; HP=$(get_key http_proxy); [ -n \"$HP\" ] && export http_proxy=\"$HP\"; XP=$(get_key https_proxy); [ -n \"$XP\" ] && export https_proxy=\"$XP\"; AP=$(get_key all_proxy); [ -n \"$AP\" ] && export ALL_PROXY=\"$AP\"; NP=$(get_key no_proxy); [ -n \"$NP\" ] && export NO_PROXY=\"$NP\"; CAB=$(get_key requests_ca_bundle); [ -n \"$CAB\" ] && export REQUESTS_CA_BUNDLE=\"$CAB\"; SCF=$(get_key ssl_cert_file); [ -n \"$SCF\" ] && export SSL_CERT_FILE=\"$SCF\"; CCB=$(get_key curl_ca_bundle); [ -n \"$CCB\" ] && export CURL_CA_BUNDLE=\"$CCB\"; PIPIDX=$(get_key pip_index_url); [ -n \"$PIPIDX\" ] && export PIP_INDEX_URL=\"$PIPIDX\"; PIPEX=$(get_key pip_extra_index_url); [ -n \"$PIPEX\" ] && export PIP_EXTRA_INDEX_URL=\"$PIPEX\"; PIPTH=$(get_key pip_trusted_host); [ -n \"$PIPTH\" ] && export PIP_TRUSTED_HOST=\"$PIPTH\"; UVCA=$(get_key uv_http_ca_certs); [ -n \"$UVCA\" ] && export UV_HTTP_CA_CERTS=\"$UVCA\"; fi; \"$A_SLEUTH\" --output plain --pkgdir . | tee ./.pacsea_sleuth.txt || echo 'aur-sleuth failed; see output above'; else echo 'aur-sleuth not found (checked PATH, ~/.local/bin, /usr/local/bin, /usr/bin)'; fi; else echo 'aur-sleuth: skipped by config'; fi)".to_string());
     cmds.push("echo '--- ShellCheck lint (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧹] ShellCheck lint (optional)\\033[0m'".to_string());
     cmds.push("(if [ \"${PACSEA_SCAN_DO_SHELLCHECK:-1}\" = \"1\" ]; then if command -v shellcheck >/dev/null 2>&1 || sudo pacman -Qi shellcheck >/dev/null 2>&1; then if [ -f PKGBUILD ]; then echo \"[shellcheck] Analyzing: PKGBUILD (bash, -e SC2034)\"; (shellcheck -s bash -x -e SC2034 -f json PKGBUILD > ./.pacsea_shellcheck_pkgbuild.json || shellcheck -s bash -x -e SC2034 PKGBUILD | tee ./.pacsea_shellcheck_pkgbuild.txt || true); fi; inst_files=(); while IFS= read -r -d '' f; do inst_files+=(\"$f\"); done < <(find . -maxdepth 1 -type f -name \"*.install\" -print0); if [ \"${#inst_files[@]}\" -gt 0 ]; then echo \"[shellcheck] Analyzing: ${inst_files[*]} (bash)\"; (shellcheck -s bash -x -f json \"${inst_files[@]}\" > ./.pacsea_shellcheck_install.json || shellcheck -s bash -x \"${inst_files[@]}\" | tee ./.pacsea_shellcheck_install.txt || true); fi; else echo 'ShellCheck not found; skipping'; fi; else echo 'ShellCheck: skipped by config'; fi)".to_string());
@@ -462,6 +466,7 @@ pub fn spawn_aur_scan_for(pkg: &str) {
 }
 
 #[cfg(not(target_os = "windows"))]
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_aur_scan_for_with_config(
     pkg: &str,
     do_clamav: bool,
@@ -470,6 +475,7 @@ pub fn spawn_aur_scan_for_with_config(
     do_shellcheck: bool,
     do_virustotal: bool,
     do_custom: bool,
+    do_sleuth: bool,
 ) {
     // Prepend environment exports so subsequent steps honor the selection
     let mut cmds: Vec<String> = Vec::new();
@@ -496,6 +502,11 @@ pub fn spawn_aur_scan_for_with_config(
     cmds.push(format!(
         "export PACSEA_SCAN_DO_CUSTOM={}",
         if do_custom { "1" } else { "0" }
+    ));
+    // Export aur-sleuth toggle from UI/config
+    cmds.push(format!(
+        "export PACSEA_SCAN_DO_SLEUTH={}",
+        if do_sleuth { "1" } else { "0" }
     ));
     // Export default pattern sets (can be overridden by PACSEA_PATTERNS_* env or pattern.conf in future)
     cmds.push("export PACSEA_PATTERNS_CRIT='/dev/(tcp|udp)/|bash -i *>& *[^ ]*/dev/(tcp|udp)/[0-9]+|exec [0-9]{2,}<>/dev/(tcp|udp)/|rm -rf[[:space:]]+/|dd if=/dev/zero of=/dev/sd[a-z]|[>]{1,2}[[:space:]]*/dev/sd[a-z]|: *\\(\\) *\\{ *: *\\| *: *& *\\};:|/etc/sudoers([[:space:]>]|$)|echo .*[>]{2}.*(/etc/sudoers|/root/.ssh/authorized_keys)|/etc/ld\\.so\\.preload|LD_PRELOAD=|authorized_keys.*[>]{2}|ssh-rsa [A-Za-z0-9+/=]+.*[>]{2}.*authorized_keys|curl .*(169\\.254\\.169\\.254)'".to_string());
@@ -537,6 +548,10 @@ fn build_scan_cmds_in_dir(path: &str) -> Vec<String> {
     cmds.push("(if [ \"${PACSEA_SCAN_DO_SEMGREP:-1}\" = \"1\" ]; then ((command -v semgrep >/dev/null 2>&1 || sudo pacman -Qi semgrep >/dev/null 2>&1) && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping'); else echo 'Semgrep: skipped by config'; fi)".to_string());
     // VirusTotal hash lookups
     // ShellCheck lint (PKGBUILD and *.install) and Risk evaluation
+    // --- aur-sleuth audit (optional) ---
+    cmds.push("echo '--- aur-sleuth audit (optional) ---'".to_string());
+    cmds.push("echo -e '\\033[1;34m[🔎] aur-sleuth audit (optional)\\033[0m'".to_string());
+    cmds.push("(if [ \"${PACSEA_SCAN_DO_SLEUTH:-1}\" = \"1\" ]; then A_SLEUTH=\"$(command -v aur-sleuth 2>/dev/null || true)\"; if [ -z \"$A_SLEUTH\" ] && [ -x \"${HOME}/.local/bin/aur-sleuth\" ]; then A_SLEUTH=\"${HOME}/.local/bin/aur-sleuth\"; fi; if [ -z \"$A_SLEUTH\" ] && [ -x \"/usr/local/bin/aur-sleuth\" ]; then A_SLEUTH=\"/usr/local/bin/aur-sleuth\"; fi; if [ -z \"$A_SLEUTH\" ] && [ -x \"/usr/bin/aur-sleuth\" ]; then A_SLEUTH=\"/usr/bin/aur-sleuth\"; fi; if [ -n \"$A_SLEUTH\" ]; then cfg=\"${XDG_CONFIG_HOME:-$HOME/.config}/pacsea/settings.conf\"; if [ -f \"$cfg\" ]; then get_key() { awk -F= -v k=\"$1\" 'tolower($0) ~ \"^[[:space:]]*\"k\"[[:space:]]*=\" {sub(/#.*/,\"\",$2); gsub(/^[[:space:]]+|[[:space:]]+$/,\"\",$2); print $2; exit }' \"$cfg\"; }; HP=$(get_key http_proxy); [ -n \"$HP\" ] && export http_proxy=\"$HP\"; XP=$(get_key https_proxy); [ -n \"$XP\" ] && export https_proxy=\"$XP\"; AP=$(get_key all_proxy); [ -n \"$AP\" ] && export ALL_PROXY=\"$AP\"; NP=$(get_key no_proxy); [ -n \"$NP\" ] && export NO_PROXY=\"$NP\"; CAB=$(get_key requests_ca_bundle); [ -n \"$CAB\" ] && export REQUESTS_CA_BUNDLE=\"$CAB\"; SCF=$(get_key ssl_cert_file); [ -n \"$SCF\" ] && export SSL_CERT_FILE=\"$SCF\"; CCB=$(get_key curl_ca_bundle); [ -n \"$CCB\" ] && export CURL_CA_BUNDLE=\"$CCB\"; PIPIDX=$(get_key pip_index_url); [ -n \"$PIPIDX\" ] && export PIP_INDEX_URL=\"$PIPIDX\"; PIPEX=$(get_key pip_extra_index_url); [ -n \"$PIPEX\" ] && export PIP_EXTRA_INDEX_URL=\"$PIPEX\"; PIPTH=$(get_key pip_trusted_host); [ -n \"$PIPTH\" ] && export PIP_TRUSTED_HOST=\"$PIPTH\"; UVCA=$(get_key uv_http_ca_certs); [ -n \"$UVCA\" ] && export UV_HTTP_CA_CERTS=\"$UVCA\"; fi; \"$A_SLEUTH\" --output plain --pkgdir . | tee ./.pacsea_sleuth.txt || echo 'aur-sleuth failed; see output above'; else echo 'aur-sleuth not found (checked PATH, ~/.local/bin, /usr/local/bin, /usr/bin)'; fi; else echo 'aur-sleuth: skipped by config'; fi)".to_string());
     cmds.push("echo '--- ShellCheck lint (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧹] ShellCheck lint (optional)\\033[0m'".to_string());
     cmds.push("(if [ \"${PACSEA_SCAN_DO_SHELLCHECK:-1}\" = \"1\" ]; then if command -v shellcheck >/dev/null 2>&1 || sudo pacman -Qi shellcheck >/dev/null 2>&1; then if [ -f PKGBUILD ]; then echo \"[shellcheck] Analyzing: PKGBUILD (bash, -e SC2034)\"; (shellcheck -s bash -x -e SC2034 -f json PKGBUILD > ./.pacsea_shellcheck_pkgbuild.json || shellcheck -s bash -x -e SC2034 PKGBUILD | tee ./.pacsea_shellcheck_pkgbuild.txt || true); fi; inst_files=(); while IFS= read -r -d '' f; do inst_files+=(\"$f\"); done < <(find . -maxdepth 1 -type f -name \"*.install\" -print0); if [ \"${#inst_files[@]}\" -gt 0 ]; then echo \"[shellcheck] Analyzing: ${inst_files[*]} (bash)\"; (shellcheck -s bash -x -f json \"${inst_files[@]}\" > ./.pacsea_shellcheck_install.json || shellcheck -s bash -x \"${inst_files[@]}\" | tee ./.pacsea_shellcheck_install.txt || true); fi; else echo 'ShellCheck not found; skipping'; fi; else echo 'ShellCheck: skipped by config'; fi)".to_string());

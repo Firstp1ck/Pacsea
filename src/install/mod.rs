@@ -20,6 +20,7 @@ pub use remove::spawn_remove_all;
 pub use scan::spawn_aur_scan_for;
 
 #[cfg(not(target_os = "windows"))]
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_aur_scan_for_with_config(
     pkg: &str,
     do_clamav: bool,
@@ -28,6 +29,7 @@ pub fn spawn_aur_scan_for_with_config(
     do_shellcheck: bool,
     do_virustotal: bool,
     do_custom: bool,
+    do_sleuth: bool,
 ) {
     // Load configurable suspicious patterns (pattern.conf), override defaults via env vars
     let sets = crate::install::patterns::load();
@@ -53,6 +55,7 @@ pub fn spawn_aur_scan_for_with_config(
         do_shellcheck,
         do_virustotal,
         do_custom,
+        do_sleuth,
     );
 }
 // pub use scan::spawn_aur_scan_in_dir;

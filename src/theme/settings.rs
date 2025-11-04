@@ -120,6 +120,10 @@ pub fn settings() -> Settings {
                     let lv = val.to_ascii_lowercase();
                     out.scan_do_custom = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
                 }
+                "scan_do_sleuth" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.scan_do_sleuth = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
                 "news_read_symbol" | "news_read_mark" => {
                     out.news_read_symbol = val.to_string();
                 }
