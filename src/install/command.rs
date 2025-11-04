@@ -1,5 +1,51 @@
 use crate::state::{PackageItem, Source};
 
+/// Build the common AUR install body that prefers `paru` and falls back to `yay`,
+/// including the interactive -Syy retry on failure. This returns the full parenthesized
+/// `(if ... fi)` shell snippet without the trailing hold suffix.
+fn aur_install_body(flags: &str, n: &str) -> String {
+    format!(
+        "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
+            paru {flags} {n} || (echo; echo 'Install failed.'; \
+                read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
+                if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
+                    paru -Syy && paru {flags} {n}; \
+                fi); \
+          elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
+            yay {flags} {n} || (echo; echo 'Install failed.'; \
+                read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
+                if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
+                    yay -Syy && yay {flags} {n}; \
+                fi); \
+          else \
+            echo 'No AUR helper (paru/yay) found.'; echo; \
+            echo 'Choose AUR helper to install:'; \
+            echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; \
+            read -rp 'Enter 1/2/3: ' choice; \
+            case \"$choice\" in \
+              1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; \
+              2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; \
+              *) echo 'Cancelled.'; exit 1 ;; \
+            esac; \
+            if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
+              paru {flags} {n} || (echo; echo 'Install failed.'; \
+                  read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
+                  if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
+                      paru -Syy && paru {flags} {n}; \
+                  fi); \
+            elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
+              yay {flags} {n} || (echo; echo 'Install failed.'; \
+                  read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
+                  if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
+                      yay -Syy && yay {flags} {n}; \
+                  fi); \
+            else \
+              echo 'AUR helper installation failed or was cancelled.'; exit 1; \
+            fi; \
+          fi)"
+    )
+}
+
 /// What: Build a shell command to install `item` and indicate whether `sudo` is used.
 ///
 /// Inputs:
@@ -29,12 +75,28 @@ pub fn build_install_command(
             }
             let pass = password.unwrap_or("");
             if pass.is_empty() {
-                let bash = format!("sudo {base_cmd}{hold_tail}");
+                let bash = if reinstall {
+                    format!(
+                        "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo {base_cmd}; fi); else echo 'Reinstall cancelled.'; fi){hold_tail}"
+                    )
+                } else {
+                    format!(
+                        "(sudo {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo {base_cmd}; fi)){hold_tail}"
+                    )
+                };
                 (bash, true)
             } else {
                 let escaped = pass.replace('\'', "'\"'\"'\''");
                 let pipe = format!("echo '{escaped}' | ");
-                let bash = format!("{pipe}sudo -S {base_cmd}{hold_tail}");
+                let bash = if reinstall {
+                    format!(
+                        "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S pacman -Syy && {pipe}sudo -S {base_cmd}; fi); else echo 'Reinstall cancelled.'; fi){hold_tail}"
+                    )
+                } else {
+                    format!(
+                        "({pipe}sudo -S {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S pacman -Syy && {pipe}sudo -S {base_cmd}; fi)){hold_tail}"
+                    )
+                };
                 (bash, true)
             }
         }
@@ -53,12 +115,19 @@ pub fn build_install_command(
                     hold = hold_tail,
                     flags = flags
                 )
+            } else if reinstall {
+                format!(
+                    "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; \
+                      if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {body}; \
+                      else echo 'Reinstall cancelled.'; fi){hold}",
+                    body = aur_install_body(flags, &item.name),
+                    hold = hold_tail
+                )
             } else {
                 format!(
-                    "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru {flags} {n}; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay {flags} {n}; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru {flags} {n}; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay {flags} {n}; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi){hold}",
-                    n = item.name,
-                    hold = hold_tail,
-                    flags = flags
+                    "{body}{hold}",
+                    body = aur_install_body(flags, &item.name),
+                    hold = hold_tail
                 )
             };
             (aur_cmd, false)
@@ -89,7 +158,7 @@ mod tests {
 
         let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
         assert!(uses_sudo1);
-        assert!(cmd1.starts_with("sudo pacman -S --needed --noconfirm ripgrep"));
+        assert!(cmd1.contains("sudo pacman -S --needed --noconfirm ripgrep"));
         assert!(cmd1.contains("Press any key to close"));
 
         let (cmd2, uses_sudo2) = build_install_command(&pkg, Some("pa's"), false);

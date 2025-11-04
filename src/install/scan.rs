@@ -31,16 +31,67 @@ fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
     cmds.push("cd \"$work\"".to_string());
     cmds.push("if command -v git >/dev/null 2>&1 || sudo pacman -Qi git >/dev/null 2>&1; then :; else echo 'git not found. Cannot clone AUR repo.'; exit 1; fi".to_string());
 
-    // 1) Clone AUR repo
-    cmds.push("echo 'Cloning AUR repository…'".to_string());
-    cmds.push("git clone --depth 1 \"https://aur.archlinux.org/${pkg}.git\" || { echo 'Clone failed'; exit 1; }".to_string());
-    cmds.push("cd \"$pkg\"".to_string());
+    // 1) Fetch PKGBUILD via AUR helper first; fallback to git clone
+    cmds.push("echo 'Fetching PKGBUILD via AUR helper (-G)…'".to_string());
+    cmds.push("(if command -v paru >/dev/null 2>&1; then paru -G \"$pkg\"; elif command -v yay >/dev/null 2>&1; then yay -G \"$pkg\"; else echo 'No AUR helper (paru/yay) found for -G'; false; fi) || (echo 'Falling back to git clone…'; git clone --depth 1 \"https://aur.archlinux.org/${pkg}.git\" || { echo 'Clone failed'; exit 1; })".to_string());
+    cmds.push("if [ -f \"$pkg/PKGBUILD\" ]; then cd \"$pkg\"; else f=$(find \"$pkg\" -maxdepth 3 -type f -name PKGBUILD 2>/dev/null | head -n1); if [ -n \"$f\" ]; then cd \"$(dirname \"$f\")\"; elif [ -d \"$pkg\" ]; then cd \"$pkg\"; fi; fi".to_string());
     cmds.push("echo \"PKGBUILD path: $(pwd)/PKGBUILD\"".to_string());
 
     // 2) Download sources only
     cmds.push("echo 'Running makepkg -o (download sources only)…'".to_string());
     // Do not abort the whole chain if makepkg fails (e.g., missing base-devel). Continue scanning.
-    cmds.push("(makepkg -o --noconfirm && echo 'makepkg -o: sources downloaded.') || echo 'makepkg -o failed or partially completed; continuing'".to_string());
+    cmds.push("({ \
+        if [ ! -f PKGBUILD ]; then \
+            echo 'PKGBUILD not found; fallback: re-clone via git…'; \
+            cd .. || true; \
+            rm -rf \"$pkg\" 2>/dev/null || true; \
+            git clone --depth 1 \"https://aur.archlinux.org/${pkg}.git\" || true; \
+            if [ -f \"$pkg/PKGBUILD\" ]; then \
+                cd \"$pkg\"; \
+            else \
+                f=$(find \"$pkg\" -maxdepth 3 -type f -name PKGBUILD 2>/dev/null | head -n1); \
+                if [ -n \"$f\" ]; then cd \"$(dirname \"$f\")\" || true; else echo 'PKGBUILD still missing after git fallback'; fi; \
+            fi; \
+        fi; \
+        if [ ! -f PKGBUILD ]; then \
+            echo 'Trying helper -S to populate cache and copy build files…'; \
+            cdir=''; \
+            if command -v paru >/dev/null 2>&1; then \
+                echo 'Detecting paru buildDir…'; \
+                bdir=$(paru -Pg 2>/dev/null | grep -m1 -o '\"buildDir\": *\"[^\"]*\"' | cut -d '\"' -f4); \
+                bdir=${bdir:-\"$HOME/.cache/paru\"}; \
+                echo \"Paru buildDir: $bdir\"; \
+                echo 'Cleaning existing cached package directory…'; \
+                find \"$bdir\" -maxdepth 5 -type d -name \"$pkg\" -exec rm -rf {} + 2>/dev/null || true; \
+                echo 'Populating paru cache with -S (auto-abort, 20s timeout)…'; \
+                timeout 20s bash -lc 'yes n | paru -S \"$pkg\"' >/dev/null 2>&1 || true; \
+                cdir=$(find \"$bdir\" -maxdepth 6 -type f -name PKGBUILD -path \"*/$pkg/*\" 2>/dev/null | head -n1); \
+                if [ -z \"$cdir\" ]; then cdir=$(find \"$bdir\" -maxdepth 6 -type f -name PKGBUILD 2>/dev/null | head -n1); fi; \
+            elif command -v yay >/dev/null 2>&1; then \
+                echo 'Detecting yay buildDir…'; \
+                bdir=$(yay -Pg 2>/dev/null | grep -m1 -o '\"buildDir\": *\"[^\"]*\"' | cut -d '\"' -f4); \
+                bdir=${bdir:-\"$HOME/.cache/yay\"}; \
+                echo \"Yay buildDir: $bdir\"; \
+                echo 'Cleaning existing cached package directory…'; \
+                find \"$bdir\" -maxdepth 5 -type d -name \"$pkg\" -exec rm -rf {} + 2>/dev/null || true; \
+                echo 'Populating yay cache with -S (auto-abort, 20s timeout)…'; \
+                timeout 20s bash -lc 'yes n | yay -S --noconfirm \"$pkg\"' >/dev/null 2>&1 || true; \
+                cdir=$(find \"$bdir\" -maxdepth 6 -type f -name PKGBUILD -path \"*/$pkg/*\" 2>/dev/null | head -n1); \
+                if [ -z \"$cdir\" ]; then cdir=$(find \"$bdir\" -maxdepth 6 -type f -name PKGBUILD 2>/dev/null | head -n1); fi; \
+            fi; \
+            if [ -n \"$cdir\" ]; then \
+                cd \"$(dirname \"$cdir\")\" || true; \
+            else \
+                echo 'Could not locate PKGBUILD in helper cache.'; \
+            fi; \
+        fi; \
+        echo \"PKGBUILD path: $(pwd)/PKGBUILD\"; \
+        if [ -f PKGBUILD ]; then \
+            makepkg -o --noconfirm && echo 'makepkg -o: sources downloaded.'; \
+        else \
+            echo 'Skipping makepkg -o: PKGBUILD still missing.'; \
+        fi; \
+    }) || echo 'makepkg -o failed or partially completed; continuing'".to_string());
 
     // 3) ClamAV scan
     cmds.push("echo '--- ClamAV scan (optional) ---'".to_string());

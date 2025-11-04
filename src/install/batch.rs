@@ -4,6 +4,49 @@ use std::process::Command;
 
 use crate::state::PackageItem;
 
+fn aur_install_body(flags: &str, n: &str) -> String {
+    format!(
+        "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
+            paru {flags} {n} || (echo; echo 'Install failed.'; \
+                read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
+                if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
+                    paru -Syy && paru {flags} {n}; \
+                fi); \
+          elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
+            yay {flags} {n} || (echo; echo 'Install failed.'; \
+                read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
+                if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
+                    yay -Syy && yay {flags} {n}; \
+                fi); \
+          else \
+            echo 'No AUR helper (paru/yay) found.'; echo; \
+            echo 'Choose AUR helper to install:'; \
+            echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; \
+            read -rp 'Enter 1/2/3: ' choice; \
+            case \"$choice\" in \
+              1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; \
+              2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; \
+              *) echo 'Cancelled.'; exit 1 ;; \
+            esac; \
+            if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
+              paru {flags} {n} || (echo; echo 'Install failed.'; \
+                  read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
+                  if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
+                      paru -Syy && paru {flags} {n}; \
+                  fi); \
+            elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
+              yay {flags} {n} || (echo; echo 'Install failed.'; \
+                  read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
+                  if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
+                      yay -Syy && yay {flags} {n}; \
+                  fi); \
+            else \
+              echo 'AUR helper installation failed or was cancelled.'; exit 1; \
+            fi; \
+          fi)"
+    )
+}
+
 #[cfg(not(target_os = "windows"))]
 use super::logging::log_installed;
 #[cfg(not(target_os = "windows"))]
@@ -65,13 +108,13 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
         let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
         let n = all.join(" ");
         format!(
-            "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -S --needed --noconfirm {n}; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -S --needed --noconfirm {n}; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -S --needed --noconfirm {n}; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -S --needed --noconfirm {n}; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi){hold}",
-            n = n,
+            "{body}{hold}",
+            body = aur_install_body("-S --needed --noconfirm", &n),
             hold = hold_tail
         )
     } else if !official.is_empty() {
         format!(
-            "sudo pacman -S --needed --noconfirm {n}{hold}",
+            "(sudo pacman -S --needed --noconfirm {n} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo pacman -S --needed --noconfirm {n}; fi)){hold}",
             n = official.join(" "),
             hold = hold_tail
         )

@@ -202,6 +202,10 @@ cargo run
 - **Add Multiple CLI Commands like: `pacsea -S FILENAME.txt`, `pacsea -R FILENAME.txt`, `pacsea --news`, `pacsea -Syu` and more**
 - **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
 - **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)**
+- **Ability to list and install optional dependencies when installing packages**
+- **Add accessability themes for visual impairments**
+- **Add PKGBUILD Syntax Highlighting**
+- **Add custom upgrade commands**
 - **Extensive Testing**
 - **Extensive Documentation**
 
