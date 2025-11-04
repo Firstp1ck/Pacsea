@@ -97,7 +97,6 @@ fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
     cmds.push("echo '--- ClamAV scan (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🔍] ClamAV scan (optional)\\033[0m'".to_string());
     cmds.push("(if [ \"${PACSEA_SCAN_DO_CLAMAV:-1}\" = \"1\" ]; then ((command -v clamscan >/dev/null 2>&1 || sudo pacman -Qi clamav >/dev/null 2>&1) && { if find /var/lib/clamav -maxdepth 1 -type f \\( -name '*.cvd' -o -name '*.cld' \\) 2>/dev/null | grep -q .; then clamscan -r . | tee ./.pacsea_scan_clamav.txt; else echo 'ClamAV found but no signature database in /var/lib/clamav'; echo 'Tip: run: sudo freshclam  (or start the updater: sudo systemctl start clamav-freshclam)'; fi; } || echo 'ClamAV (clamscan) encountered an error; skipping') || echo 'ClamAV not found; skipping'; else echo 'ClamAV: skipped by config'; fi)".to_string());
-
     // 4) Trivy filesystem scan
     cmds.push("echo '--- Trivy filesystem scan (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧰] Trivy filesystem scan (optional)\\033[0m'".to_string());
@@ -187,13 +186,174 @@ fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
     cmds.push("echo".to_string());
     cmds.push("echo '--- Summary ---'".to_string());
     cmds.push("echo -e '\\033[1;36m[📊] Summary\\033[0m'".to_string());
-    cmds.push("({ overall_score=0; overall_max=0; rf=./.pacsea_shellcheck_risk.txt; if [ -f \"$rf\" ]; then RS=$(grep -E '^RISK_SCORE=' \"$rf\" | cut -d= -f2); RS=${RS:-0}; if [ \"$RS\" -gt 100 ]; then RS=100; fi; overall_score=$((overall_score+RS)); overall_max=$((overall_max+100)); fi; if [ -f ./.pacsea_scan_clamav.txt ]; then INF=$(grep -E 'Infected files:[[:space:]]*[0-9]+' ./.pacsea_scan_clamav.txt | tail -n1 | awk -F: '{print $2}' | xargs); INF=${INF:-0}; CV=$([ \"$INF\" -gt 0 ] && echo 100 || echo 0); overall_score=$((overall_score+CV)); overall_max=$((overall_max+100)); fi; TRI=0; if [ -f ./.pacsea_scan_trivy.json ]; then C=$(grep -o '\"Severity\":\"CRITICAL\"' ./.pacsea_scan_trivy.json | wc -l); H=$(grep -o '\"Severity\":\"HIGH\"' ./.pacsea_scan_trivy.json | wc -l); M=$(grep -o '\"Severity\":\"MEDIUM\"' ./.pacsea_scan_trivy.json | wc -l); L=$(grep -o '\"Severity\":\"LOW\"' ./.pacsea_scan_trivy.json | wc -l); TRI=$((C*10 + H*5 + M*2 + L)); elif [ -f ./.pacsea_scan_trivy.txt ]; then C=$(grep -oi 'CRITICAL' ./.pacsea_scan_trivy.txt | wc -l); H=$(grep -oi 'HIGH' ./.pacsea_scan_trivy.txt | wc -l); M=$(grep -oi 'MEDIUM' ./.pacsea_scan_trivy.txt | wc -l); L=$(grep -oi 'LOW' ./.pacsea_scan_trivy.txt | wc -l); TRI=$((C*10 + H*5 + M*2 + L)); fi; if [ -f ./.pacsea_scan_trivy.json ] || [ -f ./.pacsea_scan_trivy.txt ]; then if [ \"$TRI\" -gt 100 ]; then TRI=100; fi; overall_score=$((overall_score+TRI)); overall_max=$((overall_max+100)); fi; SG=0; if [ -f ./.pacsea_scan_semgrep.json ]; then SG=$(grep -o '\"check_id\"' ./.pacsea_scan_semgrep.json | wc -l); elif [ -f ./.pacsea_scan_semgrep.txt ]; then SG=$(grep -E '^[^:]+:[0-9]+:[0-9]+:' ./.pacsea_scan_semgrep.txt | wc -l); fi; if [ -f ./.pacsea_scan_semgrep.json ] || [ -f ./.pacsea_scan_semgrep.txt ]; then SG=$((SG*3)); if [ \"$SG\" -gt 100 ]; then SG=100; fi; overall_score=$((overall_score+SG)); overall_max=$((overall_max+100)); fi; VT=0; if [ -f ./.pacsea_scan_vt_summary.txt ]; then VT_MAL=$(grep -E '^VT_MAL=' ./.pacsea_scan_vt_summary.txt | cut -d= -f2); VT_SUS=$(grep -E '^VT_SUS=' ./.pacsea_scan_vt_summary.txt | cut -d= -f2); VT_MAL=${VT_MAL:-0}; VT_SUS=${VT_SUS:-0}; VT=$((VT_MAL*10 + VT_SUS*3)); if [ \"$VT\" -gt 100 ]; then VT=100; fi; overall_score=$((overall_score+VT)); overall_max=$((overall_max+100)); fi; PCT=0; if [ \"$overall_max\" -gt 0 ]; then PCT=$((overall_score*100/overall_max)); fi; TIER='LOW'; COLOR='\\033[1;32m'; ICON='[✔]'; if [ \"$PCT\" -ge 75 ]; then TIER='CRITICAL'; COLOR='\\033[1;31m'; ICON='[❌]'; elif [ \"$PCT\" -ge 50 ]; then TIER='HIGH'; COLOR='\\033[1;33m'; ICON='[❗]'; elif [ \"$PCT\" -ge 25 ]; then TIER='MEDIUM'; COLOR='\\033[1;34m'; ICON='[⚠️ ]'; fi; echo -e \"$COLOR$ICON Overall risk: ${PCT}% ($TIER)\\033[0m\"; { echo \"OVERALL_PERCENT=$PCT\"; echo \"OVERALL_TIER=$TIER\"; echo \"COMPONENT_MAX=$overall_max\"; echo \"COMPONENT_SCORE=$overall_score\"; } > ./.pacsea_overall_risk.txt; })".to_string());
-    cmds.push("if [ -f ./.pacsea_scan_clamav.txt ]; then inf=$(grep -E 'Infected files:[[:space:]]*[0-9]+' ./.pacsea_scan_clamav.txt | tail -n1 | awk -F: '{print $2}' | xargs); if [ -n \"$inf\" ]; then if [ \"$inf\" -gt 0 ]; then echo \"ClamAV: infected files: $inf\"; else echo \"ClamAV: no infections detected\"; fi; else echo 'ClamAV: no infections detected'; fi; else echo 'ClamAV: not run'; fi".to_string());
-    cmds.push("if [ -f ./.pacsea_scan_trivy.json ]; then c=$(grep -o '\"Severity\":\"CRITICAL\"' ./.pacsea_scan_trivy.json | wc -l); h=$(grep -o '\"Severity\":\"HIGH\"' ./.pacsea_scan_trivy.json | wc -l); m=$(grep -o '\"Severity\":\"MEDIUM\"' ./.pacsea_scan_trivy.json | wc -l); l=$(grep -o '\"Severity\":\"LOW\"' ./.pacsea_scan_trivy.json | wc -l); t=$((c+h+m+l)); if [ \"$t\" -gt 0 ]; then echo \"Trivy findings: critical=$c high=$h medium=$m low=$l total=$t\"; else echo 'Trivy: no vulnerabilities found'; fi; elif [ -f ./.pacsea_scan_trivy.txt ]; then if grep -qiE 'CRITICAL|HIGH|MEDIUM|LOW' ./.pacsea_scan_trivy.txt; then c=$(grep -oi 'CRITICAL' ./.pacsea_scan_trivy.txt | wc -l); h=$(grep -oi 'HIGH' ./.pacsea_scan_trivy.txt | wc -l); m=$(grep -oi 'MEDIUM' ./.pacsea_scan_trivy.txt | wc -l); l=$(grep -oi 'LOW' ./.pacsea_scan_trivy.txt | wc -l); t=$((c+h+m+l)); echo \"Trivy findings: critical=$c high=$h medium=$m low=$l total=$t\"; else echo 'Trivy: no vulnerabilities found'; fi; else echo 'Trivy: not run'; fi".to_string());
-    cmds.push("if [ -f ./.pacsea_scan_semgrep.json ]; then n=$(grep -o '\"check_id\"' ./.pacsea_scan_semgrep.json | wc -l); if [ \"$n\" -gt 0 ]; then echo \"Semgrep findings: $n\"; else echo 'Semgrep: no findings'; fi; elif [ -f ./.pacsea_scan_semgrep.txt ]; then n=$(grep -E '^[^:]+:[0-9]+:[0-9]+:' ./.pacsea_scan_semgrep.txt | wc -l); if [ \"$n\" -gt 0 ]; then echo \"Semgrep findings: $n\"; else echo 'Semgrep: no findings'; fi; else echo 'Semgrep: not run'; fi".to_string());
-    cmds.push("if [ -f ./.pacsea_shellcheck_pkgbuild.json ] || [ -f ./.pacsea_shellcheck_pkgbuild.txt ] || [ -f ./.pacsea_shellcheck_install.json ] || [ -f ./.pacsea_shellcheck_install.txt ]; then sc_err=0; sc_warn=0; sc_err=$((sc_err + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '\"level\":\"error\"' | wc -l))); sc_warn=$((sc_warn + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '\"level\":\"warning\"' | wc -l))); sc_err=$((sc_err + $(cat ./.pacsea_shellcheck_pkgbuild.txt ./.pacsea_shellcheck_install.txt 2>/dev/null | grep -oi 'error:' | wc -l))); sc_warn=$((sc_warn + $(cat ./.pacsea_shellcheck_pkgbuild.txt ./.pacsea_shellcheck_install.txt 2>/dev/null | grep -oi 'warning:' | wc -l))); echo \"ShellCheck: errors=$sc_err warnings=$sc_warn\"; else echo 'ShellCheck: not run'; fi".to_string());
-    cmds.push("rf=./.pacsea_shellcheck_risk.txt; if [ -f \"$rf\" ]; then RS=$(grep -E '^RISK_SCORE=' \"$rf\" | cut -d= -f2); RT=$(grep -E '^RISK_TIER=' \"$rf\" | cut -d= -f2); echo \"Shellcheck Risk Evaluation: score=$RS tier=$RT\"; else echo 'Shellcheck Risk Evaluation: not evaluated'; fi".to_string());
-    cmds.push("vtf=./.pacsea_scan_vt_summary.txt; if [ -f \"$vtf\" ]; then VT_TOTAL=$(grep -E '^VT_TOTAL=' \"$vtf\" | cut -d= -f2); VT_KNOWN=$(grep -E '^VT_KNOWN=' \"$vtf\" | cut -d= -f2); VT_UNKNOWN=$(grep -E '^VT_UNKNOWN=' \"$vtf\" | cut -d= -f2); VT_MAL=$(grep -E '^VT_MAL=' \"$vtf\" | cut -d= -f2); VT_SUS=$(grep -E '^VT_SUS=' \"$vtf\" | cut -d= -f2); VT_HAR=$(grep -E '^VT_HAR=' \"$vtf\" | cut -d= -f2); VT_UND=$(grep -E '^VT_UND=' \"$vtf\" | cut -d= -f2); echo \"VirusTotal: files=$VT_TOTAL known=$VT_KNOWN malicious=$VT_MAL suspicious=$VT_SUS harmless=$VT_HAR undetected=$VT_UND unknown=$VT_UNKNOWN\"; else echo 'VirusTotal: not configured or no files'; fi".to_string());
+    cmds.push(
+        r#"(
+  overall_score=0; overall_max=0;
+  rf=./.pacsea_shellcheck_risk.txt;
+  if [ -f "$rf" ]; then
+    RS=$(grep -E '^RISK_SCORE=' "$rf" | cut -d= -f2); RS=${RS:-0};
+    if [ "$RS" -gt 100 ]; then RS=100; fi;
+    overall_score=$((overall_score+RS)); overall_max=$((overall_max+100));
+  fi;
+
+  if [ -f ./.pacsea_scan_clamav.txt ]; then
+    INF=$(grep -E 'Infected files:[[:space:]]*[0-9]+' ./.pacsea_scan_clamav.txt | tail -n1 | awk -F: '{print $2}' | xargs);
+    INF=${INF:-0};
+    CV=$([ "$INF" -gt 0 ] && echo 100 || echo 0);
+    overall_score=$((overall_score+CV)); overall_max=$((overall_max+100));
+  fi;
+
+  TRI=0;
+  if [ -f ./.pacsea_scan_trivy.json ]; then
+    C=$(grep -o '"Severity":"CRITICAL"' ./.pacsea_scan_trivy.json | wc -l);
+    H=$(grep -o '"Severity":"HIGH"' ./.pacsea_scan_trivy.json | wc -l);
+    M=$(grep -o '"Severity":"MEDIUM"' ./.pacsea_scan_trivy.json | wc -l);
+    L=$(grep -o '"Severity":"LOW"' ./.pacsea_scan_trivy.json | wc -l);
+    TRI=$((C*10 + H*5 + M*2 + L));
+  elif [ -f ./.pacsea_scan_trivy.txt ]; then
+    C=$(grep -oi 'CRITICAL' ./.pacsea_scan_trivy.txt | wc -l);
+    H=$(grep -oi 'HIGH' ./.pacsea_scan_trivy.txt | wc -l);
+    M=$(grep -oi 'MEDIUM' ./.pacsea_scan_trivy.txt | wc -l);
+    L=$(grep -oi 'LOW' ./.pacsea_scan_trivy.txt | wc -l);
+    TRI=$((C*10 + H*5 + M*2 + L));
+  fi;
+  if [ -f ./.pacsea_scan_trivy.json ] || [ -f ./.pacsea_scan_trivy.txt ]; then
+    if [ "$TRI" -gt 100 ]; then TRI=100; fi;
+    overall_score=$((overall_score+TRI)); overall_max=$((overall_max+100));
+  fi;
+
+  SG=0;
+  if [ -f ./.pacsea_scan_semgrep.json ]; then
+    SG=$(grep -o '"check_id"' ./.pacsea_scan_semgrep.json | wc -l);
+  elif [ -f ./.pacsea_scan_semgrep.txt ]; then
+    SG=$(grep -E '^[^:]+:[0-9]+:[0-9]+:' ./.pacsea_scan_semgrep.txt | wc -l);
+  fi;
+  if [ -f ./.pacsea_scan_semgrep.json ] || [ -f ./.pacsea_scan_semgrep.txt ]; then
+    SG=$((SG*3)); if [ "$SG" -gt 100 ]; then SG=100; fi;
+    overall_score=$((overall_score+SG)); overall_max=$((overall_max+100));
+  fi;
+
+  VT=0;
+  if [ -f ./.pacsea_scan_vt_summary.txt ]; then
+    VT_MAL=$(grep -E '^VT_MAL=' ./.pacsea_scan_vt_summary.txt | cut -d= -f2);
+    VT_SUS=$(grep -E '^VT_SUS=' ./.pacsea_scan_vt_summary.txt | cut -d= -f2);
+    VT_MAL=${VT_MAL:-0}; VT_SUS=${VT_SUS:-0};
+    VT=$((VT_MAL*10 + VT_SUS*3));
+    if [ "$VT" -gt 100 ]; then VT=100; fi;
+    overall_score=$((overall_score+VT)); overall_max=$((overall_max+100));
+  fi;
+
+  PCT=0; if [ "$overall_max" -gt 0 ]; then PCT=$((overall_score*100/overall_max)); fi;
+  TIER='LOW'; COLOR='\033[1;32m'; ICON='[✔]';
+  if [ "$PCT" -ge 75 ]; then TIER='CRITICAL'; COLOR='\033[1;31m'; ICON='[❌]';
+  elif [ "$PCT" -ge 50 ]; then TIER='HIGH'; COLOR='\033[1;33m'; ICON='[❗]';
+  elif [ "$PCT" -ge 25 ]; then TIER='MEDIUM'; COLOR='\033[1;34m'; ICON='[⚠️ ]';
+  fi;
+
+  echo -e "$COLOR$ICON Overall risk: ${PCT}% ($TIER)\033[0m";
+  {
+    echo "OVERALL_PERCENT=$PCT";
+    echo "OVERALL_TIER=$TIER";
+    echo "COMPONENT_MAX=$overall_max";
+    echo "COMPONENT_SCORE=$overall_score";
+  } > ./.pacsea_overall_risk.txt;
+)"#
+            .to_string(),
+    );
+    cmds.push(
+        r#"if [ -f ./.pacsea_scan_clamav.txt ]; then
+  inf=$(grep -E 'Infected files:[[:space:]]*[0-9]+' ./.pacsea_scan_clamav.txt | tail -n1 | awk -F: '{print $2}' | xargs);
+  if [ -n "$inf" ]; then
+    if [ "$inf" -gt 0 ]; then echo "ClamAV: infected files: $inf";
+    else echo "ClamAV: no infections detected"; fi;
+  else
+    echo 'ClamAV: no infections detected';
+  fi;
+else
+  echo 'ClamAV: not run';
+fi"#
+            .to_string(),
+    );
+    cmds.push(
+        r#"if [ -f ./.pacsea_scan_trivy.json ]; then
+  c=$(grep -o '"Severity":"CRITICAL"' ./.pacsea_scan_trivy.json | wc -l);
+  h=$(grep -o '"Severity":"HIGH"' ./.pacsea_scan_trivy.json | wc -l);
+  m=$(grep -o '"Severity":"MEDIUM"' ./.pacsea_scan_trivy.json | wc -l);
+  l=$(grep -o '"Severity":"LOW"' ./.pacsea_scan_trivy.json | wc -l);
+  t=$((c+h+m+l));
+  if [ "$t" -gt 0 ]; then
+    echo "Trivy findings: critical=$c high=$h medium=$m low=$l total=$t";
+  else
+    echo 'Trivy: no vulnerabilities found';
+  fi;
+elif [ -f ./.pacsea_scan_trivy.txt ]; then
+  if grep -qiE 'CRITICAL|HIGH|MEDIUM|LOW' ./.pacsea_scan_trivy.txt; then
+    c=$(grep -oi 'CRITICAL' ./.pacsea_scan_trivy.txt | wc -l);
+    h=$(grep -oi 'HIGH' ./.pacsea_scan_trivy.txt | wc -l);
+    m=$(grep -oi 'MEDIUM' ./.pacsea_scan_trivy.txt | wc -l);
+    l=$(grep -oi 'LOW' ./.pacsea_scan_trivy.txt | wc -l);
+    t=$((c+h+m+l));
+    echo "Trivy findings: critical=$c high=$h medium=$m low=$l total=$t";
+  else
+    echo 'Trivy: no vulnerabilities found';
+  fi;
+else
+  echo 'Trivy: not run';
+fi"#
+        .to_string(),
+    );
+    cmds.push(
+        r#"if [ -f ./.pacsea_scan_semgrep.json ]; then
+  n=$(grep -o '"check_id"' ./.pacsea_scan_semgrep.json | wc -l);
+  if [ "$n" -gt 0 ]; then echo "Semgrep findings: $n";
+  else echo 'Semgrep: no findings'; fi;
+elif [ -f ./.pacsea_scan_semgrep.txt ]; then
+  n=$(grep -E '^[^:]+:[0-9]+:[0-9]+:' ./.pacsea_scan_semgrep.txt | wc -l);
+  if [ "$n" -gt 0 ]; then echo "Semgrep findings: $n";
+  else echo 'Semgrep: no findings'; fi;
+else
+  echo 'Semgrep: not run';
+fi"#
+        .to_string(),
+    );
+    cmds.push(
+        r#"if [ -f ./.pacsea_shellcheck_pkgbuild.json ] || [ -f ./.pacsea_shellcheck_pkgbuild.txt ] || [ -f ./.pacsea_shellcheck_install.json ] || [ -f ./.pacsea_shellcheck_install.txt ]; then
+  sc_err=0; sc_warn=0;
+  sc_err=$((sc_err + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '"level":"error"' | wc -l)));
+  sc_warn=$((sc_warn + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '"level":"warning"' | wc -l)));
+  sc_err=$((sc_err + $(cat ./.pacsea_shellcheck_pkgbuild.txt ./.pacsea_shellcheck_install.txt 2>/dev/null | grep -oi 'error:' | wc -l)));
+  sc_warn=$((sc_warn + $(cat ./.pacsea_shellcheck_pkgbuild.txt ./.pacsea_shellcheck_install.txt 2>/dev/null | grep -oi 'warning:' | wc -l)));
+  echo "ShellCheck: errors=$sc_err warnings=$sc_warn";
+else
+  echo 'ShellCheck: not run';
+fi"#
+            .to_string(),
+    );
+    cmds.push(
+        r#"rf=./.pacsea_shellcheck_risk.txt; if [ -f "$rf" ]; then
+  RS=$(grep -E '^RISK_SCORE=' "$rf" | cut -d= -f2);
+  RT=$(grep -E '^RISK_TIER=' "$rf" | cut -d= -f2);
+  echo "Shellcheck Risk Evaluation: score=$RS tier=$RT";
+else
+  echo 'Shellcheck Risk Evaluation: not evaluated';
+fi"#
+        .to_string(),
+    );
+    cmds.push(
+        r#"vtf=./.pacsea_scan_vt_summary.txt; if [ -f "$vtf" ]; then
+  VT_TOTAL=$(grep -E '^VT_TOTAL=' "$vtf" | cut -d= -f2);
+  VT_KNOWN=$(grep -E '^VT_KNOWN=' "$vtf" | cut -d= -f2);
+  VT_UNKNOWN=$(grep -E '^VT_UNKNOWN=' "$vtf" | cut -d= -f2);
+  VT_MAL=$(grep -E '^VT_MAL=' "$vtf" | cut -d= -f2);
+  VT_SUS=$(grep -E '^VT_SUS=' "$vtf" | cut -d= -f2);
+  VT_HAR=$(grep -E '^VT_HAR=' "$vtf" | cut -d= -f2);
+  VT_UND=$(grep -E '^VT_UND=' "$vtf" | cut -d= -f2);
+  echo "VirusTotal: files=$VT_TOTAL known=$VT_KNOWN malicious=$VT_MAL suspicious=$VT_SUS harmless=$VT_HAR undetected=$VT_UND unknown=$VT_UNKNOWN";
+else
+  echo 'VirusTotal: not configured or no files';
+fi"#
+            .to_string(),
+    );
     cmds.push("echo".to_string());
     cmds.push("echo \"Pacsea: scan finished. Working directory preserved: $work\"".to_string());
     cmds.push("echo -e \"\\033[1;32m[✔] Pacsea: scan finished.\\033[0m Working directory preserved: $work\"".to_string());
@@ -277,7 +437,6 @@ fn build_scan_cmds_in_dir(path: &str) -> Vec<String> {
     cmds.push("echo '--- Semgrep static analysis (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧪] Semgrep static analysis (optional)\\033[0m'".to_string());
     cmds.push("(if [ \"${PACSEA_SCAN_DO_SEMGREP:-1}\" = \"1\" ]; then ((command -v semgrep >/dev/null 2>&1 || sudo pacman -Qi semgrep >/dev/null 2>&1) && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping'); else echo 'Semgrep: skipped by config'; fi)".to_string());
-
     // VirusTotal hash lookups
     // ShellCheck lint (PKGBUILD and *.install) and Risk evaluation
     cmds.push("echo '--- ShellCheck lint (optional) ---'".to_string());
@@ -355,7 +514,78 @@ fn build_scan_cmds_in_dir(path: &str) -> Vec<String> {
     cmds.push("echo".to_string());
     cmds.push("echo '--- Summary ---'".to_string());
     cmds.push("echo -e '\\033[1;36m[📊] Summary\\033[0m'".to_string());
-    cmds.push("({ overall_score=0; overall_max=0; rf=./.pacsea_shellcheck_risk.txt; if [ -f \"$rf\" ]; then RS=$(grep -E '^RISK_SCORE=' \"$rf\" | cut -d= -f2); RS=${RS:-0}; if [ \"$RS\" -gt 100 ]; then RS=100; fi; overall_score=$((overall_score+RS)); overall_max=$((overall_max+100)); fi; if [ -f ./.pacsea_scan_clamav.txt ]; then INF=$(grep -E 'Infected files:[[:space:]]*[0-9]+' ./.pacsea_scan_clamav.txt | tail -n1 | awk -F: '{print $2}' | xargs); INF=${INF:-0}; CV=$([ \"$INF\" -gt 0 ] && echo 100 || echo 0); overall_score=$((overall_score+CV)); overall_max=$((overall_max+100)); fi; TRI=0; if [ -f ./.pacsea_scan_trivy.json ]; then C=$(grep -o '\"Severity\":\"CRITICAL\"' ./.pacsea_scan_trivy.json | wc -l); H=$(grep -o '\"Severity\":\"HIGH\"' ./.pacsea_scan_trivy.json | wc -l); M=$(grep -o '\"Severity\":\"MEDIUM\"' ./.pacsea_scan_trivy.json | wc -l); L=$(grep -o '\"Severity\":\"LOW\"' ./.pacsea_scan_trivy.json | wc -l); TRI=$((C*10 + H*5 + M*2 + L)); elif [ -f ./.pacsea_scan_trivy.txt ]; then C=$(grep -oi 'CRITICAL' ./.pacsea_scan_trivy.txt | wc -l); H=$(grep -oi 'HIGH' ./.pacsea_scan_trivy.txt | wc -l); M=$(grep -oi 'MEDIUM' ./.pacsea_scan_trivy.txt | wc -l); L=$(grep -oi 'LOW' ./.pacsea_scan_trivy.txt | wc -l); TRI=$((C*10 + H*5 + M*2 + L)); fi; if [ -f ./.pacsea_scan_trivy.json ] || [ -f ./.pacsea_scan_trivy.txt ]; then if [ \"$TRI\" -gt 100 ]; then TRI=100; fi; overall_score=$((overall_score+TRI)); overall_max=$((overall_max+100)); fi; SG=0; if [ -f ./.pacsea_scan_semgrep.json ]; then SG=$(grep -o '\"check_id\"' ./.pacsea_scan_semgrep.json | wc -l); elif [ -f ./.pacsea_scan_semgrep.txt ]; then SG=$(grep -E '^[^:]+:[0-9]+:[0-9]+:' ./.pacsea_scan_semgrep.txt | wc -l); fi; if [ -f ./.pacsea_scan_semgrep.json ] || [ -f ./.pacsea_scan_semgrep.txt ]; then SG=$((SG*3)); if [ \"$SG\" -gt 100 ]; then SG=100; fi; overall_score=$((overall_score+SG)); overall_max=$((overall_max+100)); fi; VT=0; if [ -f ./.pacsea_scan_vt_summary.txt ]; then VT_MAL=$(grep -E '^VT_MAL=' ./.pacsea_scan_vt_summary.txt | cut -d= -f2); VT_SUS=$(grep -E '^VT_SUS=' ./.pacsea_scan_vt_summary.txt | cut -d= -f2); VT_MAL=${VT_MAL:-0}; VT_SUS=${VT_SUS:-0}; VT=$((VT_MAL*10 + VT_SUS*3)); if [ \"$VT\" -gt 100 ]; then VT=100; fi; overall_score=$((overall_score+VT)); overall_max=$((overall_max+100)); fi; PCT=0; if [ \"$overall_max\" -gt 0 ]; then PCT=$((overall_score*100/overall_max)); fi; TIER='LOW'; COLOR='\\033[1;32m'; ICON='[✔]'; if [ \"$PCT\" -ge 75 ]; then TIER='CRITICAL'; COLOR='\\033[1;31m'; ICON='[❌]'; elif [ \"$PCT\" -ge 50 ]; then TIER='HIGH'; COLOR='\\033[1;33m'; ICON='[❗]'; elif [ \"$PCT\" -ge 25 ]; then TIER='MEDIUM'; COLOR='\\033[1;34m'; ICON='[⚠️ ]'; fi; echo -e \"$COLOR$ICON Overall risk: ${PCT}% ($TIER)\\033[0m\"; { echo \"OVERALL_PERCENT=$PCT\"; echo \"OVERALL_TIER=$TIER\"; echo \"COMPONENT_MAX=$overall_max\"; echo \"COMPONENT_SCORE=$overall_score\"; } > ./.pacsea_overall_risk.txt; })".to_string());
+    cmds.push(
+        r#"(
+  overall_score=0; overall_max=0; rf=./.pacsea_shellcheck_risk.txt;
+  if [ -f "$rf" ]; then
+    RS=$(grep -E '^RISK_SCORE=' "$rf" | cut -d= -f2); RS=${RS:-0};
+    if [ "$RS" -gt 100 ]; then RS=100; fi;
+    overall_score=$((overall_score+RS)); overall_max=$((overall_max+100));
+  fi;
+
+  if [ -f ./.pacsea_scan_clamav.txt ]; then
+    INF=$(grep -E 'Infected files:[[:space:]]*[0-9]+' ./.pacsea_scan_clamav.txt | tail -n1 | awk -F: '{print $2}' | xargs); INF=${INF:-0};
+    CV=$([ "$INF" -gt 0 ] && echo 100 || echo 0);
+    overall_score=$((overall_score+CV)); overall_max=$((overall_max+100));
+  fi;
+
+  TRI=0;
+  if [ -f ./.pacsea_scan_trivy.json ]; then
+    C=$(grep -o '"Severity":"CRITICAL"' ./.pacsea_scan_trivy.json | wc -l);
+    H=$(grep -o '"Severity":"HIGH"' ./.pacsea_scan_trivy.json | wc -l);
+    M=$(grep -o '"Severity":"MEDIUM"' ./.pacsea_scan_trivy.json | wc -l);
+    L=$(grep -o '"Severity":"LOW"' ./.pacsea_scan_trivy.json | wc -l);
+    TRI=$((C*10 + H*5 + M*2 + L));
+  elif [ -f ./.pacsea_scan_trivy.txt ]; then
+    C=$(grep -oi 'CRITICAL' ./.pacsea_scan_trivy.txt | wc -l);
+    H=$(grep -oi 'HIGH' ./.pacsea_scan_trivy.txt | wc -l);
+    M=$(grep -oi 'MEDIUM' ./.pacsea_scan_trivy.txt | wc -l);
+    L=$(grep -oi 'LOW' ./.pacsea_scan_trivy.txt | wc -l);
+    TRI=$((C*10 + H*5 + M*2 + L));
+  fi;
+  if [ -f ./.pacsea_scan_trivy.json ] || [ -f ./.pacsea_scan_trivy.txt ]; then
+    if [ "$TRI" -gt 100 ]; then TRI=100; fi;
+    overall_score=$((overall_score+TRI)); overall_max=$((overall_max+100));
+  fi;
+
+  SG=0;
+  if [ -f ./.pacsea_scan_semgrep.json ]; then
+    SG=$(grep -o '"check_id"' ./.pacsea_scan_semgrep.json | wc -l);
+  elif [ -f ./.pacsea_scan_semgrep.txt ]; then
+    SG=$(grep -E '^[^:]+:[0-9]+:[0-9]+:' ./.pacsea_scan_semgrep.txt | wc -l);
+  fi;
+  if [ -f ./.pacsea_scan_semgrep.json ] || [ -f ./.pacsea_scan_semgrep.txt ]; then
+    SG=$((SG*3)); if [ "$SG" -gt 100 ]; then SG=100; fi;
+    overall_score=$((overall_score+SG)); overall_max=$((overall_max+100));
+  fi;
+
+  VT=0;
+  if [ -f ./.pacsea_scan_vt_summary.txt ]; then
+    VT_MAL=$(grep -E '^VT_MAL=' ./.pacsea_scan_vt_summary.txt | cut -d= -f2);
+    VT_SUS=$(grep -E '^VT_SUS=' ./.pacsea_scan_vt_summary.txt | cut -d= -f2);
+    VT_MAL=${VT_MAL:-0}; VT_SUS=${VT_SUS:-0};
+    VT=$((VT_MAL*10 + VT_SUS*3));
+    if [ "$VT" -gt 100 ]; then VT=100; fi;
+    overall_score=$((overall_score+VT)); overall_max=$((overall_max+100));
+  fi;
+
+  PCT=0; if [ "$overall_max" -gt 0 ]; then PCT=$((overall_score*100/overall_max)); fi;
+  TIER='LOW'; COLOR='\033[1;32m'; ICON='[✔]';
+  if [ "$PCT" -ge 75 ]; then TIER='CRITICAL'; COLOR='\033[1;31m'; ICON='[❌]';
+  elif [ "$PCT" -ge 50 ]; then TIER='HIGH'; COLOR='\033[1;33m'; ICON='[❗]';
+  elif [ "$PCT" -ge 25 ]; then TIER='MEDIUM'; COLOR='\033[1;34m'; ICON='[⚠️ ]';
+  fi;
+
+  echo -e "$COLOR$ICON Overall risk: ${PCT}% ($TIER)\033[0m";
+  {
+    echo "OVERALL_PERCENT=$PCT";
+    echo "OVERALL_TIER=$TIER";
+    echo "COMPONENT_MAX=$overall_max";
+    echo "COMPONENT_SCORE=$overall_score";
+  } > ./.pacsea_overall_risk.txt;
+)"#
+            .to_string(),
+    );
     cmds.push("if [ -f ./.pacsea_scan_clamav.txt ]; then inf=$(grep -E 'Infected files:[[:space:]]*[0-9]+' ./.pacsea_scan_clamav.txt | tail -n1 | awk -F: '{print $2}' | xargs); if [ -n \"$inf\" ]; then if [ \"$inf\" -gt 0 ]; then echo \"ClamAV: infected files: $inf\"; else echo \"ClamAV: no infections detected\"; fi; else echo 'ClamAV: no infections detected'; fi; else echo 'ClamAV: not run'; fi".to_string());
     cmds.push("if [ -f ./.pacsea_scan_trivy.json ]; then c=$(grep -o '\"Severity\":\"CRITICAL\"' ./.pacsea_scan_trivy.json | wc -l); h=$(grep -o '\"Severity\":\"HIGH\"' ./.pacsea_scan_trivy.json | wc -l); m=$(grep -o '\"Severity\":\"MEDIUM\"' ./.pacsea_scan_trivy.json | wc -l); l=$(grep -o '\"Severity\":\"LOW\"' ./.pacsea_scan_trivy.json | wc -l); t=$((c+h+m+l)); if [ \"$t\" -gt 0 ]; then echo \"Trivy findings: critical=$c high=$h medium=$m low=$l total=$t\"; else echo 'Trivy: no vulnerabilities found'; fi; elif [ -f ./.pacsea_scan_trivy.txt ]; then if grep -qiE 'CRITICAL|HIGH|MEDIUM|LOW' ./.pacsea_scan_trivy.txt; then c=$(grep -oi 'CRITICAL' ./.pacsea_scan_trivy.txt | wc -l); h=$(grep -oi 'HIGH' ./.pacsea_scan_trivy.txt | wc -l); m=$(grep -oi 'MEDIUM' ./.pacsea_scan_trivy.txt | wc -l); l=$(grep -oi 'LOW' ./.pacsea_scan_trivy.txt | wc -l); t=$((c+h+m+l)); echo \"Trivy findings: critical=$c high=$h medium=$m low=$l total=$t\"; else echo 'Trivy: no vulnerabilities found'; fi; else echo 'Trivy: not run'; fi".to_string());
     cmds.push("if [ -f ./.pacsea_scan_semgrep.json ]; then n=$(grep -o '\"check_id\"' ./.pacsea_scan_semgrep.json | wc -l); if [ \"$n\" -gt 0 ]; then echo \"Semgrep findings: $n\"; else echo 'Semgrep: no findings'; fi; elif [ -f ./.pacsea_scan_semgrep.txt ]; then n=$(grep -E '^[^:]+:[0-9]+:[0-9]+:' ./.pacsea_scan_semgrep.txt | wc -l); if [ \"$n\" -gt 0 ]; then echo \"Semgrep findings: $n\"; else echo 'Semgrep: no findings'; fi; else echo 'Semgrep: not run'; fi".to_string());

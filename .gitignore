@@ -28,8 +28,7 @@ install_log.txt
 installed_packages.txt
 
 RELEASE*.md
-Documents/
-!Documents/DRY_RUN.md
+#Documents/
 .jj
 AUR_BUILD/
 

@@ -156,7 +156,14 @@ pub fn handle_event(
                                 message: "No actions selected".to_string(),
                             };
                         } else {
-                            crate::install::spawn_shell_commands_in_terminal(&cmds);
+                            let to_run: Vec<String> = if app.dry_run {
+                                cmds.iter()
+                                    .map(|c| format!("echo DRY RUN: {}", c))
+                                    .collect()
+                            } else {
+                                cmds
+                            };
+                            crate::install::spawn_shell_commands_in_terminal(&to_run);
                             app.modal = crate::state::Modal::None;
                         }
                     }
@@ -347,7 +354,12 @@ pub fn handle_event(
                                 } else {
                                     format!("sudo pacman -S --needed --noconfirm {}", pkg)
                                 };
-                                crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                                let to_run = if app.dry_run {
+                                    vec![format!("echo DRY RUN: {}", cmd)]
+                                } else {
+                                    vec![cmd]
+                                };
+                                crate::install::spawn_shell_commands_in_terminal(&to_run);
                                 app.modal = crate::state::Modal::None;
                             }
                         }
@@ -397,18 +409,36 @@ pub fn handle_event(
                         // PACSEA_SCAN_DO_* flags are injected into the spawned terminal by spawn_aur_scan_for_with_config
 
                         // Spawn scans for pending names (set when opening modal)
+
+                        #[cfg(not(target_os = "windows"))]
                         if let Some(names) = app.pending_install_names.clone() {
-                            for n in names.iter() {
-                                crate::install::spawn_aur_scan_for_with_config(
-                                    n,
-                                    *do_clamav,
-                                    *do_trivy,
-                                    *do_semgrep,
-                                    *do_shellcheck,
-                                    *do_virustotal,
-                                );
+                            if app.dry_run {
+                                for n in names.iter() {
+                                    let msg = format!(
+                                        "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={})",
+                                        n,
+                                        *do_clamav,
+                                        *do_trivy,
+                                        *do_semgrep,
+                                        *do_shellcheck,
+                                        *do_virustotal
+                                    );
+                                    crate::install::spawn_shell_commands_in_terminal(&[msg]);
+                                }
+                            } else {
+                                for n in names.iter() {
+                                    crate::install::spawn_aur_scan_for_with_config(
+                                        n,
+                                        *do_clamav,
+                                        *do_trivy,
+                                        *do_semgrep,
+                                        *do_shellcheck,
+                                        *do_virustotal,
+                                    );
+                                }
                             }
                         }
+
                         app.modal = crate::state::Modal::None;
                     }
                     _ => {}
@@ -479,10 +509,20 @@ pub fn handle_event(
                 match ke.code {
                     KeyCode::Enter => {
                         // Install GNOME Terminal, then close the prompt
+
                         let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
-                        crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+
+                        if app.dry_run {
+                            crate::install::spawn_shell_commands_in_terminal(&[format!(
+                                "echo DRY RUN: {}",
+                                cmd
+                            )]);
+                        } else {
+                            crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                        }
                         app.modal = crate::state::Modal::None;
                     }
+
                     KeyCode::Esc => {
                         // Warn user about potential unexpected behavior and close the prompt
                         app.toast_message = Some(
