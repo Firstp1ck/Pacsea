@@ -33,5 +33,6 @@ Documents/
 AUR_BUILD/
 
 .vscode/
+.cursor/
 semgrep-bin/
 */logs/*
