@@ -13,8 +13,11 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 </div>
 
 ### New: Security scans for AUR
-Pacsea adds a security‑first workflow for AUR installs. Before building you can run one or more checks — ClamAV (antivirus), Trivy (filesystem), Semgrep (static analysis), ShellCheck for PKGBUILD/.install, and VirusTotal hash lookups.
-Future implementation will include: AI Security Scan (of course Optional)
+Pacsea adds a security‑first workflow for AUR installs. Before building you can run one or more checks — ClamAV (antivirus), Trivy (filesystem), Semgrep (static analysis), ShellCheck for PKGBUILD/.install, VirusTotal hash lookups, custom suspicious pattern scanning, and aur-sleuth (LLM audit). Scans generate a comprehensive summary showing infections, vulnerabilities by severity, Semgrep findings count, and VirusTotal statistics.
+
+**VirusTotal API Setup**: Configure your VirusTotal API key directly from the Optional Deps modal. Press Enter on the "Security: VirusTotal API" entry to open the API key page, then paste and save your key. The modal blocks main UI interactions to prevent accidental clicks/keys.
+
+Future implementation will include: Enhanced AI Security Scan (optional)
 
 ![Scan configuration (v0.4.5)](Images/AUR_Scan_v0.4.5.png "Scan configuration (v0.4.5)")
 
@@ -60,21 +63,32 @@ pacsea
 > Prefer a dry run first? Add `--dry-run`.
 
 ## Features
-- **Security Scan for AUR Packages**: Scan AUR for security vulnerabilities.
+- **Security Scan for AUR Packages**: Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries
 - **Unified search**: Fast results across official repos and the AUR.
 - **Keyboard‑first**: Minimal keystrokes, Vim‑friendly navigation.
-- **Queue & install**: Space to add, Enter to confirm installs.
+- **Queue & install**: Space to add, Enter to confirm installs. Press S in the confirm dialog to scan AUR packages before installing.
 - **Always‑visible details**: Open package links with a click.
 - **PKGBUILD preview**: Toggle viewer; copy PKGBUILD with one click.
 - **Persistent lists**: Recent searches and Install list are saved.
 - **Installed‑only mode**: Review and remove installed packages safely.
-- **Helpful tools**: System update dialog and Arch News popup.
+- **Distro-aware updates**: Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, and standard Arch
+- **Helpful tools**: System update dialog with distro-aware mirror management and Arch News popup.
+
 
 ### System update dialog
 ![System update dialog (v0.4.1)](Images/SystemUpdateView_v0.4.1.png "System update dialog (v0.4.1)")
 
 ### TUI Optional Deps
-Install and verify recommended helper tools directly from a dedicated view (editor, terminal, AUR helper, and security utilities like ClamAV, Trivy, ShellCheck, and the VirusTotal API). Quickly see what's installed and press Enter to install missing packages.
+- Install and verify recommended helper tools directly from a dedicated view with environment-aware defaults. 
+- Desktop-aware preferences include GNOME Terminal on GNOME, Klipper on KDE, and support for multiple editors (nvim, vim, helix, emacs/emacsclient, nano). 
+- The modal detects your:
+  - environment (Wayland/X11, desktop environment, distro) 
+  - and shows relevant options. 
+  - Tools include editors, terminals, clipboard utilities (wl-clipboard for Wayland, xclip for X11), 
+  - mirror updaters (reflector, pacman-mirrors, eos-rankmirrors, cachyos-rate-mirrors), 
+  - AUR helpers (paru, yay), and 
+  - security utilities (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal API setup, aur-sleuth). 
+- Quickly see what's installed and press Enter to install missing packages.
 
 ![TUI Optional Deps (v0.4.5)](Images/Optional_Deps_v0.4.5.png "TUI Optional Deps (v0.4.5)")
 
@@ -83,7 +97,8 @@ Install and verify recommended helper tools directly from a dedicated view (edit
 2. Move with ↑/↓ or PageUp/PageDown.
 3. Press Space to add to the Install list.
 4. Press Enter to install (or confirm the Install list).
-5. Press F1 or ? anytime for a help overlay.
+5. **For AUR packages**: Press S in the confirm dialog to scan before installing.
+6. Press F1 or ? anytime for a help overlay.
 
 ### Handy shortcuts
 - **Help**: F1 or ?
@@ -195,9 +210,8 @@ cargo run
 ### Potential future Features
 - **Extensive Preflight Check** (on going)
 - **Additional Language Support** (on going)
-- **Security Scan for AUR Packages (Source Code and PKGBUILD) using AI** (on going)
 - **User chooseable Terminal via Options or settings.conf** (on going)
-- **Default Mirrors, Mirror Search and extensive Mirror Selection**
+- **Mirror Search and extensive Mirror Selection**
 - **Adjustable Width of the Middle Panes**
 - **Adjustable Height of the Results and Package Info Panes**
 - **Add Multiple CLI Commands like: `pacsea -S FILENAME.txt`, `pacsea -R FILENAME.txt`, `pacsea --news`, `pacsea -Syu` and more**
