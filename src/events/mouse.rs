@@ -224,12 +224,14 @@ pub fn handle_mouse_event(
             // Close if already open
             app.pkgb_visible = false;
             app.pkgb_text = None;
+            app.pkgb_package_name = None;
             app.pkgb_scroll = 0;
             app.pkgb_rect = None;
         } else {
             // Open and (re)load
             app.pkgb_visible = true;
             app.pkgb_text = None;
+            app.pkgb_package_name = None;
             if let Some(item) = app.results.get(app.selected).cloned() {
                 let _ = pkgb_tx.send(item);
             }
@@ -326,6 +328,24 @@ pub fn handle_mouse_event(
             app.toast_message = Some("PKGBUILD not loaded yet".to_string());
             app.toast_expires_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        }
+        return false;
+    }
+
+    // 2c) Click on "Reload PKGBUILD" title button
+    if is_left_down
+        && let Some((x, y, w, h)) = app.pkgb_reload_button_rect
+        && mx >= x
+        && mx < x + w
+        && my >= y
+        && my < y + h
+    {
+        app.mouse_disabled_in_details = false;
+        if let Some(item) = app.results.get(app.selected).cloned() {
+            // Schedule debounced reload (same as auto-reload)
+            app.pkgb_reload_requested_at = Some(std::time::Instant::now());
+            app.pkgb_reload_requested_for = Some(item.name.clone());
+            app.pkgb_text = None; // Clear old PKGBUILD while loading
         }
         return false;
     }

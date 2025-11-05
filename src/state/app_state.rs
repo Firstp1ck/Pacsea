@@ -163,10 +163,18 @@ pub struct AppState {
     pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,
     /// Rectangle of the clickable "Copy Package Build" button in PKGBUILD title.
     pub pkgb_check_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Rectangle of the clickable "Reload PKGBUILD" button in PKGBUILD title.
+    pub pkgb_reload_button_rect: Option<(u16, u16, u16, u16)>,
     /// Whether the PKGBUILD viewer is visible (details pane split in half).
     pub pkgb_visible: bool,
     /// The fetched PKGBUILD text when available.
     pub pkgb_text: Option<String>,
+    /// Name of the package that the PKGBUILD is currently for.
+    pub pkgb_package_name: Option<String>,
+    /// Timestamp when PKGBUILD reload was last requested (for debouncing).
+    pub pkgb_reload_requested_at: Option<Instant>,
+    /// Name of the package for which PKGBUILD reload was requested (for debouncing).
+    pub pkgb_reload_requested_for: Option<String>,
     /// Scroll offset (lines) for the PKGBUILD viewer.
     pub pkgb_scroll: u16,
     /// Content rectangle of the PKGBUILD viewer (x, y, w, h) when visible.
@@ -378,8 +386,12 @@ impl Default for AppState {
             arch_status_color: ArchStatusColor::None,
             pkgb_button_rect: None,
             pkgb_check_button_rect: None,
+            pkgb_reload_button_rect: None,
             pkgb_visible: false,
             pkgb_text: None,
+            pkgb_package_name: None,
+            pkgb_reload_requested_at: None,
+            pkgb_reload_requested_for: None,
             pkgb_scroll: 0,
             pkgb_rect: None,
 

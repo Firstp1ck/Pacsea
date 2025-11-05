@@ -476,11 +476,32 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             Some((pkgname, text)) = pkgb_res_rx.recv() => {
                 if app.details_focus.as_deref() == Some(pkgname.as_str()) || app.results.get(app.selected).map(|i| i.name.as_str()) == Some(pkgname.as_str()) {
                     app.pkgb_text = Some(text);
+                    app.pkgb_package_name = Some(pkgname);
+                    // Clear any pending debounce request since we've successfully loaded
+                    app.pkgb_reload_requested_at = None;
+                    app.pkgb_reload_requested_for = None;
                 }
                 let _ = tick_tx.send(());
             }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
             Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_news_read(&mut app); maybe_flush_install(&mut app);
+                // Check for pending PKGBUILD reload request (debounce delay)
+                const PKGBUILD_DEBOUNCE_MS: u64 = 250;
+                if let (Some(requested_at), Some(requested_for)) = (app.pkgb_reload_requested_at, &app.pkgb_reload_requested_for) {
+                    let elapsed = requested_at.elapsed();
+                    if elapsed.as_millis() >= PKGBUILD_DEBOUNCE_MS as u128 {
+                        // Check if the requested package is still the currently selected one
+                        if let Some(current_item) = app.results.get(app.selected) {
+                            if current_item.name == *requested_for {
+                                // Still on the same package, actually send the request
+                                let _ = pkgb_req_tx.send(current_item.clone());
+                            }
+                        }
+                        // Clear the pending request
+                        app.pkgb_reload_requested_at = None;
+                        app.pkgb_reload_requested_for = None;
+                    }
+                }
                 // If we recently triggered install/remove, poll installed/explicit caches briefly
                 if let Some(deadline) = app.refresh_installed_until {
                     let now = Instant::now();

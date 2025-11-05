@@ -714,11 +714,13 @@ echo; echo "Press any key to close..."; read -rn1 -s _)"##
             if app.pkgb_visible {
                 app.pkgb_visible = false;
                 app.pkgb_text = None;
+                app.pkgb_package_name = None;
                 app.pkgb_scroll = 0;
                 app.pkgb_rect = None;
             } else {
                 app.pkgb_visible = true;
                 app.pkgb_text = None;
+                app.pkgb_package_name = None;
                 if let Some(item) = app.results.get(app.selected).cloned() {
                     let _ = pkgb_tx.send(item);
                 }
