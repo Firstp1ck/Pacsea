@@ -157,7 +157,9 @@ cargo run
 - **Extensive Documentation**
 
 ## Credits
-- Inspired by Omarchy workflows; built with ratatui + crossterm; powered by Arch + AUR.
+- Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
+- Built with ratatui + crossterm
+- Powered by Arch + AUR
 
 ## License
 MIT — see [LICENSE](LICENSE).
