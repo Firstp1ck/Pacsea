@@ -75,6 +75,8 @@ pub enum Modal {
         /// Cursor position within the input buffer.
         cursor: usize,
     },
+    /// Information dialog explaining the Import file format.
+    ImportHelp,
 }
 
 #[cfg(test)]
@@ -112,5 +114,6 @@ mod tests {
             input: String::new(),
             cursor: 0,
         };
+        let _ = super::Modal::ImportHelp;
     }
 }

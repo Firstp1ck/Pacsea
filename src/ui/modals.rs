@@ -635,7 +635,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details",
             )));
             lines.push(Line::from(Span::raw(
-                "  • Copy 'Copy Package Build': click the title button in PKGBUILD",
+                "  • Copy PKGBUILD: click the title button (copies with suffix from settings.conf)",
             )));
             lines.push(Line::from(Span::raw(
                 "  • Open details URL: Ctrl+Shift+Left click on the URL",
@@ -1020,6 +1020,87 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Block::default()
                         .title(Span::styled(
                             " VirusTotal ",
+                            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                        ))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Double)
+                        .border_style(Style::default().fg(th.mauve))
+                        .style(Style::default().bg(th.mantle)),
+                );
+            f.render_widget(boxw, rect);
+        }
+        crate::state::Modal::ImportHelp => {
+            let w = area.width.saturating_sub(10).min(85);
+            let h = 19;
+            let x = area.x + (area.width.saturating_sub(w)) / 2;
+            let y = area.y + (area.height.saturating_sub(h)) / 2;
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
+            f.render_widget(Clear, rect);
+
+            let mut lines: Vec<Line<'static>> = Vec::new();
+            lines.push(Line::from(Span::styled(
+                "Import File Format",
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "The import file should contain one package name per line.",
+                Style::default().fg(th.text),
+            )));
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Format:",
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::raw("  • One package name per line")));
+            lines.push(Line::from(Span::raw("  • Blank lines are ignored")));
+            lines.push(Line::from(Span::raw("  • Lines starting with '#' are treated as comments")));
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Example:",
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::raw("  firefox")));
+            lines.push(Line::from(Span::raw("  # This is a comment")));
+            lines.push(Line::from(Span::raw("  vim")));
+            lines.push(Line::from(Span::raw("  paru")));
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled(
+                    "[Enter]",
+                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " confirm",
+                    Style::default().fg(th.overlay1),
+                ),
+                Span::raw("  •  "),
+                Span::styled(
+                    "[Esc]",
+                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    " cancel",
+                    Style::default().fg(th.overlay1),
+                ),
+            ]));
+
+            let boxw = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.mantle))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .title(Span::styled(
+                            " Import Help ",
                             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                         ))
                         .borders(Borders::ALL)

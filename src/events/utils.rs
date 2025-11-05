@@ -117,6 +117,8 @@ pub fn refresh_selected_details(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) {
     if let Some(item) = app.results.get(app.selected).cloned() {
+        // Reset scroll when package changes
+        app.details_scroll = 0;
         if let Some(cached) = app.details_cache.get(&item.name).cloned() {
             app.details = cached;
         } else {
@@ -145,6 +147,8 @@ pub fn refresh_install_details(
     }
     let i = inds[vsel];
     if let Some(item) = app.install_list.get(i).cloned() {
+        // Reset scroll when package changes
+        app.details_scroll = 0;
         // Focus details on the install selection
         app.details_focus = Some(item.name.clone());
 
@@ -186,6 +190,8 @@ pub fn refresh_remove_details(app: &mut AppState, details_tx: &mpsc::UnboundedSe
         return;
     }
     if let Some(item) = app.remove_list.get(vsel).cloned() {
+        // Reset scroll when package changes
+        app.details_scroll = 0;
         app.details_focus = Some(item.name.clone());
         app.details.name = item.name.clone();
         app.details.version = item.version.clone();
@@ -226,6 +232,8 @@ pub fn refresh_downgrade_details(
         return;
     }
     if let Some(item) = app.downgrade_list.get(vsel).cloned() {
+        // Reset scroll when package changes
+        app.details_scroll = 0;
         app.details_focus = Some(item.name.clone());
         app.details.name = item.name.clone();
         app.details.version = item.version.clone();

@@ -648,6 +648,117 @@ echo; echo "Press any key to close..."; read -rn1 -s _)"##
                 }
                 return false;
             }
+            crate::state::Modal::ImportHelp => {
+                match ke.code {
+                    KeyCode::Enter => {
+                        tracing::info!("import: Enter pressed in ImportHelp modal");
+                        app.modal = crate::state::Modal::None;
+                        // Trigger import file picker immediately (executed in background thread)
+                        let add_tx_clone = add_tx.clone();
+                        std::thread::spawn(move || {
+                            tracing::info!("import: thread started, opening file picker");
+                            #[cfg(target_os = "windows")]
+                            let path_opt: Option<String> = {
+                                let script = r#"
+                                Add-Type -AssemblyName System.Windows.Forms
+                                $ofd = New-Object System.Windows.Forms.OpenFileDialog
+                                $ofd.Filter = 'Text Files (*.txt)|*.txt|All Files (*.*)|*.*'
+                                $ofd.Multiselect = $false
+                                if ($ofd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $ofd.FileName }
+                                "#;
+                                let output = std::process::Command::new("powershell")
+                                    .args(["-NoProfile", "-Command", script])
+                                    .stdin(std::process::Stdio::null())
+                                    .output()
+                                    .ok();
+                                output.and_then(|o| {
+                                    let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                                    if s.is_empty() { None } else { Some(s) }
+                                })
+                            };
+
+                            #[cfg(not(target_os = "windows"))]
+                            let path_opt: Option<String> = {
+                                // Try zenity, then kdialog; else fall back to reading a default file path
+                                let try_cmd = |prog: &str, args: &[&str]| -> Option<String> {
+                                    tracing::debug!(prog = %prog, "import: trying file picker");
+                                    let res = std::process::Command::new(prog)
+                                        .args(args)
+                                        .stdin(std::process::Stdio::null())
+                                        .output()
+                                        .ok()?;
+                                    // zenity/kdialog return non-zero exit code when cancelled
+                                    // Check stdout content - non-empty means file was selected
+                                    let s = String::from_utf8_lossy(&res.stdout).trim().to_string();
+                                    if s.is_empty() {
+                                        tracing::debug!(prog = %prog, "import: file picker returned empty");
+                                        None
+                                    } else {
+                                        tracing::debug!(prog = %prog, path = %s, "import: file picker returned path");
+                                        Some(s)
+                                    }
+                                };
+                                try_cmd(
+                                    "zenity",
+                                    &[
+                                        "--file-selection",
+                                        "--title=Import packages",
+                                        "--file-filter=*.txt",
+                                    ],
+                                )
+                                .or_else(|| {
+                                    tracing::debug!("import: zenity failed, trying kdialog");
+                                    try_cmd("kdialog", &["--getopenfilename", ".", "*.txt"])
+                                })
+                            };
+
+                            if let Some(path) = path_opt {
+                                let path = path.trim().to_string();
+                                tracing::info!(path = %path, "import: selected file");
+                                if let Ok(body) = std::fs::read_to_string(&path) {
+                                    use std::collections::HashSet;
+                                    let mut official_names: HashSet<String> = HashSet::new();
+                                    for it in crate::index::all_official().iter() {
+                                        official_names.insert(it.name.to_lowercase());
+                                    }
+                                    let mut imported: usize = 0;
+                                    for line in body.lines() {
+                                        let name = line.trim();
+                                        if name.is_empty() || name.starts_with('#') {
+                                            continue;
+                                        }
+                                        let src = if official_names.contains(&name.to_lowercase()) {
+                                            crate::state::Source::Official {
+                                                repo: String::new(),
+                                                arch: String::new(),
+                                            }
+                                        } else {
+                                            crate::state::Source::Aur
+                                        };
+                                        let item = crate::state::PackageItem {
+                                            name: name.to_string(),
+                                            version: String::new(),
+                                            description: String::new(),
+                                            source: src,
+                                            popularity: None,
+                                        };
+                                        let _ = add_tx_clone.send(item);
+                                        imported += 1;
+                                    }
+                                    tracing::info!(path = %path, imported, "import: queued items from list");
+                                } else {
+                                    tracing::warn!(path = %path, "import: failed to read file");
+                                }
+                            } else {
+                                tracing::info!("import: canceled by user");
+                            }
+                        });
+                    }
+                    KeyCode::Esc => app.modal = crate::state::Modal::None,
+                    _ => {}
+                }
+                return false;
+            }
             crate::state::Modal::None => {}
         }
 
@@ -1200,7 +1311,7 @@ echo; echo "Press any key to close..."; read -rn1 -s _)"##
                     }
                     _ => {}
                 }
-                app.panels_menu_open = false;
+                // Keep menu open after toggling panels
                 return false;
             }
             // Config menu rows: 0 settings, 1 theme, 2 keybinds, 3 install list, 4 installed list, 5 recent

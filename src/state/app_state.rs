@@ -161,7 +161,7 @@ pub struct AppState {
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
     pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,
-    /// Rectangle of the clickable "Copy Package Build" button in PKGBUILD title.
+    /// Rectangle of the clickable "Copy PKGBUILD" button in PKGBUILD title.
     pub pkgb_check_button_rect: Option<(u16, u16, u16, u16)>,
     /// Rectangle of the clickable "Reload PKGBUILD" button in PKGBUILD title.
     pub pkgb_reload_button_rect: Option<(u16, u16, u16, u16)>,
@@ -198,6 +198,8 @@ pub struct AppState {
     pub results_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle of the Package Info details pane (x, y, w, h).
     pub details_rect: Option<(u16, u16, u16, u16)>,
+    /// Scroll offset (lines) for the Package Info details pane.
+    pub details_scroll: u16,
     /// Inner content rectangle of the Recent pane list (x, y, w, h).
     pub recent_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle of the Install pane list (x, y, w, h).
@@ -405,6 +407,7 @@ impl Default for AppState {
 
             results_rect: None,
             details_rect: None,
+            details_scroll: 0,
             recent_rect: None,
             install_rect: None,
             downgrade_rect: None,

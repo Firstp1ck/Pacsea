@@ -6,21 +6,6 @@
 
 Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages — built for speed and minimal keystrokes written in Rust.
 
-## Top Priority due to the spreading of Malware in the AUR Repository
-<div align="center">
-  <p>❗<strong>On-going: Security-first approach</strong> for installing <strong>AUR Packages</strong>.❗<br>
-  ❗Target: <strong>Security Coverage </strong> via automatic <strong>Scans</strong> and <strong>Optional Measures</strong> (e.g., converting AUR packages to <strong>Flatpak</strong>), and more❗</p>
-</div>
-
-### New: Security scans for AUR
-Pacsea adds a security‑first workflow for AUR installs. Before building you can run one or more checks — ClamAV (antivirus), Trivy (filesystem), Semgrep (static analysis), ShellCheck for PKGBUILD/.install, VirusTotal hash lookups, custom suspicious pattern scanning, and aur-sleuth (LLM audit). Scans generate a comprehensive summary showing infections, vulnerabilities by severity, Semgrep findings count, and VirusTotal statistics.
-
-**VirusTotal API Setup**: Configure your VirusTotal API key directly from the Optional Deps modal. Press Enter on the "Security: VirusTotal API" entry to open the API key page, then paste and save your key. The modal blocks main UI interactions to prevent accidental clicks/keys.
-
-Future implementation will include: Enhanced AI Security Scan (optional)
-
-![Scan configuration (v0.4.5)](Images/AUR_Scan_v0.4.5.png "Scan configuration (v0.4.5)")
-
 ## Community
 <p align="center">
 ✨ Idea or bug? <strong><a href="https://github.com/Firstp1ck/Pacsea/issues">Open an issue</a></strong> or check out <strong><a href="https://github.com/Firstp1ck/Pacsea/discussions/11">Idea Discussions</a></strong><br/>
@@ -28,7 +13,7 @@ Future implementation will include: Enhanced AI Security Scan (optional)
 </p>
 
 ### Main app view
-![Main app view (v0.4.1)](Images/Appview_v0.4.1_noPKGBUILD.png "Main app view (v0.4.1)")
+![Main app view (v0.4.1)](Images/AppView_v0.4.5_PKGBUILD_AUR.png "Main app view (v0.4.1)")
 
 ## Table of Contents
 - [Quick start](#quick-start)
@@ -36,9 +21,6 @@ Future implementation will include: Enhanced AI Security Scan (optional)
 - [Usage](#usage)
   - [Handy shortcuts](#handy-shortcuts)
 - [Configuration](#configuration)
-  - [Example: settings.conf](#example-settingsconf)
-  - [Example: theme.conf](#example-themeconf)
-  - [Example: keybinds.conf](#example-keybindsconf)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
 - [Credits](#credits)
@@ -74,9 +56,22 @@ pacsea
 - **Distro-aware updates**: Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, and standard Arch
 - **Helpful tools**: System update dialog with distro-aware mirror management and Arch News popup.
 
+## Security-first approach for AUR Packages
+
+- **Security-first approach for installing AUR Packages**.
+- **Security Coverage** via automatic **Scans** and **Optional Measures** (e.g., converting AUR packages to **Flatpak**), and more
+
+![Scan configuration (v0.4.5)](Images/AUR_Scan_v0.4.5.png "Scan configuration (v0.4.5)")
+
+### New: Security scans for AUR
+Pacsea adds a security‑first workflow for AUR installs. Before building you can run one or more checks — ClamAV (antivirus), Trivy (filesystem), Semgrep (static analysis), ShellCheck for PKGBUILD/.install, VirusTotal hash lookups, custom suspicious pattern scanning, and aur-sleuth (LLM audit). Scans generate a comprehensive summary showing infections, vulnerabilities by severity, Semgrep findings count, and VirusTotal statistics.
+
+**VirusTotal API Setup**: Configure your VirusTotal API key directly from the Optional Deps modal. Press Enter on the "Security: VirusTotal API" entry to open the API key page, then paste and save your key. The modal blocks main UI interactions to prevent accidental clicks/keys.
+
+Future implementation will include: Enhanced AI Security Scan (optional)
 
 ### System update dialog
-![System update dialog (v0.4.1)](Images/SystemUpdateView_v0.4.1.png "System update dialog (v0.4.1)")
+![System update dialog (v0.4.1)](Images/SystemUpdateView_v0.4.5.png "System update dialog (v0.4.1)")
 
 ### TUI Optional Deps
 - Install and verify recommended helper tools directly from a dedicated view with environment-aware defaults. 
@@ -99,6 +94,8 @@ pacsea
 4. Press Enter to install (or confirm the Install list).
 5. **For AUR packages**: Press S in the confirm dialog to scan before installing.
 6. Press F1 or ? anytime for a help overlay.
+7. **PKGBUILD copy**: For the "Copy PKGBUILD" button, install `wl-clipboard` (Wayland) or `xclip` (X11). 
+  The copied PKGBUILD includes a suffix configured in `settings.conf` (`clipboard_suffix`).
 
 ### Handy shortcuts
 - **Help**: F1 or ?
@@ -109,7 +106,7 @@ pacsea
 - **Quit**: Ctrl+C
 
 ### PKGBUILD preview
-![PKGBUILD preview (v0.4.1)](Images/PKGBUILD_v0.4.1.png "PKGBUILD preview (v0.4.1)")
+![PKGBUILD preview (v0.4.1)](Images/PKGBUILD_v0.4.5.png "PKGBUILD preview (v0.4.1)")
 
 ## Configuration
 - Config lives in `~/.config/pacsea/` as three files:
@@ -118,79 +115,15 @@ pacsea
   - `keybinds.conf` — keyboard shortcuts
 - Press **Ctrl+R** in the app to reload your config.
 
+For example configuration files, see the [`config/`](config/) directory:
+- [`config/settings.conf`](config/settings.conf) — app behavior (layout, defaults, visibility, scans, news, etc.)
+- [`config/theme.conf`](config/theme.conf) — colors and styling with multiple theme examples
+- [`config/keybinds.conf`](config/keybinds.conf) — keyboard shortcuts for all actions
+
 ![Settings overview (v0.4.1)](Images/Settings_v0.4.1.png "Settings overview (v0.4.1)")
 
-### Example: settings.conf
-```ini
-# Pane sizes (must sum to 100)
-layout_left_pct = 20
-layout_center_pct = 60
-layout_right_pct = 20
-
-# Defaults
-app_dry_run_default = false
-sort_mode = best_matches  # best_matches | popularity | alphabetical
-
-# Visibility
-show_recent_pane = true
-show_install_pane = true
-show_keybinds_footer = true
-
-# Mirrors
-# Select one or more countries (comma-separated). Example: "Switzerland, Germany, Austria"
-selected_countries = Worldwide
-# Number of HTTPS mirrors to consider when updating
-mirror_count = 20
-```
-
 ### Panels hidden
-![Panels hidden (v0.4.1)](Images/PaneHided_v0.4.1.png "Panels hidden (v0.4.1)")
-
-### Example: theme.conf
-```ini
-# Background
-background_base = #1e1e2e
-background_mantle = #181825
-background_crust = #11111b
-
-# Surfaces
-surface_level1 = #45475a
-surface_level2 = #585b70
-
-# Text
-text_primary = #cdd6f4
-text_secondary = 166,173,200
-
-# Accents
-accent_interactive = #74c7ec
-accent_heading = #cba6f7
-accent_emphasis = #b4befe
-
-# Semantics
-semantic_success = #a6e3a1
-semantic_warning = #f9e2af
-semantic_error   = #f38ba8
-```
-
-### Example: keybinds.conf
-```ini
-# Global
-keybind_help = F1
-keybind_exit = CTRL+C
-keybind_reload_theme = CTRL+R
-keybind_show_pkgbuild = CTRL+X
-
-# Search
-keybind_search_move_up = Up
-keybind_search_move_down = Down
-keybind_search_add = Space
-keybind_search_install = Enter
-
-# Install pane
-keybind_install_confirm = Enter
-keybind_install_remove = Delete
-keybind_install_clear = Shift+Delete
-```
+![Panels hidden (v0.4.1)](Images/PaneHided_v0.4.5.png "Panels hidden (v0.4.1)")
 ## Optional: build from source
 ```bash
 sudo pacman -S rustup && rustup default stable
@@ -202,7 +135,6 @@ cargo run
 ## Troubleshooting
 - **AUR search errors**: Check your network and try again.
 - **Installs don’t start**: Ensure you have a terminal installed (e.g. alacritty, kitty, xterm) and `sudo` working in a terminal.
-- **PKGBUILD copy**: For the "Copy Package Build” button, install `wl-clipboard` (Wayland) or `xclip` (X11).
 
 ## Roadmap
 - Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/11)

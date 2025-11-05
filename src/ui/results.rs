@@ -310,8 +310,6 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .saturating_add(1)
         .saturating_add(options_w); // "Config/Lists" + space + "Panels" + space + "Options"
     let pad = inner_width.saturating_sub(consumed_left.saturating_add(right_w));
-    let mut options_btn_x: Option<u16> = None;
-    let mut panels_btn_x: Option<u16> = None;
     if pad >= 1 {
         title_spans.push(Span::raw(" ".repeat(pad as usize)));
         let cfg_btn_style = if app.config_menu_open {
@@ -390,8 +388,6 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             .saturating_add(inner_width.saturating_sub(options_w));
         let pan_x = opt_x.saturating_sub(1).saturating_sub(panels_w);
         let cfg_x = pan_x.saturating_sub(1).saturating_sub(config_w);
-        options_btn_x = Some(opt_x);
-        panels_btn_x = Some(pan_x);
         app.config_button_rect = Some((cfg_x, btn_y, config_w, 1));
         app.options_button_rect = Some((opt_x, btn_y, options_w, 1));
         app.panels_button_rect = Some((pan_x, btn_y, panels_w, 1));
@@ -566,6 +562,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         f.render_widget(menu, rect);
     }
 
+    // Dropdown rendering is moved to render_dropdowns() called after all other UI elements
+    record_results_rect(app, area);
+}
+
+/// What: Render dropdown menus (Config/Lists, Panels, Options) on top layer.
+///
+/// This function should be called after all other UI elements are rendered
+/// to ensure dropdowns appear on top.
+pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
+    let th = theme();
+
     // Optional: render Config/Lists dropdown overlay near its button
     app.config_menu_rect = None;
     if app.config_menu_open {
@@ -578,17 +585,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             "Recent Searches -> recent_searches.json",
         ];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
-        let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
-        // Place menu under the Config/Lists button aligned to its right edge
+        let w = widest.saturating_add(2).min(results_area.width.saturating_sub(2));
+        // Place menu below the Config/Lists button aligned to its right edge
         let rect_w = w.saturating_add(2);
-        let max_x = area.x + area.width.saturating_sub(rect_w);
+        let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
         let cbx = app
             .config_button_rect
             .map(|(x, _, _, _)| x)
             .unwrap_or(max_x);
         let menu_x = cbx.min(max_x);
-        let menu_y = area.y.saturating_add(1); // just below top border
         let h = (opts.len() as u16) + 2; // borders
+        let menu_y = results_area.y.saturating_add(1); // just below top border (rendered on top layer)
         let rect = ratatui::prelude::Rect {
             x: menu_x,
             y: menu_y,
@@ -611,10 +618,11 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             ]));
         }
         let menu = Paragraph::new(lines)
-            .style(Style::default().fg(th.text).bg(th.surface2))
+            .style(Style::default().fg(th.text).bg(th.base))
             .wrap(Wrap { trim: true })
             .block(
                 Block::default()
+                    .style(Style::default().bg(th.base))
                     .title(Line::from(vec![
                         Span::styled(" ", Style::default().fg(th.overlay1)),
                         Span::styled(
@@ -627,7 +635,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                     ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(th.surface2)),
+                    .border_style(Style::default().fg(th.mauve)),
             );
         f.render_widget(Clear, rect);
         f.render_widget(menu, rect);
@@ -653,14 +661,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         };
         let opts = [label_recent, label_install, label_keybinds];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
-        let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
-        // Place menu under the Panels button aligned to its right edge
+        let w = widest.saturating_add(2).min(results_area.width.saturating_sub(2));
+        // Place menu below the Panels button aligned to its right edge
         let rect_w = w.saturating_add(2);
-        let max_x = area.x + area.width.saturating_sub(rect_w);
-        let pbx = panels_btn_x.unwrap_or(max_x);
+        let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
+        let pbx = app
+            .panels_button_rect
+            .map(|(x, _, _, _)| x)
+            .unwrap_or(max_x);
         let menu_x = pbx.min(max_x);
-        let menu_y = area.y.saturating_add(1); // just below top border
         let h = (opts.len() as u16) + 2; // borders
+        let menu_y = results_area.y.saturating_add(1); // just below top border (rendered on top layer)
         let rect = ratatui::prelude::Rect {
             x: menu_x,
             y: menu_y,
@@ -682,10 +693,11 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             ]));
         }
         let menu = Paragraph::new(lines)
-            .style(Style::default().fg(th.text).bg(th.surface2))
+            .style(Style::default().fg(th.text).bg(th.base))
             .wrap(Wrap { trim: true })
             .block(
                 Block::default()
+                    .style(Style::default().bg(th.base))
                     .title(Line::from(vec![
                         Span::styled(" ", Style::default().fg(th.overlay1)),
                         Span::styled(
@@ -698,7 +710,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                     ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(th.surface2)),
+                    .border_style(Style::default().fg(th.mauve)),
             );
         f.render_widget(Clear, rect);
         f.render_widget(menu, rect);
@@ -714,14 +726,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         };
         let opts = [label_toggle, "Update System", "News", "TUI Optional Dep's"];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
-        let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
-        // Place menu under the Options button aligned to its right edge
+        let w = widest.saturating_add(2).min(results_area.width.saturating_sub(2));
+        // Place menu below the Options button aligned to its right edge
         let rect_w = w.saturating_add(2);
-        let max_x = area.x + area.width.saturating_sub(rect_w);
-        let obx = options_btn_x.unwrap_or(max_x);
+        let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
+        let obx = app
+            .options_button_rect
+            .map(|(x, _, _, _)| x)
+            .unwrap_or(max_x);
         let menu_x = obx.min(max_x);
-        let menu_y = area.y.saturating_add(1); // just below top border
         let h = (opts.len() as u16) + 2; // borders
+        let menu_y = results_area.y.saturating_add(1); // just below top border (rendered on top layer)
         let rect = ratatui::prelude::Rect {
             x: menu_x,
             y: menu_y,
@@ -744,10 +759,11 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             ]));
         }
         let menu = Paragraph::new(lines)
-            .style(Style::default().fg(th.text).bg(th.surface2))
+            .style(Style::default().fg(th.text).bg(th.base))
             .wrap(Wrap { trim: true })
             .block(
                 Block::default()
+                    .style(Style::default().bg(th.base))
                     .title(Line::from(vec![
                         Span::styled(" ", Style::default().fg(th.overlay1)),
                         Span::styled(
@@ -760,12 +776,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                     ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
-                    .border_style(Style::default().fg(th.surface2)),
+                    .border_style(Style::default().fg(th.mauve)),
             );
         f.render_widget(Clear, rect);
         f.render_widget(menu, rect);
     }
+}
 
+/// What: Record inner results rect for mouse hit-testing (inside borders).
+///
+/// This should be called after render_results to set up hit-testing.
+pub fn record_results_rect(app: &mut AppState, area: Rect) {
     // Record inner results rect for mouse hit-testing (inside borders)
     app.results_rect = Some((
         area.x + 1,

@@ -14,7 +14,7 @@ use crate::logic::move_sel_cached;
 /// Behavior summary:
 /// - Clickable URL in the details pane with Ctrl+Shift+LeftClick (opens via `xdg-open`).
 /// - Clickable "Show/Hide PKGBUILD" action in the details content.
-/// - Clickable "Copy Package Build" button in the PKGBUILD title (copies to clipboard).
+/// - Clickable "Copy PKGBUILD" button in the PKGBUILD title (copies to clipboard).
 /// - Clickable Sort button and filter toggles in the Results title.
 /// - Click-to-select in Results; mouse wheel scroll moves selection in Results/Recent/Install.
 /// - Mouse wheel scroll within the PKGBUILD viewer scrolls the content.
@@ -239,7 +239,7 @@ pub fn handle_mouse_event(
         return false;
     }
 
-    // 2b) Click on "Copy Package Build" title button
+    // 2b) Click on "Copy PKGBUILD" title button
     if is_left_down
         && let Some((x, y, w, h)) = app.pkgb_check_button_rect
         && mx >= x
@@ -350,7 +350,28 @@ pub fn handle_mouse_event(
         return false;
     }
 
-    // 3) If details should be markable, ignore other clicks within it
+    // 3) Scroll support inside Package Info details pane using mouse wheel (before click blocking)
+    // Allow scrolling even when mouse clicks are disabled for text selection
+    if let Some((x, y, w, h)) = app.details_rect
+        && mx >= x
+        && mx < x + w
+        && my >= y
+        && my < y + h
+    {
+        match m.kind {
+            MouseEventKind::ScrollUp => {
+                app.details_scroll = app.details_scroll.saturating_sub(1);
+                return false;
+            }
+            MouseEventKind::ScrollDown => {
+                app.details_scroll = app.details_scroll.saturating_add(1);
+                return false;
+            }
+            _ => {}
+        }
+    }
+
+    // 4) If details should be markable, ignore other clicks within it
     if app.mouse_disabled_in_details
         && let Some((x, y, w, h)) = app.details_rect
         && mx >= x
@@ -366,7 +387,7 @@ pub fn handle_mouse_event(
         return false;
     }
 
-    // 4) Sort button, filters, options button, and dropdowns in Results title
+    // 5) Sort button, filters, options button, and dropdowns in Results title
     if is_left_down {
         // Click on Install pane bottom Import button
         if let Some((x, y, w, h)) = app.install_import_rect
@@ -375,101 +396,8 @@ pub fn handle_mouse_event(
             && my >= y
             && my < y + h
         {
-            // Open a native-ish file picker, then import lines as packages
-            // Execute in a background thread to avoid blocking event loop
-            let add_tx_clone = _add_tx.clone();
-            std::thread::spawn(move || {
-                #[cfg(target_os = "windows")]
-                let path_opt: Option<String> = {
-                    // PowerShell OpenFileDialog (single selection, .txt default filter)
-                    // Returns selected path on stdout. If cancelled, returns empty.
-                    let script = r#"
-                    Add-Type -AssemblyName System.Windows.Forms
-                    $ofd = New-Object System.Windows.Forms.OpenFileDialog
-                    $ofd.Filter = 'Text Files (*.txt)|*.txt|All Files (*.*)|*.*'
-                    $ofd.Multiselect = $false
-                    if ($ofd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $ofd.FileName }
-                    "#;
-                    let output = std::process::Command::new("powershell")
-                        .args(["-NoProfile", "-Command", script])
-                        .stdin(std::process::Stdio::null())
-                        .output()
-                        .ok();
-                    output.and_then(|o| {
-                        let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                        if s.is_empty() { None } else { Some(s) }
-                    })
-                };
-
-                #[cfg(not(target_os = "windows"))]
-                let path_opt: Option<String> = {
-                    // Try zenity, then kdialog; else fall back to reading a default file path
-                    let try_cmd = |prog: &str, args: &[&str]| -> Option<String> {
-                        let res = std::process::Command::new(prog)
-                            .args(args)
-                            .stdin(std::process::Stdio::null())
-                            .output()
-                            .ok()?;
-                        if !res.status.success() {
-                            return None;
-                        }
-                        let s = String::from_utf8_lossy(&res.stdout).trim().to_string();
-                        if s.is_empty() { None } else { Some(s) }
-                    };
-                    try_cmd(
-                        "zenity",
-                        &[
-                            "--file-selection",
-                            "--title=Import packages",
-                            "--file-filter=*.txt",
-                        ],
-                    )
-                    .or_else(|| try_cmd("kdialog", &["--getopenfilename", ".", "*.txt"]))
-                };
-
-                if let Some(path) = path_opt {
-                    tracing::info!(path = %path, "import: selected file");
-                    if let Ok(body) = std::fs::read_to_string(&path) {
-                        // Parse as lines; each line a package name, skip blanks and comments
-                        // Determine source via official index if available; else default to AUR
-                        use std::collections::HashSet;
-                        let mut official_names: HashSet<String> = HashSet::new();
-                        for it in crate::index::all_official().iter() {
-                            official_names.insert(it.name.to_lowercase());
-                        }
-                        let mut imported: usize = 0;
-                        for line in body.lines() {
-                            let name = line.trim();
-                            if name.is_empty() || name.starts_with('#') {
-                                continue;
-                            }
-                            let src = if official_names.contains(&name.to_lowercase()) {
-                                crate::state::Source::Official {
-                                    repo: String::new(),
-                                    arch: String::new(),
-                                }
-                            } else {
-                                crate::state::Source::Aur
-                            };
-                            let item = crate::state::PackageItem {
-                                name: name.to_string(),
-                                version: String::new(),
-                                description: String::new(),
-                                source: src,
-                                popularity: None,
-                            };
-                            if add_tx_clone.send(item).is_ok() {
-                                imported += 1;
-                            }
-                        }
-                        tracing::info!(path = %path, imported, "import: queued items from list");
-                    } else {
-                        tracing::warn!(path = %path, "import: failed to read file");
-                    }
-                } else {
-                    tracing::info!("import: canceled by user");
-                }
-            });
+            // Show ImportHelp modal first
+            app.modal = crate::state::Modal::ImportHelp;
             return false;
         }
         // Click on Install pane bottom Export button
@@ -1230,7 +1158,7 @@ pub fn handle_mouse_event(
                 }
                 _ => {}
             }
-            app.panels_menu_open = false;
+            // Keep menu open after toggling panels
             return false;
         }
         // Click outside menu closes it
@@ -1467,6 +1395,7 @@ pub fn handle_mouse_event(
             _ => {}
         }
     }
+
     false
 }
 

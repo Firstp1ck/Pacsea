@@ -171,100 +171,10 @@ pub fn handle_search_key(
             {
                 // Disabled while in installed-only mode to match UI (buttons hidden)
                 if !app.installed_only_mode {
-                    let add_tx_clone = add_tx.clone();
-                    std::thread::spawn(move || {
-                        #[cfg(target_os = "windows")]
-                        let path_opt: Option<String> = {
-                            // PowerShell OpenFileDialog (single selection, .txt default filter)
-                            // Returns selected path on stdout. If cancelled, returns empty.
-                            let script = r#"
-                            Add-Type -AssemblyName System.Windows.Forms
-                            $ofd = New-Object System.Windows.Forms.OpenFileDialog
-                            $ofd.Filter = 'Text Files (*.txt)|*.txt|All Files (*.*)|*.*'
-                            $ofd.Multiselect = $false
-                            if ($ofd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $ofd.FileName }
-                            "#;
-                            let output = std::process::Command::new("powershell")
-                                .args(["-NoProfile", "-Command", script])
-                                .stdin(std::process::Stdio::null())
-                                .output()
-                                .ok();
-                            output.and_then(|o| {
-                                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                                if s.is_empty() { None } else { Some(s) }
-                            })
-                        };
-
-                        #[cfg(not(target_os = "windows"))]
-                        let path_opt: Option<String> = {
-                            // Try zenity, then kdialog; else fall back to reading a default file path
-                            let try_cmd = |prog: &str, args: &[&str]| -> Option<String> {
-                                let res = std::process::Command::new(prog)
-                                    .args(args)
-                                    .stdin(std::process::Stdio::null())
-                                    .output()
-                                    .ok()?;
-                                if !res.status.success() {
-                                    return None;
-                                }
-                                let s = String::from_utf8_lossy(&res.stdout).trim().to_string();
-                                if s.is_empty() { None } else { Some(s) }
-                            };
-                            try_cmd(
-                                "zenity",
-                                &[
-                                    "--file-selection",
-                                    "--title=Import packages",
-                                    "--file-filter=*.txt",
-                                ],
-                            )
-                            .or_else(|| try_cmd("kdialog", &["--getopenfilename", ".", "*.txt"]))
-                        };
-
-                        if let Some(path) = path_opt {
-                            tracing::info!(path = %path, "import: selected file");
-                            if let Ok(body) = std::fs::read_to_string(&path) {
-                                // Parse as lines; each line a package name, skip blanks and comments
-                                // Determine source via official index if available; else default to AUR
-                                use std::collections::HashSet;
-                                let mut official_names: HashSet<String> = HashSet::new();
-                                for it in crate::index::all_official().iter() {
-                                    official_names.insert(it.name.to_lowercase());
-                                }
-                                let mut imported: usize = 0;
-                                for line in body.lines() {
-                                    let name = line.trim();
-                                    if name.is_empty() || name.starts_with('#') {
-                                        continue;
-                                    }
-                                    let src = if official_names.contains(&name.to_lowercase()) {
-                                        crate::state::Source::Official {
-                                            repo: String::new(),
-                                            arch: String::new(),
-                                        }
-                                    } else {
-                                        crate::state::Source::Aur
-                                    };
-                                    let item = crate::state::PackageItem {
-                                        name: name.to_string(),
-                                        version: String::new(),
-                                        description: String::new(),
-                                        source: src,
-                                        popularity: None,
-                                    };
-                                    if add_tx_clone.send(item).is_ok() {
-                                        imported += 1;
-                                    }
-                                }
-                                tracing::info!(path = %path, imported, "import: queued items from list");
-                            } else {
-                                tracing::warn!(path = %path, "import: failed to read file");
-                            }
-                        } else {
-                            tracing::info!("import: canceled by user");
-                        }
-                    });
+                    // Show ImportHelp modal first
+                    app.modal = crate::state::Modal::ImportHelp;
                 }
+                return false;
             }
             // Normal mode: Export (Shift+E)
             (c, m)

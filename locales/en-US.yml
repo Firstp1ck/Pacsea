@@ -71,7 +71,7 @@ en-US:
       move_page: "Move Page"
       select_text: "Select text"
       delete_text: "Delete text"
-      copy_pkgbuild: "Copy Package Build"
+      copy_pkgbuild: "Copy PKGBUILD"
       add: "Add"
       delete: "Delete"
       clear: "Clear"
@@ -130,7 +130,7 @@ en-US:
       hide_pkgbuild: "Hide PKGBUILD"
       url_label: "URL:"
       loading_pkgb: "Loading PKGBUILD…"
-      copy_pkgbuild: "Copy Package Build"
+      copy_pkgbuild: "Copy PKGBUILD"
 
     results:
       title: "Results"
@@ -225,7 +225,7 @@ en-US:
         mouse_lines:
           - "  • Scroll lists (Results/Recent/Install) and PKGBUILD with mouse wheel"
           - "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details"
-          - "  • Copy 'Copy Package Build': click the title button in PKGBUILD"
+          - "  • Copy 'Copy PKGBUILD': click the title button in PKGBUILD"
           - "  • Open details URL: Ctrl+Shift+Left click on the URL"
           - "  • Results title bar: click Sort/Options/Panels/Config to open menus"
           - "  • Toggle filters (AUR/core/extra/multilib/EOS/cachyos): click their labels"

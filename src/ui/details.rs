@@ -20,14 +20,13 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     // Details (bottom): reserve space for footer, then render content (details/PKGBUILD)
     let bottom_container = area;
+    // Minimum height for Package Info content (including borders: 2 lines)
+    const MIN_PACKAGE_INFO_H: u16 = 3; // 1 visible line + 2 borders
+    
     // Reserve footer height: baseline lines + optional Normal Mode line
     // Baseline: GLOBALS, SEARCH, INSTALL, RECENT (4). In installed-only mode, split to 5 lines: GLOBALS, SEARCH, DOWNGRADE, REMOVE, RECENT.
     let baseline_lines: u16 = if app.installed_only_mode { 5 } else { 4 };
-    let base_help_h: u16 = if app.show_keybinds_footer {
-        baseline_lines
-    } else {
-        0
-    };
+    
     // Compute adaptive extra rows for Search Normal Mode footer based on available width
     let km = &app.keymap;
     let footer_w: u16 = bottom_container.width.saturating_sub(2);
@@ -119,8 +118,23 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     } else {
         0
     };
-    let help_h: u16 = if app.show_keybinds_footer {
-        base_help_h.saturating_add(nm_rows)
+    
+    // Calculate required keybinds height
+    let base_help_h: u16 = if app.show_keybinds_footer {
+        baseline_lines
+    } else {
+        0
+    };
+    let required_keybinds_h = base_help_h.saturating_add(nm_rows);
+    
+    // Keybinds vanish first: only show if there's enough space for Package Info + Keybinds
+    // Package Info needs at least MIN_PACKAGE_INFO_H, so keybinds only show if:
+    // bottom_container.height >= MIN_PACKAGE_INFO_H + required_keybinds_h
+    let show_keybinds = app.show_keybinds_footer 
+        && bottom_container.height >= MIN_PACKAGE_INFO_H + required_keybinds_h;
+    
+    let help_h: u16 = if show_keybinds {
+        required_keybinds_h
     } else {
         0
     };
@@ -149,14 +163,24 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
         details_area.height.saturating_sub(2),
     ));
 
+    // Apply scroll offset by skipping lines from the top
+    let scroll_offset = app.details_scroll as usize;
+    let visible_lines: Vec<_> = details_lines
+        .iter()
+        .skip(scroll_offset)
+        .cloned()
+        .collect();
+
     // Find the URL line, style it as a link, and record its rect; also compute PKGBUILD rect
+    // Process original lines first to style URL and find buttons
     app.url_button_rect = None;
     app.pkgb_button_rect = None;
     let border_inset = 1u16;
     let content_x = details_area.x.saturating_add(border_inset);
     let content_y = details_area.y.saturating_add(border_inset);
     let inner_w: u16 = details_area.width.saturating_sub(2);
-    let mut cur_y: u16 = content_y;
+    
+    // Process original lines to style URL
     for line in details_lines.iter_mut() {
         if line.spans.len() >= 2 {
             let key_txt = line.spans[0].content.to_string();
@@ -169,6 +193,21 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                         .add_modifier(Modifier::UNDERLINED | Modifier::BOLD);
                 }
                 line.spans[1] = Span::styled(url_txt.clone(), style);
+            }
+        }
+    }
+    
+    // Calculate button positions based on visible lines only
+    let mut cur_y: u16 = content_y;
+    for (vis_idx, vis_line) in visible_lines.iter().enumerate() {
+        let line_idx = vis_idx + scroll_offset;
+        let original_line = &details_lines[line_idx];
+        
+        // Check for URL button
+        if original_line.spans.len() >= 2 {
+            let key_txt = original_line.spans[0].content.to_string();
+            if key_txt.starts_with("URL:") {
+                let url_txt = app.details.url.clone();
                 if !url_txt.is_empty() {
                     let key_len = key_txt.len() as u16;
                     let x_start = content_x.saturating_add(key_len);
@@ -180,8 +219,10 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 }
             }
         }
-        if line.spans.len() == 1 {
-            let txt = line.spans[0].content.to_string();
+        
+        // Check for PKGBUILD button
+        if original_line.spans.len() == 1 {
+            let txt = original_line.spans[0].content.to_string();
             let lowered = txt.to_lowercase();
             if lowered.contains("show pkgbuild") || lowered.contains("hide pkgbuild") {
                 let x_start = content_x;
@@ -191,8 +232,9 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 }
             }
         }
-        // advance y accounting for wrapping
-        let line_len: usize = line.spans.iter().map(|s| s.content.len()).sum();
+        
+        // Advance y accounting for wrapping
+        let line_len: usize = vis_line.spans.iter().map(|s| s.content.len()).sum();
         let rows = if inner_w == 0 {
             1
         } else {
@@ -209,7 +251,8 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(th.surface2));
-    let details = Paragraph::new(details_lines)
+    // Render only visible lines (after scroll offset)
+    let details = Paragraph::new(visible_lines)
         .style(Style::default().fg(th.text).bg(th.base))
         .wrap(Wrap { trim: true })
         .block(details_block.clone());
@@ -238,8 +281,8 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             visible.push_str(line);
             visible.push('\n');
         }
-        // Title with clickable "Copy Package Build" button and optional "Reload PKGBUILD" button
-        let check_button_label = "Copy Package Build".to_string();
+        // Title with clickable "Copy PKGBUILD" button and optional "Reload PKGBUILD" button
+        let check_button_label = "Copy PKGBUILD".to_string();
         let mut pkgb_title_spans: Vec<Span> =
             vec![Span::styled("PKGBUILD", Style::default().fg(th.overlay1))];
         pkgb_title_spans.push(Span::raw("  "));
@@ -254,7 +297,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
         let needs_reload =
             app.pkgb_package_name.as_deref() != current_package && app.pkgb_package_name.is_some();
 
-        // Record clickable rect for the "Copy Package Build" button on the top border row
+        // Record clickable rect for the "Copy PKGBUILD" button on the top border row
         let btn_y = pkgb_area.y;
         let btn_x = pkgb_area
             .x
@@ -295,7 +338,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     }
 
     // Help footer with keybindings in the bottom of Package Info pane
-    if app.show_keybinds_footer {
+    if show_keybinds {
         // Footer occupies the bottom rows of the bottom container using reserved height above
         let footer_container = bottom_container;
         if footer_container.height > help_h + 2 {
