@@ -195,8 +195,8 @@ cargo run
 ### Potential future Features
 - **Extensive Preflight Check** (on going)
 - **Additional Language Support** (on going)
-- **Security Scan for AUR Packages (Source Code and PKGBUILD) using AI (on going)**
-- **User chooseable Terminal via Options or settings.conf**
+- **Security Scan for AUR Packages (Source Code and PKGBUILD) using AI** (on going)
+- **User chooseable Terminal via Options or settings.conf** (on going)
 - **Default Mirrors, Mirror Search and extensive Mirror Selection**
 - **Adjustable Width of the Middle Panes**
 - **Adjustable Height of the Results and Package Info Panes**
