@@ -224,10 +224,14 @@ pub fn handle_mouse_event(
             // Close if already open
             app.pkgb_visible = false;
             app.pkgb_text = None;
+            app.pkgb_package_name = None;
+            app.pkgb_scroll = 0;
+            app.pkgb_rect = None;
         } else {
             // Open and (re)load
             app.pkgb_visible = true;
             app.pkgb_text = None;
+            app.pkgb_package_name = None;
             if let Some(item) = app.results.get(app.selected).cloned() {
                 let _ = pkgb_tx.send(item);
             }
@@ -324,6 +328,24 @@ pub fn handle_mouse_event(
             app.toast_message = Some("PKGBUILD not loaded yet".to_string());
             app.toast_expires_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        }
+        return false;
+    }
+
+    // 2c) Click on "Reload PKGBUILD" title button
+    if is_left_down
+        && let Some((x, y, w, h)) = app.pkgb_reload_button_rect
+        && mx >= x
+        && mx < x + w
+        && my >= y
+        && my < y + h
+    {
+        app.mouse_disabled_in_details = false;
+        if let Some(item) = app.results.get(app.selected).cloned() {
+            // Schedule debounced reload (same as auto-reload)
+            app.pkgb_reload_requested_at = Some(std::time::Instant::now());
+            app.pkgb_reload_requested_for = Some(item.name.clone());
+            app.pkgb_text = None; // Clear old PKGBUILD while loading
         }
         return false;
     }
@@ -890,6 +912,7 @@ pub fn handle_mouse_event(
                     // Terminal: show only the one installed, otherwise all possibilities
                     let term_candidates: &[(&str, &str)] = &[
                         ("alacritty", "alacritty"),
+                        ("ghostty", "ghostty"),
                         ("kitty", "kitty"),
                         ("xterm", "xterm"),
                         ("gnome-terminal", "gnome-terminal"),
@@ -1085,6 +1108,31 @@ pub fn handle_mouse_event(
                         });
                     }
 
+                    // aur-sleuth setup
+                    {
+                        let sleuth_installed = {
+                            let onpath = on_path("aur-sleuth");
+                            let home = std::env::var("HOME").ok();
+                            let user_local = home
+                                .as_deref()
+                                .map(|h| {
+                                    std::path::Path::new(h)
+                                        .join(".local/bin/aur-sleuth")
+                                        .exists()
+                                })
+                                .unwrap_or(false);
+                            let usr_local =
+                                std::path::Path::new("/usr/local/bin/aur-sleuth").exists();
+                            onpath || user_local || usr_local
+                        };
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Security: aur-sleuth".to_string(),
+                            package: "aur-sleuth-setup".to_string(),
+                            installed: sleuth_installed,
+                            selectable: true,
+                            note: Some("Setup".to_string()),
+                        });
+                    }
                     app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
                 }
                 _ => {}
@@ -1461,5 +1509,46 @@ mod tests {
         let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx);
         assert!(app.pkgb_visible);
         assert!(pkgb_rx.try_recv().ok().is_some());
+    }
+
+    #[test]
+    /// What: Clicking Hide PKGBUILD closes viewer and resets scroll/rect state
+    ///
+    /// - Input: PKGBUILD viewer visible with non-zero scroll and rect set; click inside pkgb_button_rect
+    /// - Output: pkgb_visible=false; pkgb_text=None; pkgb_scroll==0; pkgb_rect=None
+    fn click_pkgb_toggle_closes_and_resets() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "rg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+        }];
+        app.selected = 0;
+        app.pkgb_button_rect = Some((10, 10, 5, 1));
+        // Pre-set PKGBUILD viewer as open with state to be reset
+        app.pkgb_visible = true;
+        app.pkgb_text = Some("dummy".into());
+        app.pkgb_scroll = 7;
+        app.pkgb_rect = Some((50, 50, 20, 5));
+
+        let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+        let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+        let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        // Click inside the toggle area to hide
+        let ev = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 11,
+            row: 10,
+            modifiers: KeyModifiers::empty(),
+        };
+        let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx);
+
+        assert!(!app.pkgb_visible);
+        assert!(app.pkgb_text.is_none());
+        assert_eq!(app.pkgb_scroll, 0);
+        assert!(app.pkgb_rect.is_none());
     }
 }

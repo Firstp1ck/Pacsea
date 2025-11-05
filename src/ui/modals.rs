@@ -855,17 +855,21 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             do_semgrep,
             do_shellcheck,
             do_virustotal,
+            do_custom,
+            do_sleuth,
             cursor,
         } => {
             let th = crate::theme::theme();
             let mut lines: Vec<Line<'static>> = Vec::new();
 
-            let items: [(&str, bool); 5] = [
+            let items: [(&str, bool); 7] = [
                 ("ClamAV (antivirus)", *do_clamav),
                 ("Trivy (filesystem)", *do_trivy),
                 ("Semgrep (static analysis)", *do_semgrep),
                 ("ShellCheck (PKGBUILD/.install)", *do_shellcheck),
                 ("VirusTotal (hash lookups)", *do_virustotal),
+                ("Custom scan for Suspicious patterns", *do_custom),
+                ("aur-sleuth (LLM audit)", *do_sleuth),
             ];
 
             for (i, (label, checked)) in items.iter().enumerate() {

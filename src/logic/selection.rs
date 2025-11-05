@@ -10,6 +10,7 @@ use crate::state::{AppState, PackageItem};
 ///   a placeholder based on known metadata.
 /// - If cached details are present, uses them; otherwise requests loading via
 ///   `details_tx`.
+/// - If PKGBUILD is visible and for a different package, schedules a debounced reload.
 /// - Tracks cumulative scroll moves to detect fast scrolling.
 /// - During fast scrolls, temporarily tightens the allowed set to only the
 ///   current selection and defers ring prefetch for ~200ms.
@@ -55,7 +56,18 @@ pub fn move_sel_cached(
         if let Some(cached) = app.details_cache.get(&item.name).cloned() {
             app.details = cached;
         } else {
-            let _ = details_tx.send(item);
+            let _ = details_tx.send(item.clone());
+        }
+
+        // Auto-reload PKGBUILD if visible and for a different package (with debounce)
+        if app.pkgb_visible {
+            let needs_reload = app.pkgb_package_name.as_deref() != Some(item.name.as_str());
+            if needs_reload {
+                // Instead of immediately loading, schedule a debounced reload
+                app.pkgb_reload_requested_at = Some(std::time::Instant::now());
+                app.pkgb_reload_requested_for = Some(item.name.clone());
+                app.pkgb_text = None; // Clear old PKGBUILD while loading
+            }
         }
     }
 

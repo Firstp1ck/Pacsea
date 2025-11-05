@@ -26,6 +26,7 @@ use super::utils::{byte_index_for_char, char_count, refresh_install_details};
 ///   (j/k, Ctrl+U/D), and list add/remove with Space/ Ctrl+Space (downgrade).
 /// - Pane navigation: Left/Right and configured `pane_next` cycle focus across panes and subpanes,
 ///   differing slightly when installed-only mode is active.
+/// - PKGBUILD reload is handled via debounced requests scheduled in the selection logic.
 pub fn handle_search_key(
     ke: KeyEvent,
     app: &mut AppState,

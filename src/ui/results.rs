@@ -27,12 +27,12 @@ use crate::theme::theme;
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 
-    // Detect availability of optional repos from current results
+    // Detect availability of optional repos from all_results (unfiltered) to keep chips visible
     let (has_eos, has_cachyos, has_manjaro) = {
         let mut eos = false;
         let mut cach = false;
         let mut manj = false;
-        for it in app.results.iter() {
+        for it in app.all_results.iter() {
             if let Source::Official { repo, .. } = &it.source {
                 let r = repo.to_lowercase();
                 if !eos && crate::index::is_eos_repo(&r) {

@@ -145,7 +145,7 @@ pub fn handle_event(
                             cmds.push("sudo pacman -Syyu --noconfirm".to_string());
                         }
                         if *do_aur {
-                            cmds.push("(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi)".to_string());
+                            cmds.push("(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi)".to_string());
                         }
                         if *do_cache {
                             cmds.push("sudo pacman -Sc --noconfirm".to_string());
@@ -156,7 +156,14 @@ pub fn handle_event(
                                 message: "No actions selected".to_string(),
                             };
                         } else {
-                            crate::install::spawn_shell_commands_in_terminal(&cmds);
+                            let to_run: Vec<String> = if app.dry_run {
+                                cmds.iter()
+                                    .map(|c| format!("echo DRY RUN: {}", c))
+                                    .collect()
+                            } else {
+                                cmds
+                            };
+                            crate::install::spawn_shell_commands_in_terminal(&to_run);
                             app.modal = crate::state::Modal::None;
                         }
                     }
@@ -206,17 +213,25 @@ pub fn handle_event(
                                 names.push(it.name.clone());
                             }
                         }
-                        app.pending_install_names = Some(names);
-                        // Open Scan Configuration modal initialized from settings.conf
-                        let prefs = crate::theme::settings();
-                        app.modal = crate::state::Modal::ScanConfig {
-                            do_clamav: prefs.scan_do_clamav,
-                            do_trivy: prefs.scan_do_trivy,
-                            do_semgrep: prefs.scan_do_semgrep,
-                            do_shellcheck: prefs.scan_do_shellcheck,
-                            do_virustotal: prefs.scan_do_virustotal,
-                            cursor: 0,
-                        };
+                        if names.is_empty() {
+                            app.modal = crate::state::Modal::Alert {
+                                message: "No AUR packages selected to scan.\nSelect AUR results or add AUR packages to the Install list, then press 's'.".into(),
+                            };
+                        } else {
+                            app.pending_install_names = Some(names);
+                            // Open Scan Configuration modal initialized from settings.conf
+                            let prefs = crate::theme::settings();
+                            app.modal = crate::state::Modal::ScanConfig {
+                                do_clamav: prefs.scan_do_clamav,
+                                do_trivy: prefs.scan_do_trivy,
+                                do_semgrep: prefs.scan_do_semgrep,
+                                do_shellcheck: prefs.scan_do_shellcheck,
+                                do_virustotal: prefs.scan_do_virustotal,
+                                do_custom: prefs.scan_do_custom,
+                                do_sleuth: prefs.scan_do_sleuth,
+                                cursor: 0,
+                            };
+                        }
                     }
                     _ => {}
                 }
@@ -336,18 +351,79 @@ pub fn handle_event(
                                     input: current,
                                     cursor: cur_len,
                                 };
+                            } else if row.package == "aur-sleuth-setup" {
+                                let cmd = r##"(set -e
+if ! command -v aur-sleuth >/dev/null 2>&1; then
+  echo "aur-sleuth not found."
+  echo
+  echo "Install aur-sleuth:"
+  echo "  1) system (/usr/local) requires sudo"
+  echo "  2) user (~/.local)"
+  echo "  3) cancel"
+  read -rp "Choose [1/2/3]: " choice
+  case "$choice" in
+    1)
+      tmp="$(mktemp -d)"; cd "$tmp"
+      git clone https://github.com/mgalgs/aur-sleuth.git
+      cd aur-sleuth
+      sudo make install
+      ;;
+    2)
+      tmp="$(mktemp -d)"; cd "$tmp"
+      git clone https://github.com/mgalgs/aur-sleuth.git
+      cd aur-sleuth
+      make install PREFIX="$HOME/.local"
+      ;;
+    *)
+      echo "Cancelled."; echo "Press any key to close..."; read -rn1 -s _; exit 0;;
+  esac
+else
+  echo "aur-sleuth already installed; continuing to setup"
+fi
+conf="${XDG_CONFIG_HOME:-$HOME/.config}/aur-sleuth.conf"
+mkdir -p "$(dirname "$conf")"
+echo "# aur-sleuth configuration" > "$conf"
+echo "[default]" >> "$conf"
+read -rp "OPENAI_BASE_URL (e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1): " base
+read -rp "OPENAI_MODEL (e.g. qwen/qwen3-30b-a3b-instruct-2507 or llama3.1:8b): " model
+read -rp "OPENAI_API_KEY: " key
+read -rp "MAX_LLM_JOBS (default 3): " jobs
+read -rp "AUDIT_FAILURE_FATAL (true/false) [true]: " fatal
+jobs=${jobs:-3}
+fatal=${fatal:-true}
+[ -n "$base" ] && echo "OPENAI_BASE_URL = $base" >> "$conf"
+[ -n "$model" ] && echo "OPENAI_MODEL = $model" >> "$conf"
+echo "OPENAI_API_KEY = $key" >> "$conf"
+echo "MAX_LLM_JOBS = $jobs" >> "$conf"
+echo "AUDIT_FAILURE_FATAL = $fatal" >> "$conf"
+echo; echo "Wrote $conf"
+echo "Tip: You can run 'aur-sleuth package-name' or audit a local pkgdir with '--pkgdir .'"
+echo; echo "Press any key to close..."; read -rn1 -s _)"##
+                                    .to_string();
+                                let to_run = if app.dry_run {
+                                    vec![format!("echo DRY RUN: {}", cmd)]
+                                } else {
+                                    vec![cmd]
+                                };
+                                crate::install::spawn_shell_commands_in_terminal(&to_run);
+                                app.modal = crate::state::Modal::None;
                             } else if !row.installed && row.selectable {
                                 let pkg = row.package.clone();
                                 let cmd = if pkg == "paru" {
-                                    "git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
+                                    "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
                                 } else if pkg == "yay" {
-                                    "git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
+                                    "rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
                                 } else if pkg == "semgrep-bin" {
-                                    "git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
+                                    "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
                                 } else {
                                     format!("sudo pacman -S --needed --noconfirm {}", pkg)
                                 };
-                                crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                                let to_run = if app.dry_run {
+                                    vec![format!("echo DRY RUN: {}", cmd)]
+                                } else {
+                                    vec![cmd]
+                                };
+                                crate::install::spawn_shell_commands_in_terminal(&to_run);
                                 app.modal = crate::state::Modal::None;
                             }
                         }
@@ -362,6 +438,8 @@ pub fn handle_event(
                 do_semgrep,
                 do_shellcheck,
                 do_virustotal,
+                do_custom,
+                do_sleuth,
                 cursor,
             } => {
                 match ke.code {
@@ -374,7 +452,7 @@ pub fn handle_event(
                         }
                     }
                     KeyCode::Down => {
-                        if *cursor < 4 {
+                        if *cursor < 6 {
                             *cursor += 1;
                         }
                     }
@@ -384,31 +462,94 @@ pub fn handle_event(
                         2 => *do_semgrep = !*do_semgrep,
                         3 => *do_shellcheck = !*do_shellcheck,
                         4 => *do_virustotal = !*do_virustotal,
+                        5 => *do_custom = !*do_custom,
+                        6 => *do_sleuth = !*do_sleuth,
                         _ => {}
                     },
                     KeyCode::Enter => {
+                        tracing::info!(
+                            event = "scan_config_confirm",
+                            dry_run = app.dry_run,
+                            do_clamav = *do_clamav,
+                            do_trivy = *do_trivy,
+                            do_semgrep = *do_semgrep,
+                            do_shellcheck = *do_shellcheck,
+                            do_virustotal = *do_virustotal,
+                            do_custom = *do_custom,
+                            pending_count =
+                                app.pending_install_names.as_ref().map_or(0, |v| v.len()),
+                            "Scan Configuration confirmed"
+                        );
                         // Persist scan selection to settings.conf
                         crate::theme::save_scan_do_clamav(*do_clamav);
                         crate::theme::save_scan_do_trivy(*do_trivy);
                         crate::theme::save_scan_do_semgrep(*do_semgrep);
                         crate::theme::save_scan_do_shellcheck(*do_shellcheck);
                         crate::theme::save_scan_do_virustotal(*do_virustotal);
+                        crate::theme::save_scan_do_custom(*do_custom);
+                        crate::theme::save_scan_do_sleuth(*do_sleuth);
 
                         // PACSEA_SCAN_DO_* flags are injected into the spawned terminal by spawn_aur_scan_for_with_config
 
                         // Spawn scans for pending names (set when opening modal)
+
+                        #[cfg(not(target_os = "windows"))]
                         if let Some(names) = app.pending_install_names.clone() {
-                            for n in names.iter() {
-                                crate::install::spawn_aur_scan_for_with_config(
-                                    n,
-                                    *do_clamav,
-                                    *do_trivy,
-                                    *do_semgrep,
-                                    *do_shellcheck,
-                                    *do_virustotal,
-                                );
+                            tracing::info!(
+                                names = ?names,
+                                count = names.len(),
+                                dry_run = app.dry_run,
+                                "Launching AUR scans"
+                            );
+                            if app.dry_run {
+                                for n in names.iter() {
+                                    tracing::info!(
+                                        package = %n,
+                                        "Dry-run: spawning AUR scan terminal"
+                                    );
+                                    let msg = format!(
+                                        "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={} custom={} sleuth={})",
+                                        n,
+                                        *do_clamav,
+                                        *do_trivy,
+                                        *do_semgrep,
+                                        *do_shellcheck,
+                                        *do_virustotal,
+                                        *do_custom,
+                                        *do_sleuth
+                                    );
+                                    crate::install::spawn_shell_commands_in_terminal(&[msg]);
+                                }
+                            } else {
+                                for n in names.iter() {
+                                    tracing::info!(
+                                        package = %n,
+                                        do_clamav = *do_clamav,
+                                        do_trivy = *do_trivy,
+                                        do_semgrep = *do_semgrep,
+                                        do_shellcheck = *do_shellcheck,
+                                        do_virustotal = *do_virustotal,
+                                        do_custom = *do_custom,
+                                        "Spawning AUR scan terminal"
+                                    );
+                                    crate::install::spawn_aur_scan_for_with_config(
+                                        n,
+                                        *do_clamav,
+                                        *do_trivy,
+                                        *do_semgrep,
+                                        *do_shellcheck,
+                                        *do_virustotal,
+                                        *do_custom,
+                                        *do_sleuth,
+                                    );
+                                }
                             }
+                        } else {
+                            tracing::warn!(
+                                "Scan confirmed but no pending AUR package names were found"
+                            );
                         }
+
                         app.modal = crate::state::Modal::None;
                     }
                     _ => {}
@@ -479,10 +620,20 @@ pub fn handle_event(
                 match ke.code {
                     KeyCode::Enter => {
                         // Install GNOME Terminal, then close the prompt
+
                         let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
-                        crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+
+                        if app.dry_run {
+                            crate::install::spawn_shell_commands_in_terminal(&[format!(
+                                "echo DRY RUN: {}",
+                                cmd
+                            )]);
+                        } else {
+                            crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+                        }
                         app.modal = crate::state::Modal::None;
                     }
+
                     KeyCode::Esc => {
                         // Warn user about potential unexpected behavior and close the prompt
                         app.toast_message = Some(
@@ -507,11 +658,7 @@ pub fn handle_event(
 
         // Global keymap shortcuts (regardless of focus)
         // First: allow ESC to close the PKGBUILD viewer if it is open
-        if ke.code == KeyCode::Esc && app.pkgb_visible {
-            app.pkgb_visible = false;
-            app.pkgb_text = None;
-            return false;
-        }
+        // Esc does not close the PKGBUILD viewer here
 
         // If any dropdown is open, ESC closes it instead of changing modes
         if ke.code == KeyCode::Esc
@@ -567,9 +714,13 @@ pub fn handle_event(
             if app.pkgb_visible {
                 app.pkgb_visible = false;
                 app.pkgb_text = None;
+                app.pkgb_package_name = None;
+                app.pkgb_scroll = 0;
+                app.pkgb_rect = None;
             } else {
                 app.pkgb_visible = true;
                 app.pkgb_text = None;
+                app.pkgb_package_name = None;
                 if let Some(item) = app.results.get(app.selected).cloned() {
                     let _ = pkgb_tx.send(item);
                 }
@@ -801,6 +952,7 @@ pub fn handle_event(
                         // Terminal
                         let term_candidates: &[(&str, &str)] = &[
                             ("alacritty", "alacritty"),
+                            ("ghostty", "ghostty"),
                             ("kitty", "kitty"),
                             ("xterm", "xterm"),
                             ("gnome-terminal", "gnome-terminal"),
@@ -987,6 +1139,29 @@ pub fn handle_event(
                                     label: "Security: VirusTotal API".to_string(),
                                     package: "virustotal-setup".to_string(),
                                     installed: vt_key_present,
+                                    selectable: true,
+                                    note: Some("Setup".to_string()),
+                                });
+                                // aur-sleuth (LLM audit) setup
+                                let sleuth_installed = {
+                                    let onpath = on_path("aur-sleuth");
+                                    let home = std::env::var("HOME").ok();
+                                    let user_local = home
+                                        .as_deref()
+                                        .map(|h| {
+                                            std::path::Path::new(h)
+                                                .join(".local/bin/aur-sleuth")
+                                                .exists()
+                                        })
+                                        .unwrap_or(false);
+                                    let usr_local =
+                                        std::path::Path::new("/usr/local/bin/aur-sleuth").exists();
+                                    onpath || user_local || usr_local
+                                };
+                                rows.push(crate::state::types::OptionalDepRow {
+                                    label: "Security: aur-sleuth".to_string(),
+                                    package: "aur-sleuth-setup".to_string(),
+                                    installed: sleuth_installed,
                                     selectable: true,
                                     note: Some("Setup".to_string()),
                                 });

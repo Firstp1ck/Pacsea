@@ -23,8 +23,8 @@ fn aur_install_body(flags: &str, n: &str) -> String {
             echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; \
             read -rp 'Enter 1/2/3: ' choice; \
             case \"$choice\" in \
-              1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; \
-              2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; \
+              1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; \
+              2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; \
               *) echo 'Cancelled.'; exit 1 ;; \
             esac; \
             if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \

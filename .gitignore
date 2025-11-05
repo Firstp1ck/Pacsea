@@ -29,6 +29,7 @@ installed_packages.txt
 
 RELEASE*.md
 Documents/
+exported-assets/
 .jj
 AUR_BUILD/
 

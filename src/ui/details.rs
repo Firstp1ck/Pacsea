@@ -238,7 +238,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             visible.push_str(line);
             visible.push('\n');
         }
-        // Title with clickable "Copy Package Build" button
+        // Title with clickable "Copy Package Build" button and optional "Reload PKGBUILD" button
         let check_button_label = "Copy Package Build".to_string();
         let mut pkgb_title_spans: Vec<Span> =
             vec![Span::styled("PKGBUILD", Style::default().fg(th.overlay1))];
@@ -249,7 +249,12 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             .add_modifier(Modifier::BOLD);
         pkgb_title_spans.push(Span::styled(check_button_label.clone(), check_btn_style));
 
-        // Record clickable rect for the title button on the top border row
+        // Check if PKGBUILD is for a different package than currently selected
+        let current_package = app.results.get(app.selected).map(|i| i.name.as_str());
+        let needs_reload =
+            app.pkgb_package_name.as_deref() != current_package && app.pkgb_package_name.is_some();
+
+        // Record clickable rect for the "Copy Package Build" button on the top border row
         let btn_y = pkgb_area.y;
         let btn_x = pkgb_area
             .x
@@ -258,6 +263,23 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             .saturating_add(2);
         let btn_w = check_button_label.len() as u16;
         app.pkgb_check_button_rect = Some((btn_x, btn_y, btn_w, 1));
+
+        // Add "Reload PKGBUILD" button if needed
+        app.pkgb_reload_button_rect = None;
+        if needs_reload {
+            pkgb_title_spans.push(Span::raw("  "));
+            let reload_button_label = "Reload PKGBUILD".to_string();
+            let reload_btn_style = Style::default()
+                .fg(th.mauve)
+                .bg(th.surface2)
+                .add_modifier(Modifier::BOLD);
+            pkgb_title_spans.push(Span::styled(reload_button_label.clone(), reload_btn_style));
+
+            // Record clickable rect for the reload button
+            let reload_btn_x = btn_x.saturating_add(btn_w).saturating_add(2);
+            let reload_btn_w = reload_button_label.len() as u16;
+            app.pkgb_reload_button_rect = Some((reload_btn_x, btn_y, reload_btn_w, 1));
+        }
 
         let pkgb = Paragraph::new(visible)
             .style(Style::default().fg(th.text).bg(th.base))
