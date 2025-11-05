@@ -145,7 +145,7 @@ pub fn handle_event(
                             cmds.push("sudo pacman -Syyu --noconfirm".to_string());
                         }
                         if *do_aur {
-                            cmds.push("(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi)".to_string());
+                            cmds.push("(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi)".to_string());
                         }
                         if *do_cache {
                             cmds.push("sudo pacman -Sc --noconfirm".to_string());
@@ -410,11 +410,11 @@ echo; echo "Press any key to close..."; read -rn1 -s _)"##
                             } else if !row.installed && row.selectable {
                                 let pkg = row.package.clone();
                                 let cmd = if pkg == "paru" {
-                                    "git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
+                                    "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
                                 } else if pkg == "yay" {
-                                    "git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
+                                    "rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
                                 } else if pkg == "semgrep-bin" {
-                                    "git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
+                                    "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
                                 } else {
                                     format!("sudo pacman -S --needed --noconfirm {}", pkg)
                                 };

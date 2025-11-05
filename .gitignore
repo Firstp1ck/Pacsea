@@ -28,7 +28,7 @@ install_log.txt
 installed_packages.txt
 
 RELEASE*.md
-#Documents/
+Documents/
 exported-assets/
 .jj
 AUR_BUILD/
