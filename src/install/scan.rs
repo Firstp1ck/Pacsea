@@ -189,7 +189,7 @@ fi)"#.to_string());
     // 7) VirusTotal hash lookups
     cmds.push("echo '--- VirusTotal hash lookups (requires VT_API_KEY env var) ---'".to_string());
     cmds.push(
-        "echo -e '\\033[1;33m[🔬] VirusTotal hash lookups (requires VT_API_KEY env var)\\033[0m'"
+        "echo -e '\\033[1;34m[🔬] VirusTotal hash lookups (requires VT_API_KEY env var)\\033[0m'"
             .to_string(),
     );
     cmds.push(
@@ -616,7 +616,7 @@ else
 fi)"#.to_string());
     cmds.push("echo '--- VirusTotal hash lookups (requires VT_API_KEY env var) ---'".to_string());
     cmds.push(
-        "echo -e '\\033[1;33m[🔬] VirusTotal hash lookups (requires VT_API_KEY env var)\\033[0m'"
+        "echo -e '\\033[1;34m[🔬] VirusTotal hash lookups (requires VT_API_KEY env var)\\033[0m'"
             .to_string(),
     );
     cmds.push(

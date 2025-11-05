@@ -892,6 +892,7 @@ pub fn handle_mouse_event(
                     // Terminal: show only the one installed, otherwise all possibilities
                     let term_candidates: &[(&str, &str)] = &[
                         ("alacritty", "alacritty"),
+                        ("ghostty", "ghostty"),
                         ("kitty", "kitty"),
                         ("xterm", "xterm"),
                         ("gnome-terminal", "gnome-terminal"),

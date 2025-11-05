@@ -37,6 +37,7 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
         ("gnome-console", &["--", "bash", "-lc"], false),
         ("kgx", &["--", "bash", "-lc"], false),
         ("alacritty", &["-e", "bash", "-lc"], false),
+        ("ghostty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
@@ -46,6 +47,7 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
     ];
     let terms_default: &[(&str, &[&str], bool)] = &[
         ("alacritty", &["-e", "bash", "-lc"], false),
+        ("ghostty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("gnome-terminal", &["--", "bash", "-lc"], false),

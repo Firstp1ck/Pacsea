@@ -950,6 +950,7 @@ echo; echo "Press any key to close..."; read -rn1 -s _)"##
                         // Terminal
                         let term_candidates: &[(&str, &str)] = &[
                             ("alacritty", "alacritty"),
+                            ("ghostty", "ghostty"),
                             ("kitty", "kitty"),
                             ("xterm", "xterm"),
                             ("gnome-terminal", "gnome-terminal"),

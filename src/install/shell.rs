@@ -71,6 +71,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
         ("gnome-console", &["--", "bash", "-lc"], false),
         ("kgx", &["--", "bash", "-lc"], false),
         ("alacritty", &["-e", "bash", "-lc"], false),
+        ("ghostty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
@@ -81,6 +82,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     ];
     let terms_default: &[(&str, &[&str], bool)] = &[
         ("alacritty", &["-e", "bash", "-lc"], false),
+        ("ghostty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("gnome-terminal", &["--", "bash", "-lc"], false),
@@ -184,7 +186,12 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
                 );
             }
         }
-        let res = cmd.spawn();
+        // Detach stdio to prevent terminal logs (e.g., Ghostty info/warnings) from overlapping the TUI
+        let res = cmd
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
         {
             let mut lp = crate::theme::logs_dir();
             lp.push("terminal.log");
