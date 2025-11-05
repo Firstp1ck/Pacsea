@@ -150,11 +150,10 @@ cargo run
 - **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
 - **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)**
 - **Ability to list and install optional dependencies when installing packages**
+- **Ability to resolve dependency conflicts**
 - **Add accessability themes for visual impairments**
 - **Add PKGBUILD Syntax Highlighting**
 - **Add custom upgrade commands**
-- **Extensive Testing**
-- **Extensive Documentation**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
