@@ -251,8 +251,9 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
 
         // Check if PKGBUILD is for a different package than currently selected
         let current_package = app.results.get(app.selected).map(|i| i.name.as_str());
-        let needs_reload = app.pkgb_package_name.as_deref() != current_package && app.pkgb_package_name.is_some();
-        
+        let needs_reload =
+            app.pkgb_package_name.as_deref() != current_package && app.pkgb_package_name.is_some();
+
         // Record clickable rect for the "Copy Package Build" button on the top border row
         let btn_y = pkgb_area.y;
         let btn_x = pkgb_area
@@ -273,7 +274,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .bg(th.surface2)
                 .add_modifier(Modifier::BOLD);
             pkgb_title_spans.push(Span::styled(reload_button_label.clone(), reload_btn_style));
-            
+
             // Record clickable rect for the reload button
             let reload_btn_x = btn_x.saturating_add(btn_w).saturating_add(2);
             let reload_btn_w = reload_button_label.len() as u16;

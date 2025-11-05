@@ -491,11 +491,11 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                     let elapsed = requested_at.elapsed();
                     if elapsed.as_millis() >= PKGBUILD_DEBOUNCE_MS as u128 {
                         // Check if the requested package is still the currently selected one
-                        if let Some(current_item) = app.results.get(app.selected) {
-                            if current_item.name == *requested_for {
-                                // Still on the same package, actually send the request
-                                let _ = pkgb_req_tx.send(current_item.clone());
-                            }
+                        if let Some(current_item) = app.results.get(app.selected)
+                            && current_item.name == *requested_for
+                        {
+                            // Still on the same package, actually send the request
+                            let _ = pkgb_req_tx.send(current_item.clone());
                         }
                         // Clear the pending request
                         app.pkgb_reload_requested_at = None;
