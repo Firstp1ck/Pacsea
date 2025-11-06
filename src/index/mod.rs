@@ -58,15 +58,10 @@ fn explicit_lock() -> &'static RwLock<HashSet<String>> {
 }
 
 mod enrich;
-
 mod explicit;
-
 mod fetch;
-
 mod installed;
-
 mod persist;
-
 mod query;
 
 #[cfg(windows)]
@@ -74,17 +69,12 @@ mod mirrors;
 mod update;
 
 pub use enrich::*;
-
 pub use explicit::*;
-
 pub use installed::*;
-
-pub use persist::*;
-
-pub use query::*;
-
 #[cfg(windows)]
 pub use mirrors::*;
+pub use persist::*;
+pub use query::*;
 
 #[cfg(test)]
 static TEST_MUTEX: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
