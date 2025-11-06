@@ -178,7 +178,7 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
 /// Heuristically detect whether the provided HTML/text contains a DDoS-related banner/message.
 //
 
-#[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AurBannerCategory {
     DdosProtection,
@@ -191,7 +191,7 @@ enum AurBannerCategory {
     SecurityIncident,
 }
 
-#[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
     let t = s.to_lowercase();
     // Order matters: match most severe/explicit first
@@ -259,7 +259,7 @@ fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
     None
 }
 
-#[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 fn category_base_color(cat: &AurBannerCategory) -> ArchStatusColor {
     match cat {
         AurBannerCategory::SecurityIncident => ArchStatusColor::IncidentSevereToday,
@@ -273,7 +273,7 @@ fn category_base_color(cat: &AurBannerCategory) -> ArchStatusColor {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 fn category_suffix(cat: &AurBannerCategory) -> &'static str {
     match cat {
         AurBannerCategory::DdosProtection => "— AUR DDoS/protection active",
