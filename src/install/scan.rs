@@ -525,6 +525,7 @@ pub fn spawn_aur_scan_for_with_config(
 ///
 /// Details: Does not clone or run `makepkg -o`; only executes the scanners and optional VirusTotal lookups.
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 fn build_scan_cmds_in_dir(path: &str) -> Vec<String> {
     let mut cmds: Vec<String> = Vec::new();
     cmds.push(format!("target_dir='{}'", path));
@@ -776,6 +777,7 @@ fi)"#.to_string());
     cmds
 }
 
+#[allow(dead_code)]
 #[cfg(not(target_os = "windows"))]
 pub fn spawn_aur_scan_in_dir(path: &str) {
     let cmds = build_scan_cmds_in_dir(path);

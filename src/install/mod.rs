@@ -58,8 +58,6 @@ pub fn spawn_aur_scan_for_with_config(
         do_sleuth,
     );
 }
-// pub use scan::spawn_aur_scan_in_dir;
 pub use shell::spawn_shell_commands_in_terminal;
 pub use single::spawn_install;
 pub use utils::command_on_path;
-// pub use command::build_install_command;
