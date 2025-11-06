@@ -42,6 +42,16 @@ pub struct Theme {
 }
 
 /// User-configurable application settings parsed from `pacsea.conf`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PackageMarker {
+    /// Color the entire line for the marked package.
+    FullLine,
+    /// Add a marker at the front of the line.
+    Front,
+    /// Add a marker at the end of the line.
+    End,
+}
+
 #[derive(Clone, Debug)]
 pub struct Settings {
     /// Percentage width allocated to the Recent pane (left column).
@@ -77,6 +87,8 @@ pub struct Settings {
     pub scan_do_virustotal: bool,
     pub scan_do_custom: bool,
     pub scan_do_sleuth: bool,
+    /// Visual marker style for packages added to Install/Remove/Downgrade lists.
+    pub package_marker: PackageMarker,
     /// Symbol used to mark a news item as read in the News modal.
     pub news_read_symbol: String,
     /// Symbol used to mark a news item as unread in the News modal.
@@ -110,6 +122,7 @@ impl Default for Settings {
             scan_do_virustotal: true,
             scan_do_custom: true,
             scan_do_sleuth: true,
+            package_marker: PackageMarker::Front,
             news_read_symbol: "✓".to_string(),
             news_unread_symbol: "∘".to_string(),
             preferred_terminal: String::new(),
@@ -268,6 +281,8 @@ pub struct KeyMap {
     pub search_normal_select_right: Vec<KeyChord>,
     /// Normal mode: delete selected text (default: d)
     pub search_normal_delete: Vec<KeyChord>,
+    /// Normal mode: clear entire search input (default: Shift+Del)
+    pub search_normal_clear: Vec<KeyChord>,
     /// Normal mode: open Arch status page in browser (default: Shift+S)
     pub search_normal_open_status: Vec<KeyChord>,
     /// Normal mode: trigger Import packages dialog
@@ -422,6 +437,10 @@ impl Default for KeyMap {
             search_normal_delete: vec![KeyChord {
                 code: Char('d'),
                 mods: none,
+            }],
+            search_normal_clear: vec![KeyChord {
+                code: Delete,
+                mods: shift,
             }],
             search_normal_open_status: vec![KeyChord {
                 code: Char('s'),

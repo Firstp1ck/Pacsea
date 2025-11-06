@@ -86,6 +86,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     app.layout_right_pct = prefs.layout_right_pct;
     app.keymap = prefs.keymap;
     app.sort_mode = prefs.sort_mode;
+    app.package_marker = prefs.package_marker;
     // Apply initial visibility for middle row panes from settings
     app.show_recent_pane = prefs.show_recent_pane;
     app.show_install_pane = prefs.show_install_pane;

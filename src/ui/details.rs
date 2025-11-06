@@ -24,8 +24,8 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     const MIN_PACKAGE_INFO_H: u16 = 3; // 1 visible line + 2 borders
 
     // Reserve footer height: baseline lines + optional Normal Mode line
-    // Baseline: GLOBALS, SEARCH, INSTALL, RECENT (4). In installed-only mode, split to 5 lines: GLOBALS, SEARCH, DOWNGRADE, REMOVE, RECENT.
-    let baseline_lines: u16 = if app.installed_only_mode { 5 } else { 4 };
+    // Baseline: always 2 lines visible by default: GLOBALS + currently focused pane
+    let baseline_lines: u16 = 2;
 
     // Compute adaptive extra rows for Search Normal Mode footer based on available width
     let km = &app.keymap;
@@ -57,9 +57,14 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             .first()
             .map(|c| c.label())
             .unwrap_or_else(|| "d".to_string());
+        let clear_label = km
+            .search_normal_clear
+            .first()
+            .map(|c| c.label())
+            .unwrap_or_else(|| "Shift+Del".to_string());
 
         let line1 = format!(
-            "Normal Mode (Focused Search Window):  [{toggle_label}] toggle, [{insert_label}] insert, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text"
+            "Normal Mode (Focused Search Window):  [{toggle_label}/{insert_label}] Insert Mode, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text, [{clear_label}] Clear input"
         );
         // Menus and Import/Export on an additional line when present
         let mut line2 = String::new();
@@ -124,7 +129,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     } else {
         0
     };
-    let required_keybinds_h = base_help_h.saturating_add(nm_rows);
+    let required_keybinds_h = base_help_h.saturating_add(nm_rows).saturating_add(2);
 
     // Keybinds vanish first: only show if there's enough space for Package Info + Keybinds
     // Package Info needs at least MIN_PACKAGE_INFO_H, so keybinds only show if:
@@ -430,6 +435,13 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
+            if let Some(k) = km.search_normal_toggle.first() {
+                g_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" Insert Mode"),
+                    sep.clone(),
+                ]);
+            }
             // (Pane focus left/right intentionally omitted from footer)
 
             // SEARCH
@@ -462,7 +474,18 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             if let Some(k) = km.search_add.first() {
                 s_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Add to install"),
+                    Span::raw(if app.installed_only_mode {
+                        " Add to Remove"
+                    } else {
+                        " Add to install"
+                    }),
+                    sep.clone(),
+                ]);
+            }
+            if app.installed_only_mode {
+                s_spans.extend([
+                    Span::styled("[Ctrl+Space]", key_style),
+                    Span::raw(" Add to Downgrade"),
                     sep.clone(),
                 ]);
             }
@@ -470,14 +493,6 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 s_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
                     Span::raw(" Install"),
-                    sep.clone(),
-                ]);
-            }
-            // Normal Mode toggle (always visible in footer)
-            if let Some(k) = km.search_normal_toggle.first() {
-                s_spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Normal Mode"),
                     sep.clone(),
                 ]);
             }
@@ -689,15 +704,27 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             // (Pane next and focus right intentionally omitted from footer)
 
             // Optional Normal Mode line when Search is focused and active
-            let mut lines: Vec<Line> = vec![Line::from(g_spans), Line::from(s_spans)];
-            if let Some(i_line) = right_lines_install {
+            let mut lines: Vec<Line> = vec![Line::from(g_spans)];
+            if matches!(app.focus, Focus::Search) {
+                lines.push(Line::from(s_spans));
+            }
+            if matches!(app.focus, Focus::Install)
+                && let Some(i_line) = right_lines_install
+            {
                 lines.push(i_line);
             }
-            if let Some((d_line, rm_line)) = right_lines_split {
-                lines.push(d_line);
-                lines.push(rm_line);
+            if matches!(app.focus, Focus::Install)
+                && let Some((d_line, rm_line)) = right_lines_split
+            {
+                match app.right_pane_focus {
+                    RightPaneFocus::Downgrade => lines.push(d_line),
+                    RightPaneFocus::Remove => lines.push(rm_line),
+                    _ => {}
+                }
             }
-            lines.push(Line::from(r_spans));
+            if matches!(app.focus, Focus::Recent) {
+                lines.push(Line::from(r_spans));
+            }
             if matches!(app.focus, Focus::Search) && app.search_normal_mode {
                 // Use configured labels
                 let label = |v: &Vec<KeyChord>, def: &str| {
@@ -710,6 +737,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 let left_label = label(&km.search_normal_select_left, "h");
                 let right_label = label(&km.search_normal_select_right, "l");
                 let delete_label = label(&km.search_normal_delete, "d");
+                let clear_label = label(&km.search_normal_clear, "Shift+Del");
 
                 let n_spans: Vec<Span> = vec![
                     Span::styled(
@@ -717,10 +745,8 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                     ),
                     Span::raw("  "),
-                    Span::styled(format!("[{toggle_label}]"), key_style),
-                    Span::raw(" toggle, "),
-                    Span::styled(format!("[{insert_label}]"), key_style),
-                    Span::raw(" insert, "),
+                    Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
+                    Span::raw(" Insert Mode, "),
                     Span::styled("[j / k]", key_style),
                     Span::raw(" move, "),
                     Span::styled("[Ctrl+d / Ctrl+u]", key_style),
@@ -728,7 +754,9 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Span::styled(format!("[{left_label} / {right_label}]"), key_style),
                     Span::raw(" Select text, "),
                     Span::styled(format!("[{delete_label}]"), key_style),
-                    Span::raw(" Delete text"),
+                    Span::raw(" Delete text, "),
+                    Span::styled(format!("[{clear_label}]"), key_style),
+                    Span::raw(" Clear input"),
                     // Close first line (base Normal Mode help)
                 ];
                 lines.push(Line::from(n_spans));
@@ -736,32 +764,25 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 // Second line: menus and import/export (if any)
                 let mut n2_spans: Vec<Span> = Vec::new();
 
-                // Menus: show configured Normal-mode menu toggles
+                // Menus: explicit entries in Normal Mode
                 if !km.config_menu_toggle.is_empty()
                     || !km.options_menu_toggle.is_empty()
                     || !km.panels_menu_toggle.is_empty()
                 {
-                    n2_spans.push(Span::raw("  •  Open Menus: "));
-                    let mut any = false;
                     if let Some(k) = km.config_menu_toggle.first() {
+                        n2_spans.push(Span::raw("  •  "));
                         n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                        n2_spans.push(Span::raw(" Config"));
-                        any = true;
+                        n2_spans.push(Span::raw(" Open Config/List"));
                     }
                     if let Some(k) = km.options_menu_toggle.first() {
-                        if any {
-                            n2_spans.push(Span::raw(", "));
-                        }
+                        n2_spans.push(Span::raw("  •  "));
                         n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                        n2_spans.push(Span::raw(" Options"));
-                        any = true;
+                        n2_spans.push(Span::raw(" Open Options"));
                     }
                     if let Some(k) = km.panels_menu_toggle.first() {
-                        if any {
-                            n2_spans.push(Span::raw(", "));
-                        }
+                        n2_spans.push(Span::raw("  •  "));
                         n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                        n2_spans.push(Span::raw(" Panels"));
+                        n2_spans.push(Span::raw(" Open Panels"));
                     }
                 }
 
@@ -788,15 +809,11 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     lines.push(Line::from(n2_spans));
                 }
             }
+
             // Bottom-align the content within the reserved footer area
-            // Reserve exactly the number of wrapped rows needed
-            let content_lines: u16 = if matches!(app.focus, Focus::Search) && app.search_normal_mode
-            {
-                baseline_lines.saturating_add(nm_rows)
-            } else {
-                baseline_lines
-            };
-            let content_y = y_top + h.saturating_sub(content_lines);
+            // Use full footer height (including buffer) for the keybind viewer
+            let content_lines: u16 = h;
+            let content_y = y_top;
             let content_rect = ratatui::prelude::Rect {
                 x,
                 y: content_y,

@@ -20,7 +20,7 @@ pub use config::{
 pub use paths::{config_dir, lists_dir, logs_dir};
 pub use settings::settings;
 pub use store::{reload_theme, theme};
-pub use types::{KeyChord, KeyMap, Settings, Theme};
+pub use types::{KeyChord, KeyMap, PackageMarker, Settings, Theme};
 
 #[cfg(test)]
 static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
