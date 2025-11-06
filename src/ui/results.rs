@@ -481,7 +481,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(th.surface2)),
         )
-        .highlight_style(Style::default().fg(th.text).bg(th.surface2))
+        .highlight_style(Style::default().bg(th.surface2))
         .highlight_symbol("> ");
 
     f.render_stateful_widget(list, area, &mut app.list_state);
