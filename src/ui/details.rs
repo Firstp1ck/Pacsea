@@ -59,7 +59,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             .unwrap_or_else(|| "d".to_string());
 
         let line1 = format!(
-            "Normal Mode (Focused Search Window):  [{toggle_label}] toggle, [{insert_label}] insert, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text"
+            "Normal Mode (Focused Search Window):  [{toggle_label}/{insert_label}] Insert Mode, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text"
         );
         // Menus and Import/Export on an additional line when present
         let mut line2 = String::new();
@@ -124,7 +124,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     } else {
         0
     };
-    let required_keybinds_h = base_help_h.saturating_add(nm_rows);
+    let required_keybinds_h = base_help_h.saturating_add(nm_rows).saturating_add(2);
 
     // Keybinds vanish first: only show if there's enough space for Package Info + Keybinds
     // Package Info needs at least MIN_PACKAGE_INFO_H, so keybinds only show if:
@@ -430,6 +430,13 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     sep.clone(),
                 ]);
             }
+            if let Some(k) = km.search_normal_toggle.first() {
+                g_spans.extend([
+                    Span::styled(format!("[{}]", k.label()), key_style),
+                    Span::raw(" Insert Mode"),
+                    sep.clone(),
+                ]);
+            }
             // (Pane focus left/right intentionally omitted from footer)
 
             // SEARCH
@@ -462,7 +469,18 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             if let Some(k) = km.search_add.first() {
                 s_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Add to install"),
+                    Span::raw(if app.installed_only_mode {
+                        " Add to Remove"
+                    } else {
+                        " Add to install"
+                    }),
+                    sep.clone(),
+                ]);
+            }
+            if app.installed_only_mode {
+                s_spans.extend([
+                    Span::styled("[Ctrl+Space]", key_style),
+                    Span::raw(" Add to Downgrade"),
                     sep.clone(),
                 ]);
             }
@@ -470,14 +488,6 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 s_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
                     Span::raw(" Install"),
-                    sep.clone(),
-                ]);
-            }
-            // Normal Mode toggle (always visible in footer)
-            if let Some(k) = km.search_normal_toggle.first() {
-                s_spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Normal Mode"),
                     sep.clone(),
                 ]);
             }
@@ -549,16 +559,11 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
 
             let (right_lines_install, right_lines_split) = if app.installed_only_mode {
-                let mut d_spans = build_right_spans(
+                let d_spans = build_right_spans(
                     "DOWNGRADE:",
                     downgrade_label_color,
                     "Confirm package Downgrade",
                 );
-                d_spans.extend([
-                    Span::styled("[Ctrl+Space]", key_style),
-                    Span::raw(" Add to Downgrade"),
-                    sep.clone(),
-                ]);
                 let r_spans =
                     build_right_spans("REMOVE:   ", remove_label_color, "Confirm package Removal");
                 (None, Some((Line::from(d_spans), Line::from(r_spans))))
@@ -723,7 +728,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     ),
                     Span::raw("  "),
                     Span::styled(format!("[{toggle_label}]"), key_style),
-                    Span::raw(" toggle, "),
+                    Span::raw(" Insert Mode, "),
                     Span::styled(format!("[{insert_label}]"), key_style),
                     Span::raw(" insert, "),
                     Span::styled("[j / k]", key_style),
@@ -741,32 +746,25 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 // Second line: menus and import/export (if any)
                 let mut n2_spans: Vec<Span> = Vec::new();
 
-                // Menus: show configured Normal-mode menu toggles
+                // Menus: explicit entries in Normal Mode
                 if !km.config_menu_toggle.is_empty()
                     || !km.options_menu_toggle.is_empty()
                     || !km.panels_menu_toggle.is_empty()
                 {
-                    n2_spans.push(Span::raw("  •  Open Menus: "));
-                    let mut any = false;
                     if let Some(k) = km.config_menu_toggle.first() {
+                        n2_spans.push(Span::raw("  •  "));
                         n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                        n2_spans.push(Span::raw(" Config"));
-                        any = true;
+                        n2_spans.push(Span::raw(" Open Config/List"));
                     }
                     if let Some(k) = km.options_menu_toggle.first() {
-                        if any {
-                            n2_spans.push(Span::raw(", "));
-                        }
+                        n2_spans.push(Span::raw("  •  "));
                         n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                        n2_spans.push(Span::raw(" Options"));
-                        any = true;
+                        n2_spans.push(Span::raw(" Open Options"));
                     }
                     if let Some(k) = km.panels_menu_toggle.first() {
-                        if any {
-                            n2_spans.push(Span::raw(", "));
-                        }
+                        n2_spans.push(Span::raw("  •  "));
                         n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                        n2_spans.push(Span::raw(" Panels"));
+                        n2_spans.push(Span::raw(" Open Panels"));
                     }
                 }
 
@@ -793,15 +791,11 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     lines.push(Line::from(n2_spans));
                 }
             }
+
             // Bottom-align the content within the reserved footer area
-            // Reserve exactly the number of wrapped rows needed
-            let content_lines: u16 = if matches!(app.focus, Focus::Search) && app.search_normal_mode
-            {
-                baseline_lines.saturating_add(nm_rows)
-            } else {
-                baseline_lines
-            };
-            let content_y = y_top + h.saturating_sub(content_lines);
+            // Use full footer height (including buffer) for the keybind viewer
+            let content_lines: u16 = h;
+            let content_y = y_top;
             let content_rect = ratatui::prelude::Rect {
                 x,
                 y: content_y,
