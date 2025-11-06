@@ -42,9 +42,12 @@ Notes:
 - Defaults are chosen to mirror built-in patterns used by the scan pipeline.
 */
 
+#[cfg(not(target_os = "windows"))]
 use std::fs;
+#[cfg(not(target_os = "windows"))]
 use std::path::PathBuf;
 
+#[cfg(not(target_os = "windows"))]
 /// Grouped suspicious pattern sets (ERE fragments joined by `|`).
 #[derive(Clone, Debug)]
 pub struct PatternSets {
@@ -58,6 +61,7 @@ pub struct PatternSets {
     pub low: String,
 }
 
+#[cfg(not(target_os = "windows"))]
 impl Default for PatternSets {
     fn default() -> Self {
         // Defaults intentionally mirror the scanner's built-in bash ERE sets.
@@ -79,6 +83,7 @@ impl Default for PatternSets {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Section {
     Critical,
@@ -87,6 +92,7 @@ enum Section {
     Low,
 }
 
+#[cfg(not(target_os = "windows"))]
 /// Attempt to load pattern sets from $XDG_CONFIG_HOME/pacsea/pattern.conf
 /// (falling back to $HOME/.config/pacsea/pattern.conf). Returns defaults
 /// when missing or on parse errors.
@@ -106,11 +112,13 @@ pub fn load() -> PatternSets {
     out
 }
 
+#[cfg(not(target_os = "windows"))]
 /// Return the canonical pattern.conf path under Pacsea's config dir.
 fn config_path() -> PathBuf {
     crate::theme::config_dir().join("pattern.conf")
 }
 
+#[cfg(not(target_os = "windows"))]
 /// Parse pattern.conf content; section lines are joined with `|`.
 /// Comments: lines starting with '#', '//' or ';'. Empty lines ignored.
 /// Any section missing or empty falls back to the current defaults provided.
@@ -186,7 +194,7 @@ fn parse(content: &str, defaults: &PatternSets) -> PatternSets {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     use super::*;
 

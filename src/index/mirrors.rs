@@ -1,5 +1,3 @@
-#![cfg(windows)]
-
 use serde_json::Value;
 use std::fs;
 use std::io::Write;
@@ -36,6 +34,7 @@ fn curl_json(url: &str) -> Result<Value> {
 }
 
 /// Invoke `curl -sSLf` and return plain text.
+#[allow(dead_code)]
 fn curl_text(url: &str) -> Result<String> {
     let out = std::process::Command::new("curl")
         .args(["-sSLf", url])
@@ -255,6 +254,7 @@ pub async fn refresh_windows_mirrors_and_index(
 /// - https://geo.mirror.pkgbuild.com/multilib/os/x86_64/multilib.db
 ///
 /// This function writes the raw file (likely zstd-compressed tar) without parsing.
+#[allow(dead_code)]
 pub async fn download_sync_db(repo_dir: &Path, repo: &str, arch: &str) -> Result<PathBuf> {
     let base = "https://geo.mirror.pkgbuild.com";
     let url = format!("{base}/{repo}/os/{arch}/{repo}.db");

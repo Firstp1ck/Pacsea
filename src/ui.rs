@@ -52,32 +52,32 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     f.render_widget(bg, area);
 
     let total_h = area.height;
-    
+
     // Minimum heights required (including borders: 2 lines for top/bottom borders)
     const MIN_RESULTS_H: u16 = 3; // 1 visible line + 2 borders
     const MIN_MIDDLE_H: u16 = 3; // 1 visible line + 2 borders
     const MIN_PACKAGE_INFO_H: u16 = 3; // 1 visible line + 2 borders
-    
+
     // Maximum heights (including borders)
     const MAX_RESULTS_H: u16 = 17; // Maximum height for Results pane
-    const MAX_MIDDLE_H: u16 = 5;   // Maximum height for Middle (three-pane) section
-    
+    const MAX_MIDDLE_H: u16 = 5; // Maximum height for Middle (three-pane) section
+
     // Allocate space in priority order:
     // 1. Keybinds vanish first (handled by details.rs)
     // 2. Results and Middle shrink proportionally together (they can grow when space is available)
     // 3. Package Info pane gets remaining space, vanishes if not enough
-    
+
     // Allocate space to Results and Middle first (they can grow beyond minimum)
     // Reserve some space for Package Info if there's enough
     let min_top_middle_total = MIN_RESULTS_H + MIN_MIDDLE_H;
     let space_after_min = total_h.saturating_sub(min_top_middle_total);
-    
+
     // If there's space beyond minimums, allocate it to Results and Middle
     // Package Info only gets space if there's enough left after Results and Middle grow
     let (top_h, search_h, bottom_h) = if space_after_min >= MIN_PACKAGE_INFO_H {
         // Enough space for all three: Results and Middle get most of the space (75%), Package Info gets remainder (25%)
         let top_middle_share = (total_h * 3) / 4; // 75% for Results + Middle
-        
+
         // First, ensure Middle gets its maximum (5 lines) if possible
         // Need at least MAX_MIDDLE_H + MIN_RESULTS_H = 5 + 3 = 8 lines to give Middle its max
         let search_h_initial = if top_middle_share >= MAX_MIDDLE_H + MIN_RESULTS_H {
@@ -88,15 +88,15 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         } else {
             MIN_MIDDLE_H
         };
-        
+
         // Results gets the remaining space within top_middle_share, up to its maximum
         let remaining_for_results = top_middle_share.saturating_sub(search_h_initial);
-        let top_h = remaining_for_results.max(MIN_RESULTS_H).min(MAX_RESULTS_H);
-        
+        let top_h = remaining_for_results.clamp(MIN_RESULTS_H, MAX_RESULTS_H);
+
         // If Results didn't use all its allocated space, give the extra back to Middle (up to its max)
         let unused_results_space = remaining_for_results.saturating_sub(top_h);
         let search_h = (search_h_initial + unused_results_space).min(MAX_MIDDLE_H);
-        
+
         // Package Info gets what's left, but at least minimum if possible
         let remaining_for_package = total_h.saturating_sub(top_h).saturating_sub(search_h);
         if remaining_for_package >= MIN_PACKAGE_INFO_H {
@@ -113,7 +113,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
                 MIN_MIDDLE_H
             };
             let remaining_for_results = remaining.saturating_sub(search_h_final);
-            let top_h_final = remaining_for_results.max(MIN_RESULTS_H).min(MAX_RESULTS_H);
+            let top_h_final = remaining_for_results.clamp(MIN_RESULTS_H, MAX_RESULTS_H);
             (top_h_final, search_h_final, 0)
         }
     } else {
@@ -127,12 +127,16 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             MIN_MIDDLE_H
         };
         let remaining_for_results = total_h.saturating_sub(search_h);
-        let mut top_h = remaining_for_results.max(MIN_RESULTS_H).min(MAX_RESULTS_H);
-        
+        let mut top_h = remaining_for_results.clamp(MIN_RESULTS_H, MAX_RESULTS_H);
+
         // If enforcing minimums exceeded space, adjust
         if top_h + search_h > total_h {
-            top_h = total_h.saturating_sub(MIN_MIDDLE_H).max(MIN_RESULTS_H).min(MAX_RESULTS_H);
-            let search_h_adjusted = total_h.saturating_sub(top_h).max(MIN_MIDDLE_H).min(MAX_MIDDLE_H);
+            top_h = total_h
+                .saturating_sub(MIN_MIDDLE_H)
+                .clamp(MIN_RESULTS_H, MAX_RESULTS_H);
+            let search_h_adjusted = total_h
+                .saturating_sub(top_h)
+                .clamp(MIN_MIDDLE_H, MAX_MIDDLE_H);
             (top_h, search_h_adjusted, 0)
         } else {
             (top_h, search_h, 0)
@@ -152,7 +156,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     middle::render_middle(f, app, chunks[1]);
     details::render_details(f, app, chunks[2]);
     modals::render_modals(f, app, area);
-    
+
     // Render dropdowns last to ensure they appear on top layer
     results::render_dropdowns(f, app, chunks[0]);
 

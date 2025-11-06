@@ -585,7 +585,9 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             "Recent Searches -> recent_searches.json",
         ];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
-        let w = widest.saturating_add(2).min(results_area.width.saturating_sub(2));
+        let w = widest
+            .saturating_add(2)
+            .min(results_area.width.saturating_sub(2));
         // Place menu below the Config/Lists button aligned to its right edge
         let rect_w = w.saturating_add(2);
         let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
@@ -661,7 +663,9 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         };
         let opts = [label_recent, label_install, label_keybinds];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
-        let w = widest.saturating_add(2).min(results_area.width.saturating_sub(2));
+        let w = widest
+            .saturating_add(2)
+            .min(results_area.width.saturating_sub(2));
         // Place menu below the Panels button aligned to its right edge
         let rect_w = w.saturating_add(2);
         let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
@@ -726,7 +730,9 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         };
         let opts = [label_toggle, "Update System", "News", "TUI Optional Dep's"];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
-        let w = widest.saturating_add(2).min(results_area.width.saturating_sub(2));
+        let w = widest
+            .saturating_add(2)
+            .min(results_area.width.saturating_sub(2));
         // Place menu below the Options button aligned to its right edge
         let rect_w = w.saturating_add(2);
         let max_x = results_area.x + results_area.width.saturating_sub(rect_w);

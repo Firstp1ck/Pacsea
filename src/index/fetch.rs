@@ -93,12 +93,13 @@ pub async fn fetch_official_pkg_names()
 }
 
 #[cfg(windows)]
+#[allow(dead_code)]
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
     Err("official package index fetch is not implemented on Windows yet".into())
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]

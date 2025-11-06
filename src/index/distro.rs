@@ -44,6 +44,7 @@ pub fn is_cachyos_repo(repo: &str) -> bool {
     r.starts_with("cachyos")
 }
 
+#[cfg(not(target_os = "windows"))]
 /// What: Known EndeavourOS repo names usable with pacman -Sl
 ///
 /// Output: Static slice of repo names
@@ -53,6 +54,7 @@ pub fn eos_repo_names() -> &'static [&'static str] {
     &["eos", "endeavouros"]
 }
 
+#[cfg(not(target_os = "windows"))]
 /// What: Known CachyOS repo names usable with pacman -Sl
 ///
 /// Output: Static slice of repo names

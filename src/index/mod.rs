@@ -77,8 +77,6 @@ pub use enrich::*;
 
 pub use explicit::*;
 
-pub use fetch::*;
-
 pub use installed::*;
 
 pub use persist::*;

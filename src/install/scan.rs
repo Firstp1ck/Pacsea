@@ -868,13 +868,13 @@ mod tests {
     }
 }
 
-#[cfg(target_os = "windows")]
 /// What: Windows stub for AUR package scan
 ///
 /// Input: `pkg` AUR package name
 /// Output: Opens a terminal echoing that AUR scan is not supported on Windows
 ///
 /// Details: No scanning is performed.
+#[allow(dead_code)]
 pub fn spawn_aur_scan_for(pkg: &str) {
     let msg = format!(
         "AUR scan is not supported on Windows. Intended to scan AUR package: {}",
@@ -883,10 +883,11 @@ pub fn spawn_aur_scan_for(pkg: &str) {
     super::shell::spawn_shell_commands_in_terminal(&[format!("echo {}", msg)]);
 }
 
-#[cfg(target_os = "windows")]
+#[allow(dead_code)]
 /// What: Windows stub for in-place scan
 ///
 /// Input: `path` target directory
+///
 /// Output: Opens a terminal echoing that AUR scan is unsupported on Windows
 ///
 /// Details: No scanning is performed.

@@ -50,7 +50,9 @@ mod tests {
     /// - Output: false
     #[test]
     fn is_installed_returns_false_when_uninitialized_or_missing() {
-        let _guard = crate::index::test_mutex().lock().unwrap();
+        let _guard = crate::index::test_mutex()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Ok(mut g) = super::installed_lock().write() {
             g.clear();
         }
@@ -63,7 +65,9 @@ mod tests {
     /// - Output: true for bar, false for baz
     #[test]
     fn is_installed_checks_membership_in_cached_set() {
-        let _guard = crate::index::test_mutex().lock().unwrap();
+        let _guard = crate::index::test_mutex()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Ok(mut g) = super::installed_lock().write() {
             g.clear();
             g.insert("bar".to_string());
