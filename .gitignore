@@ -37,3 +37,5 @@ AUR_BUILD/
 .cursor/
 semgrep-bin/
 */logs/*
+
+repository/
