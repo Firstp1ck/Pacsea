@@ -1,7 +1,7 @@
 #[cfg(not(target_os = "windows"))]
-use super::{idx, save_to_disk, OfficialPkg};
-#[cfg(not(target_os = "windows"))]
 use super::fetch::fetch_official_pkg_names;
+#[cfg(not(target_os = "windows"))]
+use super::{OfficialPkg, idx, save_to_disk};
 
 /// What: Spawn a background task to refresh the official index and notify on changes.
 ///

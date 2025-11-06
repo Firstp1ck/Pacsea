@@ -17,6 +17,7 @@ pub use logging::log_removed;
 mod patterns;
 pub use remove::spawn_remove_all;
 #[cfg(not(target_os = "windows"))]
+#[allow(unused_imports)]
 pub use scan::spawn_aur_scan_for;
 
 #[cfg(not(target_os = "windows"))]
