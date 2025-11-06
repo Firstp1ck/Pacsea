@@ -73,6 +73,8 @@ pub use explicit::*;
 pub use installed::*;
 #[cfg(windows)]
 pub use mirrors::*;
+#[cfg(not(windows))]
+pub use update::update_in_background;
 pub use persist::*;
 pub use query::*;
 

@@ -1,4 +1,6 @@
 use super::OfficialPkg;
+#[cfg(not(windows))]
+use super::distro::{cachyos_repo_names, eos_repo_names};
 
 /// What: Fetch a minimal list of official packages using `pacman -Sl`.
 ///
@@ -36,7 +38,7 @@ pub async fn fetch_official_pkg_names()
         .unwrap_or_default();
     // EOS/EndeavourOS: attempt both known names
     let mut eos_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in crate::index::eos_repo_names().iter() {
+    for &repo in eos_repo_names().iter() {
         let body = tokio::task::spawn_blocking(move || run_pacman(&["-Sl", repo]))
             .await
             .ok()
@@ -46,7 +48,7 @@ pub async fn fetch_official_pkg_names()
     }
     // CachyOS: attempt multiple potential repo names; missing ones yield empty output
     let mut cach_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in crate::index::cachyos_repo_names().iter() {
+    for &repo in cachyos_repo_names().iter() {
         let body = tokio::task::spawn_blocking(move || run_pacman(&["-Sl", repo]))
             .await
             .ok()
