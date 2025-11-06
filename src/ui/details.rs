@@ -24,8 +24,8 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     const MIN_PACKAGE_INFO_H: u16 = 3; // 1 visible line + 2 borders
 
     // Reserve footer height: baseline lines + optional Normal Mode line
-    // Baseline: GLOBALS, SEARCH, INSTALL, RECENT (4). In installed-only mode, split to 5 lines: GLOBALS, SEARCH, DOWNGRADE, REMOVE, RECENT.
-    let baseline_lines: u16 = if app.installed_only_mode { 5 } else { 4 };
+    // Baseline: always 2 lines visible by default: GLOBALS + currently focused pane
+    let baseline_lines: u16 = 2;
 
     // Compute adaptive extra rows for Search Normal Mode footer based on available width
     let km = &app.keymap;
@@ -57,9 +57,14 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             .first()
             .map(|c| c.label())
             .unwrap_or_else(|| "d".to_string());
+        let clear_label = km
+            .search_normal_clear
+            .first()
+            .map(|c| c.label())
+            .unwrap_or_else(|| "Shift+Del".to_string());
 
         let line1 = format!(
-            "Normal Mode (Focused Search Window):  [{toggle_label}/{insert_label}] Insert Mode, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text"
+            "Normal Mode (Focused Search Window):  [{toggle_label}/{insert_label}] Insert Mode, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text, [{clear_label}] Clear input"
         );
         // Menus and Import/Export on an additional line when present
         let mut line2 = String::new();
@@ -699,15 +704,27 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             // (Pane next and focus right intentionally omitted from footer)
 
             // Optional Normal Mode line when Search is focused and active
-            let mut lines: Vec<Line> = vec![Line::from(g_spans), Line::from(s_spans)];
-            if let Some(i_line) = right_lines_install {
+            let mut lines: Vec<Line> = vec![Line::from(g_spans)];
+            if matches!(app.focus, Focus::Search) {
+                lines.push(Line::from(s_spans));
+            }
+            if matches!(app.focus, Focus::Install)
+                && let Some(i_line) = right_lines_install
+            {
                 lines.push(i_line);
             }
-            if let Some((d_line, rm_line)) = right_lines_split {
-                lines.push(d_line);
-                lines.push(rm_line);
+            if matches!(app.focus, Focus::Install)
+                && let Some((d_line, rm_line)) = right_lines_split
+            {
+                match app.right_pane_focus {
+                    RightPaneFocus::Downgrade => lines.push(d_line),
+                    RightPaneFocus::Remove => lines.push(rm_line),
+                    _ => {}
+                }
             }
-            lines.push(Line::from(r_spans));
+            if matches!(app.focus, Focus::Recent) {
+                lines.push(Line::from(r_spans));
+            }
             if matches!(app.focus, Focus::Search) && app.search_normal_mode {
                 // Use configured labels
                 let label = |v: &Vec<KeyChord>, def: &str| {
@@ -720,6 +737,7 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                 let left_label = label(&km.search_normal_select_left, "h");
                 let right_label = label(&km.search_normal_select_right, "l");
                 let delete_label = label(&km.search_normal_delete, "d");
+                let clear_label = label(&km.search_normal_clear, "Shift+Del");
 
                 let n_spans: Vec<Span> = vec![
                     Span::styled(
@@ -727,10 +745,8 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                     ),
                     Span::raw("  "),
-                    Span::styled(format!("[{toggle_label}]"), key_style),
+                    Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
                     Span::raw(" Insert Mode, "),
-                    Span::styled(format!("[{insert_label}]"), key_style),
-                    Span::raw(" insert, "),
                     Span::styled("[j / k]", key_style),
                     Span::raw(" move, "),
                     Span::styled("[Ctrl+d / Ctrl+u]", key_style),
@@ -738,7 +754,9 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Span::styled(format!("[{left_label} / {right_label}]"), key_style),
                     Span::raw(" Select text, "),
                     Span::styled(format!("[{delete_label}]"), key_style),
-                    Span::raw(" Delete text"),
+                    Span::raw(" Delete text, "),
+                    Span::styled(format!("[{clear_label}]"), key_style),
+                    Span::raw(" Clear input"),
                     // Close first line (base Normal Mode help)
                 ];
                 lines.push(Line::from(n_spans));

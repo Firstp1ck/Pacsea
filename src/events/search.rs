@@ -275,6 +275,17 @@ pub fn handle_search_key(
                     }
                 }
             }
+            // Clear entire input (default: Shift+Del)
+            (c, m) if matches_any(&km.search_normal_clear) && (c, m) == (ke.code, ke.modifiers) => {
+                if !app.input.is_empty() {
+                    app.input.clear();
+                    app.search_caret = 0;
+                    app.search_select_anchor = None;
+                    app.last_input_change = std::time::Instant::now();
+                    app.last_saved_value = None;
+                    send_query(app, query_tx);
+                }
+            }
             (KeyCode::Char('j'), _) => move_sel_cached(app, 1, details_tx),
             (KeyCode::Char('k'), _) => move_sel_cached(app, -1, details_tx),
             (KeyCode::Char('d'), KeyModifiers::CONTROL) => move_sel_cached(app, 10, details_tx),

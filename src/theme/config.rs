@@ -338,6 +338,7 @@ keybind_search_normal_insert = i\n\
 keybind_search_normal_select_left = h\n\
 keybind_search_normal_select_right = l\n\
 keybind_search_normal_delete = d\n\
+keybind_search_normal_clear = Shift+Del\n\
 \n\
 # SEARCH — Normal Mode (Menus)\n\
 # Toggle dropdown menus while in Normal Mode\n\

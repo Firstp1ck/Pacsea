@@ -508,7 +508,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     lines.push(fmt("  Toggle normal", k));
                 }
                 if let Some(k) = km.search_normal_insert.first().copied() {
-                    lines.push(fmt("  Insert mode", k));
+                    lines.push(fmt("  Insert Mode", k));
                 }
                 if let Some(k) = km.search_normal_select_left.first().copied() {
                     lines.push(fmt("  Select left", k));

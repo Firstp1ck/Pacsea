@@ -316,6 +316,11 @@ pub fn settings() -> Settings {
                             out.keymap.search_normal_delete = vec![ch];
                         }
                     }
+                    "keybind_search_normal_clear" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.search_normal_clear = vec![ch];
+                        }
+                    }
                     "keybind_search_normal_open_status"
                     | "keybind_normal_open_status"
                     | "keybind_open_status" => {
@@ -586,6 +591,11 @@ pub fn settings() -> Settings {
                     "keybind_search_normal_delete" => {
                         if let Some(ch) = parse_key_chord(val) {
                             out.keymap.search_normal_delete = vec![ch];
+                        }
+                    }
+                    "keybind_search_normal_clear" => {
+                        if let Some(ch) = parse_key_chord(val) {
+                            out.keymap.search_normal_clear = vec![ch];
                         }
                     }
                     "keybind_search_normal_open_status"

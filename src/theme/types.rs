@@ -281,6 +281,8 @@ pub struct KeyMap {
     pub search_normal_select_right: Vec<KeyChord>,
     /// Normal mode: delete selected text (default: d)
     pub search_normal_delete: Vec<KeyChord>,
+    /// Normal mode: clear entire search input (default: Shift+Del)
+    pub search_normal_clear: Vec<KeyChord>,
     /// Normal mode: open Arch status page in browser (default: Shift+S)
     pub search_normal_open_status: Vec<KeyChord>,
     /// Normal mode: trigger Import packages dialog
@@ -435,6 +437,10 @@ impl Default for KeyMap {
             search_normal_delete: vec![KeyChord {
                 code: Char('d'),
                 mods: none,
+            }],
+            search_normal_clear: vec![KeyChord {
+                code: Delete,
+                mods: shift,
             }],
             search_normal_open_status: vec![KeyChord {
                 code: Char('s'),
