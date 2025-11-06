@@ -210,6 +210,6 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
         .args(["/C", "start", "Pacsea Install", "cmd", "/K", &cmd_str])
         .spawn();
     if !dry_run {
-        let _ = super::logging::log_installed(&[item.name.clone()]);
+        let _ = super::logging::log_installed(std::slice::from_ref(&item.name));
     }
 }

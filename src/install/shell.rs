@@ -16,6 +16,7 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     spawn_shell_commands_in_terminal_with_hold(cmds, true);
 }
 
+#[cfg(not(target_os = "windows"))]
 pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     if cmds.is_empty() {
         return;

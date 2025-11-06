@@ -39,8 +39,7 @@ static EXPLICIT_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
 mod distro;
 pub use distro::{
-    cachyos_repo_names, eos_repo_names, is_cachyos_repo, is_eos_name, is_eos_repo,
-    is_manjaro_name_or_owner, is_name_manjaro,
+    is_cachyos_repo, is_eos_name, is_eos_repo, is_manjaro_name_or_owner, is_name_manjaro,
 };
 
 /// Get a reference to the global `OfficialIndex` lock, initializing it if needed.
@@ -64,15 +63,20 @@ mod fetch;
 mod installed;
 mod persist;
 mod query;
+
+#[cfg(windows)]
+mod mirrors;
 mod update;
 
 pub use enrich::*;
 pub use explicit::*;
-pub use fetch::*;
 pub use installed::*;
+#[cfg(windows)]
+pub use mirrors::*;
 pub use persist::*;
 pub use query::*;
-pub use update::*;
+#[cfg(not(windows))]
+pub use update::update_in_background;
 
 #[cfg(test)]
 static TEST_MUTEX: OnceLock<std::sync::Mutex<()>> = OnceLock::new();

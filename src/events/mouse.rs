@@ -143,15 +143,7 @@ pub fn handle_mouse_event(
                     let idx = std::cmp::min(row, items.len().saturating_sub(1));
                     *selected = idx;
                     if let Some(it) = items.get(*selected) {
-                        let url = it.url.clone();
-                        std::thread::spawn(move || {
-                            let _ = std::process::Command::new("xdg-open")
-                                .arg(url)
-                                .stdin(std::process::Stdio::null())
-                                .stdout(std::process::Stdio::null())
-                                .stderr(std::process::Stdio::null())
-                                .spawn();
-                        });
+                        crate::util::open_url(&it.url);
                     }
                 }
             } else if let Some((x, y, w, h)) = app.news_rect
@@ -197,15 +189,7 @@ pub fn handle_mouse_event(
             && !app.details.url.is_empty()
         {
             app.mouse_disabled_in_details = false; // temporarily allow action
-            let url = app.details.url.clone();
-            std::thread::spawn(move || {
-                let _ = std::process::Command::new("xdg-open")
-                    .arg(url)
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .spawn();
-            });
+            crate::util::open_url(&app.details.url);
             return false;
         }
         // Show PKGBUILD click (legacy Ctrl+Shift) — no longer active
@@ -422,14 +406,14 @@ pub fn handle_mouse_event(
             let date_str = crate::util::today_yyyymmdd_utc();
             let mut serial: u32 = 1;
             let file_path = loop {
-                let fname = format!("install_list_{}_{}.txt", date_str, serial);
+                let fname = format!("install_list_{date_str}_{serial}.txt");
                 let path = export_dir.join(&fname);
                 if !path.exists() {
                     break path;
                 }
                 serial += 1;
                 if serial > 9999 {
-                    break export_dir.join(format!("install_list_{}_fallback.txt", date_str));
+                    break export_dir.join(format!("install_list_{date_str}_fallback.txt"));
                 }
             };
             let body = names.join("\n");
@@ -441,7 +425,7 @@ pub fn handle_mouse_event(
                     tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
                 }
                 Err(e) => {
-                    app.toast_message = Some(format!("Export failed: {}", e));
+                    app.toast_message = Some(format!("Export failed: {e}"));
                     app.toast_expires_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
                     tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
@@ -456,14 +440,7 @@ pub fn handle_mouse_event(
             && my >= y
             && my < y + h
         {
-            std::thread::spawn(move || {
-                let _ = std::process::Command::new("xdg-open")
-                    .arg("https://status.archlinux.org")
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .spawn();
-            });
+            crate::util::open_url("https://status.archlinux.org");
             return false;
         }
         // Toggle sort menu when clicking the button on the title

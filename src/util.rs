@@ -238,6 +238,57 @@ fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
+/// Open a URL in the default browser (cross-platform).
+///
+/// On Windows, uses `cmd /c start`.
+/// On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
+///
+/// This function spawns the command in a background thread and ignores errors.
+pub fn open_url(url: &str) {
+    std::thread::spawn({
+        let url = url.to_string();
+        move || {
+            #[cfg(target_os = "windows")]
+            {
+                // Use cmd /c start with empty title to open URL in default browser
+                let _ = std::process::Command::new("cmd")
+                    .args(["/c", "start", "", &url])
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .or_else(|_| {
+                        // Fallback: try PowerShell
+                        std::process::Command::new("powershell")
+                            .args(["-Command", &format!("Start-Process '{}'", url)])
+                            .stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn()
+                    });
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                // Try xdg-open first (Linux), then open (macOS)
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(&url)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .or_else(|_| {
+                        std::process::Command::new("open")
+                            .arg(&url)
+                            .stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn()
+                    });
+            }
+        }
+    });
+}
+
 /// Return today's UTC date formatted as `YYYYMMDD` using only the standard library.
 ///
 /// This uses a simple conversion from Unix epoch seconds to a UTC calendar date,

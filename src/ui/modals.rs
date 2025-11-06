@@ -1042,57 +1042,54 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
             f.render_widget(Clear, rect);
 
-            let mut lines: Vec<Line<'static>> = Vec::new();
-            lines.push(Line::from(Span::styled(
-                "Import File Format",
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-            )));
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                "The import file should contain one package name per line.",
-                Style::default().fg(th.text),
-            )));
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                "Format:",
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            )));
-            lines.push(Line::from(Span::raw("  • One package name per line")));
-            lines.push(Line::from(Span::raw("  • Blank lines are ignored")));
-            lines.push(Line::from(Span::raw("  • Lines starting with '#' are treated as comments")));
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                "Example:",
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            )));
-            lines.push(Line::from(Span::raw("  firefox")));
-            lines.push(Line::from(Span::raw("  # This is a comment")));
-            lines.push(Line::from(Span::raw("  vim")));
-            lines.push(Line::from(Span::raw("  paru")));
-            lines.push(Line::from(""));
-            lines.push(Line::from(vec![
-                Span::styled(
-                    "[Enter]",
-                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " confirm",
-                    Style::default().fg(th.overlay1),
-                ),
-                Span::raw("  •  "),
-                Span::styled(
-                    "[Esc]",
-                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " cancel",
-                    Style::default().fg(th.overlay1),
-                ),
-            ]));
+            let lines = vec![
+                Line::from(Span::styled(
+                    "Import File Format",
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "The import file should contain one package name per line.",
+                    Style::default().fg(th.text),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Format:",
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(Span::raw("  • One package name per line")),
+                Line::from(Span::raw("  • Blank lines are ignored")),
+                Line::from(Span::raw(
+                    "  • Lines starting with '#' are treated as comments",
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Example:",
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(Span::raw("  firefox")),
+                Line::from(Span::raw("  # This is a comment")),
+                Line::from(Span::raw("  vim")),
+                Line::from(Span::raw("  paru")),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled(
+                        "[Enter]",
+                        Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(" confirm", Style::default().fg(th.overlay1)),
+                    Span::raw("  •  "),
+                    Span::styled(
+                        "[Esc]",
+                        Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(" cancel", Style::default().fg(th.overlay1)),
+                ]),
+            ];
 
             let boxw = Paragraph::new(lines)
                 .style(Style::default().fg(th.text).bg(th.mantle))

@@ -1,4 +1,7 @@
-use super::{OfficialPkg, fetch_official_pkg_names, idx, save_to_disk};
+#[cfg(not(target_os = "windows"))]
+use super::fetch::fetch_official_pkg_names;
+#[cfg(not(target_os = "windows"))]
+use super::{OfficialPkg, idx, save_to_disk};
 
 /// What: Spawn a background task to refresh the official index and notify on changes.
 ///
@@ -14,6 +17,7 @@ use super::{OfficialPkg, fetch_official_pkg_names, idx, save_to_disk};
 /// Details:
 /// - Merges new names while preserving previously enriched fields (repo, arch, version, description)
 ///   for still-existing packages.
+#[cfg(not(target_os = "windows"))]
 pub async fn update_in_background(
     persist_path: std::path::PathBuf,
     net_err_tx: tokio::sync::mpsc::UnboundedSender<String>,

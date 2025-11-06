@@ -4,6 +4,7 @@ use std::process::Command;
 
 use crate::state::PackageItem;
 
+#[cfg(not(target_os = "windows"))]
 fn aur_install_body(flags: &str, n: &str) -> String {
     format!(
         "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \

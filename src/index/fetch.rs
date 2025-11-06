@@ -1,4 +1,6 @@
 use super::OfficialPkg;
+#[cfg(not(windows))]
+use super::distro::{cachyos_repo_names, eos_repo_names};
 
 /// What: Fetch a minimal list of official packages using `pacman -Sl`.
 ///
@@ -8,6 +10,7 @@ use super::OfficialPkg;
 /// Output:
 /// - `Ok(Vec<OfficialPkg>)` where `name`, `repo`, and `version` are set; `arch` and `description`
 ///   are empty for speed. The result is deduplicated by `(repo, name)`.
+#[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
     fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -35,7 +38,7 @@ pub async fn fetch_official_pkg_names()
         .unwrap_or_default();
     // EOS/EndeavourOS: attempt both known names
     let mut eos_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in crate::index::eos_repo_names().iter() {
+    for &repo in eos_repo_names().iter() {
         let body = tokio::task::spawn_blocking(move || run_pacman(&["-Sl", repo]))
             .await
             .ok()
@@ -45,7 +48,7 @@ pub async fn fetch_official_pkg_names()
     }
     // CachyOS: attempt multiple potential repo names; missing ones yield empty output
     let mut cach_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in crate::index::cachyos_repo_names().iter() {
+    for &repo in cachyos_repo_names().iter() {
         let body = tokio::task::spawn_blocking(move || run_pacman(&["-Sl", repo]))
             .await
             .ok()
@@ -91,8 +94,14 @@ pub async fn fetch_official_pkg_names()
     Ok(pkgs)
 }
 
-#[cfg(not(target_os = "windows"))]
-#[cfg(test)]
+#[cfg(windows)]
+#[allow(dead_code)]
+pub async fn fetch_official_pkg_names()
+-> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
+    Err("official package index fetch is not implemented on Windows yet".into())
+}
+
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]

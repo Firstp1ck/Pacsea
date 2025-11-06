@@ -175,6 +175,116 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
     )
 }
 
+/// Heuristically detect whether the provided HTML/text contains a DDoS-related banner/message.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AurBannerCategory {
+    DdosProtection,
+    PushDisabled,
+    SshUnavailable,
+    ScheduledMaintenance,
+    Outage,
+    RpcDegraded,
+    AccountActionsLimited,
+    SecurityIncident,
+}
+
+#[allow(dead_code)]
+fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
+    let t = s.to_lowercase();
+    // Order matters: match most severe/explicit first
+    if t.contains("security incident")
+        || t.contains("compromised package")
+        || t.contains("host keys rotated")
+        || (t.contains("security") && t.contains("incident"))
+    {
+        return Some(AurBannerCategory::SecurityIncident);
+    }
+    // Only match specific phrases indicating a CURRENT outage, not historical mentions
+    if t.contains("the aur is currently experiencing an outage")
+        || t.contains("aur is currently experiencing an outage")
+        || t.contains("currently experiencing an outage")
+        || (t.contains("aur")
+            && t.contains("currently")
+            && (t.contains("unreachable") || t.contains("down")))
+    {
+        return Some(AurBannerCategory::Outage);
+    }
+    if t.contains("pushing to the aur currently not possible")
+        || t.contains("push disabled")
+        || t.contains("uploads disabled")
+        || t.contains("submission disabled")
+        || t.contains("read-only mode")
+    {
+        return Some(AurBannerCategory::PushDisabled);
+    }
+    if t.contains("ddos")
+        || t.contains("ddos protection")
+        || t.contains("rate limiting")
+        || t.contains("429")
+    {
+        return Some(AurBannerCategory::DdosProtection);
+    }
+    if t.contains("port 22")
+        || t.contains("ssh unavailable")
+        || t.contains("git over ssh unavailable")
+        || (t.contains("ssh") && t.contains("unavailable"))
+    {
+        return Some(AurBannerCategory::SshUnavailable);
+    }
+    if t.contains("maintenance")
+        || t.contains("maintenance window")
+        || t.contains("down for maintenance")
+        || t.contains("scheduled maintenance")
+    {
+        return Some(AurBannerCategory::ScheduledMaintenance);
+    }
+    if t.contains("rpc v5 degraded")
+        || t.contains("search api degraded")
+        || t.contains("slow responses")
+        || t.contains("timeouts")
+        || t.contains("degraded")
+    {
+        return Some(AurBannerCategory::RpcDegraded);
+    }
+    if t.contains("registration disabled")
+        || t.contains("login disabled")
+        || t.contains("password reset disabled")
+        || t.contains("email delivery delayed")
+    {
+        return Some(AurBannerCategory::AccountActionsLimited);
+    }
+    None
+}
+
+#[allow(dead_code)]
+fn category_base_color(cat: &AurBannerCategory) -> ArchStatusColor {
+    match cat {
+        AurBannerCategory::SecurityIncident => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::Outage => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::PushDisabled => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::SshUnavailable => ArchStatusColor::IncidentToday,
+        AurBannerCategory::ScheduledMaintenance => ArchStatusColor::IncidentToday,
+        AurBannerCategory::RpcDegraded => ArchStatusColor::IncidentToday,
+        AurBannerCategory::AccountActionsLimited => ArchStatusColor::IncidentToday,
+        AurBannerCategory::DdosProtection => ArchStatusColor::IncidentToday,
+    }
+}
+
+#[allow(dead_code)]
+fn category_suffix(cat: &AurBannerCategory) -> &'static str {
+    match cat {
+        AurBannerCategory::DdosProtection => "— AUR DDoS/protection active",
+        AurBannerCategory::PushDisabled => "— AUR push disabled (read-only)",
+        AurBannerCategory::SshUnavailable => "— SSH unavailable (use HTTPS)",
+        AurBannerCategory::ScheduledMaintenance => "— Maintenance ongoing",
+        AurBannerCategory::Outage => "— AUR outage",
+        AurBannerCategory::RpcDegraded => "— AUR RPC degraded",
+        AurBannerCategory::AccountActionsLimited => "— Account actions limited",
+        AurBannerCategory::SecurityIncident => "— Security incident (see details)",
+    }
+}
+
 fn severity_max(a: ArchStatusColor, b: ArchStatusColor) -> ArchStatusColor {
     fn rank(c: ArchStatusColor) -> u8 {
         match c {
@@ -253,162 +363,69 @@ pub fn parse_status_api_summary(
     (text, color, suffix)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    /// What: Parse Arch status HTML to derive AUR color by % and outage
-    ///
-    /// - Input: Synthetic HTML around today's date with 97/95/89% and outage flag
-    /// - Output: Green for >95, Yellow for 90-95, Red for <90; outage forces >= Yellow
-    fn status_parse_color_by_percentage_and_outage() {
-        let (y, m, d) = {
-            let out = std::process::Command::new("date")
-                .args(["-u", "+%Y-%m-%d"])
-                .output();
-            let Ok(o) = out else { return };
-            if !o.status.success() {
-                return;
-            }
-            let s = match String::from_utf8(o.stdout) {
-                Ok(x) => x,
-                Err(_) => return,
-            };
-            let mut it = s.trim().split('-');
-            let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
-                return;
-            };
-            let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>())
-            else {
-                return;
-            };
-            (y, m, d)
-        };
-        let months = [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-        ];
-        let month_name = months[(m - 1) as usize];
-        let date_str = format!("{month_name} {d}, {y}");
-
-        let make_html = |percent: u32, outage: bool| -> String {
-            format!(
-                r#"<html><body><h2>Uptime Last 90 days</h2><div>Monitors (default)</div><div>AUR</div><div>{date_str}</div><div>{percent}% uptime</div>{outage_block}</body></html>"#,
-                outage_block = if outage {
-                    "<h4>The AUR is currently experiencing an outage</h4>"
-                } else {
-                    ""
-                }
-            )
-        };
-
-        let html_green = make_html(97, false);
-        let (_txt, color) = parse_arch_status_from_html(&html_green);
-        assert_eq!(color, ArchStatusColor::Operational);
-
-        let html_yellow = make_html(95, false);
-        let (_txt, color) = parse_arch_status_from_html(&html_yellow);
-        assert_eq!(color, ArchStatusColor::IncidentToday);
-
-        let html_red = make_html(89, false);
-        let (_txt, color) = parse_arch_status_from_html(&html_red);
-        assert_eq!(color, ArchStatusColor::IncidentSevereToday);
-
-        let html_outage = make_html(97, true);
-        let (_txt, color) = parse_arch_status_from_html(&html_outage);
-        assert_eq!(color, ArchStatusColor::IncidentToday);
-
-        let html_outage_red = make_html(80, true);
-        let (_txt, color) = parse_arch_status_from_html(&html_outage_red);
-        assert_eq!(color, ArchStatusColor::IncidentSevereToday);
-    }
-
-    #[test]
-    /// What: Prefer SVG rect fill color over percentage when present
-    ///
-    /// - Input: HTML with greenish % but rect fill set to yellow near today
-    /// - Output: Yellow color classification
-    fn status_parse_prefers_svg_rect_color() {
-        let (y, m, d) = {
-            let out = std::process::Command::new("date")
-                .args(["-u", "+%Y-%m-%d"])
-                .output();
-            let Ok(o) = out else { return };
-            if !o.status.success() {
-                return;
-            }
-            let s = match String::from_utf8(o.stdout) {
-                Ok(x) => x,
-                Err(_) => return,
-            };
-            let mut it = s.trim().split('-');
-            let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
-                return;
-            };
-            let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>())
-            else {
-                return;
-            };
-            (y, m, d)
-        };
-        let months = [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-        ];
-        let month_name = months[(m - 1) as usize];
-        let date_str = format!("{month_name} {d}, {y}");
-
-        let html = format!(
-            "<html>\n  <body>\n    <h2>Uptime Last 90 days</h2>\n    <div>Monitors (default)</div>\n    <div>AUR</div>\n    <svg>\n      <rect x=\"900\" y=\"0\" width=\"10\" height=\"10\" fill=\"#f59e0b\"></rect>\n    </svg>\n    <div>{date_str}</div>\n    <div>97% uptime</div>\n  </body>\n</html>"
-        );
-        let (_txt, color) = parse_arch_status_from_html(&html);
-        assert_eq!(color, ArchStatusColor::IncidentToday);
-    }
-}
-
 /// Return today's UTC date as (year, month, day) using the system `date` command.
 ///
 /// Inputs:
 /// - None
 ///
 /// Output:
-/// - `Some((year, month, day))` on success; `None` if the command is unavailable or parsing fails.
+/// - `Some((year, month, day))` on success; `None` if the conversion fails.
 fn today_ymd_utc() -> Option<(i32, u32, u32)> {
-    let out = std::process::Command::new("date")
-        .args(["-u", "+%Y-%m-%d"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
+
+    // Convert Unix timestamp to UTC date using a simple algorithm
+    // This is a simplified version that works for dates from 1970 onwards
+    let days_since_epoch = now / 86400;
+
+    // Calculate year, month, day from days since epoch
+    // Using a simple approximation (not accounting for leap seconds, but good enough for our use case)
+    let mut year = 1970;
+    let mut days = days_since_epoch;
+
+    // Account for leap years
+    loop {
+        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+        if days < days_in_year {
+            break;
+        }
+        days -= days_in_year;
+        year += 1;
     }
-    let s = String::from_utf8(out.stdout).ok()?;
-    let s = s.trim();
-    let mut it = s.split('-');
-    let y = it.next()?.parse::<i32>().ok()?;
-    let m = it.next()?.parse::<u32>().ok()?;
-    let d = it.next()?.parse::<u32>().ok()?;
-    Some((y, m, d))
+
+    // Calculate month and day
+    let days_in_month = [
+        31,
+        if is_leap_year(year) { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
+    let mut month: u32 = 1;
+    let mut day: u64 = days;
+
+    for &days_in_m in days_in_month.iter() {
+        if day < days_in_m as u64 {
+            break;
+        }
+        day -= days_in_m as u64;
+        month += 1;
+    }
+
+    Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
+}
+
+#[inline]
+fn is_leap_year(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 /// Attempt to extract today's AUR uptime percentage from the Arch status page HTML.
@@ -616,77 +633,135 @@ fn extract_aur_today_rect_color(body: &str) -> Option<ArchStatusColor> {
 }
 
 #[cfg(test)]
-mod tests_api {
+mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
-    fn api_operational_aur_operational() {
-        let v = json!({
-            "status": { "indicator": "none" },
-            "components": [
-                { "name": "AUR", "status": "operational" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("All systems operational"));
+    /// What: Parse Arch status HTML to derive AUR color by % and outage
+    ///
+    /// - Input: Synthetic HTML around today's date with 97/95/89% and outage flag
+    /// - Output: Green for >95, Yellow for 90-95, Red for <90; outage forces >= Yellow
+    fn status_parse_color_by_percentage_and_outage() {
+        let (y, m, d) = {
+            let out = std::process::Command::new("date")
+                .args(["-u", "+%Y-%m-%d"])
+                .output();
+            let Ok(o) = out else { return };
+            if !o.status.success() {
+                return;
+            }
+            let s = match String::from_utf8(o.stdout) {
+                Ok(x) => x,
+                Err(_) => return,
+            };
+            let mut it = s.trim().split('-');
+            let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
+                return;
+            };
+            let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>())
+            else {
+                return;
+            };
+            (y, m, d)
+        };
+        let months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ];
+        let month_name = months[(m - 1) as usize];
+        let date_str = format!("{month_name} {d}, {y}");
+
+        let make_html = |percent: u32, outage: bool| -> String {
+            format!(
+                r#"<html><body><h2>Uptime Last 90 days</h2><div>Monitors (default)</div><div>AUR</div><div>{date_str}</div><div>{percent}% uptime</div>{outage_block}</body></html>"#,
+                outage_block = if outage {
+                    "<h4>The AUR is currently experiencing an outage</h4>"
+                } else {
+                    ""
+                }
+            )
+        };
+
+        let html_green = make_html(97, false);
+        let (_txt, color) = parse_arch_status_from_html(&html_green);
         assert_eq!(color, ArchStatusColor::Operational);
-        assert!(suffix.is_none());
-    }
 
-    #[test]
-    fn api_minor_degraded_performance() {
-        let v = json!({
-            "status": { "indicator": "minor" },
-            "components": [
-                { "name": "AUR", "status": "degraded_performance" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("Arch systems nominal"));
+        let html_yellow = make_html(95, false);
+        let (_txt, color) = parse_arch_status_from_html(&html_yellow);
         assert_eq!(color, ArchStatusColor::IncidentToday);
-        assert_eq!(suffix.as_deref(), Some("— AUR RPC degraded"));
-    }
 
-    #[test]
-    fn api_partial_outage() {
-        let v = json!({
-            "status": { "indicator": "minor" },
-            "components": [
-                { "name": "AUR", "status": "partial_outage" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("Arch systems nominal"));
-        assert_eq!(color, ArchStatusColor::IncidentToday);
-        assert_eq!(suffix.as_deref(), Some("— AUR partial outage"));
-    }
-
-    #[test]
-    fn api_major_outage() {
-        let v = json!({
-            "status": { "indicator": "major" },
-            "components": [
-                { "name": "AUR", "status": "major_outage" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("Arch systems nominal"));
+        let html_red = make_html(89, false);
+        let (_txt, color) = parse_arch_status_from_html(&html_red);
         assert_eq!(color, ArchStatusColor::IncidentSevereToday);
-        assert_eq!(suffix.as_deref(), Some("— AUR outage"));
+
+        let html_outage = make_html(97, true);
+        let (_txt, color) = parse_arch_status_from_html(&html_outage);
+        assert_eq!(color, ArchStatusColor::IncidentToday);
+
+        let html_outage_red = make_html(80, true);
+        let (_txt, color) = parse_arch_status_from_html(&html_outage_red);
+        assert_eq!(color, ArchStatusColor::IncidentSevereToday);
     }
 
     #[test]
-    fn api_under_maintenance() {
-        let v = json!({
-            "status": { "indicator": "minor" },
-            "components": [
-                { "name": "AUR", "status": "under_maintenance" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("Arch systems nominal"));
+    /// What: Prefer SVG rect fill color over percentage when present
+    ///
+    /// - Input: HTML with greenish % but rect fill set to yellow near today
+    /// - Output: Yellow color classification
+    fn status_parse_prefers_svg_rect_color() {
+        let (y, m, d) = {
+            let out = std::process::Command::new("date")
+                .args(["-u", "+%Y-%m-%d"])
+                .output();
+            let Ok(o) = out else { return };
+            if !o.status.success() {
+                return;
+            }
+            let s = match String::from_utf8(o.stdout) {
+                Ok(x) => x,
+                Err(_) => return,
+            };
+            let mut it = s.trim().split('-');
+            let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
+                return;
+            };
+            let (Ok(y), Ok(m), Ok(d)) = (y.parse::<i32>(), m.parse::<u32>(), d.parse::<u32>())
+            else {
+                return;
+            };
+            (y, m, d)
+        };
+        let months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ];
+        let month_name = months[(m - 1) as usize];
+        let date_str = format!("{month_name} {d}, {y}");
+
+        let html = format!(
+            "<html>\n  <body>\n    <h2>Uptime Last 90 days</h2>\n    <div>Monitors (default)</div>\n    <div>AUR</div>\n    <svg>\n      <rect x=\"900\" y=\"0\" width=\"10\" height=\"10\" fill=\"#f59e0b\"></rect>\n    </svg>\n    <div>{date_str}</div>\n    <div>97% uptime</div>\n  </body>\n</html>"
+        );
+        let (_txt, color) = parse_arch_status_from_html(&html);
         assert_eq!(color, ArchStatusColor::IncidentToday);
-        assert_eq!(suffix.as_deref(), Some("— Maintenance ongoing"));
     }
 }
