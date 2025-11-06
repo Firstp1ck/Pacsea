@@ -98,7 +98,6 @@ pub async fn fetch_official_pkg_names()
     Err("official package index fetch is not implemented on Windows yet".into())
 }
 
-#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 mod tests {
     #[tokio::test]

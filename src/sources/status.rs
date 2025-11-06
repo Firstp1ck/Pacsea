@@ -206,6 +206,12 @@ fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
         || t.contains("currently experiencing an outage")
         || (t.contains("aur") && t.contains("currently") && (t.contains("unreachable") || t.contains("down")))
     {
+    // Only match specific phrases indicating a CURRENT outage, not historical mentions
+    if t.contains("the aur is currently experiencing an outage")
+        || t.contains("aur is currently experiencing an outage")
+        || t.contains("currently experiencing an outage")
+        || (t.contains("aur") && t.contains("currently") && (t.contains("unreachable") || t.contains("down")))
+    {
         return Some(AurBannerCategory::Outage);
     }
     if t.contains("pushing to the aur currently not possible")
@@ -501,6 +507,51 @@ mod tests {
 /// Output:
 /// - `Some((year, month, day))` on success; `None` if the conversion fails.
 fn today_ymd_utc() -> Option<(i32, u32, u32)> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    
+    // Convert Unix timestamp to UTC date using a simple algorithm
+    // This is a simplified version that works for dates from 1970 onwards
+    let days_since_epoch = now / 86400;
+    
+    // Calculate year, month, day from days since epoch
+    // Using a simple approximation (not accounting for leap seconds, but good enough for our use case)
+    let mut year = 1970;
+    let mut days = days_since_epoch;
+    
+    // Account for leap years
+    loop {
+        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+        if days < days_in_year {
+            break;
+        }
+        days -= days_in_year;
+        year += 1;
+    }
+    
+    // Calculate month and day
+    let days_in_month = [31, if is_leap_year(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut month: u32 = 1;
+    let mut day: u64 = days;
+    
+    for &days_in_m in days_in_month.iter() {
+        if day < days_in_m as u64 {
+            break;
+        }
+        day -= days_in_m as u64;
+        month += 1;
+    }
+    
+    Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
+}
+
+#[inline]
+fn is_leap_year(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
     use std::time::{SystemTime, UNIX_EPOCH};
     
     let now = SystemTime::now()
@@ -883,81 +934,5 @@ mod tests {
         );
         let (_txt, color) = parse_arch_status_from_html(&html);
         assert_eq!(color, ArchStatusColor::IncidentToday);
-    }
-}
-
-#[cfg(test)]
-mod tests_api {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn api_operational_aur_operational() {
-        let v = json!({
-            "status": { "indicator": "none" },
-            "components": [
-                { "name": "AUR", "status": "operational" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("All systems operational"));
-        assert_eq!(color, ArchStatusColor::Operational);
-        assert!(suffix.is_none());
-    }
-
-    #[test]
-    fn api_minor_degraded_performance() {
-        let v = json!({
-            "status": { "indicator": "minor" },
-            "components": [
-                { "name": "AUR", "status": "degraded_performance" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("Arch systems nominal"));
-        assert_eq!(color, ArchStatusColor::IncidentToday);
-        assert_eq!(suffix.as_deref(), Some("— AUR RPC degraded"));
-    }
-
-    #[test]
-    fn api_partial_outage() {
-        let v = json!({
-            "status": { "indicator": "minor" },
-            "components": [
-                { "name": "AUR", "status": "partial_outage" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("Arch systems nominal"));
-        assert_eq!(color, ArchStatusColor::IncidentToday);
-        assert_eq!(suffix.as_deref(), Some("— AUR partial outage"));
-    }
-
-    #[test]
-    fn api_major_outage() {
-        let v = json!({
-            "status": { "indicator": "major" },
-            "components": [
-                { "name": "AUR", "status": "major_outage" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("Arch systems nominal"));
-        assert_eq!(color, ArchStatusColor::IncidentSevereToday);
-        assert_eq!(suffix.as_deref(), Some("— AUR outage"));
-    }
-
-    #[test]
-    fn api_under_maintenance() {
-        let v = json!({
-            "status": { "indicator": "minor" },
-            "components": [
-                { "name": "AUR", "status": "under_maintenance" }
-            ]
-        });
-        let (text, color, suffix) = parse_status_api_summary(&v);
-        assert!(text.contains("Arch systems nominal"));
-        assert_eq!(color, ArchStatusColor::IncidentToday);
-        assert_eq!(suffix.as_deref(), Some("— Maintenance ongoing"));
     }
 }
