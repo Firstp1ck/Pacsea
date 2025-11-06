@@ -2,28 +2,13 @@
 
 use crate::state::types::{NewsItem, OptionalDepRow, PackageItem};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightAction {
     Install,
     Remove,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum PreflightTab {
-    Summary,
-    Deps,
-    Files,
-    Services,
-    Sandbox,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum PreflightAction {
-    Install,
-    Remove,
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightTab {
     Summary,
     Deps,
@@ -39,9 +24,14 @@ pub enum Modal {
     /// Informational alert with a non-interactive message.
     Alert { message: String },
     /// Confirmation dialog for installing the given items.
+    #[allow(dead_code)]
     ConfirmInstall { items: Vec<PackageItem> },
     /// Preflight summary before executing any action.
-    Preflight { items: Vec<PackageItem>, action: PreflightAction, tab: PreflightTab },
+    Preflight {
+        items: Vec<PackageItem>,
+        action: PreflightAction,
+        tab: PreflightTab,
+    },
     /// Preflight execution screen with log and sticky sidebar.
     PreflightExec {
         items: Vec<PackageItem>,
@@ -63,6 +53,7 @@ pub enum Modal {
     /// Help overlay with keybindings. Non-interactive; dismissed with Esc/Enter.
     Help,
     /// Confirmation dialog for removing the given items.
+    #[allow(dead_code)]
     ConfirmRemove { items: Vec<PackageItem> },
     /// System update dialog with multi-select options and optional country.
     SystemUpdate {

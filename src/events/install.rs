@@ -586,10 +586,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Enter opens ConfirmInstall modal when Install list not empty and not installed-only
+    /// What: Enter opens Preflight modal when Install list not empty and not installed-only
     ///
     /// - Input: One install item; press Enter
-    /// - Output: Modal::ConfirmInstall with 1 item
+    /// - Output: Modal::Preflight with 1 item, Install action, Summary tab
     fn install_enter_opens_confirm_install() {
         let mut app = new_app();
         app.install_list = vec![PackageItem {
@@ -610,8 +610,16 @@ mod tests {
             &atx,
         );
         match app.modal {
-            crate::state::Modal::ConfirmInstall { ref items } => assert_eq!(items.len(), 1),
-            _ => panic!("ConfirmInstall not opened"),
+            crate::state::Modal::Preflight {
+                ref items,
+                action,
+                tab,
+            } => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(action, crate::state::PreflightAction::Install);
+                assert_eq!(tab, crate::state::PreflightTab::Summary);
+            }
+            _ => panic!("Preflight modal not opened"),
         }
     }
 
