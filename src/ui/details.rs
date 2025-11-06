@@ -549,11 +549,16 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
 
             let (right_lines_install, right_lines_split) = if app.installed_only_mode {
-                let d_spans = build_right_spans(
+                let mut d_spans = build_right_spans(
                     "DOWNGRADE:",
                     downgrade_label_color,
                     "Confirm package Downgrade",
                 );
+                d_spans.extend([
+                    Span::styled("[Ctrl+Space]", key_style),
+                    Span::raw(" Add to Downgrade"),
+                    sep.clone(),
+                ]);
                 let r_spans =
                     build_right_spans("REMOVE:   ", remove_label_color, "Confirm package Removal");
                 (None, Some((Line::from(d_spans), Line::from(r_spans))))

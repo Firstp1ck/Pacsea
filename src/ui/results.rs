@@ -26,6 +26,7 @@ use crate::theme::theme;
 /// - Renders dropdown overlays for Sort/Options/Config/Panels when open, and records rects.
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
+    let prefs = crate::theme::settings();
 
     // Detect availability of optional repos from all_results (unfiltered) to keep chips visible
     let (has_eos, has_cachyos, has_manjaro) = {
@@ -154,7 +155,79 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Style::default().fg(th.green).add_modifier(Modifier::BOLD),
                 ));
             }
-            ListItem::new(Line::from(segs))
+            {
+                // Apply visual marker when this result is already queued in Install/Remove/Downgrade
+                let in_install = app
+                    .install_list
+                    .iter()
+                    .any(|it| it.name.eq_ignore_ascii_case(&p.name));
+                let in_remove = app
+                    .remove_list
+                    .iter()
+                    .any(|it| it.name.eq_ignore_ascii_case(&p.name));
+                let in_downgrade = app
+                    .downgrade_list
+                    .iter()
+                    .any(|it| it.name.eq_ignore_ascii_case(&p.name));
+
+                if in_install || in_remove || in_downgrade {
+                    let (label, color) = if in_remove {
+                        ("[-]", th.red)
+                    } else if in_downgrade {
+                        ("[↓]", th.yellow)
+                    } else {
+                        ("[+]", th.green)
+                    };
+                    match prefs.package_marker {
+                        crate::theme::PackageMarker::FullLine => {
+                            let mut item = ListItem::new(Line::from(segs));
+                            // Use a slightly darker green background for full-line install markers
+                            let bgc = if in_install {
+                                if let ratatui::style::Color::Rgb(r, g, b) = color {
+                                    ratatui::style::Color::Rgb(
+                                        ((r as u16 * 85) / 100) as u8,
+                                        ((g as u16 * 85) / 100) as u8,
+                                        ((b as u16 * 85) / 100) as u8,
+                                    )
+                                } else {
+                                    color
+                                }
+                            } else {
+                                color
+                            };
+                            item = item.style(Style::default().fg(th.crust).bg(bgc));
+                            item
+                        }
+                        crate::theme::PackageMarker::Front => {
+                            let mut new_segs: Vec<Span> = Vec::new();
+                            new_segs.push(Span::styled(
+                                label.to_string(),
+                                Style::default()
+                                    .fg(th.crust)
+                                    .bg(color)
+                                    .add_modifier(Modifier::BOLD),
+                            ));
+                            new_segs.push(Span::raw(" "));
+                            new_segs.extend(segs);
+                            ListItem::new(Line::from(new_segs))
+                        }
+                        crate::theme::PackageMarker::End => {
+                            let mut new_segs = segs;
+                            new_segs.push(Span::raw(" "));
+                            new_segs.push(Span::styled(
+                                label.to_string(),
+                                Style::default()
+                                    .fg(th.crust)
+                                    .bg(color)
+                                    .add_modifier(Modifier::BOLD),
+                            ));
+                            ListItem::new(Line::from(new_segs))
+                        }
+                    }
+                } else {
+                    ListItem::new(Line::from(segs))
+                }
+            }
         })
         .collect();
 
@@ -408,7 +481,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(th.surface2)),
         )
-        .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+        .highlight_style(Style::default().fg(th.text).bg(th.surface2))
         .highlight_symbol("> ");
 
     f.render_stateful_widget(list, area, &mut app.list_state);

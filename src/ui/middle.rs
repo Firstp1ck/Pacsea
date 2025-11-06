@@ -239,7 +239,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                     .bg(th.base),
             )
             .block(rec_block)
-            .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+            .highlight_style(Style::default().fg(th.text).bg(th.surface2))
             .highlight_symbol("▶ ");
         f.render_stateful_widget(rec_list, middle[0], &mut app.history_state);
         // Record inner Recent rect for mouse hit-testing (inside borders)
@@ -340,7 +340,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                         .bg(th.base),
                 )
                 .block(downgrade_block)
-                .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+                .highlight_style(Style::default().fg(th.text).bg(th.surface2))
                 .highlight_symbol("▶ ");
             f.render_stateful_widget(downgrade_list, right_split[0], &mut app.downgrade_state);
             // Record inner Downgrade rect
@@ -424,7 +424,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                         .bg(th.base),
                 )
                 .block(remove_block)
-                .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+                .highlight_style(Style::default().fg(th.text).bg(th.surface2))
                 .highlight_symbol("▶ ");
             f.render_stateful_widget(remove_list, right_split[1], &mut app.remove_state);
 
@@ -510,7 +510,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                         .bg(th.base),
                 )
                 .block(install_block)
-                .highlight_style(Style::default().fg(th.crust).bg(th.lavender))
+                .highlight_style(Style::default().fg(th.text).bg(th.surface2))
                 .highlight_symbol("▶ ");
             f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
             app.install_rect = Some((

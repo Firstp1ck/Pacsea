@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use super::parsing::{parse_key_chord, strip_inline_comment};
 use super::paths::{resolve_keybinds_config_path, resolve_settings_config_path};
 // Repo-local config is disabled; always use HOME/XDG.
-use super::types::Settings;
+use super::types::{PackageMarker, Settings};
 
 /// What: Load user settings and keybinds from config files under HOME/XDG.
 ///
@@ -132,6 +132,17 @@ pub fn settings() -> Settings {
                 }
                 "preferred_terminal" | "terminal_preferred" | "terminal" => {
                     out.preferred_terminal = val.to_string();
+                }
+                "package_marker" => {
+                    let lv = val.to_ascii_lowercase();
+                    out.package_marker = match lv.as_str() {
+                        "full" | "full_line" | "line" | "color_line" | "color" => {
+                            PackageMarker::FullLine
+                        }
+                        "end" | "suffix" => PackageMarker::End,
+                        "front" | "start" | "prefix" | "" => PackageMarker::Front,
+                        _ => PackageMarker::Front,
+                    };
                 }
                 // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
                 _ => {}

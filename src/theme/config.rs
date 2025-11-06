@@ -288,7 +288,15 @@ virustotal_api_key = \n\
 \n\
 # Terminal\n\
 # Preferred terminal emulator binary (optional): e.g., alacritty, kitty, gnome-terminal\n\
-preferred_terminal = \n";
+preferred_terminal = \n\
+\n\
+# Package selection marker\n\
+# Visual marker for packages added to Install/Remove/Downgrade lists.\n\
+# Allowed values: full_line | front | end\n\
+# - full_line: color the entire line\n\
+# - front: add marker at the front of the line (default)\n\
+# - end: add marker at the end of the line\n\
+package_marker = front\n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub(crate) const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\
@@ -1216,7 +1224,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         }
     }
     // Desired keys and their values from prefs
-    let pairs: [(&str, String); 15] = [
+    let pairs: [(&str, String); 16] = [
         ("layout_left_pct", prefs.layout_left_pct.to_string()),
         ("layout_center_pct", prefs.layout_center_pct.to_string()),
         ("layout_right_pct", prefs.layout_right_pct.to_string()),
@@ -1264,6 +1272,15 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         ("news_read_symbol", prefs.news_read_symbol.clone()),
         ("news_unread_symbol", prefs.news_unread_symbol.clone()),
         ("preferred_terminal", prefs.preferred_terminal.clone()),
+        (
+            "package_marker",
+            match prefs.package_marker {
+                crate::theme::types::PackageMarker::FullLine => "full_line",
+                crate::theme::types::PackageMarker::Front => "front",
+                crate::theme::types::PackageMarker::End => "end",
+            }
+            .to_string(),
+        ),
     ];
     let mut appended_any = false;
     // Ensure scan toggles exist; default to true when missing

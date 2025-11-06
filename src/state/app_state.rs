@@ -265,6 +265,8 @@ pub struct AppState {
     pub installed_only_mode: bool,
     /// Which right subpane is focused when installed-only mode splits the pane.
     pub right_pane_focus: RightPaneFocus,
+    /// Visual marker style for packages added to lists (user preference cached at startup).
+    pub package_marker: crate::theme::PackageMarker,
 
     // Results filters UI
     /// Whether to include AUR packages in the Results view.
@@ -445,6 +447,7 @@ impl Default for AppState {
 
             installed_only_mode: false,
             right_pane_focus: RightPaneFocus::Install,
+            package_marker: crate::theme::PackageMarker::Front,
 
             // Filters default to showing everything
             results_filter_show_aur: true,
