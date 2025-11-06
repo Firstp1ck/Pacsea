@@ -777,7 +777,6 @@ fi)"#.to_string());
 }
 
 #[cfg(not(target_os = "windows"))]
-#[allow(dead_code)]
 pub fn spawn_aur_scan_in_dir(path: &str) {
     let cmds = build_scan_cmds_in_dir(path);
     super::shell::spawn_shell_commands_in_terminal_with_hold(&cmds, false);
@@ -868,33 +867,32 @@ mod tests {
     }
 }
 
-/// What: Windows stub for AUR package scan
-///
-/// Input: `pkg` AUR package name
-/// Output: Opens a terminal echoing that AUR scan is not supported on Windows
-///
-/// Details: No scanning is performed.
-#[allow(dead_code)]
-pub fn spawn_aur_scan_for(pkg: &str) {
-    let msg = format!(
-        "AUR scan is not supported on Windows. Intended to scan AUR package: {}",
-        pkg
-    );
-    super::shell::spawn_shell_commands_in_terminal(&[format!("echo {}", msg)]);
-}
+// / What: Windows stub for AUR package scan
+// /
+// / Input: `pkg` AUR package name
+// / Output: Opens a terminal echoing that AUR scan is not supported on Windows
+// /
+// / Details: No scanning is performed.
 
-#[allow(dead_code)]
-/// What: Windows stub for in-place scan
-///
-/// Input: `path` target directory
-///
-/// Output: Opens a terminal echoing that AUR scan is unsupported on Windows
-///
-/// Details: No scanning is performed.
-pub fn spawn_aur_scan_in_dir(path: &str) {
-    let msg = format!(
-        "AUR scan is not supported on Windows. Intended to scan directory: {}",
-        path
-    );
-    super::shell::spawn_shell_commands_in_terminal(&[format!("echo {}", msg)]);
-}
+// pub fn spawn_aur_scan_for(pkg: &str) {
+//     let msg = format!(
+//         "AUR scan is not supported on Windows. Intended to scan AUR package: {}",
+//         pkg
+//     );
+//     super::shell::spawn_shell_commands_in_terminal(&[format!("echo {}", msg)]);
+// }
+
+// / What: Windows stub for in-place scan
+// /
+// / Input: `path` target directory
+// /
+// / Output: Opens a terminal echoing that AUR scan is unsupported on Windows
+// /
+// / Details: No scanning is performed.
+// pub fn spawn_aur_scan_in_dir(path: &str) {
+//     let msg = format!(
+//         "AUR scan is not supported on Windows. Intended to scan directory: {}",
+//         path
+//     );
+//     super::shell::spawn_shell_commands_in_terminal(&[format!("echo {}", msg)]);
+// }
