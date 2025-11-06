@@ -175,6 +175,112 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
     )
 }
 
+/// Heuristically detect whether the provided HTML/text contains a DDoS-related banner/message.
+//
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AurBannerCategory {
+    DdosProtection,
+    PushDisabled,
+    SshUnavailable,
+    ScheduledMaintenance,
+    Outage,
+    RpcDegraded,
+    AccountActionsLimited,
+    SecurityIncident,
+}
+
+fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
+    let t = s.to_lowercase();
+    // Order matters: match most severe/explicit first
+    if t.contains("security incident")
+        || t.contains("compromised package")
+        || t.contains("host keys rotated")
+        || (t.contains("security") && t.contains("incident"))
+    {
+        return Some(AurBannerCategory::SecurityIncident);
+    }
+    // Only match specific phrases indicating a CURRENT outage, not historical mentions
+    if t.contains("the aur is currently experiencing an outage")
+        || t.contains("aur is currently experiencing an outage")
+        || t.contains("currently experiencing an outage")
+        || (t.contains("aur") && t.contains("currently") && (t.contains("unreachable") || t.contains("down")))
+    {
+        return Some(AurBannerCategory::Outage);
+    }
+    if t.contains("pushing to the aur currently not possible")
+        || t.contains("push disabled")
+        || t.contains("uploads disabled")
+        || t.contains("submission disabled")
+        || t.contains("read-only mode")
+    {
+        return Some(AurBannerCategory::PushDisabled);
+    }
+    if t.contains("ddos")
+        || t.contains("ddos protection")
+        || t.contains("rate limiting")
+        || t.contains("429")
+    {
+        return Some(AurBannerCategory::DdosProtection);
+    }
+    if t.contains("port 22")
+        || t.contains("ssh unavailable")
+        || t.contains("git over ssh unavailable")
+        || (t.contains("ssh") && t.contains("unavailable"))
+    {
+        return Some(AurBannerCategory::SshUnavailable);
+    }
+    if t.contains("maintenance")
+        || t.contains("maintenance window")
+        || t.contains("down for maintenance")
+        || t.contains("scheduled maintenance")
+    {
+        return Some(AurBannerCategory::ScheduledMaintenance);
+    }
+    if t.contains("rpc v5 degraded")
+        || t.contains("search api degraded")
+        || t.contains("slow responses")
+        || t.contains("timeouts")
+        || t.contains("degraded")
+    {
+        return Some(AurBannerCategory::RpcDegraded);
+    }
+    if t.contains("registration disabled")
+        || t.contains("login disabled")
+        || t.contains("password reset disabled")
+        || t.contains("email delivery delayed")
+    {
+        return Some(AurBannerCategory::AccountActionsLimited);
+    }
+    None
+}
+
+fn category_base_color(cat: &AurBannerCategory) -> ArchStatusColor {
+    match cat {
+        AurBannerCategory::SecurityIncident => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::Outage => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::PushDisabled => ArchStatusColor::IncidentSevereToday,
+        AurBannerCategory::SshUnavailable => ArchStatusColor::IncidentToday,
+        AurBannerCategory::ScheduledMaintenance => ArchStatusColor::IncidentToday,
+        AurBannerCategory::RpcDegraded => ArchStatusColor::IncidentToday,
+        AurBannerCategory::AccountActionsLimited => ArchStatusColor::IncidentToday,
+        AurBannerCategory::DdosProtection => ArchStatusColor::IncidentToday,
+    }
+}
+
+fn category_suffix(cat: &AurBannerCategory) -> &'static str {
+    match cat {
+        AurBannerCategory::DdosProtection => "— AUR DDoS/protection active",
+        AurBannerCategory::PushDisabled => "— AUR push disabled (read-only)",
+        AurBannerCategory::SshUnavailable => "— SSH unavailable (use HTTPS)",
+        AurBannerCategory::ScheduledMaintenance => "— Maintenance ongoing",
+        AurBannerCategory::Outage => "— AUR outage",
+        AurBannerCategory::RpcDegraded => "— AUR RPC degraded",
+        AurBannerCategory::AccountActionsLimited => "— Account actions limited",
+        AurBannerCategory::SecurityIncident => "— Security incident (see details)",
+    }
+}
+
 fn severity_max(a: ArchStatusColor, b: ArchStatusColor) -> ArchStatusColor {
     fn rank(c: ArchStatusColor) -> u8 {
         match c {
@@ -393,22 +499,53 @@ mod tests {
 /// - None
 ///
 /// Output:
-/// - `Some((year, month, day))` on success; `None` if the command is unavailable or parsing fails.
+/// - `Some((year, month, day))` on success; `None` if the conversion fails.
 fn today_ymd_utc() -> Option<(i32, u32, u32)> {
-    let out = std::process::Command::new("date")
-        .args(["-u", "+%Y-%m-%d"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    
+    // Convert Unix timestamp to UTC date using a simple algorithm
+    // This is a simplified version that works for dates from 1970 onwards
+    let days_since_epoch = now / 86400;
+    
+    // Calculate year, month, day from days since epoch
+    // Using a simple approximation (not accounting for leap seconds, but good enough for our use case)
+    let mut year = 1970;
+    let mut days = days_since_epoch;
+    
+    // Account for leap years
+    loop {
+        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+        if days < days_in_year {
+            break;
+        }
+        days -= days_in_year;
+        year += 1;
     }
-    let s = String::from_utf8(out.stdout).ok()?;
-    let s = s.trim();
-    let mut it = s.split('-');
-    let y = it.next()?.parse::<i32>().ok()?;
-    let m = it.next()?.parse::<u32>().ok()?;
-    let d = it.next()?.parse::<u32>().ok()?;
-    Some((y, m, d))
+    
+    // Calculate month and day
+    let days_in_month = [31, if is_leap_year(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut month: u32 = 1;
+    let mut day: u64 = days;
+    
+    for &days_in_m in days_in_month.iter() {
+        if day < days_in_m as u64 {
+            break;
+        }
+        day -= days_in_m as u64;
+        month += 1;
+    }
+    
+    Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
+}
+
+#[inline]
+fn is_leap_year(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 /// Attempt to extract today's AUR uptime percentage from the Arch status page HTML.

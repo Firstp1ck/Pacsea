@@ -1,0 +1,2 @@
+# Generated from Arch mirror status (Windows)
+# Only HTTPS and active mirrors are listed.

@@ -143,15 +143,7 @@ pub fn handle_mouse_event(
                     let idx = std::cmp::min(row, items.len().saturating_sub(1));
                     *selected = idx;
                     if let Some(it) = items.get(*selected) {
-                        let url = it.url.clone();
-                        std::thread::spawn(move || {
-                            let _ = std::process::Command::new("xdg-open")
-                                .arg(url)
-                                .stdin(std::process::Stdio::null())
-                                .stdout(std::process::Stdio::null())
-                                .stderr(std::process::Stdio::null())
-                                .spawn();
-                        });
+                        crate::util::open_url(&it.url);
                     }
                 }
             } else if let Some((x, y, w, h)) = app.news_rect
@@ -197,15 +189,7 @@ pub fn handle_mouse_event(
             && !app.details.url.is_empty()
         {
             app.mouse_disabled_in_details = false; // temporarily allow action
-            let url = app.details.url.clone();
-            std::thread::spawn(move || {
-                let _ = std::process::Command::new("xdg-open")
-                    .arg(url)
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .spawn();
-            });
+            crate::util::open_url(&app.details.url);
             return false;
         }
         // Show PKGBUILD click (legacy Ctrl+Shift) — no longer active
@@ -456,14 +440,7 @@ pub fn handle_mouse_event(
             && my >= y
             && my < y + h
         {
-            std::thread::spawn(move || {
-                let _ = std::process::Command::new("xdg-open")
-                    .arg("https://status.archlinux.org")
-                    .stdin(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .spawn();
-            });
+            crate::util::open_url("https://status.archlinux.org");
             return false;
         }
         // Toggle sort menu when clicking the button on the title

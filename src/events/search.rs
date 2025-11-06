@@ -156,14 +156,7 @@ pub fn handle_search_key(
                 if matches_any(&km.search_normal_open_status)
                     && (c, m) == (ke.code, ke.modifiers) =>
             {
-                std::thread::spawn(move || {
-                    let _ = std::process::Command::new("xdg-open")
-                        .arg("https://status.archlinux.org")
-                        .stdin(std::process::Stdio::null())
-                        .stdout(std::process::Stdio::null())
-                        .stderr(std::process::Stdio::null())
-                        .spawn();
-                });
+                crate::util::open_url("https://status.archlinux.org");
             }
             // Normal mode: Import (Shift+I)
             (c, m)
