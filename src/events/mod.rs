@@ -64,29 +64,69 @@ pub fn handle_event(
                     KeyCode::Esc | KeyCode::Enter => app.modal = crate::state::Modal::None,
                     KeyCode::Left => {
                         *tab = match tab {
-                            crate::state::PreflightTab::Summary => crate::state::PreflightTab::Services,
+                            crate::state::PreflightTab::Summary => {
+                                crate::state::PreflightTab::Services
+                            }
                             crate::state::PreflightTab::Deps => crate::state::PreflightTab::Summary,
                             crate::state::PreflightTab::Files => crate::state::PreflightTab::Deps,
-                            crate::state::PreflightTab::Services => crate::state::PreflightTab::Files,
-                            crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Services,
+                            crate::state::PreflightTab::Services => {
+                                crate::state::PreflightTab::Files
+                            }
+                            crate::state::PreflightTab::Sandbox => {
+                                crate::state::PreflightTab::Services
+                            }
                         };
                     }
                     KeyCode::Right => {
                         *tab = match tab {
                             crate::state::PreflightTab::Summary => crate::state::PreflightTab::Deps,
                             crate::state::PreflightTab::Deps => crate::state::PreflightTab::Files,
-                            crate::state::PreflightTab::Files => crate::state::PreflightTab::Services,
-                            crate::state::PreflightTab::Services => crate::state::PreflightTab::Sandbox,
-                            crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Summary,
+                            crate::state::PreflightTab::Files => {
+                                crate::state::PreflightTab::Services
+                            }
+                            crate::state::PreflightTab::Services => {
+                                crate::state::PreflightTab::Sandbox
+                            }
+                            crate::state::PreflightTab::Sandbox => {
+                                crate::state::PreflightTab::Summary
+                            }
                         };
                     }
-                    KeyCode::Char('s') => {
-                        *tab = crate::state::PreflightTab::Sandbox;
+                    KeyCode::Char('s') | KeyCode::Char('S') => {
+                        // Build AUR package name list to scan
+                        let mut names: Vec<String> = Vec::new();
+                        for it in items.iter() {
+                            if matches!(it.source, crate::state::Source::Aur) {
+                                names.push(it.name.clone());
+                            }
+                        }
+                        if names.is_empty() {
+                            app.modal = crate::state::Modal::Alert {
+                                message: "No AUR packages selected to scan.\nAdd AUR packages to scan, then press 's'.".into(),
+                            };
+                        } else {
+                            app.pending_install_names = Some(names);
+                            // Open Scan Configuration modal initialized from settings.conf
+                            let prefs = crate::theme::settings();
+                            app.modal = crate::state::Modal::ScanConfig {
+                                do_clamav: prefs.scan_do_clamav,
+                                do_trivy: prefs.scan_do_trivy,
+                                do_semgrep: prefs.scan_do_semgrep,
+                                do_shellcheck: prefs.scan_do_shellcheck,
+                                do_virustotal: prefs.scan_do_virustotal,
+                                do_custom: prefs.scan_do_custom,
+                                do_sleuth: prefs.scan_do_sleuth,
+                                cursor: 0,
+                            };
+                        }
                     }
                     KeyCode::Char('d') => {
                         // toggle dry-run globally pre-apply
                         app.dry_run = !app.dry_run;
-                        app.toast_message = Some(format!("Dry-run: {}", if app.dry_run { "ON" } else { "OFF" }));
+                        app.toast_message = Some(format!(
+                            "Dry-run: {}",
+                            if app.dry_run { "ON" } else { "OFF" }
+                        ));
                     }
                     KeyCode::Char('p') => {
                         // Transition to execution screen with initial empty log
@@ -111,7 +151,13 @@ pub fn handle_event(
                 }
                 return false;
             }
-            crate::state::Modal::PreflightExec { verbose, log_lines: _, abortable, items, .. } => {
+            crate::state::Modal::PreflightExec {
+                verbose,
+                log_lines: _,
+                abortable,
+                items,
+                ..
+            } => {
                 match ke.code {
                     KeyCode::Esc | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
                     KeyCode::Enter => {
@@ -128,7 +174,8 @@ pub fn handle_event(
                     }
                     KeyCode::Char('l') => {
                         *verbose = !*verbose;
-                        app.toast_message = Some(format!("Verbose: {}", if *verbose { "ON" } else { "OFF" }));
+                        app.toast_message =
+                            Some(format!("Verbose: {}", if *verbose { "ON" } else { "OFF" }));
                     }
                     KeyCode::Char('x') => {
                         if *abortable {
@@ -139,9 +186,18 @@ pub fn handle_event(
                 }
                 return false;
             }
-            crate::state::Modal::PostSummary { success: _, changed_files: _, pacnew_count: _, pacsave_count: _, services_pending, snapshot_label: _ } => {
+            crate::state::Modal::PostSummary {
+                success: _,
+                changed_files: _,
+                pacnew_count: _,
+                pacsave_count: _,
+                services_pending,
+                snapshot_label: _,
+            } => {
                 match ke.code {
-                    KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
+                    KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+                        app.modal = crate::state::Modal::None
+                    }
                     KeyCode::Char('r') => {
                         app.toast_message = Some("Rollback (placeholder)".to_string());
                     }

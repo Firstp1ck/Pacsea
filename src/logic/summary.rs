@@ -53,13 +53,19 @@ fn count_pac_conflicts_in_etc() -> (usize, usize) {
                 let p = entry.path();
                 if p.is_dir() {
                     // Limit to reasonable depth to avoid cycles (symlinks ignored)
-                    if let Some(stripped) = p.strip_prefix("/etc").ok() {
-                        if stripped.components().count() > 12 { continue; }
+                    if p.strip_prefix("/etc")
+                        .is_ok_and(|stripped| stripped.components().count() > 12)
+                    {
+                        continue;
                     }
                     walk(&p, pacnew, pacsave);
                 } else if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
-                    if name.ends_with(".pacnew") { *pacnew += 1; }
-                    if name.ends_with(".pacsave") { *pacsave += 1; }
+                    if name.ends_with(".pacnew") {
+                        *pacnew += 1;
+                    }
+                    if name.ends_with(".pacsave") {
+                        *pacsave += 1;
+                    }
                 }
             }
         }
@@ -86,5 +92,3 @@ pub fn compute_post_summary(items: &[PackageItem]) -> PostSummaryData {
         snapshot_label: None,
     }
 }
-
-

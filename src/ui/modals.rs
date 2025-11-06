@@ -7,7 +7,6 @@ use ratatui::{
 };
 
 use crate::state::AppState;
-use tracing;
 use crate::theme::{KeyChord, theme};
 
 /// What: Render modal overlays (Alert, ConfirmInstall, ConfirmRemove, SystemUpdate, Help, News).
@@ -182,7 +181,12 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             let h = area.height.saturating_sub(8).min(22);
             let x = area.x + (area.width.saturating_sub(w)) / 2;
             let y = area.y + (area.height.saturating_sub(h)) / 2;
-            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
             f.render_widget(Clear, rect);
 
             let title = match action {
@@ -196,23 +200,32 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             let tab_labels = ["Summary", "Deps", "Files", "Services", "Sandbox"];
             let mut header = String::new();
             for (i, lbl) in tab_labels.iter().enumerate() {
-                let is = match (i, tab) {
-                    (0, crate::state::PreflightTab::Summary) => true,
-                    (1, crate::state::PreflightTab::Deps) => true,
-                    (2, crate::state::PreflightTab::Files) => true,
-                    (3, crate::state::PreflightTab::Services) => true,
-                    (4, crate::state::PreflightTab::Sandbox) => true,
-                    _ => false,
-                };
-                if i > 0 { header.push_str("  "); }
-                if is { header.push_str("["); header.push_str(lbl); header.push_str("]"); }
-                else { header.push_str(lbl); }
+                let is = matches!(
+                    (i, tab),
+                    (0, crate::state::PreflightTab::Summary)
+                        | (1, crate::state::PreflightTab::Deps)
+                        | (2, crate::state::PreflightTab::Files)
+                        | (3, crate::state::PreflightTab::Services)
+                        | (4, crate::state::PreflightTab::Sandbox)
+                );
+                if i > 0 {
+                    header.push_str("  ");
+                }
+                if is {
+                    header.push('[');
+                    header.push_str(lbl);
+                    header.push(']');
+                } else {
+                    header.push_str(lbl);
+                }
             }
 
             let mut lines: Vec<Line<'static>> = Vec::new();
             lines.push(Line::from(Span::styled(
                 header,
-                Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
             )));
             lines.push(Line::from(""));
 
@@ -220,7 +233,9 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 crate::state::PreflightTab::Summary => {
                     lines.push(Line::from(Span::styled(
                         "Summary (placeholder)",
-                        Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(border_color)
+                            .add_modifier(Modifier::BOLD),
                     )));
                     lines.push(Line::from(""));
                     if items.is_empty() {
@@ -264,8 +279,17 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             }
 
             lines.push(Line::from(""));
+            // Check if any AUR packages are present for scanning
+            let has_aur = items
+                .iter()
+                .any(|p| matches!(p.source, crate::state::Source::Aur));
+            let scan_hint = if has_aur {
+                "Left/Right: tabs  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+            } else {
+                "Left/Right: tabs  •  d: dry-run  •  p: proceed  •  q: close"
+            };
             lines.push(Line::from(Span::styled(
-                "Left/Right: tabs  •  s: sandbox  •  d: dry-run  •  p: proceed (disabled)  •  q: close",
+                scan_hint,
                 Style::default().fg(th.subtext1),
             )));
 
@@ -276,7 +300,9 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Block::default()
                         .title(Span::styled(
                             title,
-                            Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+                            Style::default()
+                                .fg(border_color)
+                                .add_modifier(Modifier::BOLD),
                         ))
                         .borders(Borders::ALL)
                         .border_type(BorderType::Double)
@@ -285,13 +311,25 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 );
             f.render_widget(boxw, rect);
         }
-        crate::state::Modal::PreflightExec { items, action, tab, verbose, log_lines, abortable } => {
+        crate::state::Modal::PreflightExec {
+            items,
+            action,
+            tab,
+            verbose,
+            log_lines,
+            abortable,
+        } => {
             let th = theme();
             let w = area.width.saturating_sub(4).min(110);
             let h = area.height.saturating_sub(4).min(area.height);
             let x = area.x + (area.width.saturating_sub(w)) / 2;
             let y = area.y + (area.height.saturating_sub(h)) / 2;
-            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
             f.render_widget(Clear, rect);
 
             let border_color = th.lavender;
@@ -302,10 +340,18 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
 
             // Split inner content: left (sidebar) 30%, right (log) 70%
-            let inner = ratatui::prelude::Rect { x: rect.x + 1, y: rect.y + 1, width: rect.width.saturating_sub(2), height: rect.height.saturating_sub(2) };
+            let inner = ratatui::prelude::Rect {
+                x: rect.x + 1,
+                y: rect.y + 1,
+                width: rect.width.saturating_sub(2),
+                height: rect.height.saturating_sub(2),
+            };
             let cols = ratatui::layout::Layout::default()
                 .direction(ratatui::layout::Direction::Horizontal)
-                .constraints([ratatui::layout::Constraint::Percentage(30), ratatui::layout::Constraint::Percentage(70)])
+                .constraints([
+                    ratatui::layout::Constraint::Percentage(30),
+                    ratatui::layout::Constraint::Percentage(70),
+                ])
                 .split(inner);
 
             // Sidebar: show selected tab header and items
@@ -313,28 +359,49 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             let tab_labels = ["Summary", "Deps", "Files", "Services", "Sandbox"];
             let mut header = String::new();
             for (i, lbl) in tab_labels.iter().enumerate() {
-                let is = match (i, tab) {
-                    (0, crate::state::PreflightTab::Summary) => true,
-                    (1, crate::state::PreflightTab::Deps) => true,
-                    (2, crate::state::PreflightTab::Files) => true,
-                    (3, crate::state::PreflightTab::Services) => true,
-                    (4, crate::state::PreflightTab::Sandbox) => true,
-                    _ => false,
-                };
-                if i > 0 { header.push_str("  "); }
-                if is { header.push_str("["); header.push_str(lbl); header.push_str("]"); } else { header.push_str(lbl); }
+                let is = matches!(
+                    (i, tab),
+                    (0, crate::state::PreflightTab::Summary)
+                        | (1, crate::state::PreflightTab::Deps)
+                        | (2, crate::state::PreflightTab::Files)
+                        | (3, crate::state::PreflightTab::Services)
+                        | (4, crate::state::PreflightTab::Sandbox)
+                );
+                if i > 0 {
+                    header.push_str("  ");
+                }
+                if is {
+                    header.push('[');
+                    header.push_str(lbl);
+                    header.push(']');
+                } else {
+                    header.push_str(lbl);
+                }
             }
-            s_lines.push(Line::from(Span::styled(header, Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD))));
+            s_lines.push(Line::from(Span::styled(
+                header,
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )));
             s_lines.push(Line::from(""));
             for p in items.iter().take(12) {
-                s_lines.push(Line::from(Span::styled(format!("- {}", p.name), Style::default().fg(th.text))));
+                s_lines.push(Line::from(Span::styled(
+                    format!("- {}", p.name),
+                    Style::default().fg(th.text),
+                )));
             }
             let sidebar = Paragraph::new(s_lines)
                 .style(Style::default().fg(th.text).bg(bg_color))
                 .wrap(Wrap { trim: true })
                 .block(
                     Block::default()
-                        .title(Span::styled(" Plan ", Style::default().fg(border_color).add_modifier(Modifier::BOLD)))
+                        .title(Span::styled(
+                            " Plan ",
+                            Style::default()
+                                .fg(border_color)
+                                .add_modifier(Modifier::BOLD),
+                        ))
                         .borders(Borders::ALL)
                         .border_style(Style::default().fg(border_color))
                         .style(Style::default().bg(bg_color)),
@@ -349,20 +416,40 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Style::default().fg(th.subtext1),
                 )));
             } else {
-                for l in log_lines.iter().rev().take(cols[1].height as usize - 2).rev() {
-                    log_text.push(Line::from(Span::styled(l.clone(), Style::default().fg(th.text))));
+                for l in log_lines
+                    .iter()
+                    .rev()
+                    .take(cols[1].height as usize - 2)
+                    .rev()
+                {
+                    log_text.push(Line::from(Span::styled(
+                        l.clone(),
+                        Style::default().fg(th.text),
+                    )));
                 }
             }
             log_text.push(Line::from(""));
-            let footer = format!("l: verbose={}  •  x: abort{}  •  q/Esc/Enter: close", if *verbose {"ON"} else {"OFF"}, if *abortable {" (available)"} else {""});
-            log_text.push(Line::from(Span::styled(footer, Style::default().fg(th.subtext1))));
+            let footer = format!(
+                "l: verbose={}  •  x: abort{}  •  q/Esc/Enter: close",
+                if *verbose { "ON" } else { "OFF" },
+                if *abortable { " (available)" } else { "" }
+            );
+            log_text.push(Line::from(Span::styled(
+                footer,
+                Style::default().fg(th.subtext1),
+            )));
 
             let logw = Paragraph::new(log_text)
                 .style(Style::default().fg(th.text).bg(th.base))
                 .wrap(Wrap { trim: false })
                 .block(
                     Block::default()
-                        .title(Span::styled(title, Style::default().fg(border_color).add_modifier(Modifier::BOLD)))
+                        .title(Span::styled(
+                            title,
+                            Style::default()
+                                .fg(border_color)
+                                .add_modifier(Modifier::BOLD),
+                        ))
                         .borders(Borders::ALL)
                         .border_type(BorderType::Double)
                         .border_style(Style::default().fg(border_color))
@@ -370,24 +457,41 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 );
             f.render_widget(logw, cols[1]);
         }
-        crate::state::Modal::PostSummary { success, changed_files, pacnew_count, pacsave_count, services_pending, snapshot_label } => {
+        crate::state::Modal::PostSummary {
+            success,
+            changed_files,
+            pacnew_count,
+            pacsave_count,
+            services_pending,
+            snapshot_label,
+        } => {
             let th = theme();
             let w = area.width.saturating_sub(8).min(96);
             let h = area.height.saturating_sub(6).min(20);
             let x = area.x + (area.width.saturating_sub(w)) / 2;
             let y = area.y + (area.height.saturating_sub(h)) / 2;
-            let rect = ratatui::prelude::Rect { x, y, width: w, height: h };
+            let rect = ratatui::prelude::Rect {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
             f.render_widget(Clear, rect);
 
             let border_color = if *success { th.green } else { th.red };
             let mut lines: Vec<Line<'static>> = Vec::new();
             lines.push(Line::from(Span::styled(
                 if *success { "Success" } else { "Failed" },
-                Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(border_color)
+                    .add_modifier(Modifier::BOLD),
             )));
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
-                format!("Changed files: {} (pacnew: {}, pacsave: {})", changed_files, pacnew_count, pacsave_count),
+                format!(
+                    "Changed files: {} (pacnew: {}, pacsave: {})",
+                    changed_files, pacnew_count, pacsave_count
+                ),
                 Style::default().fg(th.text),
             )));
             if let Some(label) = snapshot_label {
@@ -398,9 +502,20 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             }
             if !services_pending.is_empty() {
                 lines.push(Line::from(""));
-                lines.push(Line::from(Span::styled("Services pending restart:", Style::default().fg(th.overlay1).add_modifier(Modifier::BOLD))));
-                for s in services_pending.iter().take((h as usize).saturating_sub(10)) {
-                    lines.push(Line::from(Span::styled(format!("- {}", s), Style::default().fg(th.text))));
+                lines.push(Line::from(Span::styled(
+                    "Services pending restart:",
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                )));
+                for s in services_pending
+                    .iter()
+                    .take((h as usize).saturating_sub(10))
+                {
+                    lines.push(Line::from(Span::styled(
+                        format!("- {}", s),
+                        Style::default().fg(th.text),
+                    )));
                 }
             }
             lines.push(Line::from(""));
@@ -416,7 +531,9 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     Block::default()
                         .title(Span::styled(
                             " Post-Transaction Summary ",
-                            Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+                            Style::default()
+                                .fg(border_color)
+                                .add_modifier(Modifier::BOLD),
                         ))
                         .borders(Borders::ALL)
                         .border_type(BorderType::Double)
@@ -1292,57 +1409,54 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
             f.render_widget(Clear, rect);
 
-            let mut lines: Vec<Line<'static>> = Vec::new();
-            lines.push(Line::from(Span::styled(
-                "Import File Format",
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-            )));
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                "The import file should contain one package name per line.",
-                Style::default().fg(th.text),
-            )));
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                "Format:",
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            )));
-            lines.push(Line::from(Span::raw("  • One package name per line")));
-            lines.push(Line::from(Span::raw("  • Blank lines are ignored")));
-            lines.push(Line::from(Span::raw("  • Lines starting with '#' are treated as comments")));
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                "Example:",
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            )));
-            lines.push(Line::from(Span::raw("  firefox")));
-            lines.push(Line::from(Span::raw("  # This is a comment")));
-            lines.push(Line::from(Span::raw("  vim")));
-            lines.push(Line::from(Span::raw("  paru")));
-            lines.push(Line::from(""));
-            lines.push(Line::from(vec![
-                Span::styled(
-                    "[Enter]",
-                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " confirm",
-                    Style::default().fg(th.overlay1),
-                ),
-                Span::raw("  •  "),
-                Span::styled(
-                    "[Esc]",
-                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    " cancel",
-                    Style::default().fg(th.overlay1),
-                ),
-            ]));
+            let lines: Vec<Line<'static>> = vec![
+                Line::from(Span::styled(
+                    "Import File Format",
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "The import file should contain one package name per line.",
+                    Style::default().fg(th.text),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Format:",
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(Span::raw("  • One package name per line")),
+                Line::from(Span::raw("  • Blank lines are ignored")),
+                Line::from(Span::raw(
+                    "  • Lines starting with '#' are treated as comments",
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Example:",
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(Span::raw("  firefox")),
+                Line::from(Span::raw("  # This is a comment")),
+                Line::from(Span::raw("  vim")),
+                Line::from(Span::raw("  paru")),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled(
+                        "[Enter]",
+                        Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(" confirm", Style::default().fg(th.overlay1)),
+                    Span::raw("  •  "),
+                    Span::styled(
+                        "[Esc]",
+                        Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(" cancel", Style::default().fg(th.overlay1)),
+                ]),
+            ];
 
             let boxw = Paragraph::new(lines)
                 .style(Style::default().fg(th.text).bg(th.mantle))
