@@ -203,7 +203,12 @@ fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
     {
         return Some(AurBannerCategory::SecurityIncident);
     }
-    if t.contains("outage") || t.contains("unreachable") || t.contains("service interruption") {
+    // Only match specific phrases indicating a CURRENT outage, not historical mentions
+    if t.contains("the aur is currently experiencing an outage")
+        || t.contains("aur is currently experiencing an outage")
+        || t.contains("currently experiencing an outage")
+        || (t.contains("aur") && t.contains("currently") && (t.contains("unreachable") || t.contains("down")))
+    {
         return Some(AurBannerCategory::Outage);
     }
     if t.contains("pushing to the aur currently not possible")
@@ -291,28 +296,59 @@ fn severity_max(a: ArchStatusColor, b: ArchStatusColor) -> ArchStatusColor {
     if rank(a) >= rank(b) { a } else { b }
 }
 
-/// Return today's UTC date as (year, month, day) using the system `date` command.
+/// Return today's UTC date as (year, month, day) using Rust's standard library.
 ///
 /// Inputs:
 /// - None
 ///
 /// Output:
-/// - `Some((year, month, day))` on success; `None` if the command is unavailable or parsing fails.
+/// - `Some((year, month, day))` on success; `None` if the conversion fails.
 fn today_ymd_utc() -> Option<(i32, u32, u32)> {
-    let out = std::process::Command::new("date")
-        .args(["-u", "+%Y-%m-%d"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    
+    // Convert Unix timestamp to UTC date using a simple algorithm
+    // This is a simplified version that works for dates from 1970 onwards
+    let days_since_epoch = now / 86400;
+    
+    // Calculate year, month, day from days since epoch
+    // Using a simple approximation (not accounting for leap seconds, but good enough for our use case)
+    let mut year = 1970;
+    let mut days = days_since_epoch;
+    
+    // Account for leap years
+    loop {
+        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+        if days < days_in_year {
+            break;
+        }
+        days -= days_in_year;
+        year += 1;
     }
-    let s = String::from_utf8(out.stdout).ok()?;
-    let s = s.trim();
-    let mut it = s.split('-');
-    let y = it.next()?.parse::<i32>().ok()?;
-    let m = it.next()?.parse::<u32>().ok()?;
-    let d = it.next()?.parse::<u32>().ok()?;
-    Some((y, m, d))
+    
+    // Calculate month and day
+    let days_in_month = [31, if is_leap_year(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut month: u32 = 1;
+    let mut day: u64 = days;
+    
+    for &days_in_m in days_in_month.iter() {
+        if day < days_in_m as u64 {
+            break;
+        }
+        day -= days_in_m as u64;
+        month += 1;
+    }
+    
+    Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
+}
+
+#[inline]
+fn is_leap_year(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 /// Attempt to extract today's AUR uptime percentage from the Arch status page HTML.
