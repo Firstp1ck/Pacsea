@@ -16,7 +16,7 @@ pub use batch::spawn_install_all;
 pub use logging::log_removed;
 mod patterns;
 pub use remove::spawn_remove_all;
-#[allow(unused_imports)]
+#[cfg(not(target_os = "windows"))]
 pub use scan::spawn_aur_scan_for;
 
 #[cfg(not(target_os = "windows"))]
