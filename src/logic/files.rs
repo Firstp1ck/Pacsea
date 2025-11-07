@@ -3,8 +3,8 @@
 use crate::state::modal::{FileChange, FileChangeType, PackageFileInfo};
 use crate::state::types::{PackageItem, Source};
 use std::collections::HashSet;
-use std::process::Command;
 use std::path::Path;
+use std::process::Command;
 use std::time::SystemTime;
 
 /// Get the file database sync timestamp.
@@ -15,31 +15,30 @@ pub fn get_file_db_sync_timestamp() -> Option<SystemTime> {
     // Check modification time of pacman sync database files
     // The sync database files are in /var/lib/pacman/sync/
     let sync_dir = Path::new("/var/lib/pacman/sync");
-    
+
     if !sync_dir.exists() {
         tracing::debug!("Pacman sync directory does not exist");
         return None;
     }
-    
+
     // Get the most recent modification time from any .files database
     let mut latest_time: Option<SystemTime> = None;
-    
+
     if let Ok(entries) = std::fs::read_dir(sync_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             // Look for .files database files (e.g., core.files, extra.files)
-            if path.extension().and_then(|s| s.to_str()) == Some("files") {
-                if let Ok(metadata) = std::fs::metadata(&path) {
-                    if let Ok(modified) = metadata.modified() {
-                        latest_time = Some(latest_time.map_or(modified, |prev| {
-                            if modified > prev { modified } else { prev }
-                        }));
-                    }
-                }
+            if path.extension().and_then(|s| s.to_str()) == Some("files")
+                && let Ok(metadata) = std::fs::metadata(&path)
+                && let Ok(modified) = metadata.modified()
+            {
+                latest_time = Some(latest_time.map_or(modified, |prev| {
+                    if modified > prev { modified } else { prev }
+                }));
             }
         }
     }
-    
+
     latest_time
 }
 
@@ -49,18 +48,19 @@ pub fn get_file_db_sync_timestamp() -> Option<SystemTime> {
 /// where color_category: 0 = green (< week), 1 = yellow (< month), 2 = red (>= month)
 pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
     let sync_time = get_file_db_sync_timestamp()?;
-    
+
     let now = SystemTime::now();
     let age = now.duration_since(sync_time).ok()?;
     let age_days = age.as_secs() / 86400; // Convert to days
-    
+
     // Format date
     let date_str = crate::util::ts_to_date(
-        sync_time.duration_since(SystemTime::UNIX_EPOCH)
+        sync_time
+            .duration_since(SystemTime::UNIX_EPOCH)
             .ok()
-            .map(|d| d.as_secs() as i64)
+            .map(|d| d.as_secs() as i64),
     );
-    
+
     // Determine color category
     let color_category = if age_days < 7 {
         0 // Green (< week)
@@ -69,7 +69,7 @@ pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
     } else {
         2 // Red (>= month)
     };
-    
+
     Some((age_days, date_str, color_category))
 }
 
@@ -272,7 +272,14 @@ fn resolve_remove_files(name: &str) -> Result<PackageFileInfo, String> {
     let mut pacsave_candidates = 0;
 
     // Get backup files for this package (for pacsave prediction)
-    let backup_files = get_backup_files(name, &Source::Official { repo: String::new(), arch: String::new() }).unwrap_or_default();
+    let backup_files = get_backup_files(
+        name,
+        &Source::Official {
+            repo: String::new(),
+            arch: String::new(),
+        },
+    )
+    .unwrap_or_default();
     let backup_set: HashSet<&str> = backup_files.iter().map(|s| s.as_str()).collect();
 
     for path in installed_files {
@@ -439,11 +446,15 @@ fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
 /// For remote packages, attempts to parse PKGBUILD/.SRCINFO backup array.
 fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, String> {
     // First try: if package is installed, use pacman -Qii
-    if let Ok(backup_files) = get_backup_files_from_installed(name) {
-        if !backup_files.is_empty() {
-            tracing::debug!("Found {} backup files from installed package {}", backup_files.len(), name);
-            return Ok(backup_files);
-        }
+    if let Ok(backup_files) = get_backup_files_from_installed(name)
+        && !backup_files.is_empty()
+    {
+        tracing::debug!(
+            "Found {} backup files from installed package {}",
+            backup_files.len(),
+            name
+        );
+        return Ok(backup_files);
     }
 
     // Second try: parse from PKGBUILD/.SRCINFO (best-effort, may fail)
@@ -451,13 +462,19 @@ fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, String> 
         Source::Official { .. } => {
             // For official packages, we could fetch PKGBUILD, but that's expensive
             // For now, return empty (can be enhanced later)
-            tracing::debug!("Backup files for official package {}: not available without PKGBUILD fetch", name);
+            tracing::debug!(
+                "Backup files for official package {}: not available without PKGBUILD fetch",
+                name
+            );
             Ok(Vec::new())
         }
         Source::Aur => {
             // For AUR packages, we could fetch .SRCINFO, but that's expensive
             // For now, return empty (can be enhanced later)
-            tracing::debug!("Backup files for AUR package {}: not available without .SRCINFO fetch", name);
+            tracing::debug!(
+                "Backup files for AUR package {}: not available without .SRCINFO fetch",
+                name
+            );
             Ok(Vec::new())
         }
     }
@@ -512,7 +529,7 @@ fn get_backup_files_from_installed(name: &str) -> Result<Vec<String>, String> {
         } else if in_backup_section {
             // Continuation lines (indented)
             if line.starts_with("    ") || line.starts_with("\t") {
-                for file in line.trim().split_whitespace() {
+                for file in line.split_whitespace() {
                     backup_files.push(file.to_string());
                 }
             } else {
@@ -522,6 +539,10 @@ fn get_backup_files_from_installed(name: &str) -> Result<Vec<String>, String> {
         }
     }
 
-    tracing::debug!("Found {} backup files for installed package {}", backup_files.len(), name);
+    tracing::debug!(
+        "Found {} backup files for installed package {}",
+        backup_files.len(),
+        name
+    );
     Ok(backup_files)
 }

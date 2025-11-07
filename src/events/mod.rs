@@ -203,7 +203,9 @@ pub fn handle_event(
                         }
                         // Resolve files when switching to Files tab
                         if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-                            tracing::info!("[Events] Auto-refreshing files when switching to Files tab (Left)");
+                            tracing::info!(
+                                "[Events] Auto-refreshing files when switching to Files tab (Left)"
+                            );
                             *file_info = crate::logic::files::resolve_file_changes(items, *action);
                             *file_selected = 0;
                         }
@@ -232,7 +234,9 @@ pub fn handle_event(
                         }
                         // Resolve files when switching to Files tab
                         if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-                            tracing::info!("[Events] Auto-refreshing files when switching to Files tab (Right)");
+                            tracing::info!(
+                                "[Events] Auto-refreshing files when switching to Files tab (Right)"
+                            );
                             *file_info = crate::logic::files::resolve_file_changes(items, *action);
                             *file_selected = 0;
                         }
@@ -262,7 +266,9 @@ pub fn handle_event(
                         }
                         // Resolve files when switching to Files tab
                         if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-                            tracing::info!("[Events] Auto-refreshing files when switching to Files tab (Tab)");
+                            tracing::info!(
+                                "[Events] Auto-refreshing files when switching to Files tab (Tab)"
+                            );
                             *file_info = crate::logic::files::resolve_file_changes(items, *action);
                             *file_selected = 0;
                         }
@@ -391,7 +397,8 @@ pub fn handle_event(
                             *file_info = Vec::new();
                             *file_selected = 0;
                             app.toast_message = Some("File database sync started. Switch away and back to Files tab to refresh.".to_string());
-                            app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                            app.toast_expires_at =
+                                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
                             return false;
                         }
                     }

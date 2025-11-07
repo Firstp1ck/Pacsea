@@ -820,7 +820,13 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         type FileDisplayItem = (
                             bool,
                             String,
-                            Option<(crate::state::modal::FileChangeType, String, bool, bool, bool)>,
+                            Option<(
+                                crate::state::modal::FileChangeType,
+                                String,
+                                bool,
+                                bool,
+                                bool,
+                            )>,
                         );
                         let mut display_items: Vec<FileDisplayItem> = Vec::new();
                         for pkg_info in file_info.iter() {
@@ -844,9 +850,13 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
                         if display_items.is_empty() {
                             // Check if we have package entries but they're all empty
-                            let has_aur_packages = items.iter().any(|p| matches!(p.source, crate::state::Source::Aur));
-                            let has_official_packages = items.iter().any(|p| matches!(p.source, crate::state::Source::Official { .. }));
-                            
+                            let has_aur_packages = items
+                                .iter()
+                                .any(|p| matches!(p.source, crate::state::Source::Aur));
+                            let has_official_packages = items
+                                .iter()
+                                .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
+
                             // Count packages with empty file lists
                             let mut unresolved_packages = Vec::new();
                             for pkg_info in file_info.iter() {
@@ -854,16 +864,19 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                     unresolved_packages.push(pkg_info.name.clone());
                                 }
                             }
-                            
+
                             if !file_info.is_empty() {
                                 // File resolution completed but no files found
                                 if !unresolved_packages.is_empty() {
                                     lines.push(Line::from(Span::styled(
-                                        format!("No file changes found for {} package(s).", unresolved_packages.len()),
+                                        format!(
+                                            "No file changes found for {} package(s).",
+                                            unresolved_packages.len()
+                                        ),
                                         Style::default().fg(th.subtext1),
                                     )));
                                     lines.push(Line::from(""));
-                                    
+
                                     // Show appropriate notes based on package types
                                     if has_official_packages {
                                         lines.push(Line::from(Span::styled(
@@ -894,9 +907,11 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                     Style::default().fg(th.subtext1),
                                 )));
                             }
-                            
+
                             // Show file database sync timestamp
-                            if let Some((_age_days, date_str, color_category)) = crate::logic::files::get_file_db_sync_info() {
+                            if let Some((_age_days, date_str, color_category)) =
+                                crate::logic::files::get_file_db_sync_info()
+                            {
                                 lines.push(Line::from(""));
                                 let (sync_color, sync_text) = match color_category {
                                     0 => (th.green, format!("Files updated on {}", date_str)),
@@ -948,9 +963,11 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                 Style::default().fg(th.subtext1),
                             )));
                             lines.push(Line::from(""));
-                            
+
                             // Show file database sync timestamp
-                            if let Some((_age_days, date_str, color_category)) = crate::logic::files::get_file_db_sync_info() {
+                            if let Some((_age_days, date_str, color_category)) =
+                                crate::logic::files::get_file_db_sync_info()
+                            {
                                 let (sync_color, sync_text) = match color_category {
                                     0 => (th.green, format!("Files updated on {}", date_str)),
                                     1 => (th.yellow, format!("Files updated on {}", date_str)),
@@ -1028,7 +1045,14 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                     spans.push(Span::styled(")", Style::default().fg(th.subtext1)));
 
                                     lines.push(Line::from(spans));
-                                } else if let Some((change_type, path, is_config, predicted_pacnew, predicted_pacsave)) = file_opt {
+                                } else if let Some((
+                                    change_type,
+                                    path,
+                                    is_config,
+                                    predicted_pacnew,
+                                    predicted_pacsave,
+                                )) = file_opt
+                                {
                                     // File entry
                                     let (icon, color) = match change_type {
                                         crate::state::modal::FileChangeType::New => ("+", th.green),
