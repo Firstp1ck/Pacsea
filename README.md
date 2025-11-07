@@ -139,6 +139,8 @@ cargo run
 ## Roadmap
 - Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/11)
 
+- Check out what's next and what I am working on [What's Next...?](https://github.com/Firstp1ck/Pacsea/discussions/26)
+
 ### Potential future Features
 - **Extensive Preflight Check** (on going)
 - **Additional Language Support** (on going)
