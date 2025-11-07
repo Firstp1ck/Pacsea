@@ -30,10 +30,16 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
         f.render_widget(scrim, area);
     }
 
-    match &app.modal {
+    match &mut app.modal {
         crate::state::Modal::Alert { message } => {
-            let w = area.width.saturating_sub(10).min(80);
-            let h = 7;
+            // Detect help messages and make them larger
+            let is_help = message.contains("Help") || message.contains("Tab Help");
+            let w = area.width.saturating_sub(10).min(if is_help { 90 } else { 80 });
+            let h = if is_help {
+                area.height.saturating_sub(6).min(28)
+            } else {
+                7
+            };
             let x = area.x + (area.width.saturating_sub(w)) / 2;
             let y = area.y + (area.height.saturating_sub(h)) / 2;
             let rect = ratatui::prelude::Rect {
@@ -58,7 +64,9 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     || ml.contains("xclip")
                     || ml.contains("wl-clipboard")
             };
-            let header_text = if is_config {
+            let header_text = if is_help {
+                "Help"
+            } else if is_config {
                 "Configuration error"
             } else if clippy_block {
                 "Clipboard Copy"
@@ -72,32 +80,49 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                     || ml.contains("xclip")
                     || ml.contains("wl-clipboard")
             };
-            let box_title = if is_config {
+            let box_title = if is_help {
+                " Help "
+            } else if is_config {
                 " Configuration Error "
             } else if is_clipboard {
                 " Clipboard Copy "
             } else {
                 " Connection issue "
             };
-            let header_color = if is_config { th.mauve } else { th.red };
-            let lines = vec![
-                Line::from(Span::styled(
+            let header_color = if is_help {
+                th.mauve
+            } else if is_config {
+                th.mauve
+            } else {
+                th.red
+            };
+            
+            // Parse message into lines for help messages
+            let mut lines: Vec<Line<'static>> = Vec::new();
+            if is_help {
+                for line in message.lines() {
+                    lines.push(Line::from(Span::styled(line.to_string(), Style::default().fg(th.text))));
+                }
+            } else {
+                lines.push(Line::from(Span::styled(
                     header_text,
                     Style::default()
                         .fg(header_color)
                         .add_modifier(Modifier::BOLD),
-                )),
-                Line::from(""),
-                Line::from(Span::styled(message.clone(), Style::default().fg(th.text))),
-                Line::from(""),
-                Line::from(Span::styled(
-                    "Press Enter or Esc to close",
-                    Style::default().fg(th.subtext1),
-                )),
-            ];
+                )));
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(message.clone(), Style::default().fg(th.text))));
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Press Enter or Esc to close",
+                Style::default().fg(th.subtext1),
+            )));
+            
             let boxw = Paragraph::new(lines)
                 .style(Style::default().fg(th.text).bg(th.mantle))
                 .wrap(Wrap { trim: true })
+                .scroll((if is_help { app.help_scroll } else { 0 }, 0))
                 .block(
                     Block::default()
                         .title(Span::styled(
@@ -175,8 +200,20 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 );
             f.render_widget(boxw, rect);
         }
-        crate::state::Modal::Preflight { items, action, tab } => {
-            tracing::info!(count = items.len(), ?action, "rendering Preflight modal");
+        crate::state::Modal::Preflight { items, action, tab, dependency_info, dep_selected, dep_tree_expanded } => {
+            // Use cached dependencies if available, otherwise resolve on-demand
+            // Note: Cached deps are populated in background when packages are added to install list
+            if dependency_info.is_empty() && matches!(*action, crate::state::PreflightAction::Install) {
+                // Check if we have cached dependencies from app state
+                // (This would require passing app state, but for now we resolve on-demand as fallback)
+                tracing::info!("[UI] Starting dependency resolution for {} packages in Preflight modal", items.len());
+                let start_time = std::time::Instant::now();
+                *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                let elapsed = start_time.elapsed();
+                tracing::info!("[UI] Dependency resolution completed in {:?}. Found {} dependencies", elapsed, dependency_info.len());
+                *dep_selected = 0;
+            }
+            // Removed verbose rendering log
             let w = area.width.saturating_sub(6).min(96);
             let h = area.height.saturating_sub(8).min(22);
             let x = area.x + (area.width.saturating_sub(w)) / 2;
@@ -199,9 +236,10 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             // Build header tab labels
             let tab_labels = ["Summary", "Deps", "Files", "Services", "Sandbox"];
             let mut header = String::new();
+            let current_tab = *tab;
             for (i, lbl) in tab_labels.iter().enumerate() {
                 let is = matches!(
-                    (i, tab),
+                    (i, current_tab),
                     (0, crate::state::PreflightTab::Summary)
                         | (1, crate::state::PreflightTab::Deps)
                         | (2, crate::state::PreflightTab::Files)
@@ -229,34 +267,423 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             )));
             lines.push(Line::from(""));
 
-            match tab {
+            match current_tab {
                 crate::state::PreflightTab::Summary => {
-                    lines.push(Line::from(Span::styled(
-                        "Summary (placeholder)",
-                        Style::default()
-                            .fg(border_color)
-                            .add_modifier(Modifier::BOLD),
-                    )));
-                    lines.push(Line::from(""));
-                    if items.is_empty() {
-                        lines.push(Line::from(Span::styled(
-                            "No items selected.",
-                            Style::default().fg(th.subtext1),
-                        )));
-                    } else {
-                        for p in items.iter().take((h as usize).saturating_sub(8)) {
+                    if matches!(*action, crate::state::PreflightAction::Install) && !dependency_info.is_empty() {
+                        // Filter dependencies to only show conflicts and upgrades
+                        let important_deps: Vec<&crate::state::modal::DependencyInfo> = dependency_info
+                            .iter()
+                            .filter(|d| {
+                                matches!(d.status, crate::state::modal::DependencyStatus::Conflict { .. } | 
+                                         crate::state::modal::DependencyStatus::ToUpgrade { .. })
+                            })
+                            .collect();
+
+                        if important_deps.is_empty() {
                             lines.push(Line::from(Span::styled(
-                                format!("- {}", p.name),
+                                "No conflicts or upgrades required.",
+                                Style::default().fg(th.green),
+                            )));
+                        } else {
+                            // Group by packages that require them
+                            use std::collections::{HashMap, HashSet};
+                            let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
+                            for dep in important_deps.iter() {
+                                for req_by in &dep.required_by {
+                                    grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+                                }
+                            }
+
+                            // Count conflicts and upgrades
+                            let conflict_count = important_deps.iter()
+                                .filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::Conflict { .. }))
+                                .count();
+                            let upgrade_count = important_deps.iter()
+                                .filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::ToUpgrade { .. }))
+                                .count();
+
+                            // Summary header
+                            let mut summary_parts = Vec::new();
+                            if conflict_count > 0 {
+                                summary_parts.push(format!("{} conflict(s)", conflict_count));
+                            }
+                            if upgrade_count > 0 {
+                                summary_parts.push(format!("{} upgrade(s)", upgrade_count));
+                            }
+                            
+                            // Use different header based on what we have
+                            let header_text = if conflict_count > 0 {
+                                format!("Issues: {}", summary_parts.join(", "))
+                            } else if upgrade_count > 0 {
+                                format!("Summary: {}", summary_parts.join(", "))
+                            } else {
+                                "Summary: No conflicts or upgrades required.".to_string()
+                            };
+                            
+                            lines.push(Line::from(Span::styled(
+                                header_text,
+                                Style::default()
+                                    .fg(if conflict_count > 0 { th.red } else { th.yellow })
+                                    .add_modifier(Modifier::BOLD),
+                            )));
+                            lines.push(Line::from(""));
+
+                            // Display grouped dependencies
+                            let available_height = (h as usize).saturating_sub(8);
+                            let mut displayed = 0;
+                            for pkg_name in items.iter().map(|p| &p.name) {
+                                if let Some(pkg_deps) = grouped.get(pkg_name) {
+                                    if displayed >= available_height {
+                                        break;
+                                    }
+                                    // Package header
+                                    lines.push(Line::from(Span::styled(
+                                        format!("▶ {}", pkg_name),
+                                        Style::default()
+                                            .fg(th.overlay1)
+                                            .add_modifier(Modifier::BOLD),
+                                    )));
+                                    displayed += 1;
+
+                                    // Deduplicate dependencies within this package's group
+                                    let mut seen_deps = HashSet::new();
+                                    for dep in pkg_deps.iter() {
+                                        if seen_deps.insert(dep.name.as_str()) && displayed < available_height {
+                                            let mut spans = Vec::new();
+                                            spans.push(Span::styled("  ", Style::default())); // Indentation
+                                            
+                                            // Status indicator and dependency info
+                                            match &dep.status {
+                                                crate::state::modal::DependencyStatus::Conflict { reason } => {
+                                                    spans.push(Span::styled(
+                                                        "⚠ ",
+                                                        Style::default().fg(th.red),
+                                                    ));
+                                                    spans.push(Span::styled(
+                                                        dep.name.clone(),
+                                                        Style::default().fg(th.text),
+                                                    ));
+                                                    // Version requirement
+                                                    if !dep.version.is_empty() {
+                                                        spans.push(Span::styled(
+                                                            format!(" {}", dep.version),
+                                                            Style::default().fg(th.overlay2),
+                                                        ));
+                                                    }
+                                                    // Source badge
+                                                    let (source_badge, badge_color) = match &dep.source {
+                                                        crate::state::modal::DependencySource::Official { repo } => {
+                                                            let repo_lower = repo.to_lowercase();
+                                                            let color = if crate::index::is_eos_repo(&repo_lower) || crate::index::is_cachyos_repo(&repo_lower) {
+                                                                th.sapphire
+                                                            } else if repo_lower == "core" || repo_lower == "extra" {
+                                                                th.green
+                                                            } else {
+                                                                th.green
+                                                            };
+                                                            (format!(" [{}]", repo), color)
+                                                        }
+                                                        crate::state::modal::DependencySource::Aur => (" [AUR]".to_string(), th.yellow),
+                                                        crate::state::modal::DependencySource::Local => (" [local]".to_string(), th.overlay1),
+                                                    };
+                                                    spans.push(Span::styled(
+                                                        source_badge,
+                                                        Style::default().fg(badge_color),
+                                                    ));
+                                                    spans.push(Span::styled(
+                                                        format!(" ({})", reason),
+                                                        Style::default().fg(th.red),
+                                                    ));
+                                                }
+                                                crate::state::modal::DependencyStatus::ToUpgrade { current, required } => {
+                                                    spans.push(Span::styled(
+                                                        "↑ ",
+                                                        Style::default().fg(th.yellow),
+                                                    ));
+                                                    spans.push(Span::styled(
+                                                        dep.name.clone(),
+                                                        Style::default().fg(th.text),
+                                                    ));
+                                                    // Version requirement
+                                                    if !dep.version.is_empty() {
+                                                        spans.push(Span::styled(
+                                                            format!(" {}", dep.version),
+                                                            Style::default().fg(th.overlay2),
+                                                        ));
+                                                    }
+                                                    // Source badge
+                                                    let (source_badge, badge_color) = match &dep.source {
+                                                        crate::state::modal::DependencySource::Official { repo } => {
+                                                            let repo_lower = repo.to_lowercase();
+                                                            let color = if crate::index::is_eos_repo(&repo_lower) || crate::index::is_cachyos_repo(&repo_lower) {
+                                                                th.sapphire
+                                                            } else if repo_lower == "core" || repo_lower == "extra" {
+                                                                th.green
+                                                            } else {
+                                                                th.green
+                                                            };
+                                                            (format!(" [{}]", repo), color)
+                                                        }
+                                                        crate::state::modal::DependencySource::Aur => (" [AUR]".to_string(), th.yellow),
+                                                        crate::state::modal::DependencySource::Local => (" [local]".to_string(), th.overlay1),
+                                                    };
+                                                    spans.push(Span::styled(
+                                                        source_badge,
+                                                        Style::default().fg(badge_color),
+                                                    ));
+                                                    spans.push(Span::styled(
+                                                        format!(" ({} → {})", current, required),
+                                                        Style::default().fg(th.yellow),
+                                                    ));
+                                                }
+                                                _ => continue, // Shouldn't happen due to filter, but be safe
+                                            }
+
+                                            displayed += 1;
+                                            lines.push(Line::from(spans));
+                                        }
+                                    }
+                                }
+                            }
+
+                            if displayed >= available_height && important_deps.len() > displayed {
+                                lines.push(Line::from(""));
+                                lines.push(Line::from(Span::styled(
+                                    format!("... and {} more", important_deps.len() - displayed),
+                                    Style::default().fg(th.subtext1),
+                                )));
+                            }
+                        }
+                    } else {
+                        // Fallback for remove action or no dependencies
+                        if items.is_empty() {
+                            lines.push(Line::from(Span::styled(
+                                "No items selected.",
+                                Style::default().fg(th.subtext1),
+                            )));
+                        } else {
+                            lines.push(Line::from(Span::styled(
+                                format!("{} package(s) selected", items.len()),
                                 Style::default().fg(th.text),
                             )));
                         }
                     }
                 }
                 crate::state::PreflightTab::Deps => {
-                    lines.push(Line::from(Span::styled(
-                        "Deps (placeholder) — dependency graph preview will appear here",
-                        Style::default().fg(th.text),
-                    )));
+                    // Use already resolved dependencies (resolved above if needed)
+                    let deps = dependency_info;
+
+                    // Group dependencies by the packages that require them
+                    use std::collections::HashMap;
+                    let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
+                    for dep in deps.iter() {
+                        for req_by in &dep.required_by {
+                            grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+                        }
+                    }
+
+                    // Calculate summary statistics
+                    let total = deps.len();
+                    let installed_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::Installed { .. })).count();
+                    let to_install_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::ToInstall)).count();
+                    let to_upgrade_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::ToUpgrade { .. })).count();
+                    let conflict_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::Conflict { .. })).count();
+                    let missing_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::Missing)).count();
+
+                    // Summary header
+                    if total > 0 {
+                        let mut summary_parts = Vec::new();
+                        summary_parts.push(format!("{} total", total));
+                        if installed_count > 0 {
+                            summary_parts.push(format!("{} installed", installed_count));
+                        }
+                        if to_install_count > 0 {
+                            summary_parts.push(format!("{} to install", to_install_count));
+                        }
+                        if to_upgrade_count > 0 {
+                            summary_parts.push(format!("{} to upgrade", to_upgrade_count));
+                        }
+                        if conflict_count > 0 {
+                            summary_parts.push(format!("{} conflicts", conflict_count));
+                        }
+                        if missing_count > 0 {
+                            summary_parts.push(format!("{} missing", missing_count));
+                        }
+                        lines.push(Line::from(Span::styled(
+                            format!("Dependencies: {}", summary_parts.join(", ")),
+                            Style::default()
+                                .fg(th.overlay1)
+                                .add_modifier(Modifier::BOLD),
+                        )));
+                        lines.push(Line::from(""));
+                    } else if matches!(*action, crate::state::PreflightAction::Install) {
+                        lines.push(Line::from(Span::styled(
+                            "Resolving dependencies...",
+                            Style::default().fg(th.subtext1),
+                        )));
+                    } else {
+                        lines.push(Line::from(Span::styled(
+                            "No dependencies to show for removal operation.",
+                            Style::default().fg(th.subtext1),
+                        )));
+                    }
+
+                    // Build flat list with grouped structure for navigation
+                    // Format: [package_name, dep1, dep2, ...] for each package
+                    let mut display_items: Vec<(bool, String, Option<&crate::state::modal::DependencyInfo>)> = Vec::new();
+                    for pkg_name in items.iter().map(|p| &p.name) {
+                        if let Some(pkg_deps) = grouped.get(pkg_name) {
+                            // Add package header
+                            let is_expanded = dep_tree_expanded.contains(pkg_name);
+                            display_items.push((true, pkg_name.clone(), None));
+                            // Add its dependencies only if expanded (deduplicate within this package's group)
+                            if is_expanded {
+                                use std::collections::HashSet;
+                                let mut seen_deps = HashSet::new();
+                                for dep in pkg_deps.iter() {
+                                    if seen_deps.insert(dep.name.as_str()) {
+                                        display_items.push((false, String::new(), Some(dep)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Dependency list with grouping
+                    let available_height = (h as usize).saturating_sub(8);
+                    let start_idx = (*dep_selected).saturating_sub(available_height / 2).min(display_items.len().saturating_sub(available_height));
+                    let end_idx = (start_idx + available_height).min(display_items.len());
+
+                    for (idx, (is_header, header_name, dep)) in display_items.iter().enumerate().skip(start_idx).take(end_idx - start_idx) {
+                        let is_selected = idx == *dep_selected;
+                        let mut spans = Vec::new();
+
+                        if *is_header {
+                            // Package header
+                            let is_expanded = dep_tree_expanded.contains(header_name);
+                            let arrow_symbol = if is_expanded { "▼" } else { "▶" };
+                            let header_style = if is_selected {
+                                Style::default()
+                                    .fg(th.crust)
+                                    .bg(th.lavender)
+                                    .add_modifier(Modifier::BOLD)
+                            } else {
+                                Style::default()
+                                    .fg(th.overlay1)
+                                    .add_modifier(Modifier::BOLD)
+                            };
+                            spans.push(Span::styled(
+                                format!("{} {} ", arrow_symbol, header_name),
+                                header_style,
+                            ));
+                        } else if let Some(dep) = dep {
+                            // Dependency item (indented)
+                            spans.push(Span::styled("  ", Style::default())); // Indentation
+                            
+                            // Status indicator
+                            let (status_icon, status_color) = match &dep.status {
+                                crate::state::modal::DependencyStatus::Installed { .. } => ("✓", th.green),
+                                crate::state::modal::DependencyStatus::ToInstall => ("+", th.yellow),
+                                crate::state::modal::DependencyStatus::ToUpgrade { .. } => ("↑", th.yellow),
+                                crate::state::modal::DependencyStatus::Conflict { .. } => ("⚠", th.red),
+                                crate::state::modal::DependencyStatus::Missing => ("?", th.red),
+                            };
+                            spans.push(Span::styled(
+                                format!("{} ", status_icon),
+                                Style::default().fg(status_color),
+                            ));
+
+                            // Package name
+                            let name_style = if is_selected {
+                                Style::default()
+                                    .fg(th.crust)
+                                    .bg(th.lavender)
+                                    .add_modifier(Modifier::BOLD)
+                            } else {
+                                Style::default().fg(th.text)
+                            };
+                            spans.push(Span::styled(dep.name.clone(), name_style));
+
+                            // Version requirement
+                            if !dep.version.is_empty() {
+                                spans.push(Span::styled(
+                                    format!(" {}", dep.version),
+                                    Style::default().fg(th.overlay2),
+                                ));
+                            }
+
+                            // Source badge with color coding
+                            let (source_badge, badge_color) = match &dep.source {
+                                crate::state::modal::DependencySource::Official { repo } => {
+                                    let repo_lower = repo.to_lowercase();
+                                    let color = if crate::index::is_eos_repo(&repo_lower) || crate::index::is_cachyos_repo(&repo_lower) {
+                                        th.sapphire // Blueish for EOS/Cachy
+                                    } else if repo_lower == "core" || repo_lower == "extra" {
+                                        th.green // Green for core/extra
+                                    } else {
+                                        th.green // Default to green for other official repos
+                                    };
+                                    (format!(" [{}]", repo), color)
+                                }
+                                crate::state::modal::DependencySource::Aur => (" [AUR]".to_string(), th.yellow),
+                                crate::state::modal::DependencySource::Local => (" [local]".to_string(), th.overlay1),
+                            };
+                            spans.push(Span::styled(
+                                source_badge,
+                                Style::default().fg(badge_color),
+                            ));
+
+                            // Core/System markers
+                            if dep.is_core {
+                                spans.push(Span::styled(
+                                    " [CORE]",
+                                    Style::default()
+                                        .fg(th.red)
+                                        .add_modifier(Modifier::BOLD),
+                                ));
+                            } else if dep.is_system {
+                                spans.push(Span::styled(
+                                    " [SYSTEM]",
+                                    Style::default()
+                                        .fg(th.yellow)
+                                        .add_modifier(Modifier::BOLD),
+                                ));
+                            }
+
+                            // Additional status info
+                            match &dep.status {
+                                crate::state::modal::DependencyStatus::Installed { version } => {
+                                    spans.push(Span::styled(
+                                        format!(" (installed: {})", version),
+                                        Style::default().fg(th.subtext1),
+                                    ));
+                                }
+                                crate::state::modal::DependencyStatus::ToUpgrade { current, required } => {
+                                    spans.push(Span::styled(
+                                        format!(" ({} → {})", current, required),
+                                        Style::default().fg(th.yellow),
+                                    ));
+                                }
+                                crate::state::modal::DependencyStatus::Conflict { reason } => {
+                                    spans.push(Span::styled(
+                                        format!(" ({})", reason),
+                                        Style::default().fg(th.red),
+                                    ));
+                                }
+                                _ => {}
+                            }
+                        }
+                        
+                        lines.push(Line::from(spans));
+                    }
+
+                    if display_items.len() > available_height {
+                        lines.push(Line::from(""));
+                        lines.push(Line::from(Span::styled(
+                            format!("... showing {}-{} of {}", start_idx + 1, end_idx, display_items.len()),
+                            Style::default().fg(th.subtext1),
+                        )));
+                    }
                 }
                 crate::state::PreflightTab::Files => {
                     lines.push(Line::from(Span::styled(
@@ -283,10 +710,23 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             let has_aur = items
                 .iter()
                 .any(|p| matches!(p.source, crate::state::Source::Aur));
-            let scan_hint = if has_aur {
-                "Left/Right: tabs  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
-            } else {
-                "Left/Right: tabs  •  d: dry-run  •  p: proceed  •  q: close"
+            
+            // Build footer hint based on current tab
+            let scan_hint = match current_tab {
+                crate::state::PreflightTab::Deps => {
+                    if has_aur {
+                        "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  ?: help  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                    } else {
+                        "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  ?: help  •  d: dry-run  •  p: proceed  •  q: close"
+                    }
+                }
+                _ => {
+                    if has_aur {
+                        "Left/Right: tabs  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                    } else {
+                        "Left/Right: tabs  •  d: dry-run  •  p: proceed  •  q: close"
+                    }
+                }
             };
             lines.push(Line::from(Span::styled(
                 scan_hint,
@@ -358,9 +798,10 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             let mut s_lines: Vec<Line<'static>> = Vec::new();
             let tab_labels = ["Summary", "Deps", "Files", "Services", "Sandbox"];
             let mut header = String::new();
+            let current_tab = *tab;
             for (i, lbl) in tab_labels.iter().enumerate() {
                 let is = matches!(
-                    (i, tab),
+                    (i, current_tab),
                     (0, crate::state::PreflightTab::Summary)
                         | (1, crate::state::PreflightTab::Deps)
                         | (2, crate::state::PreflightTab::Files)
@@ -1099,11 +1540,10 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         || tl.contains("require manual intervention")
                         || tl.contains("requires manual intervention");
                     let style = if *selected == i {
-                        let fg = if is_critical { th.red } else { th.crust };
+                        let fg = if is_critical { th.red } else { th.text };
                         Style::default()
                             .fg(fg)
-                            .bg(th.lavender)
-                            .add_modifier(Modifier::BOLD)
+                            .bg(th.surface1)
                     } else {
                         let fg = if is_critical { th.red } else { th.text };
                         Style::default().fg(fg)

@@ -3,6 +3,7 @@
 //! This module organizes the TUI runtime into smaller files to improve
 //! maintainability and keep individual files under 500 lines.
 
+mod deps_cache;
 mod news;
 mod persist;
 mod recent;

@@ -316,6 +316,9 @@ pub fn handle_search_key(
                         items: vec![item],
                         action: crate::state::PreflightAction::Install,
                         tab: crate::state::PreflightTab::Summary,
+                        dependency_info: Vec::new(),
+                        dep_selected: 0,
+                        dep_tree_expanded: std::collections::HashSet::new(),
                     };
                     app.toast_message = Some("Preflight opened".to_string());
                 }
@@ -327,6 +330,9 @@ pub fn handle_search_key(
                         items: vec![item],
                         action: crate::state::PreflightAction::Install,
                         tab: crate::state::PreflightTab::Summary,
+                        dependency_info: Vec::new(),
+                        dep_selected: 0,
+                        dep_tree_expanded: std::collections::HashSet::new(),
                     };
                     app.toast_message = Some("Preflight opened".to_string());
                 }
@@ -459,6 +465,9 @@ pub fn handle_search_key(
                     items: vec![item],
                     action: crate::state::PreflightAction::Install,
                     tab: crate::state::PreflightTab::Summary,
+                    dependency_info: Vec::new(),
+                    dep_selected: 0,
+                    dep_tree_expanded: std::collections::HashSet::new(),
                 };
                 app.toast_message = Some("Preflight opened".to_string());
             }

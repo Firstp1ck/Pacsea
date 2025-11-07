@@ -1,6 +1,7 @@
 //! Modal dialog state for the UI.
 
 use crate::state::types::{NewsItem, OptionalDepRow, PackageItem};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightAction {
@@ -17,6 +18,53 @@ pub enum PreflightTab {
     Sandbox,
 }
 
+/// Dependency information for a package in the preflight dependency view.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DependencyInfo {
+    /// Package name.
+    pub name: String,
+    /// Required version constraint (e.g., ">=1.2.3" or "1.2.3").
+    pub version: String,
+    /// Current status of this dependency.
+    pub status: DependencyStatus,
+    /// Source repository or origin.
+    pub source: DependencySource,
+    /// Packages that require this dependency.
+    pub required_by: Vec<String>,
+    /// Packages that this dependency depends on (transitive deps).
+    pub depends_on: Vec<String>,
+    /// Whether this is a core repository package.
+    pub is_core: bool,
+    /// Whether this is a critical system package.
+    pub is_system: bool,
+}
+
+/// Status of a dependency relative to the current system state.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum DependencyStatus {
+    /// Already installed and version matches requirement.
+    Installed { version: String },
+    /// Not installed, needs to be installed.
+    ToInstall,
+    /// Installed but outdated, needs upgrade.
+    ToUpgrade { current: String, required: String },
+    /// Conflicts with existing packages.
+    Conflict { reason: String },
+    /// Cannot be found in configured repositories or AUR.
+    Missing,
+}
+
+/// Source of a dependency package.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum DependencySource {
+    /// Official repository package.
+    Official { repo: String },
+    /// AUR package.
+    Aur,
+    /// Local package (not in repos).
+    Local,
+}
+
 #[derive(Debug, Clone, Default)]
 pub enum Modal {
     #[default]
@@ -31,6 +79,12 @@ pub enum Modal {
         items: Vec<PackageItem>,
         action: PreflightAction,
         tab: PreflightTab,
+        /// Resolved dependency information (populated when Deps tab is accessed).
+        dependency_info: Vec<DependencyInfo>,
+        /// Selected index in the dependency list (for navigation).
+        dep_selected: usize,
+        /// Set of dependency names with expanded tree nodes (for tree view).
+        dep_tree_expanded: HashSet<String>,
     },
     /// Preflight execution screen with log and sticky sidebar.
     PreflightExec {
@@ -156,5 +210,13 @@ mod tests {
             cursor: 0,
         };
         let _ = super::Modal::ImportHelp;
+        let _ = super::Modal::Preflight {
+            items: Vec::new(),
+            action: super::PreflightAction::Install,
+            tab: super::PreflightTab::Summary,
+            dependency_info: Vec::new(),
+            dep_selected: 0,
+            dep_tree_expanded: std::collections::HashSet::new(),
+        };
     }
 }

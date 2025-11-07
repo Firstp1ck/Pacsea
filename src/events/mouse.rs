@@ -128,6 +128,52 @@ pub fn handle_mouse_event(
         return false;
     }
 
+    // If Preflight modal is open, handle mouse scroll for Deps tab
+    if let crate::state::Modal::Preflight { tab, items, action: _, dependency_info, dep_selected, dep_tree_expanded } = &mut app.modal {
+        if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
+            // Compute display_items length (headers + dependencies, accounting for folded groups)
+            use std::collections::{HashMap, HashSet};
+            let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
+            for dep in dependency_info.iter() {
+                for req_by in &dep.required_by {
+                    grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+                }
+            }
+            let mut display_len: usize = 0;
+            for pkg_name in items.iter().map(|p| &p.name) {
+                if let Some(pkg_deps) = grouped.get(pkg_name) {
+                    display_len += 1; // Header
+                    // Count dependencies only if expanded
+                    if dep_tree_expanded.contains(pkg_name) {
+                        let mut seen_deps = HashSet::new();
+                        for dep in pkg_deps.iter() {
+                            if seen_deps.insert(dep.name.as_str()) {
+                                display_len += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Handle mouse scroll to navigate dependency list
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    if *dep_selected > 0 {
+                        *dep_selected -= 1;
+                    }
+                    return false;
+                }
+                MouseEventKind::ScrollDown => {
+                    if *dep_selected < display_len.saturating_sub(1) {
+                        *dep_selected += 1;
+                    }
+                    return false;
+                }
+                _ => {}
+            }
+        }
+    }
+
     // If News modal is open, intercept mouse events before anything else
     if let crate::state::Modal::News { items, selected } = &mut app.modal {
         // Left click: select/open or close on outside
@@ -139,9 +185,9 @@ pub fn handle_mouse_event(
                 && my < y + h
             {
                 let row = my.saturating_sub(y) as usize;
-                if !items.is_empty() {
-                    let idx = std::cmp::min(row, items.len().saturating_sub(1));
-                    *selected = idx;
+                // Only open if clicking on an actual news item line (not empty space)
+                if row < items.len() {
+                    *selected = row;
                     if let Some(it) = items.get(*selected) {
                         crate::util::open_url(&it.url);
                     }

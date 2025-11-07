@@ -32,6 +32,8 @@ pub struct AppState {
     pub list_state: ListState,
     /// Active modal dialog, if any.
     pub modal: Modal,
+    /// Previous modal state (used to restore when closing help/alert modals).
+    pub previous_modal: Option<Modal>,
     /// If `true`, show install steps without executing side effects.
     pub dry_run: bool,
     // Recent searches
@@ -311,6 +313,16 @@ pub struct AppState {
     // Pending removals to detect completion and log
     /// Names of packages we just triggered to remove; when all disappear, append to removed log.
     pub pending_remove_names: Option<Vec<String>>,
+    
+    // Dependency resolution cache for install list
+    /// Cached resolved dependencies for the current install list (updated in background).
+    pub install_list_deps: Vec<crate::state::modal::DependencyInfo>,
+    /// Whether dependency resolution is currently in progress.
+    pub deps_resolving: bool,
+    /// Path where the dependency cache is persisted as JSON.
+    pub deps_cache_path: PathBuf,
+    /// Dirty flag indicating `install_list_deps` needs to be saved.
+    pub deps_cache_dirty: bool,
 }
 
 impl Default for AppState {
@@ -326,6 +338,7 @@ impl Default for AppState {
             details: PackageDetails::default(),
             list_state: ListState::default(),
             modal: Modal::None,
+            previous_modal: None,
             dry_run: false,
             recent: Vec::new(),
             history_state: ListState::default(),
@@ -472,6 +485,11 @@ impl Default for AppState {
             // Pending install tracking
             pending_install_names: None,
             pending_remove_names: None,
+            install_list_deps: Vec::new(),
+            deps_resolving: false,
+            // Dependency cache (lists dir under config)
+            deps_cache_path: crate::theme::lists_dir().join("install_deps_cache.json"),
+            deps_cache_dirty: false,
         }
     }
 }

@@ -172,12 +172,20 @@ pub fn handle_install_key(
         KeyCode::Enter => {
             if !app.installed_only_mode && !app.install_list.is_empty() {
                 // Open Preflight modal listing all items to be installed
+                // Use cached dependencies if available (they're resolved in background when packages are added)
+                let cached_deps = if !app.deps_resolving && !app.install_list_deps.is_empty() {
+                    app.install_list_deps.clone()
+                } else {
+                    Vec::new()
+                };
                 app.modal = crate::state::Modal::Preflight {
                     items: app.install_list.clone(),
                     action: crate::state::PreflightAction::Install,
                     tab: crate::state::PreflightTab::Summary,
+                    dependency_info: cached_deps,
+                    dep_selected: 0,
+                    dep_tree_expanded: std::collections::HashSet::new(),
                 };
-                app.toast_message = Some("Preflight: Install list".to_string());
             } else if app.installed_only_mode
                 && matches!(app.right_pane_focus, crate::state::RightPaneFocus::Remove)
             {
@@ -186,6 +194,9 @@ pub fn handle_install_key(
                         items: app.remove_list.clone(),
                         action: crate::state::PreflightAction::Remove,
                         tab: crate::state::PreflightTab::Summary,
+                        dependency_info: Vec::new(),
+                        dep_selected: 0,
+                        dep_tree_expanded: std::collections::HashSet::new(),
                     };
                     app.toast_message = Some("Preflight: Remove list".to_string());
                 }
@@ -365,6 +376,9 @@ pub fn handle_install_key(
                             if i < app.install_list.len() {
                                 app.install_list.remove(i);
                                 app.install_dirty = true;
+                                // Clear dependency cache when list changes
+                                app.install_list_deps.clear();
+                                app.deps_resolving = false;
                                 let vis_len = inds.len().saturating_sub(1); // one less visible
                                 if vis_len == 0 {
                                     app.install_state.select(None);
@@ -415,12 +429,18 @@ pub fn handle_install_key(
                         app.install_list.clear();
                         app.install_state.select(None);
                         app.install_dirty = true;
+                        // Clear dependency cache when list is cleared
+                        app.install_list_deps.clear();
+                        app.deps_resolving = false;
                     }
                 }
             } else {
                 app.install_list.clear();
                 app.install_state.select(None);
                 app.install_dirty = true;
+                // Clear dependency cache when list is cleared
+                app.install_list_deps.clear();
+                app.deps_resolving = false;
             }
         }
         code if matches_any(&km.install_remove) && code == ke.code => {
@@ -468,6 +488,9 @@ pub fn handle_install_key(
                             if i < app.install_list.len() {
                                 app.install_list.remove(i);
                                 app.install_dirty = true;
+                                // Clear dependency cache when list changes
+                                app.install_list_deps.clear();
+                                app.deps_resolving = false;
                                 let vis_len = inds.len().saturating_sub(1); // one less visible
                                 if vis_len == 0 {
                                     app.install_state.select(None);
@@ -614,6 +637,9 @@ mod tests {
                 ref items,
                 action,
                 tab,
+                dependency_info: _,
+                dep_selected: _,
+                dep_tree_expanded: _,
             } => {
                 assert_eq!(items.len(), 1);
                 assert_eq!(action, crate::state::PreflightAction::Install);

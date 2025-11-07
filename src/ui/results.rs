@@ -112,7 +112,13 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                         .map(|d| d.owner.clone())
                         .unwrap_or_default();
                     let label = crate::logic::distro::label_for_official(repo, &p.name, &owner);
-                    (label, th.green)
+                    // Color: sapphire (blueish) for EOS/Cachy/Manjaro, green for core/extra/other official
+                    let color = if label == "EOS" || label == "CachyOS" || label == "Manjaro" {
+                        th.sapphire
+                    } else {
+                        th.green
+                    };
+                    (label, color)
                 }
                 Source::Aur => ("AUR".to_string(), th.yellow),
             };
