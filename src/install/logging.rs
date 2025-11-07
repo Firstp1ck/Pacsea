@@ -6,10 +6,10 @@ use std::io::Write;
 ///
 /// Output: `Ok(())` on success; otherwise an I/O error.
 ///
-/// Details: Writes to logs_dir/install_log.txt, prefixing each name with a UTC timestamp.
+/// Details: Writes to logs_dir/install_log.log, prefixing each name with a UTC timestamp.
 pub fn log_installed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
-    path.push("install_log.txt");
+    path.push("install_log.log");
     let mut f = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -31,10 +31,10 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
 ///
 /// Output: `Ok(())` on success; otherwise an I/O error.
 ///
-/// Details: Appends to logs_dir/remove_log.txt without timestamps.
+/// Details: Appends to logs_dir/remove_log.log without timestamps.
 pub fn log_removed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
-    path.push("remove_log.txt");
+    path.push("remove_log.log");
     let mut f = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -69,14 +69,14 @@ mod tests {
         let names = vec!["a".to_string(), "b".to_string()];
         super::log_installed(&names).unwrap();
         let mut p = crate::theme::logs_dir();
-        p.push("install_log.txt");
+        p.push("install_log.log");
         let body = fs::read_to_string(&p).unwrap();
         assert!(body.contains(" a\n") || body.contains(" a\r\n"));
 
         // Write remove log
         super::log_removed(&names).unwrap();
         let mut pr = crate::theme::logs_dir();
-        pr.push("remove_log.txt");
+        pr.push("remove_log.log");
         let body_r = fs::read_to_string(&pr).unwrap();
         assert!(body_r.contains("a\n") || body_r.contains("a\r\n"));
 

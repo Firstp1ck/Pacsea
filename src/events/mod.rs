@@ -36,25 +36,25 @@ mod utils;
 /// - Handles active modal interactions first (Alert/SystemUpdate/ConfirmInstall/ConfirmRemove/Help/News).
 /// - Supports global shortcuts (help overlay, theme reload, exit, PKGBUILD viewer toggle, change sort).
 /// - Delegates pane-specific handling to `search`, `recent`, and `install` submodules.
-
+///
 /// Compute the length of the display_items list for the Deps tab.
-/// This matches the logic in ui/modals.rs that builds display_items with headers and dependencies.
-/// Accounts for folded groups (only counts dependencies if package is expanded).
+///   This matches the logic in ui/modals.rs that builds display_items with headers and dependencies.
+///   Accounts for folded groups (only counts dependencies if package is expanded).
 fn compute_display_items_len(
     items: &[PackageItem],
     dependency_info: &[crate::state::modal::DependencyInfo],
     dep_tree_expanded: &std::collections::HashSet<String>,
 ) -> usize {
     use std::collections::{HashMap, HashSet};
-    
+
     // Group dependencies by the packages that require them (same as UI code)
     let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
     for dep in dependency_info.iter() {
         for req_by in &dep.required_by {
-            grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+            grouped.entry(req_by.clone()).or_default().push(dep);
         }
     }
-    
+
     // Count display items: 1 header + unique deps per package (only if expanded)
     let mut count = 0;
     for pkg_name in items.iter().map(|p| &p.name) {
@@ -71,7 +71,7 @@ fn compute_display_items_len(
             }
         }
     }
-    
+
     count
 }
 
@@ -115,7 +115,16 @@ pub fn handle_event(
                 }
                 return false;
             }
-            crate::state::Modal::Preflight { tab, items, action, dependency_info, dep_selected, dep_tree_expanded } => {
+            crate::state::Modal::Preflight {
+                tab,
+                items,
+                action,
+                dependency_info,
+                dep_selected,
+                dep_tree_expanded,
+                file_info,
+                file_selected,
+            } => {
                 match ke.code {
                     KeyCode::Esc => {
                         app.previous_modal = None; // Clear previous modal when closing Preflight
@@ -126,13 +135,16 @@ pub fn handle_event(
                         if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
                             // Find which package header is selected
                             use std::collections::{HashMap, HashSet};
-                            let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
+                            let mut grouped: HashMap<
+                                String,
+                                Vec<&crate::state::modal::DependencyInfo>,
+                            > = HashMap::new();
                             for dep in dependency_info.iter() {
                                 for req_by in &dep.required_by {
-                                    grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+                                    grouped.entry(req_by.clone()).or_default().push(dep);
                                 }
                             }
-                            
+
                             let mut display_items: Vec<(bool, String)> = Vec::new();
                             for pkg_name in items.iter().map(|p| &p.name) {
                                 if grouped.contains_key(pkg_name) {
@@ -150,15 +162,15 @@ pub fn handle_event(
                                     }
                                 }
                             }
-                            
-                            if let Some((is_header, pkg_name)) = display_items.get(*dep_selected) {
-                                if *is_header {
-                                    // Toggle this package's expanded state
-                                    if dep_tree_expanded.contains(pkg_name) {
-                                        dep_tree_expanded.remove(pkg_name);
-                                    } else {
-                                        dep_tree_expanded.insert(pkg_name.clone());
-                                    }
+
+                            if let Some((is_header, pkg_name)) = display_items.get(*dep_selected)
+                                && *is_header
+                            {
+                                // Toggle this package's expanded state
+                                if dep_tree_expanded.contains(pkg_name) {
+                                    dep_tree_expanded.remove(pkg_name);
+                                } else {
+                                    dep_tree_expanded.insert(pkg_name.clone());
                                 }
                             }
                         } else {
@@ -182,9 +194,18 @@ pub fn handle_event(
                             }
                         };
                         // Resolve dependencies when switching to Deps tab
-                        if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() && matches!(*action, crate::state::PreflightAction::Install) {
+                        if *tab == crate::state::PreflightTab::Deps
+                            && dependency_info.is_empty()
+                            && matches!(*action, crate::state::PreflightAction::Install)
+                        {
                             *dependency_info = crate::logic::deps::resolve_dependencies(items);
                             *dep_selected = 0;
+                        }
+                        // Resolve files when switching to Files tab
+                        if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
+                            tracing::info!("[Events] Auto-refreshing files when switching to Files tab (Left)");
+                            *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                            *file_selected = 0;
                         }
                     }
                     KeyCode::Right => {
@@ -202,9 +223,18 @@ pub fn handle_event(
                             }
                         };
                         // Resolve dependencies when switching to Deps tab
-                        if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() && matches!(*action, crate::state::PreflightAction::Install) {
+                        if *tab == crate::state::PreflightTab::Deps
+                            && dependency_info.is_empty()
+                            && matches!(*action, crate::state::PreflightAction::Install)
+                        {
                             *dependency_info = crate::logic::deps::resolve_dependencies(items);
                             *dep_selected = 0;
+                        }
+                        // Resolve files when switching to Files tab
+                        if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
+                            tracing::info!("[Events] Auto-refreshing files when switching to Files tab (Right)");
+                            *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                            *file_selected = 0;
                         }
                     }
                     KeyCode::Tab => {
@@ -223,9 +253,18 @@ pub fn handle_event(
                             }
                         };
                         // Resolve dependencies when switching to Deps tab
-                        if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() && matches!(*action, crate::state::PreflightAction::Install) {
+                        if *tab == crate::state::PreflightTab::Deps
+                            && dependency_info.is_empty()
+                            && matches!(*action, crate::state::PreflightAction::Install)
+                        {
                             *dependency_info = crate::logic::deps::resolve_dependencies(items);
                             *dep_selected = 0;
+                        }
+                        // Resolve files when switching to Files tab
+                        if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
+                            tracing::info!("[Events] Auto-refreshing files when switching to Files tab (Tab)");
+                            *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                            *file_selected = 0;
                         }
                     }
                     KeyCode::Up => {
@@ -233,13 +272,35 @@ pub fn handle_event(
                             if *dep_selected > 0 {
                                 *dep_selected -= 1;
                             }
+                        } else if *tab == crate::state::PreflightTab::Files
+                            && !file_info.is_empty()
+                            && *file_selected > 0
+                        {
+                            *file_selected -= 1;
                         }
                     }
                     KeyCode::Down => {
                         if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
-                            let display_len = compute_display_items_len(items, dependency_info, dep_tree_expanded);
+                            let display_len = compute_display_items_len(
+                                items,
+                                dependency_info,
+                                dep_tree_expanded,
+                            );
                             if *dep_selected < display_len.saturating_sub(1) {
                                 *dep_selected += 1;
+                            }
+                        } else if *tab == crate::state::PreflightTab::Files && !file_info.is_empty()
+                        {
+                            // Compute total display items length for Files tab
+                            let mut display_len = 0;
+                            for pkg_info in file_info.iter() {
+                                if !pkg_info.files.is_empty() {
+                                    display_len += 1; // Package header
+                                    display_len += pkg_info.files.len(); // Files
+                                }
+                            }
+                            if *file_selected < display_len.saturating_sub(1) {
+                                *file_selected += 1;
                             }
                         }
                     }
@@ -248,13 +309,16 @@ pub fn handle_event(
                         if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
                             // Find which package header is selected
                             use std::collections::{HashMap, HashSet};
-                            let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
+                            let mut grouped: HashMap<
+                                String,
+                                Vec<&crate::state::modal::DependencyInfo>,
+                            > = HashMap::new();
                             for dep in dependency_info.iter() {
                                 for req_by in &dep.required_by {
-                                    grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+                                    grouped.entry(req_by.clone()).or_default().push(dep);
                                 }
                             }
-                            
+
                             let mut display_items: Vec<(bool, String)> = Vec::new();
                             for pkg_name in items.iter().map(|p| &p.name) {
                                 if grouped.contains_key(pkg_name) {
@@ -272,15 +336,15 @@ pub fn handle_event(
                                     }
                                 }
                             }
-                            
-                            if let Some((is_header, pkg_name)) = display_items.get(*dep_selected) {
-                                if *is_header {
-                                    // Toggle this package's expanded state
-                                    if dep_tree_expanded.contains(pkg_name) {
-                                        dep_tree_expanded.remove(pkg_name);
-                                    } else {
-                                        dep_tree_expanded.insert(pkg_name.clone());
-                                    }
+
+                            if let Some((is_header, pkg_name)) = display_items.get(*dep_selected)
+                                && *is_header
+                            {
+                                // Toggle this package's expanded state
+                                if dep_tree_expanded.contains(pkg_name) {
+                                    dep_tree_expanded.remove(pkg_name);
+                                } else {
+                                    dep_tree_expanded.insert(pkg_name.clone());
                                 }
                             }
                         }
@@ -289,14 +353,18 @@ pub fn handle_event(
                         // Expand/collapse all package groups
                         if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
                             use std::collections::HashMap;
-                            let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
+                            let mut grouped: HashMap<
+                                String,
+                                Vec<&crate::state::modal::DependencyInfo>,
+                            > = HashMap::new();
                             for dep in dependency_info.iter() {
                                 for req_by in &dep.required_by {
-                                    grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+                                    grouped.entry(req_by.clone()).or_default().push(dep);
                                 }
                             }
-                            
-                            let all_expanded = items.iter().all(|p| dep_tree_expanded.contains(&p.name));
+
+                            let all_expanded =
+                                items.iter().all(|p| dep_tree_expanded.contains(&p.name));
                             if all_expanded {
                                 // Collapse all
                                 dep_tree_expanded.clear();
@@ -308,6 +376,23 @@ pub fn handle_event(
                                     }
                                 }
                             }
+                        }
+                    }
+                    KeyCode::Char('f') | KeyCode::Char('F') => {
+                        // File database sync (Files tab only)
+                        if *tab == crate::state::PreflightTab::Files {
+                            // Launch terminal with sudo pacman -Fy
+                            let sync_cmd = "sudo pacman -Fy".to_string();
+                            let cmds = vec![sync_cmd];
+                            std::thread::spawn(move || {
+                                crate::install::spawn_shell_commands_in_terminal(&cmds);
+                            });
+                            // Clear file_info to trigger re-resolution after sync completes
+                            *file_info = Vec::new();
+                            *file_selected = 0;
+                            app.toast_message = Some("File database sync started. Switch away and back to Files tab to refresh.".to_string());
+                            app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                            return false;
                         }
                     }
                     KeyCode::Char('s') | KeyCode::Char('S') => {
@@ -355,7 +440,8 @@ pub fn handle_event(
                                 crate::install::spawn_install_all(items, app.dry_run);
                             }
                             crate::state::PreflightAction::Remove => {
-                                let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+                                let names: Vec<String> =
+                                    items.iter().map(|p| p.name.clone()).collect();
                                 crate::install::spawn_remove_all(&names, app.dry_run);
                             }
                         }
@@ -373,8 +459,7 @@ pub fn handle_event(
                     KeyCode::Char('?') => {
                         // Show Deps tab help when on Deps tab, otherwise show general Preflight help
                         let help_message = if *tab == crate::state::PreflightTab::Deps {
-                            format!(
-                                "Dependencies Tab Help\n\n\
+                            "Dependencies Tab Help\n\n\
                                 This tab shows all dependencies required for the selected packages.\n\n\
                                 Status Indicators:\n\
                                 • ✓ (green) - Already installed\n\
@@ -395,11 +480,9 @@ pub fn handle_event(
                                 • ? - Show this help\n\
                                 • q/Esc - Close preflight\n\n\
                                 Dependencies are automatically resolved when you navigate to this tab.\n\
-                                For AUR packages, dependencies are fetched from the AUR API."
-                            )
+                                For AUR packages, dependencies are fetched from the AUR API.".to_string()
                         } else {
-                            format!(
-                                "Preflight Help\n\n\
+                            "Preflight Help\n\n\
                                 Navigation:\n\
                                 • Left/Right - Switch between tabs\n\
                                 • Up/Down - Navigate lists (Deps tab)\n\
@@ -416,7 +499,7 @@ pub fn handle_event(
                                 • Files - File changes preview\n\
                                 • Services - Systemd service impact\n\
                                 • Sandbox - AUR build checks"
-                            )
+                                .to_string()
                         };
                         // Store current Preflight modal state before opening Alert
                         app.previous_modal = Some(app.modal.clone());
@@ -1238,7 +1321,7 @@ echo; echo "Press any key to close..."; read -rn1 -s _)"##
                 return false;
             }
         }
-        
+
         // Normalize BackTab so that SHIFT modifier does not affect matching across terminals
         let normalized_mods = if matches!(ke.code, KeyCode::BackTab) {
             KeyModifiers::empty()

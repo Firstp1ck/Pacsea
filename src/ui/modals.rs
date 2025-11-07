@@ -34,7 +34,10 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
         crate::state::Modal::Alert { message } => {
             // Detect help messages and make them larger
             let is_help = message.contains("Help") || message.contains("Tab Help");
-            let w = area.width.saturating_sub(10).min(if is_help { 90 } else { 80 });
+            let w = area
+                .width
+                .saturating_sub(10)
+                .min(if is_help { 90 } else { 80 });
             let h = if is_help {
                 area.height.saturating_sub(6).min(28)
             } else {
@@ -89,19 +92,20 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 " Connection issue "
             };
-            let header_color = if is_help {
-                th.mauve
-            } else if is_config {
+            let header_color = if is_help || is_config {
                 th.mauve
             } else {
                 th.red
             };
-            
+
             // Parse message into lines for help messages
             let mut lines: Vec<Line<'static>> = Vec::new();
             if is_help {
                 for line in message.lines() {
-                    lines.push(Line::from(Span::styled(line.to_string(), Style::default().fg(th.text))));
+                    lines.push(Line::from(Span::styled(
+                        line.to_string(),
+                        Style::default().fg(th.text),
+                    )));
                 }
             } else {
                 lines.push(Line::from(Span::styled(
@@ -111,14 +115,17 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         .add_modifier(Modifier::BOLD),
                 )));
                 lines.push(Line::from(""));
-                lines.push(Line::from(Span::styled(message.clone(), Style::default().fg(th.text))));
+                lines.push(Line::from(Span::styled(
+                    message.clone(),
+                    Style::default().fg(th.text),
+                )));
             }
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Press Enter or Esc to close",
                 Style::default().fg(th.subtext1),
             )));
-            
+
             let boxw = Paragraph::new(lines)
                 .style(Style::default().fg(th.text).bg(th.mantle))
                 .wrap(Wrap { trim: true })
@@ -200,18 +207,52 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 );
             f.render_widget(boxw, rect);
         }
-        crate::state::Modal::Preflight { items, action, tab, dependency_info, dep_selected, dep_tree_expanded } => {
+        crate::state::Modal::Preflight {
+            items,
+            action,
+            tab,
+            dependency_info,
+            dep_selected,
+            dep_tree_expanded,
+            file_info,
+            file_selected,
+        } => {
             // Use cached dependencies if available, otherwise resolve on-demand
             // Note: Cached deps are populated in background when packages are added to install list
-            if dependency_info.is_empty() && matches!(*action, crate::state::PreflightAction::Install) {
+            if dependency_info.is_empty()
+                && matches!(*action, crate::state::PreflightAction::Install)
+            {
                 // Check if we have cached dependencies from app state
                 // (This would require passing app state, but for now we resolve on-demand as fallback)
-                tracing::info!("[UI] Starting dependency resolution for {} packages in Preflight modal", items.len());
+                tracing::info!(
+                    "[UI] Starting dependency resolution for {} packages in Preflight modal",
+                    items.len()
+                );
                 let start_time = std::time::Instant::now();
                 *dependency_info = crate::logic::deps::resolve_dependencies(items);
                 let elapsed = start_time.elapsed();
-                tracing::info!("[UI] Dependency resolution completed in {:?}. Found {} dependencies", elapsed, dependency_info.len());
+                tracing::info!(
+                    "[UI] Dependency resolution completed in {:?}. Found {} dependencies",
+                    elapsed,
+                    dependency_info.len()
+                );
                 *dep_selected = 0;
+            }
+            // Lazy load file info when Files tab is accessed
+            if file_info.is_empty() && *tab == crate::state::PreflightTab::Files {
+                tracing::info!(
+                    "[UI] Starting file resolution for {} packages in Preflight modal",
+                    items.len()
+                );
+                let start_time = std::time::Instant::now();
+                *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                let elapsed = start_time.elapsed();
+                tracing::info!(
+                    "[UI] File resolution completed in {:?}. Found {} package file infos",
+                    elapsed,
+                    file_info.len()
+                );
+                *file_selected = 0;
             }
             // Removed verbose rendering log
             let w = area.width.saturating_sub(6).min(96);
@@ -269,12 +310,14 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
             match current_tab {
                 crate::state::PreflightTab::Summary => {
-                    if matches!(*action, crate::state::PreflightAction::Install) && !dependency_info.is_empty() {
+                    if matches!(*action, crate::state::PreflightAction::Install)
+                        && !dependency_info.is_empty()
+                    {
                         // Filter dependencies to only show conflicts and upgrades
                         let important_deps: Vec<&crate::state::modal::DependencyInfo> = dependency_info
                             .iter()
                             .filter(|d| {
-                                matches!(d.status, crate::state::modal::DependencyStatus::Conflict { .. } | 
+                                matches!(d.status, crate::state::modal::DependencyStatus::Conflict { .. } |
                                          crate::state::modal::DependencyStatus::ToUpgrade { .. })
                             })
                             .collect();
@@ -287,19 +330,34 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         } else {
                             // Group by packages that require them
                             use std::collections::{HashMap, HashSet};
-                            let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
+                            let mut grouped: HashMap<
+                                String,
+                                Vec<&crate::state::modal::DependencyInfo>,
+                            > = HashMap::new();
                             for dep in important_deps.iter() {
                                 for req_by in &dep.required_by {
-                                    grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+                                    grouped.entry(req_by.clone()).or_default().push(dep);
                                 }
                             }
 
                             // Count conflicts and upgrades
-                            let conflict_count = important_deps.iter()
-                                .filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::Conflict { .. }))
+                            let conflict_count = important_deps
+                                .iter()
+                                .filter(|d| {
+                                    matches!(
+                                        d.status,
+                                        crate::state::modal::DependencyStatus::Conflict { .. }
+                                    )
+                                })
                                 .count();
-                            let upgrade_count = important_deps.iter()
-                                .filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::ToUpgrade { .. }))
+                            let upgrade_count = important_deps
+                                .iter()
+                                .filter(|d| {
+                                    matches!(
+                                        d.status,
+                                        crate::state::modal::DependencyStatus::ToUpgrade { .. }
+                                    )
+                                })
                                 .count();
 
                             // Summary header
@@ -310,7 +368,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                             if upgrade_count > 0 {
                                 summary_parts.push(format!("{} upgrade(s)", upgrade_count));
                             }
-                            
+
                             // Use different header based on what we have
                             let header_text = if conflict_count > 0 {
                                 format!("Issues: {}", summary_parts.join(", "))
@@ -319,11 +377,15 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                             } else {
                                 "Summary: No conflicts or upgrades required.".to_string()
                             };
-                            
+
                             lines.push(Line::from(Span::styled(
                                 header_text,
                                 Style::default()
-                                    .fg(if conflict_count > 0 { th.red } else { th.yellow })
+                                    .fg(if conflict_count > 0 {
+                                        th.red
+                                    } else {
+                                        th.yellow
+                                    })
                                     .add_modifier(Modifier::BOLD),
                             )));
                             lines.push(Line::from(""));
@@ -348,10 +410,12 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                     // Deduplicate dependencies within this package's group
                                     let mut seen_deps = HashSet::new();
                                     for dep in pkg_deps.iter() {
-                                        if seen_deps.insert(dep.name.as_str()) && displayed < available_height {
+                                        if seen_deps.insert(dep.name.as_str())
+                                            && displayed < available_height
+                                        {
                                             let mut spans = Vec::new();
                                             spans.push(Span::styled("  ", Style::default())); // Indentation
-                                            
+
                                             // Status indicator and dependency info
                                             match &dep.status {
                                                 crate::state::modal::DependencyStatus::Conflict { reason } => {
@@ -376,8 +440,6 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                                             let repo_lower = repo.to_lowercase();
                                                             let color = if crate::index::is_eos_repo(&repo_lower) || crate::index::is_cachyos_repo(&repo_lower) {
                                                                 th.sapphire
-                                                            } else if repo_lower == "core" || repo_lower == "extra" {
-                                                                th.green
                                                             } else {
                                                                 th.green
                                                             };
@@ -417,8 +479,6 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                                             let repo_lower = repo.to_lowercase();
                                                             let color = if crate::index::is_eos_repo(&repo_lower) || crate::index::is_cachyos_repo(&repo_lower) {
                                                                 th.sapphire
-                                                            } else if repo_lower == "core" || repo_lower == "extra" {
-                                                                th.green
                                                             } else {
                                                                 th.green
                                                             };
@@ -475,20 +535,55 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
                     // Group dependencies by the packages that require them
                     use std::collections::HashMap;
-                    let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
+                    let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> =
+                        HashMap::new();
                     for dep in deps.iter() {
                         for req_by in &dep.required_by {
-                            grouped.entry(req_by.clone()).or_insert_with(|| Vec::new()).push(dep);
+                            grouped.entry(req_by.clone()).or_default().push(dep);
                         }
                     }
 
                     // Calculate summary statistics
                     let total = deps.len();
-                    let installed_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::Installed { .. })).count();
-                    let to_install_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::ToInstall)).count();
-                    let to_upgrade_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::ToUpgrade { .. })).count();
-                    let conflict_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::Conflict { .. })).count();
-                    let missing_count = deps.iter().filter(|d| matches!(d.status, crate::state::modal::DependencyStatus::Missing)).count();
+                    let installed_count = deps
+                        .iter()
+                        .filter(|d| {
+                            matches!(
+                                d.status,
+                                crate::state::modal::DependencyStatus::Installed { .. }
+                            )
+                        })
+                        .count();
+                    let to_install_count = deps
+                        .iter()
+                        .filter(|d| {
+                            matches!(d.status, crate::state::modal::DependencyStatus::ToInstall)
+                        })
+                        .count();
+                    let to_upgrade_count = deps
+                        .iter()
+                        .filter(|d| {
+                            matches!(
+                                d.status,
+                                crate::state::modal::DependencyStatus::ToUpgrade { .. }
+                            )
+                        })
+                        .count();
+                    let conflict_count = deps
+                        .iter()
+                        .filter(|d| {
+                            matches!(
+                                d.status,
+                                crate::state::modal::DependencyStatus::Conflict { .. }
+                            )
+                        })
+                        .count();
+                    let missing_count = deps
+                        .iter()
+                        .filter(|d| {
+                            matches!(d.status, crate::state::modal::DependencyStatus::Missing)
+                        })
+                        .count();
 
                     // Summary header
                     if total > 0 {
@@ -530,7 +625,11 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
                     // Build flat list with grouped structure for navigation
                     // Format: [package_name, dep1, dep2, ...] for each package
-                    let mut display_items: Vec<(bool, String, Option<&crate::state::modal::DependencyInfo>)> = Vec::new();
+                    let mut display_items: Vec<(
+                        bool,
+                        String,
+                        Option<&crate::state::modal::DependencyInfo>,
+                    )> = Vec::new();
                     for pkg_name in items.iter().map(|p| &p.name) {
                         if let Some(pkg_deps) = grouped.get(pkg_name) {
                             // Add package header
@@ -551,10 +650,17 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
                     // Dependency list with grouping
                     let available_height = (h as usize).saturating_sub(8);
-                    let start_idx = (*dep_selected).saturating_sub(available_height / 2).min(display_items.len().saturating_sub(available_height));
+                    let start_idx = (*dep_selected)
+                        .saturating_sub(available_height / 2)
+                        .min(display_items.len().saturating_sub(available_height));
                     let end_idx = (start_idx + available_height).min(display_items.len());
 
-                    for (idx, (is_header, header_name, dep)) in display_items.iter().enumerate().skip(start_idx).take(end_idx - start_idx) {
+                    for (idx, (is_header, header_name, dep)) in display_items
+                        .iter()
+                        .enumerate()
+                        .skip(start_idx)
+                        .take(end_idx - start_idx)
+                    {
                         let is_selected = idx == *dep_selected;
                         let mut spans = Vec::new();
 
@@ -579,13 +685,21 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         } else if let Some(dep) = dep {
                             // Dependency item (indented)
                             spans.push(Span::styled("  ", Style::default())); // Indentation
-                            
+
                             // Status indicator
                             let (status_icon, status_color) = match &dep.status {
-                                crate::state::modal::DependencyStatus::Installed { .. } => ("✓", th.green),
-                                crate::state::modal::DependencyStatus::ToInstall => ("+", th.yellow),
-                                crate::state::modal::DependencyStatus::ToUpgrade { .. } => ("↑", th.yellow),
-                                crate::state::modal::DependencyStatus::Conflict { .. } => ("⚠", th.red),
+                                crate::state::modal::DependencyStatus::Installed { .. } => {
+                                    ("✓", th.green)
+                                }
+                                crate::state::modal::DependencyStatus::ToInstall => {
+                                    ("+", th.yellow)
+                                }
+                                crate::state::modal::DependencyStatus::ToUpgrade { .. } => {
+                                    ("↑", th.yellow)
+                                }
+                                crate::state::modal::DependencyStatus::Conflict { .. } => {
+                                    ("⚠", th.red)
+                                }
                                 crate::state::modal::DependencyStatus::Missing => ("?", th.red),
                             };
                             spans.push(Span::styled(
@@ -616,37 +730,35 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                             let (source_badge, badge_color) = match &dep.source {
                                 crate::state::modal::DependencySource::Official { repo } => {
                                     let repo_lower = repo.to_lowercase();
-                                    let color = if crate::index::is_eos_repo(&repo_lower) || crate::index::is_cachyos_repo(&repo_lower) {
+                                    let color = if crate::index::is_eos_repo(&repo_lower)
+                                        || crate::index::is_cachyos_repo(&repo_lower)
+                                    {
                                         th.sapphire // Blueish for EOS/Cachy
-                                    } else if repo_lower == "core" || repo_lower == "extra" {
-                                        th.green // Green for core/extra
                                     } else {
-                                        th.green // Default to green for other official repos
+                                        th.green // Green for core/extra and other official repos
                                     };
                                     (format!(" [{}]", repo), color)
                                 }
-                                crate::state::modal::DependencySource::Aur => (" [AUR]".to_string(), th.yellow),
-                                crate::state::modal::DependencySource::Local => (" [local]".to_string(), th.overlay1),
+                                crate::state::modal::DependencySource::Aur => {
+                                    (" [AUR]".to_string(), th.yellow)
+                                }
+                                crate::state::modal::DependencySource::Local => {
+                                    (" [local]".to_string(), th.overlay1)
+                                }
                             };
-                            spans.push(Span::styled(
-                                source_badge,
-                                Style::default().fg(badge_color),
-                            ));
+                            spans
+                                .push(Span::styled(source_badge, Style::default().fg(badge_color)));
 
                             // Core/System markers
                             if dep.is_core {
                                 spans.push(Span::styled(
                                     " [CORE]",
-                                    Style::default()
-                                        .fg(th.red)
-                                        .add_modifier(Modifier::BOLD),
+                                    Style::default().fg(th.red).add_modifier(Modifier::BOLD),
                                 ));
                             } else if dep.is_system {
                                 spans.push(Span::styled(
                                     " [SYSTEM]",
-                                    Style::default()
-                                        .fg(th.yellow)
-                                        .add_modifier(Modifier::BOLD),
+                                    Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
                                 ));
                             }
 
@@ -658,7 +770,10 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                         Style::default().fg(th.subtext1),
                                     ));
                                 }
-                                crate::state::modal::DependencyStatus::ToUpgrade { current, required } => {
+                                crate::state::modal::DependencyStatus::ToUpgrade {
+                                    current,
+                                    required,
+                                } => {
                                     spans.push(Span::styled(
                                         format!(" ({} → {})", current, required),
                                         Style::default().fg(th.yellow),
@@ -673,23 +788,311 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                                 _ => {}
                             }
                         }
-                        
+
                         lines.push(Line::from(spans));
                     }
 
                     if display_items.len() > available_height {
                         lines.push(Line::from(""));
                         lines.push(Line::from(Span::styled(
-                            format!("... showing {}-{} of {}", start_idx + 1, end_idx, display_items.len()),
+                            format!(
+                                "... showing {}-{} of {}",
+                                start_idx + 1,
+                                end_idx,
+                                display_items.len()
+                            ),
                             Style::default().fg(th.subtext1),
                         )));
                     }
                 }
                 crate::state::PreflightTab::Files => {
-                    lines.push(Line::from(Span::styled(
-                        "Files (placeholder) — file list diff/pacnew prediction will appear here",
-                        Style::default().fg(th.text),
-                    )));
+                    if file_info.is_empty() {
+                        lines.push(Line::from(Span::styled(
+                            "Resolving file changes...",
+                            Style::default().fg(th.subtext1),
+                        )));
+                    } else {
+                        // Calculate available height for file list (accounting for header, footer, etc.)
+                        let available_height = rect.height.saturating_sub(6).max(1);
+
+                        // Build flat list of display items: package headers + files
+                        // Store owned data to avoid lifetime issues
+                        type FileDisplayItem = (
+                            bool,
+                            String,
+                            Option<(crate::state::modal::FileChangeType, String, bool, bool, bool)>,
+                        );
+                        let mut display_items: Vec<FileDisplayItem> = Vec::new();
+                        for pkg_info in file_info.iter() {
+                            if !pkg_info.files.is_empty() {
+                                display_items.push((true, pkg_info.name.clone(), None)); // Package header
+                                for file in pkg_info.files.iter() {
+                                    display_items.push((
+                                        false,
+                                        String::new(),
+                                        Some((
+                                            file.change_type.clone(),
+                                            file.path.clone(),
+                                            file.is_config,
+                                            file.predicted_pacnew,
+                                            file.predicted_pacsave,
+                                        )),
+                                    )); // File entry
+                                }
+                            }
+                        }
+
+                        if display_items.is_empty() {
+                            // Check if we have package entries but they're all empty
+                            let has_aur_packages = items.iter().any(|p| matches!(p.source, crate::state::Source::Aur));
+                            let has_official_packages = items.iter().any(|p| matches!(p.source, crate::state::Source::Official { .. }));
+                            
+                            // Count packages with empty file lists
+                            let mut unresolved_packages = Vec::new();
+                            for pkg_info in file_info.iter() {
+                                if pkg_info.files.is_empty() {
+                                    unresolved_packages.push(pkg_info.name.clone());
+                                }
+                            }
+                            
+                            if !file_info.is_empty() {
+                                // File resolution completed but no files found
+                                if !unresolved_packages.is_empty() {
+                                    lines.push(Line::from(Span::styled(
+                                        format!("No file changes found for {} package(s).", unresolved_packages.len()),
+                                        Style::default().fg(th.subtext1),
+                                    )));
+                                    lines.push(Line::from(""));
+                                    
+                                    // Show appropriate notes based on package types
+                                    if has_official_packages {
+                                        lines.push(Line::from(Span::styled(
+                                            "Note: File database may need syncing (pacman -Fy requires root).",
+                                            Style::default().fg(th.subtext0),
+                                        )));
+                                        lines.push(Line::from(Span::styled(
+                                            "Press 'f' to sync file database in a terminal.",
+                                            Style::default().fg(th.subtext0),
+                                        )));
+                                    }
+                                    if has_aur_packages {
+                                        lines.push(Line::from(Span::styled(
+                                            "Note: AUR packages require building to determine file lists.",
+                                            Style::default().fg(th.subtext0),
+                                        )));
+                                    }
+                                } else {
+                                    lines.push(Line::from(Span::styled(
+                                        "No file changes to display.",
+                                        Style::default().fg(th.subtext1),
+                                    )));
+                                }
+                            } else {
+                                // File resolution hasn't completed or failed
+                                lines.push(Line::from(Span::styled(
+                                    "No file changes to display.",
+                                    Style::default().fg(th.subtext1),
+                                )));
+                            }
+                            
+                            // Show file database sync timestamp
+                            if let Some((_age_days, date_str, color_category)) = crate::logic::files::get_file_db_sync_info() {
+                                lines.push(Line::from(""));
+                                let (sync_color, sync_text) = match color_category {
+                                    0 => (th.green, format!("Files updated on {}", date_str)),
+                                    1 => (th.yellow, format!("Files updated on {}", date_str)),
+                                    _ => (th.red, format!("Files updated on {}", date_str)),
+                                };
+                                lines.push(Line::from(Span::styled(
+                                    sync_text,
+                                    Style::default().fg(sync_color),
+                                )));
+                            }
+                        } else {
+                            // Calculate scroll position
+                            let total_items = display_items.len();
+                            let start_idx = (*file_selected).min(total_items.saturating_sub(1));
+                            let end_idx = (start_idx + available_height as usize).min(total_items);
+
+                            // Display summary
+                            let total_files: usize = file_info.iter().map(|p| p.total_count).sum();
+                            let total_new: usize = file_info.iter().map(|p| p.new_count).sum();
+                            let total_changed: usize =
+                                file_info.iter().map(|p| p.changed_count).sum();
+                            let total_removed: usize =
+                                file_info.iter().map(|p| p.removed_count).sum();
+                            let total_config: usize =
+                                file_info.iter().map(|p| p.config_count).sum();
+                            let total_pacnew: usize =
+                                file_info.iter().map(|p| p.pacnew_candidates).sum();
+                            let total_pacsave: usize =
+                                file_info.iter().map(|p| p.pacsave_candidates).sum();
+
+                            let mut summary_parts = vec![
+                                format!("Total: {} files", total_files),
+                                format!("{} new", total_new),
+                                format!("{} changed", total_changed),
+                                format!("{} removed", total_removed),
+                                format!("{} config", total_config),
+                            ];
+
+                            if total_pacnew > 0 {
+                                summary_parts.push(format!("{} pacnew", total_pacnew));
+                            }
+                            if total_pacsave > 0 {
+                                summary_parts.push(format!("{} pacsave", total_pacsave));
+                            }
+
+                            lines.push(Line::from(Span::styled(
+                                summary_parts.join(", "),
+                                Style::default().fg(th.subtext1),
+                            )));
+                            lines.push(Line::from(""));
+                            
+                            // Show file database sync timestamp
+                            if let Some((_age_days, date_str, color_category)) = crate::logic::files::get_file_db_sync_info() {
+                                let (sync_color, sync_text) = match color_category {
+                                    0 => (th.green, format!("Files updated on {}", date_str)),
+                                    1 => (th.yellow, format!("Files updated on {}", date_str)),
+                                    _ => (th.red, format!("Files updated on {}", date_str)),
+                                };
+                                lines.push(Line::from(Span::styled(
+                                    sync_text,
+                                    Style::default().fg(sync_color),
+                                )));
+                                lines.push(Line::from(""));
+                            }
+
+                            // Display files with scrolling
+                            for (display_idx, (is_header, pkg_name, file_opt)) in display_items
+                                .iter()
+                                .enumerate()
+                                .skip(start_idx)
+                                .take(end_idx - start_idx)
+                            {
+                                if *is_header {
+                                    // Find package info for this header
+                                    let pkg_info =
+                                        file_info.iter().find(|p| p.name == *pkg_name).unwrap();
+
+                                    // Package header
+                                    let mut spans = vec![
+                                        Span::styled(
+                                            format!("📦 {} ", pkg_name),
+                                            Style::default()
+                                                .fg(th.sapphire)
+                                                .add_modifier(Modifier::BOLD),
+                                        ),
+                                        Span::styled(
+                                            format!("({} files", pkg_info.total_count),
+                                            Style::default().fg(th.subtext1),
+                                        ),
+                                    ];
+
+                                    if pkg_info.new_count > 0 {
+                                        spans.push(Span::styled(
+                                            format!(", {} new", pkg_info.new_count),
+                                            Style::default().fg(th.green),
+                                        ));
+                                    }
+                                    if pkg_info.changed_count > 0 {
+                                        spans.push(Span::styled(
+                                            format!(", {} changed", pkg_info.changed_count),
+                                            Style::default().fg(th.yellow),
+                                        ));
+                                    }
+                                    if pkg_info.removed_count > 0 {
+                                        spans.push(Span::styled(
+                                            format!(", {} removed", pkg_info.removed_count),
+                                            Style::default().fg(th.red),
+                                        ));
+                                    }
+                                    if pkg_info.config_count > 0 {
+                                        spans.push(Span::styled(
+                                            format!(", {} config", pkg_info.config_count),
+                                            Style::default().fg(th.mauve),
+                                        ));
+                                    }
+                                    if pkg_info.pacnew_candidates > 0 {
+                                        spans.push(Span::styled(
+                                            format!(", {} pacnew", pkg_info.pacnew_candidates),
+                                            Style::default().fg(th.yellow),
+                                        ));
+                                    }
+                                    if pkg_info.pacsave_candidates > 0 {
+                                        spans.push(Span::styled(
+                                            format!(", {} pacsave", pkg_info.pacsave_candidates),
+                                            Style::default().fg(th.red),
+                                        ));
+                                    }
+                                    spans.push(Span::styled(")", Style::default().fg(th.subtext1)));
+
+                                    lines.push(Line::from(spans));
+                                } else if let Some((change_type, path, is_config, predicted_pacnew, predicted_pacsave)) = file_opt {
+                                    // File entry
+                                    let (icon, color) = match change_type {
+                                        crate::state::modal::FileChangeType::New => ("+", th.green),
+                                        crate::state::modal::FileChangeType::Changed => {
+                                            ("~", th.yellow)
+                                        }
+                                        crate::state::modal::FileChangeType::Removed => {
+                                            ("-", th.red)
+                                        }
+                                    };
+
+                                    let mut spans = vec![Span::styled(
+                                        format!("  {} ", icon),
+                                        Style::default().fg(color),
+                                    )];
+
+                                    if *is_config {
+                                        spans.push(Span::styled(
+                                            "⚙ ",
+                                            Style::default().fg(th.mauve),
+                                        ));
+                                    }
+
+                                    // Add pacnew/pacsave indicators
+                                    if *predicted_pacnew {
+                                        spans.push(Span::styled(
+                                            "⚠ pacnew ",
+                                            Style::default().fg(th.yellow),
+                                        ));
+                                    }
+                                    if *predicted_pacsave {
+                                        spans.push(Span::styled(
+                                            "⚠ pacsave ",
+                                            Style::default().fg(th.red),
+                                        ));
+                                    }
+
+                                    spans.push(Span::styled(
+                                        path.clone(),
+                                        Style::default().fg(if display_idx == *file_selected {
+                                            th.surface1
+                                        } else {
+                                            th.text
+                                        }),
+                                    ));
+
+                                    lines.push(Line::from(spans));
+                                }
+                            }
+
+                            if total_items > available_height as usize {
+                                lines.push(Line::from(""));
+                                lines.push(Line::from(Span::styled(
+                                    format!(
+                                        "... showing {}-{} of {} items (↑↓ to navigate)",
+                                        start_idx + 1,
+                                        end_idx,
+                                        total_items
+                                    ),
+                                    Style::default().fg(th.subtext1),
+                                )));
+                            }
+                        }
+                    }
                 }
                 crate::state::PreflightTab::Services => {
                     lines.push(Line::from(Span::styled(
@@ -710,7 +1113,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             let has_aur = items
                 .iter()
                 .any(|p| matches!(p.source, crate::state::Source::Aur));
-            
+
             // Build footer hint based on current tab
             let scan_hint = match current_tab {
                 crate::state::PreflightTab::Deps => {
@@ -718,6 +1121,13 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  ?: help  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
                     } else {
                         "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  ?: help  •  d: dry-run  •  p: proceed  •  q: close"
+                    }
+                }
+                crate::state::PreflightTab::Files => {
+                    if has_aur {
+                        "Left/Right: tabs  •  Up/Down: navigate  •  f: sync file DB  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                    } else {
+                        "Left/Right: tabs  •  Up/Down: navigate  •  f: sync file DB  •  d: dry-run  •  p: proceed  •  q: close"
                     }
                 }
                 _ => {
@@ -1541,9 +1951,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                         || tl.contains("requires manual intervention");
                     let style = if *selected == i {
                         let fg = if is_critical { th.red } else { th.text };
-                        Style::default()
-                            .fg(fg)
-                            .bg(th.surface1)
+                        Style::default().fg(fg).bg(th.surface1)
                     } else {
                         let fg = if is_critical { th.red } else { th.text };
                         Style::default().fg(fg)

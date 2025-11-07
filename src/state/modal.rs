@@ -65,6 +65,57 @@ pub enum DependencySource {
     Local,
 }
 
+/// Type of file change in a package operation.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum FileChangeType {
+    /// File will be newly installed (not currently on system).
+    New,
+    /// File exists but will be replaced/updated.
+    Changed,
+    /// File will be removed (for Remove operations).
+    Removed,
+}
+
+/// Information about a file change in a package operation.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct FileChange {
+    /// Full path of the file.
+    pub path: String,
+    /// Type of change (new/changed/removed).
+    pub change_type: FileChangeType,
+    /// Package that owns this file.
+    pub package: String,
+    /// Whether this is a configuration file (under /etc or marked as backup).
+    pub is_config: bool,
+    /// Whether this file is predicted to create a .pacnew file (config conflict).
+    pub predicted_pacnew: bool,
+    /// Whether this file is predicted to create a .pacsave file (config removal).
+    pub predicted_pacsave: bool,
+}
+
+/// File information for a package in the preflight file view.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PackageFileInfo {
+    /// Package name.
+    pub name: String,
+    /// List of file changes for this package.
+    pub files: Vec<FileChange>,
+    /// Total number of files (including directories).
+    pub total_count: usize,
+    /// Number of new files.
+    pub new_count: usize,
+    /// Number of changed files.
+    pub changed_count: usize,
+    /// Number of removed files.
+    pub removed_count: usize,
+    /// Number of configuration files.
+    pub config_count: usize,
+    /// Number of files predicted to create .pacnew files.
+    pub pacnew_candidates: usize,
+    /// Number of files predicted to create .pacsave files.
+    pub pacsave_candidates: usize,
+}
+
 #[derive(Debug, Clone, Default)]
 pub enum Modal {
     #[default]
@@ -85,8 +136,13 @@ pub enum Modal {
         dep_selected: usize,
         /// Set of dependency names with expanded tree nodes (for tree view).
         dep_tree_expanded: HashSet<String>,
+        /// File information (populated when Files tab is accessed).
+        file_info: Vec<PackageFileInfo>,
+        /// Selected index in the file list (for navigation).
+        file_selected: usize,
     },
     /// Preflight execution screen with log and sticky sidebar.
+    #[allow(dead_code)]
     PreflightExec {
         items: Vec<PackageItem>,
         action: PreflightAction,
@@ -217,6 +273,8 @@ mod tests {
             dependency_info: Vec::new(),
             dep_selected: 0,
             dep_tree_expanded: std::collections::HashSet::new(),
+            file_info: Vec::new(),
+            file_selected: 0,
         };
     }
 }

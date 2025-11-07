@@ -2,9 +2,9 @@
 
 use crate::state::modal::{DependencyInfo, DependencySource, DependencyStatus};
 use crate::state::types::{PackageItem, Source};
+use serde_json::Value;
 use std::collections::HashSet;
 use std::process::Command;
-use serde_json::Value;
 
 /// Resolve dependencies for a list of packages to install.
 ///
@@ -17,8 +17,11 @@ use serde_json::Value;
 /// Output:
 /// - Vector of `DependencyInfo` with resolved status for each dependency
 pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
-    tracing::info!("Starting dependency resolution for {} package(s)", items.len());
-    
+    tracing::info!(
+        "Starting dependency resolution for {} package(s)",
+        items.len()
+    );
+
     if items.is_empty() {
         tracing::warn!("No packages provided for dependency resolution");
         return Vec::new();
@@ -31,22 +34,30 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     tracing::info!("Fetching list of installed packages...");
     let installed = get_installed_packages();
     tracing::info!("Found {} installed packages", installed.len());
-    
+
     // Get list of upgradable packages to detect if dependencies need upgrades
     let upgradable = get_upgradable_packages();
     tracing::info!("Found {} upgradable packages", upgradable.len());
 
     // For each package, resolve its dependencies
     for (idx, item) in items.iter().enumerate() {
-        tracing::info!("[{}/{}] Resolving dependencies for package: {} ({:?})", 
-                      idx + 1, items.len(), item.name, item.source);
-        
+        tracing::info!(
+            "[{}/{}] Resolving dependencies for package: {} ({:?})",
+            idx + 1,
+            items.len(),
+            item.name,
+            item.source
+        );
+
         match resolve_package_deps(&item.name, &item.source, &installed, &upgradable) {
             Ok(mut resolved) => {
                 tracing::info!("  Found {} dependencies for {}", resolved.len(), item.name);
                 for dep in resolved.drain(..) {
                     let dep_name = dep.name.clone();
-                    if let Some(existing_idx) = deps.iter().position(|d: &DependencyInfo| d.name == dep_name) {
+                    if let Some(existing_idx) = deps
+                        .iter()
+                        .position(|d: &DependencyInfo| d.name == dep_name)
+                    {
                         // Merge required_by lists for duplicate dependencies
                         let existing = &mut deps[existing_idx];
                         for req in &dep.required_by {
@@ -57,9 +68,11 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
                         // Keep the "worst" status when merging (Conflict > Missing > ToUpgrade > ToInstall > Installed)
                         let existing_priority = dependency_priority(&existing.status);
                         let new_priority = dependency_priority(&dep.status);
-                        
+
                         // Update version requirement if needed and re-evaluate status
-                        let version_changed = if !dep.version.is_empty() && dep.version != existing.version {
+                        let version_changed = if !dep.version.is_empty()
+                            && dep.version != existing.version
+                        {
                             if existing.version.is_empty() {
                                 // Existing has no version requirement, use the new one
                                 existing.version = dep.version.clone();
@@ -67,11 +80,21 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
                             } else {
                                 // Both have version requirements - check which one is more restrictive
                                 // by evaluating both and keeping the one that results in worse status
-                                let existing_status = determine_status(&existing.name, &existing.version, &installed, &upgradable);
-                                let new_status = determine_status(&existing.name, &dep.version, &installed, &upgradable);
+                                let existing_status = determine_status(
+                                    &existing.name,
+                                    &existing.version,
+                                    &installed,
+                                    &upgradable,
+                                );
+                                let new_status = determine_status(
+                                    &existing.name,
+                                    &dep.version,
+                                    &installed,
+                                    &upgradable,
+                                );
                                 let existing_req_priority = dependency_priority(&existing_status);
                                 let new_req_priority = dependency_priority(&new_status);
-                                
+
                                 if new_req_priority < existing_req_priority {
                                     // New requirement is more restrictive (results in worse status)
                                     existing.version = dep.version.clone();
@@ -84,16 +107,26 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
                         } else {
                             false
                         };
-                        
+
                         // If version requirement changed, we need to re-evaluate the status
                         if version_changed {
                             // Re-evaluate status based on the updated version requirement
-                            existing.status = determine_status(&existing.name, &existing.version, &installed, &upgradable);
+                            existing.status = determine_status(
+                                &existing.name,
+                                &existing.version,
+                                &installed,
+                                &upgradable,
+                            );
                         } else if new_priority < existing_priority {
                             // New status is worse (lower priority number), so update it
                             existing.status = dep.status.clone();
                         }
-                        tracing::debug!("    Merged dependency: {} (now required by: {:?}, status: {:?})", dep_name, existing.required_by, existing.status);
+                        tracing::debug!(
+                            "    Merged dependency: {} (now required by: {:?}, status: {:?})",
+                            dep_name,
+                            existing.required_by,
+                            existing.status
+                        );
                     } else {
                         seen.insert(dep_name.clone());
                         tracing::debug!("    Added dependency: {} ({:?})", dep_name, dep.status);
@@ -113,10 +146,15 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     deps.sort_by(|a, b| {
         let priority_a = dependency_priority(&a.status);
         let priority_b = dependency_priority(&b.status);
-        priority_a.cmp(&priority_b).then_with(|| a.name.cmp(&b.name))
+        priority_a
+            .cmp(&priority_b)
+            .then_with(|| a.name.cmp(&b.name))
     });
 
-    tracing::info!("Dependency resolution complete. Returning {} dependencies", deps.len());
+    tracing::info!(
+        "Dependency resolution complete. Returning {} dependencies",
+        deps.len()
+    );
     deps
 }
 
@@ -149,7 +187,10 @@ fn get_upgradable_packages() -> HashSet<String> {
                         }
                     })
                     .collect();
-                tracing::debug!("Successfully retrieved {} upgradable packages", packages.len());
+                tracing::debug!(
+                    "Successfully retrieved {} upgradable packages",
+                    packages.len()
+                );
                 packages
             } else {
                 // No upgradable packages or error - return empty set
@@ -176,12 +217,20 @@ fn get_installed_packages() -> HashSet<String> {
         Ok(output) => {
             if output.status.success() {
                 let text = String::from_utf8_lossy(&output.stdout);
-                let packages: HashSet<String> = text.lines().map(|s| s.trim().to_string()).collect();
-                tracing::debug!("Successfully retrieved {} installed packages", packages.len());
+                let packages: HashSet<String> =
+                    text.lines().map(|s| s.trim().to_string()).collect();
+                tracing::debug!(
+                    "Successfully retrieved {} installed packages",
+                    packages.len()
+                );
                 packages
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                tracing::error!("pacman -Qq failed with status {:?}: {}", output.status.code(), stderr);
+                tracing::error!(
+                    "pacman -Qq failed with status {:?}: {}",
+                    output.status.code(),
+                    stderr
+                );
                 HashSet::new()
             }
         }
@@ -205,29 +254,30 @@ fn fetch_aur_deps_from_api(
         "https://aur.archlinux.org/rpc/v5/info?arg={}",
         crate::util::percent_encode(name)
     );
-    
+
     // Use curl_json similar to sources module
     let out = Command::new("curl")
         .args(["-sSLf", &url])
         .output()
         .map_err(|e| format!("curl failed: {}", e))?;
-    
+
     if !out.status.success() {
         return Err(format!("curl failed with status: {:?}", out.status.code()));
     }
-    
+
     let body = String::from_utf8_lossy(&out.stdout);
-    let v: Value = serde_json::from_str(&body)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
-    
+    let v: Value =
+        serde_json::from_str(&body).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
     let arr = v
         .get("results")
         .and_then(|x| x.as_array())
         .ok_or_else(|| "No 'results' array in AUR API response".to_string())?;
-    
-    let obj = arr.first()
+
+    let obj = arr
+        .first()
         .ok_or_else(|| format!("No package found in AUR API for: {}", name))?;
-    
+
     // Get dependencies from the API response
     let depends: Vec<String> = obj
         .get("Depends")
@@ -238,26 +288,26 @@ fn fetch_aur_deps_from_api(
                 .collect()
         })
         .unwrap_or_default();
-    
+
     tracing::debug!("Found {} dependencies from AUR API", depends.len());
-    
+
     let mut deps = Vec::new();
     for dep_spec in depends {
         let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-        
+
         // Filter out .so files (virtual packages) - they're not actual package dependencies
         // Patterns: "libgit2.so", "libedit.so=0-64", "libfoo.so.1"
         if pkg_name.ends_with(".so") || pkg_name.contains(".so.") || pkg_name.contains(".so=") {
             tracing::debug!("Filtering out virtual package: {}", pkg_name);
             continue;
         }
-        
+
         let status = determine_status(&pkg_name, &version_req, installed, upgradable);
-        
+
         // Determine source and repository
         let (source, is_core) = determine_dependency_source(&pkg_name, installed);
         let is_system = is_core || is_system_package(&pkg_name);
-        
+
         deps.push(DependencyInfo {
             name: pkg_name,
             version: version_req,
@@ -269,7 +319,7 @@ fn fetch_aur_deps_from_api(
             is_system,
         });
     }
-    
+
     Ok(deps)
 }
 
@@ -303,16 +353,24 @@ fn resolve_package_deps(
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                tracing::error!("pacman -Si {} failed with status {:?}: {}", spec, output.status.code(), stderr);
+                tracing::error!(
+                    "pacman -Si {} failed with status {:?}: {}",
+                    spec,
+                    output.status.code(),
+                    stderr
+                );
                 return Err(format!("pacman -Si failed for {}: {}", spec, stderr));
             }
 
             let text = String::from_utf8_lossy(&output.stdout);
             tracing::debug!("pacman -Si {} output ({} bytes)", spec, text.len());
-            
+
             // Parse "Depends On" field from pacman -Si output
             let dep_names = parse_pacman_si_deps(&text);
-            tracing::debug!("Parsed {} dependency names from pacman -Si output", dep_names.len());
+            tracing::debug!(
+                "Parsed {} dependency names from pacman -Si output",
+                dep_names.len()
+            );
 
             for dep_spec in dep_names {
                 let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
@@ -322,7 +380,10 @@ fn resolve_package_deps(
                     continue;
                 }
                 // Filter out .so files (virtual packages) - safety check in case filtering in parse_pacman_si_deps missed something
-                if pkg_name.ends_with(".so") || pkg_name.contains(".so.") || pkg_name.contains(".so=") {
+                if pkg_name.ends_with(".so")
+                    || pkg_name.contains(".so.")
+                    || pkg_name.contains(".so=")
+                {
                     tracing::debug!("Filtering out virtual package: {}", pkg_name);
                     continue;
                 }
@@ -346,24 +407,21 @@ fn resolve_package_deps(
         Source::Aur => {
             // For AUR packages, try to use paru/yay to resolve dependencies
             // Fallback: fetch from AUR API if paru/yay is not available
-            tracing::debug!("Checking for paru/yay availability for AUR package: {}", name);
-            
+            tracing::debug!(
+                "Checking for paru/yay availability for AUR package: {}",
+                name
+            );
+
             // Check if paru exists
-            let has_paru = Command::new("paru")
-                .args(["--version"])
-                .output()
-                .is_ok();
-            
+            let has_paru = Command::new("paru").args(["--version"]).output().is_ok();
+
             // Check if yay exists
-            let has_yay = Command::new("yay")
-                .args(["--version"])
-                .output()
-                .is_ok();
-            
+            let has_yay = Command::new("yay").args(["--version"]).output().is_ok();
+
             // Try paru/yay first, but fall back to API if they fail
             // Use -Si to get all dependencies (similar to pacman -Si)
             let mut used_helper = false;
-            
+
             if has_paru {
                 tracing::debug!("Trying paru -Si {} for dependency resolution", name);
                 match Command::new("paru")
@@ -384,17 +442,33 @@ fn resolve_package_deps(
                                     let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
                                     // Skip if this dependency is the package itself
                                     if pkg_name == name {
-                                        tracing::debug!("Skipping self-reference: {} == {}", pkg_name, name);
+                                        tracing::debug!(
+                                            "Skipping self-reference: {} == {}",
+                                            pkg_name,
+                                            name
+                                        );
                                         continue;
                                     }
                                     // Filter out .so files (virtual packages)
-                                    if pkg_name.ends_with(".so") || pkg_name.contains(".so.") || pkg_name.contains(".so=") {
-                                        tracing::debug!("Filtering out virtual package: {}", pkg_name);
+                                    if pkg_name.ends_with(".so")
+                                        || pkg_name.contains(".so.")
+                                        || pkg_name.contains(".so=")
+                                    {
+                                        tracing::debug!(
+                                            "Filtering out virtual package: {}",
+                                            pkg_name
+                                        );
                                         continue;
                                     }
 
-                                    let status = determine_status(&pkg_name, &version_req, installed, upgradable);
-                                    let (source, is_core) = determine_dependency_source(&pkg_name, installed);
+                                    let status = determine_status(
+                                        &pkg_name,
+                                        &version_req,
+                                        installed,
+                                        upgradable,
+                                    );
+                                    let (source, is_core) =
+                                        determine_dependency_source(&pkg_name, installed);
                                     let is_system = is_core || is_system_package(&pkg_name);
 
                                     deps.push(DependencyInfo {
@@ -411,7 +485,11 @@ fn resolve_package_deps(
                             }
                         } else {
                             let stderr = String::from_utf8_lossy(&output.stderr);
-                            tracing::debug!("paru -Si {} failed (will try yay or API): {}", name, stderr.trim());
+                            tracing::debug!(
+                                "paru -Si {} failed (will try yay or API): {}",
+                                name,
+                                stderr.trim()
+                            );
                         }
                     }
                     Err(_) => {
@@ -419,7 +497,7 @@ fn resolve_package_deps(
                     }
                 }
             }
-            
+
             if !used_helper && has_yay {
                 tracing::debug!("Trying yay -Si {} for dependency resolution", name);
                 match Command::new("yay")
@@ -440,17 +518,33 @@ fn resolve_package_deps(
                                     let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
                                     // Skip if this dependency is the package itself
                                     if pkg_name == name {
-                                        tracing::debug!("Skipping self-reference: {} == {}", pkg_name, name);
+                                        tracing::debug!(
+                                            "Skipping self-reference: {} == {}",
+                                            pkg_name,
+                                            name
+                                        );
                                         continue;
                                     }
                                     // Filter out .so files (virtual packages)
-                                    if pkg_name.ends_with(".so") || pkg_name.contains(".so.") || pkg_name.contains(".so=") {
-                                        tracing::debug!("Filtering out virtual package: {}", pkg_name);
+                                    if pkg_name.ends_with(".so")
+                                        || pkg_name.contains(".so.")
+                                        || pkg_name.contains(".so=")
+                                    {
+                                        tracing::debug!(
+                                            "Filtering out virtual package: {}",
+                                            pkg_name
+                                        );
                                         continue;
                                     }
 
-                                    let status = determine_status(&pkg_name, &version_req, installed, upgradable);
-                                    let (source, is_core) = determine_dependency_source(&pkg_name, installed);
+                                    let status = determine_status(
+                                        &pkg_name,
+                                        &version_req,
+                                        installed,
+                                        upgradable,
+                                    );
+                                    let (source, is_core) =
+                                        determine_dependency_source(&pkg_name, installed);
                                     let is_system = is_core || is_system_package(&pkg_name);
 
                                     deps.push(DependencyInfo {
@@ -467,7 +561,11 @@ fn resolve_package_deps(
                             }
                         } else {
                             let stderr = String::from_utf8_lossy(&output.stderr);
-                            tracing::debug!("yay -Si {} failed (will use API): {}", name, stderr.trim());
+                            tracing::debug!(
+                                "yay -Si {} failed (will use API): {}",
+                                name,
+                                stderr.trim()
+                            );
                         }
                     }
                     Err(_) => {
@@ -475,14 +573,20 @@ fn resolve_package_deps(
                     }
                 }
             }
-            
+
             // Always fall back to AUR API if helper didn't work or wasn't available
             // This ensures we get dependencies even if paru/yay fails or isn't installed
             if !used_helper {
                 if has_paru || has_yay {
-                    tracing::info!("Using AUR API to resolve dependencies for {} (paru/yay -Si failed or not available)", name);
+                    tracing::info!(
+                        "Using AUR API to resolve dependencies for {} (paru/yay -Si failed or not available)",
+                        name
+                    );
                 } else {
-                    tracing::info!("Using AUR API to resolve dependencies for {} (paru/yay not available)", name);
+                    tracing::info!(
+                        "Using AUR API to resolve dependencies for {} (paru/yay not available)",
+                        name
+                    );
                 }
                 match fetch_aur_deps_from_api(name, installed, upgradable) {
                     Ok(api_deps) => {
@@ -508,27 +612,27 @@ fn resolve_package_deps(
 /// Filters out virtual packages (.so files) like "libedit.so=0-64"
 fn parse_pacman_si_deps(text: &str) -> Vec<String> {
     for line in text.lines() {
-        if line.starts_with("Depends On") {
-            if let Some(colon_pos) = line.find(':') {
-                let deps_str = line[colon_pos + 1..].trim();
-                if deps_str.is_empty() || deps_str == "None" {
-                    return Vec::new();
-                }
-                // Split by whitespace, filter out empty strings and .so files (virtual packages)
-                return deps_str
-                    .split_whitespace()
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| {
-                        if s.is_empty() {
-                            return false;
-                        }
-                        // Filter out .so files (virtual packages)
-                        // Patterns: "libedit.so=0-64", "libgit2.so", "libfoo.so.1"
-                        // Check if it ends with .so or contains .so. or .so=
-                        !(s.ends_with(".so") || s.contains(".so.") || s.contains(".so="))
-                    })
-                    .collect();
+        if line.starts_with("Depends On")
+            && let Some(colon_pos) = line.find(':')
+        {
+            let deps_str = line[colon_pos + 1..].trim();
+            if deps_str.is_empty() || deps_str == "None" {
+                return Vec::new();
             }
+            // Split by whitespace, filter out empty strings and .so files (virtual packages)
+            return deps_str
+                .split_whitespace()
+                .map(|s| s.trim().to_string())
+                .filter(|s| {
+                    if s.is_empty() {
+                        return false;
+                    }
+                    // Filter out .so files (virtual packages)
+                    // Patterns: "libedit.so=0-64", "libgit2.so", "libfoo.so.1"
+                    // Check if it ends with .so or contains .so. or .so=
+                    !(s.ends_with(".so") || s.contains(".so.") || s.contains(".so="))
+                })
+                .collect();
         }
     }
     Vec::new()
@@ -542,6 +646,7 @@ fn parse_pacman_si_deps(text: &str) -> Vec<String> {
 ///   - Library files: "libgit2.so" (virtual packages/provides)
 ///
 /// Returns cleaned package names, filtering out invalid entries.
+#[allow(dead_code)]
 fn parse_dependency_output(text: &str) -> Vec<String> {
     text.lines()
         .filter_map(|line| {
@@ -549,7 +654,7 @@ fn parse_dependency_output(text: &str) -> Vec<String> {
             if line.is_empty() || line.starts_with('#') {
                 return None;
             }
-            
+
             // Handle full URLs/paths (e.g., "/mirror/archlinux/extra/os/x86_64/package-1.0-1-x86_64.pkg.tar.zst")
             if line.contains(".pkg.tar.zst") {
                 // Extract package name from path
@@ -575,13 +680,13 @@ fn parse_dependency_output(text: &str) -> Vec<String> {
                 }
                 return None;
             }
-            
+
             // Handle .so files (shared libraries) - these are virtual packages
             // Skip them as they're not actual package dependencies
             if line.ends_with(".so") || line.contains(".so.") {
                 return None;
             }
-            
+
             // Handle repo/package format (e.g., "core/glibc" -> "glibc")
             if let Some(slash_pos) = line.find('/') {
                 let after_slash = &line[slash_pos + 1..];
@@ -590,7 +695,7 @@ fn parse_dependency_output(text: &str) -> Vec<String> {
                     return Some(after_slash.to_string());
                 }
             }
-            
+
             // Plain package name
             Some(line.to_string())
         })
@@ -638,24 +743,31 @@ fn determine_dependency_source(
             let text = String::from_utf8_lossy(&output.stdout);
             // Look for "Repository" field in pacman -Qi output
             for line in text.lines() {
-                if line.starts_with("Repository") {
-                    if let Some(colon_pos) = line.find(':') {
-                        let repo = line[colon_pos + 1..].trim().to_lowercase();
-                        let is_core = repo == "core";
-                        return (
-                            DependencySource::Official {
-                                repo: if repo.is_empty() { "unknown".to_string() } else { repo },
+                if line.starts_with("Repository")
+                    && let Some(colon_pos) = line.find(':')
+                {
+                    let repo = line[colon_pos + 1..].trim().to_lowercase();
+                    let is_core = repo == "core";
+                    return (
+                        DependencySource::Official {
+                            repo: if repo.is_empty() {
+                                "unknown".to_string()
+                            } else {
+                                repo
                             },
-                            is_core,
-                        );
-                    }
+                        },
+                        is_core,
+                    );
                 }
             }
         }
         _ => {
             // Fallback: try pacman -Q to see if it's installed
             // If we can't determine repo, assume it's from an official repo
-            tracing::debug!("Could not determine repository for {}, assuming official", name);
+            tracing::debug!(
+                "Could not determine repository for {}, assuming official",
+                name
+            );
         }
     }
 
@@ -663,7 +775,11 @@ fn determine_dependency_source(
     let is_core = is_system_package(name);
     (
         DependencySource::Official {
-            repo: if is_core { "core".to_string() } else { "extra".to_string() },
+            repo: if is_core {
+                "core".to_string()
+            } else {
+                "extra".to_string()
+            },
         },
         is_core,
     )
@@ -697,7 +813,8 @@ fn determine_status(
             // Version requirement satisfied, but check if package is upgradable anyway
             if is_upgradable {
                 // Get available version from pacman -Si if possible
-                let available_version = get_available_version(name).unwrap_or_else(|| "newer".to_string());
+                let available_version =
+                    get_available_version(name).unwrap_or_else(|| "newer".to_string());
                 return DependencyStatus::ToUpgrade {
                     current: installed_version,
                     required: available_version,
@@ -713,7 +830,8 @@ fn determine_status(
     if is_upgradable {
         match get_installed_version(name) {
             Ok(current_version) => {
-                let available_version = get_available_version(name).unwrap_or_else(|| "newer".to_string());
+                let available_version =
+                    get_available_version(name).unwrap_or_else(|| "newer".to_string());
                 return DependencyStatus::ToUpgrade {
                     current: current_version,
                     required: available_version,
@@ -752,13 +870,13 @@ fn get_available_version(name: &str) -> Option<String> {
 
     let text = String::from_utf8_lossy(&output.stdout);
     for line in text.lines() {
-        if line.starts_with("Version") {
-            if let Some(colon_pos) = line.find(':') {
-                let version = line[colon_pos + 1..].trim();
-                // Remove revision suffix if present
-                let version = version.split('-').next().unwrap_or(version);
-                return Some(version.to_string());
-            }
+        if line.starts_with("Version")
+            && let Some(colon_pos) = line.find(':')
+        {
+            let version = line[colon_pos + 1..].trim();
+            // Remove revision suffix if present
+            let version = version.split('-').next().unwrap_or(version);
+            return Some(version.to_string());
         }
     }
     None
@@ -795,20 +913,15 @@ fn get_installed_version(name: &str) -> Result<String, String> {
 fn version_satisfies(installed: &str, requirement: &str) -> bool {
     // This is a simplified version checker
     // For production, use a proper version comparison library
-    if requirement.starts_with(">=") {
-        let req_ver = &requirement[2..];
+    if let Some(req_ver) = requirement.strip_prefix(">=") {
         installed >= req_ver
-    } else if requirement.starts_with("<=") {
-        let req_ver = &requirement[2..];
+    } else if let Some(req_ver) = requirement.strip_prefix("<=") {
         installed <= req_ver
-    } else if requirement.starts_with("=") {
-        let req_ver = &requirement[1..];
+    } else if let Some(req_ver) = requirement.strip_prefix("=") {
         installed == req_ver
-    } else if requirement.starts_with(">") {
-        let req_ver = &requirement[1..];
+    } else if let Some(req_ver) = requirement.strip_prefix(">") {
         installed > req_ver
-    } else if requirement.starts_with("<") {
-        let req_ver = &requirement[1..];
+    } else if let Some(req_ver) = requirement.strip_prefix("<") {
         installed < req_ver
     } else {
         // No version requirement, assume satisfied
@@ -820,8 +933,19 @@ fn version_satisfies(installed: &str, requirement: &str) -> bool {
 fn is_system_package(name: &str) -> bool {
     // List of critical system packages
     let system_packages = [
-        "glibc", "linux", "systemd", "pacman", "bash", "coreutils", "gcc",
-        "binutils", "filesystem", "util-linux", "shadow", "sed", "grep",
+        "glibc",
+        "linux",
+        "systemd",
+        "pacman",
+        "bash",
+        "coreutils",
+        "gcc",
+        "binutils",
+        "filesystem",
+        "util-linux",
+        "shadow",
+        "sed",
+        "grep",
     ];
     system_packages.contains(&name)
 }
@@ -869,4 +993,3 @@ mod tests {
         assert!(!is_system_package("firefox"));
     }
 }
-

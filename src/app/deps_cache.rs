@@ -1,9 +1,9 @@
 //! Dependency cache persistence for install list dependencies.
 
+use crate::state::modal::DependencyInfo;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
-use crate::state::modal::DependencyInfo;
 
 /// Cached dependency data with install list signature for validation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,20 +23,20 @@ pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> 
 
 /// Load dependency cache from disk if it exists and matches the install list signature.
 pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<DependencyInfo>> {
-    if let Ok(s) = fs::read_to_string(path) {
-        if let Ok(cache) = serde_json::from_str::<DependencyCache>(&s) {
-            // Check if signature matches
-            let mut cached_sig = cache.install_list_signature.clone();
-            cached_sig.sort();
-            let mut current_sig = current_signature.to_vec();
-            current_sig.sort();
-            
-            if cached_sig == current_sig {
-                tracing::info!(path = %path.display(), count = cache.dependencies.len(), "loaded dependency cache");
-                return Some(cache.dependencies);
-            } else {
-                tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
-            }
+    if let Ok(s) = fs::read_to_string(path)
+        && let Ok(cache) = serde_json::from_str::<DependencyCache>(&s)
+    {
+        // Check if signature matches
+        let mut cached_sig = cache.install_list_signature.clone();
+        cached_sig.sort();
+        let mut current_sig = current_signature.to_vec();
+        current_sig.sort();
+
+        if cached_sig == current_sig {
+            tracing::info!(path = %path.display(), count = cache.dependencies.len(), "loaded dependency cache");
+            return Some(cache.dependencies);
+        } else {
+            tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
         }
     }
     None
@@ -53,4 +53,3 @@ pub fn save_cache(path: &PathBuf, signature: &[String], dependencies: &[Dependen
         tracing::debug!(path = %path.display(), count = dependencies.len(), "saved dependency cache");
     }
 }
-

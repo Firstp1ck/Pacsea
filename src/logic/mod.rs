@@ -2,6 +2,7 @@
 
 pub mod deps;
 pub mod distro;
+pub mod files;
 pub mod filter;
 pub mod gating;
 pub mod lists;

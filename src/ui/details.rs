@@ -23,7 +23,6 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Minimum height for Package Info content (including borders: 2 lines)
     const MIN_PACKAGE_INFO_H: u16 = 3; // 1 visible line + 2 borders
 
-
     // Reserve footer height: baseline lines + optional Normal Mode line
     // Baseline: always 2 lines visible by default: GLOBALS + currently focused pane
     let baseline_lines: u16 = 2;

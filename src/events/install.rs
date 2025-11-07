@@ -185,6 +185,8 @@ pub fn handle_install_key(
                     dependency_info: cached_deps,
                     dep_selected: 0,
                     dep_tree_expanded: std::collections::HashSet::new(),
+                    file_info: Vec::new(),
+                    file_selected: 0,
                 };
             } else if app.installed_only_mode
                 && matches!(app.right_pane_focus, crate::state::RightPaneFocus::Remove)
@@ -197,6 +199,8 @@ pub fn handle_install_key(
                         dependency_info: Vec::new(),
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),
+                        file_info: Vec::new(),
+                        file_selected: 0,
                     };
                     app.toast_message = Some("Preflight: Remove list".to_string());
                 }
@@ -640,6 +644,8 @@ mod tests {
                 dependency_info: _,
                 dep_selected: _,
                 dep_tree_expanded: _,
+                file_info: _,
+                file_selected: _,
             } => {
                 assert_eq!(items.len(), 1);
                 assert_eq!(action, crate::state::PreflightAction::Install);

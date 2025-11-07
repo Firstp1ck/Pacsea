@@ -313,7 +313,7 @@ pub struct AppState {
     // Pending removals to detect completion and log
     /// Names of packages we just triggered to remove; when all disappear, append to removed log.
     pub pending_remove_names: Option<Vec<String>>,
-    
+
     // Dependency resolution cache for install list
     /// Cached resolved dependencies for the current install list (updated in background).
     pub install_list_deps: Vec<crate::state::modal::DependencyInfo>,

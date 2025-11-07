@@ -1,7 +1,7 @@
 use std::fs;
 
-use crate::state::AppState;
 use super::deps_cache;
+use crate::state::AppState;
 
 /// What: Persist the details cache to disk if marked dirty.
 ///

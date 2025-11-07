@@ -115,10 +115,11 @@ async fn main() {
                 let (non_blocking, guard) = tracing_appender::non_blocking(file);
                 let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
                     .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
+                // File logger: always disable ANSI codes for clean log files
                 tracing_subscriber::fmt()
                     .with_env_filter(env_filter)
                     .with_target(false)
-                    .with_ansi(!args.no_color)
+                    .with_ansi(false) // Always disable ANSI for file output
                     .with_writer(non_blocking)
                     .with_timer(PacseaTimer)
                     .init();

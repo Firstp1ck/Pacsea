@@ -54,7 +54,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     // Persist the full command for debugging/repro
     {
         let mut lp = crate::theme::logs_dir();
-        lp.push("last_terminal_cmd.txt");
+        lp.push("last_terminal_cmd.log");
         if let Some(parent) = lp.parent() {
             let _ = std::fs::create_dir_all(parent);
         }

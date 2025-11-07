@@ -19,10 +19,11 @@ use crate::state::*;
 use crate::ui::ui;
 use crate::util::{match_rank, repo_order};
 
-use super::persist::{
-    maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_install, maybe_flush_news_read, maybe_flush_recent,
-};
 use super::deps_cache;
+use super::persist::{
+    maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_install, maybe_flush_news_read,
+    maybe_flush_recent,
+};
 use super::recent::maybe_save_recent;
 use super::terminal::{restore_terminal, setup_terminal};
 
@@ -141,7 +142,9 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         } else {
             // Cache missing or invalid - will trigger background resolution after channels are set up
             needs_deps_resolution = true;
-            tracing::info!("Dependency cache missing or invalid, will trigger background resolution");
+            tracing::info!(
+                "Dependency cache missing or invalid, will trigger background resolution"
+            );
         }
     }
 
@@ -170,7 +173,8 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         mpsc::unbounded_channel::<(String, crate::state::ArchStatusColor)>();
     let (news_tx, mut news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
     let (deps_req_tx, mut deps_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
-    let (deps_res_tx, mut deps_res_rx) = mpsc::unbounded_channel::<Vec<crate::state::modal::DependencyInfo>>();
+    let (deps_res_tx, mut deps_res_rx) =
+        mpsc::unbounded_channel::<Vec<crate::state::modal::DependencyInfo>>();
 
     let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
