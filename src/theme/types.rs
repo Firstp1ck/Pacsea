@@ -96,6 +96,9 @@ pub struct Settings {
     /// Preferred terminal binary name to spawn for shell commands (e.g., "alacritty", "kitty", "gnome-terminal").
     /// When empty, Pacsea auto-detects from available terminals.
     pub preferred_terminal: String,
+    /// When true, skip the Preflight modal and execute actions directly (install/remove/downgrade).
+    /// Defaults to false to preserve the safer, review-first workflow.
+    pub skip_preflight: bool,
 }
 
 impl Default for Settings {
@@ -126,6 +129,7 @@ impl Default for Settings {
             news_read_symbol: "✓".to_string(),
             news_unread_symbol: "∘".to_string(),
             preferred_terminal: String::new(),
+            skip_preflight: false,
         }
     }
 }

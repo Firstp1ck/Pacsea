@@ -309,36 +309,47 @@ pub fn handle_search_key(
                     }
                 }
             }
-            // Open Preflight using configured search_install key (default: Enter)
+            // Open Preflight (or bypass if skip_preflight) using configured search_install key (default: Enter)
             (c, m) if matches_any(&km.search_install) && (c, m) == (ke.code, ke.modifiers) => {
                 if let Some(item) = app.results.get(app.selected).cloned() {
-                    app.modal = crate::state::Modal::Preflight {
-                        items: vec![item],
-                        action: crate::state::PreflightAction::Install,
-                        tab: crate::state::PreflightTab::Summary,
-                        dependency_info: Vec::new(),
-                        dep_selected: 0,
-                        dep_tree_expanded: std::collections::HashSet::new(),
-                        file_info: Vec::new(),
-                        file_selected: 0,
-                    };
-                    app.toast_message = Some("Preflight opened".to_string());
+                    if crate::theme::settings().skip_preflight {
+                        // Direct install of single item
+                        crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
+                        app.toast_message = Some("Installing (preflight skipped)".to_string());
+                    } else {
+                        app.modal = crate::state::Modal::Preflight {
+                            items: vec![item],
+                            action: crate::state::PreflightAction::Install,
+                            tab: crate::state::PreflightTab::Summary,
+                            dependency_info: Vec::new(),
+                            dep_selected: 0,
+                            dep_tree_expanded: std::collections::HashSet::new(),
+                            file_info: Vec::new(),
+                            file_selected: 0,
+                        };
+                        app.toast_message = Some("Preflight opened".to_string());
+                    }
                 }
             }
             // Fallback on raw Enter
             (KeyCode::Char('\n') | KeyCode::Enter, _) => {
                 if let Some(item) = app.results.get(app.selected).cloned() {
-                    app.modal = crate::state::Modal::Preflight {
-                        items: vec![item],
-                        action: crate::state::PreflightAction::Install,
-                        tab: crate::state::PreflightTab::Summary,
-                        dependency_info: Vec::new(),
-                        dep_selected: 0,
-                        dep_tree_expanded: std::collections::HashSet::new(),
-                        file_info: Vec::new(),
-                        file_selected: 0,
-                    };
-                    app.toast_message = Some("Preflight opened".to_string());
+                    if crate::theme::settings().skip_preflight {
+                        crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
+                        app.toast_message = Some("Installing (preflight skipped)".to_string());
+                    } else {
+                        app.modal = crate::state::Modal::Preflight {
+                            items: vec![item],
+                            action: crate::state::PreflightAction::Install,
+                            tab: crate::state::PreflightTab::Summary,
+                            dependency_info: Vec::new(),
+                            dep_selected: 0,
+                            dep_tree_expanded: std::collections::HashSet::new(),
+                            file_info: Vec::new(),
+                            file_selected: 0,
+                        };
+                        app.toast_message = Some("Preflight opened".to_string());
+                    }
                 }
             }
             (c, m) if matches_any(&km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
@@ -465,17 +476,22 @@ pub fn handle_search_key(
         }
         (KeyCode::Char('\n') | KeyCode::Enter, _) => {
             if let Some(item) = app.results.get(app.selected).cloned() {
-                app.modal = crate::state::Modal::Preflight {
-                    items: vec![item],
-                    action: crate::state::PreflightAction::Install,
-                    tab: crate::state::PreflightTab::Summary,
-                    dependency_info: Vec::new(),
-                    dep_selected: 0,
-                    dep_tree_expanded: std::collections::HashSet::new(),
-                    file_info: Vec::new(),
-                    file_selected: 0,
-                };
-                app.toast_message = Some("Preflight opened".to_string());
+                if crate::theme::settings().skip_preflight {
+                    crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
+                    app.toast_message = Some("Installing (preflight skipped)".to_string());
+                } else {
+                    app.modal = crate::state::Modal::Preflight {
+                        items: vec![item],
+                        action: crate::state::PreflightAction::Install,
+                        tab: crate::state::PreflightTab::Summary,
+                        dependency_info: Vec::new(),
+                        dep_selected: 0,
+                        dep_tree_expanded: std::collections::HashSet::new(),
+                        file_info: Vec::new(),
+                        file_selected: 0,
+                    };
+                    app.toast_message = Some("Preflight opened".to_string());
+                }
             }
         }
         (KeyCode::Char(ch), _) => {

@@ -122,6 +122,23 @@ For example configuration files, see the [`config/`](config/) directory:
 
 ![Settings overview (v0.4.1)](Images/Settings_v0.4.1.png "Settings overview (v0.4.1)")
 
+### Skipping the Preflight Modal
+By default Pacsea shows a Preflight review modal before installs/removals so you can inspect dependencies, files, config conflicts, and optionally run AUR security scans. If you prefer a faster workflow you can bypass this modal.
+
+Change the following key in `~/.config/pacsea/settings.conf`:
+```
+skip_preflight = true
+```
+
+Effects when enabled:
+* Enter (or your configured `search_install` key) on a Search result installs it immediately.
+* Enter in the Install pane installs the entire list immediately.
+* Enter in the Remove pane (installed‑only mode) removes all selected packages immediately.
+
+Dry‑run still applies: if `app_dry_run_default = true` (or you toggled dry‑run) commands are printed rather than executed.
+
+Safety note: Leaving `skip_preflight` disabled (default) is recommended to maintain a security‑first workflow for AUR packages.
+
 ### Panels hidden
 ![Panels hidden (v0.4.1)](Images/PaneHided_v0.4.5.png "Panels hidden (v0.4.1)")
 ## Optional: build from source

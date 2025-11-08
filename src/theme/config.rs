@@ -186,6 +186,11 @@ sort_mode = best_matches\n\
 # Text appended when copying PKGBUILD to the clipboard\n\
 clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activities\n\
 \n\
+# Preflight modal / safety confirmation\n\
+# When true, Pacsea will bypass the Preflight confirmation modal and execute install/remove/downgrade actions immediately.\n\
+# Recommended to keep this false for safety unless you understand the risks of executing package operations directly.\n\
+skip_preflight = false\n\
+\n\
 # Mirrors\n\
 # Select one or more countries (comma-separated). Example: \"Switzerland, Germany, Austria\"\n\
 selected_countries = Worldwide\n\

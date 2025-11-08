@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 // no longer writing skeleton here
@@ -28,6 +29,8 @@ pub fn settings() -> Settings {
     if let Some(p) = settings_path.as_ref()
         && let Ok(content) = fs::read_to_string(p)
     {
+        let mut saw_skip_preflight = false;
+
         for line in content.lines() {
             let trimmed = line.trim();
             if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
@@ -144,8 +147,20 @@ pub fn settings() -> Settings {
                         _ => PackageMarker::Front,
                     };
                 }
+                "skip_preflight" | "preflight_skip" | "bypass_preflight" => {
+                    saw_skip_preflight = true;
+                    let lv = val.to_ascii_lowercase();
+                    out.skip_preflight = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+                }
                 // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
                 _ => {}
+            }
+        }
+        // If the setting wasn't present, append a documented default for discoverability
+        if !saw_skip_preflight {
+            // Append a single line for discoverability; keep it minimal
+            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(p) {
+                let _ = f.write_all(b"\nskip_preflight = false\n");
             }
         }
     }
