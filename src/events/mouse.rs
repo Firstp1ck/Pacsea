@@ -138,6 +138,7 @@ pub fn handle_mouse_event(
         dep_tree_expanded,
         file_info: _,
         file_selected: _,
+        file_tree_expanded: _,
     } = &mut app.modal
         && *tab == crate::state::PreflightTab::Deps
         && !dependency_info.is_empty()

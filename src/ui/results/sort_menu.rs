@@ -1,0 +1,78 @@
+use ratatui::{
+    Frame,
+    prelude::Rect,
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
+};
+
+use crate::state::{AppState, SortMode};
+use crate::theme::theme;
+
+/// What: Render sort dropdown overlay near the Sort button.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (sort_menu_rect will be updated)
+/// - `area`: Target rectangle for the results block
+/// - `btn_x`: X coordinate of the Sort button
+pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u16) {
+    let th = theme();
+
+    app.sort_menu_rect = None;
+    if app.sort_menu_open {
+        let opts = ["Alphabetical", "AUR popularity", "Best matches"];
+        let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
+        let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
+        // Place menu just under the title, aligned to button if possible
+        let rect_w = w.saturating_add(2);
+        let max_x = area.x + area.width.saturating_sub(rect_w);
+        let menu_x = btn_x.min(max_x);
+        let menu_y = area.y.saturating_add(1); // just below top border
+        let h = (opts.len() as u16) + 2; // borders
+        let rect = ratatui::prelude::Rect {
+            x: menu_x,
+            y: menu_y,
+            width: rect_w,
+            height: h,
+        };
+        // Record inner list area for hit-testing (exclude borders)
+        app.sort_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
+
+        // Build lines with current mode highlighted
+        let mut lines: Vec<Line> = Vec::new();
+        for (i, text) in opts.iter().enumerate() {
+            let is_selected = matches!(
+                (i, app.sort_mode),
+                (0, SortMode::RepoThenName)
+                    | (1, SortMode::AurPopularityThenOfficial)
+                    | (2, SortMode::BestMatches)
+            );
+            let mark = if is_selected { "✔ " } else { "  " };
+            let style = if is_selected {
+                Style::default()
+                    .fg(th.crust)
+                    .bg(th.lavender)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(th.text)
+            };
+            lines.push(Line::from(vec![
+                Span::styled(mark.to_string(), Style::default().fg(th.overlay1)),
+                Span::styled(text.to_string(), style),
+            ]));
+        }
+        let menu = Paragraph::new(lines)
+            .style(Style::default().fg(th.text).bg(th.base))
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .title(Span::styled(" Sort by ", Style::default().fg(th.overlay1)))
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(th.surface2)),
+            );
+        f.render_widget(Clear, rect);
+        f.render_widget(menu, rect);
+    }
+}

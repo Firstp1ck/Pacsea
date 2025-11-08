@@ -323,6 +323,16 @@ pub struct AppState {
     pub deps_cache_path: PathBuf,
     /// Dirty flag indicating `install_list_deps` needs to be saved.
     pub deps_cache_dirty: bool,
+
+    // File resolution cache for install list
+    /// Cached resolved file changes for the current install list (updated in background).
+    pub install_list_files: Vec<crate::state::modal::PackageFileInfo>,
+    /// Whether file resolution is currently in progress.
+    pub files_resolving: bool,
+    /// Path where the file cache is persisted as JSON.
+    pub files_cache_path: PathBuf,
+    /// Dirty flag indicating `install_list_files` needs to be saved.
+    pub files_cache_dirty: bool,
 }
 
 impl Default for AppState {
@@ -490,6 +500,12 @@ impl Default for AppState {
             // Dependency cache (lists dir under config)
             deps_cache_path: crate::theme::lists_dir().join("install_deps_cache.json"),
             deps_cache_dirty: false,
+
+            install_list_files: Vec::new(),
+            files_resolving: false,
+            // File cache (lists dir under config)
+            files_cache_path: crate::theme::lists_dir().join("install_files_cache.json"),
+            files_cache_dirty: false,
         }
     }
 }

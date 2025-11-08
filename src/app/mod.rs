@@ -4,6 +4,7 @@
 //! maintainability and keep individual files under 500 lines.
 
 mod deps_cache;
+mod files_cache;
 mod news;
 mod persist;
 mod recent;

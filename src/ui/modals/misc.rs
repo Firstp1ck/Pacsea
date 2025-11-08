@@ -1,0 +1,331 @@
+use ratatui::{
+    Frame,
+    prelude::Rect,
+    style::{Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
+};
+
+use super::common::render_simple_list_modal;
+use crate::state::{AppState, types::OptionalDepRow};
+use crate::theme::theme;
+
+pub fn render_optional_deps(f: &mut Frame, area: Rect, rows: &[OptionalDepRow], selected: usize) {
+    let th = theme();
+    // Build content lines with selection and install status markers
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        "TUI Optional Deps",
+        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
+
+    for (i, row) in rows.iter().enumerate() {
+        let is_sel = selected == i;
+        let (mark, color) = if row.installed {
+            ("✔ installed", th.green)
+        } else {
+            ("⏺ not installed", th.overlay1)
+        };
+        let style = if is_sel {
+            Style::default()
+                .fg(th.crust)
+                .bg(th.lavender)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(th.text)
+        };
+        let mut segs: Vec<Span> = Vec::new();
+        segs.push(Span::styled(format!("{}  ", row.label), style));
+        segs.push(Span::styled(
+            format!("[{}]", row.package),
+            Style::default().fg(th.overlay1),
+        ));
+        segs.push(Span::raw("  "));
+        segs.push(Span::styled(mark.to_string(), Style::default().fg(color)));
+        if let Some(note) = &row.note {
+            segs.push(Span::raw("  "));
+            segs.push(Span::styled(
+                format!("({})", note),
+                Style::default().fg(th.overlay2),
+            ));
+        }
+        lines.push(Line::from(segs));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "Up/Down: select  •  Enter: install  •  Esc: close",
+        Style::default().fg(th.subtext1),
+    )));
+
+    render_simple_list_modal(f, area, "Optional Deps", lines);
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn render_scan_config(
+    f: &mut Frame,
+    area: Rect,
+    do_clamav: bool,
+    do_trivy: bool,
+    do_semgrep: bool,
+    do_shellcheck: bool,
+    do_virustotal: bool,
+    do_custom: bool,
+    do_sleuth: bool,
+    cursor: usize,
+) {
+    let th = theme();
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    let items: [(&str, bool); 7] = [
+        ("ClamAV (antivirus)", do_clamav),
+        ("Trivy (filesystem)", do_trivy),
+        ("Semgrep (static analysis)", do_semgrep),
+        ("ShellCheck (PKGBUILD/.install)", do_shellcheck),
+        ("VirusTotal (hash lookups)", do_virustotal),
+        ("Custom scan for Suspicious patterns", do_custom),
+        ("aur-sleuth (LLM audit)", do_sleuth),
+    ];
+
+    for (i, (label, checked)) in items.iter().enumerate() {
+        let mark = if *checked { "[x]" } else { "[ ]" };
+        let mut spans: Vec<Span> = Vec::new();
+        spans.push(Span::styled(
+            format!("{} ", mark),
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        ));
+        let style = if i == cursor {
+            Style::default()
+                .fg(th.text)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else {
+            Style::default().fg(th.subtext1)
+        };
+        spans.push(Span::styled((*label).to_string(), style));
+        lines.push(Line::from(spans));
+    }
+
+    lines.push(Line::from(Span::raw("")));
+    lines.push(Line::from(Span::styled(
+        "Up/Down: select  •  Space: toggle  •  Enter: run  •  Esc: cancel",
+        Style::default().fg(th.overlay1),
+    )));
+
+    render_simple_list_modal(f, area, "Scan Configuration", lines);
+}
+
+pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
+    let th = theme();
+    // Centered confirmation dialog for installing GNOME Terminal
+    let w = area.width.saturating_sub(10).min(90);
+    let h = 9;
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    f.render_widget(Clear, rect);
+
+    let lines: Vec<Line<'static>> = vec![
+        Line::from(Span::styled(
+            "GNOME Terminal or Console recommended",
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "GNOME was detected, but no GNOME terminal (gnome-terminal or gnome-console/kgx) is installed.",
+            Style::default().fg(th.text),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Press Enter to install gnome-terminal  •  Esc to cancel",
+            Style::default().fg(th.subtext1),
+        )),
+        Line::from(Span::styled(
+            "Cancel may lead to unexpected behavior.",
+            Style::default().fg(th.yellow),
+        )),
+    ];
+
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    " Install a GNOME Terminal ",
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+}
+
+pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, input: &str) {
+    let th = theme();
+    // Centered dialog for VirusTotal API key setup with clickable URL and input field
+    let w = area.width.saturating_sub(10).min(90);
+    let h = 11;
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    f.render_widget(Clear, rect);
+
+    // Build content
+    let vt_url = "https://www.virustotal.com/gui/my-apikey";
+    // Show input buffer (not masked)
+    let shown = if input.is_empty() {
+        "<empty>".to_string()
+    } else {
+        input.to_string()
+    };
+    let lines: Vec<Line<'static>> = vec![
+        Line::from(Span::styled(
+            "VirusTotal API Setup",
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Open the link to view your API key:",
+            Style::default().fg(th.text),
+        )),
+        Line::from(vec![
+            // Surround with spaces to avoid visual concatenation with underlying content
+            Span::styled(" ", Style::default().fg(th.text)),
+            Span::styled(
+                vt_url.to_string(),
+                Style::default()
+                    .fg(th.lavender)
+                    .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Enter/paste your API key below and press Enter to save (Esc to cancel):",
+            Style::default().fg(th.subtext1),
+        )),
+        Line::from(Span::styled(
+            format!("API key: {}", shown),
+            Style::default().fg(th.text),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Tip: After saving, scans will auto-query VirusTotal by file hash.",
+            Style::default().fg(th.overlay1),
+        )),
+    ];
+
+    let inner_x = rect.x + 1;
+    let inner_y = rect.y + 1;
+    let url_line_y = inner_y + 3;
+    let url_x = inner_x + 1;
+    let url_w = vt_url.len() as u16;
+    app.vt_url_rect = Some((url_x, url_line_y, url_w, 1));
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    " VirusTotal ",
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+}
+
+pub fn render_import_help(f: &mut Frame, area: Rect) {
+    let th = theme();
+    let w = area.width.saturating_sub(10).min(85);
+    let h = 19;
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    f.render_widget(Clear, rect);
+
+    let lines: Vec<Line<'static>> = vec![
+        Line::from(Span::styled(
+            "Import File Format",
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "The import file should contain one package name per line.",
+            Style::default().fg(th.text),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Format:",
+            Style::default()
+                .fg(th.overlay1)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::raw("  • One package name per line")),
+        Line::from(Span::raw("  • Blank lines are ignored")),
+        Line::from(Span::raw(
+            "  • Lines starting with '#' are treated as comments",
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Example:",
+            Style::default()
+                .fg(th.overlay1)
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::raw("  firefox")),
+        Line::from(Span::raw("  # This is a comment")),
+        Line::from(Span::raw("  vim")),
+        Line::from(Span::raw("  paru")),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                "[Enter]",
+                Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" confirm", Style::default().fg(th.overlay1)),
+            Span::raw("  •  "),
+            Span::styled(
+                "[Esc]",
+                Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" cancel", Style::default().fg(th.overlay1)),
+        ]),
+    ];
+
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    " Import Help ",
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+}

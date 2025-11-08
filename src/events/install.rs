@@ -182,6 +182,11 @@ pub fn handle_install_key(
                     } else {
                         Vec::new()
                     };
+                    let cached_files = if !app.files_resolving && !app.install_list_files.is_empty() {
+                        app.install_list_files.clone()
+                    } else {
+                        Vec::new()
+                    };
                     app.modal = crate::state::Modal::Preflight {
                         items: app.install_list.clone(),
                         action: crate::state::PreflightAction::Install,
@@ -189,8 +194,9 @@ pub fn handle_install_key(
                         dependency_info: cached_deps,
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),
-                        file_info: Vec::new(),
+                        file_info: cached_files,
                         file_selected: 0,
+                        file_tree_expanded: std::collections::HashSet::new(),
                     };
                 }
             } else if app.installed_only_mode
@@ -214,6 +220,7 @@ pub fn handle_install_key(
                             dep_tree_expanded: std::collections::HashSet::new(),
                             file_info: Vec::new(),
                             file_selected: 0,
+                            file_tree_expanded: std::collections::HashSet::new(),
                         };
                         app.toast_message = Some("Preflight: Remove list".to_string());
                     }
@@ -393,7 +400,9 @@ pub fn handle_install_key(
                                 app.install_dirty = true;
                                 // Clear dependency cache when list changes
                                 app.install_list_deps.clear();
+                                app.install_list_files.clear();
                                 app.deps_resolving = false;
+                                app.files_resolving = false;
                                 let vis_len = inds.len().saturating_sub(1); // one less visible
                                 if vis_len == 0 {
                                     app.install_state.select(None);
@@ -446,7 +455,9 @@ pub fn handle_install_key(
                         app.install_dirty = true;
                         // Clear dependency cache when list is cleared
                         app.install_list_deps.clear();
+                        app.install_list_files.clear();
                         app.deps_resolving = false;
+                        app.files_resolving = false;
                     }
                 }
             } else {
@@ -505,7 +516,9 @@ pub fn handle_install_key(
                                 app.install_dirty = true;
                                 // Clear dependency cache when list changes
                                 app.install_list_deps.clear();
+                                app.install_list_files.clear();
                                 app.deps_resolving = false;
+                                app.files_resolving = false;
                                 let vis_len = inds.len().saturating_sub(1); // one less visible
                                 if vis_len == 0 {
                                     app.install_state.select(None);
@@ -657,6 +670,7 @@ mod tests {
                 dep_tree_expanded: _,
                 file_info: _,
                 file_selected: _,
+                file_tree_expanded: _,
             } => {
                 assert_eq!(items.len(), 1);
                 assert_eq!(action, crate::state::PreflightAction::Install);

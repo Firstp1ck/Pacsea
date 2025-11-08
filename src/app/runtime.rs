@@ -20,8 +20,9 @@ use crate::ui::ui;
 use crate::util::{match_rank, repo_order};
 
 use super::deps_cache;
+use super::files_cache;
 use super::persist::{
-    maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_install, maybe_flush_news_read,
+    maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read,
     maybe_flush_recent,
 };
 use super::recent::maybe_save_recent;
@@ -148,6 +149,22 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     }
 
+    // Load file cache after install list is loaded (but before channels are created)
+    let mut needs_files_resolution = false;
+    if !app.install_list.is_empty() {
+        let signature = files_cache::compute_signature(&app.install_list);
+        if let Some(cached_files) = files_cache::load_cache(&app.files_cache_path, &signature) {
+            app.install_list_files = cached_files;
+            tracing::info!(path = %app.files_cache_path.display(), count = app.install_list_files.len(), "loaded file cache");
+        } else {
+            // Cache missing or invalid - will trigger background resolution after channels are set up
+            needs_files_resolution = true;
+            tracing::info!(
+                "File cache missing or invalid, will trigger background resolution"
+            );
+        }
+    }
+
     if let Ok(s) = std::fs::read_to_string(&app.news_read_path)
         && let Ok(set) = serde_json::from_str::<std::collections::HashSet<String>>(&s)
     {
@@ -175,6 +192,9 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     let (deps_req_tx, mut deps_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
     let (deps_res_tx, mut deps_res_rx) =
         mpsc::unbounded_channel::<Vec<crate::state::modal::DependencyInfo>>();
+    let (files_req_tx, mut files_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
+    let (files_res_tx, mut files_res_rx) =
+        mpsc::unbounded_channel::<Vec<crate::state::modal::PackageFileInfo>>();
 
     let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
@@ -271,6 +291,23 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     });
 
+    // Background file resolution worker
+    let files_res_tx_bg = files_res_tx.clone();
+    tokio::spawn(async move {
+        while let Some(items) = files_req_rx.recv().await {
+            // Run blocking file resolution in a thread pool
+            let items_clone = items.clone();
+            let res_tx = files_res_tx_bg.clone();
+            tokio::task::spawn_blocking(move || {
+                let files = crate::logic::files::resolve_file_changes(
+                    &items_clone,
+                    crate::state::modal::PreflightAction::Install,
+                );
+                let _ = res_tx.send(files);
+            });
+        }
+    });
+
     // Fetch Arch news once at startup; show unread items (by URL) if any
     let news_tx_once = news_tx.clone();
     let read_set = app.news_read_urls.clone();
@@ -313,6 +350,11 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     if needs_deps_resolution && !app.install_list.is_empty() {
         app.deps_resolving = true;
         let _ = deps_req_tx.send(app.install_list.clone());
+    }
+
+    if needs_files_resolution && !app.install_list.is_empty() {
+        app.files_resolving = true;
+        let _ = files_req_tx.send(app.install_list.clone());
     }
 
     if !headless {
@@ -533,6 +575,9 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 if !app.install_list.is_empty() {
                     app.deps_resolving = true;
                     let _ = deps_req_tx.send(app.install_list.clone());
+                    // Trigger background file resolution for updated install list
+                    app.files_resolving = true;
+                    let _ = files_req_tx.send(app.install_list.clone());
                 }
             }
             Some(deps) = deps_res_rx.recv() => {
@@ -540,6 +585,13 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 app.install_list_deps = deps;
                 app.deps_resolving = false;
                 app.deps_cache_dirty = true; // Mark cache as dirty for persistence
+                let _ = tick_tx.send(());
+            }
+            Some(files) = files_res_rx.recv() => {
+                // Update cached files
+                app.install_list_files = files;
+                app.files_resolving = false;
+                app.files_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
             Some((pkgname, text)) = pkgb_res_rx.recv() => {
@@ -553,7 +605,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 let _ = tick_tx.send(());
             }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
-            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_news_read(&mut app); maybe_flush_install(&mut app); maybe_flush_deps_cache(&mut app);
+            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_news_read(&mut app); maybe_flush_install(&mut app); maybe_flush_deps_cache(&mut app); maybe_flush_files_cache(&mut app);
                 // Check for pending PKGBUILD reload request (debounce delay)
                 const PKGBUILD_DEBOUNCE_MS: u64 = 250;
                 if let (Some(requested_at), Some(requested_for)) = (app.pkgb_reload_requested_at, &app.pkgb_reload_requested_for) {
@@ -607,7 +659,9 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                                     app.pending_install_names = None;
                                     // Clear dependency cache when install list is cleared
                                     app.install_list_deps.clear();
+                                    app.install_list_files.clear();
                                     app.deps_resolving = false;
+                                    app.files_resolving = false;
                                     // End polling soon to avoid extra work
                                     app.refresh_installed_until = Some(now + Duration::from_secs(1));
                                 }

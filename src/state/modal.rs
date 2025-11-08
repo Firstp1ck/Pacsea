@@ -140,6 +140,8 @@ pub enum Modal {
         file_info: Vec<PackageFileInfo>,
         /// Selected index in the file list (for navigation).
         file_selected: usize,
+        /// Set of package names with expanded file lists (for Files tab tree view).
+        file_tree_expanded: HashSet<String>,
     },
     /// Preflight execution screen with log and sticky sidebar.
     #[allow(dead_code)]
@@ -275,6 +277,7 @@ mod tests {
             dep_tree_expanded: std::collections::HashSet::new(),
             file_info: Vec::new(),
             file_selected: 0,
+            file_tree_expanded: std::collections::HashSet::new(),
         };
     }
 }

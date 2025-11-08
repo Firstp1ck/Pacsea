@@ -326,6 +326,7 @@ pub fn handle_search_key(
                             dep_tree_expanded: std::collections::HashSet::new(),
                             file_info: Vec::new(),
                             file_selected: 0,
+                            file_tree_expanded: std::collections::HashSet::new(),
                         };
                         app.toast_message = Some("Preflight opened".to_string());
                     }
@@ -347,6 +348,7 @@ pub fn handle_search_key(
                             dep_tree_expanded: std::collections::HashSet::new(),
                             file_info: Vec::new(),
                             file_selected: 0,
+                            file_tree_expanded: std::collections::HashSet::new(),
                         };
                         app.toast_message = Some("Preflight opened".to_string());
                     }
@@ -489,6 +491,7 @@ pub fn handle_search_key(
                         dep_tree_expanded: std::collections::HashSet::new(),
                         file_info: Vec::new(),
                         file_selected: 0,
+                        file_tree_expanded: std::collections::HashSet::new(),
                     };
                     app.toast_message = Some("Preflight opened".to_string());
                 }

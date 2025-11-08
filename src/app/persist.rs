@@ -1,6 +1,7 @@
 use std::fs;
 
 use super::deps_cache;
+use super::files_cache;
 use crate::state::AppState;
 
 /// What: Persist the details cache to disk if marked dirty.
@@ -75,6 +76,29 @@ pub fn maybe_flush_deps_cache(app: &mut AppState) {
     let signature = deps_cache::compute_signature(&app.install_list);
     deps_cache::save_cache(&app.deps_cache_path, &signature, &app.install_list_deps);
     app.deps_cache_dirty = false;
+}
+
+/// What: Persist the file cache to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state with `install_list_files`, `files_cache_path`, and `install_list`
+///
+/// Output:
+/// - Writes file cache JSON to `files_cache_path` and clears dirty flag on success.
+/// - If install list is empty, removes the cache file.
+pub fn maybe_flush_files_cache(app: &mut AppState) {
+    if app.install_list.is_empty() {
+        // Clear cache file if install list is empty
+        let _ = fs::remove_file(&app.files_cache_path);
+        app.files_cache_dirty = false;
+        return;
+    }
+    if !app.files_cache_dirty {
+        return;
+    }
+    let signature = files_cache::compute_signature(&app.install_list);
+    files_cache::save_cache(&app.files_cache_path, &signature, &app.install_list_files);
+    app.files_cache_dirty = false;
 }
 
 /// What: Persist the install list to disk if marked dirty, throttled to ~1s.
