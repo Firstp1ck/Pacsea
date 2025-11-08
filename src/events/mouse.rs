@@ -128,6 +128,277 @@ pub fn handle_mouse_event(
         return false;
     }
 
+    // If Preflight modal is open, handle mouse events
+    if let crate::state::Modal::Preflight {
+        tab,
+        items,
+        action,
+        dependency_info,
+        dep_selected,
+        dep_tree_expanded,
+        file_info,
+        file_selected,
+        file_tree_expanded,
+    } = &mut app.modal
+    {
+        // Handle tab clicks
+        if is_left_down {
+            for (i, tab_rect_opt) in app.preflight_tab_rects.iter().enumerate() {
+                if let Some((x, y, w, h)) = tab_rect_opt
+                    && mx >= *x
+                    && mx < x + w
+                    && my >= *y
+                    && my < y + h
+                {
+                    // Clicked on tab i - switch to that tab
+                    let new_tab = match i {
+                        0 => crate::state::PreflightTab::Summary,
+                        1 => crate::state::PreflightTab::Deps,
+                        2 => crate::state::PreflightTab::Files,
+                        3 => crate::state::PreflightTab::Services,
+                        4 => crate::state::PreflightTab::Sandbox,
+                        _ => continue,
+                    };
+                    *tab = new_tab;
+
+                    // Resolve dependencies when switching to Deps tab
+                    if *tab == crate::state::PreflightTab::Deps
+                        && dependency_info.is_empty()
+                        && matches!(*action, crate::state::PreflightAction::Install)
+                    {
+                        *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                        *dep_selected = 0;
+                    }
+                    // Resolve files when switching to Files tab
+                    if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
+                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                        *file_selected = 0;
+                    }
+                    return false;
+                }
+            }
+
+            // Handle package group header clicks in Deps tab
+            if *tab == crate::state::PreflightTab::Deps
+                && !dependency_info.is_empty()
+                && let Some((content_x, content_y, content_w, content_h)) =
+                    app.preflight_content_rect
+                && mx >= content_x
+                && mx < content_x + content_w
+                && my >= content_y
+                && my < content_y + content_h
+            {
+                // Calculate which row was clicked relative to content area
+                let clicked_row = (my - content_y) as usize;
+
+                // Build display items list to find which package header was clicked
+                use std::collections::{HashMap, HashSet};
+                let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> =
+                    HashMap::new();
+                for dep in dependency_info.iter() {
+                    for req_by in &dep.required_by {
+                        grouped.entry(req_by.clone()).or_default().push(dep);
+                    }
+                }
+
+                let mut display_items: Vec<(bool, String)> = Vec::new();
+                for pkg_name in items.iter().map(|p| &p.name) {
+                    if grouped.contains_key(pkg_name) {
+                        display_items.push((true, pkg_name.clone()));
+                        if dep_tree_expanded.contains(pkg_name) {
+                            let mut seen_deps = HashSet::new();
+                            if let Some(pkg_deps) = grouped.get(pkg_name) {
+                                for dep in pkg_deps.iter() {
+                                    if seen_deps.insert(dep.name.as_str()) {
+                                        display_items.push((false, String::new()));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Calculate offset for summary line before the list
+                // Deps tab has: summary line (1) + empty line (1) = 2 lines
+                let list_start_offset = 2;
+
+                // Only process clicks that are on or after the list starts
+                if clicked_row >= list_start_offset {
+                    let list_clicked_row = clicked_row - list_start_offset;
+
+                    // Calculate scroll position to find actual index
+                    let available_height =
+                        content_h.saturating_sub(list_start_offset as u16) as usize;
+                    let start_idx = (*dep_selected)
+                        .saturating_sub(available_height / 2)
+                        .min(display_items.len().saturating_sub(available_height));
+
+                    let actual_idx = start_idx + list_clicked_row;
+                    if actual_idx < display_items.len()
+                        && let Some((is_header, pkg_name)) = display_items.get(actual_idx)
+                        && *is_header
+                    {
+                        // Toggle this package's expanded state
+                        if dep_tree_expanded.contains(pkg_name) {
+                            dep_tree_expanded.remove(pkg_name);
+                        } else {
+                            dep_tree_expanded.insert(pkg_name.clone());
+                        }
+                        return false;
+                    }
+                }
+            }
+
+            // Handle package group header clicks in Files tab
+            if *tab == crate::state::PreflightTab::Files
+                && !file_info.is_empty()
+                && let Some((content_x, content_y, content_w, content_h)) =
+                    app.preflight_content_rect
+                && mx >= content_x
+                && mx < content_x + content_w
+                && my >= content_y
+                && my < content_y + content_h
+            {
+                // Calculate which row was clicked relative to content area
+                let clicked_row = (my - content_y) as usize;
+
+                // Build display items list to find which package header was clicked
+                let mut display_items: Vec<(bool, String)> = Vec::new();
+                for pkg_info in file_info.iter() {
+                    if !pkg_info.files.is_empty() {
+                        display_items.push((true, pkg_info.name.clone()));
+                        if file_tree_expanded.contains(&pkg_info.name) {
+                            for _file in pkg_info.files.iter() {
+                                display_items.push((false, String::new()));
+                            }
+                        }
+                    }
+                }
+
+                // Calculate offset for summary lines before the list
+                // Files tab has: summary line (1) + empty line (1) + optional sync timestamp (0-2) + empty line (0-1)
+                // Minimum offset is 2 lines (summary + empty)
+                let sync_timestamp_lines = if crate::logic::files::get_file_db_sync_info().is_some()
+                {
+                    2 // timestamp line + empty line
+                } else {
+                    0
+                };
+                let list_start_offset = 2 + sync_timestamp_lines; // summary + empty + sync timestamp lines
+
+                // Only process clicks that are on or after the list starts
+                if clicked_row >= list_start_offset {
+                    let list_clicked_row = clicked_row - list_start_offset;
+
+                    // Calculate scroll position to find actual index
+                    let total_items = display_items.len();
+                    let file_selected_clamped = (*file_selected).min(total_items.saturating_sub(1));
+                    let available_height =
+                        content_h.saturating_sub(list_start_offset as u16) as usize;
+                    let (start_idx, _end_idx) = if total_items <= available_height {
+                        (0, total_items)
+                    } else {
+                        let start = file_selected_clamped
+                            .saturating_sub(available_height / 2)
+                            .min(total_items.saturating_sub(available_height));
+                        let end = (start + available_height).min(total_items);
+                        (start, end)
+                    };
+
+                    let actual_idx = start_idx + list_clicked_row;
+                    if actual_idx < display_items.len()
+                        && let Some((is_header, pkg_name)) = display_items.get(actual_idx)
+                        && *is_header
+                    {
+                        // Toggle this package's expanded state
+                        if file_tree_expanded.contains(pkg_name) {
+                            file_tree_expanded.remove(pkg_name);
+                        } else {
+                            file_tree_expanded.insert(pkg_name.clone());
+                        }
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // Handle mouse scroll for Deps tab
+        if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
+            // Compute display_items length (headers + dependencies, accounting for folded groups)
+            use std::collections::{HashMap, HashSet};
+            let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> =
+                HashMap::new();
+            for dep in dependency_info.iter() {
+                for req_by in &dep.required_by {
+                    grouped.entry(req_by.clone()).or_default().push(dep);
+                }
+            }
+            let mut display_len: usize = 0;
+            for pkg_name in items.iter().map(|p| &p.name) {
+                if let Some(pkg_deps) = grouped.get(pkg_name) {
+                    display_len += 1; // Header
+                    // Count dependencies only if expanded
+                    if dep_tree_expanded.contains(pkg_name) {
+                        let mut seen_deps = HashSet::new();
+                        for dep in pkg_deps.iter() {
+                            if seen_deps.insert(dep.name.as_str()) {
+                                display_len += 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Handle mouse scroll to navigate dependency list
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    if *dep_selected > 0 {
+                        *dep_selected -= 1;
+                    }
+                    return false;
+                }
+                MouseEventKind::ScrollDown => {
+                    if *dep_selected < display_len.saturating_sub(1) {
+                        *dep_selected += 1;
+                    }
+                    return false;
+                }
+                _ => {}
+            }
+        }
+
+        // Handle mouse scroll for Files tab
+        if *tab == crate::state::PreflightTab::Files && !file_info.is_empty() {
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    if *file_selected > 0 {
+                        *file_selected -= 1;
+                    }
+                    return false;
+                }
+                MouseEventKind::ScrollDown => {
+                    let mut display_len = 0;
+                    for pkg_info in file_info.iter() {
+                        if !pkg_info.files.is_empty() {
+                            display_len += 1; // Package header
+                            if file_tree_expanded.contains(&pkg_info.name) {
+                                display_len += pkg_info.files.len(); // Files only if expanded
+                            }
+                        }
+                    }
+                    if *file_selected < display_len.saturating_sub(1) {
+                        *file_selected += 1;
+                    }
+                    return false;
+                }
+                _ => {}
+            }
+        }
+
+        // Consume all mouse events while Preflight modal is open
+        return false;
+    }
+
     // If News modal is open, intercept mouse events before anything else
     if let crate::state::Modal::News { items, selected } = &mut app.modal {
         // Left click: select/open or close on outside
@@ -139,9 +410,9 @@ pub fn handle_mouse_event(
                 && my < y + h
             {
                 let row = my.saturating_sub(y) as usize;
-                if !items.is_empty() {
-                    let idx = std::cmp::min(row, items.len().saturating_sub(1));
-                    *selected = idx;
+                // Only open if clicking on an actual news item line (not empty space)
+                if row < items.len() {
+                    *selected = row;
                     if let Some(it) = items.get(*selected) {
                         crate::util::open_url(&it.url);
                     }

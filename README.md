@@ -122,6 +122,14 @@ For example configuration files, see the [`config/`](config/) directory:
 
 ![Settings overview (v0.4.1)](Images/Settings_v0.4.1.png "Settings overview (v0.4.1)")
 
+### Skipping the Preflight Modal
+By default Pacsea does not show a Preflight review modal before installs/removals so you have to set it to false to enable this modal. This allows you to inspect dependencies, files, config conflicts, and optionally run AUR security scans.
+
+Change the following key in `~/.config/pacsea/settings.conf`:
+```
+skip_preflight = true
+```
+
 ### Panels hidden
 ![Panels hidden (v0.4.1)](Images/PaneHided_v0.4.5.png "Panels hidden (v0.4.1)")
 ## Optional: build from source

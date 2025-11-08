@@ -32,6 +32,8 @@ pub struct AppState {
     pub list_state: ListState,
     /// Active modal dialog, if any.
     pub modal: Modal,
+    /// Previous modal state (used to restore when closing help/alert modals).
+    pub previous_modal: Option<Modal>,
     /// If `true`, show install steps without executing side effects.
     pub dry_run: bool,
     // Recent searches
@@ -225,6 +227,12 @@ pub struct AppState {
     /// Inner content rectangle of the Help modal (x, y, w, h) for hit-testing.
     pub help_rect: Option<(u16, u16, u16, u16)>,
 
+    // Preflight modal mouse hit-testing
+    /// Clickable rectangles for preflight tabs (x, y, w, h) - Summary, Deps, Files, Services, Sandbox.
+    pub preflight_tab_rects: [Option<(u16, u16, u16, u16)>; 5],
+    /// Inner content rectangle of the preflight modal (x, y, w, h) for hit-testing package groups.
+    pub preflight_content_rect: Option<(u16, u16, u16, u16)>,
+
     // Results sorting UI
     /// Current sort mode for results.
     pub sort_mode: SortMode,
@@ -311,6 +319,26 @@ pub struct AppState {
     // Pending removals to detect completion and log
     /// Names of packages we just triggered to remove; when all disappear, append to removed log.
     pub pending_remove_names: Option<Vec<String>>,
+
+    // Dependency resolution cache for install list
+    /// Cached resolved dependencies for the current install list (updated in background).
+    pub install_list_deps: Vec<crate::state::modal::DependencyInfo>,
+    /// Whether dependency resolution is currently in progress.
+    pub deps_resolving: bool,
+    /// Path where the dependency cache is persisted as JSON.
+    pub deps_cache_path: PathBuf,
+    /// Dirty flag indicating `install_list_deps` needs to be saved.
+    pub deps_cache_dirty: bool,
+
+    // File resolution cache for install list
+    /// Cached resolved file changes for the current install list (updated in background).
+    pub install_list_files: Vec<crate::state::modal::PackageFileInfo>,
+    /// Whether file resolution is currently in progress.
+    pub files_resolving: bool,
+    /// Path where the file cache is persisted as JSON.
+    pub files_cache_path: PathBuf,
+    /// Dirty flag indicating `install_list_files` needs to be saved.
+    pub files_cache_dirty: bool,
 }
 
 impl Default for AppState {
@@ -326,6 +354,7 @@ impl Default for AppState {
             details: PackageDetails::default(),
             list_state: ListState::default(),
             modal: Modal::None,
+            previous_modal: None,
             dry_run: false,
             recent: Vec::new(),
             history_state: ListState::default(),
@@ -423,6 +452,10 @@ impl Default for AppState {
             help_scroll: 0,
             help_rect: None,
 
+            // Preflight modal mouse hit-testing
+            preflight_tab_rects: [None; 5],
+            preflight_content_rect: None,
+
             // Sorting
             sort_mode: SortMode::RepoThenName,
             sort_menu_open: false,
@@ -472,6 +505,17 @@ impl Default for AppState {
             // Pending install tracking
             pending_install_names: None,
             pending_remove_names: None,
+            install_list_deps: Vec::new(),
+            deps_resolving: false,
+            // Dependency cache (lists dir under config)
+            deps_cache_path: crate::theme::lists_dir().join("install_deps_cache.json"),
+            deps_cache_dirty: false,
+
+            install_list_files: Vec::new(),
+            files_resolving: false,
+            // File cache (lists dir under config)
+            files_cache_path: crate::theme::lists_dir().join("install_files_cache.json"),
+            files_cache_dirty: false,
         }
     }
 }

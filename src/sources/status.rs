@@ -15,14 +15,72 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     let api_result = tokio::task::spawn_blocking(move || super::curl_json(api_url)).await;
 
     if let Ok(Ok(v)) = api_result {
-        let (mut text, color, suffix) = parse_status_api_summary(&v);
+        let (mut text, mut color, suffix) = parse_status_api_summary(&v);
 
-        // Optionally append today's AUR uptime percentage from the HTML page (best-effort)
+        // Always fetch HTML to check the visual indicator (rect color/beam) which may differ from API status
         if let Ok(Ok(html)) =
             tokio::task::spawn_blocking(|| super::curl_text("https://status.archlinux.org")).await
-            && let Some(p) = extract_aur_today_percent(&html)
         {
-            text.push_str(&format!(" — AUR today: {p}%"));
+            // Extract today's AUR uptime percentage (best-effort)
+            let aur_pct_opt = extract_aur_today_percent(&html);
+            if let Some(p) = aur_pct_opt {
+                text.push_str(&format!(" — AUR today: {p}%"));
+            }
+
+            // Check the visual indicator (rect color/beam) - this is authoritative for current status
+            // The beam color can show red/yellow even when API says "operational"
+            if let Some(rect_color) = extract_aur_today_rect_color(&html) {
+                // If the visual indicator shows a problem but API says operational, trust the visual indicator
+                let api_says_operational = matches!(
+                    v.get("components")
+                        .and_then(|c| c.as_array())
+                        .and_then(|arr| arr.iter().find(|c| {
+                            c.get("name")
+                                .and_then(|n| n.as_str())
+                                .map(|n| n.to_lowercase().contains("aur"))
+                                .unwrap_or(false)
+                        }))
+                        .and_then(|c| c.get("status").and_then(|s| s.as_str())),
+                    Some("operational")
+                );
+
+                if api_says_operational
+                    && matches!(
+                        rect_color,
+                        ArchStatusColor::IncidentToday | ArchStatusColor::IncidentSevereToday
+                    )
+                {
+                    // Visual indicator shows a problem but API says operational - trust the visual indicator
+                    color = rect_color;
+                    // Update text to reflect the visual indicator discrepancy
+                    let text_lower = text.to_lowercase();
+                    let pct_suffix = if text_lower.contains("aur today") {
+                        String::new() // Already added
+                    } else {
+                        aur_pct_opt
+                            .map(|p| format!(" — AUR today: {p}%"))
+                            .unwrap_or_default()
+                    };
+                    match rect_color {
+                        ArchStatusColor::IncidentSevereToday => {
+                            if !text_lower.contains("outage") && !text_lower.contains("issues") {
+                                text = format!("AUR issues detected (see status){pct_suffix}");
+                            }
+                        }
+                        ArchStatusColor::IncidentToday => {
+                            if !text_lower.contains("degraded") 
+                                && !text_lower.contains("outage")
+                                && !text_lower.contains("issues") {
+                                text = format!("AUR degraded (see status){pct_suffix}");
+                            }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    // Use the more severe of API color or rect color
+                    color = severity_max(color, rect_color);
+                }
+            }
         }
 
         if let Some(sfx) = suffix
@@ -34,7 +92,17 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
         return Ok((text, color));
     }
 
-    // 2) Fallback: use the existing HTML parser + banner heuristic if API is unavailable
+    // 2) Try the UptimeRobot API endpoint (the actual API the status page uses)
+    let uptimerobot_api_url = "https://status.archlinux.org/api/getMonitorList/vmM5ruWEAB";
+    let uptimerobot_result = tokio::task::spawn_blocking(move || super::curl_json(uptimerobot_api_url)).await;
+
+    if let Ok(Ok(v)) = uptimerobot_result {
+        if let Some((text, color)) = parse_uptimerobot_api(&v) {
+            return Ok((text, color));
+        }
+    }
+
+    // 3) Fallback: use the existing HTML parser + banner heuristic if APIs are unavailable
     let url = "https://status.archlinux.org";
     let body = tokio::task::spawn_blocking(move || super::curl_text(url)).await??;
 
@@ -73,6 +141,14 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
     });
     // Prefer the SVG rect color for today's cell if present (authoritative UI color)
     let aur_color_from_rect = extract_aur_today_rect_color(body);
+
+    // Check status updates for today's date and keywords
+    let status_update_color = extract_status_updates_today_color(body);
+
+    // Prioritize: rect color > status updates > percentage > default
+    let final_color = aur_color_from_rect
+        .or(status_update_color)
+        .or(aur_color_from_pct);
 
     let outage_key = "the aur is currently experiencing an outage";
     if let Some(pos) = lowered.find(outage_key) {
@@ -137,41 +213,56 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
             };
             return (
                 format!("AUR outage (see status){aur_pct_suffix}"),
-                forced_color,
+                severity_max(forced_color, final_color.unwrap_or(ArchStatusColor::IncidentToday)),
             );
         }
+        // Outage announcement present but not today - still check visual indicators
         if has_all_ok {
             return (
                 format!("All systems operational{aur_pct_suffix}"),
-                // Outage announcement present: if we can't parse a color, default to yellow
-                aur_color_from_rect
-                    .or(aur_color_from_pct)
-                    .unwrap_or(ArchStatusColor::IncidentToday),
+                final_color.unwrap_or(ArchStatusColor::IncidentToday),
             );
         }
         return (
             format!("Arch systems nominal{aur_pct_suffix}"),
-            // Outage announcement present: if we can't parse a color, default to yellow
-            aur_color_from_rect
-                .or(aur_color_from_pct)
-                .unwrap_or(ArchStatusColor::IncidentToday),
+            final_color.unwrap_or(ArchStatusColor::IncidentToday),
         );
+    }
+
+    // If rect color shows a problem, prioritize it even if text says "operational"
+    if let Some(rect_color) = aur_color_from_rect {
+        if matches!(rect_color, ArchStatusColor::IncidentToday | ArchStatusColor::IncidentSevereToday) {
+            let text = if has_all_ok {
+                format!("AUR issues detected (see status){aur_pct_suffix}")
+            } else {
+                format!("AUR degraded (see status){aur_pct_suffix}")
+            };
+            return (text, rect_color);
+        }
+    }
+
+    // Check status updates for today
+    if let Some(update_color) = status_update_color {
+        if matches!(update_color, ArchStatusColor::IncidentToday | ArchStatusColor::IncidentSevereToday) {
+            let text = if has_all_ok {
+                format!("AUR issues detected (see status){aur_pct_suffix}")
+            } else {
+                format!("AUR degraded (see status){aur_pct_suffix}")
+            };
+            return (text, update_color);
+        }
     }
 
     if has_all_ok {
         return (
             format!("All systems operational{aur_pct_suffix}"),
-            aur_color_from_rect
-                .or(aur_color_from_pct)
-                .unwrap_or(ArchStatusColor::Operational),
+            final_color.unwrap_or(ArchStatusColor::Operational),
         );
     }
 
     (
         format!("Arch systems nominal{aur_pct_suffix}"),
-        aur_color_from_rect
-            .or(aur_color_from_pct)
-            .unwrap_or(ArchStatusColor::None),
+        final_color.unwrap_or(ArchStatusColor::None),
     )
 }
 
@@ -297,6 +388,113 @@ fn severity_max(a: ArchStatusColor, b: ArchStatusColor) -> ArchStatusColor {
     if rank(a) >= rank(b) { a } else { b }
 }
 
+/// Parse the UptimeRobot API response to extract the worst status among all monitors (AUR, Forum, Website, Wiki).
+///
+/// Inputs:
+/// - `v`: JSON value from https://status.archlinux.org/api/getMonitorList/vmM5ruWEAB
+///
+/// Output:
+/// - `Some((text, color))` if monitor data is found, `None` otherwise.
+///   Always returns the worst (lowest uptime) status among all monitored services.
+fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, ArchStatusColor)> {
+    let data = v.get("data")?.as_array()?;
+    
+    // Get today's date in YYYY-MM-DD format
+    let (year, month, day) = today_ymd_utc()?;
+    let today_str = format!("{year}-{month:02}-{day:02}");
+
+    // Monitor names we care about
+    let monitor_names = ["AUR", "Forum", "Website", "Wiki"];
+    
+    // Collect today's status for all monitors
+    let mut monitor_statuses: Vec<(String, f64, &str, &str)> = Vec::new();
+    
+    for monitor in data.iter() {
+        let name = monitor.get("name")?.as_str()?;
+        if !monitor_names.iter().any(|&n| n.eq_ignore_ascii_case(name)) {
+            continue;
+        }
+        
+        let daily_ratios = monitor.get("dailyRatios")?.as_array()?;
+        if let Some(today_data) = daily_ratios.iter().find(|d| {
+            d.get("date")
+                .and_then(|date| date.as_str())
+                .map(|date| date == today_str)
+                .unwrap_or(false)
+        }) {
+            let ratio_str = today_data.get("ratio")?.as_str()?;
+            if let Ok(ratio) = ratio_str.parse::<f64>() {
+                let color_str = today_data.get("color")?.as_str()?;
+                let label = today_data.get("label")?.as_str()?;
+                monitor_statuses.push((name.to_string(), ratio, color_str, label));
+            }
+        }
+    }
+    
+    if monitor_statuses.is_empty() {
+        return None;
+    }
+    
+    // Find the worst status (lowest ratio, or if equal, worst color)
+    let worst = monitor_statuses.iter().min_by(|a, b| {
+        // First compare by ratio (lower is worse)
+        let ratio_cmp = a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal);
+        if ratio_cmp != std::cmp::Ordering::Equal {
+            return ratio_cmp;
+        }
+        // If ratios are equal, compare by color severity (red > yellow/blue > green)
+        let color_rank_a = match a.2 {
+            "red" => 3,
+            "yellow" | "blue" => 2,
+            "green" => 1,
+            _ => 0,
+        };
+        let color_rank_b = match b.2 {
+            "red" => 3,
+            "yellow" | "blue" => 2,
+            "green" => 1,
+            _ => 0,
+        };
+        color_rank_b.cmp(&color_rank_a) // Reverse because we want worst first
+    })?;
+    
+    // Find AUR status separately
+    let aur_status = monitor_statuses.iter().find(|s| s.0.eq_ignore_ascii_case("aur"));
+    
+    let (name, ratio, color_str, label) = worst;
+    
+    // Map UptimeRobot colors to our ArchStatusColor
+    let color = match *color_str {
+        "green" => ArchStatusColor::Operational,
+        "yellow" | "blue" => ArchStatusColor::IncidentToday,
+        "red" => ArchStatusColor::IncidentSevereToday,
+        _ => ArchStatusColor::None,
+    };
+    
+    // Determine text based on ratio, label, and service name
+    let mut text = if *ratio < 90.0 {
+        format!("{} outage (see status) — {} today: {:.1}%", name, name, ratio)
+    } else if *ratio < 95.0 {
+        format!("{} degraded (see status) — {} today: {:.1}%", name, name, ratio)
+    } else if *label == "poor" || *color_str == "red" {
+        format!("{} issues detected (see status) — {} today: {:.1}%", name, name, ratio)
+    } else {
+        format!("Arch systems nominal — {} today: {:.1}%", name, ratio)
+    };
+    
+    // Always append AUR status in parentheses if AUR is not the worst service AND AUR has issues
+    if let Some((aur_name, aur_ratio, aur_color_str, _)) = aur_status {
+        if !aur_name.eq_ignore_ascii_case(name) {
+            // Only show AUR if it has issues (not green/100%)
+            if *aur_ratio < 100.0 || *aur_color_str != "green" {
+                text.push_str(&format!(" (AUR: {:.1}%)", aur_ratio));
+            }
+        }
+    }
+    
+    Some((text, color))
+}
+
 /// Parse the Arch Status API summary JSON into a concise status line, color, and optional suffix.
 ///
 /// Inputs:
@@ -322,7 +520,8 @@ pub fn parse_status_api_summary(
     };
 
     // AUR component detection and suffix mapping
-    let mut suffix: Option<String> = None;
+    let suffix: Option<String> = None;
+    let mut aur_state: Option<&str> = None;
     if let Some(components) = v.get("components").and_then(|c| c.as_array())
         && let Some(aur_comp) = components.iter().find(|c| {
             c.get("name")
@@ -332,29 +531,52 @@ pub fn parse_status_api_summary(
         })
         && let Some(state) = aur_comp.get("status").and_then(|s| s.as_str())
     {
+        aur_state = Some(state);
         match state {
             "operational" => { /* no suffix */ }
             "degraded_performance" => {
-                suffix = Some("— AUR RPC degraded".to_string());
+                // Don't set suffix - text will already say "AUR RPC degraded"
                 color = severity_max(color, ArchStatusColor::IncidentToday);
             }
             "partial_outage" => {
-                suffix = Some("— AUR partial outage".to_string());
+                // Don't set suffix - text will already say "AUR partial outage"
                 color = severity_max(color, ArchStatusColor::IncidentToday);
             }
             "major_outage" => {
-                suffix = Some("— AUR outage".to_string());
+                // Don't set suffix - text will already say "AUR outage (see status)"
                 color = severity_max(color, ArchStatusColor::IncidentSevereToday);
             }
             "under_maintenance" => {
-                suffix = Some("— Maintenance ongoing".to_string());
+                // Don't set suffix - text will already say "AUR maintenance ongoing"
                 color = severity_max(color, ArchStatusColor::IncidentToday);
             }
             _ => {}
         }
     }
 
-    let text = if indicator == "none" {
+    // If AUR has a non-operational status, prioritize that in the text
+    let text = if let Some(state) = aur_state {
+        match state {
+            "operational" => {
+                if indicator == "none" {
+                    "All systems operational".to_string()
+                } else {
+                    "Arch systems nominal".to_string()
+                }
+            }
+            "major_outage" => "AUR outage (see status)".to_string(),
+            "partial_outage" => "AUR partial outage".to_string(),
+            "degraded_performance" => "AUR RPC degraded".to_string(),
+            "under_maintenance" => "AUR maintenance ongoing".to_string(),
+            _ => {
+                if indicator == "none" {
+                    "All systems operational".to_string()
+                } else {
+                    "Arch systems nominal".to_string()
+                }
+            }
+        }
+    } else if indicator == "none" {
         "All systems operational".to_string()
     } else {
         "Arch systems nominal".to_string()
@@ -629,6 +851,99 @@ fn extract_aur_today_rect_color(body: &str) -> Option<ArchStatusColor> {
             }
         }
     }
+    None
+}
+
+/// Extract status color from "Status updates Last 30 days" section for today's date.
+/// Checks for keywords like "outage", "degraded", "down", "aur" in status updates dated today.
+fn extract_status_updates_today_color(body: &str) -> Option<ArchStatusColor> {
+    let (year, month, day) = today_ymd_utc()?;
+    let months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    let month_name = months.get((month.saturating_sub(1)) as usize)?;
+    let date_str = format!("{month_name} {day}, {year}");
+    let lowered = body.to_lowercase();
+
+    // Find the "Status updates" section
+    let base = "status updates";
+    let mut base_pos = lowered.find(base)?;
+    
+    // Look for "Last 30 days" or "Last 7 days" or similar
+    let days_patterns = ["last 30 days", "last 7 days", "last 14 days"];
+    for pattern in days_patterns.iter() {
+        if let Some(p) = lowered[base_pos..].find(pattern) {
+            base_pos += p;
+            break;
+        }
+    }
+
+    // Search for today's date in the status updates section
+    // Look in a reasonable window (up to 10000 chars after "Status updates")
+    let region_end = std::cmp::min(body.len(), base_pos.saturating_add(10000));
+    let region = &body[base_pos..region_end];
+    let region_lower = region.to_lowercase();
+
+    // Find today's date in the region
+    let date_pos = region_lower.find(&date_str.to_lowercase())?;
+    
+    // Look for keywords in a window around today's date (500 chars before and after)
+    let window_start = date_pos.saturating_sub(500);
+    let window_end = std::cmp::min(region_lower.len(), date_pos + 500);
+    let window = &region_lower[window_start..window_end];
+
+    // Keywords that indicate problems
+    let severe_keywords = [
+        "outage",
+        "down",
+        "unavailable",
+        "offline",
+        "failure",
+        "critical",
+        "major incident",
+    ];
+    let moderate_keywords = [
+        "degraded",
+        "slow",
+        "intermittent",
+        "issues",
+        "problems",
+        "maintenance",
+        "partial",
+    ];
+
+    // Check if AUR is mentioned in the context
+    let mentions_aur = window.contains("aur") || window.contains("arch user repository");
+
+    if !mentions_aur {
+        return None; // Not AUR-related
+    }
+
+    // Check for severe keywords
+    for keyword in severe_keywords.iter() {
+        if window.contains(keyword) {
+            return Some(ArchStatusColor::IncidentSevereToday);
+        }
+    }
+
+    // Check for moderate keywords
+    for keyword in moderate_keywords.iter() {
+        if window.contains(keyword) {
+            return Some(ArchStatusColor::IncidentToday);
+        }
+    }
+
     None
 }
 

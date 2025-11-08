@@ -1,6 +1,8 @@
 //! Core non-UI logic split into modular submodules.
 
+pub mod deps;
 pub mod distro;
+pub mod files;
 pub mod filter;
 pub mod gating;
 pub mod lists;
@@ -8,6 +10,7 @@ pub mod prefetch;
 pub mod query;
 pub mod selection;
 pub mod sort;
+pub mod summary;
 
 // Re-export public APIs to preserve existing import paths (crate::logic::...)
 pub use filter::apply_filters_and_sort_preserve_selection;
@@ -25,3 +28,4 @@ static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLo
 pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
     TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
 }
+pub use summary::compute_post_summary;
