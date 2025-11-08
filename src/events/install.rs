@@ -182,7 +182,8 @@ pub fn handle_install_key(
                     } else {
                         Vec::new()
                     };
-                    let cached_files = if !app.files_resolving && !app.install_list_files.is_empty() {
+                    let cached_files = if !app.files_resolving && !app.install_list_files.is_empty()
+                    {
                         app.install_list_files.clone()
                     } else {
                         Vec::new()

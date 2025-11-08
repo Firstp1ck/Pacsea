@@ -61,6 +61,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             preflight::render_preflight(
                 f,
                 area,
+                app,
                 &items,
                 &action,
                 &tab,

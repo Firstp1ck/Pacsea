@@ -1,16 +1,16 @@
 use ratatui::{
     Frame,
+    layout::{Constraint, Direction, Layout},
     prelude::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
-    layout::{Layout, Constraint, Direction},
 };
 
 use crate::state::modal::{
     DependencyInfo, DependencySource, DependencyStatus, FileChangeType, PackageFileInfo,
 };
-use crate::state::{PackageItem, PreflightAction, PreflightTab};
+use crate::state::{AppState, PackageItem, PreflightAction, PreflightTab};
 use crate::theme::theme;
 use std::collections::HashSet;
 
@@ -18,6 +18,7 @@ use std::collections::HashSet;
 pub fn render_preflight(
     f: &mut Frame,
     area: Rect,
+    app: &mut AppState,
     items: &[PackageItem],
     action: &PreflightAction,
     tab: &PreflightTab,
@@ -85,10 +86,7 @@ pub fn render_preflight(
     let keybinds_height = 4;
     let layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),
-            Constraint::Length(keybinds_height),
-        ])
+        .constraints([Constraint::Min(1), Constraint::Length(keybinds_height)])
         .split(rect);
     let content_rect = layout[0];
     let keybinds_rect = layout[1];
@@ -100,10 +98,17 @@ pub fn render_preflight(
     let border_color = th.lavender;
     let bg_color = th.crust;
 
-    // Build header tab labels
+    // Build header tab labels and calculate tab rectangles for mouse clicks
     let tab_labels = ["Summary", "Deps", "Files", "Services", "Sandbox"];
     let mut header = String::new();
     let current_tab = *tab;
+
+    // Calculate tab rectangles for mouse click detection
+    // Tab header is on the first line of content_rect (after border)
+    let tab_y = content_rect.y + 1; // +1 for top border
+    let mut tab_x = content_rect.x + 1; // +1 for left border
+    app.preflight_tab_rects = [None; 5];
+
     for (i, lbl) in tab_labels.iter().enumerate() {
         let is = matches!(
             (i, current_tab),
@@ -115,7 +120,20 @@ pub fn render_preflight(
         );
         if i > 0 {
             header.push_str("  ");
+            tab_x += 2; // Account for spacing
         }
+
+        // Calculate tab width (with brackets if active)
+        let tab_width = if is {
+            lbl.len() + 2 // [label]
+        } else {
+            lbl.len()
+        } as u16;
+
+        // Store rectangle for this tab
+        app.preflight_tab_rects[i] = Some((tab_x, tab_y, tab_width, 1));
+        tab_x += tab_width;
+
         if is {
             header.push('[');
             header.push_str(lbl);
@@ -124,6 +142,15 @@ pub fn render_preflight(
             header.push_str(lbl);
         }
     }
+
+    // Store content area rectangle for package group click detection
+    // Content area starts after the header (2 lines: header + empty line)
+    app.preflight_content_rect = Some((
+        content_rect.x + 1,                    // +1 for left border
+        content_rect.y + 3,                    // +1 for top border + 2 for header lines
+        content_rect.width.saturating_sub(2),  // -2 for borders
+        content_rect.height.saturating_sub(3), // -1 for top border - 2 for header lines
+    ));
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
@@ -799,7 +826,7 @@ pub fn render_preflight(
                             let pkg_info = file_info.iter().find(|p| p.name == *pkg_name).unwrap();
                             let is_expanded = file_tree_expanded.contains(pkg_name);
                             let is_selected = display_idx == *file_selected;
-                            
+
                             // Package header with expand/collapse indicator
                             let arrow_symbol = if is_expanded { "▼" } else { "▶" };
                             let header_style = if is_selected {
@@ -812,7 +839,7 @@ pub fn render_preflight(
                                     .fg(th.sapphire)
                                     .add_modifier(Modifier::BOLD)
                             };
-                            
+
                             let mut spans = vec![
                                 Span::styled(
                                     format!("{} {} ", arrow_symbol, pkg_name),
@@ -992,10 +1019,7 @@ pub fn render_preflight(
 
     let keybinds_lines = vec![
         Line::from(""), // Empty line for spacing
-        Line::from(Span::styled(
-            scan_hint,
-            Style::default().fg(th.subtext1),
-        )),
+        Line::from(Span::styled(scan_hint, Style::default().fg(th.subtext1))),
     ];
 
     // Adjust keybinds rect to start exactly where content rect ends (no gap)
@@ -1005,7 +1029,7 @@ pub fn render_preflight(
         width: keybinds_rect.width,
         height: keybinds_rect.height,
     };
-    
+
     let keybinds_widget = Paragraph::new(keybinds_lines)
         .style(Style::default().fg(th.text).bg(bg_color))
         .wrap(Wrap { trim: true })

@@ -22,8 +22,8 @@ use crate::util::{match_rank, repo_order};
 use super::deps_cache;
 use super::files_cache;
 use super::persist::{
-    maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read,
-    maybe_flush_recent,
+    maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install,
+    maybe_flush_news_read, maybe_flush_recent,
 };
 use super::recent::maybe_save_recent;
 use super::terminal::{restore_terminal, setup_terminal};
@@ -159,9 +159,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         } else {
             // Cache missing or invalid - will trigger background resolution after channels are set up
             needs_files_resolution = true;
-            tracing::info!(
-                "File cache missing or invalid, will trigger background resolution"
-            );
+            tracing::info!("File cache missing or invalid, will trigger background resolution");
         }
     }
 

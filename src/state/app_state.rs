@@ -227,6 +227,12 @@ pub struct AppState {
     /// Inner content rectangle of the Help modal (x, y, w, h) for hit-testing.
     pub help_rect: Option<(u16, u16, u16, u16)>,
 
+    // Preflight modal mouse hit-testing
+    /// Clickable rectangles for preflight tabs (x, y, w, h) - Summary, Deps, Files, Services, Sandbox.
+    pub preflight_tab_rects: [Option<(u16, u16, u16, u16)>; 5],
+    /// Inner content rectangle of the preflight modal (x, y, w, h) for hit-testing package groups.
+    pub preflight_content_rect: Option<(u16, u16, u16, u16)>,
+
     // Results sorting UI
     /// Current sort mode for results.
     pub sort_mode: SortMode,
@@ -445,6 +451,10 @@ impl Default for AppState {
 
             help_scroll: 0,
             help_rect: None,
+
+            // Preflight modal mouse hit-testing
+            preflight_tab_rects: [None; 5],
+            preflight_content_rect: None,
 
             // Sorting
             sort_mode: SortMode::RepoThenName,

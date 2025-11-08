@@ -53,4 +53,3 @@ pub fn save_cache(path: &PathBuf, signature: &[String], files: &[PackageFileInfo
         tracing::debug!(path = %path.display(), count = files.len(), "saved file cache");
     }
 }
-
