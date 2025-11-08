@@ -180,7 +180,7 @@ clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activi
 # Preflight modal / safety confirmation\n\
 # When true, Pacsea will bypass the Preflight confirmation modal and execute install/remove/downgrade actions immediately.\n\
 # Recommended to keep this false for safety unless you understand the risks of executing package operations directly.\n\
-skip_preflight = false\n\
+skip_preflight = true\n\
 \n\
 # Mirrors\n\
 # Select one or more countries (comma-separated). Example: \"Switzerland, Germany, Austria\"\n\
