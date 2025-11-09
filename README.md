@@ -177,3 +177,8 @@ MIT — see [LICENSE](LICENSE).
 
 ## Wiki
 Check out the [Wiki](https://github.com/Firstp1ck/Pacsea/wiki) for more information.
+
+## Contributing
+Contributions are welcome! Please read the [CONTRIBUTING](CONTRIBUTING.md)
+
+If you want to support the project additionally, please vote on the AUR: [Pacsea](https://aur.archlinux.org/packages/pacsea-bin)
