@@ -10,9 +10,23 @@ use super::distro::{cachyos_repo_names, eos_repo_names};
 /// Output:
 /// - `Ok(Vec<OfficialPkg>)` where `name`, `repo`, and `version` are set; `arch` and `description`
 ///   are empty for speed. The result is deduplicated by `(repo, name)`.
+///
+/// Details:
+/// - Combines results from core, extra, multilib, EndeavourOS, and CachyOS repositories before
+///   sorting and deduplicating entries.
 #[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
+    /// What: Execute `pacman` with provided arguments and return its stdout.
+    ///
+    /// Inputs:
+    /// - `args`: Slice of command arguments (excluding program name).
+    ///
+    /// Output:
+    /// - `Ok(String)` containing UTF-8 stdout when `pacman` succeeds; boxed error otherwise.
+    ///
+    /// Details:
+    /// - Treats non-zero exit statuses and UTF-8 decoding failures as errors to be bubbled up.
     fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let out = std::process::Command::new("pacman").args(args).output()?;
         if !out.status.success() {
@@ -96,6 +110,16 @@ pub async fn fetch_official_pkg_names()
 
 #[cfg(windows)]
 #[allow(dead_code)]
+/// What: Placeholder for fetching official packages on Windows.
+///
+/// Inputs:
+/// - None (Windows builds do not yet implement pacman-based fetching).
+///
+/// Output:
+/// - Always returns an error indicating the feature is unavailable on Windows.
+///
+/// Details:
+/// - Kept to satisfy cross-platform compilation; Windows uses the Arch API path instead.
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
     Err("official package index fetch is not implemented on Windows yet".into())
@@ -105,6 +129,16 @@ pub async fn fetch_official_pkg_names()
 mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
+    /// What: Ensure `-Sl` output is parsed and deduplicated by `(repo, name)`.
+    ///
+    /// Inputs:
+    /// - Fake `pacman` binary returning scripted `-Sl` responses for repos.
+    ///
+    /// Output:
+    /// - `fetch_official_pkg_names` yields distinct package tuples in sorted order.
+    ///
+    /// Details:
+    /// - Validates that cross-repo lines are filtered and duplicates removed before returning.
     async fn fetch_parses_sl_and_dedups_by_repo_and_name() {
         let _guard = crate::index::test_mutex().lock().unwrap();
 

@@ -26,7 +26,16 @@ pub fn request_enrich_for(
         if set.is_empty() {
             return;
         }
-        // Helper to run pacman
+        /// What: Execute `pacman` with the given arguments and return stdout.
+        ///
+        /// Inputs:
+        /// - `args`: Slice of argument strings to apply to the `pacman` command.
+        ///
+        /// Output:
+        /// - `Ok(String)` containing UTF-8 stdout when the command succeeds; error otherwise.
+        ///
+        /// Details:
+        /// - Propagates non-zero exit codes and UTF-8 decoding failures as boxed errors.
         fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
             let out = std::process::Command::new("pacman").args(args).output()?;
             if !out.status.success() {
@@ -114,10 +123,16 @@ pub fn request_enrich_for(
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    /// What: No enrichment work triggered when names list is empty
+    /// What: Skip enrichment when no package names are provided.
     ///
-    /// - Input: Empty names vector passed to request_enrich_for
-    /// - Output: No notification sent on channel within timeout
+    /// Inputs:
+    /// - Invoke `request_enrich_for` with an empty names vector.
+    ///
+    /// Output:
+    /// - No notification received on the channel within the timeout.
+    ///
+    /// Details:
+    /// - Guards against spawning unnecessary work for empty requests.
     async fn index_enrich_noop_on_empty_names() {
         use std::path::PathBuf;
         let mut path: PathBuf = std::env::temp_dir();
@@ -146,10 +161,16 @@ mod tests {
     #[cfg(not(target_os = "windows"))]
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
-    /// What: Enrichment updates fields from pacman -Si and notifies
+    /// What: Update fields from `pacman -Si` output and notify observers.
     ///
-    /// - Input: Seed index with empty fields; fake pacman -Si output for name
-    /// - Output: Index fields updated (version/desc/repo/arch) and notify sent
+    /// Inputs:
+    /// - Seed the index with minimal entries and script a fake `pacman -Si` response.
+    ///
+    /// Output:
+    /// - Index entries updated with description, repo, arch, version, and a notification emitted.
+    ///
+    /// Details:
+    /// - Demonstrates deduplication of requested names and background task execution.
     async fn enrich_updates_fields_and_notifies() {
         let _guard = crate::index::test_mutex().lock().unwrap();
         // Seed index with minimal entries

@@ -528,10 +528,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Insert mode typing updates input, caret, and sends query; Backspace updates too
+    /// What: Insert-mode typing should update the search input, caret, and emit query messages.
     ///
-    /// - Input: 'r','g', Backspace
-    /// - Output: input transitions "r"->"rg"->"r"; query messages sent
+    /// Inputs:
+    /// - Key events for `'r'`, `'g'`, and `Backspace` applied in sequence while in insert mode.
+    ///
+    /// Output:
+    /// - `app.input` transitions `"" -> "r" -> "rg" -> "r"`, and at least one query arrives on `qrx`.
+    ///
+    /// Details:
+    /// - Validates caret/anchor bookkeeping indirectly by observing the query channel after each keystroke.
     fn search_insert_typing_and_backspace() {
         let mut app = new_app();
         let (qtx, mut qrx) = mpsc::unbounded_channel::<QueryInput>();
@@ -569,10 +575,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Normal mode selection commands set anchor and adjust caret
+    /// What: Normal-mode selection commands should set the anchor and adjust the caret within bounds.
     ///
-    /// - Input: Toggle normal mode, press select-right then select-left
-    /// - Output: Anchor Some, caret stays within bounds
+    /// Inputs:
+    /// - Escape key to enter normal mode, followed by `'l'` (select-right) and `'h'` (select-left).
+    ///
+    /// Output:
+    /// - `search_select_anchor` becomes `Some` and the caret remains within the valid input character range.
+    ///
+    /// Details:
+    /// - Confirms the keymap translation respects the default bindings for navigation-style selection.
     fn search_normal_mode_selection() {
         let mut app = new_app();
         app.input = "rip".into();

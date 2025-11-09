@@ -757,6 +757,16 @@ pub fn settings() -> Settings {
 #[cfg(test)]
 mod tests {
     #[test]
+    /// What: Ensure settings parsing applies defaults when layout percentages sum incorrectly while still loading keybinds.
+    ///
+    /// Inputs:
+    /// - Temporary configuration directory containing `settings.conf` with an invalid layout sum and `keybinds.conf` with overrides.
+    ///
+    /// Output:
+    /// - Resulting `Settings` fall back to default layout percentages yet pick up configured keybinds.
+    ///
+    /// Details:
+    /// - Overrides `HOME` to a temp dir and restores it afterwards to avoid polluting the user environment.
     fn settings_parse_values_and_keybinds_with_defaults_on_invalid_sum() {
         let _guard = crate::theme::test_mutex().lock().unwrap();
         let orig_home = std::env::var_os("HOME");

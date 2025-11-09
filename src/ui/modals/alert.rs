@@ -9,6 +9,20 @@ use ratatui::{
 use crate::state::AppState;
 use crate::theme::theme;
 
+/// What: Render the alert modal with contextual styling for help/config/network messages.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (help scroll used for large help dialogs)
+/// - `area`: Full screen area used to center the modal
+/// - `message`: Alert message text to display
+///
+/// Output:
+/// - Draws a centered alert box and adjusts styling/size based on the message content.
+///
+/// Details:
+/// - Detects help/configuration/clipboard keywords to pick header titles, resizes large help
+///   dialogs, and instructs users on dismissal while respecting the current theme.
 pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str) {
     let th = theme();
     // Detect help messages and make them larger

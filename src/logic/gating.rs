@@ -3,12 +3,16 @@ use std::sync::{OnceLock, RwLock};
 
 use crate::state::AppState;
 
-/// Lazily-initialized global set of package names that are permitted to have
-/// details fetched right now.
+/// What: Lazily construct and return the global set of package names permitted for detail fetching.
 ///
-/// The set is updated by `set_allowed_only_selected` and `set_allowed_ring`
-/// to balance responsiveness against network and CPU usage when the user is
-/// scrolling rapidly.
+/// Inputs:
+/// - (none): Initializes an `RwLock<HashSet<String>>` on first access.
+///
+/// Output:
+/// - Returns a reference to the lock guarding the allowed-name set.
+///
+/// Details:
+/// - Uses `OnceLock` to avoid race conditions during initialization while keeping lookups fast.
 fn allowed_set() -> &'static RwLock<HashSet<String>> {
     static ALLOWED: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
     ALLOWED.get_or_init(|| RwLock::new(HashSet::new()))
@@ -21,6 +25,9 @@ fn allowed_set() -> &'static RwLock<HashSet<String>> {
 ///
 /// Output:
 /// - `true` when the name is currently allowed; otherwise `false` (or `true` if the lock fails).
+///
+/// Details:
+/// - Fails open when the read lock cannot be acquired to avoid blocking UI interactions.
 pub fn is_allowed(name: &str) -> bool {
     allowed_set()
         .read()
@@ -36,6 +43,9 @@ pub fn is_allowed(name: &str) -> bool {
 ///
 /// Output:
 /// - Updates the internal allowed set to contain only the selected package; no-op if none.
+///
+/// Details:
+/// - Clears any previously allowed names to prioritise responsiveness during rapid navigation.
 pub fn set_allowed_only_selected(app: &AppState) {
     if let Some(sel) = app.results.get(app.selected)
         && let Ok(mut w) = allowed_set().write()
@@ -53,6 +63,9 @@ pub fn set_allowed_only_selected(app: &AppState) {
 ///
 /// Output:
 /// - Updates the internal allowed set to the ring of names around the selection.
+///
+/// Details:
+/// - Includes the selected package itself and symmetrically expands within bounds while respecting the radius.
 pub fn set_allowed_ring(app: &AppState, radius: usize) {
     let mut ring: HashSet<String> = HashSet::new();
     if let Some(sel) = app.results.get(app.selected) {
@@ -97,10 +110,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Allowed set behavior for only-selected and ring modes
+    /// What: Check allowed-set helpers toggle between single selection and ring modes.
     ///
-    /// - Input: Results with selected index; toggle only-selected then ring radius 1
-    /// - Output: Only selected allowed first; after ring, neighbors allowed
+    /// Inputs:
+    /// - Results array with four packages and selected index set to one.
+    ///
+    /// Output:
+    /// - Only the selected package allowed initially; after calling `set_allowed_ring`, adjacent packages become allowed.
+    ///
+    /// Details:
+    /// - Validates transition between restrictive and radius-based gating policies.
     fn allowed_only_selected_and_ring() {
         let mut app = crate::state::AppState {
             ..Default::default()

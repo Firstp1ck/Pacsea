@@ -1,6 +1,17 @@
 //! Distro-related logic helpers (filtering and labels).
 
-/// Classify official repo toggles compactly.
+/// What: Determine whether results from a repository should be visible under current toggles.
+///
+/// Inputs:
+/// - `repo`: Name of the repository associated with a package result.
+/// - `app`: Application state providing the filter toggles for official repos.
+///
+/// Output:
+/// - `true` when the repository passes the active filters; otherwise `false`.
+///
+/// Details:
+/// - Normalizes repository names and applies special-handling for EOS/CachyOS classification helpers.
+/// - Unknown repositories are only allowed when every official filter is enabled simultaneously.
 pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
     let r = repo.to_lowercase();
     if r == "core" {
@@ -23,7 +34,19 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
     }
 }
 
-/// Compute a human-friendly label for an official item, given repo and owner.
+/// What: Produce a human-friendly label for an official package entry.
+///
+/// Inputs:
+/// - `repo`: Repository reported by the package source.
+/// - `name`: Package name used to detect Manjaro naming conventions.
+/// - `owner`: Optional upstream owner string available from package metadata.
+///
+/// Output:
+/// - Returns a display label describing the ecosystem the package belongs to.
+///
+/// Details:
+/// - Distinguishes EndeavourOS and CachyOS repos, and detects Manjaro branding by name/owner heuristics.
+/// - Falls back to the raw repository string when no special classification matches.
 pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     let r = repo.to_lowercase();
     if crate::index::is_eos_repo(&r) {

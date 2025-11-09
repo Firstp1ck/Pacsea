@@ -153,9 +153,9 @@ cargo run
 - **Extensive Preflight Check** (on going)
 - **Additional Language Support** (on going)
 - **User chooseable Terminal via Options or (implemented via settings.conf)** (on going)
-- **Package Marker in Results which are on lists: Install/Remove/Downgrade** (on going)
 - **Keybind harmonization and improvements**
 - **Mirror Search and extensive Mirror Selection**
+- **Possibiltiy to switch between Normal search and Fuzzy search modes**
 - **Adjustable Width of the Middle Panes**
 - **Adjustable Height of the Results and Package Info Panes**
 - **Add Multiple CLI Commands like: `pacsea -S FILENAME.txt`, `pacsea -R FILENAME.txt`, `pacsea --news`, `pacsea -Syu` and more**

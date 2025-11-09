@@ -346,10 +346,17 @@ mod tests {
     use crate::state::Source;
 
     #[test]
-    /// What: Verify URL percent-encoding rules (unreserved, space, plus, unicode)
+    /// What: Verify that percent encoding preserves unreserved characters and escapes reserved ones.
     ///
-    /// - Input: "", "abc-_.~", "a b", "C++", "π"
-    /// - Output: "", "abc-_.~", "a%20b", "C%2B%2B", "%CF%80"
+    /// Inputs:
+    /// - `cases`: Sample strings covering empty input, ASCII safe set, spaces, plus signs, and unicode.
+    ///
+    /// Output:
+    /// - Encoded results match RFC 3986 expectations for each case.
+    ///
+    /// Details:
+    /// - Exercises `percent_encode` across edge characters to confirm proper handling of special
+    ///   symbols and non-ASCII glyphs.
     fn util_percent_encode() {
         assert_eq!(percent_encode(""), "");
         assert_eq!(percent_encode("abc-_.~"), "abc-_.~");
@@ -359,10 +366,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Validate JSON extractors (s/ss/arrs/u64_of) over mixed types
+    /// What: Validate JSON helper extractors across strings, arrays, and numeric conversions.
     ///
-    /// - Input: JSON with strings, array, u64, negative i64, numeric string
-    /// - Output: Correct extractions; negatives rejected for u64; missing -> defaults
+    /// Inputs:
+    /// - `v`: Composite JSON value containing strings, arrays, unsigned ints, negatives, and text numbers.
+    ///
+    /// Output:
+    /// - Helpers return expected values, defaulting or rejecting incompatible types.
+    ///
+    /// Details:
+    /// - Confirms `s`, `ss`, `arrs`, and `u64_of` handle fallbacks, partial arrays, and reject negative
+    ///   values while parsing numeric strings.
     fn util_json_extractors_and_u64() {
         let v: serde_json::Value = serde_json::json!({
             "a": "str",
@@ -385,10 +399,18 @@ mod tests {
     }
 
     #[test]
-    /// What: Ensure repo ordering and name-match ranking are correct
+    /// What: Ensure repository ordering and name match ranking align with search heuristics.
     ///
-    /// - Input: Sources core/extra/other/AUR; names vs queries
-    /// - Output: core < extra < other < AUR; exact/prefix/substr/no-match ranks 0/1/2/3
+    /// Inputs:
+    /// - `sources`: Official repos (core, extra, other) plus AUR source for ordering comparison.
+    /// - `queries`: Example name/query pairs for ranking checks.
+    ///
+    /// Output:
+    /// - Ordering places core before extra before other before AUR and match ranks progress 0→3.
+    ///
+    /// Details:
+    /// - Verifies that `repo_order` promotes official repositories and that `match_rank` scores exact,
+    ///   prefix, substring, and non-matches as intended.
     fn util_repo_order_and_rank() {
         let core = Source::Official {
             repo: "core".into(),
@@ -414,10 +436,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Convert timestamps to UTC date strings, including leap year
+    /// What: Convert timestamps into UTC date strings, including leap-year handling.
     ///
-    /// - Input: None, -1, 0, 951782400 (2000-02-29)
-    /// - Output: "", "-1", epoch start, and leap day string
+    /// Inputs:
+    /// - `samples`: `None`, negative, epoch, and leap-day timestamps.
+    ///
+    /// Output:
+    /// - Strings reflect empty/default, passthrough, epoch baseline, and leap day formatting.
+    ///
+    /// Details:
+    /// - Exercises `ts_to_date` across typical edge cases to ensure correct chrono arithmetic.
     fn util_ts_to_date_and_leap() {
         assert_eq!(ts_to_date(None), "");
         assert_eq!(ts_to_date(Some(-1)), "-1");
@@ -426,10 +454,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Boundary around Y2K conversion for ts_to_date
+    /// What: Validate `ts_to_date` output at the Y2K boundary.
     ///
-    /// - Input: 946684800 (2000-01-01), 946684799 (one second before)
-    /// - Output: "2000-01-01 00:00:00" and "1999-12-31 23:59:59"
+    /// Inputs:
+    /// - `y2k`: Timestamp for 2000-01-01 and the preceding second.
+    ///
+    /// Output:
+    /// - Formatted strings match midnight Y2K and the final second of 1999.
+    ///
+    /// Details:
+    /// - Confirms no off-by-one errors occur when crossing the year boundary.
     fn util_ts_to_date_boundaries() {
         assert_eq!(ts_to_date(Some(946_684_800)), "2000-01-01 00:00:00");
         assert_eq!(ts_to_date(Some(946_684_799)), "1999-12-31 23:59:59");

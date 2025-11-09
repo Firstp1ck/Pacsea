@@ -137,10 +137,16 @@ mod tests {
     }
 
     #[test]
-    /// What: maybe_flush_cache writes details_cache JSON and clears dirty flag
+    /// What: Ensure `maybe_flush_cache` persists the details cache and clears the dirty flag.
     ///
-    /// - Input: AppState with cache_dirty=true and temp cache_path
-    /// - Output: File written with JSON; cache_dirty=false
+    /// Inputs:
+    /// - `AppState` with `cache_dirty = true` pointing to a temporary cache path.
+    ///
+    /// Output:
+    /// - Writes JSON to disk, resets `cache_dirty`, and leaves audit strings in the file.
+    ///
+    /// Details:
+    /// - Validates the helper cleans up after itself by removing the temp file at the end.
     fn flush_cache_writes_and_clears_flag() {
         let mut app = new_app();
         let mut path = std::env::temp_dir();
@@ -169,10 +175,16 @@ mod tests {
     }
 
     #[test]
-    /// What: maybe_flush_recent writes recent JSON and clears dirty flag
+    /// What: Verify `maybe_flush_recent` serialises the recent list and resets the dirty flag.
     ///
-    /// - Input: AppState with recent_dirty=true and temp recent_path
-    /// - Output: File contains the recent strings; recent_dirty=false
+    /// Inputs:
+    /// - `AppState` seeded with recent entries, temp path, and `recent_dirty = true`.
+    ///
+    /// Output:
+    /// - JSON file includes both entries and `recent_dirty` becomes `false`.
+    ///
+    /// Details:
+    /// - Cleans up the generated file to avoid cluttering the system temp directory.
     fn flush_recent_writes_and_clears_flag() {
         let mut app = new_app();
         let mut path = std::env::temp_dir();
@@ -195,10 +207,16 @@ mod tests {
     }
 
     #[test]
-    /// What: maybe_flush_install throttles writes within 1s, then writes after delay
+    /// What: Check `maybe_flush_install` throttles writes then persists once the timer elapses.
     ///
-    /// - Input: AppState with install_dirty=true and last_install_change just now
-    /// - Output: First call no write; after advancing timestamp, file written
+    /// Inputs:
+    /// - `AppState` with `install_dirty = true`, a fresh package entry, and `last_install_change` set to now.
+    ///
+    /// Output:
+    /// - First invocation avoids writing; after clearing the timestamp, the file appears with the package name.
+    ///
+    /// Details:
+    /// - Simulates the passage of time by resetting `last_install_change` before invoking the helper again.
     fn flush_install_throttle_and_write() {
         let mut app = new_app();
         let mut path = std::env::temp_dir();
@@ -232,10 +250,16 @@ mod tests {
     }
 
     #[test]
-    /// What: maybe_flush_news_read writes set JSON and clears dirty flag
+    /// What: Ensure `maybe_flush_news_read` persists read URLs and clears the dirty flag.
     ///
-    /// - Input: AppState with news_read_dirty=true and temp news_read_path
-    /// - Output: File contains a URL; news_read_dirty=false
+    /// Inputs:
+    /// - `AppState` providing a temp `news_read_path`, a URL in the set, and `news_read_dirty = true`.
+    ///
+    /// Output:
+    /// - File contains the expected URL and `news_read_dirty` flips to `false`.
+    ///
+    /// Details:
+    /// - Removes the temp artifact to keep tests idempotent across runs.
     fn flush_news_read_writes_and_clears_flag() {
         let mut app = new_app();
         let mut path = std::env::temp_dir();

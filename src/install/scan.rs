@@ -15,6 +15,17 @@ Details:
 */
 
 #[cfg(not(target_os = "windows"))]
+/// What: Assemble the shell command sequence used to scan an AUR package in a temporary workspace.
+///
+/// Input:
+/// - `pkg`: AUR package name to clone and analyse.
+///
+/// Output:
+/// - Ordered vector of shell fragments executed sequentially in a spawned terminal.
+///
+/// Details:
+/// - Handles repository fetching, `makepkg -o`, optional scanners, and summary reporting.
+/// - Ensures each step logs progress and tolerates partial failures where possible.
 fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
     // All commands are joined with " && " and run in a single bash -lc invocation in a terminal.
     // Keep each step resilient so later steps still run where possible.
@@ -450,6 +461,17 @@ fi"#
 
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(not(target_os = "windows"))]
+/// What: Build the in-place scan pipeline for an existing directory.
+///
+/// Input:
+/// - `target_dir`: Directory containing AUR-like sources to analyse.
+///
+/// Output:
+/// - Vector of shell commands executed in order when launching the scan terminal.
+///
+/// Details:
+/// - Mirrors the package flow but omits clone steps, operating on the provided directory.
+/// - Respects optional toggles for ClamAV, Trivy, Semgrep, aur-sleuth, ShellCheck, custom patterns, and VirusTotal.
 fn build_scan_cmds_in_dir(target_dir: &str) -> Vec<String> {
     let mut cmds: Vec<String> = Vec::new();
 
@@ -687,6 +709,16 @@ pub fn spawn_aur_scan_for_with_config(
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[test]
+    /// What: Ensure scan command generation for AUR packages exports expected steps and annotations.
+    ///
+    /// Inputs:
+    /// - Package name `foobar` supplied to `build_scan_cmds_for_pkg`.
+    ///
+    /// Output:
+    /// - Command list includes environment exports, git clone, makepkg fetch, optional scan sections, and summary note.
+    ///
+    /// Details:
+    /// - Joins the command list to assert presence of key substrings, catching regressions in the scripted pipeline.
     fn build_scan_cmds_for_pkg_has_core_steps() {
         let cmds = super::build_scan_cmds_for_pkg("foobar");
         let joined = cmds.join("\n");
@@ -730,6 +762,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify directory-based scan commands include all optional scans and final messaging.
+    ///
+    /// Inputs:
+    /// - Directory path `/tmp/example` passed to `build_scan_cmds_in_dir`.
+    ///
+    /// Output:
+    /// - Returned command list contains environment setup, `cd`, optional scan sections, and completion echo.
+    ///
+    /// Details:
+    /// - Uses substring checks on the joined script to ensure future edits keep the documented steps intact.
     fn build_scan_cmds_in_dir_has_core_steps() {
         let cmds = super::build_scan_cmds_in_dir("/tmp/example");
         let joined = cmds.join("\n");

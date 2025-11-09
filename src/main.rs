@@ -206,10 +206,17 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    /// What: FormatTime impl writes a non-empty timestamp without panicking
+    /// What: Validate that the `PacseaTimer` formatter writes a timestamp without panicking.
     ///
-    /// - Input: Tracing writer buffer
-    /// - Output: Buffer receives some content
+    /// Inputs:
+    /// - `writer`: In-memory tracing writer capturing formatted output
+    ///
+    /// Output:
+    /// - Buffer contains at least one character after formatting succeeds.
+    ///
+    /// Details:
+    /// - Calls [`PacseaTimer::format_time`] directly on an empty buffer to ensure it neither panics
+    ///   nor leaves the buffer untouched.
     #[test]
     fn pacsea_timer_formats_time_without_panic() {
         use tracing_subscriber::fmt::time::FormatTime;

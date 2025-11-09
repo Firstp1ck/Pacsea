@@ -9,6 +9,19 @@ use ratatui::{
 use crate::state::AppState;
 use crate::theme::{KeyChord, theme};
 
+/// What: Render the interactive help overlay summarizing keybindings and mouse tips.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (keymap, help scroll, rect tracking)
+/// - `area`: Full screen area used to center the help modal
+///
+/// Output:
+/// - Draws the help dialog, updates `app.help_rect`, and respects stored scroll offset.
+///
+/// Details:
+/// - Formats bindings per pane, includes normal-mode guidance, and records clickable bounds to
+///   enable mouse scrolling while using the current theme colors.
 pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
     // Full-screen translucent help overlay

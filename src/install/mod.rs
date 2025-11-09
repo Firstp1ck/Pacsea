@@ -19,6 +19,18 @@ pub use remove::spawn_remove_all;
 
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::too_many_arguments)]
+/// What: Load user-configured suspicious patterns and launch the AUR scan pipeline.
+///
+/// Input:
+/// - `pkg`: Package name passed to the scanner.
+/// - `do_clamav`/`do_trivy`/`do_semgrep`/`do_shellcheck`/`do_virustotal`/`do_custom`/`do_sleuth`: Toggles for optional scan stages.
+///
+/// Output:
+/// - Spawns a terminal executing the scan workflow defined in `scan::spawn_aur_scan_for_with_config`.
+///
+/// Details:
+/// - Loads `pattern.conf`, publishes severity regexes via environment variables, and lets the scan module honour them.
+/// - Environment overrides take precedence so UI toggles and config-driven patterns cooperate.
 pub fn spawn_aur_scan_for_with_config(
     pkg: &str,
     do_clamav: bool,

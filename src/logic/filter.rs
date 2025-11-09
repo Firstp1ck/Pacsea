@@ -1,6 +1,18 @@
 use crate::state::{AppState, PackageItem, Source};
 
 #[inline]
+/// What: Conditionally push a `PackageItem` into the filtered results buffer.
+///
+/// Inputs:
+/// - `cond`: When `true`, the item is appended to `out`.
+/// - `it`: Candidate package record (moved into the collection when included).
+/// - `out`: Destination vector accumulating filtered results.
+///
+/// Output:
+/// - Extends `out` with `it` when `cond` evaluates to `true`; leaves `out` untouched otherwise.
+///
+/// Details:
+/// - Keeps the filtering loop concise by encapsulating the conditional push logic.
 fn return_if_true(cond: bool, it: PackageItem, out: &mut Vec<PackageItem>) {
     if cond {
         out.push(it);
@@ -88,10 +100,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Apply repo/AUR filters and preserve selection
+    /// What: Ensure repo/AUR filters include only enabled repositories while keeping selection stable.
     ///
-    /// - Input: Mixed all_results; core enabled, others disabled
-    /// - Output: Only core repo remains in results
+    /// Inputs:
+    /// - `app`: `AppState` seeded with mixed official/AUR results and selective filter toggles.
+    ///
+    /// Output:
+    /// - Results contain solely core packages after filtering; selection index remains valid.
+    ///
+    /// Details:
+    /// - Disables AUR/extra/multilib toggles to confirm `apply_filters_and_sort_preserve_selection`
+    ///   respects flags and prunes disabled repositories.
     fn apply_filters_and_preserve_selection() {
         let mut app = AppState {
             ..Default::default()
@@ -119,10 +138,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Interaction of CachyOS and EOS toggles
+    /// What: Verify CachyOS and EOS toggles act independently when filtering official repos.
     ///
-    /// - Input: cachyos-* and endeavouros entries; EOS off, CachyOS on
-    /// - Output: CachyOS entries included; EOS excluded
+    /// Inputs:
+    /// - `app`: `AppState` containing CachyOS and EndeavourOS entries with toggle combinations.
+    ///
+    /// Output:
+    /// - CachyOS packages persist while EOS entries are removed per toggle state.
+    ///
+    /// Details:
+    /// - Confirms CachyOS inclusion does not implicitly re-enable EOS repositories.
     fn apply_filters_cachyos_and_eos_interaction() {
         let mut app = AppState {
             ..Default::default()
@@ -167,10 +192,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Unknown official repo inclusion policy
+    /// What: Validate inclusion rules for unknown official repositories relative to toggle coverage.
     ///
-    /// - Input: Unknown repo with at least one official toggle disabled, then all enabled
-    /// - Output: Unknown excluded first; included when all official toggles on
+    /// Inputs:
+    /// - `app`: `AppState` with an unfamiliar official repo plus standard core entry.
+    ///
+    /// Output:
+    /// - Unknown repo excluded when any official toggle is off, then included once all are enabled.
+    ///
+    /// Details:
+    /// - Demonstrates that enabling the remaining official toggle (`multilib`) widens acceptance to
+    ///   previously filtered repos.
     fn logic_filter_unknown_official_inclusion_policy() {
         let mut app = AppState {
             ..Default::default()

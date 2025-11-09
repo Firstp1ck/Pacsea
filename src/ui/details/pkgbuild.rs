@@ -9,12 +9,19 @@ use ratatui::{
 use crate::state::AppState;
 use crate::theme::theme;
 
-/// Render the PKGBUILD viewer pane with scroll support and clickable buttons.
+/// What: Render the PKGBUILD viewer pane with scroll support and action buttons.
 ///
-/// Updates geometry fields on [`AppState`] for mouse hit-testing:
-/// - `pkgb_rect`: Inner content area for scrolling
-/// - `pkgb_check_button_rect`: "Copy PKGBUILD" button area
-/// - `pkgb_reload_button_rect`: Optional "Reload PKGBUILD" button area
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (PKGBUILD text, scroll, cached rects)
+/// - `pkgb_area`: Rect assigned to the PKGBUILD pane
+///
+/// Output:
+/// - Draws PKGBUILD text and updates button rectangles for copy/reload interactions.
+///
+/// Details:
+/// - Applies scroll offset, records the scrollable inner region, and toggles presence of the reload
+///   button when the cached PKGBUILD belongs to a different package.
 pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
     let th = theme();
 

@@ -131,10 +131,17 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[test]
-    /// What: Ensure gnome-terminal is invoked with double dash separator
+    /// What: Confirm the single-install helper launches gnome-terminal with the expected separator arguments.
     ///
-    /// - Input: Fake gnome-terminal on PATH; spawn_install with dry_run
-    /// - Output: First args are "--", "bash", "-lc" (safe arg shape)
+    /// Inputs:
+    /// - Shim `gnome-terminal` placed first on `PATH` capturing its argv.
+    /// - `spawn_install` invoked in dry-run mode for an official package.
+    ///
+    /// Output:
+    /// - Captured arguments begin with `--`, `bash`, `-lc`, matching the safe invocation contract.
+    ///
+    /// Details:
+    /// - Creates temporary directory to host the shim binary, exports `PACSEA_TEST_OUT`, then restores environment variables afterward.
     fn install_single_uses_gnome_terminal_double_dash() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
@@ -198,12 +205,18 @@ mod tests {
 }
 
 #[cfg(target_os = "windows")]
-/// On Windows, open a shell window showing the intended install action (no-op).
+/// What: Present a placeholder install message on Windows where pacman/AUR helpers are unavailable.
 ///
-/// Inputs: same as Unix variant (password unused on Windows).
+/// Input:
+/// - `item`: Package metadata used to build the informational command.
+/// - `password`: Ignored; included for API parity.
+/// - `dry_run`: When `true`, prefixes the message with `DRY RUN`.
 ///
 /// Output:
-/// - Launches a `cmd` window with the composed command.
+/// - Launches a detached `cmd` window echoing the intended command.
+///
+/// Details:
+/// - Logs the install attempt when not a dry run to keep audit behaviour consistent with Unix platforms.
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
     let _ = Command::new("cmd")

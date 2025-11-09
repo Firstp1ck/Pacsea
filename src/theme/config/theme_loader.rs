@@ -6,7 +6,18 @@ use std::path::Path;
 use crate::theme::parsing::{apply_override_to_map, canonical_to_preferred};
 use crate::theme::types::Theme;
 
-/// Attempt to parse a theme from a configuration file with simple `key = value` pairs.
+/// What: Parse a theme configuration file containing `key = value` color pairs into a `Theme`.
+///
+/// Inputs:
+/// - `path`: Filesystem location of the theme configuration.
+///
+/// Output:
+/// - `Ok(Theme)` when all required colors are present and valid.
+/// - `Err(String)` containing newline-separated diagnostics when parsing fails.
+///
+/// Details:
+/// - Ignores preference keys that belong to other config files for backwards compatibility.
+/// - Detects duplicates, missing required keys, and invalid color formats with precise line info.
 pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
     let content = fs::read_to_string(path).map_err(|e| format!("{e}"))?;
     let mut map: HashMap<String, Color> = HashMap::new();
@@ -93,6 +104,17 @@ pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, Stri
     }
 }
 
+/// What: Load a theme from disk while discarding any diagnostics on failure.
+///
+/// Inputs:
+/// - `path`: Filesystem path to the theme configuration.
+///
+/// Output:
+/// - `Some(Theme)` when parsing succeeds.
+/// - `None` when the file is missing or contains validation errors.
+///
+/// Details:
+/// - Wraps [`try_load_theme_with_diagnostics`] and converts its error into `None`.
 pub(crate) fn load_theme_from_file(path: &Path) -> Option<Theme> {
     try_load_theme_with_diagnostics(path).ok()
 }

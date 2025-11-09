@@ -529,6 +529,16 @@ impl Default for AppState {
 #[cfg(test)]
 mod tests {
     #[test]
+    /// What: Verify `AppState::default` initialises UI flags and filesystem paths under the configured lists directory.
+    ///
+    /// Inputs:
+    /// - No direct inputs; shims the `HOME` environment variable to a temporary directory before constructing `AppState`.
+    ///
+    /// Output:
+    /// - Ensures selection indices reset to zero, result buffers start empty, and cached path values live under `lists_dir`.
+    ///
+    /// Details:
+    /// - Uses a mutex guard to serialise environment mutations and restores `HOME` at the end to avoid cross-test interference.
     fn app_state_default_initializes_paths_and_flags() {
         let _guard = crate::state::test_mutex().lock().unwrap();
         // Shim HOME so lists_dir() resolves under a temp dir

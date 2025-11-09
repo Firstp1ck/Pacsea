@@ -85,6 +85,16 @@ fn strip_time_and_tz(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     #[test]
+    /// What: Validate HTML substring extraction and time-stripping helpers used by news parsing.
+    ///
+    /// Inputs:
+    /// - Sample tags `"<a>hi</a>"`, non-matching input, and date strings with optional time and timezone components.
+    ///
+    /// Output:
+    /// - `extract_between` returns the inner text when delimiters exist and `None` otherwise; `strip_time_and_tz` removes trailing time/zone portions.
+    ///
+    /// Details:
+    /// - Combines assertions into one test to keep helper coverage concise while guarding string-manipulation edge cases.
     fn news_extract_between_and_strip_time_tz() {
         // extract_between
         assert_eq!(

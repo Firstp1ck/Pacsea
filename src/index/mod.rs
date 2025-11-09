@@ -6,17 +6,32 @@
 use std::collections::HashSet;
 use std::sync::{OnceLock, RwLock};
 
-/// In-memory representation of the persisted official package index.
+/// What: Represent the full collection of official packages maintained in memory.
+///
+/// Inputs:
+/// - Populated by fetch and enrichment routines before being persisted or queried.
+///
+/// Output:
+/// - Exposed through API helpers that clone or iterate the package list.
+///
+/// Details:
+/// - Serializable via Serde to allow saving and restoring across sessions.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct OfficialIndex {
     /// All known official packages in the process-wide index.
     pub pkgs: Vec<OfficialPkg>,
 }
 
-/// Minimal, serializable record for a package in the official repositories.
+/// What: Capture the minimal metadata about an official package entry.
 ///
-/// Fields other than `name` may be empty for speed when the index is first
-/// fetched. Additional details are filled in later by enrichment routines.
+/// Inputs:
+/// - Populated primarily from `pacman -Sl`/API responses with optional enrichment.
+///
+/// Output:
+/// - Serves as the source of truth for UI-facing `PackageItem` conversions.
+///
+/// Details:
+/// - Non-name fields may be empty initially; enrichment routines fill them lazily.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct OfficialPkg {
     pub name: String,
@@ -42,17 +57,44 @@ pub use distro::{
     is_cachyos_repo, is_eos_name, is_eos_repo, is_manjaro_name_or_owner, is_name_manjaro,
 };
 
-/// Get a reference to the global `OfficialIndex` lock, initializing it if needed.
+/// What: Access the process-wide `OfficialIndex` lock for mutation or reads.
+///
+/// Inputs:
+/// - None (initializes the underlying `OnceLock` on first use)
+///
+/// Output:
+/// - `&'static RwLock<OfficialIndex>` guard used to manipulate the shared index state.
+///
+/// Details:
+/// - Lazily seeds the index with an empty package list the first time it is accessed.
 fn idx() -> &'static RwLock<OfficialIndex> {
     OFFICIAL_INDEX.get_or_init(|| RwLock::new(OfficialIndex { pkgs: Vec::new() }))
 }
 
-/// Get a reference to the global installed-name set lock, initializing it if needed.
+/// What: Access the process-wide lock protecting the installed-package name cache.
+///
+/// Inputs:
+/// - None (initializes the `OnceLock` on-demand)
+///
+/// Output:
+/// - `&'static RwLock<HashSet<String>>` with the cached installed-package names.
+///
+/// Details:
+/// - Lazily creates the shared `HashSet` the first time it is requested; subsequent calls reuse it.
 fn installed_lock() -> &'static RwLock<HashSet<String>> {
     INSTALLED_SET.get_or_init(|| RwLock::new(HashSet::new()))
 }
 
-/// Get a reference to the global explicit-name set lock, initializing it if needed.
+/// What: Access the process-wide lock protecting the explicit-package name cache.
+///
+/// Inputs:
+/// - None (initializes the `OnceLock` on-demand)
+///
+/// Output:
+/// - `&'static RwLock<HashSet<String>>` for explicitly installed package names.
+///
+/// Details:
+/// - Lazily creates the shared set the first time it is requested; subsequent calls reuse it.
 fn explicit_lock() -> &'static RwLock<HashSet<String>> {
     EXPLICIT_SET.get_or_init(|| RwLock::new(HashSet::new()))
 }
@@ -82,6 +124,16 @@ pub use update::update_in_background;
 static TEST_MUTEX: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
 
 #[cfg(test)]
+/// What: Provide a shared mutex to serialize test execution that mutates global state.
+///
+/// Inputs:
+/// - None (initializes lazily the first time it is invoked)
+///
+/// Output:
+/// - `&'static std::sync::Mutex<()>` guarding critical sections across tests.
+///
+/// Details:
+/// - Ensures tests manipulating the global index do not run concurrently, preventing races.
 pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
     TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
 }

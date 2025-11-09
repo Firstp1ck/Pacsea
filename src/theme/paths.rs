@@ -1,8 +1,16 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-/// Determine the configuration file path for Pacsea's THEME, searching in priority order.
-/// New layout prefers `theme.conf`; falls back to legacy `pacsea.conf`.
+/// What: Locate the active theme configuration file, considering modern and legacy layouts.
+///
+/// Inputs:
+/// - None (reads environment variables to build candidate paths).
+///
+/// Output:
+/// - `Some(PathBuf)` pointing to the first readable theme file; `None` when nothing exists.
+///
+/// Details:
+/// - Prefers `$HOME/.config/pacsea/theme.conf`, then legacy `pacsea.conf`, and repeats for XDG paths.
 pub(crate) fn resolve_theme_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
@@ -20,8 +28,16 @@ pub(crate) fn resolve_theme_config_path() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-/// Determine the configuration file path for Pacsea's SETTINGS.
-/// Prefers `settings.conf`; falls back to legacy `pacsea.conf`.
+/// What: Locate the active settings configuration file, prioritizing the split layout.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `Some(PathBuf)` for the resolved settings file; `None` when no candidate exists.
+///
+/// Details:
+/// - Searches `$HOME` and `XDG_CONFIG_HOME` for `settings.conf`, then falls back to `pacsea.conf`.
 pub(crate) fn resolve_settings_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
@@ -39,8 +55,16 @@ pub(crate) fn resolve_settings_config_path() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-/// Determine the configuration file path for Pacsea's KEYBINDS.
-/// Prefers `keybinds.conf`; falls back to legacy `pacsea.conf`.
+/// What: Locate the keybindings configuration file for Pacsea.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `Some(PathBuf)` when a keybinds file is present; `None` otherwise.
+///
+/// Details:
+/// - Checks both `$HOME/.config/pacsea/keybinds.conf` and the legacy `pacsea.conf`, mirrored for XDG.
 pub(crate) fn resolve_keybinds_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
@@ -58,13 +82,17 @@ pub(crate) fn resolve_keybinds_config_path() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-/// Resolve an XDG base directory from environment or default to `$HOME` + segments.
+/// What: Resolve an XDG base directory, falling back to `$HOME` with provided segments.
 ///
 /// Inputs:
-/// - `var`: Environment variable to check (e.g., `XDG_CONFIG_HOME`).
-/// - `home_default`: Fallback path segments relative to `$HOME` if `var` is unset/empty.
+/// - `var`: Environment variable name, e.g., `XDG_CONFIG_HOME`.
+/// - `home_default`: Path segments appended to `$HOME` when the variable is unset.
 ///
-/// Output: Resolved base directory path.
+/// Output:
+/// - `PathBuf` pointing to the derived base directory.
+///
+/// Details:
+/// - Treats empty environment values as unset and gracefully handles missing `$HOME`.
 fn xdg_base_dir(var: &str, home_default: &[&str]) -> PathBuf {
     if let Ok(p) = env::var(var)
         && !p.trim().is_empty()
@@ -79,13 +107,16 @@ fn xdg_base_dir(var: &str, home_default: &[&str]) -> PathBuf {
     base
 }
 
-/// User's HOME config directory: "$HOME/.config/pacsea" if HOME is set.
-/// Ensures it exists. Returns None if HOME is unavailable.
-/// Return `$HOME/.config/pacsea`, ensuring it exists.
+/// What: Build `$HOME/.config/pacsea`, ensuring the directory exists when `$HOME` is set.
 ///
-/// Inputs: none
+/// Inputs:
+/// - None.
 ///
-/// Output: `Some(PathBuf)` when HOME is set and directory can be created; `None` otherwise.
+/// Output:
+/// - `Some(PathBuf)` when the directory is accessible; `None` if `$HOME` is missing or creation fails.
+///
+/// Details:
+/// - Serves as the preferred base for other configuration directories.
 fn home_config_dir() -> Option<PathBuf> {
     if let Ok(home) = env::var("HOME") {
         let dir = Path::new(&home).join(".config").join("pacsea");
@@ -96,7 +127,16 @@ fn home_config_dir() -> Option<PathBuf> {
     None
 }
 
-/// XDG config directory for Pacsea (ensured to exist)
+/// What: Resolve the Pacsea configuration directory, ensuring it exists on disk.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `PathBuf` pointing to the Pacsea config directory.
+///
+/// Details:
+/// - Prefers `$HOME/.config/pacsea`, falling back to `XDG_CONFIG_HOME/pacsea` when necessary.
 pub fn config_dir() -> PathBuf {
     // Prefer HOME ~/.config/pacsea first
     if let Some(dir) = home_config_dir() {
@@ -109,7 +149,16 @@ pub fn config_dir() -> PathBuf {
     dir
 }
 
-/// Logs directory under config: "$HOME/.config/pacsea/logs" (ensured to exist)
+/// What: Obtain the logs subdirectory inside the Pacsea config folder.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `PathBuf` leading to the `logs` directory (created if missing).
+///
+/// Details:
+/// - Builds upon `config_dir()` and ensures a stable location for log files.
 pub fn logs_dir() -> PathBuf {
     let base = config_dir();
     let dir = base.join("logs");
@@ -117,7 +166,16 @@ pub fn logs_dir() -> PathBuf {
     dir
 }
 
-/// Lists directory under config: "$HOME/.config/pacsea/lists" (ensured to exist)
+/// What: Obtain the lists subdirectory inside the Pacsea config folder.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `PathBuf` leading to the `lists` directory (created if missing).
+///
+/// Details:
+/// - Builds upon `config_dir()` and ensures storage for exported package lists.
 pub fn lists_dir() -> PathBuf {
     let base = config_dir();
     let dir = base.join("lists");
@@ -128,6 +186,16 @@ pub fn lists_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     #[test]
+    /// What: Verify path helpers resolve under the Pacsea config directory rooted at `HOME`.
+    ///
+    /// Inputs:
+    /// - Temporary `HOME` directory substituted to capture generated paths.
+    ///
+    /// Output:
+    /// - `config_dir`, `logs_dir`, and `lists_dir` end with `pacsea`, `logs`, and `lists` respectively.
+    ///
+    /// Details:
+    /// - Restores the original `HOME` afterwards to avoid polluting the real configuration tree.
     fn paths_config_lists_logs_under_home() {
         let _guard = crate::theme::test_mutex().lock().unwrap();
         let orig_home = std::env::var_os("HOME");

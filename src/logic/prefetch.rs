@@ -70,6 +70,16 @@ mod tests {
 
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
+    /// What: Ensure prefetching emits no requests when results are empty.
+    ///
+    /// Inputs:
+    /// - Application state with zero search results.
+    ///
+    /// Output:
+    /// - No messages received on the details channel within the timeout window.
+    ///
+    /// Details:
+    /// - Uses a short timeout to confirm no unexpected sends occur during the async loop.
     async fn prefetch_noop_on_empty_results() {
         let _guard = crate::logic::test_mutex().lock().unwrap();
         let mut app = AppState {
@@ -86,6 +96,16 @@ mod tests {
 
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
+    /// What: Verify prefetch honours allowed gating and avoids cached entries.
+    ///
+    /// Inputs:
+    /// - Results list of three packages with varying allowed states and cache contents.
+    ///
+    /// Output:
+    /// - No requests when only the selected item is allowed; afterwards only uncached, allowed neighbor is dispatched.
+    ///
+    /// Details:
+    /// - Toggles `set_allowed_only_selected` and `set_allowed_ring`, updating the cache between passes to target specific neighbours.
     async fn prefetch_respects_allowed_and_cache() {
         let _guard = crate::logic::test_mutex().lock().unwrap();
         let mut app = AppState {

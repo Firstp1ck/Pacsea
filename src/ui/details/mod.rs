@@ -7,11 +7,19 @@ mod layout;
 mod package_info;
 mod pkgbuild;
 
-/// Render the bottom details pane and optional PKGBUILD viewer.
+/// What: Render the bottom details pane, footer, and optional PKGBUILD viewer.
 ///
-/// Updates geometry fields on [`AppState`] for mouse hit-testing and draws a
-/// contextual footer with keybindings. When `app.pkgb_visible` is true, splits
-/// the area to show the PKGBUILD content with scroll support.
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (details, PKGBUILD, footer flags)
+/// - `area`: Target rectangle for the details section
+///
+/// Output:
+/// - Draws package information, optional PKGBUILD, and footer while updating mouse hit-test rects.
+///
+/// Details:
+/// - Computes layout splits for details, PKGBUILD, and footer; records rects on [`AppState`] for
+///   URL/PKGBUILD interaction and toggles footer visibility based on available height.
 pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Calculate footer height and layout areas
     let footer_height = layout::calculate_footer_height(app, area);
@@ -34,10 +42,16 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
 
 #[cfg(test)]
 mod tests {
-    /// What: Details render sets URL/PKGBUILD rects and mouse flags
+    /// What: Confirm rendering the details pane records hit-test rectangles and disables mouse interactions when appropriate.
     ///
-    /// - Input: AppState with URL present and PKGBUILD visible
-    /// - Output: details/url/PKGBUILD rects are Some; mouse is disabled in details
+    /// Inputs:
+    /// - `AppState` containing package details with a URL and an expanded PKGBUILD view.
+    ///
+    /// Output:
+    /// - Details, URL button, PKGBUILD toggle, and PKGBUILD area rectangles become `Some`, and the mouse flag toggles off.
+    ///
+    /// Details:
+    /// - Uses a `TestBackend` terminal to drive layout without user interaction, ensuring the renderer updates state.
     #[test]
     fn details_sets_url_and_pkgb_rects() {
         use ratatui::{Terminal, backend::TestBackend};

@@ -167,6 +167,16 @@ fn parse_size_bytes(s: &str) -> Option<u64> {
 #[cfg(test)]
 mod size_tests {
     #[test]
+    /// What: Ensure `parse_size_bytes` converts human-readable sizes into raw bytes.
+    ///
+    /// Inputs:
+    /// - Representative strings covering `B`, `KiB`, `MiB`, `GiB`, `TiB`, and an invalid token.
+    ///
+    /// Output:
+    /// - Returns the correct byte counts for valid inputs and `None` for malformed strings.
+    ///
+    /// Details:
+    /// - Covers the unit matching branch and protects against accidental unit regression.
     fn details_parse_size_bytes_units() {
         assert_eq!(super::parse_size_bytes("10 B"), Some(10));
         assert_eq!(super::parse_size_bytes("1 KiB"), Some(1024));
@@ -351,10 +361,17 @@ mod tests {
     // use super::*;
 
     #[test]
-    /// What: Parse official JSON fields and defaults similar to arch packages API
+    /// What: Parse official repository JSON into `PackageDetails`, ensuring defaults mirror the packages API.
     ///
-    /// - Input: Minimal JSON object with common fields, sizes, packager
-    /// - Output: Fields mapped into PackageDetails, sizes parsed, strings copied
+    /// Inputs:
+    /// - Minimal JSON payload containing version metadata, sizes, and packager fields.
+    /// - Sample `PackageItem` representing the queried package.
+    ///
+    /// Output:
+    /// - Populated `PackageDetails` carries expected strings and parsed size values.
+    ///
+    /// Details:
+    /// - Exercises helper extraction functions (`ss`, `arrs`, `u64_of`) and fallback behaviour when fields are missing.
     fn sources_details_parse_official_json_defaults_and_fields() {
         fn parse_official_from_json(
             obj: &serde_json::Value,
@@ -431,10 +448,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Parse AUR JSON fields, defaults, and popularity
+    /// What: Parse AUR RPC JSON into `PackageDetails`, handling optional fields and popularity.
     ///
-    /// - Input: Minimal AUR RPC object with Version/Description/Popularity/URL
-    /// - Output: PackageDetails with version/description fallback and popularity set
+    /// Inputs:
+    /// - Minimal AUR JSON document providing version, description, popularity, and URL.
+    /// - Seed `PackageItem` used to supply fallback values.
+    ///
+    /// Output:
+    /// - Resulting `PackageDetails` retains `AUR` repository label, uses JSON data when present, and sets popularity.
+    ///
+    /// Details:
+    /// - Validates interplay between helper functions and fallback assignments for missing fields.
     fn sources_details_parse_aur_json_defaults_and_popularity() {
         fn parse_aur_from_json(
             obj: &serde_json::Value,

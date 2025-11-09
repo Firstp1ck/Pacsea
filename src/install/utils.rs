@@ -1,14 +1,30 @@
 #[cfg(target_os = "windows")]
+/// What: Determine whether a command is available on the Windows `PATH`.
+///
+/// Input:
+/// - `cmd`: Executable name to probe.
+///
+/// Output:
+/// - `true` when the command resolves via the `which` crate; otherwise `false`.
+///
+/// Details:
+/// - Leverages `which::which`, inheriting its support for PATHEXT resolution.
 pub fn command_on_path(cmd: &str) -> bool {
     which::which(cmd).is_ok()
 }
 
 #[cfg(not(target_os = "windows"))]
-/// Return `true` if an executable named `cmd` can be found in the current `PATH`.
+/// What: Determine whether a command is available on the Unix `PATH`.
 ///
-/// Inputs: `cmd` program name or absolute/relative path.
+/// Input:
+/// - `cmd`: Program name or explicit path to inspect.
 ///
-/// Output: `true` when an executable file is found (Unix executable bit respected).
+/// Output:
+/// - `true` when an executable file is found and marked executable.
+///
+/// Details:
+/// - Accepts explicit paths (containing path separators) and honours Unix permission bits.
+/// - Falls back to scanning `PATH`, and on Windows builds respects `PATHEXT` as well.
 pub fn command_on_path(cmd: &str) -> bool {
     use std::path::Path;
 
@@ -57,11 +73,16 @@ pub fn command_on_path(cmd: &str) -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
-/// Return the index of the first available terminal from `terms` as found in `PATH`.
+/// What: Locate the first available terminal executable from a preference list.
 ///
-/// Inputs: `terms` list of (binary name, args, needs_xfce_command).
+/// Input:
+/// - `terms`: Tuples of `(binary, args, needs_xfce_command)` ordered by preference.
 ///
-/// Output: `Some(index)` of the first present terminal; `None` if none found.
+/// Output:
+/// - `Some(index)` pointing into `terms` when a binary is found; otherwise `None`.
+///
+/// Details:
+/// - Iterates directories in `PATH`, favouring the earliest match respecting executable bits.
 pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Option<usize> {
     use std::os::unix::fs::PermissionsExt;
     if let Some(paths) = std::env::var_os("PATH") {
@@ -81,12 +102,17 @@ pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Opt
 }
 
 #[cfg(not(target_os = "windows"))]
-/// Safely single-quote an arbitrary string for POSIX shells.
+/// What: Safely single-quote an arbitrary string for POSIX shells.
 ///
-/// Inputs: `s` string to quote.
+/// Input:
+/// - `s`: Text to quote.
 ///
-/// Output: New string wrapped in single quotes, with inner quotes escaped via `'
-/// '"'"'` pattern.
+/// Output:
+/// - New string wrapped in single quotes, escaping embedded quotes via the `'
+///   '"'"'` sequence.
+///
+/// Details:
+/// - Returns `''` for empty input so the shell treats it as an empty argument.
 pub fn shell_single_quote(s: &str) -> String {
     if s.is_empty() {
         return "''".to_string();
@@ -107,6 +133,17 @@ pub fn shell_single_quote(s: &str) -> String {
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[test]
+    /// What: Validate that `command_on_path` recognises executables present on the customised `PATH`.
+    ///
+    /// Inputs:
+    /// - Temporary directory containing a shim `mycmd` script made executable.
+    /// - Environment `PATH` overridden to reference only the temp directory.
+    ///
+    /// Output:
+    /// - Returns `true` for `mycmd` and `false` for a missing binary, confirming detection logic.
+    ///
+    /// Details:
+    /// - Restores the original `PATH` and cleans up the temporary directory after assertions.
     fn utils_command_on_path_detects_executable() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
@@ -144,6 +181,17 @@ mod tests {
     }
 
     #[test]
+    /// What: Ensure `choose_terminal_index_prefer_path` honours the preference ordering when multiple terminals exist.
+    ///
+    /// Inputs:
+    /// - Temporary directory with an executable `kitty` shim placed on `PATH`.
+    /// - Preference list where `gnome-terminal` precedes `kitty` but is absent.
+    ///
+    /// Output:
+    /// - Function returns index `1`, selecting `kitty`, the first available terminal in the list.
+    ///
+    /// Details:
+    /// - Saves and restores the `PATH` environment variable while ensuring the temp directory is removed.
     fn utils_choose_terminal_index_prefers_first_present_in_terms_order() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
@@ -183,6 +231,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Check that `shell_single_quote` escapes edge cases safely.
+    ///
+    /// Inputs:
+    /// - Three sample strings: empty, plain ASCII, and text containing a single quote.
+    ///
+    /// Output:
+    /// - Returns properly quoted strings, using `''` for empty and the standard POSIX escape for embedded quotes.
+    ///
+    /// Details:
+    /// - Covers representative cases without filesystem interaction to guard future regressions.
     fn utils_shell_single_quote_handles_edges() {
         assert_eq!(super::shell_single_quote(""), "''");
         assert_eq!(super::shell_single_quote("abc"), "'abc'");

@@ -9,6 +9,19 @@ use ratatui::{
 use crate::state::PackageItem;
 use crate::theme::theme;
 
+/// What: Render the confirmation modal listing packages slated for installation.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `items`: Packages selected for installation
+///
+/// Output:
+/// - Draws the install confirmation dialog and informs users about scan shortcuts.
+///
+/// Details:
+/// - Highlights the heading, truncates the list to fit the modal, and shows instructions for
+///   confirming, cancelling, or initiating security scans.
 pub fn render_confirm_install(f: &mut Frame, area: Rect, items: &[PackageItem]) {
     let th = theme();
     let w = area.width.saturating_sub(6).min(90);
@@ -73,6 +86,19 @@ pub fn render_confirm_install(f: &mut Frame, area: Rect, items: &[PackageItem]) 
     f.render_widget(boxw, rect);
 }
 
+/// What: Render the confirmation modal enumerating packages selected for removal.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `items`: Packages scheduled for removal
+///
+/// Output:
+/// - Draws the removal confirmation dialog, including warnings for core packages.
+///
+/// Details:
+/// - Emphasizes critical warnings when core packages are present, truncates long lists, and
+///   instructs on confirm/cancel actions while matching the theme.
 pub fn render_confirm_remove(f: &mut Frame, area: Rect, items: &[PackageItem]) {
     let th = theme();
     let w = area.width.saturating_sub(6).min(90);

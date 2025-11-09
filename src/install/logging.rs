@@ -48,6 +48,17 @@ pub fn log_removed(names: &[String]) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     #[test]
+    /// What: Ensure install/remove logging helpers write files beneath the configured logs directory.
+    ///
+    /// Inputs:
+    /// - `names`: Sample package list written to both install and remove logs with HOME redirected.
+    ///
+    /// Output:
+    /// - Generated log files contain the package names (with timestamp for installs) under `logs_dir`.
+    ///
+    /// Details:
+    /// - Temporarily overrides `HOME`, calls both logging functions, then verifies file contents before
+    ///   restoring the environment.
     fn logging_writes_install_and_remove_logs_under_logs_dir() {
         use std::fs;
         use std::path::PathBuf;

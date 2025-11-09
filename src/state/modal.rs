@@ -3,12 +3,28 @@
 use crate::state::types::{NewsItem, OptionalDepRow, PackageItem};
 use std::collections::HashSet;
 
+/// What: Enumerates the high-level operations represented in the preflight
+/// workflow.
+///
+/// - Input: Selected by callers when presenting confirmation or preflight
+///   dialogs.
+/// - Output: Indicates whether the UI should prepare for an install or remove
+///   transaction.
+/// - Details: Drives copy, button labels, and logging in the preflight and
+///   execution flows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightAction {
     Install,
     Remove,
 }
 
+/// What: Identifies which tab within the preflight modal is active.
+///
+/// - Input: Set by UI event handlers responding to user navigation.
+/// - Output: Informs the renderer which data set to display (summary, deps,
+///   files, etc.).
+/// - Details: Enables multi-step review of package operations without losing
+///   context between tabs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightTab {
     Summary,
@@ -174,6 +190,14 @@ pub struct PackageFileInfo {
     pub pacsave_candidates: usize,
 }
 
+/// What: Captures all dialog state for the various modal overlays presented in
+/// the Pacsea TUI.
+///
+/// - Input: Mutated by event handlers in response to user actions or
+///   background updates.
+/// - Output: Drives conditional rendering and behavior of each modal type.
+/// - Details: Acts as a tagged union so only one modal can be active at a time
+///   while carrying the precise data needed for that modal's UI.
 #[derive(Debug, Clone, Default)]
 pub enum Modal {
     #[default]
@@ -295,6 +319,16 @@ pub enum Modal {
 #[cfg(test)]
 mod tests {
     #[test]
+    /// What: Confirm each `Modal` variant can be constructed and the `Default` implementation returns `Modal::None`.
+    ///
+    /// Inputs:
+    /// - No external inputs; instantiates representative variants directly inside the test.
+    ///
+    /// Output:
+    /// - Ensures `Default::default()` yields `Modal::None` and variant constructors remain stable.
+    ///
+    /// Details:
+    /// - Acts as a regression guard when fields or defaults change, catching compile-time or panicking construction paths.
     fn modal_default_and_variants_construct() {
         let m: super::Modal = Default::default();
         matches!(m, super::Modal::None);

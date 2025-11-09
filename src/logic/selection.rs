@@ -2,20 +2,20 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
 
-/// Move the selection by `delta` and update cached details and prefetch policy.
+/// What: Move the selection by `delta` and coordinate detail loading policies.
 ///
-/// Behavior:
-/// - Clamps the selection to the valid range and updates the list state.
-/// - Focuses the details pane on the newly selected item and immediately shows
-///   a placeholder based on known metadata.
-/// - If cached details are present, uses them; otherwise requests loading via
-///   `details_tx`.
-/// - If PKGBUILD is visible and for a different package, schedules a debounced reload.
-/// - Tracks cumulative scroll moves to detect fast scrolling.
-/// - During fast scrolls, temporarily tightens the allowed set to only the
-///   current selection and defers ring prefetch for ~200ms.
-/// - For small scrolls, expands allowed set to a 30-item ring and begins
-///   background prefetch.
+/// Inputs:
+/// - `app`: Mutable application state (results, selection, caches, scroll heuristics).
+/// - `delta`: Signed offset to apply to the current selection index.
+/// - `details_tx`: Channel used to request lazy loading of package details.
+///
+/// Output:
+/// - Updates selection-related state, potentially sends detail requests, and adjusts gating flags.
+///
+/// Details:
+/// - Clamps the selection to valid bounds, refreshes placeholder metadata, and reuses cached entries.
+/// - Schedules PKGBUILD reloads when necessary and tracks scroll velocity to throttle prefetching.
+/// - Switches between selected-only gating during fast scrolls and wide ring prefetch for slower navigation.
 pub fn move_sel_cached(
     app: &mut AppState,
     delta: isize,
@@ -119,10 +119,17 @@ mod tests {
     }
 
     #[tokio::test]
-    /// What: Move selection with bounds, placeholder details, and request flow
+    /// What: Move selection with bounds, placeholder details, and request flow.
     ///
-    /// - Input: Results with AUR and official; delta +1, -100, 0
-    /// - Output: Clamped indices; details placeholders set; request sent when uncached
+    /// Inputs:
+    /// - `app`: Results list seeded with one AUR and one official package, initial selection at index 0.
+    /// - `tx`: Unbounded channel capturing detail fetch requests while deltas of +1, -100, and 0 are applied.
+    ///
+    /// Output:
+    /// - Mutates `app` so indices clamp within bounds, details placeholders reflect the active selection, and a fetch request emits when switching to the official entry.
+    ///
+    /// Details:
+    /// - Uses a timeout on the receiver to assert the async request is produced and verifies placeholder data resets when returning to the AUR result.
     async fn move_sel_cached_clamps_and_requests_details() {
         let mut app = crate::state::AppState {
             ..Default::default()
@@ -157,10 +164,16 @@ mod tests {
     }
 
     #[tokio::test]
-    /// What: Reuse details from cache to avoid sending a new request
+    /// What: Ensure cached details suppress additional fetch requests.
     ///
-    /// - Input: Results with cached details for selected item
-    /// - Output: No message sent; details filled from cache
+    /// Inputs:
+    /// - Results containing the cached package and an existing entry in `details_cache`.
+    ///
+    /// Output:
+    /// - No message emitted on the channel and `app.details` populated from the cache.
+    ///
+    /// Details:
+    /// - Confirms `move_sel_cached` short-circuits when cache contains the selected package.
     async fn move_sel_cached_uses_details_cache() {
         let mut app = crate::state::AppState {
             ..Default::default()
@@ -188,10 +201,18 @@ mod tests {
     }
 
     #[test]
-    /// What: Fast scroll gating triggers ring deferral and selected-only allowance
+    /// What: Verify fast-scroll gating requests ring prefetch and locks selection.
     ///
-    /// - Input: Large positive delta; ring prefetch state
-    /// - Output: need_ring_prefetch set; ring_resume_at present; only selected allowed
+    /// Inputs:
+    /// - `app`: Populated results list with selection moved near the end to trigger fast-scroll logic.
+    ///
+    /// Output:
+    /// - `need_ring_prefetch` flag set, `ring_resume_at` populated, and allowed set restricted to the
+    ///   selected package.
+    ///
+    /// Details:
+    /// - Simulates a large positive index jump and ensures gating functions mark the correct state and
+    ///   enforce selection-only access.
     fn fast_scroll_sets_gating_and_defers_ring() {
         let mut app = crate::state::AppState {
             ..Default::default()

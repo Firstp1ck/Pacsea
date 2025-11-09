@@ -8,13 +8,19 @@ use ratatui::{
 use crate::state::AppState;
 use crate::theme::theme;
 
-/// Render the Package Info pane with scroll support and clickable URL.
+/// What: Render the Package Info pane with scroll support and interactive buttons.
 ///
-/// Updates geometry fields on [`AppState`] for mouse hit-testing:
-/// - `details_rect`: Inner content area
-/// - `url_button_rect`: Clickable URL area
-/// - `pkgb_button_rect`: Show/Hide PKGBUILD button area
-/// - `mouse_disabled_in_details`: Set to true to allow text selection
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (details, scroll offsets, cached rects)
+/// - `details_area`: Rect assigned to the Package Info pane content
+///
+/// Output:
+/// - Draws package details and updates mouse hit-test rects for URL/PKGBUILD elements.
+///
+/// Details:
+/// - Applies scroll offsets, styles the URL as a link when present, records button rectangles, and
+///   enables text selection by marking `mouse_disabled_in_details`.
 pub fn render_package_info(f: &mut Frame, app: &mut AppState, details_area: Rect) {
     let th = theme();
 

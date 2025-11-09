@@ -3,7 +3,17 @@
 use std::collections::HashSet;
 use std::process::Command;
 
-/// Get a set of upgradable package names.
+/// What: Collect names of packages that have upgrades available via pacman.
+///
+/// Inputs:
+/// - (none): Reads upgrade information by invoking `pacman -Qu`.
+///
+/// Output:
+/// - Returns a set containing package names that pacman reports as upgradable.
+///
+/// Details:
+/// - Trims each line from the command output and extracts the leading package token before version metadata.
+/// - Gracefully handles command failures by returning an empty set to avoid blocking dependency checks.
 pub(crate) fn get_upgradable_packages() -> HashSet<String> {
     tracing::debug!("Running: pacman -Qu");
     let output = Command::new("pacman")
@@ -49,7 +59,16 @@ pub(crate) fn get_upgradable_packages() -> HashSet<String> {
     }
 }
 
-/// Get a set of installed package names.
+/// What: Enumerate all currently installed packages on the system.
+///
+/// Inputs:
+/// - (none): Invokes `pacman -Qq` to query the local database.
+///
+/// Output:
+/// - Returns a set of package names installed on the machine; empty on failure.
+///
+/// Details:
+/// - Uses pacman's quiet format to obtain trimmed names and logs errors where available for diagnostics.
 pub(crate) fn get_installed_packages() -> HashSet<String> {
     tracing::debug!("Running: pacman -Qq");
     let output = Command::new("pacman")

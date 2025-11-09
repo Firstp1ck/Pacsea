@@ -56,6 +56,12 @@ static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLo
 
 #[cfg(not(target_os = "windows"))]
 #[cfg(test)]
+/// What: Provide a shared mutex to serialize tests that mutate PATH or curl shims.
+///
+/// Input: None.
+/// Output: `&'static Mutex<()>` guard to synchronize tests touching global state.
+///
+/// Details: Lazily initializes a global `Mutex` via `OnceLock` for cross-test coordination.
 pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
     TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
 }

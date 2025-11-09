@@ -1647,10 +1647,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Clicking PKGBUILD toggle opens viewer and enqueues fetch
+    /// What: Clicking the PKGBUILD toggle should open the viewer and request content.
     ///
-    /// - Input: Click inside pkgb_button_rect with a selected result
-    /// - Output: pkgb_visible=true and item sent to pkgb_tx
+    /// Inputs:
+    /// - `app`: State seeded with one selected result and `pkgb_button_rect` coordinates.
+    /// - `ev`: Left-click positioned inside the PKGBUILD button rectangle.
+    ///
+    /// Output:
+    /// - Returns `false` while mutating `app` so `pkgb_visible` is `true` and the selection is sent on `pkgb_tx`.
+    ///
+    /// Details:
+    /// - Captures the message from `pkgb_tx` to ensure the handler enqueues a fetch when opening the pane.
     fn click_pkgb_toggle_opens() {
         let mut app = new_app();
         app.results = vec![crate::state::PackageItem {
@@ -1678,10 +1685,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Clicking Hide PKGBUILD closes viewer and resets scroll/rect state
+    /// What: Clicking the toggle while the PKGBUILD viewer is open should close it and reset cached state.
     ///
-    /// - Input: PKGBUILD viewer visible with non-zero scroll and rect set; click inside pkgb_button_rect
-    /// - Output: pkgb_visible=false; pkgb_text=None; pkgb_scroll==0; pkgb_rect=None
+    /// Inputs:
+    /// - `app`: State with viewer visible, scroll offset/non-empty text, and `pkgb_button_rect` populated.
+    /// - `ev`: Left-click inside the PKGBUILD toggle rectangle.
+    ///
+    /// Output:
+    /// - Returns `false` after mutating `app` so the viewer is hidden, text cleared, scroll set to zero, and rect unset.
+    ///
+    /// Details:
+    /// - Ensures the handler cleans up PKGBUILD state to avoid stale scroll positions on the next open.
     fn click_pkgb_toggle_closes_and_resets() {
         let mut app = new_app();
         app.results = vec![crate::state::PackageItem {

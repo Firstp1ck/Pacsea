@@ -87,6 +87,16 @@ pub fn is_eos_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     #[test]
+    /// What: Validate Manjaro-specific name detection.
+    ///
+    /// Inputs:
+    /// - Sample strings covering positive and negative cases.
+    ///
+    /// Output:
+    /// - Assertions confirming only Manjaro-branded names return true.
+    ///
+    /// Details:
+    /// - Exercises case-insensitive prefix handling.
     fn manjaro_name_detection() {
         assert!(super::is_name_manjaro("manjaro-alsa"));
         assert!(super::is_name_manjaro("Manjaro-foo"));
@@ -94,6 +104,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Ensure Manjaro identification works on name or owner fields.
+    ///
+    /// Inputs:
+    /// - Pairs of (name, owner) covering positive and negative scenarios.
+    ///
+    /// Output:
+    /// - Assertions verifying either field triggers detection.
+    ///
+    /// Details:
+    /// - Confirms substring search on owner and prefix match on name.
     fn manjaro_name_or_owner_detection() {
         assert!(super::is_manjaro_name_or_owner("manjaro-alsa", ""));
         assert!(super::is_manjaro_name_or_owner("alsa", "Manjaro Team"));
@@ -101,6 +121,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Confirm repo heuristics for EOS and CachyOS.
+    ///
+    /// Inputs:
+    /// - Various repo strings spanning expected matches and misses.
+    ///
+    /// Output:
+    /// - Assertions that only target repos return true.
+    ///
+    /// Details:
+    /// - Checks both equality and prefix-based rules.
     fn eos_and_cachyos_repo_rules() {
         assert!(super::is_eos_repo("eos"));
         assert!(super::is_eos_repo("EndeavourOS"));
@@ -112,6 +142,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify EOS-branded name heuristic.
+    ///
+    /// Inputs:
+    /// - Strings with and without the "eos-" fragment.
+    ///
+    /// Output:
+    /// - Assertions matching expected boolean results.
+    ///
+    /// Details:
+    /// - Demonstrates case-insensitive substring detection.
     fn eos_name_rule() {
         assert!(super::is_eos_name("eos-hello"));
         assert!(super::is_eos_name("my-eos-helper"));

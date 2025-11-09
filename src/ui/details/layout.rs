@@ -2,11 +2,18 @@ use ratatui::prelude::Rect;
 
 use crate::state::{AppState, Focus};
 
-/// Calculate the required height for the footer/keybinds section.
+/// What: Calculate the number of rows required for the footer/keybinds section.
 ///
-/// Returns the number of rows needed for the footer, including:
-/// - Baseline lines (GLOBALS + currently focused pane)
-/// - Optional Normal Mode lines when Search is focused and in normal mode
+/// Inputs:
+/// - `app`: Application state with keymap, focus, and footer visibility flags
+/// - `bottom_container`: Rect available for the details pane and footer
+///
+/// Output:
+/// - Row count (including padding) reserved for footer content when rendered.
+///
+/// Details:
+/// - Accounts for baseline GLOBALS + focused pane lines and optionally Search Normal Mode help
+///   while respecting available width in `bottom_container`.
 pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
     // Reserve footer height: baseline lines + optional Normal Mode line
     // Baseline: always 2 lines visible by default: GLOBALS + currently focused pane
@@ -117,13 +124,19 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
     base_help_h.saturating_add(nm_rows).saturating_add(2)
 }
 
-/// Calculate layout areas for details and PKGBUILD panes.
+/// What: Compute layout rectangles for package details, PKGBUILD, and optional footer.
 ///
-/// Returns:
-/// - `content_container`: The area available for content (after reserving footer space)
-/// - `details_area`: The area for Package Info pane
-/// - `pkgb_area_opt`: Optional area for PKGBUILD pane (if visible)
-/// - `show_keybinds`: Whether to show the footer/keybinds
+/// Inputs:
+/// - `app`: Application state controlling PKGBUILD visibility and footer toggle
+/// - `bottom_container`: Rect covering the full details section (including footer space)
+/// - `footer_height`: Height previously reserved for the footer
+///
+/// Output:
+/// - Tuple of `(content_container, details_area, pkgb_area_opt, show_keybinds)` describing splits.
+///
+/// Details:
+/// - Reserves footer space only when toggled on and space allows; splits remaining area evenly when
+///   PKGBUILD view is active.
 pub fn calculate_layout_areas(
     app: &AppState,
     bottom_container: Rect,

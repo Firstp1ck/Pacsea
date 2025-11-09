@@ -9,10 +9,19 @@ use ratatui::{
 use crate::state::AppState;
 use crate::theme::theme;
 
-/// What: Render dropdown menus (Config/Lists, Panels, Options) on top layer.
+/// What: Render dropdown menus (Config/Lists, Panels, Options) on the overlay layer.
 ///
-/// This function should be called after all other UI elements are rendered
-/// to ensure dropdowns appear on top.
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (tracks menu open flags and rects)
+/// - `results_area`: Rect of the results pane used for positioning
+///
+/// Output:
+/// - Draws any open dropdowns and records their inner rectangles for hit-testing.
+///
+/// Details:
+/// - Aligns menus with their buttons, clamps width to viewport, clears background, and numbers rows
+///   for keyboard shortcuts while ensuring menus render above other content.
 pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
     let th = theme();
 

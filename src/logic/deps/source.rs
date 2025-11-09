@@ -4,9 +4,18 @@ use crate::state::modal::DependencySource;
 use std::collections::HashSet;
 use std::process::Command;
 
-/// Determine the source repository for a dependency package.
+/// What: Infer the origin repository for a dependency currently under analysis.
 ///
-/// Returns (source, is_core) tuple.
+/// Inputs:
+/// - `name`: Candidate dependency package name.
+/// - `installed`: Set of locally installed package names used to detect presence.
+///
+/// Output:
+/// - Returns a tuple with the determined `DependencySource` and a flag indicating core membership.
+///
+/// Details:
+/// - Prefers inspecting `pacman -Qi` metadata when the package is installed; otherwise defaults to heuristics.
+/// - Downgrades gracefully to official classifications when the repository field cannot be read.
 pub(crate) fn determine_dependency_source(
     name: &str,
     installed: &HashSet<String>,
@@ -70,7 +79,16 @@ pub(crate) fn determine_dependency_source(
     )
 }
 
-/// Check if a package is a critical system package.
+/// What: Identify whether a dependency belongs to a curated list of critical system packages.
+///
+/// Inputs:
+/// - `name`: Package name to compare against the predefined system set.
+///
+/// Output:
+/// - `true` when the package is considered a core system component; otherwise `false`.
+///
+/// Details:
+/// - Used to highlight packages whose removal or downgrade should be discouraged.
 pub(crate) fn is_system_package(name: &str) -> bool {
     // List of critical system packages
     let system_packages = [
@@ -96,6 +114,16 @@ mod tests {
     use super::*;
 
     #[test]
+    /// What: Confirm `is_system_package` recognizes curated critical packages.
+    ///
+    /// Inputs:
+    /// - `names`: Sample package names including system and non-system entries.
+    ///
+    /// Output:
+    /// - Returns `true` for known core packages and `false` for unrelated software.
+    ///
+    /// Details:
+    /// - Exercises both positive (glibc, linux) and negative (firefox) cases to validate membership.
     fn is_system_package_detects_core() {
         assert!(is_system_package("glibc"));
         assert!(is_system_package("linux"));

@@ -4,13 +4,17 @@ use ratatui::style::Color;
 use super::types::KeyChord;
 use crossterm::event::KeyModifiers;
 
-/// Parse a single key identifier (e.g., "F5", "Esc", "?", "r") into a KeyCode.
+/// What: Parse a single key identifier (e.g., "F5", "Esc", "?", "r") into a [`KeyCode`].
 ///
 /// Inputs:
-/// - `s`: Key identifier token
+/// - `s`: Raw key token from a configuration string.
 ///
 /// Output:
-/// - `Some(KeyCode)` on success; `None` for unknown tokens or invalid strings.
+/// - `Some(KeyCode)` on success; `None` when the input token is unsupported.
+///
+/// Details:
+/// - Supports function keys, navigation keys, and single printable characters.
+/// - Normalizes character keys to lowercase for consistent matching.
 pub(crate) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
     let t = s.trim();
     // Function keys
@@ -46,16 +50,17 @@ pub(crate) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
     }
 }
 
-/// Parse a key chord like "Ctrl+R", "Shift+Tab", or "F1" into a KeyChord.
+/// What: Parse a full key chord such as "Ctrl+R" or "Shift+Tab" into a [`KeyChord`].
 ///
 /// Inputs:
-/// - `spec`: Chord specification with modifiers and a key token
+/// - `spec`: String specification combining optional modifiers with a key token.
 ///
 /// Output:
-/// - `Some(KeyChord)` on success; `None` when the chord cannot be parsed.
+/// - `Some(KeyChord)` when parsing succeeds; `None` on invalid modifier/key combinations.
 ///
-/// Notes:
-/// - Supports Ctrl/Alt/Shift/Super modifiers (case-insensitive) and normalizes Shift+Tab→BackTab.
+/// Details:
+/// - Recognizes Ctrl/Alt/Shift/Super modifiers in any case.
+/// - Normalizes `Shift+Tab` to the dedicated `BackTab` key code and clears modifiers.
 pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
     // Accept formats like: CTRL+R, Alt+?, Shift+Del, F1, Tab, BackTab, Super+F2
     let mut mods = KeyModifiers::empty();
@@ -86,17 +91,17 @@ pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
     Some(KeyChord { code, mods })
 }
 
-/// Parse a color value from a configuration string.
+/// What: Parse a color literal from configuration text into a [`Color`].
 ///
 /// Inputs:
-/// - `s`: Color specification
+/// - `s`: Color specification string potentially containing inline comments.
 ///
 /// Output:
-/// - `Some(Color)` for supported formats; `None` for invalid values.
+/// - `Some(Color)` for recognized hex or decimal triplet formats; `None` otherwise.
 ///
-/// Supported formats:
-/// - "#RRGGBB" (hex)
-/// - "R,G,B" (decimal triplet, 0-255)
+/// Details:
+/// - Strips trailing comments beginning with `//` or secondary `#` markers.
+/// - Accepts `#RRGGBB` hex and `R,G,B` decimal triplets (0-255 per channel).
 pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
     // Trim and strip inline comments (support trailing "// ..." and "# ...").
     // Preserve a leading '#' for hex values by searching for '#' only after the first char.
@@ -138,13 +143,16 @@ pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
     None
 }
 
-/// Map a normalized theme key (lowercase, separators as underscores) to a canonical key.
+/// What: Map a normalized theme key (lowercase, underscores) to Pacsea's canonical key.
 ///
 /// Inputs:
-/// - `norm`: Normalized key string
+/// - `norm`: Normalized key string pulled from user configuration.
 ///
 /// Output:
-/// - `Some(canonical)` when recognized; `None` otherwise.
+/// - `Some(&'static str)` containing the canonical key when recognized; `None` otherwise.
+///
+/// Details:
+/// - Handles legacy and alternative naming schemes to preserve backwards compatibility.
 pub(crate) fn canonical_for_key(norm: &str) -> Option<&'static str> {
     match norm {
         // Legacy and comprehensive keys mapped to canonical names
@@ -168,13 +176,16 @@ pub(crate) fn canonical_for_key(norm: &str) -> Option<&'static str> {
     }
 }
 
-/// Convert a canonical key into a preferred user-facing form for hints/messages.
+/// What: Convert a canonical theme key into the preferred, user-facing identifier.
 ///
 /// Inputs:
-/// - `canon`: Canonical key
+/// - `canon`: Canonical key such as `"overlay1"`.
 ///
 /// Output:
-/// - Preferred display key string.
+/// - `String` containing the display-friendly key for messaging.
+///
+/// Details:
+/// - Favors descriptive names (e.g., `overlay_primary`) when available.
 pub(crate) fn canonical_to_preferred(canon: &str) -> String {
     match canon {
         "base" => "background_base",
@@ -198,17 +209,20 @@ pub(crate) fn canonical_to_preferred(canon: &str) -> String {
     .to_string()
 }
 
-/// Apply a single theme override `key=value` into a color map with validation and diagnostics.
+/// What: Apply a single `key=value` override to the theme color map with validation.
 ///
 /// Inputs:
-/// - `map`: Destination color map to update
-/// - `key`: Raw key from config
-/// - `value`: Raw value from config
-/// - `errors`: Collector for diagnostics
-/// - `line_no`: 1-based configuration line number (for messages)
+/// - `map`: Accumulated theme colors being constructed.
+/// - `key`: Raw key string from the configuration file.
+/// - `value`: Raw value string associated with the key.
+/// - `errors`: Mutable buffer that collects diagnostic messages.
+/// - `line_no`: 1-based line number used for contextual messages.
 ///
 /// Output:
-/// - Updates `map` in-place; appends human-readable messages to `errors` on problems.
+/// - None (mutates `map` and `errors` in place).
+///
+/// Details:
+/// - Normalizes keys, suggests close matches, and validates color formats before inserting.
 pub(crate) fn apply_override_to_map(
     map: &mut std::collections::HashMap<String, Color>,
     key: &str,
@@ -244,13 +258,16 @@ pub(crate) fn apply_override_to_map(
     }
 }
 
-/// Return the canonical key closest to `input` by Levenshtein distance (threshold <= 3).
+/// What: Suggest the canonical key closest to a potentially misspelled input.
 ///
 /// Inputs:
-/// - `input`: Possibly misspelled key
+/// - `input`: User-provided key string.
 ///
 /// Output:
-/// - `Some(canonical)` when a close match exists; `None` otherwise.
+/// - `Some(&'static str)` when the best match is within edit distance 3; `None` otherwise.
+///
+/// Details:
+/// - Computes Levenshtein distance across the small known key set for quick suggestion hints.
 pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
     // Very small domain; simple Levenshtein distance is fine
     const CANON: [&str; 16] = [
@@ -267,14 +284,17 @@ pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
     best.and_then(|(k, d)| if d <= 3 { Some(k) } else { None })
 }
 
-/// Compute Levenshtein edit distance between two strings.
+/// What: Compute the Levenshtein edit distance between two strings.
 ///
 /// Inputs:
-/// - `a`: First string
-/// - `b`: Second string
+/// - `a`: First string.
+/// - `b`: Second string.
 ///
 /// Output:
-/// - The edit distance as a non-negative integer.
+/// - `usize` representing the minimum number of single-character edits required to transform `a` into `b`.
+///
+/// Details:
+/// - Uses a rolling dynamic programming table to reduce allocations while iterating.
 pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
     let m = b.len();
     let mut dp: Vec<usize> = (0..=m).collect();
@@ -291,13 +311,16 @@ pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
     dp[m]
 }
 
-/// Strip trailing inline comments starting with // or a secondary # (hex-safe), then trim.
+/// What: Remove inline comments from a configuration line while preserving leading hex markers.
 ///
 /// Inputs:
-/// - `s`: Input string potentially containing inline comments
+/// - `s`: Raw configuration line that may include inline comments.
 ///
 /// Output:
-/// - The input without inline comments and surrounding whitespace.
+/// - Comment-free & trimmed substring of the input.
+///
+/// Details:
+/// - Strips trailing `//` sections and secondary `#` characters without harming leading `#RRGGBB` values.
 pub(crate) fn strip_inline_comment(mut s: &str) -> &str {
     if let Some(i) = s.find("//") {
         s = &s[..i];
@@ -317,6 +340,16 @@ mod tests {
     use super::*;
 
     #[test]
+    /// What: Ensure key identifier and chord parsing maps strings onto `KeyCode`/modifier combinations.
+    ///
+    /// Inputs:
+    /// - Identifiers such as `F5`, `?`, and `Backspace`, plus chord strings `Ctrl+R` and `Shift+Tab`.
+    ///
+    /// Output:
+    /// - Returns matching `KeyCode` values with expected modifier flags.
+    ///
+    /// Details:
+    /// - Guards against regressions when adding new key parsing rules.
     fn parsing_key_identifier_and_chord() {
         assert_eq!(parse_key_identifier("F5"), Some(KeyCode::F(5)));
         assert_eq!(parse_key_identifier("?"), Some(KeyCode::Char('?')));
@@ -330,6 +363,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Validate colour parsing and mapping helpers used by theme configuration.
+    ///
+    /// Inputs:
+    /// - Hex and RGB strings plus canonical key identifiers.
+    ///
+    /// Output:
+    /// - Produces `Color::Rgb` values when parsable and resolves preferred canonical keys.
+    ///
+    /// Details:
+    /// - Exercises both parsing paths and fuzzy key lookup to preserve user overrides.
     fn parsing_color_and_canon() {
         assert_eq!(parse_color_value("#ff0000"), Some(Color::Rgb(255, 0, 0)));
         assert_eq!(parse_color_value("255,0,10"), Some(Color::Rgb(255, 0, 10)));
@@ -340,6 +383,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Check inline comment stripping keeps colour literals while removing trailing annotations.
+    ///
+    /// Inputs:
+    /// - Strings containing hex colours, `//` comments, and secondary `#` markers.
+    ///
+    /// Output:
+    /// - Returns trimmed strings with comments removed but leading hex markers preserved.
+    ///
+    /// Details:
+    /// - Confirms heuristics avoid truncating six-digit colour codes while cleaning inline comments.
     fn parsing_strip_inline_comment_variants() {
         // Leading '#' preserved for hex; we only strip after first character to allow '#RRGGBB'
         assert_eq!(strip_inline_comment("#foo"), "#foo");

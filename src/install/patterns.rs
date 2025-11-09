@@ -93,9 +93,17 @@ enum Section {
 }
 
 #[cfg(not(target_os = "windows"))]
-/// Attempt to load pattern sets from $XDG_CONFIG_HOME/pacsea/pattern.conf
-/// (falling back to $HOME/.config/pacsea/pattern.conf). Returns defaults
-/// when missing or on parse errors.
+/// What: Load suspicious pattern sets from the user's `pattern.conf`.
+///
+/// Input:
+/// - Reads `$XDG_CONFIG_HOME/pacsea/pattern.conf` (falling back to `$HOME/.config/pacsea/pattern.conf`).
+///
+/// Output:
+/// - `PatternSets` containing joined regex fragments for each severity bucket.
+///
+/// Details:
+/// - Falls back to built-in defaults when the file is missing or malformed.
+/// - Uses simple INI-style parsing, ignoring unknown sections and comments.
 pub fn load() -> PatternSets {
     let mut out = PatternSets::default();
     let path = config_path();
@@ -113,15 +121,34 @@ pub fn load() -> PatternSets {
 }
 
 #[cfg(not(target_os = "windows"))]
-/// Return the canonical pattern.conf path under Pacsea's config dir.
+/// What: Resolve the canonical location of `pattern.conf` in the Pacsea config directory.
+///
+/// Input:
+/// - None (derives the path from Pacsea's configuration base).
+///
+/// Output:
+/// - Absolute `PathBuf` pointing to `pattern.conf`.
+///
+/// Details:
+/// - Relies on `crate::theme::config_dir()` to honour XDG overrides.
 fn config_path() -> PathBuf {
     crate::theme::config_dir().join("pattern.conf")
 }
 
 #[cfg(not(target_os = "windows"))]
-/// Parse pattern.conf content; section lines are joined with `|`.
-/// Comments: lines starting with '#', '//' or ';'. Empty lines ignored.
-/// Any section missing or empty falls back to the current defaults provided.
+/// What: Parse raw `pattern.conf` content into severity buckets.
+///
+/// Input:
+/// - `content`: File body to parse.
+/// - `defaults`: Existing `PatternSets` used when a section is absent or empty.
+///
+/// Output:
+/// - `PatternSets` with each section joined by `|`.
+///
+/// Details:
+/// - Treats lines beginning with `#`, `//`, or `;` as comments.
+/// - Recognises `[critical]`, `[high]`, `[medium]`, and `[low]` sections (case-insensitive aliases allowed).
+/// - Unrecognised sections are ignored without error.
 fn parse(content: &str, defaults: &PatternSets) -> PatternSets {
     use Section::*;
 
@@ -199,6 +226,17 @@ mod tests {
     use super::*;
 
     #[test]
+    /// What: Confirm `parse` falls back to default regex sets when the config snippet is empty.
+    ///
+    /// Inputs:
+    /// - Blank configuration string.
+    /// - `PatternSets::default()` as the baseline values.
+    ///
+    /// Output:
+    /// - Returns a `PatternSets` identical to the defaults.
+    ///
+    /// Details:
+    /// - Exercises the early-return path that clones defaults for each severity bucket.
     fn parse_uses_defaults_when_empty() {
         let d = PatternSets::default();
         let p = parse("", &d);
@@ -209,6 +247,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Ensure `parse` concatenates multi-line sections with `|` to form extended regexes.
+    ///
+    /// Inputs:
+    /// - Config snippet containing multiple severities with repeated entries.
+    ///
+    /// Output:
+    /// - Generated pattern strings join entries with `|` while preserving singleton sections.
+    ///
+    /// Details:
+    /// - Verifies each severity bucket independently to catch regressions in join order.
     fn parse_joins_lines_with_or() {
         let d = PatternSets::default();
         let cfg = r#"
@@ -236,6 +284,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify `parse` ignores comments, unknown sections, and insignificant whitespace.
+    ///
+    /// Inputs:
+    /// - Config snippet with comment prefixes (`#`, `;`, `//`), extra indentation, and an unknown header.
+    ///
+    /// Output:
+    /// - Patterns exclude commented lines, skip the unknown section, and trim whitespace in recognised sections.
+    ///
+    /// Details:
+    /// - Confirms default fallback remains for untouched severities while demonstrating indentation trimming for `low`.
     fn parse_handles_comments_and_whitespace() {
         let d = PatternSets::default();
         let cfg = r#"

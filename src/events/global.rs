@@ -7,8 +7,22 @@ use crate::events::utils;
 use crate::state::{AppState, PackageItem};
 use crate::theme::reload_theme;
 
-/// Handle global shortcuts and dropdown menus.
-/// Returns true if the event was handled and should stop propagation.
+/// What: Handle global shortcuts plus dropdown menus and optionally stop propagation.
+///
+/// Inputs:
+/// - `ke`: Key event received from crossterm (code + modifiers)
+/// - `app`: Mutable application state shared across panes and modals
+/// - `details_tx`: Channel used to request package detail refreshes
+/// - `pkgb_tx`: Channel used to request PKGBUILD content for the focused result
+///
+/// Output:
+/// - `true` when the caller should exit (e.g., global exit keybind triggered); otherwise `false`.
+///
+/// Details:
+/// - Gives precedence to closing dropdown menus on `Esc` before other bindings.
+/// - Routes configured global chords (help overlay, theme reload, exit, PKGBUILD toggle, sort cycle).
+/// - When sort mode changes it persists the preference, re-sorts results, and refreshes details.
+/// - Supports menu number shortcuts (1-9) for Options/Panels/Config dropdowns while they are open.
 pub(crate) fn handle_global_key(
     ke: KeyEvent,
     app: &mut AppState,

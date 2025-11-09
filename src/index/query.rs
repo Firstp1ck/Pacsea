@@ -10,6 +10,9 @@ use super::idx;
 /// Output:
 /// - Vector of `PackageItem`s populated from the index; enrichment is not performed here.
 ///   An empty or whitespace-only query returns an empty list.
+///
+/// Details:
+/// - Performs a case-insensitive substring match on package names and clones matching entries.
 pub fn search_official(query: &str) -> Vec<PackageItem> {
     let ql = query.trim().to_lowercase();
     if ql.is_empty() {
@@ -44,6 +47,9 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
 ///
 /// Output:
 /// - Vector of all official items mapped to `PackageItem`.
+///
+/// Details:
+/// - Clones data from the shared index under a read lock and omits popularity data.
 pub fn all_official() -> Vec<PackageItem> {
     let guard = idx().read().ok();
     let mut items = Vec::new();
@@ -72,6 +78,9 @@ pub fn all_official() -> Vec<PackageItem> {
 ///
 /// Output:
 /// - Vector of `PackageItem`s representing the current in-memory (or loaded) index.
+///
+/// Details:
+/// - Loads from disk only when the in-memory list is empty to avoid redundant IO.
 pub async fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
     let items = all_official();
     if !items.is_empty() {
@@ -84,6 +93,16 @@ pub async fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
 #[cfg(test)]
 mod tests {
     #[test]
+    /// What: Return empty vector when the query is blank.
+    ///
+    /// Inputs:
+    /// - Seed index with an entry and call `search_official` using whitespace-only query.
+    ///
+    /// Output:
+    /// - Empty result set.
+    ///
+    /// Details:
+    /// - Confirms whitespace trimming logic works.
     fn search_official_empty_query_returns_empty() {
         if let Ok(mut g) = super::idx().write() {
             g.pkgs = vec![crate::index::OfficialPkg {
@@ -99,6 +118,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Perform case-insensitive matching and field mapping.
+    ///
+    /// Inputs:
+    /// - Seed index with uppercase/lowercase packages and query with lowercase substring.
+    ///
+    /// Output:
+    /// - Single result matching expected fields.
+    ///
+    /// Details:
+    /// - Verifies `Source::Official` metadata is preserved in mapped items.
     fn search_official_is_case_insensitive_and_maps_fields() {
         if let Ok(mut g) = super::idx().write() {
             g.pkgs = vec![
@@ -134,6 +163,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Populate all official packages regardless of query.
+    ///
+    /// Inputs:
+    /// - Seed index with two packages and call `all_official`.
+    ///
+    /// Output:
+    /// - Vector containing both packages.
+    ///
+    /// Details:
+    /// - Checks ordering is not enforced but the returned names set matches expectation.
     fn all_official_returns_all_items() {
         if let Ok(mut g) = super::idx().write() {
             g.pkgs = vec![
@@ -161,6 +200,16 @@ mod tests {
     }
 
     #[tokio::test]
+    /// What: Load packages from disk when the in-memory index is empty.
+    ///
+    /// Inputs:
+    /// - Clear the index and provide a temp JSON file with one package.
+    ///
+    /// Output:
+    /// - Vector containing the package from disk.
+    ///
+    /// Details:
+    /// - Ensures fallback to `persist::load_from_disk` is exercised.
     async fn all_official_or_fetch_reads_from_disk_when_empty() {
         use std::path::PathBuf;
         if let Ok(mut g) = super::idx().write() {

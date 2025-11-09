@@ -1,8 +1,17 @@
 use crate::state::{PackageItem, Source};
 
-/// Build the common AUR install body that prefers `paru` and falls back to `yay`,
-/// including the interactive -Syy retry on failure. This returns the full parenthesized
-/// `(if ... fi)` shell snippet without the trailing hold suffix.
+/// What: Build the common AUR install body that prefers `paru` and falls back to `yay`.
+///
+/// Input:
+/// - `flags`: Flag string forwarded to the helper (e.g. `-S --needed`).
+/// - `n`: Space-separated package names to install.
+///
+/// Output:
+/// - Parenthesised shell snippet `(if ... fi)` without the trailing hold suffix.
+///
+/// Details:
+/// - Prompts for helper installation when neither `paru` nor `yay` is present.
+/// - Offers an interactive retry with `-Syy` after failures.
 fn aur_install_body(flags: &str, n: &str) -> String {
     format!(
         "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
@@ -48,13 +57,18 @@ fn aur_install_body(flags: &str, n: &str) -> String {
 
 /// What: Build a shell command to install `item` and indicate whether `sudo` is used.
 ///
-/// Inputs:
-/// - `item`: Package to install (Official uses pacman; AUR uses paru/yay)
-/// - `password`: Optional sudo password (when provided, uses `sudo -S` pipe)
-/// - `dry_run`: When `true`, prints the command instead of executing
+/// Input:
+/// - `item`: Package to install (official via pacman, AUR via helper).
+/// - `password`: Optional sudo password; when present, wires `sudo -S` with a pipe.
+/// - `dry_run`: When `true`, prints the command instead of executing.
 ///
 /// Output:
 /// - Tuple `(command_string, uses_sudo)` with a shell-ready command and whether it requires sudo.
+///
+/// Details:
+/// - Detects already-installed packages to offer a reinstall prompt.
+/// - Adds a hold tail so spawned terminals remain open after completion.
+/// - Ensures pacman retries with `-Syy` when the user confirms after failure.
 pub fn build_install_command(
     item: &PackageItem,
     password: Option<&str>,
@@ -140,10 +154,18 @@ mod tests {
     use super::*;
 
     #[test]
-    /// What: Build pacman command for official package across variants
+    /// What: Check the pacman command builder for official packages handles sudo, password prompts, and dry-run mode.
     ///
-    /// - Input: Official pkg, with/without password, dry-run toggle
-    /// - Output: sudo pacman command shape, sudo -S when password, DRY RUN prefix
+    /// Inputs:
+    /// - Official package metadata.
+    /// - Optional password string.
+    /// - Dry-run flag toggled between `false` and `true`.
+    ///
+    /// Output:
+    /// - Returns commands containing the expected pacman flags, optional `sudo -S` echo, and dry-run prefix.
+    ///
+    /// Details:
+    /// - Ensures the hold-tail message persists and the helper flags remain in sync with UI behaviour.
     fn install_build_install_command_official_variants() {
         let pkg = PackageItem {
             name: "ripgrep".into(),
@@ -172,10 +194,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Build AUR install command with helper preference and dry-run
+    /// What: Verify AUR command construction selects the correct helper and respects dry-run output.
     ///
-    /// - Input: AUR pkg, dry-run false/true
-    /// - Output: Paru preferred with yay fallback; DRY RUN echoes helper command
+    /// Inputs:
+    /// - AUR package metadata.
+    /// - Dry-run flag toggled between `false` and `true`.
+    ///
+    /// Output:
+    /// - Produces scripts that prefer `paru`, fall back to `yay`, and emit a dry-run echo when requested.
+    ///
+    /// Details:
+    /// - Asserts the crafted shell script still includes the hold-tail prompt and missing-helper warning.
     fn install_build_install_command_aur_variants() {
         let pkg = PackageItem {
             name: "yay-bin".into(),

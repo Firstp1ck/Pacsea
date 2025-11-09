@@ -236,10 +236,16 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
 
 #[cfg(test)]
 mod tests {
-    /// What: Render all modal variants and record expected rects
+    /// What: Render each modal variant to ensure layout rects and state assignments succeed without panic.
     ///
-    /// - Input: Cycle Alert, ConfirmInstall, ConfirmRemove(core), Help, News
-    /// - Output: No panic; Help/news rects populated where applicable
+    /// Inputs:
+    /// - Iterates through Alert, ConfirmInstall, ConfirmRemove (core item), Help, and News variants.
+    ///
+    /// Output:
+    /// - Rendering completes without error, with Help and News variants setting their associated rectangles.
+    ///
+    /// Details:
+    /// - Uses a `TestBackend` terminal to capture layout side effects while mutating `app.modal` as each branch runs.
     #[test]
     fn modals_set_rects_and_render_variants() {
         use ratatui::{Terminal, backend::TestBackend};

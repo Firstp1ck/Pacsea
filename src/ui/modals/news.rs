@@ -9,6 +9,21 @@ use ratatui::{
 use crate::state::{AppState, NewsItem};
 use crate::theme::theme;
 
+/// What: Render the Arch news modal with selectable entries and read markers.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (records list rects, read state)
+/// - `area`: Full screen area used to center the modal
+/// - `items`: News entries to display
+/// - `selected`: Index of the currently highlighted news item
+///
+/// Output:
+/// - Draws the news list, updates overall/list rects, and marks unread items with theme symbols.
+///
+/// Details:
+/// - Styles critical headlines, honors user-configured read symbols, and surfaces keybindings from
+///   the keymap in the footer line.
 pub fn render_news(
     f: &mut Frame,
     app: &mut AppState,

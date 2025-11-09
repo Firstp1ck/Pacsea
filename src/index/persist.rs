@@ -10,6 +10,9 @@ use super::{OfficialIndex, idx};
 ///
 /// Output:
 /// - Replaces the in-memory index on success; ignores errors and leaves it unchanged on failure.
+///
+/// Details:
+/// - Silently ignores IO or deserialization failures to keep startup resilient.
 pub fn load_from_disk(path: &Path) {
     if let Ok(s) = fs::read_to_string(path)
         && let Ok(new_idx) = serde_json::from_str::<OfficialIndex>(&s)
@@ -26,6 +29,9 @@ pub fn load_from_disk(path: &Path) {
 ///
 /// Output:
 /// - Writes JSON to disk; errors are ignored to avoid interrupting the UI.
+///
+/// Details:
+/// - Serializes under a read lock and drops any write failures to avoid crashing background tasks.
 pub fn save_to_disk(path: &Path) {
     if let Ok(guard) = idx().read()
         && let Ok(s) = serde_json::to_string(&*guard)
@@ -38,10 +44,16 @@ pub fn save_to_disk(path: &Path) {
 mod tests {
 
     #[tokio::test]
-    /// What: Loading multiple index snapshots results in deduped package names
+    /// What: Load multiple index snapshots and ensure deduplication.
     ///
-    /// - Input: Two JSON files with overlapping names written sequentially
-    /// - Output: all_official() returns unique names ["aa", "zz"]
+    /// Inputs:
+    /// - Two JSON snapshots with overlapping package names written sequentially.
+    ///
+    /// Output:
+    /// - `all_official()` yields the unique names `aa` and `zz`.
+    ///
+    /// Details:
+    /// - Validates that reloading replaces the index without duplicating entries.
     async fn index_loads_deduped_and_sorted_after_multiple_writes() {
         use std::path::PathBuf;
 
@@ -83,6 +95,16 @@ mod tests {
     }
 
     #[tokio::test]
+    /// What: Persist the in-memory index and confirm the file reflects current data.
+    ///
+    /// Inputs:
+    /// - Seed `idx()` with a single package prior to saving.
+    ///
+    /// Output:
+    /// - JSON file containing the seeded package name.
+    ///
+    /// Details:
+    /// - Uses a temp file cleaned up at the end to avoid polluting the workspace.
     async fn index_save_writes_current_state_to_disk() {
         use std::path::PathBuf;
         // Prepare in-memory index

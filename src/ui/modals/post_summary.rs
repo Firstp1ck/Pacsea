@@ -9,6 +9,22 @@ use ratatui::{
 use crate::theme::theme;
 
 #[allow(clippy::too_many_arguments)]
+/// What: Render the post-transaction summary modal summarizing results and follow-up actions.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `success`: Whether the transaction succeeded
+/// - `changed_files`, `pacnew_count`, `pacsave_count`: File change metrics
+/// - `services_pending`: Services requiring restart
+/// - `snapshot_label`: Optional snapshot identifier
+///
+/// Output:
+/// - Draws the summary dialog highlighting status, file counts, and optional services list.
+///
+/// Details:
+/// - Colors border based on success, truncates service lines to fit, and advertises rollback/service
+///   restart shortcuts.
 pub fn render_post_summary(
     f: &mut Frame,
     area: Rect,

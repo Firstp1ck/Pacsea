@@ -5,6 +5,18 @@ use std::process::Command;
 use crate::state::PackageItem;
 
 #[cfg(not(target_os = "windows"))]
+/// What: Compose the shell snippet that installs AUR packages through an available helper.
+///
+/// Input:
+/// - `flags`: CLI flags forwarded to the chosen AUR helper.
+/// - `n`: Space-separated package names to install.
+///
+/// Output:
+/// - Shell snippet that prefers `paru`, falls back to `yay`, and guides the user through helper bootstrap.
+///
+/// Details:
+/// - Retries with `-Syy` when installation fails and the user agrees.
+/// - Prompts to install an AUR helper if neither `paru` nor `yay` exists.
 fn aur_install_body(flags: &str, n: &str) -> String {
     format!(
         "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
@@ -250,10 +262,17 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[test]
-    /// What: Ensure gnome-terminal is invoked with double dash for batch install
+    /// What: Confirm batch installs launch gnome-terminal with the expected separator arguments.
     ///
-    /// - Input: Fake gnome-terminal on PATH; spawn_install_all with dry_run
-    /// - Output: First args are "--", "bash", "-lc" (safe arg shape)
+    /// Inputs:
+    /// - Shim `gnome-terminal` scripted to capture argv via `PACSEA_TEST_OUT`.
+    /// - `spawn_install_all` invoked with two official packages in dry-run mode.
+    ///
+    /// Output:
+    /// - Captured argument list starts with `--`, `bash`, `-lc`, validating safe command invocation.
+    ///
+    /// Details:
+    /// - Overrides `PATH` and environment variables, then restores them to avoid leaking state across tests.
     fn install_batch_uses_gnome_terminal_double_dash() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
@@ -329,6 +348,17 @@ mod tests {
 }
 
 #[cfg(target_os = "windows")]
+/// What: Present an informational install message on Windows where package management is unsupported.
+///
+/// Input:
+/// - `items`: Packages the user attempted to install.
+/// - `dry_run`: When `true`, indicates no action would be taken.
+///
+/// Output:
+/// - Launches a `cmd` window echoing the intended action for user awareness.
+///
+/// Details:
+/// - Always logs install attempts when not in `dry_run` to remain consistent with Unix behaviour.
 pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let mut names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
     if names.is_empty() {

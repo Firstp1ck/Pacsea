@@ -8,9 +8,18 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::process::Command;
 
-/// Fetch dependencies for an AUR package from the AUR RPC API.
+/// What: Retrieve dependency metadata for an AUR package via the RPC API.
 ///
-/// This is a fallback when paru/yay is not available.
+/// Inputs:
+/// - `name`: Target AUR package name.
+/// - `installed`: Set of installed package names for status evaluation.
+/// - `upgradable`: Set of upgradable packages used to detect pending upgrades.
+///
+/// Output:
+/// - Returns a vector of `DependencyInfo` records or an error string when the request fails.
+///
+/// Details:
+/// - Acts as a fallback path when helpers such as `paru` or `yay` are unavailable, parsing JSON directly.
 pub(crate) fn fetch_aur_deps_from_api(
     name: &str,
     installed: &HashSet<String>,

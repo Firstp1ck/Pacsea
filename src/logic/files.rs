@@ -7,10 +7,16 @@ use std::path::Path;
 use std::process::Command;
 use std::time::SystemTime;
 
-/// Get the file database sync timestamp.
+/// What: Retrieve the most recent modification timestamp of the pacman sync database.
 ///
-/// Returns the modification time of the pacman sync database files directory,
-/// or None if it cannot be determined.
+/// Inputs:
+/// - (none): Reads metadata from `/var/lib/pacman/sync` on the local filesystem.
+///
+/// Output:
+/// - Returns the latest `SystemTime` seen among `.files` databases, or `None` if unavailable.
+///
+/// Details:
+/// - Inspects only files ending with the `.files` extension to match pacman's file list databases.
 pub fn get_file_db_sync_timestamp() -> Option<SystemTime> {
     // Check modification time of pacman sync database files
     // The sync database files are in /var/lib/pacman/sync/
@@ -42,10 +48,16 @@ pub fn get_file_db_sync_timestamp() -> Option<SystemTime> {
     latest_time
 }
 
-/// Get file database sync age and formatted date string.
+/// What: Summarize sync database staleness with age, formatted date, and UI color bucket.
 ///
-/// Returns (age_days, formatted_date_string, color_category)
-/// where color_category: 0 = green (< week), 1 = yellow (< month), 2 = red (>= month)
+/// Inputs:
+/// - (none): Uses `get_file_db_sync_timestamp` to determine the last sync.
+///
+/// Output:
+/// - Returns `(age_days, formatted_date, color_category)` or `None` when the timestamp cannot be read.
+///
+/// Details:
+/// - Buckets age into three categories: green (<7 days), yellow (<30 days), red (>=30 days).
 pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
     let sync_time = get_file_db_sync_timestamp()?;
 
@@ -73,17 +85,17 @@ pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
     Some((age_days, date_str, color_category))
 }
 
-/// Resolve file changes for a list of packages.
-///
-/// This function queries pacman to determine which files will be added, changed, or removed
-/// by comparing remote file lists with installed file lists.
+/// What: Determine file-level changes for a set of packages under a specific preflight action.
 ///
 /// Inputs:
-/// - `items`: List of packages to install/remove
-/// - `action`: Whether this is an Install or Remove operation
+/// - `items`: Package descriptors under consideration.
+/// - `action`: Preflight action (install or remove) influencing the comparison strategy.
 ///
 /// Output:
-/// - Vector of `PackageFileInfo` with file changes for each package
+/// - Returns a vector of `PackageFileInfo` entries describing per-package file deltas.
+///
+/// Details:
+/// - Invokes pacman commands to compare remote and installed file lists while preserving package order.
 pub fn resolve_file_changes(
     items: &[PackageItem],
     action: crate::state::modal::PreflightAction,
@@ -150,7 +162,16 @@ pub fn resolve_file_changes(
     results
 }
 
-/// Ensure the pacman file database is synced (best-effort).
+/// What: Attempt a best-effort synchronization of the pacman file database.
+///
+/// Inputs:
+/// - (none): Executes `pacman -Fy` with locale overrides.
+///
+/// Output:
+/// - No return value; logs warnings when the sync fails.
+///
+/// Details:
+/// - Intended to reduce false negatives when later querying remote file lists.
 fn ensure_file_db_synced() {
     tracing::debug!("Ensuring pacman file database is synced...");
     let output = Command::new("pacman")
@@ -174,7 +195,18 @@ fn ensure_file_db_synced() {
     }
 }
 
-/// Resolve file changes for a single package.
+/// What: Dispatch to the correct file resolution routine based on preflight action.
+///
+/// Inputs:
+/// - `name`: Package name being evaluated.
+/// - `source`: Package source needed for install lookups.
+/// - `action`: Whether the package is being installed or removed.
+///
+/// Output:
+/// - Returns a `PackageFileInfo` on success or an error message.
+///
+/// Details:
+/// - Delegates to either `resolve_install_files` or `resolve_remove_files`.
 fn resolve_package_files(
     name: &str,
     source: &Source,
@@ -186,7 +218,17 @@ fn resolve_package_files(
     }
 }
 
-/// Resolve files for an install/update operation.
+/// What: Determine new and changed files introduced by installing or upgrading a package.
+///
+/// Inputs:
+/// - `name`: Package name examined.
+/// - `source`: Source repository information for remote lookups.
+///
+/// Output:
+/// - Returns a populated `PackageFileInfo` or an error when file lists cannot be retrieved.
+///
+/// Details:
+/// - Compares remote file listings with locally installed files and predicts potential `.pacnew` creations.
 fn resolve_install_files(name: &str, source: &Source) -> Result<PackageFileInfo, String> {
     // Get remote file list
     let remote_files = get_remote_file_list(name, source)?;
@@ -262,7 +304,16 @@ fn resolve_install_files(name: &str, source: &Source) -> Result<PackageFileInfo,
     })
 }
 
-/// Resolve files for a remove operation.
+/// What: Enumerate files that would be removed when uninstalling a package.
+///
+/// Inputs:
+/// - `name`: Package scheduled for removal.
+///
+/// Output:
+/// - Returns a `PackageFileInfo` capturing removed files and predicted `.pacsave` candidates.
+///
+/// Details:
+/// - Reads installed file lists and backup arrays to flag configuration files requiring user attention.
 fn resolve_remove_files(name: &str) -> Result<PackageFileInfo, String> {
     // Get installed file list
     let installed_files = get_installed_file_list(name)?;
@@ -330,7 +381,17 @@ fn resolve_remove_files(name: &str) -> Result<PackageFileInfo, String> {
     })
 }
 
-/// Get the remote file list for a package.
+/// What: Fetch the list of files published in repositories for a given package.
+///
+/// Inputs:
+/// - `name`: Package name in question.
+/// - `source`: Source descriptor differentiating official repositories from AUR packages.
+///
+/// Output:
+/// - Returns the list of file paths or an error when retrieval fails.
+///
+/// Details:
+/// - Uses `pacman -Fl` for official packages and currently returns an empty list for AUR entries.
 fn get_remote_file_list(name: &str, source: &Source) -> Result<Vec<String>, String> {
     match source {
         Source::Official { repo, .. } => {
@@ -397,7 +458,16 @@ fn get_remote_file_list(name: &str, source: &Source) -> Result<Vec<String>, Stri
     }
 }
 
-/// Get the installed file list for a package.
+/// What: Retrieve the list of files currently installed for a package.
+///
+/// Inputs:
+/// - `name`: Package name queried via `pacman -Ql`.
+///
+/// Output:
+/// - Returns file paths owned by the package or an empty list when it is not installed.
+///
+/// Details:
+/// - Logs errors if the command fails for reasons other than the package being absent.
 fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
     tracing::debug!("Running: pacman -Ql {}", name);
     let output = Command::new("pacman")
@@ -440,10 +510,17 @@ fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
     Ok(files)
 }
 
-/// Get backup files for a package (files that will create .pacnew/.pacsave).
+/// What: Identify files marked for backup handling during install or removal operations.
 ///
-/// For installed packages, uses `pacman -Qii` to read the backup array.
-/// For remote packages, attempts to parse PKGBUILD/.SRCINFO backup array.
+/// Inputs:
+/// - `name`: Package whose backup array should be inspected.
+/// - `source`: Source descriptor to decide how to gather backup information.
+///
+/// Output:
+/// - Returns a list of backup file paths or an empty list when the data cannot be retrieved.
+///
+/// Details:
+/// - Prefers querying the installed package via `pacman -Qii`; falls back to best-effort heuristics.
 fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, String> {
     // First try: if package is installed, use pacman -Qii
     if let Ok(backup_files) = get_backup_files_from_installed(name)
@@ -480,7 +557,16 @@ fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, String> 
     }
 }
 
-/// Get backup files from an installed package using `pacman -Qii`.
+/// What: Collect backup file entries for an installed package through `pacman -Qii`.
+///
+/// Inputs:
+/// - `name`: Installed package identifier.
+///
+/// Output:
+/// - Returns the backup array as a vector of file paths or an empty list when not installed.
+///
+/// Details:
+/// - Parses the `Backup Files` section, handling wrapped lines to ensure complete coverage.
 fn get_backup_files_from_installed(name: &str) -> Result<Vec<String>, String> {
     tracing::debug!("Running: pacman -Qii {}", name);
     let output = Command::new("pacman")

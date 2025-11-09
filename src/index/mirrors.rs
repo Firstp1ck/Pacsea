@@ -20,7 +20,16 @@ use super::{OfficialPkg, idx, save_to_disk};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// Invoke `curl -sSLf` and parse JSON.
+/// What: Fetch a JSON payload via `curl -sSLf` and deserialize it.
+///
+/// Inputs:
+/// - `url`: HTTP(S) endpoint expected to return JSON.
+///
+/// Output:
+/// - `Ok(serde_json::Value)` containing the parsed document; boxed error on failure.
+///
+/// Details:
+/// - Treats non-success exit codes and JSON/UTF-8 parsing failures as errors to propagate.
 fn curl_json(url: &str) -> Result<Value> {
     let out = std::process::Command::new("curl")
         .args(["-sSLf", url])
@@ -33,7 +42,16 @@ fn curl_json(url: &str) -> Result<Value> {
     Ok(v)
 }
 
-/// Invoke `curl -sSLf` and return plain text.
+/// What: Fetch a text payload via `curl -sSLf`.
+///
+/// Inputs:
+/// - `url`: HTTP(S) endpoint expected to return text data.
+///
+/// Output:
+/// - `Ok(String)` containing UTF-8 text on success; boxed error otherwise.
+///
+/// Details:
+/// - Treats non-success exit codes and UTF-8 decoding failures as errors to propagate.
 #[allow(dead_code)]
 fn curl_text(url: &str) -> Result<String> {
     let out = std::process::Command::new("curl")
@@ -45,14 +63,16 @@ fn curl_text(url: &str) -> Result<String> {
     Ok(String::from_utf8(out.stdout)?)
 }
 
-/// Fetch the mirror status JSON and generate a simple `mirrorlist.txt`, then save
-/// both files under the provided repository directory.
+/// What: Download Arch mirror metadata and render a concise `mirrorlist.txt`.
 ///
-/// - Writes:
-///   - mirrors.json: the raw JSON from https://archlinux.org/mirrors/status/json/
-///   - mirrorlist.txt: lines like `Server = <https_url>/$repo/os/$arch`
+/// Inputs:
+/// - `repo_dir`: Target directory used to persist mirrors.json and mirrorlist.txt.
 ///
-/// Returns the path to the written `mirrorlist.txt` on success.
+/// Output:
+/// - `Ok(PathBuf)` pointing to the generated mirror list file; boxed error otherwise.
+///
+/// Details:
+/// - Persists the raw JSON for reference and keeps up to 40 active HTTPS mirrors in the list.
 pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
     let repo_dir = repo_dir.to_path_buf();
     task::spawn_blocking(move || {
@@ -109,18 +129,19 @@ pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
     .await?
 }
 
-/// Query the official Arch Packages API to build a minimal index of all packages
-/// in the given repos for the `x86_64` architecture. Saves the resulting index
-/// to `persist_path` and updates the in-memory index.
+/// What: Build the official index via the Arch Packages JSON API and persist it.
 ///
-/// It constructs `OfficialPkg` entries with:
-/// - name: pkgname
-/// - repo: repo
-/// - arch: arch
-/// - version: pkgver
-/// - description: pkgdesc
+/// Inputs:
+/// - `persist_path`: Destination file for the serialized index.
+/// - `net_err_tx`: Channel receiving errors encountered during network fetches.
+/// - `notify_tx`: Channel notified after successful persistence.
 ///
-/// On success, it sends a `notify_tx` signal; on failure, a human-readable error via `net_err_tx`.
+/// Output:
+/// - No direct return value; communicates success/failure through channels and shared state.
+///
+/// Details:
+/// - Pages through `core`, `extra`, and `multilib` results, dedupes by `(repo,name)`, and updates
+///   the in-memory index before persisting.
 pub async fn refresh_official_index_from_arch_api(
     persist_path: PathBuf,
     net_err_tx: tokio::sync::mpsc::UnboundedSender<String>,
@@ -217,12 +238,19 @@ pub async fn refresh_official_index_from_arch_api(
     }
 }
 
-/// Convenience helper to fetch mirrors into the repository directory and then
-/// refresh the official package index using the Arch API. Designed for Windows.
+/// What: Refresh both the Windows mirror metadata and official package index via the API.
 ///
-/// This does not run automatically; call it from your startup path (Windows only)
-/// before or in parallel with the normal `update_in_background` if you want an
-/// index without `pacman`.
+/// Inputs:
+/// - `persist_path`: Destination for the serialized index JSON.
+/// - `repo_dir`: Directory in which mirror assets are stored.
+/// - `net_err_tx`: Channel for surfacing network errors to the caller.
+/// - `notify_tx`: Channel notified on successful mirror fetch or index refresh.
+///
+/// Output:
+/// - No direct return value; uses the supplied channels for status updates.
+///
+/// Details:
+/// - Attempts mirrors first (best-effort) and then always runs the API-based index refresh.
 pub async fn refresh_windows_mirrors_and_index(
     persist_path: PathBuf,
     repo_dir: PathBuf,
@@ -245,15 +273,19 @@ pub async fn refresh_windows_mirrors_and_index(
     refresh_official_index_from_arch_api(persist_path, net_err_tx, notify_tx).await;
 }
 
-/// Optional helper to download a specific repo sync database to the repository dir for
-/// offline inspection (not required for the app to show packages).
+/// What: Download a repository sync database to disk for offline inspection.
 ///
-/// Example URLs:
-/// - https://geo.mirror.pkgbuild.com/core/os/x86_64/core.db
-/// - https://geo.mirror.pkgbuild.com/extra/os/x86_64/extra.db
-/// - https://geo.mirror.pkgbuild.com/multilib/os/x86_64/multilib.db
+/// Inputs:
+/// - `repo_dir`: Directory to store the downloaded database file.
+/// - `repo`: Repository name (e.g., `core`).
+/// - `arch`: Architecture component (e.g., `x86_64`).
 ///
-/// This function writes the raw file (likely zstd-compressed tar) without parsing.
+/// Output:
+/// - `Ok(PathBuf)` to the downloaded file when successful; boxed error otherwise.
+///
+/// Details:
+/// - Fetches via HTTPS, writes the raw payload without decompressing, and ensures directories
+///   exist before saving.
 #[allow(dead_code)]
 pub async fn download_sync_db(repo_dir: &Path, repo: &str, arch: &str) -> Result<PathBuf> {
     let base = "https://geo.mirror.pkgbuild.com";

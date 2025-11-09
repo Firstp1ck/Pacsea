@@ -12,14 +12,18 @@ use super::types::Theme;
 /// Global theme store with live-reload capability.
 static THEME_STORE: OnceLock<RwLock<Theme>> = OnceLock::new();
 
-/// Load theme from the first matching config path, writing a default skeleton if needed.
+/// What: Load theme colors from disk or generate a skeleton configuration if nothing exists yet.
 ///
 /// Inputs:
-/// - None
+/// - None.
 ///
 /// Output:
-/// - A `Theme` loaded from disk; exits the process with an error message when configuration
-///   cannot be recovered.
+/// - Returns a fully-populated `Theme` on success.
+/// - Terminates the process with an error when recovery is impossible.
+///
+/// Details:
+/// - Prefers existing config files found by `resolve_theme_config_path`.
+/// - Writes `THEME_SKELETON_CONTENT` when encountering empty or missing files to keep the app usable.
 fn load_initial_theme_or_exit() -> Theme {
     if let Some(path) = resolve_theme_config_path() {
         match try_load_theme_with_diagnostics(&path) {
@@ -75,22 +79,34 @@ fn load_initial_theme_or_exit() -> Theme {
     }
 }
 
-/// Return the application's theme palette, loading from config if available.
+/// What: Access the application's theme palette, loading or caching as needed.
 ///
-/// The config file is searched in the following locations (first match wins):
-/// - "$HOME/pacsea.conf"
-/// - "$HOME/.config/pacsea.conf"
-/// - "$HOME/.config/pacsea/pacsea.conf"
-/// - "config/pacsea.conf" (useful for repository-local testing)
+/// Inputs:
+/// - None.
 ///
-/// Format: key = value, one per line; values are colors as "#RRGGBB" or "R,G,B".
+/// Output:
+/// - A copy of the currently loaded `Theme`.
+///
+/// Details:
+/// - Lazily initializes a global `RwLock<Theme>` using `load_initial_theme_or_exit`.
+/// - Subsequent calls reuse the cached theme until `reload_theme` updates it.
 pub fn theme() -> Theme {
     let lock = THEME_STORE.get_or_init(|| RwLock::new(load_initial_theme_or_exit()));
     *lock.read().expect("theme store poisoned")
 }
 
-/// Reload the theme from disk without restarting the app.
-/// Returns Ok(()) on success; Err(msg) if the config is missing or incomplete.
+/// What: Reload the theme configuration from disk on demand.
+///
+/// Inputs:
+/// - None (locates the config through `resolve_theme_config_path`).
+///
+/// Output:
+/// - `Ok(())` when the theme is reloaded successfully.
+/// - `Err(String)` with a human-readable reason when reloading fails.
+///
+/// Details:
+/// - Keeps the in-memory cache up to date so the UI can refresh without restarting Pacsea.
+/// - Returns an error if the theme file is missing or contains validation problems.
 pub fn reload_theme() -> std::result::Result<(), String> {
     let path = resolve_theme_config_path().or_else(|| {
         env::var("HOME").ok().map(|h| {

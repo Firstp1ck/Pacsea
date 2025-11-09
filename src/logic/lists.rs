@@ -8,6 +8,9 @@ use crate::state::{AppState, PackageItem};
 ///
 /// Output:
 /// - Inserts at the front on success, marks list dirty, and selects index 0; no-op on dedup.
+///
+/// Details:
+/// - Updates `last_install_change` to support UI throttling of follow-up actions.
 pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
     if app
         .install_list
@@ -31,6 +34,9 @@ pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
 ///
 /// Output:
 /// - Inserts at the front and selects index 0; no-op on dedup.
+///
+/// Details:
+/// - Leaves `remove_list` order deterministic by always pushing new entries to the head.
 pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
     if app
         .remove_list
@@ -51,6 +57,9 @@ pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
 ///
 /// Output:
 /// - Inserts at the front and selects index 0; no-op on dedup.
+///
+/// Details:
+/// - Ensures repeated requests for the same package keep the cursor anchored at the newest item.
 pub fn add_to_downgrade_list(app: &mut AppState, item: PackageItem) {
     if app
         .downgrade_list
@@ -81,10 +90,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Add items to install list with case-insensitive dedup and selection
+    /// What: Ensure the install list deduplicates entries case-insensitively and updates selection state.
     ///
-    /// - Input: Two items with same name differing in case
-    /// - Output: Only one entry remains; list marked dirty; selection at 0
+    /// Inputs:
+    /// - Two package items whose names differ only by casing.
+    ///
+    /// Output:
+    /// - Install list contains a single entry, marked dirty, with the selection pointing at index `0`.
+    ///
+    /// Details:
+    /// - Exercises the guard path preventing duplicate installs and verifies the UI selection remains anchored on insert.
     fn add_to_install_list_behavior() {
         let mut app = AppState {
             ..Default::default()
@@ -97,10 +112,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Add items to remove list with case-insensitive dedup and selection
+    /// What: Confirm the remove list enforces case-insensitive uniqueness and selection updates.
     ///
-    /// - Input: Two items with same name differing in case
-    /// - Output: Only one entry remains; selection at 0
+    /// Inputs:
+    /// - Two package items whose names differ only by casing.
+    ///
+    /// Output:
+    /// - Remove list retains a single item and its selection index becomes `0`.
+    ///
+    /// Details:
+    /// - Protects against regressions where duplicates might shift the selection or leak into the list.
     fn add_to_remove_list_behavior() {
         let mut app = AppState {
             ..Default::default()
@@ -112,10 +133,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Add items to downgrade list with case-insensitive dedup and selection
+    /// What: Verify the downgrade list rejects duplicate names regardless of case and updates selection.
     ///
-    /// - Input: Two items with same name differing in case
-    /// - Output: Only one entry remains; selection at 0
+    /// Inputs:
+    /// - Two package items whose names differ only by casing.
+    ///
+    /// Output:
+    /// - Downgrade list contains one item and the selection index resolves to `0`.
+    ///
+    /// Details:
+    /// - Ensures repeated downgrade requests do not reorder the cursor unexpectedly.
     fn add_to_downgrade_list_behavior() {
         let mut app = AppState {
             ..Default::default()

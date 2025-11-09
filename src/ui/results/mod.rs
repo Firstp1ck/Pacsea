@@ -267,10 +267,16 @@ pub use dropdowns::render_dropdowns;
 mod tests {
     use super::*;
 
-    /// What: Results render computes title button rects and status label rect
+    /// What: Ensure rendering results populates button rectangles and status overlays without panic.
     ///
-    /// - Input: One result, operational status message
-    /// - Output: Sort/Options/Config/Panels rects and arch_status/results rects are Some
+    /// Inputs:
+    /// - Single search result plus an operational status message.
+    ///
+    /// Output:
+    /// - Sort, Options, Config, Panels button rectangles, along with status and results rects, become `Some`.
+    ///
+    /// Details:
+    /// - Uses a `TestBackend` terminal to exercise layout code and verify hit-test regions are recorded.
     #[test]
     fn results_sets_title_button_rects_and_status_rect() {
         use ratatui::{Terminal, backend::TestBackend};

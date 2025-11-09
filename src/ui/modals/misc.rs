@@ -10,6 +10,20 @@ use super::common::render_simple_list_modal;
 use crate::state::{AppState, types::OptionalDepRow};
 use crate::theme::theme;
 
+/// What: Render the optional dependencies modal with install status indicators.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `rows`: Optional dependency entries (label, package, status)
+/// - `selected`: Index of the currently highlighted row
+///
+/// Output:
+/// - Draws the modal content and highlights the selected row; no state mutations besides rendering.
+///
+/// Details:
+/// - Marks installed rows, shows optional notes, and reuses the common simple modal renderer for
+///   consistent styling.
 pub fn render_optional_deps(f: &mut Frame, area: Rect, rows: &[OptionalDepRow], selected: usize) {
     let th = theme();
     // Build content lines with selection and install status markers
@@ -63,6 +77,20 @@ pub fn render_optional_deps(f: &mut Frame, area: Rect, rows: &[OptionalDepRow], 
 }
 
 #[allow(clippy::too_many_arguments)]
+/// What: Render the scan configuration modal listing security tools to toggle.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `do_clamav`…`do_sleuth`: Flags indicating which scanners are enabled
+/// - `cursor`: Index of the row currently focused
+///
+/// Output:
+/// - Draws the configuration list, highlighting the focused entry and indicating current toggles.
+///
+/// Details:
+/// - Presents each scanner with checkboxes, respecting theme emphasis for the cursor and summarizing
+///   available shortcuts at the bottom.
 pub fn render_scan_config(
     f: &mut Frame,
     area: Rect,
@@ -115,6 +143,17 @@ pub fn render_scan_config(
     render_simple_list_modal(f, area, "Scan Configuration", lines);
 }
 
+/// What: Render the prompt encouraging installation of GNOME Terminal in GNOME environments.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+///
+/// Output:
+/// - Draws a concise confirmation dialog describing recommended action and key hints.
+///
+/// Details:
+/// - Highlights the heading, explains why the terminal is recommended, and warns about cancelling.
 pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
     let th = theme();
     // Centered confirmation dialog for installing GNOME Terminal
@@ -168,6 +207,20 @@ pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
     f.render_widget(boxw, rect);
 }
 
+/// What: Render the VirusTotal API setup modal with clickable URL and current input preview.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (records URL rect for mouse clicks)
+/// - `area`: Full screen area used to center the modal
+/// - `input`: Current API key buffer contents
+///
+/// Output:
+/// - Draws the setup dialog, updates `app.vt_url_rect`, and shows current text entry.
+///
+/// Details:
+/// - Provides direct link to the API portal, surfaces instructions, and mirrors the buffer so users
+///   can verify pasted values.
 pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, input: &str) {
     let th = theme();
     // Centered dialog for VirusTotal API key setup with clickable URL and input field
@@ -250,6 +303,18 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
     f.render_widget(boxw, rect);
 }
 
+/// What: Render the import help modal describing expected file format and keybindings.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+///
+/// Output:
+/// - Draws instructions for import file syntax and highlights confirm/cancel keys.
+///
+/// Details:
+/// - Enumerates formatting rules, provides an example snippet, and keeps styling aligned with other
+///   informational modals.
 pub fn render_import_help(f: &mut Frame, area: Rect) {
     let th = theme();
     let w = area.width.saturating_sub(10).min(85);

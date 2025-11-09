@@ -28,10 +28,16 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    /// What: send_query updates ids and sends QueryInput with current text
+    /// What: Ensure `send_query` increments identifiers and forwards the current input text.
     ///
-    /// - Input: AppState with input "hello"
-    /// - Output: latest_query_id becomes 1; channel receives matching QueryInput
+    /// Inputs:
+    /// - `AppState` whose `input` is set to `"hello"`.
+    ///
+    /// Output:
+    /// - `latest_query_id` advances to `1` and the channel receives a matching `QueryInput`.
+    ///
+    /// Details:
+    /// - Uses a short timeout to guarantee the send occurs asynchronously.
     async fn send_query_increments_and_sends() {
         let mut app = AppState {
             ..Default::default()

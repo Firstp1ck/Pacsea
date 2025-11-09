@@ -291,6 +291,13 @@ enum AurBannerCategory {
     SecurityIncident,
 }
 
+/// What: Classify AUR homepage banners into coarse categories.
+///
+/// Input: Raw banner text to inspect.
+/// Output: `Some(AurBannerCategory)` when a known keyword is detected; `None` otherwise.
+///
+/// Details: Normalizes text to lowercase and checks ordered keyword sets so the most severe
+/// scenarios (security incident, outage) are caught before more general matches.
 #[allow(dead_code)]
 fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
     let t = s.to_lowercase();
@@ -359,6 +366,13 @@ fn categorize_aur_banner(s: &str) -> Option<AurBannerCategory> {
     None
 }
 
+/// What: Map an `AurBannerCategory` to the baseline `ArchStatusColor` severity.
+///
+/// Input: Banner category deduced from AUR messaging.
+/// Output: Color representing minimum severity level to report.
+///
+/// Details: Groups similar banner classes (e.g., outages, security incidents) to a consistent
+/// severity palette so later logic can escalate but never downgrade the reported color.
 #[allow(dead_code)]
 fn category_base_color(cat: &AurBannerCategory) -> ArchStatusColor {
     match cat {
@@ -373,6 +387,13 @@ fn category_base_color(cat: &AurBannerCategory) -> ArchStatusColor {
     }
 }
 
+/// What: Provide a short human-readable suffix describing a banner category.
+///
+/// Input: `AurBannerCategory` classification.
+/// Output: Static string appended to status summaries.
+///
+/// Details: Keeps display text centralized for banner-derived annotations, ensuring consistent
+/// phrasing for each category.
 #[allow(dead_code)]
 fn category_suffix(cat: &AurBannerCategory) -> &'static str {
     match cat {
@@ -387,6 +408,13 @@ fn category_suffix(cat: &AurBannerCategory) -> &'static str {
     }
 }
 
+/// What: Choose the more severe `ArchStatusColor` between two candidates.
+///
+/// Input: Two color severities `a` and `b`.
+/// Output: The color with higher impact according to predefined ordering.
+///
+/// Details: Converts colors to integer ranks and returns the higher rank so callers can merge
+/// multiple heuristics without under-reporting incidents.
 fn severity_max(a: ArchStatusColor, b: ArchStatusColor) -> ArchStatusColor {
     fn rank(c: ArchStatusColor) -> u8 {
         match c {
@@ -518,7 +546,7 @@ fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, ArchStatusCol
 /// Parse the Arch Status API summary JSON into a concise status line, color, and optional suffix.
 ///
 /// Inputs:
-/// - `v`: JSON value from https://status.archlinux.org/api/v2/summary.json
+/// - `v`: JSON value from <https://status.archlinux.org/api/v2/summary.json>
 ///
 /// Output:
 /// - `(text, color, suffix)` where `text` is either "All systems operational" or "Arch systems nominal",
@@ -665,6 +693,12 @@ fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
 }
 
+/// What: Determine whether a given year is a leap year in the Gregorian calendar.
+///
+/// Input: Four-digit year as signed integer.
+/// Output: `true` when the year has 366 days; `false` otherwise.
+///
+/// Details: Applies the standard divisible-by-4 rule with century and 400-year exceptions.
 #[inline]
 fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
@@ -772,8 +806,13 @@ fn digits_before_percent(s: &str, pct_idx: usize) -> Option<String> {
     Some(s)
 }
 
-/// Attempt to extract today's AUR cell color from the SVG rect fill.
-/// Returns a color classification if we can find a nearby <rect ... fill="#..."> around today's date.
+/// What: Infer today's AUR uptime color from the SVG heatmap on the status page.
+///
+/// Input: Full HTML string captured from status.archlinux.org.
+/// Output: `Some(ArchStatusColor)` when a nearby `<rect>` fill value maps to a known palette; `None` otherwise.
+///
+/// Details: Focuses on the "Uptime Last 90 days" AUR section, locates today's date label, then scans
+/// surrounding SVG rectangles for Tailwind-like fill colors that indicate green/yellow/red severity.
 fn extract_aur_today_rect_color(body: &str) -> Option<ArchStatusColor> {
     let (year, month, day) = today_ymd_utc()?;
     let months = [
@@ -874,8 +913,13 @@ fn extract_aur_today_rect_color(body: &str) -> Option<ArchStatusColor> {
     None
 }
 
-/// Extract status color from "Status updates Last 30 days" section for today's date.
-/// Checks for keywords like "outage", "degraded", "down", "aur" in status updates dated today.
+/// What: Derive today's AUR severity from the textual "Status updates" section.
+///
+/// Input: Raw status page HTML used for keyword scanning.
+/// Output: `Some(ArchStatusColor)` when today's entry references the AUR with notable keywords; `None` otherwise.
+///
+/// Details: Narrows to the status updates block, finds today's date string, and searches a sliding window for
+/// AUR mentions coupled with severe or moderate keywords to upgrade incident severity heuristics.
 fn extract_status_updates_today_color(body: &str) -> Option<ArchStatusColor> {
     let (year, month, day) = today_ymd_utc()?;
     let months = [
@@ -972,10 +1016,16 @@ mod tests {
     use super::*;
 
     #[test]
-    /// What: Parse Arch status HTML to derive AUR color by % and outage
+    /// What: Parse Arch status HTML to derive AUR color by percentage buckets and outage flag.
     ///
-    /// - Input: Synthetic HTML around today's date with 97/95/89% and outage flag
-    /// - Output: Green for >95, Yellow for 90-95, Red for <90; outage forces >= Yellow
+    /// Inputs:
+    /// - Synthetic HTML windows around today's date containing percentages of 97, 95, 89 and optional outage headings.
+    ///
+    /// Output:
+    /// - Returns `ArchStatusColor::Operational` above 95%, `IncidentToday` for 90-95%, `IncidentSevereToday` below 90%, and elevates outage cases to at least `IncidentToday`.
+    ///
+    /// Details:
+    /// - Builds several HTML variants to confirm the parser reacts to both high-level outage banners and raw percentages.
     fn status_parse_color_by_percentage_and_outage() {
         let (y, m, d) = {
             let out = std::process::Command::new("date")
@@ -1049,10 +1099,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Prefer SVG rect fill color over percentage when present
+    /// What: Prefer the SVG rect fill color over the textual percentage when both are present.
     ///
-    /// - Input: HTML with greenish % but rect fill set to yellow near today
-    /// - Output: Yellow color classification
+    /// Inputs:
+    /// - HTML snippet around today's date with a green percentage but an SVG rect fill attribute set to yellow.
+    ///
+    /// Output:
+    /// - Returns `ArchStatusColor::IncidentToday`, honoring the SVG-derived color.
+    ///
+    /// Details:
+    /// - Ensures the parser checks the SVG dataset first so maintenance banners with stale percentages still reflect current outages.
     fn status_parse_prefers_svg_rect_color() {
         let (y, m, d) = {
             let out = std::process::Command::new("date")

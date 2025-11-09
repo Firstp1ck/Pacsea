@@ -10,6 +10,24 @@ use crate::state::{PackageItem, PreflightAction, PreflightTab};
 use crate::theme::theme;
 
 #[allow(clippy::too_many_arguments)]
+/// What: Render the preflight execution modal showing plan summary and live logs.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `items`: Packages involved in the action
+/// - `action`: Install or remove action being executed
+/// - `tab`: Currently focused sidebar tab
+/// - `verbose`: Whether verbose logging is enabled
+/// - `log_lines`: Buffered log output
+/// - `abortable`: Whether abort is currently available
+///
+/// Output:
+/// - Draws sidebar summary plus log panel, reflecting controls for verbosity and aborting.
+///
+/// Details:
+/// - Splits the modal into sidebar/log columns, caps displayed log lines to viewport, and appends
+///   footer instructions with dynamic state indicators.
 pub fn render_preflight_exec(
     f: &mut Frame,
     area: Rect,

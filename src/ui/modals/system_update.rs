@@ -9,6 +9,23 @@ use ratatui::{
 use crate::theme::theme;
 
 #[allow(clippy::too_many_arguments)]
+/// What: Render the system update modal with toggles for mirror/pacman/AUR/cache actions.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `do_mirrors`, `do_pacman`, `do_aur`, `do_cache`: Selected operations
+/// - `country_idx`: Selected country index for mirrors
+/// - `countries`: Available country list
+/// - `mirror_count`: Desired number of mirrors
+/// - `cursor`: Currently highlighted row index
+///
+/// Output:
+/// - Draws the update configuration dialog, highlighting the focused row and showing shortcuts.
+///
+/// Details:
+/// - Formats checkbox rows, displays the effective country list from settings, and surfaces key
+///   hints for toggling, adjusting country, and running the update.
 pub fn render_system_update(
     f: &mut Frame,
     area: Rect,

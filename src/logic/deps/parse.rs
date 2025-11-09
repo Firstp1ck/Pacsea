@@ -1,10 +1,15 @@
 //! Parsing utilities for dependency specifications.
 
-/// Parse "Depends On" field from pacman -Si output.
+/// What: Extract dependency specifications from the `pacman -Si` "Depends On" field.
 ///
-/// The "Depends On" field contains space-separated dependency specifications.
-/// Example: "curl  expat  perl  perl-error  perl-mailtools  openssl  pcre2  grep  shadow  zlib-ng"
-/// Filters out virtual packages (.so files) like "libedit.so=0-64"
+/// Inputs:
+/// - `text`: Raw stdout emitted by `pacman -Si` for a package.
+///
+/// Output:
+/// - Returns package specification strings without virtual shared-library entries.
+///
+/// Details:
+/// - Scans the "Depends On" line, split on whitespace, and removes `.so` patterns that represent virtual deps.
 pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
     for line in text.lines() {
         if line.starts_with("Depends On")
@@ -33,14 +38,16 @@ pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
     Vec::new()
 }
 
-/// Parse dependency output from pacman/paru -Sp.
+/// What: Normalize dependency names from `pacman -Sp` or helper outputs.
 ///
-/// The output format can be:
-///   - Package names: "core/glibc", "extra/python>=3.12"
-///   - Full URLs: "/mirror/archlinux/extra/os/x86_64/package-1.0-1-x86_64.pkg.tar.zst"
-///   - Library files: "libgit2.so" (virtual packages/provides)
+/// Inputs:
+/// - `text`: Multi-line command output containing potential dependency entries.
 ///
-/// Returns cleaned package names, filtering out invalid entries.
+/// Output:
+/// - Returns a vector of cleaned package names with virtual or malformed entries removed.
+///
+/// Details:
+/// - Handles repository prefixes, download URLs, and shared-library provides while extracting canonical names.
 #[allow(dead_code)]
 pub(crate) fn parse_dependency_output(text: &str) -> Vec<String> {
     text.lines()
@@ -97,12 +104,16 @@ pub(crate) fn parse_dependency_output(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// Parse a dependency specification into (name, version_constraint).
+/// What: Split a dependency specification into name and version requirement components.
 ///
-/// Examples:
-///   "glibc" -> ("glibc", "")
-///   "python>=3.12" -> ("python", ">=3.12")
-///   "firefox=121.0" -> ("firefox", "=121.0")
+/// Inputs:
+/// - `spec`: Dependency string from pacman helpers (e.g., `python>=3.12`).
+///
+/// Output:
+/// - Returns a tuple `(name, version_constraint)` with an empty constraint when none is present.
+///
+/// Details:
+/// - Searches for comparison operators in precedence order to avoid mis-parsing combined expressions.
 pub(crate) fn parse_dep_spec(spec: &str) -> (String, String) {
     for op in ["<=", ">=", "=", "<", ">"] {
         if let Some(pos) = spec.find(op) {
@@ -119,6 +130,16 @@ mod tests {
     use super::*;
 
     #[test]
+    /// What: Confirm dependency specs without operators return empty version constraints.
+    ///
+    /// Inputs:
+    /// - Spec string `"glibc"` with no comparison operator.
+    ///
+    /// Output:
+    /// - Tuple of name `"glibc"` and empty version string.
+    ///
+    /// Details:
+    /// - Guards the default branch where no recognised operator exists.
     fn parse_dep_spec_basic() {
         let (name, version) = parse_dep_spec("glibc");
         assert_eq!(name, "glibc");
@@ -126,6 +147,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Ensure specs containing `>=` split into name and constraint correctly.
+    ///
+    /// Inputs:
+    /// - Spec string `"python>=3.12"`.
+    ///
+    /// Output:
+    /// - Returns name `"python"` and version `">=3.12"`.
+    ///
+    /// Details:
+    /// - Exercises multi-character operator detection order.
     fn parse_dep_spec_with_version() {
         let (name, version) = parse_dep_spec("python>=3.12");
         assert_eq!(name, "python");
@@ -133,6 +164,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify equality constraints are detected and returned verbatim.
+    ///
+    /// Inputs:
+    /// - Spec string `"firefox=121.0"`.
+    ///
+    /// Output:
+    /// - Produces name `"firefox"` and version `"=121.0"`.
+    ///
+    /// Details:
+    /// - Confirms the operator precedence loop catches single-character `=` after multi-character checks.
     fn parse_dep_spec_equals() {
         let (name, version) = parse_dep_spec("firefox=121.0");
         assert_eq!(name, "firefox");

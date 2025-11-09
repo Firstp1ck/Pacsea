@@ -9,13 +9,20 @@ use ratatui::{
 use crate::state::{AppState, SortMode};
 use crate::theme::theme;
 
-/// What: Render sort dropdown overlay near the Sort button.
+/// What: Render the sort dropdown overlay near the Sort button.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: Mutable application state (sort_menu_rect will be updated)
+/// - `app`: Mutable application state (uses `sort_menu_open`, updates rect)
 /// - `area`: Target rectangle for the results block
 /// - `btn_x`: X coordinate of the Sort button
+///
+/// Output:
+/// - Draws the dropdown when open and records its inner hit-test rectangle.
+///
+/// Details:
+/// - Highlights the active sort mode, clamps placement within `area`, and clears the region before
+///   drawing to avoid overlapping artifacts.
 pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u16) {
     let th = theme();
 

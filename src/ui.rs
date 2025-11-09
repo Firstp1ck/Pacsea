@@ -195,10 +195,17 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
 #[cfg(test)]
 mod tests {
-    /// What: Render full UI, set rects, and render toast without panic
+    /// What: Ensure the top-level UI renderer draws successfully and records key rectangles.
     ///
-    /// - Input: Minimal app state; first with a toast message, then without
-    /// - Output: Key rects (results/details/url) are Some; no rendering errors
+    /// Inputs:
+    /// - `app`: Minimal [`AppState`] seeded with one result, URL, and optional toast message.
+    ///
+    /// Output:
+    /// - Rendering completes twice (with and without toast) and critical rects become `Some`.
+    ///
+    /// Details:
+    /// - Uses `TestBackend` to render `ui`, verifying toast handling and rect bookkeeping without
+    ///   panics across successive draws.
     #[test]
     fn ui_renders_frame_and_sets_rects_and_toast() {
         use ratatui::{Terminal, backend::TestBackend};

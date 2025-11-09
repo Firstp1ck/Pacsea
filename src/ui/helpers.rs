@@ -26,11 +26,23 @@ use crate::{
 ///
 /// Output:
 /// - Vector of formatted lines for the Details pane, ending with a Show/Hide PKGBUILD action line.
+///
+/// Details:
+/// - Applies repo-specific heuristics, formats numeric sizes via `human_bytes`, and appends a
+///   clickable PKGBUILD toggle line using accent styling.
 pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec<Line<'static>> {
-    /// Build a key-value display line with themed styling.
+    /// What: Build a themed key-value line for the details pane.
     ///
-    /// The key is shown in bold with an accent color, followed by a value in
-    /// the primary text color.
+    /// Inputs:
+    /// - `key`: Label to display (styled in accent color)
+    /// - `val`: Value text rendered in primary color
+    /// - `th`: Active theme for colors/modifiers
+    ///
+    /// Output:
+    /// - `Line` combining the key/value segments with appropriate styling.
+    ///
+    /// Details:
+    /// - Renders the key in bold accent with a trailing colon and the value in standard text color.
     fn kv(key: &str, val: String, th: &Theme) -> Line<'static> {
         Line::from(vec![
             Span::styled(
@@ -97,16 +109,16 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
     lines
 }
 
-/// Join a list of strings into a comma-separated value.
-///
-/// Returns "-" when the list is empty to keep the UI compact and readable.
-/// What: Join a slice of strings with ", ", or return "-" when empty.
+/// What: Join a slice of strings with `", "`, falling back to "-" when empty.
 ///
 /// Inputs:
-/// - `list`: Slice of strings to join
+/// - `list`: Slice of strings to format
 ///
 /// Output:
-/// - Comma-separated string or "-" when `list` is empty.
+/// - Joined string or "-" when no entries are present.
+///
+/// Details:
+/// - Keeps the details pane compact by representing empty lists with a single dash.
 fn join(list: &[String]) -> String {
     if list.is_empty() {
         "-".into()
@@ -115,16 +127,16 @@ fn join(list: &[String]) -> String {
     }
 }
 
-/// Convert a byte count to a concise human-readable string using binary units.
-///
-/// Uses 1024-based units (KiB, MiB, GiB, ...) with one decimal place.
-/// What: Format bytes using binary units with one decimal place (e.g., 1.5 KiB).
+/// What: Format a byte count using binary units with one decimal place.
 ///
 /// Inputs:
-/// - `n`: Byte count
+/// - `n`: Raw byte count to format
 ///
 /// Output:
-/// - Human-friendly size string using 1024-based units.
+/// - Size string such as "1.5 KiB" using 1024-based units.
+///
+/// Details:
+/// - Iteratively divides by 1024 up to PiB, retaining one decimal place for readability.
 fn human_bytes(n: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
     let mut v = n as f64;
@@ -182,6 +194,10 @@ pub async fn fetch_first_match_for_query(q: String) -> Option<crate::state::Pack
 ///
 /// Output:
 /// - Vector of indices in ascending order without modifying application state.
+///
+/// Details:
+/// - Applies pane find filtering only when the Recent pane is focused and the finder string is
+///   non-empty; otherwise returns the full range.
 pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
     let apply = matches!(app.focus, Focus::Recent)
         && app
@@ -213,6 +229,10 @@ pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
 ///
 /// Output:
 /// - Vector of indices in ascending order without modifying application state.
+///
+/// Details:
+/// - Restricts matches to name or description substrings when the Install pane is focused and a
+///   pane-find expression is active; otherwise surfaces all indices.
 pub fn filtered_install_indices(app: &AppState) -> Vec<usize> {
     let apply = matches!(app.focus, Focus::Install)
         && app
@@ -295,10 +315,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Validate filtered indices for Recent/Install and details formatting labels
+    /// What: Validate helper functions that filter recent/install indices and toggle details labels.
     ///
-    /// - Input: Recent entries with pane_find; Install list with search; details with fields
-    /// - Output: Correct filtered indices; Show/Hide PKGBUILD label toggles
+    /// Inputs:
+    /// - Recent list with pane find queries, install list search term, and details populated with metadata.
+    ///
+    /// Output:
+    /// - Filtered indices match expectations and the details footer alternates between `Show`/`Hide PKGBUILD` labels.
+    ///
+    /// Details:
+    /// - Covers the case-insensitive dedupe path plus button label toggling when PKGBUILD visibility flips.
     fn filtered_indices_and_details_lines() {
         let mut app = crate::state::AppState {
             ..Default::default()
@@ -368,10 +394,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Validate details field rendering for sizes and list formatting
+    /// What: Ensure details rendering formats lists and byte sizes into human-friendly strings.
     ///
-    /// - Input: Details with empty licenses, provides list, Some install_size
-    /// - Output: Shows N/A for missing; 1.5 KiB formatting; lists joined with commas
+    /// Inputs:
+    /// - `PackageDetails` with empty license list, multiple provides, and a non-zero install size.
+    ///
+    /// Output:
+    /// - Renders `N/A` for missing values, formats bytes into `1.5 KiB`, and joins lists with commas.
+    ///
+    /// Details:
+    /// - Confirms string composition matches UI expectations for optional fields.
     fn details_lines_sizes_and_lists() {
         let mut app = crate::state::AppState {
             ..Default::default()
@@ -423,10 +455,17 @@ mod tests {
     }
 
     #[tokio::test]
-    /// What: Ensure recent preview trigger is a no-op for non-Recent or invalid selection
+    /// What: Ensure the recent preview trigger becomes a no-op when focus or selection is invalid.
     ///
-    /// - Input: Focus not Recent; Recent without selection; filtered-out index
-    /// - Output: No messages sent on preview channel
+    /// Inputs:
+    /// - `app`: Focus initially outside Recent, then Recent with no selection, then Recent with a filtered-out entry.
+    /// - `tx`: Preview channel observed for emitted messages across each scenario.
+    ///
+    /// Output:
+    /// - Each invocation leaves the channel empty, showing no preview requests were issued.
+    ///
+    /// Details:
+    /// - Applies a short timeout for each check to guard against unexpected asynchronous sends.
     async fn trigger_recent_preview_noop_when_not_recent_or_invalid() {
         let mut app = crate::state::AppState {
             ..Default::default()

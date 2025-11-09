@@ -4,7 +4,17 @@ use std::path::Path;
 use crate::theme::config::skeletons::SETTINGS_SKELETON_CONTENT;
 use crate::theme::paths::resolve_settings_config_path;
 
-/// Persist selected sort mode back to settings.conf (or legacy pacsea.conf), preserving comments and other keys.
+/// What: Persist the user-selected sort mode into `settings.conf` (or legacy `pacsea.conf`).
+///
+/// Inputs:
+/// - `sm`: Sort mode chosen in the UI, expressed as `crate::state::SortMode`.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Ensures the target file exists by seeding from the skeleton when missing.
+/// - Replaces existing `sort_mode`/`results_sort` entries while preserving comments.
 pub fn save_sort_mode(sm: crate::state::SortMode) {
     let path = resolve_settings_config_path().or_else(|| {
         std::env::var("XDG_CONFIG_HOME")
@@ -74,7 +84,18 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
     let _ = fs::write(p, new_content);
 }
 
-/// Persist a boolean key to settings.conf (or legacy pacsea.conf), preserving other content.
+/// What: Persist a single boolean toggle within `settings.conf` while preserving unrelated content.
+///
+/// Inputs:
+/// - `key_norm`: Normalized (lowercase, underscore-separated) key name to update.
+/// - `value`: Boolean flag to serialize as `true` or `false`.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Creates the configuration file from the skeleton when it is missing or empty.
+/// - Rewrites existing entries in place; otherwise appends the new key at the end.
 fn save_boolean_key(key_norm: &str, value: bool) {
     let path = resolve_settings_config_path().or_else(|| {
         std::env::var("XDG_CONFIG_HOME")
@@ -148,7 +169,18 @@ fn save_boolean_key(key_norm: &str, value: bool) {
     let _ = fs::write(p, new_content);
 }
 
-/// Persist Recent and Install pane visibility toggles.
+/// What: Persist a string-valued setting inside `settings.conf` without disturbing other keys.
+///
+/// Inputs:
+/// - `key_norm`: Normalized key to update.
+/// - `value`: String payload that should be written verbatim after trimming handled by the caller.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Bootstraps the configuration file from the skeleton if necessary.
+/// - Updates the existing key in place or appends a new line when absent.
 fn save_string_key(key_norm: &str, value: &str) {
     let path = resolve_settings_config_path().or_else(|| {
         std::env::var("XDG_CONFIG_HOME")
@@ -218,47 +250,176 @@ fn save_string_key(key_norm: &str, value: &str) {
     let _ = fs::write(p, new_content);
 }
 
+/// What: Persist the visibility flag for the Recent pane.
+///
+/// Inputs:
+/// - `value`: Whether the Recent pane should be shown on startup.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("show_recent_pane", value)`.
 pub fn save_show_recent_pane(value: bool) {
     save_boolean_key("show_recent_pane", value)
 }
+/// What: Persist the visibility flag for the Install pane.
+///
+/// Inputs:
+/// - `value`: Whether the Install pane should be shown on startup.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("show_install_pane", value)`.
 pub fn save_show_install_pane(value: bool) {
     save_boolean_key("show_install_pane", value)
 }
+/// What: Persist the visibility flag for the keybinds footer.
+///
+/// Inputs:
+/// - `value`: Whether the footer should be rendered.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("show_keybinds_footer", value)`.
 pub fn save_show_keybinds_footer(value: bool) {
     save_boolean_key("show_keybinds_footer", value)
 }
 
-/// Persist mirror settings
+/// What: Persist the comma-separated list of preferred mirror countries.
+///
+/// Inputs:
+/// - `value`: Country list string (already normalized by caller).
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_string_key("selected_countries", ...)`.
 pub fn save_selected_countries(value: &str) {
     save_string_key("selected_countries", value)
 }
+/// What: Persist the numeric limit on ranked mirrors.
+///
+/// Inputs:
+/// - `value`: Mirror count to record.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_string_key("mirror_count", value)` after converting to text.
 pub fn save_mirror_count(value: u16) {
     save_string_key("mirror_count", &value.to_string())
 }
 
+/// What: Persist the VirusTotal API key used for scanning packages.
+///
+/// Inputs:
+/// - `value`: API key string supplied by the user.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_string_key("virustotal_api_key", ...)`.
 pub fn save_virustotal_api_key(value: &str) {
     save_string_key("virustotal_api_key", value)
 }
 
+/// What: Persist the ClamAV scan toggle.
+///
+/// Inputs:
+/// - `value`: Whether ClamAV scans should run by default.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("scan_do_clamav", value)`.
 pub fn save_scan_do_clamav(value: bool) {
     save_boolean_key("scan_do_clamav", value)
 }
+/// What: Persist the Trivy scan toggle.
+///
+/// Inputs:
+/// - `value`: Whether Trivy scans should run by default.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("scan_do_trivy", value)`.
 pub fn save_scan_do_trivy(value: bool) {
     save_boolean_key("scan_do_trivy", value)
 }
+/// What: Persist the Semgrep scan toggle.
+///
+/// Inputs:
+/// - `value`: Whether Semgrep scans should run by default.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("scan_do_semgrep", value)`.
 pub fn save_scan_do_semgrep(value: bool) {
     save_boolean_key("scan_do_semgrep", value)
 }
+/// What: Persist the ShellCheck scan toggle.
+///
+/// Inputs:
+/// - `value`: Whether ShellCheck scans should run by default.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("scan_do_shellcheck", value)`.
 pub fn save_scan_do_shellcheck(value: bool) {
     save_boolean_key("scan_do_shellcheck", value)
 }
+/// What: Persist the VirusTotal scan toggle.
+///
+/// Inputs:
+/// - `value`: Whether VirusTotal scans should run by default.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("scan_do_virustotal", value)`.
 pub fn save_scan_do_virustotal(value: bool) {
     save_boolean_key("scan_do_virustotal", value)
 }
+/// What: Persist the custom scan toggle.
+///
+/// Inputs:
+/// - `value`: Whether user-defined custom scans should run by default.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("scan_do_custom", value)`.
 pub fn save_scan_do_custom(value: bool) {
     save_boolean_key("scan_do_custom", value)
 }
 
+/// What: Persist the Sleuth scan toggle.
+///
+/// Inputs:
+/// - `value`: Whether Sleuth scans should run by default.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("scan_do_sleuth", value)`.
 pub fn save_scan_do_sleuth(value: bool) {
     save_boolean_key("scan_do_sleuth", value)
 }

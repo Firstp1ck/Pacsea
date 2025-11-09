@@ -9,6 +9,17 @@ mod tests {
     use crate::theme::config::theme_loader::try_load_theme_with_diagnostics;
 
     #[test]
+    /// What: Exercise the theme loader on both valid and invalid theme files.
+    ///
+    /// Inputs:
+    /// - Minimal theme file containing required canonical keys.
+    /// - Second file with an unknown key and missing requirements.
+    ///
+    /// Output:
+    /// - Successful load for the valid file and descriptive error messages for the invalid one.
+    ///
+    /// Details:
+    /// - Uses temporary directories to avoid touching user configuration and cleans them up afterwards.
     fn config_try_load_theme_success_and_errors() {
         use std::fs;
         use std::io::Write;
@@ -43,11 +54,16 @@ mod tests {
     }
 
     #[test]
-    /// Comprehensive test for settings config parameters:
-    /// - Verifies all Settings fields are in skeleton config
-    /// - Tests loading/saving from/to config
-    /// - Tests defaults are applied when keys are missing
-    /// - Tests missing config file is generated with skeleton
+    /// What: Validate settings configuration scaffolding, persistence, and regeneration paths.
+    ///
+    /// Inputs:
+    /// - Skeleton config content, temporary config directory, and helper functions for ensuring/saving settings.
+    ///
+    /// Output:
+    /// - Confirms skeleton covers all expected keys, missing files regenerate, settings persist, and defaults apply when keys are absent.
+    ///
+    /// Details:
+    /// - Manipulates `HOME`/`XDG_CONFIG_HOME` to isolate test data and cleans up generated files on completion.
     fn config_settings_comprehensive_parameter_check() {
         use std::collections::HashSet;
         use std::fs;

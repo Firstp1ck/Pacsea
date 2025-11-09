@@ -1,6 +1,15 @@
 use crate::state::PackageItem;
 
-/// Minimal data required to populate the PostSummary modal.
+/// What: Minimal data required to populate the PostSummary modal.
+///
+/// Inputs:
+/// - Populated by `compute_post_summary` after pacman inspections.
+///
+/// Output:
+/// - Supplies boolean outcome, counts, and auxiliary labels for post-transaction display.
+///
+/// Details:
+/// - Designed to be serializable/clonable so the UI can render snapshots outside the logic module.
 #[derive(Debug, Clone)]
 pub struct PostSummaryData {
     pub success: bool,
@@ -11,6 +20,16 @@ pub struct PostSummaryData {
     pub snapshot_label: Option<String>,
 }
 
+/// What: Execute `pacman` with the provided arguments and capture stdout.
+///
+/// Inputs:
+/// - `args`: Slice of CLI arguments passed directly to the pacman binary.
+///
+/// Output:
+/// - Returns the command's stdout as a UTF-8 string or propagates execution/parsing errors.
+///
+/// Details:
+/// - Used internally by summary helpers to keep command invocation boilerplate centralized.
 fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let out = std::process::Command::new("pacman").args(args).output()?;
     if !out.status.success() {
@@ -19,6 +38,16 @@ fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send 
     Ok(String::from_utf8(out.stdout)?)
 }
 
+/// What: Count changed files and collect affected systemd services for given packages.
+///
+/// Inputs:
+/// - `names`: Package names whose remote file lists should be inspected.
+///
+/// Output:
+/// - Returns a tuple with the number of file entries and a sorted list of service unit filenames.
+///
+/// Details:
+/// - Queries `pacman -Fl` per package, ignoring directory entries, and extracts `.service` paths.
 fn count_changed_files_and_services(names: &[String]) -> (usize, Vec<String>) {
     let mut total_files: usize = 0;
     let mut services: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -46,6 +75,16 @@ fn count_changed_files_and_services(names: &[String]) -> (usize, Vec<String>) {
     (total_files, services.into_iter().collect())
 }
 
+/// What: Scan `/etc` for outstanding `.pacnew` and `.pacsave` files.
+///
+/// Inputs:
+/// - (none): Walks the filesystem directly with a depth guard.
+///
+/// Output:
+/// - Returns counts of `.pacnew` and `.pacsave` files found beneath `/etc`.
+///
+/// Details:
+/// - Ignores very deep directory structures to avoid pathological traversal scenarios.
 fn count_pac_conflicts_in_etc() -> (usize, usize) {
     fn walk(dir: &std::path::Path, pacnew: &mut usize, pacsave: &mut usize) {
         if let Ok(rd) = std::fs::read_dir(dir) {
@@ -76,9 +115,16 @@ fn count_pac_conflicts_in_etc() -> (usize, usize) {
     (pn, ps)
 }
 
-/// Compute a best-effort post-transaction summary from pacman file lists and /etc scan.
+/// What: Produce a best-effort summary of potential post-transaction tasks.
 ///
-/// This does not execute any changes; it only inspects the sync file DB and the filesystem.
+/// Inputs:
+/// - `items`: Packages that were part of the transaction and should inform the summary.
+///
+/// Output:
+/// - Returns a `PostSummaryData` structure with file counts, service hints, and conflict tallies.
+///
+/// Details:
+/// - Combines sync database lookups with an `/etc` scan without performing system modifications.
 pub fn compute_post_summary(items: &[PackageItem]) -> PostSummaryData {
     let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
     let (changed_files, services_pending) = count_changed_files_and_services(&names);

@@ -26,6 +26,17 @@ pub use types::{KeyChord, KeyMap, PackageMarker, Settings, Theme};
 static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
 
 #[cfg(test)]
+/// What: Provide a process-wide mutex to serialize filesystem-mutating tests in this module.
+///
+/// Inputs:
+/// - None
+///
+/// Output:
+/// - Shared reference to a lazily-initialized `Mutex<()>`.
+///
+/// Details:
+/// - Uses `OnceLock` to ensure the mutex is constructed exactly once per process.
+/// - Callers should lock the mutex to guard environment-variable or disk state changes.
 pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
     TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
 }

@@ -8,13 +8,20 @@ use ratatui::{
 
 use crate::theme::theme;
 
-/// Render a centered, simple list modal with a title and provided content lines.
+/// What: Render a centered list modal with a styled title and supplied lines.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `area`: Full available area
-/// - `box_title`: Title shown in the modal border
-/// - `lines`: Pre-built content lines
+/// - `area`: Full screen area used to center the modal
+/// - `box_title`: Border title to display
+/// - `lines`: Fully prepared line content
+///
+/// Output:
+/// - Draws the modal box with the provided lines; does not mutate shared state.
+///
+/// Details:
+/// - Applies consistent theming (double border, mantle background) and ensures the modal fits by
+///   clamping width/height within the supplied area.
 pub fn render_simple_list_modal(
     f: &mut Frame,
     area: Rect,

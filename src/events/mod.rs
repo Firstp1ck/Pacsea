@@ -115,10 +115,16 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    /// What: SystemUpdate Enter path spawns xfce4-terminal with safe args
+    /// What: Ensure the system update action invokes `xfce4-terminal` with the expected command separator.
     ///
-    /// - Input: Fake xfce4-terminal on PATH; open Options->Update System, press Enter
-    /// - Output: Args start with "--command" and value begins with "bash -lc "
+    /// Inputs:
+    /// - Shimmed `xfce4-terminal` placed on `PATH`, mouse clicks to open Options → Update System, and `Enter` key event.
+    ///
+    /// Output:
+    /// - Captured arguments begin with `--command` followed by `bash -lc ...`.
+    ///
+    /// Details:
+    /// - Uses environment overrides plus a fake terminal script to observe the spawn command safely.
     fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
         // fake xfce4-terminal
         let mut dir: PathBuf = std::env::temp_dir();
@@ -202,15 +208,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Optional Deps shows only installed editor/terminal, X11 clipboard, reflector, and both AUR helpers when none installed
+    /// What: Validate optional dependency rows reflect installed editors/terminals and X11-specific tooling.
     ///
-    /// - Setup: Fake PATH with nvim and kitty present; ensure X11 (no WAYLAND_DISPLAY)
-    /// - Expect: Rows include:
-    ///   - Editor: nvim (installed, not selectable)
-    ///   - Terminal: kitty (installed, not selectable)
-    ///   - Clipboard: xclip (not installed, selectable)
-    ///   - Mirrors: reflector (not installed, selectable)
-    ///   - AUR helper: paru and yay (both not installed, selectable)
+    /// Inputs:
+    /// - Temporary `PATH` exposing `nvim` and `kitty`, with `WAYLAND_DISPLAY` cleared to emulate X11.
+    ///
+    /// Output:
+    /// - Optional deps list shows installed entries as non-selectable and missing tooling as selectable rows for clipboard/mirror/AUR helpers.
+    ///
+    /// Details:
+    /// - Drives the Options menu to render optional dependencies while observing row attributes.
     fn optional_deps_rows_reflect_installed_and_x11_and_reflector() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;

@@ -8,10 +8,17 @@ use crate::theme::config::skeletons::{
 use crate::theme::paths::{config_dir, resolve_settings_config_path};
 use crate::theme::types::Settings;
 
-/// Ensure core application settings keys exist in the settings file; append missing with current/default values.
+/// What: Ensure all expected settings keys exist in `settings.conf`, appending defaults as needed.
 ///
-/// This preserves existing lines and comments, only appending keys that are not present.
-/// If the file is missing, it is created with the full skeleton content.
+/// Inputs:
+/// - `prefs`: Current in-memory settings whose values seed the file when keys are missing.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Preserves existing lines and comments while adding only absent keys.
+/// - Creates the settings file from the skeleton when it is missing or empty.
 pub fn ensure_settings_keys_present(prefs: &Settings) {
     // Always resolve to HOME/XDG path similar to save_sort_mode
     // This ensures we always have a path, even if the file doesn't exist yet
@@ -169,12 +176,18 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     }
 }
 
-/// If legacy `pacsea.conf` is present and the new split configs are missing,
-/// generate `theme.conf` and `settings.conf` by taking over the values from `pacsea.conf`.
+/// What: Migrate legacy `pacsea.conf` into the split `theme.conf` and `settings.conf` files.
 ///
-/// - Theme lines are any keys that are NOT recognized as preference/settings keys.
-/// - Settings lines are recognized preference keys EXCLUDING any `keybind_*` keys.
-/// - Existing non-empty `theme.conf`/`settings.conf` are left untouched.
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Copies non-preference keys to `theme.conf` and preference keys (excluding keybinds) to `settings.conf`.
+/// - Seeds missing files with skeleton content when the legacy file is absent or empty.
+/// - Leaves existing, non-empty split configs untouched to avoid overwriting user changes.
 pub fn maybe_migrate_legacy_confs() {
     let base = config_dir();
     let legacy = base.join("pacsea.conf");

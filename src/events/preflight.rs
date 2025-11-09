@@ -5,9 +5,20 @@ use std::collections::{HashMap, HashSet};
 
 use crate::state::{AppState, PackageItem};
 
-/// Compute the length of the display_items list for the Deps tab.
-///   This matches the logic in ui/modals.rs that builds display_items with headers and dependencies.
-///   Accounts for folded groups (only counts dependencies if package is expanded).
+/// What: Compute how many rows the dependency list will render in the Preflight Deps tab.
+///
+/// Inputs:
+/// - `items`: Packages selected for install/remove shown in the modal
+/// - `dependency_info`: Flattened dependency metadata resolved for those packages
+/// - `dep_tree_expanded`: Set of package names currently expanded in the UI tree
+///
+/// Output:
+/// - Total number of list rows (headers plus visible dependency entries).
+///
+/// Details:
+/// - Mirrors the UI logic to keep keyboard navigation in sync with rendered rows.
+/// - Counts one header per package that has dependencies; only counts individual dependencies when
+///   that package appears in `dep_tree_expanded` and deduplicates by dependency name.
 pub(crate) fn compute_display_items_len(
     items: &[PackageItem],
     dependency_info: &[crate::state::modal::DependencyInfo],
@@ -41,7 +52,18 @@ pub(crate) fn compute_display_items_len(
     count
 }
 
-/// Compute how many rows the Files tab list should expose, matching the UI grouping logic.
+/// What: Compute how many rows the Files tab list should expose given expansion state.
+///
+/// Inputs:
+/// - `file_info`: Resolved file change metadata grouped per package
+/// - `file_tree_expanded`: Set of package names currently expanded in the Files tab
+///
+/// Output:
+/// - Total list length combining headers plus visible file entries.
+///
+/// Details:
+/// - Skips packages with no file changes.
+/// - Adds one row per package header and additional rows for each file when expanded.
 pub(crate) fn compute_file_display_items_len(
     file_info: &[crate::state::modal::PackageFileInfo],
     file_tree_expanded: &HashSet<String>,
@@ -59,7 +81,18 @@ pub(crate) fn compute_file_display_items_len(
     count
 }
 
-/// Build the flattened list of headers/files shown in the Files tab (header first, then rows).
+/// What: Build the flattened `(is_header, label)` list shown by the Files tab renderer.
+///
+/// Inputs:
+/// - `file_info`: Resolved file change metadata grouped by package
+/// - `file_tree_expanded`: Set of package names that should expand to show individual files
+///
+/// Output:
+/// - Vector of `(bool, String)` pairs distinguishing headers (`true`) from file rows (`false`).
+///
+/// Details:
+/// - Omits packages with zero file changes completely.
+/// - Uses empty strings for file rows because UI draws file details from separate collections.
 pub(crate) fn build_file_display_items(
     file_info: &[crate::state::modal::PackageFileInfo],
     file_tree_expanded: &HashSet<String>,
@@ -77,7 +110,21 @@ pub(crate) fn build_file_display_items(
     display_items
 }
 
-/// Handle key events for the Preflight modal.
+/// What: Handle key events while the Preflight modal is active (install/remove workflows).
+///
+/// Inputs:
+/// - `ke`: Key event received from crossterm while Preflight is focused
+/// - `app`: Mutable application state containing the Preflight modal data
+///
+/// Output:
+/// - Always returns `false` so the outer event loop continues processing.
+///
+/// Details:
+/// - Supports tab switching, tree expansion, dependency/file navigation, scans, dry-run toggles, and
+///   command execution across install/remove flows.
+/// - Mutates `app.modal` (and related cached fields) to close the modal, open nested dialogs, or
+///   keep it updated with resolved dependency/file data.
+/// - Returns `false` so callers continue processing, matching existing event-loop expectations.
 pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight {
         tab,
@@ -650,6 +697,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Ensure dependency display length counts unique entries when groups are expanded.
+    ///
+    /// Inputs:
+    /// - Dependency list with duplicates and an expanded set containing the first package.
+    ///
+    /// Output:
+    /// - Computed length includes headers plus unique dependencies, yielding four rows.
+    ///
+    /// Details:
+    /// - Demonstrates deduplication of repeated dependency records across packages.
     fn deps_display_len_counts_unique_expanded_dependencies() {
         let items = vec![pkg("app"), pkg("tool")];
         let deps = vec![
@@ -664,6 +721,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify the collapsed dependency view only counts package headers.
+    ///
+    /// Inputs:
+    /// - Dependency list with multiple packages but an empty expanded set.
+    ///
+    /// Output:
+    /// - Display length equals the number of packages (two).
+    ///
+    /// Details:
+    /// - Confirms collapsed state omits dependency children entirely.
     fn deps_display_len_collapsed_counts_only_headers() {
         let items = vec![pkg("app"), pkg("tool")];
         let deps = vec![dep("libfoo", &["app"]), dep("libbar", &["tool"])];
@@ -673,6 +740,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Confirm file display counts add child rows only for expanded entries.
+    ///
+    /// Inputs:
+    /// - File info for a package with two files and another with zero files.
+    ///
+    /// Output:
+    /// - Collapsed count returns one; expanded count increases to three.
+    ///
+    /// Details:
+    /// - Exercises the branch that toggles between header-only and expanded file listings.
     fn file_display_len_respects_expansion_state() {
         let info = vec![file_info("pkg", 2), file_info("empty", 0)];
         let mut expanded = HashSet::new();
@@ -684,6 +761,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Ensure file display item builder yields headers plus placeholder rows when expanded.
+    ///
+    /// Inputs:
+    /// - File info with two entries for a single package and varying expansion sets.
+    ///
+    /// Output:
+    /// - Collapsed result contains only the header; expanded result includes header plus two child slots.
+    ///
+    /// Details:
+    /// - Helps guarantee alignment between item construction and length calculations.
     fn build_file_items_match_expansion() {
         let info = vec![file_info("pkg", 2)];
         let collapsed = build_file_display_items(&info, &HashSet::new());
@@ -725,6 +812,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify `Enter` toggles dependency expansion state within the preflight modal.
+    ///
+    /// Inputs:
+    /// - Preflight modal focused on dependencies with an initial collapsed state.
+    ///
+    /// Output:
+    /// - First `Enter` expands the target group; second `Enter` collapses it.
+    ///
+    /// Details:
+    /// - Uses synthetic key events to mimic user interaction without rendering.
     fn handle_enter_toggles_dependency_group() {
         let deps = vec![dep("libfoo", &["target"])];
         let mut app = setup_preflight_app(PreflightTab::Deps, deps, 0, HashSet::new());
@@ -751,6 +848,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Ensure navigation does not move past the last visible dependency row when expanded.
+    ///
+    /// Inputs:
+    /// - Preflight modal with expanded dependencies and repeated `Down` key events.
+    ///
+    /// Output:
+    /// - Selection stops at the final row instead of wrapping or overshooting.
+    ///
+    /// Details:
+    /// - Exercises selection bounds checking for keyboard navigation.
     fn handle_down_stops_at_last_visible_dependency_row() {
         let deps = vec![dep("libfoo", &["target"]), dep("libbar", &["target"])];
         let mut expanded = HashSet::new();

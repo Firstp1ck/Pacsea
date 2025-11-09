@@ -102,6 +102,17 @@ pub struct Settings {
 }
 
 impl Default for Settings {
+    /// What: Provide the built-in baseline configuration for Pacsea settings.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Returns a `Settings` instance populated with Pacsea's preferred defaults.
+    ///
+    /// Details:
+    /// - Sets balanced pane layout percentages and enables all panes by default.
+    /// - Enables all scan types and uses Catppuccin-inspired news glyphs.
     fn default() -> Self {
         Settings {
             layout_left_pct: 20,
@@ -198,10 +209,16 @@ mod tests {
     use super::*;
 
     #[test]
-    /// What: Format KeyChord labels across common keys and modifiers
+    /// What: Ensure `KeyChord::label` renders user-facing text for modifier and key combinations.
     ///
-    /// - Input: Ctrl+Char, Space, F5, Shift+BackTab, arrows, Alt+Shift+Char
-    /// - Output: Labels like "Ctrl+R", "Space", "F5", "Shift+Tab", "←", "Alt+Shift+X"
+    /// Inputs:
+    /// - Sample chords covering control characters, space, function keys, Shift+BackTab, arrow keys, and multi-modifier chords.
+    ///
+    /// Output:
+    /// - Labels such as `"Ctrl+R"`, `"Space"`, `"F5"`, `"Shift+Tab"`, arrow glyphs, and combined modifier strings.
+    ///
+    /// Details:
+    /// - Protects the formatting logic that appears in keybinding help overlays.
     fn theme_keychord_label_variants() {
         let kc = KeyChord {
             code: KeyCode::Char('r'),
@@ -325,6 +342,17 @@ pub struct KeyMap {
 }
 
 impl Default for KeyMap {
+    /// What: Supply the default key bindings for Pacsea interactions.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Returns a `KeyMap` prefilling chord vectors for global, search, recent, install, and news actions.
+    ///
+    /// Details:
+    /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the theme.
+    /// - Provides multiple bindings for certain actions (e.g., `F1` and `?` for help).
     fn default() -> Self {
         use KeyCode::*;
         let none = KeyModifiers::empty();

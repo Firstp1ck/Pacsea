@@ -9,7 +9,20 @@ use ratatui::{
 use crate::state::{AppState, Focus, RightPaneFocus};
 use crate::theme::{KeyChord, theme};
 
-/// Render the help footer with keybindings in the bottom of Package Info pane.
+/// What: Render the keybind help footer inside the Package Info pane.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state providing focus, keymap, and pane flags
+/// - `bottom_container`: Overall rect covering the package info + footer region
+/// - `help_h`: Calculated footer height in rows
+///
+/// Output:
+/// - Draws footer content and updates no state beyond rendering; uses rect geometry only locally.
+///
+/// Details:
+/// - Highlights sections based on focused pane, reflects installed-only mode splits, and emits
+///   optional Normal Mode help when active; fills background to avoid bleed-through.
 pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help_h: u16) {
     let th = theme();
 

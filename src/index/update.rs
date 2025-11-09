@@ -85,6 +85,16 @@ pub async fn update_in_background(
 mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
+    /// What: Merge fetched names while preserving enriched fields and notify on change.
+    ///
+    /// Inputs:
+    /// - Seed index with enriched entry and stub `pacman -Sl` to add new packages.
+    ///
+    /// Output:
+    /// - Notification sent, no error emitted, and enriched data retained.
+    ///
+    /// Details:
+    /// - Simulates pacman output via PATH override to exercise merge path.
     async fn update_merges_preserving_enriched_fields_and_notifies_on_name_changes() {
         let _guard = crate::index::test_mutex().lock().unwrap();
 

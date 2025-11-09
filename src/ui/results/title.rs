@@ -19,7 +19,11 @@ use crate::theme::theme;
 /// - Filter flags for each repo type
 ///
 /// Output:
-/// - Vector of Span widgets for the title line
+/// - Vector of `Span` widgets forming the title line
+///
+/// Details:
+/// - Applies theme styling for active buttons, ensures right-side buttons align within the title,
+///   and toggles optional repo chips based on availability flags.
 #[allow(clippy::too_many_arguments)]
 pub fn build_title_spans_from_values(
     results_len: usize,
@@ -216,6 +220,13 @@ pub fn build_title_spans_from_values(
 /// - `app`: Mutable application state (rects will be updated)
 /// - `area`: Target rectangle for the results block
 /// - `has_eos`, `has_cachyos`, `has_manjaro`: Whether optional repos are available
+///
+/// Output:
+/// - Updates `app` with rectangles for filters, buttons, and optional repo chips.
+///
+/// Details:
+/// - Mirrors title layout calculations to align rects with rendered elements and clears entries when
+///   controls cannot fit in the available width.
 pub fn record_title_rects(
     app: &mut AppState,
     area: Rect,

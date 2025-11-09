@@ -5,7 +5,16 @@ use crate::state::types::PackageItem;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque, hash_map::Entry};
 use std::process::Command;
 
-/// Result bundle from reverse dependency resolution.
+/// What: Aggregate data produced by the reverse dependency walk for removal checks.
+///
+/// Inputs:
+/// - Populated internally by `resolve_reverse_dependencies`; external callers supply removal targets only.
+///
+/// Output:
+/// - Provides flattened dependency records and per-root summaries for UI consumption.
+///
+/// Details:
+/// - Serves as the transfer structure between the resolution logic and the preflight modal renderer.
 #[derive(Debug, Default)]
 pub struct ReverseDependencyReport {
     /// Flattened dependency info reused by the Preflight modal UI.
@@ -14,6 +23,16 @@ pub struct ReverseDependencyReport {
     pub summaries: Vec<ReverseRootSummary>,
 }
 
+/// What: Internal working state used while traversing reverse dependencies.
+///
+/// Inputs:
+/// - Constructed from user-selected removal targets and lazily populated with pacman metadata.
+///
+/// Output:
+/// - Retains cached package information, aggregation maps, and bookkeeping sets during traversal.
+///
+/// Details:
+/// - Encapsulates shared collections so helper methods can mutate state without leaking implementation details.
 struct ReverseResolverState {
     aggregated: HashMap<String, AggregatedEntry>,
     cache: HashMap<String, PkgInfo>,
@@ -22,6 +41,16 @@ struct ReverseResolverState {
 }
 
 impl ReverseResolverState {
+    /// What: Initialize traversal state for the provided removal targets.
+    ///
+    /// Inputs:
+    /// - `targets`: Packages selected for removal.
+    ///
+    /// Output:
+    /// - Returns a state object preloaded with target name bookkeeping.
+    ///
+    /// Details:
+    /// - Prepares aggregation maps and caches so subsequent queries can avoid redundant pacman calls.
     fn new(targets: &[PackageItem]) -> Self {
         let target_names = targets.iter().map(|pkg| pkg.name.clone()).collect();
         Self {
@@ -32,6 +61,16 @@ impl ReverseResolverState {
         }
     }
 
+    /// What: Fetch and cache package information for a given name.
+    ///
+    /// Inputs:
+    /// - `name`: Package whose metadata should be retrieved via `pacman -Qi`.
+    ///
+    /// Output:
+    /// - Returns package info when available; otherwise caches the miss and yields `None`.
+    ///
+    /// Details:
+    /// - Avoids repeated command executions by memoizing both hits and misses across the traversal.
     fn pkg_info(&mut self, name: &str) -> Option<PkgInfo> {
         if let Some(info) = self.cache.get(name) {
             return Some(info.clone());
@@ -53,6 +92,19 @@ impl ReverseResolverState {
         }
     }
 
+    /// What: Update aggregation records to reflect a discovered reverse dependency relationship.
+    ///
+    /// Inputs:
+    /// - `dependent`: Package that depends on the current node.
+    /// - `parent`: Immediate package causing the dependency (may be empty).
+    /// - `root`: Root removal target currently being explored.
+    /// - `depth`: Distance from the root in the traversal.
+    ///
+    /// Output:
+    /// - Mutates internal maps to capture per-root relationships and selection flags.
+    ///
+    /// Details:
+    /// - Consolidates metadata per dependent package while preserving shortest depth and parent sets per root.
     fn update_entry(&mut self, dependent: &str, parent: &str, root: &str, depth: usize) {
         if dependent.eq_ignore_ascii_case(root) {
             return;
@@ -92,6 +144,16 @@ impl ReverseResolverState {
     }
 }
 
+/// What: Snapshot of metadata retrieved from pacman's local database for traversal decisions.
+///
+/// Inputs:
+/// - Filled by `fetch_pkg_info`, capturing fields relevant to reverse dependency aggregation.
+///
+/// Output:
+/// - Provides reusable package details to avoid multiple CLI invocations.
+///
+/// Details:
+/// - Stores only the subset of fields necessary for summarising conflicts and dependencies.
 #[derive(Clone, Debug)]
 struct PkgInfo {
     name: String,
@@ -102,6 +164,16 @@ struct PkgInfo {
     explicit: bool,
 }
 
+/// What: Aggregated view of a dependent package across all removal roots.
+///
+/// Inputs:
+/// - Populated incrementally as `update_entry` discovers new relationships.
+///
+/// Output:
+/// - Captures per-root metadata along with selection status for downstream conversion.
+///
+/// Details:
+/// - Maintains deduplicated parent sets for each root to explain conflict chains clearly.
 #[derive(Clone, Debug)]
 struct AggregatedEntry {
     info: PkgInfo,
@@ -109,6 +181,16 @@ struct AggregatedEntry {
     selected_for_removal: bool,
 }
 
+/// What: Relationship summary between a dependent package and a particular removal root.
+///
+/// Inputs:
+/// - Updated as traversal discovers parents contributing to the dependency.
+///
+/// Output:
+/// - Tracks unique parent names and the minimum depth from the root.
+///
+/// Details:
+/// - Used to distinguish direct versus transitive dependents in the final summary.
 #[derive(Clone, Debug)]
 struct RootRelation {
     parents: HashSet<String>,
@@ -116,6 +198,16 @@ struct RootRelation {
 }
 
 impl RootRelation {
+    /// What: Construct an empty relation ready to collect parent metadata.
+    ///
+    /// Inputs:
+    /// - (none): Starts with default depth and empty parent set.
+    ///
+    /// Output:
+    /// - Returns a relation with `usize::MAX` depth and no parents recorded.
+    ///
+    /// Details:
+    /// - The sentinel depth ensures first updates always win when computing minimum distance.
     fn new() -> Self {
         Self {
             parents: HashSet::new(),
@@ -123,6 +215,17 @@ impl RootRelation {
         }
     }
 
+    /// What: Record a traversal parent contributing to the dependency chain.
+    ///
+    /// Inputs:
+    /// - `parent`: Name of the package one level closer to the root.
+    /// - `depth`: Current depth from the root target.
+    ///
+    /// Output:
+    /// - Updates internal parent set and minimum depth as appropriate.
+    ///
+    /// Details:
+    /// - Ignores empty parent identifiers and keeps the shallowest depth observed for summarisation.
     fn record(&mut self, parent: &str, depth: usize) {
         if !parent.is_empty() {
             self.parents.insert(parent.to_string());
@@ -132,12 +235,31 @@ impl RootRelation {
         }
     }
 
+    /// What: Report the closest distance from this dependent to the root target.
+    ///
+    /// Inputs:
+    /// - (none): Uses previously recorded depth values.
+    ///
+    /// Output:
+    /// - Returns the smallest depth stored during traversal.
+    ///
+    /// Details:
+    /// - Allows callers to classify dependencies as direct when the minimum depth is one.
     fn min_depth(&self) -> usize {
         self.min_depth
     }
 }
 
-/// Resolve reverse dependencies for packages slated for removal.
+/// What: Resolve reverse dependency impact for the packages selected for removal.
+///
+/// Inputs:
+/// - `targets`: Packages the user intends to uninstall.
+///
+/// Output:
+/// - Returns a `ReverseDependencyReport` describing affected packages and summary statistics.
+///
+/// Details:
+/// - Performs a breadth-first search using `pacman -Qi` metadata, aggregating per-root relationships.
 pub fn resolve_reverse_dependencies(targets: &[PackageItem]) -> ReverseDependencyReport {
     tracing::info!(
         "Starting reverse dependency resolution for {} target(s)",
@@ -235,6 +357,17 @@ pub fn resolve_reverse_dependencies(targets: &[PackageItem]) -> ReverseDependenc
     }
 }
 
+/// What: Convert an aggregated reverse dependency entry into UI-facing metadata.
+///
+/// Inputs:
+/// - `name`: Canonical dependent package name.
+/// - `entry`: Aggregated structure containing metadata and per-root relations.
+///
+/// Output:
+/// - Returns a `DependencyInfo` tailored for preflight summaries with conflict reasoning.
+///
+/// Details:
+/// - Merges parent sets, sorts presentation fields, and infers system/core flags for display.
 fn convert_entry(name: String, entry: AggregatedEntry) -> DependencyInfo {
     let AggregatedEntry {
         info,
@@ -325,6 +458,16 @@ fn convert_entry(name: String, entry: AggregatedEntry) -> DependencyInfo {
     }
 }
 
+/// What: Query pacman for detailed information about an installed package.
+///
+/// Inputs:
+/// - `name`: Package name passed to `pacman -Qi`.
+///
+/// Output:
+/// - Returns a `PkgInfo` snapshot or an error string if the query fails.
+///
+/// Details:
+/// - Parses key-value fields such as repository, groups, and required-by lists for downstream processing.
 fn fetch_pkg_info(name: &str) -> Result<PkgInfo, String> {
     tracing::debug!("Running: pacman -Qi {}", name);
     let output = Command::new("pacman")
@@ -366,6 +509,16 @@ fn fetch_pkg_info(name: &str) -> Result<PkgInfo, String> {
     })
 }
 
+/// What: Parse pacman key-value output into a searchable map.
+///
+/// Inputs:
+/// - `text`: Multi-line output containing colon-separated fields with optional wrapped lines.
+///
+/// Output:
+/// - Returns a `BTreeMap` mapping field names to their consolidated string values.
+///
+/// Details:
+/// - Handles indented continuation lines by appending them to the most recently parsed key.
 fn parse_key_value_output(text: &str) -> BTreeMap<String, String> {
     let mut map: BTreeMap<String, String> = BTreeMap::new();
     let mut last_key: Option<String> = None;
@@ -394,6 +547,16 @@ fn parse_key_value_output(text: &str) -> BTreeMap<String, String> {
     map
 }
 
+/// What: Break a whitespace-separated field into individual tokens, ignoring sentinel values.
+///
+/// Inputs:
+/// - `field`: Optional string obtained from pacman metadata.
+///
+/// Output:
+/// - Returns a vector of tokens or an empty vector when the field is missing or marked as "None".
+///
+/// Details:
+/// - Trims surrounding whitespace before evaluating the contents to avoid spurious blank entries.
 fn split_ws_or_none(field: Option<&String>) -> Vec<String> {
     match field {
         Some(value) => {
@@ -439,6 +602,18 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify `update_entry` marks target packages and records per-root relations correctly.
+    ///
+    /// Inputs:
+    /// - `targets`: Root and dependent package items forming the resolver seed.
+    /// - `state`: Fresh `ReverseResolverState` with cached info for the dependent package.
+    ///
+    /// Output:
+    /// - Aggregated entry reflects selection, contains relation for the root, and tracks parents.
+    ///
+    /// Details:
+    /// - Ensures depth calculation and parent recording occur when updating the entry for a target
+    ///   package linked to a specified root.
     fn update_entry_tracks_root_relations_and_selection() {
         let targets = vec![pkg_item("root"), pkg_item("app")];
         let mut state = ReverseResolverState::new(&targets);
@@ -461,6 +636,17 @@ mod tests {
     }
 
     #[test]
+    /// What: Confirm `convert_entry` surfaces conflict reasons, metadata, and flags accurately.
+    ///
+    /// Inputs:
+    /// - `entry`: Aggregated dependency entry with multiple root relations and metadata toggles.
+    ///
+    /// Output:
+    /// - Resulting `DependencyInfo` carries conflict status, sorted relations, and flag booleans.
+    ///
+    /// Details:
+    /// - Validates that reasons mention blocking roots, selection state, explicit install, and core/system
+    ///   classification while preserving alias names and parent ordering.
     fn convert_entry_produces_conflict_reason_and_flags() {
         let mut relation_a = RootRelation::new();
         relation_a.record("root", 1);
@@ -497,6 +683,17 @@ mod tests {
     }
 
     #[test]
+    /// What: Ensure pacman-style key/value parsing merges wrapped descriptions.
+    ///
+    /// Inputs:
+    /// - `sample`: Multi-line text where description continues on the next indented line.
+    ///
+    /// Output:
+    /// - Parsed map flattens wrapped lines and retains other keys verbatim.
+    ///
+    /// Details:
+    /// - Simulates `pacman -Qi` output to verify `parse_key_value_output` concatenates continuation
+    ///   lines into a single value.
     fn parse_key_value_output_merges_wrapped_lines() {
         let sample = "Name            : pkg\nDescription     : Short desc\n                continuation line\nRequired By     : foo bar\nInstall Reason  : Explicitly installed\n";
         let map = parse_key_value_output(sample);
@@ -509,6 +706,16 @@ mod tests {
     }
 
     #[test]
+    /// What: Validate whitespace splitting helper ignores empty and "none" values.
+    ///
+    /// Inputs:
+    /// - `field`: Optional strings containing "None", whitespace, words, or `None`.
+    ///
+    /// Output:
+    /// - Returns empty vector for none-like inputs and splits valid whitespace-separated tokens.
+    ///
+    /// Details:
+    /// - Covers uppercase "None", blank strings, regular word lists, and the absence of a value.
     fn split_ws_or_none_handles_none_and_empty() {
         assert!(split_ws_or_none(Some(&"None".to_string())).is_empty());
         assert!(split_ws_or_none(Some(&"   ".to_string())).is_empty());

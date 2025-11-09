@@ -650,10 +650,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Enter opens Preflight modal when Install list not empty and not installed-only
+    /// What: Confirm pressing Enter opens the preflight modal when installs are pending.
     ///
-    /// - Input: One install item; press Enter
-    /// - Output: Modal::Preflight with 1 item, Install action, Summary tab
+    /// Inputs:
+    /// - Install list seeded with a single package and `Enter` key event.
+    ///
+    /// Output:
+    /// - Modal transitions to `Preflight` with one item, `Install` action, and `Summary` tab active.
+    ///
+    /// Details:
+    /// - Uses mock channels to satisfy handler requirements without observing downstream messages.
     fn install_enter_opens_confirm_install() {
         let mut app = new_app();
         app.install_list = vec![PackageItem {
@@ -695,10 +701,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Enter bypasses Preflight when skip_preflight=true
+    /// What: Placeholder ensuring default behaviour still opens the preflight modal when `skip_preflight` remains false.
     ///
-    /// - Input: One install item; set skip_preflight via env override of settings (simulate by mutating settings after load)
-    /// - Output: Modal remains None; toast message reflects skipped preflight
+    /// Inputs:
+    /// - Single official package queued for install with `Enter` key event.
+    ///
+    /// Output:
+    /// - Modal remains `Preflight`, matching current default configuration.
+    ///
+    /// Details:
+    /// - Documents intent for future skip-preflight support while asserting existing flow stays intact.
     fn install_enter_bypasses_preflight_with_skip_flag() {
         // Simulate settings skip flag by temporarily overriding global settings via environment
         // (Direct mutation isn't available; we approximate by checking that modal stays None after handler when flag true)
@@ -739,10 +751,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Delete removes selected item from Install list in normal mode
+    /// What: Verify the Delete key removes the selected install item.
     ///
-    /// - Input: Two items in install_list; select first; press Delete
-    /// - Output: One item remains
+    /// Inputs:
+    /// - Install list with two entries, selection on the first, and `Delete` key event.
+    ///
+    /// Output:
+    /// - List shrinks to one entry, confirming removal logic.
+    ///
+    /// Details:
+    /// - Channels are stubbed to satisfy handler signature while focusing on list mutation.
     fn install_delete_removes_item() {
         let mut app = new_app();
         app.install_list = vec![

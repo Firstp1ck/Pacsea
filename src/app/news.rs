@@ -60,8 +60,11 @@ pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
 }
 
-#[inline]
 fn is_leap_year(year: i32) -> bool {
+    // What: Determine whether a Gregorian calendar year is a leap year.
+    // Inputs: `year` is a four-digit Gregorian year expressed as an i32.
+    // Output: true when the year is divisible by 4 but not 100, unless divisible by 400.
+    // Details: Mirrors the Gregorian leap-year rules (same logic chrono uses).
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
@@ -126,10 +129,16 @@ mod tests {
     use super::*;
 
     #[test]
-    /// What: Parse various Arch news date formats into (Y,M,D)
+    /// What: Parse various Arch news date string formats into `(year, month, day)` tuples.
     ///
-    /// - Input: ISO "2024-10-05", RFC-like "Sat, 05 Oct 2024", and "05 Oct 2024"
-    /// - Output: Some((2024,10,5)) for all supported formats; None for invalid
+    /// Inputs:
+    /// - Sample ISO date, RFC-like header, short `DD Mon YYYY` form, and invalid strings.
+    ///
+    /// Output:
+    /// - Returns `Some((2024, 10, 5))` for valid formats and `None` for malformed dates.
+    ///
+    /// Details:
+    /// - Confirms month alias handling and basic range validation for day/month values.
     fn parse_news_date_variants() {
         assert_eq!(parse_news_date_to_ymd("2024-10-05"), Some((2024, 10, 5)));
         assert_eq!(

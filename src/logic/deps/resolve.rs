@@ -9,7 +9,19 @@ use crate::state::types::Source;
 use std::collections::HashSet;
 use std::process::Command;
 
-/// Resolve dependencies for a single package.
+/// What: Resolve direct dependency metadata for a single package.
+///
+/// Inputs:
+/// - `name`: Package identifier whose dependencies should be enumerated.
+/// - `source`: Source enum describing whether the package is official or AUR.
+/// - `installed`: Set of locally installed packages for status determination.
+/// - `upgradable`: Set of packages flagged for upgrades, used to detect stale dependencies.
+///
+/// Output:
+/// - Returns a vector of `DependencyInfo` records or an error string when resolution fails.
+///
+/// Details:
+/// - Invokes pacman or AUR helpers depending on source, filtering out virtual entries and self references.
 pub(crate) fn resolve_package_deps(
     name: &str,
     source: &Source,

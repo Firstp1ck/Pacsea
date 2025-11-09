@@ -251,10 +251,16 @@ mod tests {
     }
 
     #[test]
-    /// What: '/' enters pane find, chars append, Enter triggers preview, Esc exits mode
+    /// What: Exercise recent-pane find mode from entry through exit.
     ///
-    /// - Input: Key sequence '/', 'a', Enter, Esc
-    /// - Output: pane_find populated then cleared; no exit requested
+    /// Inputs:
+    /// - Key sequence `'/ '`, `'a'`, `Enter`, `Esc` routed through the handler.
+    ///
+    /// Output:
+    /// - `pane_find` initialises, captures search text, Enter triggers preview, and Escape clears the mode.
+    ///
+    /// Details:
+    /// - Verifies the state transitions without asserting on query side-effects.
     fn recent_pane_find_flow() {
         let mut app = new_app();
         let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
@@ -304,10 +310,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Enter on a selected recent item moves query to Search and sends query
+    /// What: Confirm Enter on a recent entry restores the search query and emits a request.
     ///
-    /// - Input: Recent contains one item, selection at 0, press Enter
-    /// - Output: Focus becomes Search, input set, latest query sent
+    /// Inputs:
+    /// - Recent list with a single item selected and an `Enter` key event.
+    ///
+    /// Output:
+    /// - Focus switches to `Search`, the input field reflects the selection, and a query message is queued.
+    ///
+    /// Details:
+    /// - Uses unbounded channels to capture the emitted query without running async tasks.
     fn recent_enter_uses_query() {
         let mut app = new_app();
         app.recent = vec!["ripgrep".into()];

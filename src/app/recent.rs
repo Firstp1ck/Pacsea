@@ -49,10 +49,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Save recent only when input is non-empty, debounced, and changed
+    /// What: Ensure recent-save logic respects emptiness, debounce timing, and change detection.
     ///
-    /// - Input: Empty input; fresh input under debounce; same input; new input past debounce
-    /// - Output: No save in first three cases; saves and marks dirty in last
+    /// Inputs:
+    /// - Sequence of states: empty input, under-debounce input, unchanged value, and new value beyond debounce.
+    ///
+    /// Output:
+    /// - First three scenarios avoid saving; final scenario inserts the new value at the front and marks the list dirty.
+    ///
+    /// Details:
+    /// - Mimics user typing delays to guarantee the helper only persists meaningful changes.
     fn maybe_save_recent_rules() {
         let mut app = new_app();
         // 1) Empty input -> no save
@@ -82,10 +88,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Existing case-insensitive match is moved to front and deduped
+    /// What: Confirm existing case-insensitive matches move to the front without duplication.
     ///
-    /// - Input: recent contains ["RipGrep"]; input "ripgrep" beyond debounce
-    /// - Output: recent becomes ["ripgrep"] with size 1
+    /// Inputs:
+    /// - Recent list containing `"RipGrep"` and input `"ripgrep"` beyond the debounce window.
+    ///
+    /// Output:
+    /// - Recent list collapses to one entry `"ripgrep"`.
+    ///
+    /// Details:
+    /// - Protects the dedupe branch that removes stale duplicates before inserting the new value.
     fn recent_dedup_case_insensitive() {
         let mut app = new_app();
         app.recent = vec!["RipGrep".into()];

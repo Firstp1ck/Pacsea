@@ -9,12 +9,19 @@ use ratatui::{
 use crate::state::AppState;
 use crate::theme::theme;
 
-/// What: Draw status label on the bottom border line of the Results block.
+/// What: Draw the status label on the bottom border line of the Results block.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: Mutable application state (arch_status_rect will be updated)
+/// - `app`: Mutable application state (reads status info, updates rect)
 /// - `area`: Target rectangle for the results block
+///
+/// Output:
+/// - Renders the status badge/text and records the clickable rect for opening the status page.
+///
+/// Details:
+/// - Shows optional shortcut when Search normal mode is active, centers text within the border, and
+///   colors the status dot based on [`AppState::arch_status_color`].
 pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 

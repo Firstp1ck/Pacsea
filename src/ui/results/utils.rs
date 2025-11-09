@@ -2,9 +2,17 @@ use ratatui::prelude::Rect;
 
 use crate::state::{AppState, Source};
 
-/// What: Detect availability of optional repos from all_results (unfiltered) to keep chips visible.
+/// What: Detect availability of optional repos from the unfiltered results set.
 ///
-/// Returns: (has_eos, has_cachyos, has_manjaro)
+/// Inputs:
+/// - `app`: Application state providing `all_results`
+///
+/// Output:
+/// - Tuple `(has_eos, has_cachyos, has_manjaro)` indicating which repo chips to show.
+///
+/// Details:
+/// - Scans official result sources and package names to infer EOS/CachyOS/Manjaro presence, short
+///   circuiting once all three are detected.
 pub fn detect_optional_repos(app: &AppState) -> (bool, bool, bool) {
     let mut eos = false;
     let mut cach = false;
@@ -30,7 +38,18 @@ pub fn detect_optional_repos(app: &AppState) -> (bool, bool, bool) {
     (eos, cach, manj)
 }
 
-/// What: Keep selection centered within the visible results list when possible.
+/// What: Keep the results selection centered within the visible viewport when possible.
+///
+/// Inputs:
+/// - `app`: Mutable application state containing the list state and results
+/// - `area`: Rect describing the results block (used to derive viewport rows)
+///
+/// Output:
+/// - Adjusts `app.list_state` offset/selection to keep the highlight in view.
+///
+/// Details:
+/// - Recenters around the selected index for long lists, resets offset for short lists, and ensures
+///   the selection is applied even when the filtered list shrinks.
 pub fn center_selection(app: &mut AppState, area: Rect) {
     let viewport_rows = area.height.saturating_sub(2) as usize; // account for borders
     let len = app.results.len();
@@ -64,9 +83,18 @@ pub fn center_selection(app: &mut AppState, area: Rect) {
     }
 }
 
-/// What: Record inner results rect for mouse hit-testing (inside borders).
+/// What: Record the inner results rect for mouse hit-testing (inside borders).
 ///
-/// This should be called after render_results to set up hit-testing.
+/// Inputs:
+/// - `app`: Mutable application state receiving the results rect
+/// - `area`: Rect of the overall results block
+///
+/// Output:
+/// - Updates `app.results_rect` with the inner content rectangle.
+///
+/// Details:
+/// - Offsets by one cell to exclude borders and reduces width/height accordingly for accurate
+///   click detection.
 pub fn record_results_rect(app: &mut AppState, area: Rect) {
     // Record inner results rect for mouse hit-testing (inside borders)
     app.results_rect = Some((

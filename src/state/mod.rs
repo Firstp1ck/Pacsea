@@ -19,6 +19,14 @@ pub use types::{
 static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
 
 #[cfg(test)]
+/// What: Provide a shared mutex so state tests can run without stepping on
+/// shared environment variables.
+///
+/// - Input: None; invoked by tests prior to mutating global state.
+/// - Output: Reference to a lazily-initialized `Mutex<()>` used for guarding
+///   shared setup/teardown.
+/// - Details: Ensures tests that modify `HOME` or other global process state
+///   run serially and remain deterministic across platforms.
 pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
     TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
 }

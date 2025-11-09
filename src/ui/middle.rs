@@ -602,10 +602,16 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
 
 #[cfg(test)]
 mod tests {
-    /// What: Middle render sets pane rects and corrects focus when Install hidden
+    /// What: Verify middle-pane rendering captures layout rectangles and realigns focus when the install pane hides.
     ///
-    /// - Input: Show Recent/Install; then hide Install while focused there
-    /// - Output: Rects are Some; focus changes back to Search
+    /// Inputs:
+    /// - Initial render with recent and install panes visible, followed by a second pass hiding the install pane while focused there.
+    ///
+    /// Output:
+    /// - Rectangles recorded for both panes initially, and focus reverts to `Search` once the install pane is hidden.
+    ///
+    /// Details:
+    /// - Uses a `TestBackend` to drive rendering without interactive user input.
     #[test]
     fn middle_sets_rects_and_cursor_positions() {
         use ratatui::{Terminal, backend::TestBackend};

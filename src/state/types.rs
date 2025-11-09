@@ -122,9 +122,11 @@ pub enum SortMode {
 impl SortMode {
     /// Return the string key used in settings files for this sort mode.
     ///
-    /// Inputs: none
-    ///
-    /// Output: Static config key string.
+    /// What: Map the enum variant to its persisted configuration key.
+    /// - Input: None; uses the receiver variant.
+    /// - Output: Static string representing the serialized value.
+    /// - Details: Keeps `settings.conf` forward/backward compatible by
+    ///   standardizing the keys stored on disk.
     pub fn as_config_key(&self) -> &'static str {
         match self {
             SortMode::RepoThenName => "alphabetical",
@@ -134,9 +136,12 @@ impl SortMode {
     }
     /// Parse a sort mode from its settings key or legacy aliases.
     ///
-    /// Inputs: `s` config string (case-insensitive).
-    ///
-    /// Output: `Some(SortMode)` on recognized value; `None` otherwise.
+    /// What: Convert persisted config values back into `SortMode` variants.
+    /// - Input: `s` string slice containing the stored key (case-insensitive).
+    /// - Output: `Some(SortMode)` when a known variant matches; `None` for
+    ///   unrecognized keys.
+    /// - Details: Accepts historical aliases to maintain compatibility with
+    ///   earlier Pacsea releases.
     pub fn from_config_key(s: &str) -> Option<Self> {
         match s.trim().to_lowercase().as_str() {
             "alphabetical" | "repo_then_name" | "pacman" => Some(SortMode::RepoThenName),
@@ -152,10 +157,16 @@ mod tests {
     use super::SortMode;
 
     #[test]
-    /// What: SortMode config key mapping roundtrip and alias handling
+    /// What: Validate `SortMode` converts to and from configuration keys, including legacy aliases.
     ///
-    /// - Input: Known keys and aliases; unknown key
-    /// - Output: Correct mapping to enum variants; None for unknown
+    /// Inputs:
+    /// - Known config keys, historical aliases, and a deliberately unknown key.
+    ///
+    /// Output:
+    /// - Returns the expected enum variants for recognised keys and `None` for the unknown entry.
+    ///
+    /// Details:
+    /// - Guards against accidental regressions when tweaking the accepted key list or canonical names.
     fn state_sortmode_config_roundtrip_and_aliases() {
         assert_eq!(SortMode::RepoThenName.as_config_key(), "alphabetical");
         assert_eq!(

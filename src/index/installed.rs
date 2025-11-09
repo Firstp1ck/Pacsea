@@ -7,8 +7,20 @@ use super::installed_lock;
 ///
 /// Output:
 /// - Updates the global installed-name set; ignores errors.
+///
+/// Details:
+/// - Parses command stdout into a `HashSet` and swaps it into the shared cache under a write lock.
 pub async fn refresh_installed_cache() {
-    // pacman -Qq to list installed names
+    /// What: Execute `pacman -Qq` and return the list of installed package names.
+    ///
+    /// Inputs:
+    /// - None (command line is fixed to `-Qq`).
+    ///
+    /// Output:
+    /// - `Ok(String)` with UTF-8 stdout on success; boxed error otherwise.
+    ///
+    /// Details:
+    /// - Treats non-zero exit codes and UTF-8 decoding failures as errors to propagate.
     fn run_pacman_q() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let out = std::process::Command::new("pacman")
             .args(["-Qq"])
@@ -34,6 +46,9 @@ pub async fn refresh_installed_cache() {
 ///
 /// Output:
 /// - `true` if `name` is present; `false` when absent or if the cache is unavailable.
+///
+/// Details:
+/// - Acquires a read lock and defers to `HashSet::contains`, returning false on lock poisoning.
 pub fn is_installed(name: &str) -> bool {
     installed_lock()
         .read()
@@ -44,10 +59,16 @@ pub fn is_installed(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    /// What: is_installed returns false when cache missing or name absent
+    /// What: Return false when the cache is empty or the package is missing.
     ///
-    /// - Input: Clear INSTALLED_SET; query unknown name
-    /// - Output: false
+    /// Inputs:
+    /// - Clear `INSTALLED_SET` and query an unknown package name.
+    ///
+    /// Output:
+    /// - Boolean `false` result.
+    ///
+    /// Details:
+    /// - Confirms empty cache behaves as expected without panicking.
     #[test]
     fn is_installed_returns_false_when_uninitialized_or_missing() {
         let _guard = crate::index::test_mutex()
@@ -59,10 +80,16 @@ mod tests {
         assert!(!super::is_installed("foo"));
     }
 
-    /// What: is_installed checks membership correctly
+    /// What: Verify membership lookups return true only for cached names.
     ///
-    /// - Input: Insert "bar" into INSTALLED_SET
-    /// - Output: true for bar, false for baz
+    /// Inputs:
+    /// - Insert `bar` into `INSTALLED_SET` before querying.
+    ///
+    /// Output:
+    /// - `true` for `bar` and `false` for `baz`.
+    ///
+    /// Details:
+    /// - Exercises both positive and negative membership checks.
     #[test]
     fn is_installed_checks_membership_in_cached_set() {
         let _guard = crate::index::test_mutex()

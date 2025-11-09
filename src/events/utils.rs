@@ -267,10 +267,16 @@ mod tests {
     }
 
     #[test]
-    /// What: char_count returns Unicode scalar count
+    /// What: Ensure `char_count` returns the number of Unicode scalar values.
     ///
-    /// - Input: "abc", "π", "aπb"
-    /// - Output: 3, 1, 3
+    /// Inputs:
+    /// - Strings `"abc"`, `"π"`, and `"aπb"`.
+    ///
+    /// Output:
+    /// - Counts `3`, `1`, and `3` respectively.
+    ///
+    /// Details:
+    /// - Demonstrates correct handling of multi-byte characters.
     fn char_count_basic() {
         assert_eq!(char_count("abc"), 3);
         assert_eq!(char_count("π"), 1);
@@ -278,10 +284,16 @@ mod tests {
     }
 
     #[test]
-    /// What: byte_index_for_char maps char index to UTF-8 byte index safely
+    /// What: Verify `byte_index_for_char` translates character indices to UTF-8 byte offsets.
     ///
-    /// - Input: "aπb" for ci 0,1,2,3
-    /// - Output: 0, 1, 3, len
+    /// Inputs:
+    /// - String `"aπb"` with char indices 0 through 3.
+    ///
+    /// Output:
+    /// - Returns byte offsets `0`, `1`, `3`, and `len`.
+    ///
+    /// Details:
+    /// - Confirms the function respects variable-width encoding.
     fn byte_index_for_char_basic() {
         let s = "aπb";
         assert_eq!(byte_index_for_char(s, 0), 0);
@@ -291,10 +303,16 @@ mod tests {
     }
 
     #[test]
-    /// What: find_in_recent rotates selection to next match respecting filter
+    /// What: Ensure `find_in_recent` cycles through entries matching the pane filter.
     ///
-    /// - Input: recent ["alpha","beta","gamma"], pane_find="a"
-    /// - Output: selection moves among items containing 'a'
+    /// Inputs:
+    /// - Recent list `alpha`, `beta`, `gamma` with filter `"a"`.
+    ///
+    /// Output:
+    /// - Selection rotates among matching entries without panicking.
+    ///
+    /// Details:
+    /// - Provides smoke coverage for the wrap-around logic inside the helper.
     fn find_in_recent_basic() {
         let mut app = new_app();
         app.recent = vec!["alpha".into(), "beta".into(), "gamma".into()];
@@ -305,10 +323,16 @@ mod tests {
     }
 
     #[test]
-    /// What: find_in_install rotates selection to next match in name/description
+    /// What: Check `find_in_install` advances selection to the next matching entry by name or description.
     ///
-    /// - Input: install list with names/descriptions; pane_find pattern
-    /// - Output: selection moves to next visible matching entry
+    /// Inputs:
+    /// - Install list with `ripgrep` and `fd`, filter term `"rip"` while selection starts on the second item.
+    ///
+    /// Output:
+    /// - Selection wraps to the first item containing the filter term.
+    ///
+    /// Details:
+    /// - Protects against regressions in forward search and wrap-around behaviour.
     fn find_in_install_basic() {
         let mut app = new_app();
         app.install_list = vec![
@@ -335,10 +359,16 @@ mod tests {
     }
 
     #[test]
-    /// What: refresh_selected_details sends request when not cached and focuses details
+    /// What: Ensure `refresh_selected_details` dispatches a fetch when cache misses occur.
     ///
-    /// - Input: results with one item; empty cache
-    /// - Output: details_tx receives item; placeholder fields set
+    /// Inputs:
+    /// - Results list with a single entry and an empty details cache.
+    ///
+    /// Output:
+    /// - Sends the selected item through `details_tx`, confirming a fetch request.
+    ///
+    /// Details:
+    /// - Uses an unbounded channel to observe the request without performing actual I/O.
     fn refresh_selected_details_requests_when_missing() {
         let mut app = new_app();
         app.results = vec![crate::state::PackageItem {

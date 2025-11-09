@@ -16,6 +16,25 @@ use crate::theme::theme;
 use std::collections::HashSet;
 
 #[allow(clippy::too_many_arguments)]
+/// What: Render the preflight modal summarizing dependency/file checks before install/remove.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `app`: Mutable application state (stores tab rects/content rects)
+/// - `items`: Packages under review
+/// - `action`: Whether the preflight is for install or removal
+/// - `tab`: Active tab (Summary/Deps/Files/Services/Sandbox)
+/// - `dependency_info`, `dep_selected`, `dep_tree_expanded`: Mutable dependency state/cache
+/// - `file_info`, `file_selected`, `file_tree_expanded`: Mutable file analysis state/cache
+/// - `cascade_mode`: Removal cascade mode when uninstalling
+///
+/// Output:
+/// - Draws the modal content for the chosen tab and updates cached data along with clickable rects.
+///
+/// Details:
+/// - Lazily resolves dependencies/files when first accessed, lays out tab headers, records tab
+///   rectangles for mouse navigation, and tailors summaries per tab with theming cues.
 pub fn render_preflight(
     f: &mut Frame,
     area: Rect,

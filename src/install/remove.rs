@@ -178,10 +178,17 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[test]
-    /// What: Ensure gnome-terminal is invoked with double dash for removals
+    /// What: Verify the removal helper prefers gnome-terminal and passes the expected dash handling.
     ///
-    /// - Input: Fake gnome-terminal on PATH; spawn_remove_all with dry_run
-    /// - Output: First args are "--", "bash", "-lc" (safe arg shape)
+    /// Inputs:
+    /// - Fake `gnome-terminal` script injected into `PATH`.
+    /// - `spawn_remove_all` invoked in dry-run cascade mode with two package names.
+    ///
+    /// Output:
+    /// - Captured invocation arguments start with `--`, `bash`, `-lc` to ensure safe command parsing.
+    ///
+    /// Details:
+    /// - Redirects `PACSEA_TEST_OUT` so the shim terminal records arguments, then restores environment variables.
     fn remove_all_uses_gnome_terminal_double_dash() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
@@ -240,12 +247,18 @@ mod tests {
 }
 
 #[cfg(target_os = "windows")]
-/// On Windows, open a shell window showing the intended remove action (no-op).
+/// What: Present a placeholder removal message on Windows where pacman is unavailable.
 ///
-/// Inputs: same as Unix variant.
+/// Input:
+/// - `names`: Packages the user requested to remove.
+/// - `dry_run`: When `true`, prefixes the message with `DRY RUN`.
+/// - `cascade_mode`: Removal mode used for display consistency.
 ///
 /// Output:
-/// - Launches a `cmd` window with a message; actual removal is unsupported on Windows.
+/// - Launches a detached `cmd` window describing the intended action.
+///
+/// Details:
+/// - Mirrors Unix logging by emitting an info trace, but performs no package operations.
 pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
     let mut names = names.to_vec();
     if names.is_empty() {

@@ -7,6 +7,9 @@ use crate::state::{AppState, SortMode, Source};
 ///
 /// Output:
 /// - Sorts `app.results` and preserves selection by name when possible; otherwise clamps index.
+///
+/// Details:
+/// - Supports multiple sort strategies, including repo ordering, AUR popularity, and match ranking heuristics.
 pub fn sort_results_preserve_selection(app: &mut AppState) {
     if app.results.is_empty() {
         return;
@@ -106,10 +109,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Sorting preserves selection and honors BestMatches relevance
+    /// What: Confirm sorting preserves the selected index while adjusting order across modes, including relevance matching.
     ///
-    /// - Input: Mixed AUR/official results; change sort modes; set input "bb"
-    /// - Output: Official first for RepoThenName; AUR first for popularity; relevant names early
+    /// Inputs:
+    /// - Mixed list of official and AUR results.
+    /// - Sort mode toggled through `RepoThenName`, `AurPopularityThenOfficial`, and `BestMatches` with input `"bb"`.
+    ///
+    /// Output:
+    /// - Selection remains on the prior package and ordering reflects repo priority, popularity preference, and match rank, respectively.
+    ///
+    /// Details:
+    /// - Ensures the UI behaviour stays predictable when users toggle sort modes after highlighting a result.
     fn sort_preserve_selection_and_best_matches() {
         let mut app = AppState {
             ..Default::default()
@@ -151,10 +161,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Tiebreakers in BestMatches use repo order then name
+    /// What: Validate `BestMatches` tiebreakers prioritise repo order before lexicographic name sorting.
     ///
-    /// - Input: All names matching "alpha" with core/extra repos
-    /// - Output: core wins before extra; extra sorted by name
+    /// Inputs:
+    /// - Three official packages whose names share the `alpha` prefix across `core` and `extra` repos.
+    ///
+    /// Output:
+    /// - Sorted list begins with the `core` repo entry, followed by `extra` items in name order.
+    ///
+    /// Details:
+    /// - Captures the layered tiebreak logic to catch regressions if repo precedence changes.
     fn sort_bestmatches_tiebreak_repo_then_name() {
         let mut app = AppState {
             ..Default::default()
@@ -172,10 +188,16 @@ mod tests {
     }
 
     #[test]
-    /// What: AUR popularity sort then official tiebreakers
+    /// What: Ensure the AUR popularity sort orders helpers by descending popularity with deterministic tie-breaks.
     ///
-    /// - Input: AUR items with equal popularity and official items core/extra
-    /// - Output: AUR name-asc for ties; official core before extra, name tiebreak
+    /// Inputs:
+    /// - AUR items sharing the same popularity value and official entries from different repos.
+    ///
+    /// Output:
+    /// - AUR items sorted by name when popularity ties, followed by official packages prioritising `core` before `extra`.
+    ///
+    /// Details:
+    /// - Verifies the composite comparator remains stable for UI diffs and regression detection.
     fn sort_aur_popularity_and_official_tiebreaks() {
         let mut app = AppState {
             ..Default::default()

@@ -4,19 +4,34 @@ use std::process::Command;
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
-/// Spawn a terminal to run a sequence of shell commands joined by `&&` with a hold tail.
+/// What: Spawn a terminal to run a `&&`-joined series of shell commands with a hold tail.
 ///
-/// Inputs:
-/// - `cmds`: List of shell command strings to execute in order.
+/// Input:
+/// - `cmds`: Ordered list of shell snippets to execute.
 ///
 /// Output:
-/// - Launches a terminal (or `bash`) executing the composite command.
+/// - Starts the preferred terminal (or `bash`) running the composed command sequence.
+///
+/// Details:
+/// - Defers to `spawn_shell_commands_in_terminal_with_hold` to add the default hold tail.
 pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     // Default wrapper keeps the terminal open after commands complete
     spawn_shell_commands_in_terminal_with_hold(cmds, true);
 }
 
 #[cfg(not(target_os = "windows"))]
+/// What: Spawn a terminal to execute shell commands and optionally append a hold tail.
+///
+/// Input:
+/// - `cmds`: Ordered list of shell snippets to execute.
+/// - `hold`: When `true`, keeps the terminal open after command completion.
+///
+/// Output:
+/// - Launches a terminal (or `bash`) running a temporary script that encapsulates the commands.
+///
+/// Details:
+/// - Persists the command to a temp script to avoid argument-length issues.
+/// - Prefers user-configured terminals, applies desktop-specific environment tweaks, and logs spawn attempts.
 pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     if cmds.is_empty() {
         return;
@@ -349,10 +364,17 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[test]
-    /// What: Ensure gnome-terminal is invoked with double dash for shell commands
+    /// What: Ensure `spawn_shell_commands_in_terminal` invokes GNOME Terminal with a double-dash separator.
     ///
-    /// - Input: Fake gnome-terminal on PATH; spawn_shell_commands_in_terminal
-    /// - Output: First args are "--", "bash", "-lc" (safe arg shape)
+    /// Inputs:
+    /// - `cmds`: Single echo command executed via a temporary mock `gnome-terminal` script.
+    ///
+    /// Output:
+    /// - Captured argv begins with `--`, `bash`, `-lc`, confirming safe argument ordering.
+    ///
+    /// Details:
+    /// - Rewrites `PATH` to point at a fake executable that records arguments, then restores env vars
+    ///   after spawning the terminal command.
     fn shell_uses_gnome_terminal_double_dash() {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
@@ -407,11 +429,16 @@ mod tests {
 }
 
 #[cfg(target_os = "windows")]
-/// On Windows, open a shell window echoing the provided command sequence.
+/// What: Display the intended shell command sequence on Windows where execution is unsupported.
 ///
-/// Inputs: `cmds` to display.
+/// Input:
+/// - `cmds`: Command fragments to present to the user.
 ///
-/// Output: Launches a `cmd` window displaying the message.
+/// Output:
+/// - Launches a `cmd` window echoing the concatenated command sequence.
+///
+/// Details:
+/// - Joins commands with `&&` for readability and uses `start` to detach the window.
 pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     let msg = if cmds.is_empty() {
         "Nothing to run".to_string()
