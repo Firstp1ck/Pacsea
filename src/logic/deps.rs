@@ -4,6 +4,7 @@ mod aur;
 mod parse;
 mod query;
 mod resolve;
+mod reverse;
 mod source;
 mod status;
 mod utils;
@@ -15,6 +16,8 @@ use resolve::resolve_package_deps;
 use status::determine_status;
 use std::collections::HashSet;
 use utils::dependency_priority;
+
+pub use reverse::resolve_reverse_dependencies;
 
 /// Resolve dependencies for a list of packages to install.
 ///

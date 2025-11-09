@@ -139,6 +139,7 @@ pub fn handle_mouse_event(
         file_info,
         file_selected,
         file_tree_expanded,
+        cascade_mode: _,
     } = &mut app.modal
     {
         // Handle tab clicks
@@ -263,17 +264,10 @@ pub fn handle_mouse_event(
                 let clicked_row = (my - content_y) as usize;
 
                 // Build display items list to find which package header was clicked
-                let mut display_items: Vec<(bool, String)> = Vec::new();
-                for pkg_info in file_info.iter() {
-                    if !pkg_info.files.is_empty() {
-                        display_items.push((true, pkg_info.name.clone()));
-                        if file_tree_expanded.contains(&pkg_info.name) {
-                            for _file in pkg_info.files.iter() {
-                                display_items.push((false, String::new()));
-                            }
-                        }
-                    }
-                }
+                let display_items = crate::events::preflight::build_file_display_items(
+                    file_info,
+                    file_tree_expanded,
+                );
 
                 // Calculate offset for summary lines before the list
                 // Files tab has: summary line (1) + empty line (1) + optional sync timestamp (0-2) + empty line (0-1)
@@ -377,15 +371,10 @@ pub fn handle_mouse_event(
                     return false;
                 }
                 MouseEventKind::ScrollDown => {
-                    let mut display_len = 0;
-                    for pkg_info in file_info.iter() {
-                        if !pkg_info.files.is_empty() {
-                            display_len += 1; // Package header
-                            if file_tree_expanded.contains(&pkg_info.name) {
-                                display_len += pkg_info.files.len(); // Files only if expanded
-                            }
-                        }
-                    }
+                    let display_len = crate::events::preflight::compute_file_display_items_len(
+                        file_info,
+                        file_tree_expanded,
+                    );
                     if *file_selected < display_len.saturating_sub(1) {
                         *file_selected += 1;
                     }

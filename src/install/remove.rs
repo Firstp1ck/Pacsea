@@ -1,5 +1,7 @@
 use std::process::Command;
 
+use crate::state::modal::CascadeMode;
+
 #[cfg(not(target_os = "windows"))]
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
@@ -10,19 +12,28 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 /// Output: Launches a terminal (or bash) to run sudo pacman -Rns for the provided names.
 ///
 /// Details: Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.); falls back to bash. Appends a hold tail so the window remains open after command completion.
-pub fn spawn_remove_all(names: &[String], dry_run: bool) {
+pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
     let names_str = names.join(" ");
-    tracing::info!(names = %names_str, total = names.len(), dry_run, "spawning removal");
+    tracing::info!(
+        names = %names_str,
+        total = names.len(),
+        dry_run,
+        mode = ?cascade_mode,
+        "spawning removal"
+    );
+    let flag = cascade_mode.flag();
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
     let cmd_str = if dry_run {
         format!(
-            "echo DRY RUN: sudo pacman -Rns --noconfirm {n}{hold}",
+            "echo DRY RUN: sudo pacman {flag} --noconfirm {n}{hold}",
+            flag = flag,
             n = names.join(" "),
             hold = hold_tail
         )
     } else {
         format!(
-            "sudo pacman -Rns --noconfirm {n}{hold}",
+            "sudo pacman {flag} --noconfirm {n}{hold}",
+            flag = flag,
             n = names.join(" "),
             hold = hold_tail
         )
@@ -89,7 +100,14 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
         let spawn_res = cmd.spawn();
         match spawn_res {
             Ok(_) => {
-                tracing::info!(terminal = %term, names = %names_str, total = names.len(), dry_run, "launched terminal for removal")
+                tracing::info!(
+                    terminal = %term,
+                    names = %names_str,
+                    total = names.len(),
+                    dry_run,
+                    mode = ?cascade_mode,
+                    "launched terminal for removal"
+                )
             }
             Err(e) => {
                 tracing::warn!(terminal = %term, error = %e, names = %names_str, "failed to spawn terminal, trying next");
@@ -122,7 +140,14 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
                 let spawn_res = cmd.spawn();
                 match spawn_res {
                     Ok(_) => {
-                        tracing::info!(terminal = %term, names = %names_str, total = names.len(), dry_run, "launched terminal for removal")
+                        tracing::info!(
+                            terminal = %term,
+                            names = %names_str,
+                            total = names.len(),
+                            dry_run,
+                            mode = ?cascade_mode,
+                            "launched terminal for removal"
+                        )
                     }
                     Err(e) => {
                         tracing::warn!(terminal = %term, error = %e, names = %names_str, "failed to spawn terminal, trying next");
@@ -139,7 +164,13 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
         if let Err(e) = res {
             tracing::error!(error = %e, names = %names_str, "failed to spawn bash to run removal command");
         } else {
-            tracing::info!(names = %names_str, total = names.len(), dry_run, "launched bash for removal");
+            tracing::info!(
+                names = %names_str,
+                total = names.len(),
+                dry_run,
+                mode = ?cascade_mode,
+                "launched bash for removal"
+            );
         }
     }
 }
@@ -183,7 +214,11 @@ mod tests {
         }
 
         let names = vec!["ripgrep".to_string(), "fd".to_string()];
-        super::spawn_remove_all(&names, true);
+        super::spawn_remove_all(
+            &names,
+            true,
+            crate::state::modal::CascadeMode::CascadeWithConfigs,
+        );
         std::thread::sleep(std::time::Duration::from_millis(50));
 
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
@@ -211,17 +246,27 @@ mod tests {
 ///
 /// Output:
 /// - Launches a `cmd` window with a message; actual removal is unsupported on Windows.
-pub fn spawn_remove_all(names: &[String], dry_run: bool) {
+pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
     let mut names = names.to_vec();
     if names.is_empty() {
         names.push("nothing".into());
     }
     let names_str = names.join(" ");
-    tracing::info!(names = %names_str, total = names.len(), dry_run, "spawning removal");
+    tracing::info!(
+        names = %names_str,
+        total = names.len(),
+        dry_run,
+        mode = ?cascade_mode,
+        "spawning removal"
+    );
+    let flag = cascade_mode.flag();
     let msg = if dry_run {
-        format!("DRY RUN: remove {}", names.join(" "))
+        format!("DRY RUN: pacman {flag} --noconfirm {}", names.join(" "))
     } else {
-        format!("Remove {} (not supported on Windows)", names.join(" "))
+        format!(
+            "Remove {} with pacman {flag} (not supported on Windows)",
+            names.join(" ")
+        )
     };
     let _ = Command::new("cmd")
         .args([
@@ -233,5 +278,11 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool) {
             &format!("echo {msg}"),
         ])
         .spawn();
-    tracing::info!(names = %names_str, total = names.len(), dry_run, "launched cmd for removal");
+    tracing::info!(
+        names = %names_str,
+        total = names.len(),
+        dry_run,
+        mode = ?cascade_mode,
+        "launched cmd for removal"
+    );
 }

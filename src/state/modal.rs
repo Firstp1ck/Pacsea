@@ -18,6 +18,51 @@ pub enum PreflightTab {
     Sandbox,
 }
 
+/// Removal cascade strategy for pacman operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CascadeMode {
+    /// `pacman -R` – remove targets only.
+    Basic,
+    /// `pacman -Rs` – remove targets and orphaned dependencies.
+    Cascade,
+    /// `pacman -Rns` – cascade removal and prune configuration files.
+    CascadeWithConfigs,
+}
+
+impl CascadeMode {
+    /// Return the pacman flag sequence corresponding to this cascade mode.
+    pub const fn flag(self) -> &'static str {
+        match self {
+            CascadeMode::Basic => "-R",
+            CascadeMode::Cascade => "-Rs",
+            CascadeMode::CascadeWithConfigs => "-Rns",
+        }
+    }
+
+    /// Short text describing the effect of this mode.
+    pub const fn description(self) -> &'static str {
+        match self {
+            CascadeMode::Basic => "targets only",
+            CascadeMode::Cascade => "remove dependents",
+            CascadeMode::CascadeWithConfigs => "dependents + configs",
+        }
+    }
+
+    /// Whether this mode allows removal when dependents exist.
+    pub const fn allows_dependents(self) -> bool {
+        !matches!(self, CascadeMode::Basic)
+    }
+
+    /// Cycle to the next cascade mode.
+    pub const fn next(self) -> Self {
+        match self {
+            CascadeMode::Basic => CascadeMode::Cascade,
+            CascadeMode::Cascade => CascadeMode::CascadeWithConfigs,
+            CascadeMode::CascadeWithConfigs => CascadeMode::Basic,
+        }
+    }
+}
+
 /// Dependency information for a package in the preflight dependency view.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DependencyInfo {
@@ -37,6 +82,19 @@ pub struct DependencyInfo {
     pub is_core: bool,
     /// Whether this is a critical system package.
     pub is_system: bool,
+}
+
+/// Summary statistics for reverse dependency analysis of removal targets.
+#[derive(Clone, Debug, Default)]
+pub struct ReverseRootSummary {
+    /// Package slated for removal.
+    pub package: String,
+    /// Number of packages that directly depend on this package (depth 1).
+    pub direct_dependents: usize,
+    /// Number of packages that depend on this package through other packages (depth ≥ 2).
+    pub transitive_dependents: usize,
+    /// Total number of dependents (direct + transitive).
+    pub total_dependents: usize,
 }
 
 /// Status of a dependency relative to the current system state.
@@ -142,6 +200,8 @@ pub enum Modal {
         file_selected: usize,
         /// Set of package names with expanded file lists (for Files tab tree view).
         file_tree_expanded: HashSet<String>,
+        /// Current cascade removal strategy for this session.
+        cascade_mode: CascadeMode,
     },
     /// Preflight execution screen with log and sticky sidebar.
     #[allow(dead_code)]
@@ -278,6 +338,7 @@ mod tests {
             file_info: Vec::new(),
             file_selected: 0,
             file_tree_expanded: std::collections::HashSet::new(),
+            cascade_mode: super::CascadeMode::Basic,
         };
     }
 }

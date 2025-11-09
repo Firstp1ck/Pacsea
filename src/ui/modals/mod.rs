@@ -57,6 +57,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             mut file_info,
             mut file_selected,
             file_tree_expanded,
+            cascade_mode,
         } => {
             preflight::render_preflight(
                 f,
@@ -71,6 +72,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 &mut file_info,
                 &mut file_selected,
                 &file_tree_expanded,
+                cascade_mode,
             );
             app.modal = crate::state::Modal::Preflight {
                 items,
@@ -82,6 +84,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 file_info,
                 file_selected,
                 file_tree_expanded,
+                cascade_mode,
             };
         }
         crate::state::Modal::PreflightExec {

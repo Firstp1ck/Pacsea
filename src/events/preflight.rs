@@ -41,6 +41,42 @@ pub(crate) fn compute_display_items_len(
     count
 }
 
+/// Compute how many rows the Files tab list should expose, matching the UI grouping logic.
+pub(crate) fn compute_file_display_items_len(
+    file_info: &[crate::state::modal::PackageFileInfo],
+    file_tree_expanded: &HashSet<String>,
+) -> usize {
+    let mut count = 0;
+    for pkg_info in file_info.iter() {
+        if pkg_info.files.is_empty() {
+            continue;
+        }
+        count += 1; // Package header
+        if file_tree_expanded.contains(&pkg_info.name) {
+            count += pkg_info.files.len();
+        }
+    }
+    count
+}
+
+/// Build the flattened list of headers/files shown in the Files tab (header first, then rows).
+pub(crate) fn build_file_display_items(
+    file_info: &[crate::state::modal::PackageFileInfo],
+    file_tree_expanded: &HashSet<String>,
+) -> Vec<(bool, String)> {
+    let mut display_items: Vec<(bool, String)> = Vec::new();
+    for pkg_info in file_info.iter() {
+        if pkg_info.files.is_empty() {
+            continue;
+        }
+        display_items.push((true, pkg_info.name.clone()));
+        if file_tree_expanded.contains(&pkg_info.name) {
+            display_items.extend(pkg_info.files.iter().map(|_| (false, String::new())));
+        }
+    }
+    display_items
+}
+
 /// Handle key events for the Preflight modal.
 pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight {
@@ -53,11 +89,13 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         file_info,
         file_selected,
         file_tree_expanded,
+        cascade_mode,
     } = &mut app.modal
     {
         match ke.code {
             KeyCode::Esc => {
                 app.previous_modal = None; // Clear previous modal when closing Preflight
+                app.remove_preflight_summary.clear();
                 app.modal = crate::state::Modal::None;
             }
             KeyCode::Enter => {
@@ -101,19 +139,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         }
                     }
                 } else if *tab == crate::state::PreflightTab::Files && !file_info.is_empty() {
-                    // Build display items list to find which package header is selected
-                    let mut display_items: Vec<(bool, String)> = Vec::new();
-                    for pkg_info in file_info.iter() {
-                        if !pkg_info.files.is_empty() {
-                            display_items.push((true, pkg_info.name.clone()));
-                            if file_tree_expanded.contains(&pkg_info.name) {
-                                // Add placeholder entries for files (we just need to count them)
-                                for _file in pkg_info.files.iter() {
-                                    display_items.push((false, String::new()));
-                                }
-                            }
-                        }
-                    }
+                    let display_items = build_file_display_items(file_info, file_tree_expanded);
 
                     if let Some((is_header, pkg_name)) = display_items.get(*file_selected)
                         && *is_header
@@ -128,6 +154,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 } else {
                     // Close modal on Enter when not in Deps/Files tab or no data
                     app.previous_modal = None;
+                    app.remove_preflight_summary.clear();
                     app.modal = crate::state::Modal::None;
                 }
             }
@@ -140,12 +167,20 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Services,
                 };
                 // Resolve dependencies when switching to Deps tab
-                if *tab == crate::state::PreflightTab::Deps
-                    && dependency_info.is_empty()
-                    && matches!(*action, crate::state::PreflightAction::Install)
-                {
-                    *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                    *dep_selected = 0;
+                if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
+                    match *action {
+                        crate::state::PreflightAction::Install => {
+                            *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                            *dep_selected = 0;
+                            app.remove_preflight_summary.clear();
+                        }
+                        crate::state::PreflightAction::Remove => {
+                            let report = crate::logic::deps::resolve_reverse_dependencies(items);
+                            app.remove_preflight_summary = report.summaries;
+                            *dependency_info = report.dependencies;
+                            *dep_selected = 0;
+                        }
+                    }
                 }
                 // Resolve files when switching to Files tab (only if not cached)
                 if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
@@ -165,12 +200,20 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Summary,
                 };
                 // Resolve dependencies when switching to Deps tab
-                if *tab == crate::state::PreflightTab::Deps
-                    && dependency_info.is_empty()
-                    && matches!(*action, crate::state::PreflightAction::Install)
-                {
-                    *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                    *dep_selected = 0;
+                if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
+                    match *action {
+                        crate::state::PreflightAction::Install => {
+                            *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                            *dep_selected = 0;
+                            app.remove_preflight_summary.clear();
+                        }
+                        crate::state::PreflightAction::Remove => {
+                            let report = crate::logic::deps::resolve_reverse_dependencies(items);
+                            app.remove_preflight_summary = report.summaries;
+                            *dependency_info = report.dependencies;
+                            *dep_selected = 0;
+                        }
+                    }
                 }
                 // Resolve files when switching to Files tab
                 if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
@@ -191,12 +234,20 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Summary,
                 };
                 // Resolve dependencies when switching to Deps tab
-                if *tab == crate::state::PreflightTab::Deps
-                    && dependency_info.is_empty()
-                    && matches!(*action, crate::state::PreflightAction::Install)
-                {
-                    *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                    *dep_selected = 0;
+                if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
+                    match *action {
+                        crate::state::PreflightAction::Install => {
+                            *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                            *dep_selected = 0;
+                            app.remove_preflight_summary.clear();
+                        }
+                        crate::state::PreflightAction::Remove => {
+                            let report = crate::logic::deps::resolve_reverse_dependencies(items);
+                            app.remove_preflight_summary = report.summaries;
+                            *dependency_info = report.dependencies;
+                            *dep_selected = 0;
+                        }
+                    }
                 }
                 // Resolve files when switching to Files tab
                 if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
@@ -227,16 +278,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         *dep_selected += 1;
                     }
                 } else if *tab == crate::state::PreflightTab::Files && !file_info.is_empty() {
-                    // Compute total display items length for Files tab (accounting for collapsed packages)
-                    let mut display_len = 0;
-                    for pkg_info in file_info.iter() {
-                        if !pkg_info.files.is_empty() {
-                            display_len += 1; // Package header
-                            if file_tree_expanded.contains(&pkg_info.name) {
-                                display_len += pkg_info.files.len(); // Files only if expanded
-                            }
-                        }
-                    }
+                    let display_len = compute_file_display_items_len(file_info, file_tree_expanded);
                     if *file_selected < display_len.saturating_sub(1) {
                         *file_selected += 1;
                     }
@@ -283,19 +325,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         }
                     }
                 } else if *tab == crate::state::PreflightTab::Files && !file_info.is_empty() {
-                    // Build display items list to find which package header is selected
-                    let mut display_items: Vec<(bool, String)> = Vec::new();
-                    for pkg_info in file_info.iter() {
-                        if !pkg_info.files.is_empty() {
-                            display_items.push((true, pkg_info.name.clone()));
-                            if file_tree_expanded.contains(&pkg_info.name) {
-                                // Add placeholder entries for files (we just need to count them)
-                                for _file in pkg_info.files.iter() {
-                                    display_items.push((false, String::new()));
-                                }
-                            }
-                        }
-                    }
+                    let display_items = build_file_display_items(file_info, file_tree_expanded);
 
                     if let Some((is_header, pkg_name)) = display_items.get(*file_selected)
                         && *is_header
@@ -410,19 +440,82 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     if app.dry_run { "ON" } else { "OFF" }
                 ));
             }
+            KeyCode::Char('m') => {
+                if matches!(*action, crate::state::PreflightAction::Remove) {
+                    let next_mode = cascade_mode.next();
+                    *cascade_mode = next_mode;
+                    app.remove_cascade_mode = next_mode;
+                    app.toast_message = Some(format!(
+                        "Cascade mode set to {} ({})",
+                        next_mode.flag(),
+                        next_mode.description()
+                    ));
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                }
+            }
             KeyCode::Char('p') => {
-                // Directly trigger installation/removal and close Preflight modal
-                match action {
+                let mut close_modal = false;
+                let mut new_summary: Option<Vec<crate::state::modal::ReverseRootSummary>> = None;
+                let mut blocked_dep_count: Option<usize> = None;
+                let mut removal_names: Option<Vec<String>> = None;
+                let mut removal_mode: Option<crate::state::modal::CascadeMode> = None;
+                let mut install_targets: Option<Vec<PackageItem>> = None;
+
+                match *action {
                     crate::state::PreflightAction::Install => {
-                        crate::install::spawn_install_all(items, app.dry_run);
+                        install_targets = Some(items.clone());
                     }
                     crate::state::PreflightAction::Remove => {
-                        let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-                        crate::install::spawn_remove_all(&names, app.dry_run);
+                        if dependency_info.is_empty() {
+                            let report = crate::logic::deps::resolve_reverse_dependencies(items);
+                            new_summary = Some(report.summaries);
+                            *dependency_info = report.dependencies;
+                        }
+
+                        if dependency_info.is_empty() || cascade_mode.allows_dependents() {
+                            removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
+                            removal_mode = Some(*cascade_mode);
+                        } else {
+                            blocked_dep_count = Some(dependency_info.len());
+                        }
                     }
                 }
-                app.previous_modal = None;
-                app.modal = crate::state::Modal::None;
+
+                if let Some(summary) = new_summary {
+                    app.remove_preflight_summary = summary;
+                }
+
+                if let Some(packages) = install_targets {
+                    crate::install::spawn_install_all(&packages, app.dry_run);
+                    close_modal = true;
+                } else if let Some(names) = removal_names {
+                    let mode = removal_mode.unwrap_or(*cascade_mode);
+                    crate::install::spawn_remove_all(&names, app.dry_run, mode);
+                    close_modal = true;
+                } else if let Some(count) = blocked_dep_count {
+                    let root_list: Vec<String> = app
+                        .remove_preflight_summary
+                        .iter()
+                        .filter(|summary| summary.total_dependents > 0)
+                        .map(|summary| summary.package.clone())
+                        .collect();
+                    let subject = if root_list.is_empty() {
+                        "the selected packages".to_string()
+                    } else {
+                        root_list.join(", ")
+                    };
+                    app.toast_message = Some(format!(
+                        "Removal blocked: {count} dependent package(s) rely on {subject}. Enable cascade removal to proceed."
+                    ));
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
+                }
+
+                if close_modal {
+                    app.previous_modal = None;
+                    app.modal = crate::state::Modal::None;
+                }
             }
             KeyCode::Char('c') => {
                 // Snapshot placeholder
@@ -430,6 +523,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
             }
             KeyCode::Char('q') => {
                 app.previous_modal = None; // Clear previous modal when closing Preflight
+                app.remove_preflight_summary.clear();
                 app.modal = crate::state::Modal::None;
             }
             KeyCode::Char('?') => {
@@ -489,4 +583,195 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         return false;
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::modal::{
+        CascadeMode, DependencyInfo, DependencySource, DependencyStatus, FileChange,
+        FileChangeType, PackageFileInfo,
+    };
+    use crate::state::{Modal, PackageItem, PreflightAction, PreflightTab, Source};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use std::collections::HashSet;
+
+    fn pkg(name: &str) -> PackageItem {
+        PackageItem {
+            name: name.into(),
+            version: "1.0.0".into(),
+            description: "pkg".into(),
+            source: Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+            popularity: None,
+        }
+    }
+
+    fn dep(name: &str, required_by: &[&str]) -> DependencyInfo {
+        DependencyInfo {
+            name: name.into(),
+            version: ">=1".into(),
+            status: DependencyStatus::ToInstall,
+            source: DependencySource::Official {
+                repo: "extra".into(),
+            },
+            required_by: required_by.iter().map(|s| (*s).into()).collect(),
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        }
+    }
+
+    fn file_info(name: &str, file_count: usize) -> PackageFileInfo {
+        let mut files = Vec::new();
+        for idx in 0..file_count {
+            files.push(FileChange {
+                path: format!("/tmp/{name}_{idx}"),
+                change_type: FileChangeType::New,
+                package: name.into(),
+                is_config: false,
+                predicted_pacnew: false,
+                predicted_pacsave: false,
+            });
+        }
+        PackageFileInfo {
+            name: name.into(),
+            files,
+            total_count: file_count,
+            new_count: file_count,
+            changed_count: 0,
+            removed_count: 0,
+            config_count: 0,
+            pacnew_candidates: 0,
+            pacsave_candidates: 0,
+        }
+    }
+
+    #[test]
+    fn deps_display_len_counts_unique_expanded_dependencies() {
+        let items = vec![pkg("app"), pkg("tool")];
+        let deps = vec![
+            dep("libfoo", &["app"]),
+            dep("libbar", &["app", "tool"]),
+            dep("libbar", &["app"]),
+        ];
+        let mut expanded = HashSet::new();
+        expanded.insert("app".to_string());
+        let len = compute_display_items_len(&items, &deps, &expanded);
+        assert_eq!(len, 4);
+    }
+
+    #[test]
+    fn deps_display_len_collapsed_counts_only_headers() {
+        let items = vec![pkg("app"), pkg("tool")];
+        let deps = vec![dep("libfoo", &["app"]), dep("libbar", &["tool"])];
+        let expanded = HashSet::new();
+        let len = compute_display_items_len(&items, &deps, &expanded);
+        assert_eq!(len, 2);
+    }
+
+    #[test]
+    fn file_display_len_respects_expansion_state() {
+        let info = vec![file_info("pkg", 2), file_info("empty", 0)];
+        let mut expanded = HashSet::new();
+        let collapsed = compute_file_display_items_len(&info, &expanded);
+        assert_eq!(collapsed, 1);
+        expanded.insert("pkg".to_string());
+        let expanded_len = compute_file_display_items_len(&info, &expanded);
+        assert_eq!(expanded_len, 3);
+    }
+
+    #[test]
+    fn build_file_items_match_expansion() {
+        let info = vec![file_info("pkg", 2)];
+        let collapsed = build_file_display_items(&info, &HashSet::new());
+        assert_eq!(collapsed, vec![(true, "pkg".into())]);
+        let mut expanded = HashSet::new();
+        expanded.insert("pkg".to_string());
+        let expanded_items = build_file_display_items(&info, &expanded);
+        assert_eq!(
+            expanded_items,
+            vec![
+                (true, "pkg".into()),
+                (false, String::new()),
+                (false, String::new())
+            ]
+        );
+    }
+
+    fn setup_preflight_app(
+        tab: PreflightTab,
+        dependency_info: Vec<DependencyInfo>,
+        dep_selected: usize,
+        dep_tree_expanded: HashSet<String>,
+    ) -> AppState {
+        let mut app = AppState::default();
+        let items = vec![pkg("target")];
+        app.modal = Modal::Preflight {
+            items,
+            action: PreflightAction::Install,
+            tab,
+            dependency_info,
+            dep_selected,
+            dep_tree_expanded,
+            file_info: Vec::new(),
+            file_selected: 0,
+            file_tree_expanded: HashSet::new(),
+            cascade_mode: CascadeMode::Basic,
+        };
+        app
+    }
+
+    #[test]
+    fn handle_enter_toggles_dependency_group() {
+        let deps = vec![dep("libfoo", &["target"])];
+        let mut app = setup_preflight_app(PreflightTab::Deps, deps, 0, HashSet::new());
+        let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+        handle_preflight_key(enter, &mut app);
+        if let Modal::Preflight {
+            dep_tree_expanded, ..
+        } = &app.modal
+        {
+            assert!(dep_tree_expanded.contains("target"));
+        } else {
+            panic!("expected Preflight modal");
+        }
+        let enter_again = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+        handle_preflight_key(enter_again, &mut app);
+        if let Modal::Preflight {
+            dep_tree_expanded, ..
+        } = &app.modal
+        {
+            assert!(!dep_tree_expanded.contains("target"));
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
+
+    #[test]
+    fn handle_down_stops_at_last_visible_dependency_row() {
+        let deps = vec![dep("libfoo", &["target"]), dep("libbar", &["target"])];
+        let mut expanded = HashSet::new();
+        expanded.insert("target".to_string());
+        let mut app = setup_preflight_app(PreflightTab::Deps, deps, 0, expanded);
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Down, KeyModifiers::empty()),
+            &mut app,
+        );
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Down, KeyModifiers::empty()),
+            &mut app,
+        );
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Down, KeyModifiers::empty()),
+            &mut app,
+        );
+        if let Modal::Preflight { dep_selected, .. } = &app.modal {
+            assert_eq!(*dep_selected, 2);
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
 }

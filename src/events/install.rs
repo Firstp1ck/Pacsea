@@ -198,7 +198,9 @@ pub fn handle_install_key(
                         file_info: cached_files,
                         file_selected: 0,
                         file_tree_expanded: std::collections::HashSet::new(),
+                        cascade_mode: app.remove_cascade_mode,
                     };
+                    app.remove_preflight_summary.clear();
                 }
             } else if app.installed_only_mode
                 && matches!(app.right_pane_focus, crate::state::RightPaneFocus::Remove)
@@ -207,22 +209,32 @@ pub fn handle_install_key(
                     if skip {
                         let names: Vec<String> =
                             app.remove_list.iter().map(|p| p.name.clone()).collect();
-                        crate::install::spawn_remove_all(&names, app.dry_run);
+                        crate::install::spawn_remove_all(
+                            &names,
+                            app.dry_run,
+                            app.remove_cascade_mode,
+                        );
                         app.toast_message = Some("Removing list (preflight skipped)".to_string());
                         app.remove_list.clear();
                         app.remove_state.select(None);
                     } else {
+                        let report =
+                            crate::logic::deps::resolve_reverse_dependencies(&app.remove_list);
+                        let summaries = report.summaries;
+                        let dependencies = report.dependencies;
                         app.modal = crate::state::Modal::Preflight {
                             items: app.remove_list.clone(),
                             action: crate::state::PreflightAction::Remove,
                             tab: crate::state::PreflightTab::Summary,
-                            dependency_info: Vec::new(),
+                            dependency_info: dependencies,
                             dep_selected: 0,
                             dep_tree_expanded: std::collections::HashSet::new(),
                             file_info: Vec::new(),
                             file_selected: 0,
                             file_tree_expanded: std::collections::HashSet::new(),
+                            cascade_mode: app.remove_cascade_mode,
                         };
+                        app.remove_preflight_summary = summaries;
                         app.toast_message = Some("Preflight: Remove list".to_string());
                     }
                 }
@@ -672,6 +684,7 @@ mod tests {
                 file_info: _,
                 file_selected: _,
                 file_tree_expanded: _,
+                cascade_mode: _,
             } => {
                 assert_eq!(items.len(), 1);
                 assert_eq!(action, crate::state::PreflightAction::Install);

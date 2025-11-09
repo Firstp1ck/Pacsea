@@ -283,13 +283,17 @@ pub(crate) fn handle_modal_key(
                         let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
                         if app.dry_run {
                             // Show the dry-run command and still remove from the list in UI
-                            crate::install::spawn_remove_all(&names, true);
+                            crate::install::spawn_remove_all(&names, true, app.remove_cascade_mode);
                             app.remove_list
                                 .retain(|p| !names.iter().any(|n| n == &p.name));
                             app.remove_state.select(None);
                         } else {
                             // Launch a terminal view to perform removal (non-blocking)
-                            crate::install::spawn_remove_all(&names, false);
+                            crate::install::spawn_remove_all(
+                                &names,
+                                false,
+                                app.remove_cascade_mode,
+                            );
                             // Remove from remove_list in app state
                             app.remove_list
                                 .retain(|p| !names.iter().any(|n| n == &p.name));

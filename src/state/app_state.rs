@@ -3,7 +3,7 @@
 use ratatui::widgets::ListState;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
-use crate::state::modal::Modal;
+use crate::state::modal::{CascadeMode, Modal};
 use crate::state::types::{
     ArchStatusColor, Focus, PackageDetails, PackageItem, RightPaneFocus, SortMode,
 };
@@ -323,6 +323,10 @@ pub struct AppState {
     // Dependency resolution cache for install list
     /// Cached resolved dependencies for the current install list (updated in background).
     pub install_list_deps: Vec<crate::state::modal::DependencyInfo>,
+    /// Reverse dependency summary for the current remove preflight modal (populated on demand).
+    pub remove_preflight_summary: Vec<crate::state::modal::ReverseRootSummary>,
+    /// Selected cascade removal mode for upcoming removals.
+    pub remove_cascade_mode: CascadeMode,
     /// Whether dependency resolution is currently in progress.
     pub deps_resolving: bool,
     /// Path where the dependency cache is persisted as JSON.
@@ -506,6 +510,8 @@ impl Default for AppState {
             pending_install_names: None,
             pending_remove_names: None,
             install_list_deps: Vec::new(),
+            remove_preflight_summary: Vec::new(),
+            remove_cascade_mode: CascadeMode::Basic,
             deps_resolving: false,
             // Dependency cache (lists dir under config)
             deps_cache_path: crate::theme::lists_dir().join("install_deps_cache.json"),

@@ -8,7 +8,8 @@ use ratatui::{
 };
 
 use crate::state::modal::{
-    DependencyInfo, DependencySource, DependencyStatus, FileChangeType, PackageFileInfo,
+    CascadeMode, DependencyInfo, DependencySource, DependencyStatus, FileChangeType,
+    PackageFileInfo,
 };
 use crate::state::{AppState, PackageItem, PreflightAction, PreflightTab};
 use crate::theme::theme;
@@ -28,6 +29,7 @@ pub fn render_preflight(
     file_info: &mut Vec<PackageFileInfo>,
     file_selected: &mut usize,
     file_tree_expanded: &HashSet<String>,
+    cascade_mode: CascadeMode,
 ) {
     let th = theme();
     // Use cached dependencies if available, otherwise resolve on-demand
@@ -162,8 +164,8 @@ pub fn render_preflight(
     lines.push(Line::from(""));
 
     match current_tab {
-        PreflightTab::Summary => {
-            if matches!(*action, PreflightAction::Install) && !dependency_info.is_empty() {
+        PreflightTab::Summary => match *action {
+            PreflightAction::Install if !dependency_info.is_empty() => {
                 // Filter dependencies to only show conflicts and upgrades
                 let important_deps: Vec<&DependencyInfo> = dependency_info
                     .iter()
@@ -372,8 +374,219 @@ pub fn render_preflight(
                         )));
                     }
                 }
-            } else {
-                // Fallback for remove action or no dependencies
+            }
+            PreflightAction::Remove => {
+                let mode = cascade_mode;
+                let mode_line = format!("Cascade mode: {} ({})", mode.flag(), mode.description());
+                lines.push(Line::from(Span::styled(
+                    mode_line,
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                )));
+                lines.push(Line::from(""));
+
+                if items.is_empty() {
+                    lines.push(Line::from(Span::styled(
+                        "No removal targets selected.",
+                        Style::default().fg(th.subtext1),
+                    )));
+                } else {
+                    let removal_names: Vec<&str> =
+                        items.iter().map(|pkg| pkg.name.as_str()).collect();
+                    let plan_header_style = Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD);
+                    lines.push(Line::from(Span::styled(
+                        "Removal plan preview",
+                        plan_header_style,
+                    )));
+
+                    let mut plan_command = format!(
+                        "sudo pacman {} --noconfirm {}",
+                        mode.flag(),
+                        removal_names.join(" ")
+                    );
+                    if app.dry_run {
+                        plan_command = format!("DRY RUN: {}", plan_command);
+                    }
+                    lines.push(Line::from(Span::styled(
+                        plan_command,
+                        Style::default().fg(th.text),
+                    )));
+
+                    let dependent_count = dependency_info.len();
+                    let (summary_text, summary_style) = if dependent_count == 0 {
+                        (
+                            "No installed packages depend on the removal list.".to_string(),
+                            Style::default().fg(th.green),
+                        )
+                    } else if mode.allows_dependents() {
+                        (
+                            format!("Cascade will include {dependent_count} dependent package(s)."),
+                            Style::default().fg(th.yellow),
+                        )
+                    } else {
+                        (
+                            format!(
+                                "{dependent_count} dependent package(s) currently block removal."
+                            ),
+                            Style::default().fg(th.red),
+                        )
+                    };
+                    lines.push(Line::from(Span::styled(summary_text, summary_style)));
+                    lines.push(Line::from(""));
+
+                    if dependent_count > 0 {
+                        if app.remove_preflight_summary.is_empty() {
+                            lines.push(Line::from(Span::styled(
+                                "Calculating reverse dependencies...",
+                                Style::default().fg(th.subtext1),
+                            )));
+                        } else {
+                            lines.push(Line::from(Span::styled(
+                                "Removal impact overview:",
+                                Style::default()
+                                    .fg(th.overlay1)
+                                    .add_modifier(Modifier::BOLD),
+                            )));
+                            lines.push(Line::from(""));
+
+                            for summary in &app.remove_preflight_summary {
+                                let mut message = format!(
+                                    "{} → {} dependent(s)",
+                                    summary.package, summary.total_dependents
+                                );
+                                if summary.direct_dependents > 0 {
+                                    message.push_str(&format!(
+                                        " ({} direct)",
+                                        summary.direct_dependents
+                                    ));
+                                }
+                                if summary.transitive_dependents > 0 {
+                                    message.push_str(&format!(
+                                        " ({} transitive)",
+                                        summary.transitive_dependents
+                                    ));
+                                }
+                                lines.push(Line::from(Span::styled(
+                                    message,
+                                    Style::default().fg(th.text),
+                                )));
+                            }
+                            lines.push(Line::from(""));
+                        }
+
+                        let (impact_header, impact_style) = if mode.allows_dependents() {
+                            (
+                                "Cascade will also remove these package(s):".to_string(),
+                                Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                            )
+                        } else {
+                            (
+                                "Dependents (not removed in current mode):".to_string(),
+                                Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                            )
+                        };
+                        lines.push(Line::from(Span::styled(impact_header, impact_style)));
+
+                        let removal_targets: HashSet<String> = items
+                            .iter()
+                            .map(|pkg| pkg.name.to_ascii_lowercase())
+                            .collect();
+                        let mut cascade_candidates: Vec<&DependencyInfo> =
+                            dependency_info.iter().collect();
+                        cascade_candidates.sort_by(|a, b| {
+                            let a_direct = a.depends_on.iter().any(|parent| {
+                                removal_targets.contains(&parent.to_ascii_lowercase())
+                            });
+                            let b_direct = b.depends_on.iter().any(|parent| {
+                                removal_targets.contains(&parent.to_ascii_lowercase())
+                            });
+                            b_direct.cmp(&a_direct).then_with(|| a.name.cmp(&b.name))
+                        });
+
+                        const CASCADE_PREVIEW_MAX: usize = 8;
+                        for dep in cascade_candidates.iter().take(CASCADE_PREVIEW_MAX) {
+                            let is_direct = dep.depends_on.iter().any(|parent| {
+                                removal_targets.contains(&parent.to_ascii_lowercase())
+                            });
+                            let bullet = if mode.allows_dependents() {
+                                if is_direct { "● " } else { "○ " }
+                            } else if is_direct {
+                                "⛔ "
+                            } else {
+                                "⚠ "
+                            };
+                            let name_color = if mode.allows_dependents() {
+                                if is_direct { th.red } else { th.yellow }
+                            } else if is_direct {
+                                th.red
+                            } else {
+                                th.yellow
+                            };
+                            let name_style =
+                                Style::default().fg(name_color).add_modifier(Modifier::BOLD);
+                            let detail = match &dep.status {
+                                DependencyStatus::Conflict { reason } => reason.clone(),
+                                DependencyStatus::ToUpgrade { .. } => {
+                                    "requires version change".to_string()
+                                }
+                                DependencyStatus::Installed { .. } => {
+                                    "already satisfied".to_string()
+                                }
+                                DependencyStatus::ToInstall => {
+                                    "not currently installed".to_string()
+                                }
+                                DependencyStatus::Missing => "missing".to_string(),
+                            };
+                            let roots = if dep.required_by.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" (targets: {})", dep.required_by.join(", "))
+                            };
+
+                            let mut spans = Vec::new();
+                            spans.push(Span::styled(bullet, Style::default().fg(th.subtext0)));
+                            spans.push(Span::styled(dep.name.clone(), name_style));
+                            if !detail.is_empty() {
+                                spans.push(Span::styled(" — ", Style::default().fg(th.subtext1)));
+                                spans.push(Span::styled(detail, Style::default().fg(th.subtext1)));
+                            }
+                            if !roots.is_empty() {
+                                spans.push(Span::styled(roots, Style::default().fg(th.overlay1)));
+                            }
+                            lines.push(Line::from(spans));
+                        }
+
+                        if cascade_candidates.len() > CASCADE_PREVIEW_MAX {
+                            lines.push(Line::from(Span::styled(
+                                format!(
+                                    "... and {} more impacted package(s)",
+                                    cascade_candidates.len() - CASCADE_PREVIEW_MAX
+                                ),
+                                Style::default().fg(th.subtext1),
+                            )));
+                        }
+
+                        lines.push(Line::from(""));
+                        if mode.allows_dependents() {
+                            lines.push(Line::from(Span::styled(
+                                "These packages will be removed automatically when the command runs.",
+                                Style::default().fg(th.subtext1),
+                            )));
+                        } else {
+                            lines.push(Line::from(Span::styled(
+                                "Enable cascade mode (press 'm') to include them automatically.",
+                                Style::default().fg(th.subtext1),
+                            )));
+                        }
+                        lines.push(Line::from(Span::styled(
+                            "Use the Deps tab to inspect affected packages.",
+                            Style::default().fg(th.subtext1),
+                        )));
+                    }
+                }
+            }
+            _ => {
                 if items.is_empty() {
                     lines.push(Line::from(Span::styled(
                         "No items selected.",
@@ -386,7 +599,7 @@ pub fn render_preflight(
                     )));
                 }
             }
-        }
+        },
         PreflightTab::Deps => {
             // Use already resolved dependencies (resolved above if needed)
             let deps = dependency_info;
@@ -425,30 +638,40 @@ pub fn render_preflight(
 
             // Summary header
             if total > 0 {
-                let mut summary_parts = Vec::new();
-                summary_parts.push(format!("{} total", total));
-                if installed_count > 0 {
-                    summary_parts.push(format!("{} installed", installed_count));
+                if matches!(*action, PreflightAction::Remove) {
+                    lines.push(Line::from(Span::styled(
+                        format!("Dependents: {} package(s) rely on the removal list", total),
+                        Style::default()
+                            .fg(th.overlay1)
+                            .add_modifier(Modifier::BOLD),
+                    )));
+                    lines.push(Line::from(""));
+                } else {
+                    let mut summary_parts = Vec::new();
+                    summary_parts.push(format!("{} total", total));
+                    if installed_count > 0 {
+                        summary_parts.push(format!("{} installed", installed_count));
+                    }
+                    if to_install_count > 0 {
+                        summary_parts.push(format!("{} to install", to_install_count));
+                    }
+                    if to_upgrade_count > 0 {
+                        summary_parts.push(format!("{} to upgrade", to_upgrade_count));
+                    }
+                    if conflict_count > 0 {
+                        summary_parts.push(format!("{} conflicts", conflict_count));
+                    }
+                    if missing_count > 0 {
+                        summary_parts.push(format!("{} missing", missing_count));
+                    }
+                    lines.push(Line::from(Span::styled(
+                        format!("Dependencies: {}", summary_parts.join(", ")),
+                        Style::default()
+                            .fg(th.overlay1)
+                            .add_modifier(Modifier::BOLD),
+                    )));
+                    lines.push(Line::from(""));
                 }
-                if to_install_count > 0 {
-                    summary_parts.push(format!("{} to install", to_install_count));
-                }
-                if to_upgrade_count > 0 {
-                    summary_parts.push(format!("{} to upgrade", to_upgrade_count));
-                }
-                if conflict_count > 0 {
-                    summary_parts.push(format!("{} conflicts", conflict_count));
-                }
-                if missing_count > 0 {
-                    summary_parts.push(format!("{} missing", missing_count));
-                }
-                lines.push(Line::from(Span::styled(
-                    format!("Dependencies: {}", summary_parts.join(", ")),
-                    Style::default()
-                        .fg(th.overlay1)
-                        .add_modifier(Modifier::BOLD),
-                )));
-                lines.push(Line::from(""));
             } else if matches!(*action, PreflightAction::Install) {
                 lines.push(Line::from(Span::styled(
                     "Resolving dependencies...",
@@ -484,10 +707,16 @@ pub fn render_preflight(
 
             // Dependency list with grouping
             let available_height = (content_rect.height as usize).saturating_sub(6);
-            let start_idx = (dep_selected)
+            let total_items = display_items.len();
+            let dep_selected_clamped = (*dep_selected).min(total_items.saturating_sub(1));
+            if *dep_selected != dep_selected_clamped {
+                *dep_selected = dep_selected_clamped;
+            }
+
+            let start_idx = dep_selected_clamped
                 .saturating_sub(available_height / 2)
-                .min(display_items.len().saturating_sub(available_height));
-            let end_idx = (start_idx + available_height).min(display_items.len());
+                .min(total_items.saturating_sub(available_height));
+            let end_idx = (start_idx + available_height).min(total_items);
 
             for (idx, (is_header, header_name, dep)) in display_items
                 .iter()
@@ -661,6 +890,8 @@ pub fn render_preflight(
                     }
                 }
 
+                let sync_info = crate::logic::files::get_file_db_sync_info();
+
                 if display_items.is_empty() {
                     // Check if we have package entries but they're all empty
                     let has_aur_packages = items
@@ -722,9 +953,7 @@ pub fn render_preflight(
                     }
 
                     // Show file database sync timestamp
-                    if let Some((_age_days, date_str, color_category)) =
-                        crate::logic::files::get_file_db_sync_info()
-                    {
+                    if let Some((_age_days, date_str, color_category)) = sync_info.clone() {
                         lines.push(Line::from(""));
                         let (sync_color, sync_text) = match color_category {
                             0 => (th.green, format!("Files updated on {}", date_str)),
@@ -746,14 +975,19 @@ pub fn render_preflight(
                     let total_pacnew: usize = file_info.iter().map(|p| p.pacnew_candidates).sum();
                     let total_pacsave: usize = file_info.iter().map(|p| p.pacsave_candidates).sum();
 
-                    let mut summary_parts = vec![
-                        format!("Total: {} files", total_files),
-                        format!("{} new", total_new),
-                        format!("{} changed", total_changed),
-                        format!("{} removed", total_removed),
-                        format!("{} config", total_config),
-                    ];
-
+                    let mut summary_parts = vec![format!("{} total", total_files)];
+                    if total_new > 0 {
+                        summary_parts.push(format!("{} new", total_new));
+                    }
+                    if total_changed > 0 {
+                        summary_parts.push(format!("{} changed", total_changed));
+                    }
+                    if total_removed > 0 {
+                        summary_parts.push(format!("{} removed", total_removed));
+                    }
+                    if total_config > 0 {
+                        summary_parts.push(format!("{} config", total_config));
+                    }
                     if total_pacnew > 0 {
                         summary_parts.push(format!("{} pacnew", total_pacnew));
                     }
@@ -762,35 +996,36 @@ pub fn render_preflight(
                     }
 
                     lines.push(Line::from(Span::styled(
-                        summary_parts.join(", "),
-                        Style::default().fg(th.subtext1),
+                        format!("Files: {}", summary_parts.join(", ")),
+                        Style::default()
+                            .fg(th.overlay1)
+                            .add_modifier(Modifier::BOLD),
                     )));
                     lines.push(Line::from(""));
 
                     // Show file database sync timestamp
-                    let sync_timestamp_lines = if let Some((_age_days, date_str, color_category)) =
-                        crate::logic::files::get_file_db_sync_info()
-                    {
-                        let (sync_color, sync_text) = match color_category {
-                            0 => (th.green, format!("Files updated on {}", date_str)),
-                            1 => (th.yellow, format!("Files updated on {}", date_str)),
-                            _ => (th.red, format!("Files updated on {}", date_str)),
+                    let sync_timestamp_lines =
+                        if let Some((_age_days, date_str, color_category)) = sync_info.clone() {
+                            let (sync_color, sync_text) = match color_category {
+                                0 => (th.green, format!("Files updated on {}", date_str)),
+                                1 => (th.yellow, format!("Files updated on {}", date_str)),
+                                _ => (th.red, format!("Files updated on {}", date_str)),
+                            };
+                            lines.push(Line::from(Span::styled(
+                                sync_text,
+                                Style::default().fg(sync_color),
+                            )));
+                            lines.push(Line::from(""));
+                            2 // timestamp line + empty line
+                        } else {
+                            0
                         };
-                        lines.push(Line::from(Span::styled(
-                            sync_text,
-                            Style::default().fg(sync_color),
-                        )));
-                        lines.push(Line::from(""));
-                        2 // timestamp line + empty line
-                    } else {
-                        0
-                    };
 
                     // Calculate available height for file list AFTER adding summary and sync timestamp
                     // Lines used before file list: tab header (1) + empty (1) + summary (1) + empty (1) + sync timestamp (0-2)
                     // Total: 4-6 lines
                     let header_lines = 4 + sync_timestamp_lines;
-                    let available_height = (content_rect.height as usize)
+                    let available_height = (content_rect.height.saturating_sub(1) as usize)
                         .saturating_sub(header_lines)
                         .max(1);
 
@@ -821,11 +1056,11 @@ pub fn render_preflight(
                         .skip(start_idx)
                         .take(end_idx - start_idx)
                     {
+                        let is_selected = display_idx == *file_selected;
                         if *is_header {
                             // Find package info for this header
                             let pkg_info = file_info.iter().find(|p| p.name == *pkg_name).unwrap();
                             let is_expanded = file_tree_expanded.contains(pkg_name);
-                            let is_selected = display_idx == *file_selected;
 
                             // Package header with expand/collapse indicator
                             let arrow_symbol = if is_expanded { "▼" } else { "▶" };
@@ -836,7 +1071,7 @@ pub fn render_preflight(
                                     .add_modifier(Modifier::BOLD)
                             } else {
                                 Style::default()
-                                    .fg(th.sapphire)
+                                    .fg(th.overlay1)
                                     .add_modifier(Modifier::BOLD)
                             };
 
@@ -905,40 +1140,57 @@ pub fn render_preflight(
                                 FileChangeType::Removed => ("-", th.red),
                             };
 
-                            let mut spans = vec![Span::styled(
-                                format!("  {} ", icon),
-                                Style::default().fg(color),
-                            )];
+                            let highlight_bg = if is_selected { Some(th.lavender) } else { None };
+                            let icon_style = if let Some(bg) = highlight_bg {
+                                Style::default().fg(color).bg(bg)
+                            } else {
+                                Style::default().fg(color)
+                            };
+                            let mut spans = vec![Span::styled(format!("  {} ", icon), icon_style)];
 
                             if *is_config {
-                                spans.push(Span::styled("⚙ ", Style::default().fg(th.mauve)));
+                                let cfg_style = if let Some(bg) = highlight_bg {
+                                    Style::default().fg(th.mauve).bg(bg)
+                                } else {
+                                    Style::default().fg(th.mauve)
+                                };
+                                spans.push(Span::styled("⚙ ", cfg_style));
                             }
 
                             // Add pacnew/pacsave indicators
                             if *predicted_pacnew {
-                                spans.push(Span::styled(
-                                    "⚠ pacnew ",
-                                    Style::default().fg(th.yellow),
-                                ));
+                                let pacnew_style = if let Some(bg) = highlight_bg {
+                                    Style::default().fg(th.yellow).bg(bg)
+                                } else {
+                                    Style::default().fg(th.yellow)
+                                };
+                                spans.push(Span::styled("⚠ pacnew ", pacnew_style));
                             }
                             if *predicted_pacsave {
-                                spans.push(Span::styled("⚠ pacsave ", Style::default().fg(th.red)));
+                                let pacsave_style = if let Some(bg) = highlight_bg {
+                                    Style::default().fg(th.red).bg(bg)
+                                } else {
+                                    Style::default().fg(th.red)
+                                };
+                                spans.push(Span::styled("⚠ pacsave ", pacsave_style));
                             }
 
-                            spans.push(Span::styled(
-                                path.clone(),
-                                Style::default().fg(if display_idx == *file_selected {
-                                    th.surface1
-                                } else {
-                                    th.text
-                                }),
-                            ));
+                            let path_style = if let Some(bg) = highlight_bg {
+                                Style::default()
+                                    .fg(th.crust)
+                                    .bg(bg)
+                                    .add_modifier(Modifier::BOLD)
+                            } else {
+                                Style::default().fg(th.text)
+                            };
+
+                            spans.push(Span::styled(path.clone(), path_style));
 
                             lines.push(Line::from(spans));
                         }
                     }
 
-                    if total_items > available_height as usize {
+                    if total_items > available_height {
                         lines.push(Line::from(""));
                         lines.push(Line::from(Span::styled(
                             format!(
@@ -993,7 +1245,7 @@ pub fn render_preflight(
         .any(|p| matches!(p.source, crate::state::Source::Aur));
 
     // Build footer hint based on current tab
-    let scan_hint = match current_tab {
+    let mut scan_hint = match current_tab {
         PreflightTab::Deps => {
             if has_aur {
                 "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  ?: help  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
@@ -1015,7 +1267,12 @@ pub fn render_preflight(
                 "Left/Right: tabs  •  d: dry-run  •  p: proceed  •  q: close"
             }
         }
-    };
+    }
+    .to_string();
+
+    if matches!(*action, PreflightAction::Remove) {
+        scan_hint.push_str("  •  m: cascade mode");
+    }
 
     let keybinds_lines = vec![
         Line::from(""), // Empty line for spacing
