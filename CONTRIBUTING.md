@@ -90,3 +90,8 @@ By contributing, you agree that your contributions will be licensed under the MI
 - Security Policy: see [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
 
 Thank you for helping improve Pacsea!
+
+<details>
+  <summary>Support indirectly</summary>
+If Pacsea has been helpful, you can support ongoing development here ❤️ [Patreon](https://www.patreon.com/Firstp1ck)
+</details>
