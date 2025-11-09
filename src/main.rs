@@ -1,16 +1,6 @@
 //! Pacsea binary entrypoint kept minimal. The full runtime lives in `app`.
 
-mod app;
-mod events;
-mod index;
-mod install;
-mod logic;
-mod sources;
-mod state;
-mod theme;
-mod ui;
-mod util;
-
+use pacsea::{app, theme, util};
 use clap::Parser;
 use std::sync::OnceLock;
 use std::{fmt, time::SystemTime};
@@ -23,7 +13,7 @@ impl tracing_subscriber::fmt::time::FormatTime for PacseaTimer {
             Ok(d) => d.as_secs() as i64,
             Err(_) => 0,
         };
-        let s = crate::util::ts_to_date(Some(secs)); // "YYYY-MM-DD HH:MM:SS"
+        let s = util::ts_to_date(Some(secs)); // "YYYY-MM-DD HH:MM:SS"
         let ts = s.replacen(' ', "-T", 1); // "YYYY-MM-DD-T HH:MM:SS"
         w.write_str(&ts)
     }
@@ -103,7 +93,7 @@ async fn main() {
 
     // Initialize tracing logger writing to ~/.config/pacsea/logs/pacsea.log
     {
-        let mut log_path = crate::theme::logs_dir();
+        let mut log_path = theme::logs_dir();
         log_path.push("pacsea.log");
         // Ensure directory exists (theme::config_dir already ensures it)
         match std::fs::OpenOptions::new()
