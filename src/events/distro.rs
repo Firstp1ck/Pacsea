@@ -51,3 +51,66 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Ensure the Worldwide variant embeds the Manjaro fasttrack workflow.
+    ///
+    /// Inputs:
+    /// - `countries`: `"Worldwide"` to trigger the fasttrack branch.
+    /// - `count`: `8` mirror entries requested.
+    ///
+    /// Output:
+    /// - Command string contains the Manjaro detection guard plus the fasttrack invocation with the requested count.
+    ///
+    /// Details:
+    /// - Also verifies the script retains the trailing pacman refresh step used after ranking mirrors.
+    fn mirror_update_worldwide_includes_fasttrack_path() {
+        let cmd = mirror_update_command("Worldwide", 8);
+        assert!(cmd.contains("grep -q 'Manjaro' /etc/os-release"));
+        assert!(cmd.contains("pacman-mirrors --fasttrack 8"));
+        assert!(cmd.contains("sudo pacman -Syy;"));
+    }
+
+    #[test]
+    /// What: Verify region-specific invocation propagates the provided country list to reflector helpers.
+    ///
+    /// Inputs:
+    /// - `countries`: `"Germany,France"` representing a comma-separated selection.
+    /// - `count`: Arbitrary `5`, unused in the non-Worldwide branch.
+    ///
+    /// Output:
+    /// - Command string includes the quoted country list for both Manjaro rank and reflector fallback branches.
+    ///
+    /// Details:
+    /// - Confirms the EndeavourOS clause still emits the reflector call with the customized country list.
+    fn mirror_update_regional_propagates_country_argument() {
+        let countries = "Germany,France";
+        let cmd = mirror_update_command(countries, 5);
+        assert!(cmd.contains("--country 'Germany,France'"));
+        assert!(cmd.contains("grep -q 'EndeavourOS' /etc/os-release"));
+        assert!(cmd.contains("sudo reflector --verbose --country 'Germany,France'"));
+    }
+
+    #[test]
+    /// What: Confirm EndeavourOS and CachyOS branches retain their helper invocations and fallback messaging.
+    ///
+    /// Inputs:
+    /// - `countries`: `"Worldwide"` to pass through every branch without country filtering.
+    /// - `count`: `3`, checking the value does not affect non-Manjaro logic.
+    ///
+    /// Output:
+    /// - Command string references both `eos-rankmirrors` and `cachyos-rate-mirrors` along with their retry echo messages.
+    ///
+    /// Details:
+    /// - Guards against accidental removal of distro-specific tooling when modifying the mirrored script.
+    fn mirror_update_includes_distro_specific_helpers() {
+        let cmd = mirror_update_command("Worldwide", 3);
+        assert!(cmd.contains("sudo eos-rankmirrors"));
+        assert!(cmd.contains("cachyos-rate-mirrors"));
+        assert!(cmd.contains("echo 'reflector not found; skipping mirror update'"));
+    }
+}

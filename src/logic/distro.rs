@@ -59,3 +59,80 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
         repo.to_string()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::AppState;
+
+    #[test]
+    /// What: Validate canonical repository toggles deny disabled repositories while permitting enabled ones.
+    ///
+    /// Inputs:
+    /// - `app`: Application state with `core` enabled and other official toggles disabled.
+    ///
+    /// Output:
+    /// - `repo_toggle_for` allows `core` entries but rejects `extra` and `multilib`.
+    ///
+    /// Details:
+    /// - Ensures the per-repository gate respects the individual boolean flags.
+    fn repo_toggle_respects_individual_flags() {
+        let mut app = AppState {
+            ..Default::default()
+        };
+        app.results_filter_show_core = true;
+        app.results_filter_show_extra = false;
+        app.results_filter_show_multilib = false;
+        app.results_filter_show_eos = false;
+        app.results_filter_show_cachyos = false;
+
+        assert!(repo_toggle_for("core", &app));
+        assert!(!repo_toggle_for("extra", &app));
+        assert!(!repo_toggle_for("multilib", &app));
+    }
+
+    #[test]
+    /// What: Ensure unknown official repositories require every official toggle to be enabled.
+    ///
+    /// Inputs:
+    /// - `app`: Application state with all official flags on, then one flag disabled.
+    ///
+    /// Output:
+    /// - Unknown repository accepted when fully enabled and rejected once any flag is turned off.
+    ///
+    /// Details:
+    /// - Exercises the fallback clause guarding unfamiliar repositories.
+    fn repo_toggle_unknown_only_with_full_whitelist() {
+        let mut app = AppState {
+            ..Default::default()
+        };
+        app.results_filter_show_core = true;
+        app.results_filter_show_extra = true;
+        app.results_filter_show_multilib = true;
+        app.results_filter_show_eos = true;
+        app.results_filter_show_cachyos = true;
+
+        assert!(repo_toggle_for("unlisted", &app));
+
+        app.results_filter_show_multilib = false;
+        assert!(!repo_toggle_for("unlisted", &app));
+    }
+
+    #[test]
+    /// What: Confirm label helper emits ecosystem-specific aliases for recognised repositories.
+    ///
+    /// Inputs:
+    /// - Repository/name permutations covering EndeavourOS, CachyOS, Manjaro, and a generic repo.
+    ///
+    /// Output:
+    /// - Labels reduce to `EOS`, `CachyOS`, `Manjaro`, and the original repo name respectively.
+    ///
+    /// Details:
+    /// - Validates the Manjaro heuristic via package name and the repo classification helpers.
+    fn label_for_official_prefers_special_cases() {
+        assert_eq!(label_for_official("endeavouros", "pkg", ""), "EOS");
+        assert_eq!(label_for_official("cachyos-extra", "pkg", ""), "CachyOS");
+        assert_eq!(label_for_official("extra", "manjaro-kernel", ""), "Manjaro");
+        assert_eq!(label_for_official("core", "glibc", ""), "core");
+    }
+}

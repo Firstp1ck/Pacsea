@@ -89,3 +89,129 @@ pub fn save_cache(path: &PathBuf, signature: &[String], dependencies: &[Dependen
         tracing::debug!(path = %path.display(), count = dependencies.len(), "saved dependency cache");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::modal::{DependencyInfo, DependencySource, DependencyStatus};
+    use crate::state::{PackageItem, Source};
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_path(label: &str) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_deps_cache_{label}_{}_{}.json",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        path
+    }
+
+    fn sample_packages() -> Vec<PackageItem> {
+        vec![
+            PackageItem {
+                name: "ripgrep".into(),
+                version: "14.0.0".into(),
+                description: String::new(),
+                source: Source::Official {
+                    repo: "extra".into(),
+                    arch: "x86_64".into(),
+                },
+                popularity: None,
+            },
+            PackageItem {
+                name: "fd".into(),
+                version: "9.0.0".into(),
+                description: String::new(),
+                source: Source::Aur,
+                popularity: Some(42.0),
+            },
+        ]
+    }
+
+    fn sample_dependencies() -> Vec<DependencyInfo> {
+        vec![DependencyInfo {
+            name: "gcc-libs".into(),
+            version: ">=13".into(),
+            status: DependencyStatus::ToInstall,
+            source: DependencySource::Official {
+                repo: "core".into(),
+            },
+            required_by: vec!["ripgrep".into()],
+            depends_on: Vec::new(),
+            is_core: true,
+            is_system: false,
+        }]
+    }
+
+    #[test]
+    /// What: Ensure `compute_signature` normalizes package name ordering.
+    /// Inputs:
+    /// - Install list cloned from the sample data but iterated in reverse.
+    ///
+    /// Output:
+    /// - Signature equals `["fd", "ripgrep"]`.
+    fn compute_signature_orders_package_names() {
+        let mut packages = sample_packages();
+        packages.reverse();
+        let signature = compute_signature(&packages);
+        assert_eq!(signature, vec![String::from("fd"), String::from("ripgrep")]);
+    }
+
+    #[test]
+    /// What: Confirm `load_cache` rejects persisted caches whose signature does not match.
+    /// Inputs:
+    /// - Cache saved for ["fd", "ripgrep"] but reloaded with signature ["ripgrep", "zellij"].
+    ///
+    /// Output:
+    /// - `None`.
+    fn load_cache_rejects_signature_mismatch() {
+        let path = temp_path("mismatch");
+        let packages = sample_packages();
+        let signature = compute_signature(&packages);
+        let deps = sample_dependencies();
+        save_cache(&path, &signature, &deps);
+
+        let mismatched_signature = vec!["ripgrep".into(), "zellij".into()];
+        assert!(load_cache(&path, &mismatched_signature).is_none());
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    /// What: Verify dependency payloads persist and reload unchanged.
+    /// Inputs:
+    /// - Disk round-trip for the sample dependency list using a matching signature.
+    ///
+    /// Output:
+    /// - Reloaded dependency list matches the original, including status, source, and metadata.
+    fn save_and_load_cache_roundtrip() {
+        let path = temp_path("roundtrip");
+        let packages = sample_packages();
+        let signature = compute_signature(&packages);
+        let deps = sample_dependencies();
+        let expected = deps.clone();
+        save_cache(&path, &signature, &deps);
+
+        let reloaded = load_cache(&path, &signature).expect("expected cache to load");
+        assert_eq!(reloaded.len(), expected.len());
+        let dep = &reloaded[0];
+        let expected_dep = &expected[0];
+        assert_eq!(dep.name, expected_dep.name);
+        assert_eq!(dep.version, expected_dep.version);
+        assert!(matches!(dep.status, DependencyStatus::ToInstall));
+        assert!(matches!(
+            dep.source,
+            DependencySource::Official { ref repo } if repo == "core"
+        ));
+        assert_eq!(dep.required_by, expected_dep.required_by);
+        assert_eq!(dep.depends_on, expected_dep.depends_on);
+        assert_eq!(dep.is_core, expected_dep.is_core);
+        assert_eq!(dep.is_system, expected_dep.is_system);
+
+        let _ = fs::remove_file(&path);
+    }
+}

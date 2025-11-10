@@ -187,3 +187,45 @@ pub(crate) fn version_satisfies(installed: &str, requirement: &str) -> bool {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Ensure relational comparison operators behave according to the simplified string checks.
+    ///
+    /// Inputs:
+    /// - `>=`, `<=`, `>`, `<`, and `=` requirements evaluated against representative version strings.
+    ///
+    /// Output:
+    /// - Verifies truthiness for matching cases and falseness for mismatched comparisons.
+    ///
+    /// Details:
+    /// - Confirms the helper remains stable for the ordering relied upon by dependency diagnostics.
+    fn version_satisfies_relational_operators() {
+        assert!(version_satisfies("2.0", ">=1.5"));
+        assert!(!version_satisfies("1.0", ">=1.5"));
+        assert!(version_satisfies("1.5", "<=1.5"));
+        assert!(version_satisfies("1.6", ">1.5"));
+        assert!(!version_satisfies("1.4", ">1.5"));
+        assert!(version_satisfies("1.5", "=1.5"));
+        assert!(!version_satisfies("1.6", "<1.5"));
+    }
+
+    #[test]
+    /// What: Confirm the helper defaults to success when no requirement string is provided.
+    ///
+    /// Inputs:
+    /// - Empty and non-operator requirement strings.
+    ///
+    /// Output:
+    /// - Returns `true`, indicating no additional comparison is enforced.
+    ///
+    /// Details:
+    /// - Guards the fallback branch used by callers that lack explicit version constraints.
+    fn version_satisfies_defaults_to_true_without_constraint() {
+        assert!(version_satisfies("2.0", ""));
+        assert!(version_satisfies("2.0", "n/a"));
+    }
+}

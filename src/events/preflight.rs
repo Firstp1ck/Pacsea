@@ -643,6 +643,16 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use std::collections::HashSet;
 
+    /// What: Construct a minimal `PackageItem` fixture used by preflight tests.
+    ///
+    /// Inputs:
+    /// - `name`: Package identifier to embed in the resulting fixture.
+    ///
+    /// Output:
+    /// - `PackageItem` populated with deterministic metadata for assertions.
+    ///
+    /// Details:
+    /// - Provides consistent version/description/source values so each test can focus on modal behaviour.
     fn pkg(name: &str) -> PackageItem {
         PackageItem {
             name: name.into(),
@@ -656,6 +666,17 @@ mod tests {
         }
     }
 
+    /// What: Build a `DependencyInfo` fixture describing a package edge for dependency tests.
+    ///
+    /// Inputs:
+    /// - `name`: Dependency package name to populate the struct.
+    /// - `required_by`: Slice of package names that declare the dependency.
+    ///
+    /// Output:
+    /// - `DependencyInfo` instance configured for deterministic assertions.
+    ///
+    /// Details:
+    /// - Sets predictable version/status/source fields so tests can concentrate on tree expansion logic.
     fn dep(name: &str, required_by: &[&str]) -> DependencyInfo {
         DependencyInfo {
             name: name.into(),
@@ -671,6 +692,17 @@ mod tests {
         }
     }
 
+    /// What: Create a `PackageFileInfo` fixture with a configurable number of synthetic files.
+    ///
+    /// Inputs:
+    /// - `name`: Package identifier associated with the file changes.
+    /// - `file_count`: Number of file entries to generate.
+    ///
+    /// Output:
+    /// - `PackageFileInfo` containing `file_count` new file records under `/tmp`.
+    ///
+    /// Details:
+    /// - Each generated file is marked as a new change, allowing tests to validate expansion counts easily.
     fn file_info(name: &str, file_count: usize) -> PackageFileInfo {
         let mut files = Vec::new();
         for idx in 0..file_count {
@@ -788,6 +820,19 @@ mod tests {
         );
     }
 
+    /// What: Prepare an `AppState` with a seeded Preflight modal tailored for keyboard interaction tests.
+    ///
+    /// Inputs:
+    /// - `tab`: Initial tab to display inside the Preflight modal.
+    /// - `dependency_info`: Pre-resolved dependency list to seed the modal state.
+    /// - `dep_selected`: Initial selection index for the dependency list.
+    /// - `dep_tree_expanded`: Set of package names that should start expanded.
+    ///
+    /// Output:
+    /// - `AppState` instance whose `modal` field is pre-populated with consistent fixtures.
+    ///
+    /// Details:
+    /// - Reduces duplication across tests that exercise navigation/expansion logic within the Preflight modal.
     fn setup_preflight_app(
         tab: PreflightTab,
         dependency_info: Vec<DependencyInfo>,

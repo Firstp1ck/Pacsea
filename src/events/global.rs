@@ -627,3 +627,145 @@ pub(crate) fn handle_global_key(
     }
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn new_app() -> AppState {
+        AppState {
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    /// What: Confirm pressing `Esc` while dropdowns are open closes them without exiting.
+    ///
+    /// Inputs:
+    /// - App state with Options and Sort menus flagged open.
+    /// - Synthetic `Esc` key event.
+    ///
+    /// Output:
+    /// - Handler returns `false` and menu flags reset to `false`.
+    ///
+    /// Details:
+    /// - Ensures the early escape branch short-circuits before other global shortcuts.
+    fn global_escape_closes_dropdowns() {
+        let mut app = new_app();
+        app.sort_menu_open = true;
+        app.options_menu_open = true;
+        app.panels_menu_open = true;
+        app.config_menu_open = true;
+
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+
+        let exit = handle_global_key(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
+            &mut app,
+            &details_tx,
+            &pkgb_tx,
+        );
+
+        assert!(!exit);
+        assert!(!app.sort_menu_open);
+        assert!(!app.options_menu_open);
+        assert!(!app.panels_menu_open);
+        assert!(!app.config_menu_open);
+    }
+
+    #[test]
+    /// What: Verify the help overlay shortcut activates the Help modal.
+    ///
+    /// Inputs:
+    /// - Default keymap (F1 assigned to help overlay).
+    /// - `F1` key event with no modifiers.
+    ///
+    /// Output:
+    /// - Handler returns `false` and sets `app.modal` to `Modal::Help`.
+    ///
+    /// Details:
+    /// - Confirms BackTab normalization does not interfere with regular function keys.
+    fn global_help_overlay_opens_modal() {
+        let mut app = new_app();
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+
+        let exit = handle_global_key(
+            KeyEvent::new(KeyCode::F(1), KeyModifiers::empty()),
+            &mut app,
+            &details_tx,
+            &pkgb_tx,
+        );
+
+        assert!(!exit);
+        assert!(matches!(app.modal, crate::state::Modal::Help));
+    }
+
+    #[test]
+    /// What: Ensure the PKGBUILD toggle opens the viewer and requests content.
+    ///
+    /// Inputs:
+    /// - App state with a single selected result.
+    /// - `Ctrl+X` key event matching the default `show_pkgbuild` chord.
+    ///
+    /// Output:
+    /// - Handler returns `false`, sets `pkgb_visible`, and sends the selected item through `pkgb_tx`.
+    ///
+    /// Details:
+    /// - Provides regression coverage for the channel send branch when the viewer becomes visible.
+    fn global_show_pkgbuild_requests_content() {
+        let mut app = new_app();
+        app.results = vec![PackageItem {
+            name: "ripgrep".into(),
+            version: "14.0".into(),
+            description: "fast search".into(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+        }];
+        app.selected = 0;
+
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, mut pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+
+        let exit = handle_global_key(
+            KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL),
+            &mut app,
+            &details_tx,
+            &pkgb_tx,
+        );
+
+        assert!(!exit);
+        assert!(app.pkgb_visible);
+        let sent = pkgb_rx.try_recv().expect("pkgb request dispatched");
+        assert_eq!(sent.name, "ripgrep");
+    }
+
+    #[test]
+    /// What: Validate the exit key chord signals the application loop to terminate.
+    ///
+    /// Inputs:
+    /// - Default keymap with `Ctrl+C` bound to exit.
+    /// - `Ctrl+C` key event routed through the handler.
+    ///
+    /// Output:
+    /// - Handler returns `true`, indicating the caller should stop processing events.
+    ///
+    /// Details:
+    /// - Provides regression coverage so global exit handling keeps matching the configured chord.
+    fn global_exit_chord_requests_shutdown() {
+        let mut app = new_app();
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+
+        let exit = handle_global_key(
+            KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
+            &mut app,
+            &details_tx,
+            &pkgb_tx,
+        );
+
+        assert!(exit);
+    }
+}

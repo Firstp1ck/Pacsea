@@ -104,4 +104,86 @@ mod tests {
         v.sort();
         assert_eq!(v, vec!["a", "b"]);
     }
+
+    #[cfg(not(target_os = "windows"))]
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test]
+    /// What: Populate the explicit cache from pacman output.
+    ///
+    /// Inputs:
+    /// - Override PATH with a fake pacman returning two explicit package names before invoking the refresh.
+    ///
+    /// Output:
+    /// - Cache contains both names after `refresh_explicit_cache` completes.
+    ///
+    /// Details:
+    /// - Verifies the async refresh reads command output, updates the cache, and the cache contents persist after restoring PATH.
+    async fn refresh_explicit_cache_populates_cache_from_pacman_output() {
+        let _guard = crate::index::test_mutex().lock().unwrap();
+
+        if let Ok(mut g) = super::explicit_lock().write() {
+            g.clear();
+        }
+
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        struct PathGuard {
+            original: String,
+        }
+        impl Drop for PathGuard {
+            fn drop(&mut self) {
+                unsafe {
+                    std::env::set_var("PATH", &self.original);
+                }
+            }
+        }
+        let _path_guard = PathGuard {
+            original: old_path.clone(),
+        };
+
+        let mut root = std::env::temp_dir();
+        root.push(format!(
+            "pacsea_fake_pacman_qetq_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let mut bin = root.clone();
+        bin.push("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let mut script = bin.clone();
+        script.push("pacman");
+        let body = r#"#!/usr/bin/env bash
+set -e
+if [[ "$1" == "-Qetq" ]]; then
+  echo "alpha"
+  echo "beta"
+  exit 0
+fi
+exit 1
+"#;
+        std::fs::write(&script, body).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            perm.set_mode(0o755);
+            std::fs::set_permissions(&script, perm).unwrap();
+        }
+        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        unsafe {
+            std::env::set_var("PATH", &new_path);
+        }
+
+        super::refresh_explicit_cache().await;
+
+        let _ = std::fs::remove_dir_all(&root);
+
+        let set = super::explicit_names();
+        assert_eq!(set.len(), 2);
+        assert!(set.contains("alpha"));
+        assert!(set.contains("beta"));
+    }
 }

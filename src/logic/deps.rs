@@ -19,16 +19,17 @@ use utils::dependency_priority;
 
 pub use reverse::resolve_reverse_dependencies;
 
-/// Resolve dependencies for a list of packages to install.
-///
-/// This function queries pacman/paru to determine all dependencies (direct and transitive)
-/// and checks their installation status on the system.
+/// What: Resolve dependencies for the requested install set while consolidating duplicates.
 ///
 /// Inputs:
-/// - `items`: List of packages to install
+/// - `items`: Ordered slice of packages that should be analysed for dependency coverage.
 ///
 /// Output:
-/// - Vector of `DependencyInfo` with resolved status for each dependency
+/// - Returns a vector of `DependencyInfo` records summarising dependency status and provenance.
+///
+/// Details:
+/// - Invokes pacman/paru helpers to enumerate direct and transitive dependencies, then merges them
+///   by name, retaining the most severe status across all requesters for UI presentation.
 pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     tracing::info!(
         "Starting dependency resolution for {} package(s)",

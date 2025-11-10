@@ -1,7 +1,7 @@
 //! Pacsea binary entrypoint kept minimal. The full runtime lives in `app`.
 
-use pacsea::{app, theme, util};
 use clap::Parser;
+use pacsea::{app, theme, util};
 use std::sync::OnceLock;
 use std::{fmt, time::SystemTime};
 

@@ -244,6 +244,16 @@ pub fn handle_recent_key(
 mod tests {
     use super::*;
 
+    /// What: Provide a fresh `AppState` tailored for recent-pane tests without repeated boilerplate.
+    ///
+    /// Inputs:
+    /// - None (relies on `Default::default()` for deterministic initial state).
+    ///
+    /// Output:
+    /// - New `AppState` ready for mutating within individual recent-pane scenarios.
+    ///
+    /// Details:
+    /// - Keeps tests concise by centralizing setup of the baseline application state.
     fn new_app() -> AppState {
         AppState {
             ..Default::default()

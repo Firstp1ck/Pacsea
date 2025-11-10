@@ -302,3 +302,163 @@ pub(crate) fn resolve_package_deps(
     tracing::debug!("Resolved {} dependencies for package {}", deps.len(), name);
     Ok(deps)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use tempfile::tempdir;
+
+    struct PathGuard {
+        original: Option<String>,
+    }
+
+    impl PathGuard {
+        fn push(dir: &std::path::Path) -> Self {
+            let original = std::env::var("PATH").ok();
+            let mut new_path = dir.display().to_string();
+            if let Some(ref orig) = original {
+                new_path.push(':');
+                new_path.push_str(orig);
+            }
+            unsafe {
+                std::env::set_var("PATH", &new_path);
+            }
+            Self { original }
+        }
+    }
+
+    impl Drop for PathGuard {
+        fn drop(&mut self) {
+            if let Some(ref orig) = self.original {
+                unsafe {
+                    std::env::set_var("PATH", orig);
+                }
+            } else {
+                unsafe {
+                    std::env::remove_var("PATH");
+                }
+            }
+        }
+    }
+
+    fn write_executable(dir: &std::path::Path, name: &str, body: &str) {
+        let path = dir.join(name);
+        let mut file = fs::File::create(&path).expect("create stub");
+        file.write_all(body.as_bytes()).expect("write stub");
+        let mut perms = fs::metadata(&path).expect("meta").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&path, perms).expect("chmod stub");
+    }
+
+    #[test]
+    /// What: Confirm official dependency resolution consumes the pacman stub output and filters virtual entries.
+    ///
+    /// Inputs:
+    /// - Staged `pacman` shell script that prints a crafted `-Si` response including `.so` and versioned dependencies.
+    ///
+    /// Output:
+    /// - Dependency vector contains only the real packages with preserved version requirements and `required_by` set.
+    ///
+    /// Details:
+    /// - Guards against regressions in parsing logic for the pacman path while isolating the function from system binaries via PATH overrides.
+    fn resolve_official_uses_pacman_si_stub() {
+        let dir = tempdir().expect("tempdir");
+        let _test_guard = crate::logic::test_mutex().lock().unwrap();
+        let _guard = PathGuard::push(dir.path());
+        write_executable(
+            dir.path(),
+            "pacman",
+            r#"#!/bin/sh
+if [ "$1" = "-Si" ]; then
+cat <<'EOF'
+Name            : pkg
+Depends On      : dep1 libplaceholder.so other>=1.2
+EOF
+exit 0
+fi
+exit 1
+"#,
+        );
+
+        let installed = HashSet::new();
+        let upgradable = HashSet::new();
+        let deps = resolve_package_deps(
+            "pkg",
+            &Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+            &installed,
+            &upgradable,
+        )
+        .expect("resolve succeeds");
+
+        assert_eq!(deps.len(), 2);
+        let mut names: Vec<&str> = deps.iter().map(|d| d.name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["dep1", "other"]);
+
+        let other = deps
+            .iter()
+            .find(|d| d.name == "other")
+            .expect("other present");
+        assert_eq!(other.version, ">=1.2");
+        assert_eq!(other.required_by, vec!["pkg".to_string()]);
+    }
+
+    #[test]
+    /// What: Verify the AUR branch leverages the helper stub output and skips self-referential dependencies.
+    ///
+    /// Inputs:
+    /// - PATH-injected `paru` script responding to `--version` and `-Si`, plus inert stubs for `yay` and `pacman`.
+    ///
+    /// Output:
+    /// - Dependency list reflects helper-derived entries while omitting the package itself.
+    ///
+    /// Details:
+    /// - Ensures helper discovery short-circuits the API fallback and that parsing behaves consistently for AUR responses.
+    fn resolve_aur_prefers_paru_stub_and_skips_self() {
+        let dir = tempdir().expect("tempdir");
+        let _test_guard = crate::logic::test_mutex().lock().unwrap();
+        let _guard = PathGuard::push(dir.path());
+        write_executable(
+            dir.path(),
+            "paru",
+            r#"#!/bin/sh
+if [ "$1" = "--version" ]; then
+exit 0
+fi
+if [ "$1" = "-Si" ]; then
+cat <<'EOF'
+Name            : pkg
+Depends On      : pkg helper extra>=2.0
+EOF
+exit 0
+fi
+exit 1
+"#,
+        );
+        write_executable(dir.path(), "yay", "#!/bin/sh\nexit 1\n");
+        write_executable(dir.path(), "pacman", "#!/bin/sh\nexit 1\n");
+        write_executable(dir.path(), "curl", "#!/bin/sh\nexit 1\n");
+
+        let installed = HashSet::new();
+        let upgradable = HashSet::new();
+        let deps = resolve_package_deps("pkg", &Source::Aur, &installed, &upgradable)
+            .expect("resolve succeeds");
+
+        assert_eq!(deps.len(), 2);
+        let mut names: Vec<&str> = deps.iter().map(|d| d.name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["extra", "helper"]);
+        let extra = deps
+            .iter()
+            .find(|d| d.name == "extra")
+            .expect("extra present");
+        assert_eq!(extra.version, ">=2.0");
+        assert_eq!(extra.required_by, vec!["pkg".to_string()]);
+    }
+}

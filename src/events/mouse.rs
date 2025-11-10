@@ -1640,6 +1640,16 @@ pub fn handle_mouse_event(
 mod tests {
     use super::*;
 
+    /// What: Provide a fresh `AppState` tailored for mouse-event tests without repeated boilerplate.
+    ///
+    /// Inputs:
+    /// - None (relies on `Default::default()` for deterministic initial state).
+    ///
+    /// Output:
+    /// - New `AppState` ready for mutation inside individual mouse-event scenarios.
+    ///
+    /// Details:
+    /// - Keeps mouse tests concise by centralizing the default setup in a single helper.
     fn new_app() -> AppState {
         AppState {
             ..Default::default()

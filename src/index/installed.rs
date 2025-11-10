@@ -102,4 +102,85 @@ mod tests {
         assert!(super::is_installed("bar"));
         assert!(!super::is_installed("baz"));
     }
+
+    #[cfg(not(target_os = "windows"))]
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test]
+    /// What: Populate the installed cache from pacman output.
+    ///
+    /// Inputs:
+    /// - Override PATH with a fake pacman that emits installed package names before invoking the refresh.
+    ///
+    /// Output:
+    /// - Cache lookup succeeds for the emitted names after `refresh_installed_cache` completes.
+    ///
+    /// Details:
+    /// - Exercises the async refresh path, ensures PATH is restored, and verifies cache contents via helper accessors.
+    async fn refresh_installed_cache_populates_cache_from_pacman_output() {
+        let _guard = crate::index::test_mutex().lock().unwrap();
+
+        if let Ok(mut g) = super::installed_lock().write() {
+            g.clear();
+        }
+
+        let original_path = std::env::var("PATH").unwrap_or_default();
+        struct PathGuard {
+            original: String,
+        }
+        impl Drop for PathGuard {
+            fn drop(&mut self) {
+                unsafe {
+                    std::env::set_var("PATH", &self.original);
+                }
+            }
+        }
+        let _path_guard = PathGuard {
+            original: original_path.clone(),
+        };
+
+        let mut root = std::env::temp_dir();
+        root.push(format!(
+            "pacsea_fake_pacman_qq_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let mut bin = root.clone();
+        bin.push("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let mut script = bin.clone();
+        script.push("pacman");
+        let body = r#"#!/usr/bin/env bash
+set -e
+if [[ "$1" == "-Qq" ]]; then
+  echo "alpha"
+  echo "beta"
+  exit 0
+fi
+exit 1
+"#;
+        std::fs::write(&script, body).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            perm.set_mode(0o755);
+            std::fs::set_permissions(&script, perm).unwrap();
+        }
+        let new_path = format!("{}:{}", bin.to_string_lossy(), original_path);
+        unsafe {
+            std::env::set_var("PATH", &new_path);
+        }
+
+        super::refresh_installed_cache().await;
+
+        let _ = std::fs::remove_dir_all(&root);
+
+        assert!(super::is_installed("alpha"));
+        assert!(super::is_installed("beta"));
+        assert!(!super::is_installed("gamma"));
+    }
 }

@@ -646,13 +646,17 @@ fi)"#.to_string());
 
 /// What: Launch a terminal that performs an AUR package scan for a given package name
 ///
-/// Input: `pkg` AUR package name to scan
-/// Output: Spawns a terminal that runs the scan pipeline; artifacts are written under a temp working directory
+/// Input:
+/// - `pkg`: AUR package identifier to analyse.
+/// - `do_clamav`/`do_trivy`/`do_semgrep`/`do_shellcheck`/`do_virustotal`/`do_custom`/`do_sleuth`: Toggles enabling optional scan stages.
+///
+/// Output:
+/// - Spawns a terminal that runs the scan pipeline and writes artifacts under a temporary working directory.
 ///
 /// Details:
-/// - Clones `https://aur.archlinux.org/<pkg>.git` and runs `makepkg -o` (download sources only)
-/// - Optionally runs ClamAV, Trivy (fs), and Semgrep scans
-/// - If `VT_API_KEY` is available (or configured in Pacsea settings), performs VirusTotal hash lookups for PKGBUILD/src files
+/// - Clones `https://aur.archlinux.org/<pkg>.git` and runs `makepkg -o` (download sources only).
+/// - Optionally runs ClamAV, Trivy filesystem, and Semgrep scans.
+/// - Performs VirusTotal hash lookups for PKGBUILD/src files when `VT_API_KEY` is provided via environment or Pacsea settings.
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_aur_scan_for_with_config(

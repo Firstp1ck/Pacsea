@@ -89,3 +89,125 @@ pub fn save_cache(path: &PathBuf, signature: &[String], files: &[PackageFileInfo
         tracing::debug!(path = %path.display(), count = files.len(), "saved file cache");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::modal::{FileChange, FileChangeType, PackageFileInfo};
+    use crate::state::{PackageItem, Source};
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_path(label: &str) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_files_cache_{label}_{}_{}.json",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        path
+    }
+
+    fn sample_packages() -> Vec<PackageItem> {
+        vec![
+            PackageItem {
+                name: "ripgrep".into(),
+                version: "14.0.0".into(),
+                description: String::new(),
+                source: Source::Official {
+                    repo: "extra".into(),
+                    arch: "x86_64".into(),
+                },
+                popularity: None,
+            },
+            PackageItem {
+                name: "fd".into(),
+                version: "9.0.0".into(),
+                description: String::new(),
+                source: Source::Aur,
+                popularity: Some(42.0),
+            },
+        ]
+    }
+
+    fn sample_file_infos() -> Vec<PackageFileInfo> {
+        vec![PackageFileInfo {
+            name: "ripgrep".into(),
+            files: vec![FileChange {
+                path: "/usr/bin/rg".into(),
+                change_type: FileChangeType::New,
+                package: "ripgrep".into(),
+                is_config: false,
+                predicted_pacnew: false,
+                predicted_pacsave: false,
+            }],
+            total_count: 1,
+            new_count: 1,
+            changed_count: 0,
+            removed_count: 0,
+            config_count: 0,
+            pacnew_candidates: 0,
+            pacsave_candidates: 0,
+        }]
+    }
+
+    #[test]
+    /// What: Ensure `compute_signature` normalizes package name ordering.
+    /// Inputs:
+    /// - Install list cloned from the sample data but iterated in reverse.
+    ///
+    /// Output:
+    /// - Signature equals `["fd", "ripgrep"]`.
+    fn compute_signature_orders_package_names() {
+        let mut packages = sample_packages();
+        packages.reverse();
+        let signature = compute_signature(&packages);
+        assert_eq!(signature, vec![String::from("fd"), String::from("ripgrep")]);
+    }
+
+    #[test]
+    /// What: Confirm `load_cache` rejects persisted caches whose signature does not match.
+    /// Inputs:
+    /// - Cache saved for `["fd", "ripgrep"]` but reloaded with signature `["ripgrep", "zellij"]`.
+    ///
+    /// Output:
+    /// - `None`.
+    fn load_cache_rejects_signature_mismatch() {
+        let path = temp_path("mismatch");
+        let packages = sample_packages();
+        let signature = compute_signature(&packages);
+        let file_infos = sample_file_infos();
+        save_cache(&path, &signature, &file_infos);
+
+        let mismatched_signature = vec!["ripgrep".into(), "zellij".into()];
+        assert!(load_cache(&path, &mismatched_signature).is_none());
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    /// What: Verify cached file metadata survives a save/load round trip.
+    /// Inputs:
+    /// - Sample `ripgrep` file info written to disk and reloaded with matching signature.
+    ///
+    /// Output:
+    /// - Reloaded metadata matches the original counts and file entries.
+    fn save_and_load_cache_roundtrip() {
+        let path = temp_path("roundtrip");
+        let packages = sample_packages();
+        let signature = compute_signature(&packages);
+        let file_infos = sample_file_infos();
+        save_cache(&path, &signature, &file_infos);
+
+        let reloaded = load_cache(&path, &signature).expect("expected cache to load");
+        assert_eq!(reloaded.len(), file_infos.len());
+        assert_eq!(reloaded[0].name, file_infos[0].name);
+        assert_eq!(reloaded[0].files.len(), file_infos[0].files.len());
+        assert_eq!(reloaded[0].total_count, file_infos[0].total_count);
+        assert_eq!(reloaded[0].new_count, file_infos[0].new_count);
+
+        let _ = fs::remove_file(&path);
+    }
+}

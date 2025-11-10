@@ -643,6 +643,16 @@ pub fn handle_install_key(
 mod tests {
     use super::*;
 
+    /// What: Produce a baseline `AppState` tailored for install-pane tests without repeating setup boilerplate.
+    ///
+    /// Inputs:
+    /// - None (relies on `Default::default()` for deterministic initial state).
+    ///
+    /// Output:
+    /// - Fresh `AppState` ready for mutation inside individual test cases.
+    ///
+    /// Details:
+    /// - Keeps test bodies concise while ensuring each case starts from a clean copy.
     fn new_app() -> AppState {
         AppState {
             ..Default::default()

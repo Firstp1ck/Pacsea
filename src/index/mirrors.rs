@@ -273,6 +273,224 @@ pub async fn refresh_windows_mirrors_and_index(
     refresh_official_index_from_arch_api(persist_path, net_err_tx, notify_tx).await;
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    use tokio::sync::mpsc;
+    use tokio::time;
+
+    #[cfg(not(target_os = "windows"))]
+    #[tokio::test]
+    /// What: Ensure mirror fetching persists raw JSON and filtered HTTPS-only mirror list.
+    async fn fetch_mirrors_to_repo_dir_writes_json_and_filtered_mirrorlist() {
+        let mut repo_dir = std::env::temp_dir();
+        repo_dir.push(format!(
+            "pacsea_test_mirrors_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&repo_dir).unwrap();
+
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        struct PathGuard {
+            original: String,
+        }
+        impl Drop for PathGuard {
+            fn drop(&mut self) {
+                unsafe {
+                    std::env::set_var("PATH", &self.original);
+                }
+            }
+        }
+        let _path_guard = PathGuard {
+            original: old_path.clone(),
+        };
+
+        let mut shim_root = std::env::temp_dir();
+        shim_root.push(format!(
+            "pacsea_fake_curl_mirrors_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&shim_root).unwrap();
+        let mut bin = shim_root.clone();
+        bin.push("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let mut script = bin.clone();
+        script.push("curl");
+        let body = r#"#!/usr/bin/env bash
+set -e
+if [[ "$1" == "-sSLf" ]]; then
+  cat <<'EOF'
+{"urls":[{"url":"https://fast.example/", "active":true, "protocols":["https"]},{"url":"http://slow.example/", "active":true, "protocols":["http"]},{"url":"https://inactive.example/", "active":false, "protocols":["https"]}]}
+EOF
+  exit 0
+fi
+exit 1
+"#;
+        std::fs::write(&script, body).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            perm.set_mode(0o755);
+            std::fs::set_permissions(&script, perm).unwrap();
+        }
+        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        unsafe {
+            std::env::set_var("PATH", &new_path);
+        }
+
+        let mirrorlist_path = super::fetch_mirrors_to_repo_dir(&repo_dir).await.unwrap();
+        let raw_json_path = repo_dir.join("mirrors.json");
+        assert!(raw_json_path.exists());
+        assert!(mirrorlist_path.exists());
+
+        let mirrorlist_body = std::fs::read_to_string(&mirrorlist_path).unwrap();
+        assert!(mirrorlist_body.contains("https://fast.example/$repo/os/$arch"));
+        assert!(!mirrorlist_body.contains("slow.example"));
+        assert!(!mirrorlist_body.contains("inactive.example"));
+
+        let _ = std::fs::remove_dir_all(&repo_dir);
+        let _ = std::fs::remove_dir_all(&shim_root);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test]
+    /// What: Ensure Windows index refresh consumes API responses, persists, and notifies without errors.
+    async fn refresh_official_index_from_arch_api_consumes_api_results_and_persists() {
+        let _guard = crate::index::test_mutex().lock().unwrap();
+
+        if let Ok(mut g) = super::idx().write() {
+            g.pkgs.clear();
+        }
+
+        let mut persist_path = std::env::temp_dir();
+        persist_path.push(format!(
+            "pacsea_mirrors_index_refresh_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        let (net_err_tx, mut net_err_rx) = mpsc::unbounded_channel::<String>();
+        let (notify_tx, mut notify_rx) = mpsc::unbounded_channel::<()>();
+
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        struct PathGuard {
+            original: String,
+        }
+        impl Drop for PathGuard {
+            fn drop(&mut self) {
+                unsafe {
+                    std::env::set_var("PATH", &self.original);
+                }
+            }
+        }
+        let _path_guard = PathGuard {
+            original: old_path.clone(),
+        };
+
+        let mut shim_root = std::env::temp_dir();
+        shim_root.push(format!(
+            "pacsea_fake_curl_index_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&shim_root).unwrap();
+        let mut bin = shim_root.clone();
+        bin.push("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let mut script = bin.clone();
+        script.push("curl");
+        let body = r#"#!/usr/bin/env bash
+set -e
+if [[ "$1" == "-sSLf" ]]; then
+  url="$2"
+  if [[ "$url" == *"page=1"* ]]; then
+    if [[ "$url" == *"repo=core"* ]]; then
+      cat <<'EOF'
+{"results":[{"pkgname":"core-pkg","pkgver":"1.0","pkgdesc":"Core package","arch":"x86_64","repo":"core"}]}
+EOF
+    elif [[ "$url" == *"repo=extra"* ]]; then
+      cat <<'EOF'
+{"results":[{"pkgname":"extra-pkg","pkgver":"2.0","pkgdesc":"Extra package","arch":"x86_64","repo":"extra"}]}
+EOF
+    else
+      cat <<'EOF'
+{"results":[]}
+EOF
+    fi
+  else
+    cat <<'EOF'
+{"results":[]}
+EOF
+  fi
+  exit 0
+fi
+exit 1
+"#;
+        std::fs::write(&script, body).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            perm.set_mode(0o755);
+            std::fs::set_permissions(&script, perm).unwrap();
+        }
+        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        unsafe {
+            std::env::set_var("PATH", &new_path);
+        }
+
+        super::refresh_official_index_from_arch_api(persist_path.clone(), net_err_tx, notify_tx)
+            .await;
+
+        let notified = time::timeout(Duration::from_millis(200), notify_rx.recv())
+            .await
+            .ok()
+            .flatten()
+            .is_some();
+        assert!(notified);
+        let err = time::timeout(Duration::from_millis(200), net_err_rx.recv())
+            .await
+            .ok()
+            .flatten();
+        assert!(err.is_none());
+
+        let mut names: Vec<String> = crate::index::all_official()
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["core-pkg".to_string(), "extra-pkg".to_string()]);
+
+        let body = std::fs::read_to_string(&persist_path).unwrap();
+        assert!(body.contains("\"core-pkg\""));
+        assert!(body.contains("\"extra-pkg\""));
+
+        if let Ok(mut g) = super::idx().write() {
+            g.pkgs.clear();
+        }
+
+        let _ = std::fs::remove_file(&persist_path);
+        let _ = std::fs::remove_dir_all(&shim_root);
+    }
+}
+
 /// What: Download a repository sync database to disk for offline inspection.
 ///
 /// Inputs:

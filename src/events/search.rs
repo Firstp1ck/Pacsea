@@ -521,6 +521,16 @@ pub fn handle_search_key(
 mod tests {
     use super::*;
 
+    /// What: Provide a baseline `AppState` tailored for search-pane tests without repeating setup boilerplate.
+    ///
+    /// Inputs:
+    /// - None (relies on `Default::default()` for deterministic initial state).
+    ///
+    /// Output:
+    /// - Fresh `AppState` ready for mutation inside individual test cases.
+    ///
+    /// Details:
+    /// - Keeps search tests concise by centralizing the default application setup in one helper.
     fn new_app() -> AppState {
         AppState {
             ..Default::default()

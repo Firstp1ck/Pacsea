@@ -21,3 +21,39 @@ pub(crate) fn dependency_priority(status: &DependencyStatus) -> u8 {
         DependencyStatus::Installed { .. } => 4,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Validate dependency priorities rank conflict states ahead of installed cases.
+    ///
+    /// Inputs:
+    /// - Constructs each `DependencyStatus` variant with lightweight sample payloads.
+    ///
+    /// Output:
+    /// - Asserts the assigned numeric priorities ascend from conflict through installed statuses.
+    ///
+    /// Details:
+    /// - Guards the ordering relied upon by sorting logic so that regression changes surface quickly.
+    fn dependency_priority_orders_by_severity() {
+        let conflict = dependency_priority(&DependencyStatus::Conflict {
+            reason: String::new(),
+        });
+        let missing = dependency_priority(&DependencyStatus::Missing);
+        let install = dependency_priority(&DependencyStatus::ToInstall);
+        let upgrade = dependency_priority(&DependencyStatus::ToUpgrade {
+            current: "1".into(),
+            required: "2".into(),
+        });
+        let installed = dependency_priority(&DependencyStatus::Installed {
+            version: "1".into(),
+        });
+
+        assert!(conflict < missing);
+        assert!(missing < install);
+        assert!(install < upgrade);
+        assert!(upgrade < installed);
+    }
+}

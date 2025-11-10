@@ -260,6 +260,16 @@ pub fn refresh_downgrade_details(
 mod tests {
     use super::*;
 
+    /// What: Produce a baseline `AppState` tailored for utils tests.
+    ///
+    /// Inputs:
+    /// - None; relies on `Default::default()` for deterministic state.
+    ///
+    /// Output:
+    /// - Fresh `AppState` instance for individual unit tests.
+    ///
+    /// Details:
+    /// - Centralizes setup so each test starts from a clean copy without repeated boilerplate.
     fn new_app() -> AppState {
         AppState {
             ..Default::default()

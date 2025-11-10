@@ -226,6 +226,122 @@ mod tests {
     use super::*;
 
     #[test]
+    /// What: Ensure `load` falls back to defaults when no pattern configuration file exists.
+    ///
+    /// Input:
+    /// - Temporary HOME without an accompanying `pattern.conf`.
+    ///
+    /// Output:
+    /// - Loaded pattern sets match `PatternSets::default`.
+    ///
+    /// Details:
+    /// - Redirects `HOME`, guards with the theme mutex, and removes the temp directory after assertions.
+    fn load_returns_defaults_when_config_missing() {
+        let _guard = crate::theme::test_mutex().lock().unwrap();
+        use std::fs;
+        use std::path::PathBuf;
+
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_patterns_load_missing_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+
+        let orig_home = std::env::var_os("HOME");
+        let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        unsafe {
+            std::env::set_var("HOME", dir.display().to_string());
+            std::env::remove_var("XDG_CONFIG_HOME");
+        }
+
+        let defaults = PatternSets::default();
+        let loaded = super::load();
+        assert_eq!(loaded.critical, defaults.critical);
+        assert_eq!(loaded.high, defaults.high);
+        assert_eq!(loaded.medium, defaults.medium);
+        assert_eq!(loaded.low, defaults.low);
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+            if let Some(v) = orig_xdg {
+                std::env::set_var("XDG_CONFIG_HOME", v);
+            } else {
+                std::env::remove_var("XDG_CONFIG_HOME");
+            }
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    /// What: Ensure `load` honours pattern definitions from an on-disk configuration file.
+    ///
+    /// Input:
+    /// - Temporary HOME containing a handwritten `pattern.conf` with custom sections.
+    ///
+    /// Output:
+    /// - Loaded pattern sets reflect the configured critical/high/medium/low regexes.
+    ///
+    /// Details:
+    /// - Writes `pattern.conf` under Pacsea's config directory, then restores environment variables and removes artifacts.
+    fn load_reads_pattern_conf_overrides() {
+        let _guard = crate::theme::test_mutex().lock().unwrap();
+        use std::fs;
+        use std::path::PathBuf;
+
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_patterns_load_conf_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+
+        let orig_home = std::env::var_os("HOME");
+        let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
+        unsafe {
+            std::env::set_var("HOME", dir.display().to_string());
+            std::env::remove_var("XDG_CONFIG_HOME");
+        }
+
+        let config_dir = crate::theme::config_dir();
+        let pattern_path = config_dir.join("pattern.conf");
+        let body = "[critical]\nfoo\n\n[high]\nbar\n\n[medium]\nmid\n\n[low]\nlo\n";
+        fs::write(&pattern_path, body).unwrap();
+
+        let loaded = super::load();
+        assert_eq!(loaded.critical, "foo");
+        assert_eq!(loaded.high, "bar");
+        assert_eq!(loaded.medium, "mid");
+        assert_eq!(loaded.low, "lo");
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+            if let Some(v) = orig_xdg {
+                std::env::set_var("XDG_CONFIG_HOME", v);
+            } else {
+                std::env::remove_var("XDG_CONFIG_HOME");
+            }
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     /// What: Confirm `parse` falls back to default regex sets when the config snippet is empty.
     ///
     /// Inputs:

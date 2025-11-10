@@ -129,6 +129,11 @@ pub fn maybe_flush_install(app: &mut AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::modal::{
+        DependencyInfo, DependencySource, DependencyStatus, FileChange, FileChangeType,
+        PackageFileInfo,
+    };
+    use crate::state::{PackageItem, Source};
 
     fn new_app() -> AppState {
         AppState {
@@ -247,6 +252,181 @@ mod tests {
         let body = std::fs::read_to_string(&app.install_path).unwrap();
         assert!(body.contains("rg"));
         let _ = std::fs::remove_file(&app.install_path);
+    }
+
+    #[test]
+    /// What: Ensure `maybe_flush_deps_cache` persists dependency cache entries and clears the dirty flag.
+    ///
+    /// Inputs:
+    /// - `AppState` with a populated install list, dependency data, and `deps_cache_dirty = true`.
+    ///
+    /// Output:
+    /// - Cache file contains dependency information and the dirty flag is reset.
+    ///
+    /// Details:
+    /// - Cleans up the temporary file to keep runs idempotent.
+    fn flush_deps_cache_writes_and_clears_flag() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_deps_cache_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        app.deps_cache_path = path.clone();
+        app.install_list = vec![PackageItem {
+            name: "ripgrep".into(),
+            version: "14.0.0".into(),
+            description: String::new(),
+            source: Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+            popularity: None,
+        }];
+        app.install_list_deps = vec![DependencyInfo {
+            name: "gcc-libs".into(),
+            version: ">=13".into(),
+            status: DependencyStatus::ToInstall,
+            source: DependencySource::Official {
+                repo: "core".into(),
+            },
+            required_by: vec!["ripgrep".into()],
+            depends_on: Vec::new(),
+            is_core: true,
+            is_system: false,
+        }];
+        app.deps_cache_dirty = true;
+        maybe_flush_deps_cache(&mut app);
+        assert!(!app.deps_cache_dirty);
+        let body = std::fs::read_to_string(&app.deps_cache_path).unwrap();
+        assert!(body.contains("gcc-libs"));
+        let _ = std::fs::remove_file(&app.deps_cache_path);
+    }
+
+    #[test]
+    /// What: Ensure `maybe_flush_deps_cache` deletes the cache file when the install list is empty.
+    ///
+    /// Inputs:
+    /// - `AppState` with an empty install list, existing cache file, and `deps_cache_dirty = true`.
+    ///
+    /// Output:
+    /// - Cache file is removed and the dirty flag is cleared.
+    ///
+    /// Details:
+    /// - Simulates clearing the install list so persistence helper should clean up stale cache content.
+    fn flush_deps_cache_removes_when_install_list_empty() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_deps_cache_remove_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        app.deps_cache_path = path.clone();
+        std::fs::write(&app.deps_cache_path, "stale").unwrap();
+        app.deps_cache_dirty = true;
+        app.install_list.clear();
+
+        maybe_flush_deps_cache(&mut app);
+
+        assert!(!app.deps_cache_dirty);
+        assert!(std::fs::metadata(&app.deps_cache_path).is_err());
+    }
+
+    #[test]
+    /// What: Ensure `maybe_flush_files_cache` persists file change metadata and clears the dirty flag.
+    ///
+    /// Inputs:
+    /// - `AppState` with a populated install list, file change data, and `files_cache_dirty = true`.
+    ///
+    /// Output:
+    /// - Cache file contains file metadata and the dirty flag is reset.
+    ///
+    /// Details:
+    /// - Removes the temporary cache file after assertions complete.
+    fn flush_files_cache_writes_and_clears_flag() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_files_cache_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        app.files_cache_path = path.clone();
+        app.install_list = vec![PackageItem {
+            name: "ripgrep".into(),
+            version: "14.0.0".into(),
+            description: String::new(),
+            source: Source::Aur,
+            popularity: None,
+        }];
+        app.install_list_files = vec![PackageFileInfo {
+            name: "ripgrep".into(),
+            files: vec![FileChange {
+                path: "/usr/bin/rg".into(),
+                change_type: FileChangeType::New,
+                package: "ripgrep".into(),
+                is_config: false,
+                predicted_pacnew: false,
+                predicted_pacsave: false,
+            }],
+            total_count: 1,
+            new_count: 1,
+            changed_count: 0,
+            removed_count: 0,
+            config_count: 0,
+            pacnew_candidates: 0,
+            pacsave_candidates: 0,
+        }];
+        app.files_cache_dirty = true;
+        maybe_flush_files_cache(&mut app);
+        assert!(!app.files_cache_dirty);
+        let body = std::fs::read_to_string(&app.files_cache_path).unwrap();
+        assert!(body.contains("/usr/bin/rg"));
+        let _ = std::fs::remove_file(&app.files_cache_path);
+    }
+
+    #[test]
+    /// What: Ensure `maybe_flush_files_cache` deletes the cache file when the install list is empty.
+    ///
+    /// Inputs:
+    /// - `AppState` with an empty install list, an on-disk cache file, and `files_cache_dirty = true`.
+    ///
+    /// Output:
+    /// - Cache file is removed and the dirty flag resets.
+    ///
+    /// Details:
+    /// - Mirrors the behaviour when the user clears the install list to keep disk cache in sync.
+    fn flush_files_cache_removes_when_install_list_empty() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_files_cache_remove_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        app.files_cache_path = path.clone();
+        std::fs::write(&app.files_cache_path, "stale").unwrap();
+        app.files_cache_dirty = true;
+        app.install_list.clear();
+
+        maybe_flush_files_cache(&mut app);
+
+        assert!(!app.files_cache_dirty);
+        assert!(std::fs::metadata(&app.files_cache_path).is_err());
     }
 
     #[test]
