@@ -3,7 +3,7 @@
 use ratatui::widgets::ListState;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
-use crate::state::modal::{CascadeMode, Modal};
+use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
     ArchStatusColor, Focus, PackageDetails, PackageItem, RightPaneFocus, SortMode,
 };
@@ -343,6 +343,18 @@ pub struct AppState {
     pub files_cache_path: PathBuf,
     /// Dirty flag indicating `install_list_files` needs to be saved.
     pub files_cache_dirty: bool,
+    /// Whether a service impact resolution job is currently running in the background.
+    pub services_resolving: bool,
+    /// Flag requesting that the runtime schedule service impact resolution for the active Preflight modal.
+    pub service_resolve_now: bool,
+    /// Identifier of the active service impact resolution request, if any.
+    pub active_service_request: Option<u64>,
+    /// Monotonic counter used to tag service impact resolution requests.
+    pub next_service_request_id: u64,
+    /// Signature of the package set currently queued for service impact resolution.
+    pub services_pending_signature: Option<(PreflightAction, Vec<String>)>,
+    /// Service restart decisions captured during the Preflight Services tab.
+    pub pending_service_plan: Vec<ServiceImpact>,
 }
 
 impl Default for AppState {
@@ -520,8 +532,14 @@ impl Default for AppState {
             install_list_files: Vec::new(),
             files_resolving: false,
             // File cache (lists dir under config)
-            files_cache_path: crate::theme::lists_dir().join("install_files_cache.json"),
+            files_cache_path: crate::theme::lists_dir().join("file_cache.json"),
             files_cache_dirty: false,
+            services_resolving: false,
+            service_resolve_now: false,
+            active_service_request: None,
+            next_service_request_id: 1,
+            services_pending_signature: None,
+            pending_service_plan: Vec::new(),
         }
     }
 }

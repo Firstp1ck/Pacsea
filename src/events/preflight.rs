@@ -3,6 +3,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use std::collections::{HashMap, HashSet};
 
+use crate::state::modal::ServiceRestartDecision;
 use crate::state::{AppState, PackageItem};
 
 /// What: Compute how many rows the dependency list will render in the Preflight Deps tab.
@@ -136,7 +137,11 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         file_info,
         file_selected,
         file_tree_expanded,
+        service_info,
+        service_selected,
+        services_loaded,
         cascade_mode,
+        ..
     } = &mut app.modal
     {
         match ke.code {
@@ -198,6 +203,16 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             file_tree_expanded.insert(pkg_name.clone());
                         }
                     }
+                } else if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+                    if *service_selected >= service_info.len() {
+                        *service_selected = service_info.len().saturating_sub(1);
+                    }
+                    if let Some(service) = service_info.get_mut(*service_selected) {
+                        service.restart_decision = match service.restart_decision {
+                            ServiceRestartDecision::Restart => ServiceRestartDecision::Defer,
+                            ServiceRestartDecision::Defer => ServiceRestartDecision::Restart,
+                        };
+                    }
                 } else {
                     // Close modal on Enter when not in Deps/Files tab or no data
                     app.previous_modal = None;
@@ -237,6 +252,13 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     *file_info = crate::logic::files::resolve_file_changes(items, *action);
                     *file_selected = 0;
                 }
+                if *tab == crate::state::PreflightTab::Services
+                    && (!*services_loaded || service_info.is_empty())
+                {
+                    *service_info = crate::logic::services::resolve_service_impacts(items, *action);
+                    *service_selected = 0;
+                    *services_loaded = true;
+                }
             }
             KeyCode::Right => {
                 *tab = match tab {
@@ -269,6 +291,13 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     );
                     *file_info = crate::logic::files::resolve_file_changes(items, *action);
                     *file_selected = 0;
+                }
+                if *tab == crate::state::PreflightTab::Services
+                    && (!*services_loaded || service_info.is_empty())
+                {
+                    *service_info = crate::logic::services::resolve_service_impacts(items, *action);
+                    *service_selected = 0;
+                    *services_loaded = true;
                 }
             }
             KeyCode::Tab => {
@@ -304,6 +333,13 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     *file_info = crate::logic::files::resolve_file_changes(items, *action);
                     *file_selected = 0;
                 }
+                if *tab == crate::state::PreflightTab::Services
+                    && (!*services_loaded || service_info.is_empty())
+                {
+                    *service_info = crate::logic::services::resolve_service_impacts(items, *action);
+                    *service_selected = 0;
+                    *services_loaded = true;
+                }
             }
             KeyCode::Up => {
                 if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
@@ -315,6 +351,11 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     && *file_selected > 0
                 {
                     *file_selected -= 1;
+                } else if *tab == crate::state::PreflightTab::Services
+                    && !service_info.is_empty()
+                    && *service_selected > 0
+                {
+                    *service_selected -= 1;
                 }
             }
             KeyCode::Down => {
@@ -328,6 +369,11 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     let display_len = compute_file_display_items_len(file_info, file_tree_expanded);
                     if *file_selected < display_len.saturating_sub(1) {
                         *file_selected += 1;
+                    }
+                } else if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+                    let max_index = service_info.len().saturating_sub(1);
+                    if *service_selected < max_index {
+                        *service_selected += 1;
                     }
                 }
             }
@@ -383,6 +429,36 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         } else {
                             file_tree_expanded.insert(pkg_name.clone());
                         }
+                    }
+                } else if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+                    if *service_selected >= service_info.len() {
+                        *service_selected = service_info.len().saturating_sub(1);
+                    }
+                    if let Some(service) = service_info.get_mut(*service_selected) {
+                        service.restart_decision = match service.restart_decision {
+                            ServiceRestartDecision::Restart => ServiceRestartDecision::Defer,
+                            ServiceRestartDecision::Defer => ServiceRestartDecision::Restart,
+                        };
+                    }
+                }
+            }
+            KeyCode::Char('r') | KeyCode::Char('R') => {
+                if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+                    if *service_selected >= service_info.len() {
+                        *service_selected = service_info.len().saturating_sub(1);
+                    }
+                    if let Some(service) = service_info.get_mut(*service_selected) {
+                        service.restart_decision = ServiceRestartDecision::Restart;
+                    }
+                }
+            }
+            KeyCode::Char('D') => {
+                if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+                    if *service_selected >= service_info.len() {
+                        *service_selected = service_info.len().saturating_sub(1);
+                    }
+                    if let Some(service) = service_info.get_mut(*service_selected) {
+                        service.restart_decision = ServiceRestartDecision::Defer;
                     }
                 }
             }
@@ -533,6 +609,12 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     app.remove_preflight_summary = summary;
                 }
 
+                if !service_info.is_empty() {
+                    app.pending_service_plan = service_info.clone();
+                } else {
+                    app.pending_service_plan.clear();
+                }
+
                 if let Some(packages) = install_targets {
                     crate::install::spawn_install_all(&packages, app.dry_run);
                     close_modal = true;
@@ -609,6 +691,9 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         Actions:\n\
                         • s - Scan AUR packages (if AUR packages selected)\n\
                         • d - Toggle dry-run mode\n\
+                        • r/R - Mark selected service to restart (Services tab)\n\
+                        • Shift+D - Mark selected service to defer (Services tab)\n\
+                        • Space - Toggle restart/defer (Services tab)\n\
                         • p - Proceed with installation/removal\n\
                         • c - Create snapshot (placeholder)\n\n\
                         Tabs:\n\
@@ -637,7 +722,7 @@ mod tests {
     use super::*;
     use crate::state::modal::{
         CascadeMode, DependencyInfo, DependencySource, DependencyStatus, FileChange,
-        FileChangeType, PackageFileInfo,
+        FileChangeType, PackageFileInfo, ServiceImpact, ServiceRestartDecision,
     };
     use crate::state::{Modal, PackageItem, PreflightAction, PreflightTab, Source};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -725,6 +810,28 @@ mod tests {
             config_count: 0,
             pacnew_candidates: 0,
             pacsave_candidates: 0,
+        }
+    }
+
+    /// What: Construct a `ServiceImpact` fixture representing a single unit for Services tab tests.
+    ///
+    /// Inputs:
+    /// - `unit`: Fully-qualified systemd unit identifier to populate the struct.
+    /// - `decision`: Initial restart preference that the test expects to mutate.
+    ///
+    /// Output:
+    /// - `ServiceImpact` configured with deterministic metadata for assertions.
+    ///
+    /// Details:
+    /// - Marks the unit as active and needing restart so event handlers may flip the decision.
+    fn svc(unit: &str, decision: ServiceRestartDecision) -> ServiceImpact {
+        ServiceImpact {
+            unit_name: unit.into(),
+            providers: vec!["target".into()],
+            is_active: true,
+            needs_restart: true,
+            recommended_decision: ServiceRestartDecision::Restart,
+            restart_decision: decision,
         }
     }
 
@@ -845,12 +952,56 @@ mod tests {
             items,
             action: PreflightAction::Install,
             tab,
+            summary: None,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info,
             dep_selected,
             dep_tree_expanded,
             file_info: Vec::new(),
             file_selected: 0,
             file_tree_expanded: HashSet::new(),
+            service_info: Vec::new(),
+            service_selected: 0,
+            services_loaded: false,
+            cascade_mode: CascadeMode::Basic,
+        };
+        app
+    }
+
+    /// What: Build an `AppState` seeded with Services tab data for restart decision tests.
+    ///
+    /// Inputs:
+    /// - `tab`: Initial tab to display inside the Preflight modal (expected to be Services).
+    /// - `service_info`: Collection of service impacts to expose through the modal.
+    /// - `service_selected`: Index that should be focused when the test begins.
+    ///
+    /// Output:
+    /// - `AppState` populated with deterministic fixtures for Services tab interactions.
+    ///
+    /// Details:
+    /// - Marks services as already loaded so handlers operate directly on the provided data.
+    fn setup_preflight_app_with_services(
+        tab: PreflightTab,
+        service_info: Vec<ServiceImpact>,
+        service_selected: usize,
+    ) -> AppState {
+        let mut app = AppState::default();
+        let items = vec![pkg("target")];
+        app.modal = Modal::Preflight {
+            items,
+            action: PreflightAction::Install,
+            tab,
+            summary: None,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            dependency_info: Vec::new(),
+            dep_selected: 0,
+            dep_tree_expanded: HashSet::new(),
+            file_info: Vec::new(),
+            file_selected: 0,
+            file_tree_expanded: HashSet::new(),
+            service_info,
+            service_selected,
+            services_loaded: true,
             cascade_mode: CascadeMode::Basic,
         };
         app
@@ -922,6 +1073,86 @@ mod tests {
         );
         if let Modal::Preflight { dep_selected, .. } = &app.modal {
             assert_eq!(*dep_selected, 2);
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
+
+    #[test]
+    /// What: Confirm spacebar toggles the service restart decision within the Services tab.
+    ///
+    /// Inputs:
+    /// - Preflight modal focused on Services with a single restart-ready unit selected.
+    ///
+    /// Output:
+    /// - First space press defers the restart; second space press restores the restart decision.
+    ///
+    /// Details:
+    /// - Exercises the branch that flips `ServiceRestartDecision` without mutating selection.
+    fn handle_space_toggles_service_restart_decision() {
+        let services = vec![svc("nginx.service", ServiceRestartDecision::Restart)];
+        let mut app = setup_preflight_app_with_services(PreflightTab::Services, services, 0);
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()),
+            &mut app,
+        );
+        if let Modal::Preflight { service_info, .. } = &app.modal {
+            assert_eq!(
+                service_info[0].restart_decision,
+                ServiceRestartDecision::Defer
+            );
+        } else {
+            panic!("expected Preflight modal");
+        }
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()),
+            &mut app,
+        );
+        if let Modal::Preflight { service_info, .. } = &app.modal {
+            assert_eq!(
+                service_info[0].restart_decision,
+                ServiceRestartDecision::Restart
+            );
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
+
+    #[test]
+    /// What: Ensure dedicated shortcuts force service restart decisions regardless of current state.
+    ///
+    /// Inputs:
+    /// - Services tab with one unit initially set to defer, then the `r` and `Shift+D` bindings.
+    ///
+    /// Output:
+    /// - `r` enforces restart, `Shift+D` enforces defer on the focused service.
+    ///
+    /// Details:
+    /// - Verifies that direct commands override any prior toggled state for the selected row.
+    fn handle_service_restart_shortcuts_force_decisions() {
+        let services = vec![svc("postgresql.service", ServiceRestartDecision::Defer)];
+        let mut app = setup_preflight_app_with_services(PreflightTab::Services, services, 0);
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Char('r'), KeyModifiers::empty()),
+            &mut app,
+        );
+        if let Modal::Preflight { service_info, .. } = &app.modal {
+            assert_eq!(
+                service_info[0].restart_decision,
+                ServiceRestartDecision::Restart
+            );
+        } else {
+            panic!("expected Preflight modal");
+        }
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Char('D'), KeyModifiers::SHIFT),
+            &mut app,
+        );
+        if let Modal::Preflight { service_info, .. } = &app.modal {
+            assert_eq!(
+                service_info[0].restart_decision,
+                ServiceRestartDecision::Defer
+            );
         } else {
             panic!("expected Preflight modal");
         }

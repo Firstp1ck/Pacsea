@@ -317,16 +317,28 @@ pub fn handle_search_key(
                         crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
                         app.toast_message = Some("Installing (preflight skipped)".to_string());
                     } else {
+                        let items = vec![item];
+                        let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
+                            crate::logic::preflight::compute_preflight_summary(
+                                &items,
+                                crate::state::PreflightAction::Install,
+                            );
+                        app.pending_service_plan.clear();
                         app.modal = crate::state::Modal::Preflight {
-                            items: vec![item],
+                            items,
                             action: crate::state::PreflightAction::Install,
                             tab: crate::state::PreflightTab::Summary,
+                            summary: Some(Box::new(summary)),
+                            header_chips: header,
                             dependency_info: Vec::new(),
                             dep_selected: 0,
                             dep_tree_expanded: std::collections::HashSet::new(),
                             file_info: Vec::new(),
                             file_selected: 0,
                             file_tree_expanded: std::collections::HashSet::new(),
+                            service_info: Vec::new(),
+                            service_selected: 0,
+                            services_loaded: false,
                             cascade_mode: app.remove_cascade_mode,
                         };
                         app.toast_message = Some("Preflight opened".to_string());
@@ -340,16 +352,28 @@ pub fn handle_search_key(
                         crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
                         app.toast_message = Some("Installing (preflight skipped)".to_string());
                     } else {
+                        let items = vec![item];
+                        let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
+                            crate::logic::preflight::compute_preflight_summary(
+                                &items,
+                                crate::state::PreflightAction::Install,
+                            );
+                        app.pending_service_plan.clear();
                         app.modal = crate::state::Modal::Preflight {
-                            items: vec![item],
+                            items,
                             action: crate::state::PreflightAction::Install,
                             tab: crate::state::PreflightTab::Summary,
+                            summary: Some(Box::new(summary)),
+                            header_chips: header,
                             dependency_info: Vec::new(),
                             dep_selected: 0,
                             dep_tree_expanded: std::collections::HashSet::new(),
                             file_info: Vec::new(),
                             file_selected: 0,
                             file_tree_expanded: std::collections::HashSet::new(),
+                            service_info: Vec::new(),
+                            service_selected: 0,
+                            services_loaded: false,
                             cascade_mode: app.remove_cascade_mode,
                         };
                         app.toast_message = Some("Preflight opened".to_string());
@@ -484,16 +508,28 @@ pub fn handle_search_key(
                     crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
                     app.toast_message = Some("Installing (preflight skipped)".to_string());
                 } else {
+                    let items = vec![item];
+                    let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
+                        crate::logic::preflight::compute_preflight_summary(
+                            &items,
+                            crate::state::PreflightAction::Install,
+                        );
+                    app.pending_service_plan.clear();
                     app.modal = crate::state::Modal::Preflight {
-                        items: vec![item],
+                        items,
                         action: crate::state::PreflightAction::Install,
                         tab: crate::state::PreflightTab::Summary,
+                        summary: Some(Box::new(summary)),
+                        header_chips: header,
                         dependency_info: Vec::new(),
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),
                         file_info: Vec::new(),
                         file_selected: 0,
                         file_tree_expanded: std::collections::HashSet::new(),
+                        service_info: Vec::new(),
+                        service_selected: 0,
+                        services_loaded: false,
                         cascade_mode: app.remove_cascade_mode,
                     };
                     app.toast_message = Some("Preflight opened".to_string());

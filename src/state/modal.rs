@@ -1,6 +1,6 @@
 //! Modal dialog state for the UI.
 
-use crate::state::types::{NewsItem, OptionalDepRow, PackageItem};
+use crate::state::types::{NewsItem, OptionalDepRow, PackageItem, Source};
 use std::collections::HashSet;
 
 /// What: Enumerates the high-level operations represented in the preflight
@@ -139,6 +139,53 @@ pub enum DependencySource {
     Local,
 }
 
+/// What: Restart preference applied to an impacted systemd service.
+///
+/// Inputs:
+/// - Assigned automatically from heuristics or by user toggles within the Services tab.
+///
+/// Output:
+/// - Guides post-transaction actions responsible for restarting (or deferring) service units.
+///
+/// Details:
+/// - Provides a simplified binary choice: restart immediately or defer for later manual handling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ServiceRestartDecision {
+    /// Explicitly restart the unit after the transaction.
+    Restart,
+    /// Defer restarting the unit.
+    Defer,
+}
+
+/// What: Aggregated information about a systemd unit affected by the pending operation.
+///
+/// Inputs:
+/// - Populated by the service impact resolver which correlates package file lists and
+///   `systemctl` state.
+///
+/// Output:
+/// - Supplies UI rendering with package provenance, restart status, and the current user choice.
+///
+/// Details:
+/// - `providers` lists packages that ship the unit. `is_active` flags if the unit currently runs.
+///   `needs_restart` indicates detected impact. `recommended_decision` records the resolver default,
+///   and `restart_decision` reflects any user override applied in the UI.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ServiceImpact {
+    /// Fully-qualified unit name (e.g., `sshd.service`).
+    pub unit_name: String,
+    /// Packages contributing this unit.
+    pub providers: Vec<String>,
+    /// Whether the unit is active (`systemctl is-active == active`).
+    pub is_active: bool,
+    /// Whether a restart is recommended because files/configs will change.
+    pub needs_restart: bool,
+    /// Resolver-suggested action prior to user adjustments.
+    pub recommended_decision: ServiceRestartDecision,
+    /// Restart decision currently applied to the unit (may differ from recommendation).
+    pub restart_decision: ServiceRestartDecision,
+}
+
 /// Type of file change in a package operation.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FileChangeType {
@@ -190,6 +237,142 @@ pub struct PackageFileInfo {
     pub pacsave_candidates: usize,
 }
 
+/// What: Risk severity buckets used by the preflight summary header and messaging.
+///
+/// Inputs:
+/// - Assigned by the summary resolver based on aggregate risk score thresholds.
+///
+/// Output:
+/// - Guides color selection and descriptive labels for risk indicators across the UI.
+///
+/// Details:
+/// - Defaults to `Low` so callers without computed risk can render a safe baseline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum RiskLevel {
+    Low,
+    Medium,
+    High,
+}
+
+impl Default for RiskLevel {
+    /// What: Provide a baseline risk level when no assessment has been computed yet.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: Always returns `RiskLevel::Low`.
+    ///
+    /// Details:
+    /// - Keeps `Default` implementations for composite structs simple while biasing towards safety.
+    fn default() -> Self {
+        RiskLevel::Low
+    }
+}
+
+/// What: Aggregated chip metrics displayed in the Preflight header, execution sidebar, and post-summary.
+///
+/// Inputs:
+/// - Populated by the summary planner once package metadata and risk scores are available.
+///
+/// Output:
+/// - Supplies counts and byte deltas for UI components needing condensed statistics.
+///
+/// Details:
+/// - Stores signed install deltas so removals show negative values without additional conversion.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PreflightHeaderChips {
+    pub package_count: usize,
+    pub download_bytes: u64,
+    pub install_delta_bytes: i64,
+    pub aur_count: usize,
+    pub risk_score: u8,
+    pub risk_level: RiskLevel,
+}
+
+impl Default for PreflightHeaderChips {
+    /// What: Provide neutral header chip values prior to summary computation.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: Returns a struct with zeroed counters and low risk classification.
+    ///
+    /// Details:
+    /// - Facilitates cheap initialization for modals created before async planners finish.
+    fn default() -> Self {
+        Self {
+            package_count: 0,
+            download_bytes: 0,
+            install_delta_bytes: 0,
+            aur_count: 0,
+            risk_score: 0,
+            risk_level: RiskLevel::Low,
+        }
+    }
+}
+
+/// What: Version comparison details for a single package in the preflight summary.
+///
+/// Inputs:
+/// - Filled with installed and target versions, plus classification flags.
+///
+/// Output:
+/// - Enables the UI to display per-package version deltas, major bumps, and downgrade warnings.
+///
+/// Details:
+/// - Notes array allows the planner to surface auxiliary hints (e.g., pacnew prediction or service impacts).
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PreflightPackageSummary {
+    pub name: String,
+    pub source: Source,
+    pub installed_version: Option<String>,
+    pub target_version: String,
+    pub is_downgrade: bool,
+    pub is_major_bump: bool,
+    /// Download size contribution for this package when available.
+    pub download_bytes: Option<u64>,
+    /// Net installed size delta contributed by this package (signed).
+    pub install_delta_bytes: Option<i64>,
+    pub notes: Vec<String>,
+}
+
+/// What: Comprehensive dataset backing the Preflight Summary tab.
+///
+/// Inputs:
+/// - Populated by summary resolution logic once package metadata, sizes, and risk heuristics are computed.
+///
+/// Output:
+/// - Delivers structured information for tab body rendering, risk callouts, and contextual notes.
+///
+/// Details:
+/// - `summary_notes` aggregates high-impact bullet points (e.g., kernel updates, pacnew predictions).
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PreflightSummaryData {
+    pub packages: Vec<PreflightPackageSummary>,
+    /// Total number of packages represented in `packages`.
+    pub package_count: usize,
+    /// Number of AUR-sourced packages participating in the plan.
+    pub aur_count: usize,
+    pub download_bytes: u64,
+    pub install_delta_bytes: i64,
+    pub risk_score: u8,
+    pub risk_level: RiskLevel,
+    pub risk_reasons: Vec<String>,
+    /// Packages classified as major version bumps (e.g., 1.x -> 2.0).
+    pub major_bump_packages: Vec<String>,
+    /// Core/system packages flagged as high impact (kernel, glibc, etc.).
+    pub core_system_updates: Vec<String>,
+    /// Total predicted .pacnew files across all packages.
+    pub pacnew_candidates: usize,
+    /// Total predicted .pacsave files across all packages.
+    pub pacsave_candidates: usize,
+    /// Packages with configuration merge warnings (.pacnew expected).
+    pub config_warning_packages: Vec<String>,
+    /// Services likely requiring restart after the transaction.
+    pub service_restart_units: Vec<String>,
+    /// Free-form warnings assembled by the summary planner to highlight notable risks.
+    pub summary_warnings: Vec<String>,
+    pub summary_notes: Vec<String>,
+}
+
 /// What: Captures all dialog state for the various modal overlays presented in
 /// the Pacsea TUI.
 ///
@@ -212,6 +395,10 @@ pub enum Modal {
         items: Vec<PackageItem>,
         action: PreflightAction,
         tab: PreflightTab,
+        /// Aggregated summary information for versions, sizes, and risk cues.
+        summary: Option<Box<PreflightSummaryData>>,
+        /// Header chip data shared across summary, execution, and post-summary screens.
+        header_chips: PreflightHeaderChips,
         /// Resolved dependency information (populated when Deps tab is accessed).
         dependency_info: Vec<DependencyInfo>,
         /// Selected index in the dependency list (for navigation).
@@ -224,6 +411,12 @@ pub enum Modal {
         file_selected: usize,
         /// Set of package names with expanded file lists (for Files tab tree view).
         file_tree_expanded: HashSet<String>,
+        /// Service impact information (populated when Services tab is accessed).
+        service_info: Vec<ServiceImpact>,
+        /// Selected index in the service impact list (for navigation).
+        service_selected: usize,
+        /// Whether service impacts have been resolved for the current session.
+        services_loaded: bool,
         /// Current cascade removal strategy for this session.
         cascade_mode: CascadeMode,
     },
@@ -366,12 +559,17 @@ mod tests {
             items: Vec::new(),
             action: super::PreflightAction::Install,
             tab: super::PreflightTab::Summary,
+            summary: None,
+            header_chips: super::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
             dep_tree_expanded: std::collections::HashSet::new(),
             file_info: Vec::new(),
             file_selected: 0,
             file_tree_expanded: std::collections::HashSet::new(),
+            service_info: Vec::new(),
+            service_selected: 0,
+            services_loaded: false,
             cascade_mode: super::CascadeMode::Basic,
         };
     }

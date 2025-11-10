@@ -7,8 +7,10 @@ pub mod filter;
 pub mod gating;
 pub mod lists;
 pub mod prefetch;
+pub mod preflight;
 pub mod query;
 pub mod selection;
+pub mod services;
 pub mod sort;
 pub mod summary;
 
@@ -19,6 +21,7 @@ pub use lists::{add_to_downgrade_list, add_to_install_list, add_to_remove_list};
 pub use prefetch::ring_prefetch_from_selected;
 pub use query::send_query;
 pub use selection::move_sel_cached;
+pub use services::resolve_service_impacts;
 pub use sort::sort_results_preserve_selection;
 
 #[cfg(test)]

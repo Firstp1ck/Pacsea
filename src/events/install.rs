@@ -177,6 +177,7 @@ pub fn handle_install_key(
                     app.toast_message = Some("Installing list (preflight skipped)".to_string());
                 } else {
                     // Open Preflight modal listing all items to be installed
+                    let items = app.install_list.clone();
                     let cached_deps = if !app.deps_resolving && !app.install_list_deps.is_empty() {
                         app.install_list_deps.clone()
                     } else {
@@ -188,16 +189,27 @@ pub fn handle_install_key(
                     } else {
                         Vec::new()
                     };
+                    let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
+                        crate::logic::preflight::compute_preflight_summary(
+                            &items,
+                            crate::state::PreflightAction::Install,
+                        );
+                    app.pending_service_plan.clear();
                     app.modal = crate::state::Modal::Preflight {
-                        items: app.install_list.clone(),
+                        items,
                         action: crate::state::PreflightAction::Install,
                         tab: crate::state::PreflightTab::Summary,
+                        summary: Some(Box::new(summary)),
+                        header_chips: header,
                         dependency_info: cached_deps,
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),
                         file_info: cached_files,
                         file_selected: 0,
                         file_tree_expanded: std::collections::HashSet::new(),
+                        service_info: Vec::new(),
+                        service_selected: 0,
+                        services_loaded: false,
                         cascade_mode: app.remove_cascade_mode,
                     };
                     app.remove_preflight_summary.clear();
@@ -218,20 +230,31 @@ pub fn handle_install_key(
                         app.remove_list.clear();
                         app.remove_state.select(None);
                     } else {
-                        let report =
-                            crate::logic::deps::resolve_reverse_dependencies(&app.remove_list);
+                        let items = app.remove_list.clone();
+                        let report = crate::logic::deps::resolve_reverse_dependencies(&items);
                         let summaries = report.summaries;
                         let dependencies = report.dependencies;
+                        let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
+                            crate::logic::preflight::compute_preflight_summary(
+                                &items,
+                                crate::state::PreflightAction::Remove,
+                            );
+                        app.pending_service_plan.clear();
                         app.modal = crate::state::Modal::Preflight {
-                            items: app.remove_list.clone(),
+                            items,
                             action: crate::state::PreflightAction::Remove,
                             tab: crate::state::PreflightTab::Summary,
+                            summary: Some(Box::new(summary)),
+                            header_chips: header,
                             dependency_info: dependencies,
                             dep_selected: 0,
                             dep_tree_expanded: std::collections::HashSet::new(),
                             file_info: Vec::new(),
                             file_selected: 0,
                             file_tree_expanded: std::collections::HashSet::new(),
+                            service_info: Vec::new(),
+                            service_selected: 0,
+                            services_loaded: false,
                             cascade_mode: app.remove_cascade_mode,
                         };
                         app.remove_preflight_summary = summaries;
@@ -694,12 +717,17 @@ mod tests {
                 ref items,
                 action,
                 tab,
+                summary: _,
+                header_chips: _,
                 dependency_info: _,
                 dep_selected: _,
                 dep_tree_expanded: _,
                 file_info: _,
                 file_selected: _,
                 file_tree_expanded: _,
+                service_info: _,
+                service_selected: _,
+                services_loaded: _,
                 cascade_mode: _,
             } => {
                 assert_eq!(items.len(), 1);
@@ -755,7 +783,21 @@ mod tests {
         );
         // Behavior remains preflight when flag false; placeholder ensures future refactor retains compatibility.
         match app.modal {
-            crate::state::Modal::Preflight { .. } => {}
+            crate::state::Modal::Preflight {
+                summary: _,
+                header_chips: _,
+                dependency_info: _,
+                dep_selected: _,
+                dep_tree_expanded: _,
+                file_info: _,
+                file_selected: _,
+                file_tree_expanded: _,
+                service_info: _,
+                service_selected: _,
+                services_loaded: _,
+                cascade_mode: _,
+                ..
+            } => {}
             _ => panic!("Expected Preflight when skip_preflight=false"),
         }
     }

@@ -2,6 +2,7 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use crossterm::execute;
 use tokio::sync::mpsc;
 
+use crate::state::modal::ServiceRestartDecision;
 use crate::state::{AppState, PackageItem};
 
 use super::utils::{refresh_install_details, refresh_selected_details};
@@ -139,7 +140,10 @@ pub fn handle_mouse_event(
         file_info,
         file_selected,
         file_tree_expanded,
-        cascade_mode: _,
+        service_info,
+        service_selected,
+        services_loaded,
+        ..
     } = &mut app.modal
     {
         // Handle tab clicks
@@ -174,6 +178,14 @@ pub fn handle_mouse_event(
                     if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
                         *file_info = crate::logic::files::resolve_file_changes(items, *action);
                         *file_selected = 0;
+                    }
+                    if *tab == crate::state::PreflightTab::Services
+                        && (!*services_loaded || service_info.is_empty())
+                    {
+                        *service_info =
+                            crate::logic::services::resolve_service_impacts(items, *action);
+                        *service_selected = 0;
+                        *services_loaded = true;
                     }
                     return false;
                 }
@@ -314,6 +326,55 @@ pub fn handle_mouse_event(
                     }
                 }
             }
+
+            if *tab == crate::state::PreflightTab::Services
+                && !service_info.is_empty()
+                && let Some((content_x, content_y, content_w, content_h)) =
+                    app.preflight_content_rect
+                && mx >= content_x
+                && mx < content_x + content_w
+                && my >= content_y
+                && my < content_y + content_h
+            {
+                let list_start_offset = 2;
+                if (my - content_y) as usize >= list_start_offset {
+                    let list_clicked_row = (my - content_y) as usize - list_start_offset;
+                    let available_height =
+                        content_h.saturating_sub(list_start_offset as u16) as usize;
+                    let total_items = service_info.len();
+                    if total_items > 0 {
+                        let selected_clamped =
+                            (*service_selected).min(total_items.saturating_sub(1));
+                        let start_idx = if total_items <= available_height {
+                            0
+                        } else {
+                            selected_clamped
+                                .saturating_sub(available_height / 2)
+                                .min(total_items.saturating_sub(available_height))
+                        };
+                        let end_idx = (start_idx + available_height).min(total_items);
+                        let actual_idx = start_idx + list_clicked_row;
+                        if actual_idx < end_idx {
+                            let actual_idx = actual_idx.min(total_items.saturating_sub(1));
+                            if actual_idx == *service_selected {
+                                if let Some(service) = service_info.get_mut(actual_idx) {
+                                    service.restart_decision = match service.restart_decision {
+                                        ServiceRestartDecision::Restart => {
+                                            ServiceRestartDecision::Defer
+                                        }
+                                        ServiceRestartDecision::Defer => {
+                                            ServiceRestartDecision::Restart
+                                        }
+                                    };
+                                }
+                            } else {
+                                *service_selected = actual_idx;
+                            }
+                            return false;
+                        }
+                    }
+                }
+            }
         }
 
         // Handle mouse scroll for Deps tab
@@ -377,6 +438,25 @@ pub fn handle_mouse_event(
                     );
                     if *file_selected < display_len.saturating_sub(1) {
                         *file_selected += 1;
+                    }
+                    return false;
+                }
+                _ => {}
+            }
+        }
+
+        // Handle mouse scroll for Services tab
+        if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    if *service_selected > 0 {
+                        *service_selected -= 1;
+                    }
+                    return false;
+                }
+                MouseEventKind::ScrollDown => {
+                    if *service_selected + 1 < service_info.len() {
+                        *service_selected += 1;
                     }
                     return false;
                 }
