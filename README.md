@@ -156,6 +156,7 @@ cargo run
 - **Keybind harmonization and improvements**
 - **Mirror Search and extensive Mirror Selection**
 - **Possibiltiy to switch between Normal search and Fuzzy search modes**
+- **Add Chaotic AUR setup**
 - **Adjustable Width of the Middle Panes directly in "Panels" dropdown with instant sync**
 - **Adjustable Height of the Results and Package Info Panes**
 - **Add Multiple CLI Commands like: `pacsea -S FILENAME.txt`, `pacsea -R FILENAME.txt`, `pacsea --news`, `pacsea -Syu` and more**
@@ -166,7 +167,7 @@ cargo run
 - **Add accessability themes for visual impairments**
 - **Add PKGBUILD Syntax Highlighting**
 - **Add custom upgrade commands**
-- **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro and  CachyOS
+- **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro and  CachyOS**
 - **Add Garudo Repository Support**
 
 ## Credits
