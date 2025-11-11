@@ -168,6 +168,7 @@ cargo run
 - **Add PKGBUILD Syntax Highlighting**
 - **Add custom upgrade commands**
 - **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro and  CachyOS**
+- **Add possibility to view News based on installed Packages (Including AUR comments)**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
