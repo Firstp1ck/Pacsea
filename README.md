@@ -152,7 +152,7 @@ cargo run
 ### Potential future Features
 - **Extensive Preflight Check** (on going)
 - **Additional Language Support** (on going)
-- **User chooseable Terminal via Options or (implemented via settings.conf)** (on going)
+- **User chooseable Terminal via Options (implemented via settings.conf)** (on going)
 - **Keybind harmonization and improvements**
 - **Mirror Search and extensive Mirror Selection**
 - **Possibiltiy to switch between Normal search and Fuzzy search modes**
