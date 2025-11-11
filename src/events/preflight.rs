@@ -53,6 +53,41 @@ pub(crate) fn compute_display_items_len(
     count
 }
 
+/// What: Compute how many rows the Sandbox tab list should expose given expansion state.
+///
+/// Inputs:
+/// - `items`: Packages in the transaction
+/// - `sandbox_info`: Resolved sandbox analysis for AUR packages
+/// - `sandbox_tree_expanded`: Set of package names currently expanded in the Sandbox tab
+///
+/// Output:
+/// - Total list length combining headers plus visible dependency entries.
+///
+/// Details:
+/// - Adds one row per package header.
+/// - Adds additional rows for each dependency when package is expanded (only for AUR packages).
+pub(crate) fn compute_sandbox_display_items_len(
+    items: &[PackageItem],
+    sandbox_info: &[crate::logic::sandbox::SandboxInfo],
+    sandbox_tree_expanded: &std::collections::HashSet<String>,
+) -> usize {
+    let mut count = 0;
+    for item in items.iter() {
+        count += 1; // Package header
+        // Add dependencies only if expanded and AUR
+        if matches!(item.source, crate::state::Source::Aur)
+            && sandbox_tree_expanded.contains(&item.name)
+            && let Some(info) = sandbox_info.iter().find(|s| s.package_name == item.name)
+        {
+            count += info.depends.len();
+            count += info.makedepends.len();
+            count += info.checkdepends.len();
+            count += info.optdepends.len();
+        }
+    }
+    count
+}
+
 /// What: Compute how many rows the Files tab list should expose given expansion state.
 ///
 /// Inputs:
@@ -134,12 +169,21 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         dependency_info,
         dep_selected,
         dep_tree_expanded,
+        deps_error,
         file_info,
         file_selected,
         file_tree_expanded,
+        files_error,
         service_info,
         service_selected,
         services_loaded,
+        services_error,
+        sandbox_info,
+        sandbox_selected,
+        sandbox_tree_expanded,
+        sandbox_loaded: _,
+        sandbox_error: _,
+        selected_optdepends,
         cascade_mode,
         ..
     } = &mut app.modal
@@ -203,6 +247,86 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             file_tree_expanded.insert(pkg_name.clone());
                         }
                     }
+                } else if *tab == crate::state::PreflightTab::Sandbox && !items.is_empty() {
+                    // Build display items list: (is_header, package_name, Option<(dep_type, dep_name)>)
+                    type SandboxDisplayItem = (bool, String, Option<(&'static str, String)>);
+                    let mut display_items: Vec<SandboxDisplayItem> = Vec::new();
+                    for item in items.iter() {
+                        let is_aur = matches!(item.source, crate::state::Source::Aur);
+                        display_items.push((true, item.name.clone(), None));
+                        if is_aur
+                            && sandbox_tree_expanded.contains(&item.name)
+                            && let Some(info) =
+                                sandbox_info.iter().find(|s| s.package_name == item.name)
+                        {
+                            // Add dependencies with their types
+                            for dep in &info.depends {
+                                display_items.push((
+                                    false,
+                                    item.name.clone(),
+                                    Some(("depends", dep.name.clone())),
+                                ));
+                            }
+                            for dep in &info.makedepends {
+                                display_items.push((
+                                    false,
+                                    item.name.clone(),
+                                    Some(("makedepends", dep.name.clone())),
+                                ));
+                            }
+                            for dep in &info.checkdepends {
+                                display_items.push((
+                                    false,
+                                    item.name.clone(),
+                                    Some(("checkdepends", dep.name.clone())),
+                                ));
+                            }
+                            for dep in &info.optdepends {
+                                display_items.push((
+                                    false,
+                                    item.name.clone(),
+                                    Some(("optdepends", dep.name.clone())),
+                                ));
+                            }
+                        }
+                    }
+
+                    if let Some((is_header, pkg_name, dep_opt)) =
+                        display_items.get(*sandbox_selected)
+                    {
+                        if *is_header {
+                            // Toggle this package's expanded state (only for AUR packages)
+                            let item = items.iter().find(|p| p.name == *pkg_name).unwrap();
+                            if matches!(item.source, crate::state::Source::Aur) {
+                                if sandbox_tree_expanded.contains(pkg_name) {
+                                    sandbox_tree_expanded.remove(pkg_name);
+                                } else {
+                                    sandbox_tree_expanded.insert(pkg_name.clone());
+                                }
+                            }
+                        } else if let Some((dep_type, dep_name)) = dep_opt {
+                            // This is a dependency item
+                            if *dep_type == "optdepends" {
+                                // Toggle optional dependency selection
+                                let selected_set = selected_optdepends
+                                    .entry(pkg_name.clone())
+                                    .or_insert_with(std::collections::HashSet::new);
+                                // Extract package name from dependency spec (may include version or description)
+                                let pkg_name_from_dep =
+                                    crate::logic::sandbox::extract_package_name(dep_name);
+                                if selected_set.contains(dep_name)
+                                    || selected_set.contains(&pkg_name_from_dep)
+                                {
+                                    // Remove both possible formats
+                                    selected_set.remove(dep_name);
+                                    selected_set.remove(&pkg_name_from_dep);
+                                } else {
+                                    // Add the dependency spec as-is (preserves version requirements)
+                                    selected_set.insert(dep_name.clone());
+                                }
+                            }
+                        }
+                    }
                 } else if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
                     if *service_selected >= service_info.len() {
                         *service_selected = service_info.len().saturating_sub(1);
@@ -214,7 +338,11 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         };
                     }
                 } else {
-                    // Close modal on Enter when not in Deps/Files tab or no data
+                    // Close modal on Enter when not in Deps/Files/Sandbox tab or no data
+                    // Save current service restart decisions before closing
+                    if !service_info.is_empty() {
+                        app.pending_service_plan = service_info.clone();
+                    }
                     app.previous_modal = None;
                     app.remove_preflight_summary.clear();
                     app.modal = crate::state::Modal::None;
@@ -228,37 +356,55 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Services => crate::state::PreflightTab::Files,
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Services,
                 };
-                // Resolve dependencies when switching to Deps tab
+                // Check for cached dependencies when switching to Deps tab
+                // Don't resolve automatically - use cache or show placeholder
                 if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
                     match *action {
                         crate::state::PreflightAction::Install => {
-                            *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                            *dep_selected = 0;
+                            // Try to use cached dependencies from app state
+                            let item_names: std::collections::HashSet<String> =
+                                items.iter().map(|i| i.name.clone()).collect();
+                            let cached_deps: Vec<crate::state::modal::DependencyInfo> = app
+                                .install_list_deps
+                                .iter()
+                                .filter(|dep| {
+                                    dep.required_by
+                                        .iter()
+                                        .any(|req_by| item_names.contains(req_by))
+                                })
+                                .cloned()
+                                .collect();
+                            if !cached_deps.is_empty() {
+                                *dependency_info = cached_deps;
+                                *dep_selected = 0;
+                            }
+                            // If no cached deps, user can press 'r' to resolve
                             app.remove_preflight_summary.clear();
                         }
                         crate::state::PreflightAction::Remove => {
-                            let report = crate::logic::deps::resolve_reverse_dependencies(items);
-                            app.remove_preflight_summary = report.summaries;
-                            *dependency_info = report.dependencies;
-                            *dep_selected = 0;
+                            // For remove action, reverse deps are computed on-demand
+                            // User can press 'r' to resolve if needed
                         }
                     }
                 }
-                // Resolve files when switching to Files tab (only if not cached)
+                // Check for cached files when switching to Files tab
                 if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-                    tracing::info!(
-                        "[Events] File cache empty, resolving files when switching to Files tab (Left)"
-                    );
-                    *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                    *file_selected = 0;
+                    // Try to use cached files from app state
+                    let item_names: std::collections::HashSet<String> =
+                        items.iter().map(|i| i.name.clone()).collect();
+                    let cached_files: Vec<crate::state::modal::PackageFileInfo> = app
+                        .install_list_files
+                        .iter()
+                        .filter(|file_info| item_names.contains(&file_info.name))
+                        .cloned()
+                        .collect();
+                    if !cached_files.is_empty() {
+                        *file_info = cached_files;
+                        *file_selected = 0;
+                    }
+                    // If no cached files, user can press 'r' to resolve
                 }
-                if *tab == crate::state::PreflightTab::Services
-                    && (!*services_loaded || service_info.is_empty())
-                {
-                    *service_info = crate::logic::services::resolve_service_impacts(items, *action);
-                    *service_selected = 0;
-                    *services_loaded = true;
-                }
+                // Services tab resolution happens in render function for better responsiveness
             }
             KeyCode::Right => {
                 *tab = match tab {
@@ -268,36 +414,79 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Services => crate::state::PreflightTab::Sandbox,
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Summary,
                 };
-                // Resolve dependencies when switching to Deps tab
+                // Check for cached dependencies when switching to Deps tab
+                // Don't resolve automatically - use cache or show placeholder
                 if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
                     match *action {
                         crate::state::PreflightAction::Install => {
-                            *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                            *dep_selected = 0;
+                            // Try to use cached dependencies from app state
+                            let item_names: std::collections::HashSet<String> =
+                                items.iter().map(|i| i.name.clone()).collect();
+                            let cached_deps: Vec<crate::state::modal::DependencyInfo> = app
+                                .install_list_deps
+                                .iter()
+                                .filter(|dep| {
+                                    dep.required_by
+                                        .iter()
+                                        .any(|req_by| item_names.contains(req_by))
+                                })
+                                .cloned()
+                                .collect();
+                            if !cached_deps.is_empty() {
+                                tracing::debug!(
+                                    "[Preflight] Using {} cached dependencies when switching to Deps tab",
+                                    cached_deps.len()
+                                );
+                                *dependency_info = cached_deps;
+                                *dep_selected = 0;
+                            } else {
+                                tracing::debug!("[Preflight] No cached dependencies available, user can press 'r' to resolve");
+                            }
+                            // If no cached deps, user can press 'r' to resolve
                             app.remove_preflight_summary.clear();
                         }
                         crate::state::PreflightAction::Remove => {
-                            let report = crate::logic::deps::resolve_reverse_dependencies(items);
-                            app.remove_preflight_summary = report.summaries;
-                            *dependency_info = report.dependencies;
-                            *dep_selected = 0;
+                            // For remove action, reverse deps are computed on-demand
+                            // User can press 'r' to resolve if needed
                         }
                     }
                 }
-                // Resolve files when switching to Files tab
+                // Check for cached files when switching to Files tab
                 if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-                    tracing::info!(
-                        "[Events] Auto-refreshing files when switching to Files tab (Right)"
-                    );
-                    *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                    *file_selected = 0;
+                    // Try to use cached files from app state
+                    let item_names: std::collections::HashSet<String> =
+                        items.iter().map(|i| i.name.clone()).collect();
+                    let cached_files: Vec<crate::state::modal::PackageFileInfo> = app
+                        .install_list_files
+                        .iter()
+                        .filter(|file_info| item_names.contains(&file_info.name))
+                        .cloned()
+                        .collect();
+                    if !cached_files.is_empty() {
+                        *file_info = cached_files;
+                        *file_selected = 0;
+                    }
+                    // If no cached files, user can press 'r' to resolve
                 }
-                if *tab == crate::state::PreflightTab::Services
-                    && (!*services_loaded || service_info.is_empty())
-                {
-                    *service_info = crate::logic::services::resolve_service_impacts(items, *action);
-                    *service_selected = 0;
-                    *services_loaded = true;
+                // Check for cached services when switching to Services tab
+                if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
+                    // Try to use cached services from app state (for install actions)
+                    if matches!(*action, crate::state::PreflightAction::Install) && !app.services_resolving {
+                        // Check if cache file exists with matching signature
+                        let cache_exists = if !items.is_empty() {
+                            let signature = crate::app::services_cache::compute_signature(items);
+                            crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
+                                .is_some()
+                        } else {
+                            false
+                        };
+                        if cache_exists && !app.install_list_services.is_empty() {
+                            *service_info = app.install_list_services.clone();
+                            *service_selected = 0;
+                            *services_loaded = true;
+                        }
+                    }
+                    // If no cached services, user can press 'r' to resolve
                 }
             }
             KeyCode::Tab => {
@@ -309,36 +498,73 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Services => crate::state::PreflightTab::Sandbox,
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Summary,
                 };
-                // Resolve dependencies when switching to Deps tab
+                // Check for cached dependencies when switching to Deps tab
+                // Don't resolve automatically - use cache or show placeholder
                 if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
                     match *action {
                         crate::state::PreflightAction::Install => {
-                            *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                            *dep_selected = 0;
+                            // Try to use cached dependencies from app state
+                            let item_names: std::collections::HashSet<String> =
+                                items.iter().map(|i| i.name.clone()).collect();
+                            let cached_deps: Vec<crate::state::modal::DependencyInfo> = app
+                                .install_list_deps
+                                .iter()
+                                .filter(|dep| {
+                                    dep.required_by
+                                        .iter()
+                                        .any(|req_by| item_names.contains(req_by))
+                                })
+                                .cloned()
+                                .collect();
+                            if !cached_deps.is_empty() {
+                                *dependency_info = cached_deps;
+                                *dep_selected = 0;
+                            }
+                            // If no cached deps, user can press 'r' to resolve
                             app.remove_preflight_summary.clear();
                         }
                         crate::state::PreflightAction::Remove => {
-                            let report = crate::logic::deps::resolve_reverse_dependencies(items);
-                            app.remove_preflight_summary = report.summaries;
-                            *dependency_info = report.dependencies;
-                            *dep_selected = 0;
+                            // For remove action, reverse deps are computed on-demand
+                            // User can press 'r' to resolve if needed
                         }
                     }
                 }
-                // Resolve files when switching to Files tab
+                // Check for cached files when switching to Files tab
                 if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-                    tracing::info!(
-                        "[Events] Auto-refreshing files when switching to Files tab (Tab)"
-                    );
-                    *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                    *file_selected = 0;
+                    // Try to use cached files from app state
+                    let item_names: std::collections::HashSet<String> =
+                        items.iter().map(|i| i.name.clone()).collect();
+                    let cached_files: Vec<crate::state::modal::PackageFileInfo> = app
+                        .install_list_files
+                        .iter()
+                        .filter(|file_info| item_names.contains(&file_info.name))
+                        .cloned()
+                        .collect();
+                    if !cached_files.is_empty() {
+                        *file_info = cached_files;
+                        *file_selected = 0;
+                    }
+                    // If no cached files, user can press 'r' to resolve
                 }
-                if *tab == crate::state::PreflightTab::Services
-                    && (!*services_loaded || service_info.is_empty())
-                {
-                    *service_info = crate::logic::services::resolve_service_impacts(items, *action);
-                    *service_selected = 0;
-                    *services_loaded = true;
+                // Check for cached services when switching to Services tab
+                if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
+                    // Try to use cached services from app state (for install actions)
+                    if matches!(*action, crate::state::PreflightAction::Install) && !app.services_resolving {
+                        // Check if cache file exists with matching signature
+                        let cache_exists = if !items.is_empty() {
+                            let signature = crate::app::services_cache::compute_signature(items);
+                            crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
+                                .is_some()
+                        } else {
+                            false
+                        };
+                        if cache_exists && !app.install_list_services.is_empty() {
+                            *service_info = app.install_list_services.clone();
+                            *service_selected = 0;
+                            *services_loaded = true;
+                        }
+                    }
+                    // If no cached services, user can press 'r' to resolve
                 }
             }
             KeyCode::Up => {
@@ -356,6 +582,11 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     && *service_selected > 0
                 {
                     *service_selected -= 1;
+                } else if *tab == crate::state::PreflightTab::Sandbox
+                    && !items.is_empty()
+                    && *sandbox_selected > 0
+                {
+                    *sandbox_selected -= 1;
                 }
             }
             KeyCode::Down => {
@@ -374,6 +605,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     let max_index = service_info.len().saturating_sub(1);
                     if *service_selected < max_index {
                         *service_selected += 1;
+                    }
+                } else if *tab == crate::state::PreflightTab::Sandbox && !items.is_empty() {
+                    let display_len = compute_sandbox_display_items_len(
+                        items,
+                        sandbox_info,
+                        sandbox_tree_expanded,
+                    );
+                    if *sandbox_selected < display_len.saturating_sub(1) {
+                        *sandbox_selected += 1;
                     }
                 }
             }
@@ -430,6 +670,86 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             file_tree_expanded.insert(pkg_name.clone());
                         }
                     }
+                } else if *tab == crate::state::PreflightTab::Sandbox && !items.is_empty() {
+                    // Build display items list: (is_header, package_name, Option<(dep_type, dep_name)>)
+                    type SandboxDisplayItem = (bool, String, Option<(&'static str, String)>);
+                    let mut display_items: Vec<SandboxDisplayItem> = Vec::new();
+                    for item in items.iter() {
+                        let is_aur = matches!(item.source, crate::state::Source::Aur);
+                        display_items.push((true, item.name.clone(), None));
+                        if is_aur
+                            && sandbox_tree_expanded.contains(&item.name)
+                            && let Some(info) =
+                                sandbox_info.iter().find(|s| s.package_name == item.name)
+                        {
+                            // Add dependencies with their types
+                            for dep in &info.depends {
+                                display_items.push((
+                                    false,
+                                    item.name.clone(),
+                                    Some(("depends", dep.name.clone())),
+                                ));
+                            }
+                            for dep in &info.makedepends {
+                                display_items.push((
+                                    false,
+                                    item.name.clone(),
+                                    Some(("makedepends", dep.name.clone())),
+                                ));
+                            }
+                            for dep in &info.checkdepends {
+                                display_items.push((
+                                    false,
+                                    item.name.clone(),
+                                    Some(("checkdepends", dep.name.clone())),
+                                ));
+                            }
+                            for dep in &info.optdepends {
+                                display_items.push((
+                                    false,
+                                    item.name.clone(),
+                                    Some(("optdepends", dep.name.clone())),
+                                ));
+                            }
+                        }
+                    }
+
+                    if let Some((is_header, pkg_name, dep_opt)) =
+                        display_items.get(*sandbox_selected)
+                    {
+                        if *is_header {
+                            // Toggle this package's expanded state (only for AUR packages)
+                            let item = items.iter().find(|p| p.name == *pkg_name).unwrap();
+                            if matches!(item.source, crate::state::Source::Aur) {
+                                if sandbox_tree_expanded.contains(pkg_name) {
+                                    sandbox_tree_expanded.remove(pkg_name);
+                                } else {
+                                    sandbox_tree_expanded.insert(pkg_name.clone());
+                                }
+                            }
+                        } else if let Some((dep_type, dep_name)) = dep_opt {
+                            // This is a dependency item
+                            if *dep_type == "optdepends" {
+                                // Toggle optional dependency selection
+                                let selected_set = selected_optdepends
+                                    .entry(pkg_name.clone())
+                                    .or_insert_with(std::collections::HashSet::new);
+                                // Extract package name from dependency spec (may include version or description)
+                                let pkg_name_from_dep =
+                                    crate::logic::sandbox::extract_package_name(dep_name);
+                                if selected_set.contains(dep_name)
+                                    || selected_set.contains(&pkg_name_from_dep)
+                                {
+                                    // Remove both possible formats
+                                    selected_set.remove(dep_name);
+                                    selected_set.remove(&pkg_name_from_dep);
+                                } else {
+                                    // Add the dependency spec as-is (preserves version requirements)
+                                    selected_set.insert(dep_name.clone());
+                                }
+                            }
+                        }
+                    }
                 } else if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
                     if *service_selected >= service_info.len() {
                         *service_selected = service_info.len().saturating_sub(1);
@@ -443,13 +763,34 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 }
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
+                // Retry resolution for current tab or toggle service restart decision
                 if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+                    // Toggle restart decision for selected service (only if no error)
                     if *service_selected >= service_info.len() {
                         *service_selected = service_info.len().saturating_sub(1);
                     }
                     if let Some(service) = service_info.get_mut(*service_selected) {
                         service.restart_decision = ServiceRestartDecision::Restart;
                     }
+                } else if *tab == crate::state::PreflightTab::Deps
+                    && matches!(*action, crate::state::PreflightAction::Install)
+                {
+                    // Retry dependency resolution
+                    *deps_error = None;
+                    *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                    *dep_selected = 0;
+                } else if *tab == crate::state::PreflightTab::Files {
+                    // Retry file resolution
+                    *files_error = None;
+                    *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                    *file_selected = 0;
+                } else if *tab == crate::state::PreflightTab::Services {
+                    // Retry service resolution
+                    *services_error = None;
+                    *services_loaded = false;
+                    *service_info = crate::logic::services::resolve_service_impacts(items, *action);
+                    *service_selected = 0;
+                    *services_loaded = true;
                 }
             }
             KeyCode::Char('D') => {
@@ -507,21 +848,44 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
             KeyCode::Char('f') | KeyCode::Char('F') => {
                 // File database sync (Files tab only)
                 if *tab == crate::state::PreflightTab::Files {
-                    // Launch terminal with sudo pacman -Fy
-                    let sync_cmd = "sudo pacman -Fy".to_string();
-                    let cmds = vec![sync_cmd];
-                    std::thread::spawn(move || {
-                        crate::install::spawn_shell_commands_in_terminal(&cmds);
-                    });
-                    // Clear file_info to trigger re-resolution after sync completes
-                    *file_info = Vec::new();
-                    *file_selected = 0;
-                    app.toast_message = Some(
-                        "File database sync started. Switch away and back to Files tab to refresh."
-                            .to_string(),
-                    );
-                    app.toast_expires_at =
-                        Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                    // Use the new ensure_file_db_synced function with force=true
+                    // This will attempt to sync regardless of timestamp
+                    let sync_result = crate::logic::files::ensure_file_db_synced(true, 7);
+                    match sync_result {
+                        Ok(synced) => {
+                            if synced {
+                                app.toast_message = Some(
+                                    "File database sync completed. Files tab will refresh."
+                                        .to_string(),
+                                );
+                            } else {
+                                app.toast_message =
+                                    Some("File database is already fresh.".to_string());
+                            }
+                            app.toast_expires_at =
+                                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                            // Clear file_info to trigger re-resolution after sync completes
+                            *file_info = Vec::new();
+                            *file_selected = 0;
+                        }
+                        Err(e) => {
+                            // Sync failed (likely requires root), launch terminal with sudo
+                            let sync_cmd = "sudo pacman -Fy".to_string();
+                            let cmds = vec![sync_cmd];
+                            std::thread::spawn(move || {
+                                crate::install::spawn_shell_commands_in_terminal(&cmds);
+                            });
+                            app.toast_message = Some(format!(
+                                "File database sync started in terminal (requires root). Error: {}",
+                                e
+                            ));
+                            app.toast_expires_at =
+                                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                            // Clear file_info to trigger re-resolution after sync completes
+                            *file_info = Vec::new();
+                            *file_selected = 0;
+                        }
+                    }
                     return false;
                 }
             }
@@ -615,7 +979,30 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     app.pending_service_plan.clear();
                 }
 
-                if let Some(packages) = install_targets {
+                if let Some(mut packages) = install_targets {
+                    // Add selected optional dependencies as additional packages to install
+                    for (_pkg_name, optdeps) in selected_optdepends.iter() {
+                        for optdep in optdeps {
+                            // Extract package name from dependency spec (may include version or description)
+                            let optdep_pkg_name =
+                                crate::logic::sandbox::extract_package_name(optdep);
+                            // Check if this optional dependency is not already in the install list
+                            if !packages.iter().any(|p| p.name == optdep_pkg_name) {
+                                // Create a PackageItem for the optional dependency
+                                // We don't know the source, so we'll let pacman/paru figure it out
+                                packages.push(PackageItem {
+                                    name: optdep_pkg_name,
+                                    version: String::new(),
+                                    description: String::new(),
+                                    source: crate::state::Source::Official {
+                                        repo: String::new(),
+                                        arch: String::new(),
+                                    },
+                                    popularity: None,
+                                });
+                            }
+                        }
+                    }
                     crate::install::spawn_install_all(&packages, app.dry_run);
                     close_modal = true;
                 } else if let Some(names) = removal_names {
@@ -651,6 +1038,10 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 app.toast_message = Some("Snapshot (placeholder)".to_string());
             }
             KeyCode::Char('q') => {
+                // Save current service restart decisions before closing
+                if !service_info.is_empty() {
+                    app.pending_service_plan = service_info.clone();
+                }
                 app.previous_modal = None; // Clear previous modal when closing Preflight
                 app.remove_preflight_summary.clear();
                 app.modal = crate::state::Modal::None;
@@ -675,7 +1066,10 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         • [SYSTEM] (yellow) - Critical system package\n\n\
                         Navigation:\n\
                         • Up/Down - Navigate dependency list\n\
-                        • Left/Right - Switch tabs\n\
+                        • Left/Right/Tab - Switch tabs\n\
+                        • Enter/Space - Expand/collapse package group\n\
+                        • a - Expand/collapse all package groups\n\
+                        • r - Retry dependency resolution (if error occurred)\n\
                         • ? - Show this help\n\
                         • q/Esc - Close preflight\n\n\
                         Dependencies are automatically resolved when you navigate to this tab.\n\
@@ -684,24 +1078,37 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 } else {
                     "Preflight Help\n\n\
                         Navigation:\n\
-                        • Left/Right - Switch between tabs\n\
-                        • Up/Down - Navigate lists (Deps tab)\n\
+                        • Left/Right/Tab - Switch between tabs\n\
+                        • Up/Down - Navigate lists (Deps, Files, Services tabs)\n\
                         • ? - Show help for current tab\n\
-                        • q/Esc/Enter - Close preflight\n\n\
-                        Actions:\n\
+                        • q/Esc/Enter - Close preflight (Enter also toggles expansion in Deps/Files tabs)\n\n\
+                        Tab-Specific Actions:\n\
+                        • Deps tab:\n\
+                          - Enter/Space - Expand/collapse package group\n\
+                          - a - Expand/collapse all package groups\n\
+                          - r - Retry dependency resolution (if error occurred)\n\
+                        • Files tab:\n\
+                          - Enter/Space - Expand/collapse package file list\n\
+                          - a - Expand/collapse all package file lists\n\
+                          - f - Sync pacman file database (pacman -Fy)\n\
+                          - r - Retry file resolution (if error occurred)\n\
+                        • Services tab:\n\
+                          - Space - Toggle restart/defer for selected service\n\
+                          - R - Mark selected service to restart\n\
+                          - Shift+D - Mark selected service to defer\n\
+                          - r - Retry service resolution (if error occurred)\n\n\
+                        Global Actions:\n\
                         • s - Scan AUR packages (if AUR packages selected)\n\
                         • d - Toggle dry-run mode\n\
-                        • r/R - Mark selected service to restart (Services tab)\n\
-                        • Shift+D - Mark selected service to defer (Services tab)\n\
-                        • Space - Toggle restart/defer (Services tab)\n\
+                        • m - Toggle cascade removal mode (Remove action only)\n\
                         • p - Proceed with installation/removal\n\
                         • c - Create snapshot (placeholder)\n\n\
                         Tabs:\n\
-                        • Summary - Overview of packages\n\
-                        • Deps - Dependency information\n\
-                        • Files - File changes preview\n\
-                        • Services - Systemd service impact\n\
-                        • Sandbox - AUR build checks"
+                        • Summary - Overview of packages, versions, sizes, and risk score\n\
+                        • Deps - Dependency information and reverse dependencies\n\
+                        • Files - File changes preview and pacnew/pacsave prediction\n\
+                        • Services - Systemd service impact and restart planning\n\
+                        • Sandbox - AUR build checks (placeholder)"
                         .to_string()
                 };
                 // Store current Preflight modal state before opening Alert
@@ -957,12 +1364,21 @@ mod tests {
             dependency_info,
             dep_selected,
             dep_tree_expanded,
+            deps_error: None,
             file_info: Vec::new(),
             file_selected: 0,
             file_tree_expanded: HashSet::new(),
+            files_error: None,
             service_info: Vec::new(),
             service_selected: 0,
             services_loaded: false,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: std::collections::HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: CascadeMode::Basic,
         };
         app
@@ -996,12 +1412,21 @@ mod tests {
             dependency_info: Vec::new(),
             dep_selected: 0,
             dep_tree_expanded: HashSet::new(),
+            deps_error: None,
             file_info: Vec::new(),
             file_selected: 0,
             file_tree_expanded: HashSet::new(),
+            files_error: None,
             service_info,
             service_selected,
             services_loaded: true,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: std::collections::HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: CascadeMode::Basic,
         };
         app

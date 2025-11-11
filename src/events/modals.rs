@@ -58,6 +58,7 @@ pub(crate) fn handle_modal_key(
             log_lines: _,
             abortable,
             items,
+            header_chips: _,
             ..
         } => {
             match ke.code {

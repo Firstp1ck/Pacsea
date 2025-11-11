@@ -9,6 +9,8 @@ mod news;
 mod persist;
 mod recent;
 mod runtime;
+pub mod sandbox_cache;
+pub mod services_cache;
 mod terminal;
 
 // Re-export the public entrypoint so callers keep using `app::run(...)`.

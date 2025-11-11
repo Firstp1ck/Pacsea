@@ -316,6 +316,8 @@ pub fn handle_search_key(
                         // Direct install of single item
                         crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
                         app.toast_message = Some("Installing (preflight skipped)".to_string());
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                     } else {
                         let items = vec![item];
                         let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
@@ -333,15 +335,26 @@ pub fn handle_search_key(
                             dependency_info: Vec::new(),
                             dep_selected: 0,
                             dep_tree_expanded: std::collections::HashSet::new(),
+                            deps_error: None,
                             file_info: Vec::new(),
                             file_selected: 0,
                             file_tree_expanded: std::collections::HashSet::new(),
+                            files_error: None,
                             service_info: Vec::new(),
                             service_selected: 0,
                             services_loaded: false,
+                            services_error: None,
+                            sandbox_info: Vec::new(),
+                            sandbox_selected: 0,
+                            sandbox_tree_expanded: std::collections::HashSet::new(),
+                            sandbox_loaded: false,
+                            sandbox_error: None,
+                            selected_optdepends: std::collections::HashMap::new(),
                             cascade_mode: app.remove_cascade_mode,
                         };
                         app.toast_message = Some("Preflight opened".to_string());
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
                     }
                 }
             }
@@ -351,6 +364,8 @@ pub fn handle_search_key(
                     if crate::theme::settings().skip_preflight {
                         crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
                         app.toast_message = Some("Installing (preflight skipped)".to_string());
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                     } else {
                         let items = vec![item];
                         let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
@@ -368,15 +383,26 @@ pub fn handle_search_key(
                             dependency_info: Vec::new(),
                             dep_selected: 0,
                             dep_tree_expanded: std::collections::HashSet::new(),
+                            deps_error: None,
                             file_info: Vec::new(),
                             file_selected: 0,
                             file_tree_expanded: std::collections::HashSet::new(),
+                            files_error: None,
                             service_info: Vec::new(),
                             service_selected: 0,
                             services_loaded: false,
+                            services_error: None,
+                            sandbox_info: Vec::new(),
+                            sandbox_selected: 0,
+                            sandbox_tree_expanded: std::collections::HashSet::new(),
+                            sandbox_loaded: false,
+                            sandbox_error: None,
+                            selected_optdepends: std::collections::HashMap::new(),
                             cascade_mode: app.remove_cascade_mode,
                         };
                         app.toast_message = Some("Preflight opened".to_string());
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
                     }
                 }
             }
@@ -507,6 +533,8 @@ pub fn handle_search_key(
                 if crate::theme::settings().skip_preflight {
                     crate::install::spawn_install_all(std::slice::from_ref(&item), app.dry_run);
                     app.toast_message = Some("Installing (preflight skipped)".to_string());
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 } else {
                     let items = vec![item];
                     let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
@@ -524,15 +552,26 @@ pub fn handle_search_key(
                         dependency_info: Vec::new(),
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),
+                        deps_error: None,
                         file_info: Vec::new(),
                         file_selected: 0,
                         file_tree_expanded: std::collections::HashSet::new(),
+                        files_error: None,
                         service_info: Vec::new(),
                         service_selected: 0,
                         services_loaded: false,
+                        services_error: None,
+                        sandbox_info: Vec::new(),
+                        sandbox_selected: 0,
+                        sandbox_tree_expanded: std::collections::HashSet::new(),
+                        sandbox_loaded: false,
+                        sandbox_error: None,
+                        selected_optdepends: std::collections::HashMap::new(),
                         cascade_mode: app.remove_cascade_mode,
                     };
                     app.toast_message = Some("Preflight opened".to_string());
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
                 }
             }
         }

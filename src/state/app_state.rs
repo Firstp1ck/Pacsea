@@ -343,8 +343,16 @@ pub struct AppState {
     pub files_cache_path: PathBuf,
     /// Dirty flag indicating `install_list_files` needs to be saved.
     pub files_cache_dirty: bool,
-    /// Whether a service impact resolution job is currently running in the background.
+
+    // Service impact cache for install list
+    /// Cached resolved service impacts for the current install list (updated in background).
+    pub install_list_services: Vec<crate::state::modal::ServiceImpact>,
+    /// Whether service impact resolution is currently in progress.
     pub services_resolving: bool,
+    /// Path where the service cache is persisted as JSON.
+    pub services_cache_path: PathBuf,
+    /// Dirty flag indicating `install_list_services` needs to be saved.
+    pub services_cache_dirty: bool,
     /// Flag requesting that the runtime schedule service impact resolution for the active Preflight modal.
     pub service_resolve_now: bool,
     /// Identifier of the active service impact resolution request, if any.
@@ -355,6 +363,16 @@ pub struct AppState {
     pub services_pending_signature: Option<(PreflightAction, Vec<String>)>,
     /// Service restart decisions captured during the Preflight Services tab.
     pub pending_service_plan: Vec<ServiceImpact>,
+
+    // Sandbox analysis cache for install list
+    /// Cached resolved sandbox information for the current install list (updated in background).
+    pub install_list_sandbox: Vec<crate::logic::sandbox::SandboxInfo>,
+    /// Whether sandbox resolution is currently in progress.
+    pub sandbox_resolving: bool,
+    /// Path where the sandbox cache is persisted as JSON.
+    pub sandbox_cache_path: PathBuf,
+    /// Dirty flag indicating `install_list_sandbox` needs to be saved.
+    pub sandbox_cache_dirty: bool,
 }
 
 impl Default for AppState {
@@ -534,12 +552,23 @@ impl Default for AppState {
             // File cache (lists dir under config)
             files_cache_path: crate::theme::lists_dir().join("file_cache.json"),
             files_cache_dirty: false,
+
+            install_list_services: Vec::new(),
             services_resolving: false,
+            // Service cache (lists dir under config)
+            services_cache_path: crate::theme::lists_dir().join("services_cache.json"),
+            services_cache_dirty: false,
             service_resolve_now: false,
             active_service_request: None,
             next_service_request_id: 1,
             services_pending_signature: None,
             pending_service_plan: Vec::new(),
+
+            install_list_sandbox: Vec::new(),
+            sandbox_resolving: false,
+            // Sandbox cache (lists dir under config)
+            sandbox_cache_path: crate::theme::lists_dir().join("sandbox_cache.json"),
+            sandbox_cache_dirty: false,
         }
     }
 }

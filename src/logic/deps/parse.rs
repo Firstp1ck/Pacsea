@@ -38,6 +38,42 @@ pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
     Vec::new()
 }
 
+/// What: Extract optional dependency specifications from the `pacman -Si` "Optional Deps" field.
+///
+/// Inputs:
+/// - `text`: Raw stdout emitted by `pacman -Si` for a package.
+///
+/// Output:
+/// - Returns package specification strings without virtual shared-library entries.
+///
+/// Details:
+/// - Scans the "Optional Deps" line, split on whitespace, and removes `.so` patterns that represent virtual deps.
+pub(crate) fn parse_pacman_si_optdeps(text: &str) -> Vec<String> {
+    for line in text.lines() {
+        if line.starts_with("Optional Deps")
+            && let Some(colon_pos) = line.find(':')
+        {
+            let deps_str = line[colon_pos + 1..].trim();
+            if deps_str.is_empty() || deps_str == "None" {
+                return Vec::new();
+            }
+            // Split by whitespace, filter out empty strings and .so files (virtual packages)
+            return deps_str
+                .split_whitespace()
+                .map(|s| s.trim().to_string())
+                .filter(|s| {
+                    if s.is_empty() {
+                        return false;
+                    }
+                    // Filter out .so files (virtual packages)
+                    !(s.ends_with(".so") || s.contains(".so.") || s.contains(".so="))
+                })
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
 /// What: Normalize dependency names from `pacman -Sp` or helper outputs.
 ///
 /// Inputs:

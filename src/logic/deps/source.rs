@@ -2,7 +2,7 @@
 
 use crate::state::modal::DependencySource;
 use std::collections::HashSet;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// What: Infer the origin repository for a dependency currently under analysis.
 ///
@@ -30,6 +30,9 @@ pub(crate) fn determine_dependency_source(
         .args(["-Qi", name])
         .env("LC_ALL", "C")
         .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output();
 
     match output {
@@ -42,16 +45,11 @@ pub(crate) fn determine_dependency_source(
                 {
                     let repo = line[colon_pos + 1..].trim().to_lowercase();
                     let is_core = repo == "core";
-                    return (
-                        DependencySource::Official {
-                            repo: if repo.is_empty() {
-                                "unknown".to_string()
-                            } else {
-                                repo
-                            },
-                        },
-                        is_core,
-                    );
+                    // Handle local packages specially
+                    if repo == "local" || repo.is_empty() {
+                        return (DependencySource::Local, false);
+                    }
+                    return (DependencySource::Official { repo }, is_core);
                 }
             }
         }

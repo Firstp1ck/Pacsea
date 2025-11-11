@@ -137,12 +137,15 @@ pub fn handle_mouse_event(
         dependency_info,
         dep_selected,
         dep_tree_expanded,
+        deps_error: _,
         file_info,
         file_selected,
         file_tree_expanded,
+        files_error: _,
         service_info,
         service_selected,
         services_loaded,
+        services_error: _,
         ..
     } = &mut app.modal
     {
@@ -166,26 +169,66 @@ pub fn handle_mouse_event(
                     };
                     *tab = new_tab;
 
-                    // Resolve dependencies when switching to Deps tab
+                    // Check for cached dependencies when switching to Deps tab
                     if *tab == crate::state::PreflightTab::Deps
                         && dependency_info.is_empty()
                         && matches!(*action, crate::state::PreflightAction::Install)
                     {
-                        *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                        *dep_selected = 0;
+                        // Try to use cached dependencies from app state
+                        let item_names: std::collections::HashSet<String> =
+                            items.iter().map(|i| i.name.clone()).collect();
+                        let cached_deps: Vec<crate::state::modal::DependencyInfo> = app
+                            .install_list_deps
+                            .iter()
+                            .filter(|dep| {
+                                dep.required_by
+                                    .iter()
+                                    .any(|req_by| item_names.contains(req_by))
+                            })
+                            .cloned()
+                            .collect();
+                        if !cached_deps.is_empty() {
+                            *dependency_info = cached_deps;
+                            *dep_selected = 0;
+                        }
+                        // If no cached deps, user can press 'r' to resolve
                     }
-                    // Resolve files when switching to Files tab
+                    // Check for cached files when switching to Files tab
                     if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                        *file_selected = 0;
+                        // Try to use cached files from app state
+                        let item_names: std::collections::HashSet<String> =
+                            items.iter().map(|i| i.name.clone()).collect();
+                        let cached_files: Vec<crate::state::modal::PackageFileInfo> = app
+                            .install_list_files
+                            .iter()
+                            .filter(|file_info| item_names.contains(&file_info.name))
+                            .cloned()
+                            .collect();
+                        if !cached_files.is_empty() {
+                            *file_info = cached_files;
+                            *file_selected = 0;
+                        }
+                        // If no cached files, user can press 'r' to resolve
                     }
-                    if *tab == crate::state::PreflightTab::Services
-                        && (!*services_loaded || service_info.is_empty())
-                    {
-                        *service_info =
-                            crate::logic::services::resolve_service_impacts(items, *action);
-                        *service_selected = 0;
-                        *services_loaded = true;
+                    // Check for cached services when switching to Services tab
+                    if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
+                        // Try to use cached services from app state (for install actions)
+                        if matches!(*action, crate::state::PreflightAction::Install) && !app.services_resolving {
+                            // Check if cache file exists with matching signature
+                            let cache_exists = if !items.is_empty() {
+                                let signature = crate::app::services_cache::compute_signature(items);
+                                crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
+                                    .is_some()
+                            } else {
+                                false
+                            };
+                            if cache_exists && !app.install_list_services.is_empty() {
+                                *service_info = app.install_list_services.clone();
+                                *service_selected = 0;
+                                *services_loaded = true;
+                            }
+                        }
+                        // If no cached services, user can press 'r' to resolve
                     }
                     return false;
                 }

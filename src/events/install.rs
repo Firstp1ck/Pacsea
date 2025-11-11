@@ -175,43 +175,200 @@ pub fn handle_install_key(
                 if skip {
                     crate::install::spawn_install_all(&app.install_list, app.dry_run);
                     app.toast_message = Some("Installing list (preflight skipped)".to_string());
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 } else {
+                    tracing::info!(
+                        "[Install] Opening preflight modal for {} packages",
+                        app.install_list.len()
+                    );
+                    let start_time = std::time::Instant::now();
+                    let item_count = app.install_list.len();
                     // Open Preflight modal listing all items to be installed
                     let items = app.install_list.clone();
+                    let cache_start = std::time::Instant::now();
                     let cached_deps = if !app.deps_resolving && !app.install_list_deps.is_empty() {
+                        tracing::debug!(
+                            "[Install] Using {} cached dependencies",
+                            app.install_list_deps.len()
+                        );
                         app.install_list_deps.clone()
                     } else {
+                        tracing::debug!("[Install] No cached dependencies available");
                         Vec::new()
                     };
                     let cached_files = if !app.files_resolving && !app.install_list_files.is_empty()
                     {
+                        tracing::debug!(
+                            "[Install] Using {} cached file infos",
+                            app.install_list_files.len()
+                        );
                         app.install_list_files.clone()
                     } else {
+                        tracing::debug!("[Install] No cached file infos available");
                         Vec::new()
                     };
-                    let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
-                        crate::logic::preflight::compute_preflight_summary(
-                            &items,
-                            crate::state::PreflightAction::Install,
+                    let cached_services =
+                        if !app.services_resolving && !app.install_list_services.is_empty() {
+                            tracing::debug!(
+                                "[Install] Using {} cached services",
+                                app.install_list_services.len()
+                            );
+                            app.install_list_services.clone()
+                        } else {
+                            tracing::debug!("[Install] No cached services available");
+                            Vec::new()
+                        };
+                    // Check if cache file exists with matching signature to determine if services are loaded
+                    // (even if empty - empty cache means "no services found", which is valid)
+                    let services_cache_loaded = if !app.install_list.is_empty() {
+                        let signature =
+                            crate::app::services_cache::compute_signature(&app.install_list);
+                        let loaded = crate::app::services_cache::load_cache(
+                            &app.services_cache_path,
+                            &signature,
+                        )
+                        .is_some();
+                        tracing::debug!(
+                            "[Install] Services cache check: {} (signature match: {})",
+                            if loaded { "found" } else { "not found" },
+                            signature.len()
                         );
-                    app.pending_service_plan.clear();
+                        loaded
+                    } else {
+                        false
+                    };
+                    let services_loaded = services_cache_loaded || !cached_services.is_empty();
+                    tracing::debug!(
+                        "[Install] Cache loading took {:?}",
+                        cache_start.elapsed()
+                    );
+
+                    // Restore user restart decisions from pending_service_plan if available
+                    let mut final_services = cached_services;
+                    if !app.pending_service_plan.is_empty() && !final_services.is_empty() {
+                        // Create a map of unit_name -> restart_decision from pending plan
+                        let decision_map: std::collections::HashMap<
+                            String,
+                            crate::state::modal::ServiceRestartDecision,
+                        > = app
+                            .pending_service_plan
+                            .iter()
+                            .map(|s| (s.unit_name.clone(), s.restart_decision))
+                            .collect();
+
+                        // Apply saved decisions to cached services
+                        for service in final_services.iter_mut() {
+                            if let Some(&saved_decision) = decision_map.get(&service.unit_name) {
+                                service.restart_decision = saved_decision;
+                            }
+                        }
+                    }
+
+                    // Load cached sandbox info
+                    let cached_sandbox =
+                        if !app.sandbox_resolving && !app.install_list_sandbox.is_empty() {
+                            app.install_list_sandbox.clone()
+                        } else {
+                            Vec::new()
+                        };
+
+                    // Check if sandbox cache file exists with matching signature (even if empty)
+                    let sandbox_cache_loaded = if !items.is_empty() {
+                        let signature = crate::app::sandbox_cache::compute_signature(&items);
+                        crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature)
+                            .is_some()
+                    } else {
+                        false
+                    };
+                    let sandbox_loaded = sandbox_cache_loaded || !cached_sandbox.is_empty();
+
+                    // Compute a minimal summary without blocking pacman calls to avoid freezing the UI
+                    // The full summary will be computed asynchronously after the modal opens
+                    let summary_start = std::time::Instant::now();
+                    let aur_count = items.iter().filter(|p| matches!(p.source, crate::state::Source::Aur)).count();
+                    tracing::debug!(
+                        "[Install] Creating minimal summary for {} packages ({} AUR)",
+                        items.len(),
+                        aur_count
+                    );
+                    let minimal_summary = crate::state::modal::PreflightSummaryData {
+                        packages: items.iter().map(|item| crate::state::modal::PreflightPackageSummary {
+                            name: item.name.clone(),
+                            source: item.source.clone(),
+                            installed_version: None,
+                            target_version: item.version.clone(),
+                            is_downgrade: false,
+                            is_major_bump: false,
+                            download_bytes: None,
+                            install_delta_bytes: None,
+                            notes: vec![],
+                        }).collect(),
+                        package_count: items.len(),
+                        aur_count,
+                        download_bytes: 0,
+                        install_delta_bytes: 0,
+                        risk_score: if aur_count > 0 { 2 } else { 0 },
+                        risk_level: if aur_count > 0 { crate::state::modal::RiskLevel::Medium } else { crate::state::modal::RiskLevel::Low },
+                        risk_reasons: if aur_count > 0 { vec!["AUR packages included (+2)".to_string()] } else { vec![] },
+                        major_bump_packages: vec![],
+                        core_system_updates: vec![],
+                        pacnew_candidates: 0,
+                        pacsave_candidates: 0,
+                        config_warning_packages: vec![],
+                        service_restart_units: vec![],
+                        summary_warnings: if aur_count > 0 { vec!["AUR packages included (+2)".to_string()] } else { vec![] },
+                        summary_notes: if aur_count > 0 { vec!["AUR packages present; build steps may vary.".to_string()] } else { vec![] },
+                    };
+                    let minimal_header = crate::state::modal::PreflightHeaderChips {
+                        package_count: items.len(),
+                        download_bytes: 0,
+                        install_delta_bytes: 0,
+                        aur_count,
+                        risk_score: if aur_count > 0 { 2 } else { 0 },
+                        risk_level: if aur_count > 0 { crate::state::modal::RiskLevel::Medium } else { crate::state::modal::RiskLevel::Low },
+                    };
+                    tracing::debug!(
+                        "[Install] Minimal summary creation took {:?}",
+                        summary_start.elapsed()
+                    );
+                    // Don't clear pending_service_plan here - it will be updated when modal closes
+                    let modal_set_start = std::time::Instant::now();
                     app.modal = crate::state::Modal::Preflight {
                         items,
                         action: crate::state::PreflightAction::Install,
                         tab: crate::state::PreflightTab::Summary,
-                        summary: Some(Box::new(summary)),
-                        header_chips: header,
+                        summary: Some(Box::new(minimal_summary)),
+                        header_chips: minimal_header,
                         dependency_info: cached_deps,
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),
+                        deps_error: None,
                         file_info: cached_files,
                         file_selected: 0,
                         file_tree_expanded: std::collections::HashSet::new(),
-                        service_info: Vec::new(),
+                        files_error: None,
+                        service_info: final_services,
                         service_selected: 0,
-                        services_loaded: false,
+                        services_loaded,
+                        services_error: None,
+                        sandbox_info: cached_sandbox,
+                        sandbox_selected: 0,
+                        sandbox_tree_expanded: std::collections::HashSet::new(),
+                        sandbox_loaded,
+                        sandbox_error: None,
+                        selected_optdepends: std::collections::HashMap::new(),
                         cascade_mode: app.remove_cascade_mode,
                     };
+                    tracing::debug!(
+                        "[Install] Modal state set in {:?}",
+                        modal_set_start.elapsed()
+                    );
+                    tracing::info!(
+                        "[Install] Preflight modal opened successfully in {:?} ({} packages)",
+                        start_time.elapsed(),
+                        item_count
+                    );
                     app.remove_preflight_summary.clear();
                 }
             } else if app.installed_only_mode
@@ -227,6 +384,8 @@ pub fn handle_install_key(
                             app.remove_cascade_mode,
                         );
                         app.toast_message = Some("Removing list (preflight skipped)".to_string());
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                         app.remove_list.clear();
                         app.remove_state.select(None);
                     } else {
@@ -249,12 +408,21 @@ pub fn handle_install_key(
                             dependency_info: dependencies,
                             dep_selected: 0,
                             dep_tree_expanded: std::collections::HashSet::new(),
+                            deps_error: None,
                             file_info: Vec::new(),
                             file_selected: 0,
                             file_tree_expanded: std::collections::HashSet::new(),
+                            files_error: None,
                             service_info: Vec::new(),
                             service_selected: 0,
                             services_loaded: false,
+                            services_error: None,
+                            sandbox_info: Vec::new(),
+                            sandbox_selected: 0,
+                            sandbox_tree_expanded: std::collections::HashSet::new(),
+                            sandbox_loaded: false,
+                            sandbox_error: None,
+                            selected_optdepends: std::collections::HashMap::new(),
                             cascade_mode: app.remove_cascade_mode,
                         };
                         app.remove_preflight_summary = summaries;
@@ -722,12 +890,21 @@ mod tests {
                 dependency_info: _,
                 dep_selected: _,
                 dep_tree_expanded: _,
+                deps_error: _,
                 file_info: _,
                 file_selected: _,
                 file_tree_expanded: _,
+                files_error: _,
                 service_info: _,
                 service_selected: _,
                 services_loaded: _,
+                services_error: _,
+                sandbox_info: _,
+                sandbox_selected: _,
+                sandbox_tree_expanded: _,
+                sandbox_loaded: _,
+                sandbox_error: _,
+                selected_optdepends: _,
                 cascade_mode: _,
             } => {
                 assert_eq!(items.len(), 1);

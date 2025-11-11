@@ -2,6 +2,8 @@ use std::fs;
 
 use super::deps_cache;
 use super::files_cache;
+use super::sandbox_cache;
+use super::services_cache;
 use crate::state::AppState;
 
 /// What: Persist the details cache to disk if marked dirty.
@@ -99,6 +101,60 @@ pub fn maybe_flush_files_cache(app: &mut AppState) {
     let signature = files_cache::compute_signature(&app.install_list);
     files_cache::save_cache(&app.files_cache_path, &signature, &app.install_list_files);
     app.files_cache_dirty = false;
+}
+
+/// What: Persist the service cache to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state with `install_list_services`, `services_cache_path`, and `install_list`
+///
+/// Output:
+/// - Writes service cache JSON to `services_cache_path` and clears dirty flag on success.
+/// - If install list is empty, removes the cache file.
+pub fn maybe_flush_services_cache(app: &mut AppState) {
+    if app.install_list.is_empty() {
+        // Clear cache file if install list is empty
+        let _ = fs::remove_file(&app.services_cache_path);
+        app.services_cache_dirty = false;
+        return;
+    }
+    if !app.services_cache_dirty {
+        return;
+    }
+    let signature = services_cache::compute_signature(&app.install_list);
+    services_cache::save_cache(
+        &app.services_cache_path,
+        &signature,
+        &app.install_list_services,
+    );
+    app.services_cache_dirty = false;
+}
+
+/// What: Persist the sandbox cache to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state with `install_list_sandbox`, `sandbox_cache_path`, and `install_list`
+///
+/// Output:
+/// - Writes sandbox cache JSON to `sandbox_cache_path` and clears dirty flag on success.
+/// - If install list is empty, removes the cache file.
+pub fn maybe_flush_sandbox_cache(app: &mut AppState) {
+    if app.install_list.is_empty() {
+        // Clear cache file if install list is empty
+        let _ = fs::remove_file(&app.sandbox_cache_path);
+        app.sandbox_cache_dirty = false;
+        return;
+    }
+    if !app.sandbox_cache_dirty {
+        return;
+    }
+    let signature = sandbox_cache::compute_signature(&app.install_list);
+    sandbox_cache::save_cache(
+        &app.sandbox_cache_path,
+        &signature,
+        &app.install_list_sandbox,
+    );
+    app.sandbox_cache_dirty = false;
 }
 
 /// What: Persist the install list to disk if marked dirty, throttled to ~1s.

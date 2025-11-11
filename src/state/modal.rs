@@ -382,6 +382,7 @@ pub struct PreflightSummaryData {
 /// - Details: Acts as a tagged union so only one modal can be active at a time
 ///   while carrying the precise data needed for that modal's UI.
 #[derive(Debug, Clone, Default)]
+#[allow(clippy::large_enum_variant)]
 pub enum Modal {
     #[default]
     None,
@@ -405,18 +406,37 @@ pub enum Modal {
         dep_selected: usize,
         /// Set of dependency names with expanded tree nodes (for tree view).
         dep_tree_expanded: HashSet<String>,
+        /// Error message from dependency resolution, if any.
+        deps_error: Option<String>,
         /// File information (populated when Files tab is accessed).
         file_info: Vec<PackageFileInfo>,
         /// Selected index in the file list (for navigation).
         file_selected: usize,
         /// Set of package names with expanded file lists (for Files tab tree view).
         file_tree_expanded: HashSet<String>,
+        /// Error message from file resolution, if any.
+        files_error: Option<String>,
         /// Service impact information (populated when Services tab is accessed).
         service_info: Vec<ServiceImpact>,
         /// Selected index in the service impact list (for navigation).
         service_selected: usize,
         /// Whether service impacts have been resolved for the current session.
         services_loaded: bool,
+        /// Error message from service resolution, if any.
+        services_error: Option<String>,
+        /// Sandbox information for AUR packages (populated when Sandbox tab is accessed).
+        sandbox_info: Vec<crate::logic::sandbox::SandboxInfo>,
+        /// Selected index in the sandbox display list (for navigation - can be package or dependency).
+        sandbox_selected: usize,
+        /// Set of package names with expanded dependency lists (for Sandbox tab tree view).
+        sandbox_tree_expanded: HashSet<String>,
+        /// Whether sandbox info has been resolved for the current session.
+        sandbox_loaded: bool,
+        /// Error message from sandbox resolution, if any.
+        sandbox_error: Option<String>,
+        /// Selected optional dependencies to install with their packages.
+        /// Maps package name -> set of selected optional dependency names.
+        selected_optdepends: std::collections::HashMap<String, std::collections::HashSet<String>>,
         /// Current cascade removal strategy for this session.
         cascade_mode: CascadeMode,
     },
@@ -429,6 +449,8 @@ pub enum Modal {
         verbose: bool,
         log_lines: Vec<String>,
         abortable: bool,
+        /// Header chip metrics displayed in the sidebar.
+        header_chips: PreflightHeaderChips,
     },
     /// Post-transaction summary with results and follow-ups.
     PostSummary {
@@ -564,12 +586,21 @@ mod tests {
             dependency_info: Vec::new(),
             dep_selected: 0,
             dep_tree_expanded: std::collections::HashSet::new(),
+            deps_error: None,
             file_info: Vec::new(),
             file_selected: 0,
             file_tree_expanded: std::collections::HashSet::new(),
+            files_error: None,
             service_info: Vec::new(),
             service_selected: 0,
             services_loaded: false,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: std::collections::HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: super::CascadeMode::Basic,
         };
     }

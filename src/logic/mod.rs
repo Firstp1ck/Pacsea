@@ -9,6 +9,7 @@ pub mod lists;
 pub mod prefetch;
 pub mod preflight;
 pub mod query;
+pub mod sandbox;
 pub mod selection;
 pub mod services;
 pub mod sort;

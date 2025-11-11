@@ -43,6 +43,75 @@ fn format_signed_bytes(value: i64) -> String {
     }
 }
 
+/// What: Render header chips as a compact horizontal line of metrics.
+///
+/// Inputs:
+/// - `chips`: Header chip data containing counts and sizes.
+///
+/// Output:
+/// - Returns a `Line` containing styled chip spans separated by spaces.
+///
+/// Details:
+/// - Formats package count, download size, install delta, AUR count, and risk score
+///   as compact chips. Risk score uses color coding (green/yellow/red) based on level.
+fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
+    let th = theme();
+    let mut spans = Vec::new();
+
+    // Package count chip
+    let pkg_text = if chips.aur_count > 0 {
+        format!("{} ({} AUR)", chips.package_count, chips.aur_count)
+    } else {
+        format!("{}", chips.package_count)
+    };
+    spans.push(Span::styled(
+        format!("[{}]", pkg_text),
+        Style::default()
+            .fg(th.sapphire)
+            .add_modifier(Modifier::BOLD),
+    ));
+
+    // Download size chip (always shown)
+    spans.push(Span::styled(" ", Style::default()));
+    spans.push(Span::styled(
+        format!("[DL: {}]", format_bytes(chips.download_bytes)),
+        Style::default().fg(th.sapphire),
+    ));
+
+    // Install delta chip (always shown)
+    spans.push(Span::styled(" ", Style::default()));
+    let delta_color = if chips.install_delta_bytes > 0 {
+        th.green
+    } else if chips.install_delta_bytes < 0 {
+        th.red
+    } else {
+        th.overlay1 // Neutral color for zero
+    };
+    spans.push(Span::styled(
+        format!("[Size: {}]", format_signed_bytes(chips.install_delta_bytes)),
+        Style::default().fg(delta_color),
+    ));
+
+    // Risk score chip (always shown)
+    spans.push(Span::styled(" ", Style::default()));
+    let risk_label = match chips.risk_level {
+        crate::state::modal::RiskLevel::Low => "Low",
+        crate::state::modal::RiskLevel::Medium => "Medium",
+        crate::state::modal::RiskLevel::High => "High",
+    };
+    let risk_color = match chips.risk_level {
+        crate::state::modal::RiskLevel::Low => th.green,
+        crate::state::modal::RiskLevel::Medium => th.yellow,
+        crate::state::modal::RiskLevel::High => th.red,
+    };
+    spans.push(Span::styled(
+        format!("[Risk: {} ({})]", risk_label, chips.risk_score),
+        Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+    ));
+
+    Line::from(spans)
+}
+
 /// What: Render the preflight modal summarizing dependency/file checks before install/remove.
 ///
 /// Inputs:
@@ -75,52 +144,167 @@ pub fn render_preflight(
     dependency_info: &mut Vec<DependencyInfo>,
     dep_selected: &mut usize,
     dep_tree_expanded: &HashSet<String>,
+    deps_error: &mut Option<String>,
     file_info: &mut Vec<PackageFileInfo>,
     file_selected: &mut usize,
     file_tree_expanded: &HashSet<String>,
-    service_info: &mut [ServiceImpact],
+    files_error: &mut Option<String>,
+    service_info: &mut Vec<ServiceImpact>,
     service_selected: &mut usize,
-    services_loaded: bool,
+    services_loaded: &mut bool,
+    services_error: &mut Option<String>,
+    sandbox_info: &mut Vec<crate::logic::sandbox::SandboxInfo>,
+    sandbox_selected: &mut usize,
+    sandbox_tree_expanded: &HashSet<String>,
+    sandbox_loaded: &mut bool,
+    sandbox_error: &mut Option<String>,
+    selected_optdepends: &mut std::collections::HashMap<String, std::collections::HashSet<String>>,
     cascade_mode: CascadeMode,
 ) {
+    let render_start = std::time::Instant::now();
     let th = theme();
-    // Use cached dependencies if available, otherwise resolve on-demand
+    tracing::info!(
+        "[UI] render_preflight START: tab={:?}, items={}, deps={}, files={}, services={}, sandbox={}",
+        tab,
+        items.len(),
+        dependency_info.len(),
+        file_info.len(),
+        service_info.len(),
+        sandbox_info.len()
+    );
+    // Use cached dependencies if available
     // Note: Cached deps are populated in background when packages are added to install list
+    // Note: Dependency resolution is triggered asynchronously in event handlers, not during rendering
+    // IMPORTANT: Check on every render when dependency_info is empty, because background resolution
+    // may complete after the modal opens and we need to update dependency_info from app.install_list_deps
+    let deps_check_start = std::time::Instant::now();
     if dependency_info.is_empty() && matches!(*action, PreflightAction::Install) {
-        // Check if we have cached dependencies from app state
-        // (This would require passing app state, but for now we resolve on-demand as fallback)
-        tracing::info!(
-            "[UI] Starting dependency resolution for {} packages in Preflight modal",
+        tracing::debug!(
+            "[UI] Checking for cached dependencies: deps_resolving={}, install_list_deps.len()={}, items.len()={}",
+            app.deps_resolving,
+            app.install_list_deps.len(),
             items.len()
         );
-        let start_time = std::time::Instant::now();
-        *dependency_info = crate::logic::deps::resolve_dependencies(items);
-        let elapsed = start_time.elapsed();
-        tracing::info!(
-            "[UI] Dependency resolution completed in {:?}. Found {} dependencies",
-            elapsed,
-            dependency_info.len()
-        );
-        *dep_selected = 0;
+        // Check if we have cached dependencies from app state that match the current items
+        // Check even if deps_resolving is true, because resolution might have completed between renders
+        let item_names: std::collections::HashSet<String> =
+            items.iter().map(|i| i.name.clone()).collect();
+        
+        // If deps_resolving is false and we have dependencies, use them all (don't filter strictly)
+        // This handles the case where the cache might have dependencies for the install list
+        if !app.deps_resolving && !app.install_list_deps.is_empty() {
+            tracing::debug!(
+                "[UI] Resolution complete, using all {} cached dependencies",
+                app.install_list_deps.len()
+            );
+            *dependency_info = app.install_list_deps.clone();
+            *dep_selected = 0;
+        } else {
+            // Filter dependencies to only those required by current items
+            let cached_deps: Vec<DependencyInfo> = app
+                .install_list_deps
+                .iter()
+                .filter(|dep| {
+                    // Include dependency if any of the items require it
+                    dep.required_by
+                        .iter()
+                        .any(|req_by| item_names.contains(req_by))
+                })
+                .cloned()
+                .collect();
+            if !cached_deps.is_empty() {
+                tracing::debug!(
+                    "[UI] Using {} filtered cached dependencies for Preflight modal",
+                    cached_deps.len()
+                );
+                *dependency_info = cached_deps;
+                *dep_selected = 0;
+            } else {
+                tracing::debug!(
+                    "[UI] No cached dependencies found (total in cache: {}, items: {:?})",
+                    app.install_list_deps.len(),
+                    item_names
+                );
+            }
+        }
+        // If no cached deps available, resolution will be triggered by event handlers when user navigates to Deps tab
     }
-    // Lazy load file info when Files tab is accessed (use cached files if available)
+    let deps_check_duration = deps_check_start.elapsed();
+    if deps_check_duration.as_millis() > 10 {
+        tracing::warn!(
+            "[UI] Dependency cache check took {:?} (slow!)",
+            deps_check_duration
+        );
+    }
+    // Use cached file info if available
     // Note: Cached files are populated in background when packages are added to install list
+    // Note: File resolution is triggered asynchronously in event handlers, not during rendering
     if file_info.is_empty() && matches!(*tab, PreflightTab::Files) {
-        // Check if we have cached files from app state
-        // (This would require passing app state, but for now we resolve on-demand as fallback)
-        tracing::info!(
-            "[UI] Starting file resolution for {} packages in Preflight modal",
-            items.len()
-        );
-        let start_time = std::time::Instant::now();
-        *file_info = crate::logic::files::resolve_file_changes(items, *action);
-        let elapsed = start_time.elapsed();
-        tracing::info!(
-            "[UI] File resolution completed in {:?}. Found {} package file infos",
-            elapsed,
-            file_info.len()
-        );
-        *file_selected = 0;
+        // Check if we have cached files from app state that match the current items
+        let item_names: std::collections::HashSet<String> =
+            items.iter().map(|i| i.name.clone()).collect();
+        let cached_files: Vec<PackageFileInfo> = app
+            .install_list_files
+            .iter()
+            .filter(|file_info| item_names.contains(&file_info.name))
+            .cloned()
+            .collect();
+        if !cached_files.is_empty() {
+            tracing::debug!(
+                "[UI] Using {} cached file infos for Preflight modal",
+                cached_files.len()
+            );
+            *file_info = cached_files;
+            *file_selected = 0;
+        }
+        // If no cached files available, resolution will be triggered by event handlers when user navigates to Files tab
+    }
+    // Use cached service info if available
+    // Note: Cached services are pre-populated when modal opens, so this only runs if cache was empty
+    // Note: Service resolution is triggered asynchronously in event handlers, not during rendering
+    if service_info.is_empty() && matches!(*tab, PreflightTab::Services) && !*services_loaded {
+        // Check if we have cached services from app state (for install actions)
+        // Note: Empty cache is still valid - it means "no services found"
+        if matches!(*action, PreflightAction::Install) && !app.services_resolving {
+            // Check if cache file exists with matching signature (even if empty)
+            let cache_check_start = std::time::Instant::now();
+            let cache_exists = if !items.is_empty() {
+                let signature = crate::app::services_cache::compute_signature(items);
+                let result = crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
+                    .is_some();
+                let cache_duration = cache_check_start.elapsed();
+                if cache_duration.as_millis() > 10 {
+                    tracing::warn!(
+                        "[UI] Services cache check took {:?} (slow!)",
+                        cache_duration
+                    );
+                }
+                result
+            } else {
+                false
+            };
+
+            if cache_exists {
+                // Use cached services (may be empty, which is valid)
+                if !app.install_list_services.is_empty() {
+                    tracing::debug!(
+                        "[UI] Using cached service impacts for {} packages",
+                        app.install_list_services.len()
+                    );
+                    *service_info = app.install_list_services.clone();
+                } else {
+                    // Cache exists but is empty - this is valid, means no services found
+                    tracing::debug!("[UI] Using cached service impacts (empty - no services found)");
+                }
+                *service_selected = 0;
+                *services_loaded = true;
+            } else {
+                // No cache found - mark as loaded so we don't check again
+                *services_loaded = true;
+            }
+            // If no cached services available, resolution will be triggered by event handlers when user navigates to Services tab
+        }
+        // For remove actions or when services are resolving, resolution will be triggered by event handlers
     }
     if !service_info.is_empty() && *service_selected >= service_info.len() {
         *service_selected = service_info.len().saturating_sub(1);
@@ -161,8 +345,8 @@ pub fn render_preflight(
     let current_tab = *tab;
 
     // Calculate tab rectangles for mouse click detection
-    // Tab header is on the first line of content_rect (after border)
-    let tab_y = content_rect.y + 1; // +1 for top border
+    // Tab header is on the second line of content_rect (after border + chips line)
+    let tab_y = content_rect.y + 2; // +1 for top border + 1 for chips line
     let mut tab_x = content_rect.x + 1; // +1 for left border
     app.preflight_tab_rects = [None; 5];
 
@@ -201,15 +385,18 @@ pub fn render_preflight(
     }
 
     // Store content area rectangle for package group click detection
-    // Content area starts after the header (2 lines: header + empty line)
+    // Content area starts after the header (3 lines: chips + tabs + empty line)
     app.preflight_content_rect = Some((
         content_rect.x + 1,                    // +1 for left border
-        content_rect.y + 3,                    // +1 for top border + 2 for header lines
+        content_rect.y + 4,                    // +1 for top border + 3 for header lines
         content_rect.width.saturating_sub(2),  // -2 for borders
-        content_rect.height.saturating_sub(3), // -1 for top border - 2 for header lines
+        content_rect.height.saturating_sub(4), // -1 for top border - 3 for header lines
     ));
 
     let mut lines: Vec<Line<'static>> = Vec::new();
+    // Header chips line
+    lines.push(render_header_chips(header_chips));
+    // Tab header line
     lines.push(Line::from(Span::styled(
         header,
         Style::default()
@@ -221,49 +408,14 @@ pub fn render_preflight(
     match current_tab {
         PreflightTab::Summary => {
             if let Some(summary_data) = summary.as_ref() {
-                let package_overview = if summary_data.aur_count > 0 {
-                    format!(
-                        "Packages: {} total ({} AUR)",
-                        summary_data.package_count, summary_data.aur_count
-                    )
-                } else {
-                    format!("Packages: {}", summary_data.package_count)
-                };
-                lines.push(Line::from(Span::styled(
-                    package_overview,
-                    Style::default().fg(th.text),
-                )));
-                let download_line = format!(
-                    "Download size: {}",
-                    format_bytes(summary_data.download_bytes)
-                );
-                lines.push(Line::from(Span::styled(
-                    download_line,
-                    Style::default().fg(th.overlay1),
-                )));
-                let install_delta = format!(
-                    "Install size delta: {}",
-                    format_signed_bytes(summary_data.install_delta_bytes)
-                );
-                lines.push(Line::from(Span::styled(
-                    install_delta,
-                    Style::default().fg(th.overlay1),
-                )));
-                let risk_label = match header_chips.risk_level {
-                    crate::state::modal::RiskLevel::Low => "Low",
-                    crate::state::modal::RiskLevel::Medium => "Medium",
-                    crate::state::modal::RiskLevel::High => "High",
-                };
+                // Header chips already display package count, download size, install delta, and risk score
+                // So we skip those here and focus on detailed information
                 let risk_color = match header_chips.risk_level {
                     crate::state::modal::RiskLevel::Low => th.green,
                     crate::state::modal::RiskLevel::Medium => th.yellow,
                     crate::state::modal::RiskLevel::High => th.red,
                 };
-                let risk_text = format!("Risk: {} (score {})", risk_label, header_chips.risk_score);
-                lines.push(Line::from(Span::styled(
-                    risk_text,
-                    Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
-                )));
+
                 if !summary_data.risk_reasons.is_empty() {
                     lines.push(Line::from(Span::styled(
                         "Risk factors:",
@@ -791,6 +943,7 @@ pub fn render_preflight(
         }
         PreflightTab::Deps => {
             // Use already resolved dependencies (resolved above if needed)
+            let deps_empty = dependency_info.is_empty();
             let deps = dependency_info;
 
             // Group dependencies by the packages that require them
@@ -862,10 +1015,29 @@ pub fn render_preflight(
                     lines.push(Line::from(""));
                 }
             } else if matches!(*action, PreflightAction::Install) {
-                lines.push(Line::from(Span::styled(
-                    "Resolving dependencies...",
-                    Style::default().fg(th.subtext1),
-                )));
+                // Show "Updating..." only if actually resolving AND no dependencies loaded yet
+                if app.deps_resolving && deps_empty {
+                    lines.push(Line::from(Span::styled(
+                        "Updating dependencies...",
+                        Style::default().fg(th.yellow),
+                    )));
+                } else if let Some(err_msg) = deps_error {
+                    // Display error with retry hint
+                    lines.push(Line::from(Span::styled(
+                        format!("⚠ Error: {}", err_msg),
+                        Style::default().fg(th.red),
+                    )));
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(Span::styled(
+                        "Press 'r' to retry dependency resolution",
+                        Style::default().fg(th.subtext1),
+                    )));
+                } else {
+                    lines.push(Line::from(Span::styled(
+                        "Resolving dependencies...",
+                        Style::default().fg(th.subtext1),
+                    )));
+                }
             } else {
                 lines.push(Line::from(Span::styled(
                     "No dependencies to show for removal operation.",
@@ -875,6 +1047,8 @@ pub fn render_preflight(
 
             // Build flat list with grouped structure for navigation
             // Format: [package_name, dep1, dep2, ...] for each package
+            // Performance: This builds the full display list, but only visible items are rendered
+            // below. For very large lists (thousands of items), consider lazy building or caching.
             let mut display_items: Vec<(bool, String, Option<&DependencyInfo>)> = Vec::new();
             for pkg_name in items.iter().map(|p| &p.name) {
                 if let Some(pkg_deps) = grouped.get(pkg_name) {
@@ -895,6 +1069,8 @@ pub fn render_preflight(
             }
 
             // Dependency list with grouping
+            // Performance optimization: Only render visible items (viewport-based rendering)
+            // This prevents performance issues with large dependency lists
             let available_height = (content_rect.height as usize).saturating_sub(6);
             let total_items = display_items.len();
             let dep_selected_clamped = (*dep_selected).min(total_items.saturating_sub(1));
@@ -902,6 +1078,7 @@ pub fn render_preflight(
                 *dep_selected = dep_selected_clamped;
             }
 
+            // Calculate viewport range: only render items visible on screen
             let start_idx = dep_selected_clamped
                 .saturating_sub(available_height / 2)
                 .min(total_items.saturating_sub(available_height));
@@ -1042,7 +1219,23 @@ pub fn render_preflight(
             }
         }
         PreflightTab::Files => {
-            if file_info.is_empty() {
+            if app.files_resolving {
+                lines.push(Line::from(Span::styled(
+                    "Updating file changes...",
+                    Style::default().fg(th.yellow),
+                )));
+            } else if let Some(err_msg) = files_error {
+                // Display error with retry hint
+                lines.push(Line::from(Span::styled(
+                    format!("⚠ Error: {}", err_msg),
+                    Style::default().fg(th.red),
+                )));
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    "Press 'r' to retry file resolution",
+                    Style::default().fg(th.subtext1),
+                )));
+            } else if file_info.is_empty() {
                 lines.push(Line::from(Span::styled(
                     "Resolving file changes...",
                     Style::default().fg(th.subtext1),
@@ -1050,6 +1243,8 @@ pub fn render_preflight(
             } else {
                 // Build flat list of display items: package headers + files (only if expanded)
                 // Store owned data to avoid lifetime issues
+                // Performance: This builds the full display list, but only visible items are rendered
+                // below. For very large file lists (thousands of files), consider lazy building or caching.
                 type FileDisplayItem = (
                     bool,
                     String,
@@ -1080,6 +1275,9 @@ pub fn render_preflight(
                 }
 
                 let sync_info = crate::logic::files::get_file_db_sync_info();
+                // Check if file database is stale (older than 7 days)
+                const STALE_THRESHOLD_DAYS: u64 = 7;
+                let is_stale = crate::logic::files::is_file_db_stale(STALE_THRESHOLD_DAYS);
 
                 if display_items.is_empty() {
                     // Check if we have package entries but they're all empty
@@ -1136,8 +1334,21 @@ pub fn render_preflight(
                     } else {
                         // File resolution hasn't completed or failed
                         lines.push(Line::from(Span::styled(
-                            "No file changes to display.",
+                            "File resolution in progress...",
                             Style::default().fg(th.subtext1),
+                        )));
+                    }
+
+                    // Show stale file database warning if applicable
+                    if let Some(true) = is_stale {
+                        lines.push(Line::from(""));
+                        lines.push(Line::from(Span::styled(
+                            "⚠ File database is stale (older than 7 days)",
+                            Style::default().fg(th.yellow),
+                        )));
+                        lines.push(Line::from(Span::styled(
+                            "Press 'f' to sync file database (requires root)",
+                            Style::default().fg(th.subtext0),
                         )));
                     }
 
@@ -1219,6 +1430,8 @@ pub fn render_preflight(
                         .max(1);
 
                     // Calculate scroll position
+                    // Performance optimization: Only render visible items (viewport-based rendering)
+                    // This prevents performance issues with large file lists
                     let total_items = display_items.len();
                     // Clamp file_selected to valid range
                     let file_selected_clamped = (*file_selected).min(total_items.saturating_sub(1));
@@ -1238,7 +1451,7 @@ pub fn render_preflight(
                         (start, end)
                     };
 
-                    // Display files with scrolling
+                    // Display files with scrolling (only render visible items)
                     for (display_idx, (is_header, pkg_name, file_opt)) in display_items
                         .iter()
                         .enumerate()
@@ -1395,7 +1608,23 @@ pub fn render_preflight(
             }
         }
         PreflightTab::Services => {
-            if !services_loaded {
+            if app.services_resolving {
+                lines.push(Line::from(Span::styled(
+                    "Updating service impact data…",
+                    Style::default().fg(th.yellow),
+                )));
+            } else if let Some(err_msg) = services_error {
+                // Display error with retry hint
+                lines.push(Line::from(Span::styled(
+                    format!("⚠ Error: {}", err_msg),
+                    Style::default().fg(th.red),
+                )));
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    "Press 'r' to retry service resolution",
+                    Style::default().fg(th.subtext1),
+                )));
+            } else if !*services_loaded {
                 lines.push(Line::from(Span::styled(
                     "Gathering service impact data…",
                     Style::default().fg(th.subtext1),
@@ -1406,9 +1635,14 @@ pub fn render_preflight(
                     Style::default().fg(th.green),
                 )));
             } else {
+                // Performance optimization: Only render visible items (viewport-based rendering)
+                // This prevents performance issues with large service lists
                 let available_height = content_rect.height.saturating_sub(6) as usize;
                 let visible = available_height.max(1);
                 let selected = (*service_selected).min(service_info.len().saturating_sub(1));
+                if *service_selected != selected {
+                    *service_selected = selected;
+                }
                 let start = if service_info.len() <= visible {
                     0
                 } else {
@@ -1417,6 +1651,7 @@ pub fn render_preflight(
                         .min(service_info.len() - visible)
                 };
                 let end = (start + visible).min(service_info.len());
+                // Render only visible services (viewport-based rendering)
                 for (idx, svc) in service_info
                     .iter()
                     .enumerate()
@@ -1476,10 +1711,353 @@ pub fn render_preflight(
             }
         }
         PreflightTab::Sandbox => {
-            lines.push(Line::from(Span::styled(
-                "Sandbox (placeholder) — AUR preflight build checks will appear here",
-                Style::default().fg(th.text),
-            )));
+            // Show all packages, but only analyze AUR packages
+            let aur_items: Vec<_> = items
+                .iter()
+                .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                .collect();
+
+            // Use cached sandbox info if available
+            // Note: Cached sandbox info is pre-populated when modal opens, so this only runs if cache was empty
+            // Note: Sandbox resolution is triggered asynchronously in event handlers, not during rendering
+            if matches!(*action, PreflightAction::Install) && !app.sandbox_resolving && !*sandbox_loaded {
+                // Check if we have cached sandbox info from app state
+                if !app.install_list_sandbox.is_empty() {
+                    tracing::debug!(
+                        "[UI] Using cached sandbox info for {} packages",
+                        app.install_list_sandbox.len()
+                    );
+                    *sandbox_info = app.install_list_sandbox.clone();
+                    *sandbox_loaded = true;
+                } else {
+                    // Check if cache file exists with matching signature (even if empty)
+                    let sandbox_cache_start = std::time::Instant::now();
+                    let signature = crate::app::sandbox_cache::compute_signature(items);
+                    let sandbox_cache_exists = crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature)
+                        .is_some();
+                    let sandbox_cache_duration = sandbox_cache_start.elapsed();
+                    if sandbox_cache_duration.as_millis() > 10 {
+                        tracing::warn!(
+                            "[UI] Sandbox cache check took {:?} (slow!)",
+                            sandbox_cache_duration
+                        );
+                    }
+                    if sandbox_cache_exists {
+                        // Cache exists but is empty - this is valid, means no sandbox info found
+                        tracing::debug!(
+                            "[UI] Using cached sandbox info (empty - no sandbox info found)"
+                        );
+                        *sandbox_loaded = true;
+                    } else if aur_items.is_empty() {
+                        // No AUR packages, mark as loaded
+                        *sandbox_loaded = true;
+                    } else {
+                        // No cache found and there are AUR packages - mark as loaded so we don't check again
+                        *sandbox_loaded = true;
+                    }
+                    // If no cached sandbox info available, resolution will be triggered by event handlers when user navigates to Sandbox tab
+                }
+            } else if aur_items.is_empty() {
+                // No AUR packages, mark as loaded
+                *sandbox_loaded = true;
+            }
+            // For remove actions or when sandbox is resolving, resolution will be triggered by event handlers
+
+            // Display error if any
+            if let Some(err) = sandbox_error.as_ref() {
+                lines.push(Line::from(Span::styled(
+                    format!("Error: {}", err),
+                    Style::default().fg(th.red),
+                )));
+                lines.push(Line::from(Span::styled(
+                    "Press 'r' to retry",
+                    Style::default().fg(th.subtext0),
+                )));
+                lines.push(Line::from(""));
+            } else if app.sandbox_resolving {
+                lines.push(Line::from(Span::styled(
+                    "Updating sandbox analysis…",
+                    Style::default().fg(th.yellow),
+                )));
+            } else if !*sandbox_loaded {
+                lines.push(Line::from(Span::styled(
+                    "Analyzing build dependencies…",
+                    Style::default().fg(th.subtext0),
+                )));
+            } else {
+                // Build flat list of display items: package headers + dependencies (only if expanded)
+                // Format: (is_header, package_name, Option<(dep_type, dep_name, dep_info)>)
+                type SandboxDisplayItem = (
+                    bool,
+                    String,
+                    Option<(
+                        &'static str, // "depends", "makedepends", "checkdepends", "optdepends"
+                        String,       // dependency name
+                        crate::logic::sandbox::DependencyDelta,
+                    )>,
+                );
+                let mut display_items: Vec<SandboxDisplayItem> = Vec::new();
+
+                for item in items.iter() {
+                    let is_aur = matches!(item.source, crate::state::Source::Aur);
+                    let is_expanded = sandbox_tree_expanded.contains(&item.name);
+
+                    // Add package header
+                    display_items.push((true, item.name.clone(), None));
+
+                    // Add dependencies only if expanded and AUR
+                    if is_expanded
+                        && is_aur
+                        && let Some(info) =
+                            sandbox_info.iter().find(|s| s.package_name == item.name)
+                    {
+                        // Runtime dependencies (depends)
+                        for dep in &info.depends {
+                            display_items.push((
+                                false,
+                                item.name.clone(),
+                                Some(("depends", dep.name.clone(), dep.clone())),
+                            ));
+                        }
+                        // Build dependencies (makedepends)
+                        for dep in &info.makedepends {
+                            display_items.push((
+                                false,
+                                item.name.clone(),
+                                Some(("makedepends", dep.name.clone(), dep.clone())),
+                            ));
+                        }
+                        // Test dependencies (checkdepends)
+                        for dep in &info.checkdepends {
+                            display_items.push((
+                                false,
+                                item.name.clone(),
+                                Some(("checkdepends", dep.name.clone(), dep.clone())),
+                            ));
+                        }
+                        // Optional dependencies (optdepends)
+                        for dep in &info.optdepends {
+                            display_items.push((
+                                false,
+                                item.name.clone(),
+                                Some(("optdepends", dep.name.clone(), dep.clone())),
+                            ));
+                        }
+                    }
+                }
+
+                // Calculate viewport based on selected index (like Deps/Files tabs)
+                let available_height = content_rect.height.saturating_sub(6) as usize;
+                let total_items = display_items.len();
+                let sandbox_selected_clamped =
+                    (*sandbox_selected).min(total_items.saturating_sub(1));
+                if *sandbox_selected != sandbox_selected_clamped {
+                    *sandbox_selected = sandbox_selected_clamped;
+                }
+
+                // Calculate viewport range: only render items visible on screen
+                let start_idx = sandbox_selected_clamped
+                    .saturating_sub(available_height / 2)
+                    .min(total_items.saturating_sub(available_height));
+                let end_idx = (start_idx + available_height).min(total_items);
+
+                // Track which packages we've seen to group dependencies properly
+                let mut last_dep_type: Option<&str> = None;
+
+                // Render visible items
+                for (idx, (is_header, pkg_name, dep_opt)) in display_items
+                    .iter()
+                    .enumerate()
+                    .skip(start_idx)
+                    .take(end_idx - start_idx)
+                {
+                    let is_selected = idx == sandbox_selected_clamped;
+
+                    if *is_header {
+                        // Package header
+                        let item = items.iter().find(|p| p.name == *pkg_name).unwrap();
+                        let is_aur = matches!(item.source, crate::state::Source::Aur);
+                        let is_expanded = sandbox_tree_expanded.contains(pkg_name);
+                        let arrow_symbol = if is_aur && is_expanded {
+                            "▼"
+                        } else if is_aur {
+                            "▶"
+                        } else {
+                            ""
+                        };
+
+                        let header_style = if is_selected {
+                            Style::default()
+                                .fg(th.crust)
+                                .bg(th.sapphire)
+                                .add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default()
+                                .fg(th.sapphire)
+                                .add_modifier(Modifier::BOLD)
+                        };
+
+                        let mut header_text = format!(
+                            "Package: {} ({})",
+                            pkg_name,
+                            match &item.source {
+                                crate::state::Source::Aur => "AUR",
+                                crate::state::Source::Official { repo, .. } => repo,
+                            }
+                        );
+                        if !arrow_symbol.is_empty() {
+                            header_text = format!("{} {}", arrow_symbol, header_text);
+                        }
+
+                        lines.push(Line::from(Span::styled(header_text, header_style)));
+
+                        last_dep_type = None;
+
+                        // Show message for official packages or collapsed AUR packages
+                        if !is_aur {
+                            lines.push(Line::from(Span::styled(
+                                "  Official packages are pre-built and don't require sandbox analysis.",
+                                Style::default().fg(th.subtext0),
+                            )));
+                        } else if !is_expanded {
+                            // Show dependency count for collapsed AUR packages
+                            if let Some(info) =
+                                sandbox_info.iter().find(|s| s.package_name == *pkg_name)
+                            {
+                                let dep_count = info.depends.len()
+                                    + info.makedepends.len()
+                                    + info.checkdepends.len()
+                                    + info.optdepends.len();
+                                if dep_count > 0 {
+                                    lines.push(Line::from(Span::styled(
+                                        format!(
+                                            "  {} dependencies (press Space/Enter to expand)",
+                                            dep_count
+                                        ),
+                                        Style::default().fg(th.subtext1),
+                                    )));
+                                } else {
+                                    lines.push(Line::from(Span::styled(
+                                        "  No build dependencies found.",
+                                        Style::default().fg(th.green),
+                                    )));
+                                }
+                            }
+                        }
+                    } else if let Some((dep_type, dep_name, dep)) = dep_opt {
+                        // Dependency item (indented)
+                        // Show section header when dep_type changes
+                        if last_dep_type != Some(dep_type) {
+                            let section_name = match *dep_type {
+                                "depends" => "Runtime Dependencies (depends):",
+                                "makedepends" => "Build Dependencies (makedepends):",
+                                "checkdepends" => "Test Dependencies (checkdepends):",
+                                "optdepends" => "Optional Dependencies (optdepends):",
+                                _ => "",
+                            };
+                            if !section_name.is_empty() {
+                                lines.push(Line::from(""));
+                                lines.push(Line::from(Span::styled(
+                                    section_name,
+                                    Style::default()
+                                        .fg(th.sapphire)
+                                        .add_modifier(Modifier::BOLD),
+                                )));
+                            }
+                            last_dep_type = Some(dep_type);
+                        }
+
+                        // Dependency line with selection highlight
+                        // Check if this is a selected optional dependency
+                        let is_optdep_selected = if *dep_type == "optdepends" {
+                            selected_optdepends
+                                .get(pkg_name)
+                                .map(|set| {
+                                    // Extract package name from dependency spec (may include version or description)
+                                    let pkg_name_from_dep =
+                                        crate::logic::sandbox::extract_package_name(dep_name);
+                                    set.contains(dep_name) || set.contains(&pkg_name_from_dep)
+                                })
+                                .unwrap_or(false)
+                        } else {
+                            false
+                        };
+
+                        let status_icon = if dep.is_installed {
+                            if dep.version_satisfied { "✓" } else { "⚠" }
+                        } else {
+                            match *dep_type {
+                                "optdepends" => {
+                                    if is_optdep_selected {
+                                        "☑" // Checkbox checked
+                                    } else {
+                                        "☐" // Checkbox unchecked
+                                    }
+                                }
+                                "checkdepends" => "○",
+                                _ => "✗",
+                            }
+                        };
+                        let status_color = if dep.is_installed {
+                            if dep.version_satisfied {
+                                th.green
+                            } else {
+                                th.yellow
+                            }
+                        } else {
+                            match *dep_type {
+                                "optdepends" => {
+                                    if is_optdep_selected {
+                                        th.sapphire // Highlight selected optdepends
+                                    } else {
+                                        th.subtext0
+                                    }
+                                }
+                                "checkdepends" => th.subtext0,
+                                _ => th.red,
+                            }
+                        };
+
+                        let dep_style = if is_selected {
+                            Style::default()
+                                .fg(th.crust)
+                                .bg(th.sapphire)
+                                .add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default().fg(status_color)
+                        };
+
+                        let mut dep_line = format!("  {} {}", status_icon, dep_name);
+                        if let Some(ref version) = dep.installed_version {
+                            dep_line.push_str(&format!(" (installed: {})", version));
+                        }
+                        if *dep_type == "optdepends" && is_optdep_selected {
+                            dep_line.push_str(" [selected]");
+                        }
+                        lines.push(Line::from(Span::styled(dep_line, dep_style)));
+                    }
+                }
+
+                // Show indicator if there are more items below
+                if end_idx < total_items {
+                    lines.push(Line::from(Span::styled(
+                        format!(
+                            "… {} more item{}",
+                            total_items - end_idx,
+                            if total_items - end_idx == 1 { "" } else { "s" }
+                        ),
+                        Style::default().fg(th.subtext1),
+                    )));
+                }
+
+                // If no packages at all
+                if items.is_empty() {
+                    lines.push(Line::from(Span::styled(
+                        "No packages in this transaction.",
+                        Style::default().fg(th.subtext0),
+                    )));
+                }
+            }
         }
     }
 
@@ -1512,23 +2090,23 @@ pub fn render_preflight(
     let mut scan_hint = match current_tab {
         PreflightTab::Deps => {
             if has_aur {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  ?: help  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  r: retry  •  ?: help  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
             } else {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  ?: help  •  d: dry-run  •  p: proceed  •  q: close"
+                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  r: retry  •  ?: help  •  d: dry-run  •  p: proceed  •  q: close"
             }
         }
         PreflightTab::Files => {
             if has_aur {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: expand/collapse  •  a: expand/collapse all  •  f: sync file DB  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: expand/collapse  •  a: expand/collapse all  •  r: retry  •  f: sync file DB  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
             } else {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: expand/collapse  •  a: expand/collapse all  •  f: sync file DB  •  d: dry-run  •  p: proceed  •  q: close"
+                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: expand/collapse  •  a: expand/collapse all  •  r: retry  •  f: sync file DB  •  d: dry-run  •  p: proceed  •  q: close"
             }
         }
         PreflightTab::Services => {
             if has_aur {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Space: toggle restart  •  R: restart  •  Shift+D: defer  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                "Left/Right: tabs  •  Up/Down: navigate  •  Space: toggle restart  •  R: restart  •  Shift+D: defer  •  r: retry  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
             } else {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Space: toggle restart  •  R: restart  •  Shift+D: defer  •  d: dry-run  •  p: proceed  •  q: close"
+                "Left/Right: tabs  •  Up/Down: navigate  •  Space: toggle restart  •  R: restart  •  Shift+D: defer  •  r: retry  •  d: dry-run  •  p: proceed  •  q: close"
             }
         }
         _ => {
@@ -1569,4 +2147,13 @@ pub fn render_preflight(
                 .style(Style::default().bg(bg_color)),
         );
     f.render_widget(keybinds_widget, keybinds_rect_adjusted);
+    let render_duration = render_start.elapsed();
+    if render_duration.as_millis() > 50 {
+        tracing::warn!(
+            "[UI] render_preflight took {:?} (slow!)",
+            render_duration
+        );
+    } else {
+        tracing::debug!("[UI] render_preflight completed in {:?}", render_duration);
+    }
 }

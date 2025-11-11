@@ -23,9 +23,12 @@ use super::deps_cache;
 use super::files_cache;
 use super::persist::{
     maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install,
-    maybe_flush_news_read, maybe_flush_recent,
+    maybe_flush_news_read, maybe_flush_recent, maybe_flush_sandbox_cache,
+    maybe_flush_services_cache,
 };
 use super::recent::maybe_save_recent;
+use super::sandbox_cache;
+use super::services_cache;
 use super::terminal::{restore_terminal, setup_terminal};
 
 /// What: Run the Pacsea TUI application end-to-end: initialize terminal and state, spawn
@@ -163,6 +166,37 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     }
 
+    // Load service cache after install list is loaded (but before channels are created)
+    let mut needs_services_resolution = false;
+    if !app.install_list.is_empty() {
+        let signature = services_cache::compute_signature(&app.install_list);
+        if let Some(cached_services) =
+            services_cache::load_cache(&app.services_cache_path, &signature)
+        {
+            app.install_list_services = cached_services;
+            tracing::info!(path = %app.services_cache_path.display(), count = app.install_list_services.len(), "loaded service cache");
+        } else {
+            // Cache missing or invalid - will trigger background resolution after channels are set up
+            needs_services_resolution = true;
+            tracing::info!("Service cache missing or invalid, will trigger background resolution");
+        }
+    }
+
+    // Load sandbox cache after install list is loaded (but before channels are created)
+    let mut needs_sandbox_resolution = false;
+    if !app.install_list.is_empty() {
+        let signature = sandbox_cache::compute_signature(&app.install_list);
+        if let Some(cached_sandbox) = sandbox_cache::load_cache(&app.sandbox_cache_path, &signature)
+        {
+            app.install_list_sandbox = cached_sandbox;
+            tracing::info!(path = %app.sandbox_cache_path.display(), count = app.install_list_sandbox.len(), "loaded sandbox cache");
+        } else {
+            // Cache missing or invalid - will trigger background resolution after channels are set up
+            needs_sandbox_resolution = true;
+            tracing::info!("Sandbox cache missing or invalid, will trigger background resolution");
+        }
+    }
+
     if let Ok(s) = std::fs::read_to_string(&app.news_read_path)
         && let Ok(set) = serde_json::from_str::<std::collections::HashSet<String>>(&s)
     {
@@ -193,6 +227,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     let (files_req_tx, mut files_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
     let (files_res_tx, mut files_res_rx) =
         mpsc::unbounded_channel::<Vec<crate::state::modal::PackageFileInfo>>();
+    let (services_req_tx, mut services_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
+    let (services_res_tx, mut services_res_rx) =
+        mpsc::unbounded_channel::<Vec<crate::state::modal::ServiceImpact>>();
+    let (sandbox_req_tx, mut sandbox_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
+    let (sandbox_res_tx, mut sandbox_res_rx) =
+        mpsc::unbounded_channel::<Vec<crate::logic::sandbox::SandboxInfo>>();
 
     let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
@@ -282,11 +322,28 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             // Run blocking dependency resolution in a thread pool
             let items_clone = items.clone();
             let res_tx = deps_res_tx_bg.clone();
-            tokio::task::spawn_blocking(move || {
+            let res_tx_error = deps_res_tx_bg.clone(); // Clone for error handling
+            let handle = tokio::task::spawn_blocking(move || {
                 let deps = crate::logic::deps::resolve_dependencies(&items_clone);
                 let _ = res_tx.send(deps);
             });
+            // CRITICAL: Always await and send a result, even if task panics
+            // This ensures deps_resolving flag is always reset
+            tokio::spawn(async move {
+                match handle.await {
+                    Ok(_) => {
+                        // Task completed successfully, result already sent
+                        tracing::debug!("[Runtime] Dependency resolution task completed");
+                    }
+                    Err(e) => {
+                        // Task panicked - send empty result to reset flag
+                        tracing::error!("[Runtime] Dependency resolution task panicked: {:?}", e);
+                        let _ = res_tx_error.send(Vec::new());
+                    }
+                }
+            });
         }
+        tracing::debug!("[Runtime] Dependency resolution worker exiting (channel closed)");
     });
 
     // Background file resolution worker
@@ -302,6 +359,37 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                     crate::state::modal::PreflightAction::Install,
                 );
                 let _ = res_tx.send(files);
+            });
+        }
+    });
+
+    // Background service impact resolution worker
+    let services_res_tx_bg = services_res_tx.clone();
+    tokio::spawn(async move {
+        while let Some(items) = services_req_rx.recv().await {
+            // Run blocking service resolution in a thread pool
+            let items_clone = items.clone();
+            let res_tx = services_res_tx_bg.clone();
+            tokio::task::spawn_blocking(move || {
+                let services = crate::logic::services::resolve_service_impacts(
+                    &items_clone,
+                    crate::state::modal::PreflightAction::Install,
+                );
+                let _ = res_tx.send(services);
+            });
+        }
+    });
+
+    // Background sandbox resolution worker
+    let sandbox_res_tx_bg = sandbox_res_tx.clone();
+    tokio::spawn(async move {
+        while let Some(items) = sandbox_req_rx.recv().await {
+            // Run blocking sandbox resolution in a thread pool
+            let items_clone = items.clone();
+            let res_tx = sandbox_res_tx_bg.clone();
+            tokio::task::spawn_blocking(move || {
+                let sandbox_info = crate::logic::sandbox::resolve_sandbox_info(&items_clone);
+                let _ = res_tx.send(sandbox_info);
             });
         }
     });
@@ -353,6 +441,16 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     if needs_files_resolution && !app.install_list.is_empty() {
         app.files_resolving = true;
         let _ = files_req_tx.send(app.install_list.clone());
+    }
+
+    if needs_services_resolution && !app.install_list.is_empty() {
+        app.services_resolving = true;
+        let _ = services_req_tx.send(app.install_list.clone());
+    }
+
+    if needs_sandbox_resolution && !app.install_list.is_empty() {
+        app.sandbox_resolving = true;
+        let _ = sandbox_req_tx.send(app.install_list.clone());
     }
 
     if !headless {
@@ -576,12 +674,20 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                     // Trigger background file resolution for updated install list
                     app.files_resolving = true;
                     let _ = files_req_tx.send(app.install_list.clone());
+                    // Trigger background service resolution for updated install list
+                    app.services_resolving = true;
+                    let _ = services_req_tx.send(app.install_list.clone());
+                    // Trigger background sandbox resolution for updated install list
+                    app.sandbox_resolving = true;
+                    let _ = sandbox_req_tx.send(app.install_list.clone());
                 }
             }
             Some(deps) = deps_res_rx.recv() => {
                 // Update cached dependencies
+                // Always reset deps_resolving flag, even if result is empty (which indicates failure)
+                tracing::debug!("[Runtime] Received dependency resolution results: {} deps", deps.len());
                 app.install_list_deps = deps;
-                app.deps_resolving = false;
+                app.deps_resolving = false; // CRITICAL: Always reset this flag when we receive ANY result
                 app.deps_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
@@ -590,6 +696,20 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 app.install_list_files = files;
                 app.files_resolving = false;
                 app.files_cache_dirty = true; // Mark cache as dirty for persistence
+                let _ = tick_tx.send(());
+            }
+            Some(services) = services_res_rx.recv() => {
+                // Update cached services
+                app.install_list_services = services;
+                app.services_resolving = false;
+                app.services_cache_dirty = true; // Mark cache as dirty for persistence
+                let _ = tick_tx.send(());
+            }
+            Some(sandbox_info) = sandbox_res_rx.recv() => {
+                // Update cached sandbox info
+                app.install_list_sandbox = sandbox_info;
+                app.sandbox_resolving = false;
+                app.sandbox_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
             Some((pkgname, text)) = pkgb_res_rx.recv() => {
@@ -603,7 +723,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 let _ = tick_tx.send(());
             }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
-            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_news_read(&mut app); maybe_flush_install(&mut app); maybe_flush_deps_cache(&mut app); maybe_flush_files_cache(&mut app);
+            Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_news_read(&mut app); maybe_flush_install(&mut app); maybe_flush_deps_cache(&mut app); maybe_flush_files_cache(&mut app); maybe_flush_services_cache(&mut app); maybe_flush_sandbox_cache(&mut app);
                 // Check for pending PKGBUILD reload request (debounce delay)
                 const PKGBUILD_DEBOUNCE_MS: u64 = 250;
                 if let (Some(requested_at), Some(requested_for)) = (app.pkgb_reload_requested_at, &app.pkgb_reload_requested_for) {
@@ -713,11 +833,22 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     }
 
+    // Reset resolution flags on exit to ensure clean shutdown
+    // This prevents background tasks from blocking if they're still running
+    tracing::debug!("[Runtime] Main loop exited, resetting resolution flags");
+    app.deps_resolving = false;
+    app.files_resolving = false;
+    app.services_resolving = false;
+    app.sandbox_resolving = false;
+
     maybe_flush_cache(&mut app);
     maybe_flush_recent(&mut app);
     maybe_flush_news_read(&mut app);
     maybe_flush_install(&mut app);
     maybe_flush_deps_cache(&mut app);
+    maybe_flush_files_cache(&mut app);
+    maybe_flush_services_cache(&mut app);
+    maybe_flush_sandbox_cache(&mut app);
 
     if !headless {
         restore_terminal()?;

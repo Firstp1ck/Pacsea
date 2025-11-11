@@ -2,7 +2,7 @@
 
 use crate::state::modal::DependencyStatus;
 use std::collections::HashSet;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// What: Evaluate a dependency's installation status relative to required versions.
 ///
@@ -101,6 +101,9 @@ pub(crate) fn get_available_version(name: &str) -> Option<String> {
         .args(["-Si", name])
         .env("LC_ALL", "C")
         .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .ok()?;
 
@@ -132,11 +135,14 @@ pub(crate) fn get_available_version(name: &str) -> Option<String> {
 ///
 /// Details:
 /// - Normalizes versions by removing revision suffixes to facilitate requirement comparisons.
-pub(crate) fn get_installed_version(name: &str) -> Result<String, String> {
+pub fn get_installed_version(name: &str) -> Result<String, String> {
     let output = Command::new("pacman")
         .args(["-Q", name])
         .env("LC_ALL", "C")
         .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("pacman -Q failed: {}", e))?;
 
@@ -169,7 +175,7 @@ pub(crate) fn get_installed_version(name: &str) -> Result<String, String> {
 ///
 /// Details:
 /// - Uses straightforward string comparisons rather than full semantic version parsing, matching pacman's format.
-pub(crate) fn version_satisfies(installed: &str, requirement: &str) -> bool {
+pub fn version_satisfies(installed: &str, requirement: &str) -> bool {
     // This is a simplified version checker
     // For production, use a proper version comparison library
     if let Some(req_ver) = requirement.strip_prefix(">=") {

@@ -1,7 +1,7 @@
 //! Package querying functions for dependency resolution.
 
 use std::collections::HashSet;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// What: Collect names of packages that have upgrades available via pacman.
 ///
@@ -20,6 +20,9 @@ pub(crate) fn get_upgradable_packages() -> HashSet<String> {
         .args(["-Qu"])
         .env("LC_ALL", "C")
         .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output();
 
     match output {
@@ -69,12 +72,15 @@ pub(crate) fn get_upgradable_packages() -> HashSet<String> {
 ///
 /// Details:
 /// - Uses pacman's quiet format to obtain trimmed names and logs errors where available for diagnostics.
-pub(crate) fn get_installed_packages() -> HashSet<String> {
+pub fn get_installed_packages() -> HashSet<String> {
     tracing::debug!("Running: pacman -Qq");
     let output = Command::new("pacman")
         .args(["-Qq"])
         .env("LC_ALL", "C")
         .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output();
 
     match output {
