@@ -440,7 +440,9 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                 *dependency_info = cached_deps;
                                 *dep_selected = 0;
                             } else {
-                                tracing::debug!("[Preflight] No cached dependencies available, user can press 'r' to resolve");
+                                tracing::debug!(
+                                    "[Preflight] No cached dependencies available, user can press 'r' to resolve"
+                                );
                             }
                             // If no cached deps, user can press 'r' to resolve
                             app.remove_preflight_summary.clear();
@@ -471,12 +473,17 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 // Check for cached services when switching to Services tab
                 if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
                     // Try to use cached services from app state (for install actions)
-                    if matches!(*action, crate::state::PreflightAction::Install) && !app.services_resolving {
+                    if matches!(*action, crate::state::PreflightAction::Install)
+                        && !app.services_resolving
+                    {
                         // Check if cache file exists with matching signature
                         let cache_exists = if !items.is_empty() {
                             let signature = crate::app::services_cache::compute_signature(items);
-                            crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
-                                .is_some()
+                            crate::app::services_cache::load_cache(
+                                &app.services_cache_path,
+                                &signature,
+                            )
+                            .is_some()
                         } else {
                             false
                         };
@@ -549,12 +556,17 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 // Check for cached services when switching to Services tab
                 if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
                     // Try to use cached services from app state (for install actions)
-                    if matches!(*action, crate::state::PreflightAction::Install) && !app.services_resolving {
+                    if matches!(*action, crate::state::PreflightAction::Install)
+                        && !app.services_resolving
+                    {
                         // Check if cache file exists with matching signature
                         let cache_exists = if !items.is_empty() {
                             let signature = crate::app::services_cache::compute_signature(items);
-                            crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
-                                .is_some()
+                            crate::app::services_cache::load_cache(
+                                &app.services_cache_path,
+                                &signature,
+                            )
+                            .is_some()
                         } else {
                             false
                         };

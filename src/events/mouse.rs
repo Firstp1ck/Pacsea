@@ -213,12 +213,18 @@ pub fn handle_mouse_event(
                     // Check for cached services when switching to Services tab
                     if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
                         // Try to use cached services from app state (for install actions)
-                        if matches!(*action, crate::state::PreflightAction::Install) && !app.services_resolving {
+                        if matches!(*action, crate::state::PreflightAction::Install)
+                            && !app.services_resolving
+                        {
                             // Check if cache file exists with matching signature
                             let cache_exists = if !items.is_empty() {
-                                let signature = crate::app::services_cache::compute_signature(items);
-                                crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
-                                    .is_some()
+                                let signature =
+                                    crate::app::services_cache::compute_signature(items);
+                                crate::app::services_cache::load_cache(
+                                    &app.services_cache_path,
+                                    &signature,
+                                )
+                                .is_some()
                             } else {
                                 false
                             };

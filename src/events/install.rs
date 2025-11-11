@@ -239,10 +239,7 @@ pub fn handle_install_key(
                         false
                     };
                     let services_loaded = services_cache_loaded || !cached_services.is_empty();
-                    tracing::debug!(
-                        "[Install] Cache loading took {:?}",
-                        cache_start.elapsed()
-                    );
+                    tracing::debug!("[Install] Cache loading took {:?}", cache_start.elapsed());
 
                     // Restore user restart decisions from pending_service_plan if available
                     let mut final_services = cached_services;
@@ -286,39 +283,61 @@ pub fn handle_install_key(
                     // Compute a minimal summary without blocking pacman calls to avoid freezing the UI
                     // The full summary will be computed asynchronously after the modal opens
                     let summary_start = std::time::Instant::now();
-                    let aur_count = items.iter().filter(|p| matches!(p.source, crate::state::Source::Aur)).count();
+                    let aur_count = items
+                        .iter()
+                        .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                        .count();
                     tracing::debug!(
                         "[Install] Creating minimal summary for {} packages ({} AUR)",
                         items.len(),
                         aur_count
                     );
                     let minimal_summary = crate::state::modal::PreflightSummaryData {
-                        packages: items.iter().map(|item| crate::state::modal::PreflightPackageSummary {
-                            name: item.name.clone(),
-                            source: item.source.clone(),
-                            installed_version: None,
-                            target_version: item.version.clone(),
-                            is_downgrade: false,
-                            is_major_bump: false,
-                            download_bytes: None,
-                            install_delta_bytes: None,
-                            notes: vec![],
-                        }).collect(),
+                        packages: items
+                            .iter()
+                            .map(|item| crate::state::modal::PreflightPackageSummary {
+                                name: item.name.clone(),
+                                source: item.source.clone(),
+                                installed_version: None,
+                                target_version: item.version.clone(),
+                                is_downgrade: false,
+                                is_major_bump: false,
+                                download_bytes: None,
+                                install_delta_bytes: None,
+                                notes: vec![],
+                            })
+                            .collect(),
                         package_count: items.len(),
                         aur_count,
                         download_bytes: 0,
                         install_delta_bytes: 0,
                         risk_score: if aur_count > 0 { 2 } else { 0 },
-                        risk_level: if aur_count > 0 { crate::state::modal::RiskLevel::Medium } else { crate::state::modal::RiskLevel::Low },
-                        risk_reasons: if aur_count > 0 { vec!["AUR packages included (+2)".to_string()] } else { vec![] },
+                        risk_level: if aur_count > 0 {
+                            crate::state::modal::RiskLevel::Medium
+                        } else {
+                            crate::state::modal::RiskLevel::Low
+                        },
+                        risk_reasons: if aur_count > 0 {
+                            vec!["AUR packages included (+2)".to_string()]
+                        } else {
+                            vec![]
+                        },
                         major_bump_packages: vec![],
                         core_system_updates: vec![],
                         pacnew_candidates: 0,
                         pacsave_candidates: 0,
                         config_warning_packages: vec![],
                         service_restart_units: vec![],
-                        summary_warnings: if aur_count > 0 { vec!["AUR packages included (+2)".to_string()] } else { vec![] },
-                        summary_notes: if aur_count > 0 { vec!["AUR packages present; build steps may vary.".to_string()] } else { vec![] },
+                        summary_warnings: if aur_count > 0 {
+                            vec!["AUR packages included (+2)".to_string()]
+                        } else {
+                            vec![]
+                        },
+                        summary_notes: if aur_count > 0 {
+                            vec!["AUR packages present; build steps may vary.".to_string()]
+                        } else {
+                            vec![]
+                        },
                     };
                     let minimal_header = crate::state::modal::PreflightHeaderChips {
                         package_count: items.len(),
@@ -326,7 +345,11 @@ pub fn handle_install_key(
                         install_delta_bytes: 0,
                         aur_count,
                         risk_score: if aur_count > 0 { 2 } else { 0 },
-                        risk_level: if aur_count > 0 { crate::state::modal::RiskLevel::Medium } else { crate::state::modal::RiskLevel::Low },
+                        risk_level: if aur_count > 0 {
+                            crate::state::modal::RiskLevel::Medium
+                        } else {
+                            crate::state::modal::RiskLevel::Low
+                        },
                     };
                     tracing::debug!(
                         "[Install] Minimal summary creation took {:?}",

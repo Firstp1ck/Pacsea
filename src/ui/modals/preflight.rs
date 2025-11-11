@@ -189,7 +189,7 @@ pub fn render_preflight(
         // Check even if deps_resolving is true, because resolution might have completed between renders
         let item_names: std::collections::HashSet<String> =
             items.iter().map(|i| i.name.clone()).collect();
-        
+
         // If deps_resolving is false and we have dependencies, use them all (don't filter strictly)
         // This handles the case where the cache might have dependencies for the install list
         if !app.deps_resolving && !app.install_list_deps.is_empty() {
@@ -270,8 +270,9 @@ pub fn render_preflight(
             let cache_check_start = std::time::Instant::now();
             let cache_exists = if !items.is_empty() {
                 let signature = crate::app::services_cache::compute_signature(items);
-                let result = crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
-                    .is_some();
+                let result =
+                    crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
+                        .is_some();
                 let cache_duration = cache_check_start.elapsed();
                 if cache_duration.as_millis() > 10 {
                     tracing::warn!(
@@ -294,7 +295,9 @@ pub fn render_preflight(
                     *service_info = app.install_list_services.clone();
                 } else {
                     // Cache exists but is empty - this is valid, means no services found
-                    tracing::debug!("[UI] Using cached service impacts (empty - no services found)");
+                    tracing::debug!(
+                        "[UI] Using cached service impacts (empty - no services found)"
+                    );
                 }
                 *service_selected = 0;
                 *services_loaded = true;
@@ -1720,7 +1723,10 @@ pub fn render_preflight(
             // Use cached sandbox info if available
             // Note: Cached sandbox info is pre-populated when modal opens, so this only runs if cache was empty
             // Note: Sandbox resolution is triggered asynchronously in event handlers, not during rendering
-            if matches!(*action, PreflightAction::Install) && !app.sandbox_resolving && !*sandbox_loaded {
+            if matches!(*action, PreflightAction::Install)
+                && !app.sandbox_resolving
+                && !*sandbox_loaded
+            {
                 // Check if we have cached sandbox info from app state
                 if !app.install_list_sandbox.is_empty() {
                     tracing::debug!(
@@ -1733,8 +1739,9 @@ pub fn render_preflight(
                     // Check if cache file exists with matching signature (even if empty)
                     let sandbox_cache_start = std::time::Instant::now();
                     let signature = crate::app::sandbox_cache::compute_signature(items);
-                    let sandbox_cache_exists = crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature)
-                        .is_some();
+                    let sandbox_cache_exists =
+                        crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature)
+                            .is_some();
                     let sandbox_cache_duration = sandbox_cache_start.elapsed();
                     if sandbox_cache_duration.as_millis() > 10 {
                         tracing::warn!(
@@ -2149,10 +2156,7 @@ pub fn render_preflight(
     f.render_widget(keybinds_widget, keybinds_rect_adjusted);
     let render_duration = render_start.elapsed();
     if render_duration.as_millis() > 50 {
-        tracing::warn!(
-            "[UI] render_preflight took {:?} (slow!)",
-            render_duration
-        );
+        tracing::warn!("[UI] render_preflight took {:?} (slow!)", render_duration);
     } else {
         tracing::debug!("[UI] render_preflight completed in {:?}", render_duration);
     }
