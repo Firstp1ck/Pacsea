@@ -51,8 +51,11 @@ fn initialize_locale_system(
     _prefs: &crate::theme::Settings,
 ) {
     // Get paths - try both development and installed locations
-    let locales_dir = crate::i18n::find_locales_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config").join("locales"));
+    let locales_dir = crate::i18n::find_locales_dir().unwrap_or_else(|| {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("config")
+            .join("locales")
+    });
     let i18n_config_path = match crate::i18n::find_config_file("i18n.yml") {
         Some(path) => path,
         None => {

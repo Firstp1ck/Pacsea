@@ -124,11 +124,13 @@ pub fn find_config_file(relative_path: &str) -> Option<PathBuf> {
 pub fn find_locales_dir() -> Option<PathBuf> {
     // Try development location first (when running from source)
     // Note: locales are in config/locales/ in the dev environment
-    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config").join("locales");
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("config")
+        .join("locales");
     if dev_path.exists() && dev_path.is_dir() {
         return Some(dev_path);
     }
-    
+
     // Also try the old location for backwards compatibility
     let dev_path_old = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales");
     if dev_path_old.exists() && dev_path_old.is_dir() {
