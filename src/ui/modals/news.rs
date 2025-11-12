@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::{AppState, NewsItem};
 use crate::theme::theme;
 
@@ -49,13 +50,13 @@ pub fn render_news(
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
-        "Arch Linux News",
+        i18n::t(app, "app.modals.news.heading"),
         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
     if items.is_empty() {
         lines.push(Line::from(Span::styled(
-            "No news items available.",
+            i18n::t(app, "app.modals.news.none"),
             Style::default().fg(th.subtext1),
         )));
     } else {
@@ -86,20 +87,25 @@ pub fn render_news(
         }
     }
     lines.push(Line::from(""));
+    let mark_read_key = app
+        .keymap
+        .news_mark_read
+        .first()
+        .map(|k| k.label())
+        .unwrap_or_else(|| "R".to_string());
+    let mark_all_read_key = app
+        .keymap
+        .news_mark_all_read
+        .first()
+        .map(|k| k.label())
+        .unwrap_or_else(|| "Ctrl+R".to_string());
+    // Format footer hint with dynamic keybindings
+    let footer_template = i18n::t(app, "app.modals.news.footer_hint");
+    let footer_text = footer_template
+        .replace("{}", &mark_read_key)
+        .replace("{}", &mark_all_read_key);
     lines.push(Line::from(Span::styled(
-        format!(
-            "Up/Down: select  •  Enter: open  •  {}: mark read  •  {}: mark all read  •  Esc: close",
-            app.keymap
-                .news_mark_read
-                .first()
-                .map(|k| k.label())
-                .unwrap_or_else(|| "R".to_string()),
-            app.keymap
-                .news_mark_all_read
-                .first()
-                .map(|k| k.label())
-                .unwrap_or_else(|| "Ctrl+R".to_string())
-        ),
+        footer_text,
         Style::default().fg(th.subtext1),
     )));
 
@@ -109,7 +115,7 @@ pub fn render_news(
         .block(
             Block::default()
                 .title(Span::styled(
-                    " News ",
+                    i18n::t(app, "app.modals.news.title"),
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)

@@ -194,6 +194,13 @@ pub struct AppState {
     pub layout_right_pct: u16,
     /// Resolved key bindings from user settings
     pub keymap: KeyMap,
+    // Internationalization (i18n)
+    /// Resolved locale code (e.g., "de-DE", "en-US")
+    pub locale: String,
+    /// Translation map for the current locale
+    pub translations: crate::i18n::translations::TranslationMap,
+    /// Fallback translation map (English) for missing keys
+    pub translations_fallback: crate::i18n::translations::TranslationMap,
 
     // Mouse hit-test rectangles for panes
     /// Inner content rectangle of the Results list (x, y, w, h).
@@ -469,6 +476,9 @@ impl Default for AppState {
             layout_center_pct: 60,
             layout_right_pct: 20,
             keymap: crate::theme::Settings::default().keymap,
+            locale: "en-US".to_string(),
+            translations: std::collections::HashMap::new(),
+            translations_fallback: std::collections::HashMap::new(),
 
             results_rect: None,
             details_rect: None,

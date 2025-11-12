@@ -33,13 +33,16 @@ pub(crate) fn compute_display_items_len(
         }
     }
 
-    // Count display items: 1 header + unique deps per package (only if expanded)
+    // Count display items: 1 header per package + unique deps per package (only if expanded)
+    // IMPORTANT: Show ALL packages, even if they have no dependencies
+    // This matches the UI rendering logic
     let mut count = 0;
     for pkg_name in items.iter().map(|p| &p.name) {
-        if let Some(pkg_deps) = grouped.get(pkg_name) {
-            count += 1; // Header
-            // Count unique dependencies only if package is expanded
-            if dep_tree_expanded.contains(pkg_name) {
+        // Always add header for each package (even if no dependencies)
+        count += 1;
+        // Count unique dependencies only if package is expanded AND has dependencies
+        if dep_tree_expanded.contains(pkg_name) {
+            if let Some(pkg_deps) = grouped.get(pkg_name) {
                 let mut seen_deps = HashSet::new();
                 for dep in pkg_deps.iter() {
                     if seen_deps.insert(dep.name.as_str()) {
@@ -357,7 +360,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Services,
                 };
                 // Check for cached dependencies when switching to Deps tab
-                // Don't resolve automatically - use cache or show placeholder
+                // Auto-resolve if cache is empty
                 if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
                     match *action {
                         crate::state::PreflightAction::Install => {
@@ -377,8 +380,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             if !cached_deps.is_empty() {
                                 *dependency_info = cached_deps;
                                 *dep_selected = 0;
+                            } else {
+                                // No cached deps - resolve automatically
+                                tracing::debug!(
+                                    "[Preflight] Auto-resolving dependencies for {} packages",
+                                    items.len()
+                                );
+                                *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                                *dep_selected = 0;
                             }
-                            // If no cached deps, user can press 'r' to resolve
                             app.remove_preflight_summary.clear();
                         }
                         crate::state::PreflightAction::Remove => {
@@ -401,8 +411,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     if !cached_files.is_empty() {
                         *file_info = cached_files;
                         *file_selected = 0;
+                    } else {
+                        // No cached files - resolve automatically
+                        tracing::debug!(
+                            "[Preflight] Auto-resolving files for {} packages",
+                            items.len()
+                        );
+                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                        *file_selected = 0;
                     }
-                    // If no cached files, user can press 'r' to resolve
                 }
                 // Services tab resolution happens in render function for better responsiveness
             }
@@ -415,7 +432,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Summary,
                 };
                 // Check for cached dependencies when switching to Deps tab
-                // Don't resolve automatically - use cache or show placeholder
+                // Auto-resolve if cache is empty
                 if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
                     match *action {
                         crate::state::PreflightAction::Install => {
@@ -440,11 +457,14 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                 *dependency_info = cached_deps;
                                 *dep_selected = 0;
                             } else {
+                                // No cached deps - resolve automatically
                                 tracing::debug!(
-                                    "[Preflight] No cached dependencies available, user can press 'r' to resolve"
+                                    "[Preflight] Auto-resolving dependencies for {} packages",
+                                    items.len()
                                 );
+                                *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                                *dep_selected = 0;
                             }
-                            // If no cached deps, user can press 'r' to resolve
                             app.remove_preflight_summary.clear();
                         }
                         crate::state::PreflightAction::Remove => {
@@ -467,8 +487,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     if !cached_files.is_empty() {
                         *file_info = cached_files;
                         *file_selected = 0;
+                    } else {
+                        // No cached files - resolve automatically
+                        tracing::debug!(
+                            "[Preflight] Auto-resolving files for {} packages",
+                            items.len()
+                        );
+                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                        *file_selected = 0;
                     }
-                    // If no cached files, user can press 'r' to resolve
                 }
                 // Check for cached services when switching to Services tab
                 if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
@@ -506,7 +533,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     crate::state::PreflightTab::Sandbox => crate::state::PreflightTab::Summary,
                 };
                 // Check for cached dependencies when switching to Deps tab
-                // Don't resolve automatically - use cache or show placeholder
+                // Auto-resolve if cache is empty
                 if *tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
                     match *action {
                         crate::state::PreflightAction::Install => {
@@ -526,8 +553,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             if !cached_deps.is_empty() {
                                 *dependency_info = cached_deps;
                                 *dep_selected = 0;
+                            } else {
+                                // No cached deps - resolve automatically
+                                tracing::debug!(
+                                    "[Preflight] Auto-resolving dependencies for {} packages",
+                                    items.len()
+                                );
+                                *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                                *dep_selected = 0;
                             }
-                            // If no cached deps, user can press 'r' to resolve
                             app.remove_preflight_summary.clear();
                         }
                         crate::state::PreflightAction::Remove => {
@@ -550,8 +584,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     if !cached_files.is_empty() {
                         *file_info = cached_files;
                         *file_selected = 0;
+                    } else {
+                        // No cached files - resolve automatically
+                        tracing::debug!(
+                            "[Preflight] Auto-resolving files for {} packages",
+                            items.len()
+                        );
+                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                        *file_selected = 0;
                     }
-                    // If no cached files, user can press 'r' to resolve
                 }
                 // Check for cached services when switching to Services tab
                 if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
@@ -580,9 +621,19 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 }
             }
             KeyCode::Up => {
-                if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
+                if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
                     if *dep_selected > 0 {
                         *dep_selected -= 1;
+                        tracing::debug!(
+                            "[Preflight] Deps Up: dep_selected={}, items={}",
+                            *dep_selected,
+                            items.len()
+                        );
+                    } else {
+                        tracing::debug!(
+                            "[Preflight] Deps Up: already at top (dep_selected=0), items={}",
+                            items.len()
+                        );
                     }
                 } else if *tab == crate::state::PreflightTab::Files
                     && !file_info.is_empty()
@@ -602,11 +653,29 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 }
             }
             KeyCode::Down => {
-                if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
+                if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
                     let display_len =
                         compute_display_items_len(items, dependency_info, dep_tree_expanded);
+                    tracing::debug!(
+                        "[Preflight] Deps Down: dep_selected={}, display_len={}, items={}, deps={}, expanded_count={}",
+                        *dep_selected,
+                        display_len,
+                        items.len(),
+                        dependency_info.len(),
+                        dep_tree_expanded.len()
+                    );
                     if *dep_selected < display_len.saturating_sub(1) {
                         *dep_selected += 1;
+                        tracing::debug!(
+                            "[Preflight] Deps Down: moved to dep_selected={}",
+                            *dep_selected
+                        );
+                    } else {
+                        tracing::debug!(
+                            "[Preflight] Deps Down: already at bottom (dep_selected={}, display_len={})",
+                            *dep_selected,
+                            display_len
+                        );
                     }
                 } else if *tab == crate::state::PreflightTab::Files && !file_info.is_empty() {
                     let display_len = compute_file_display_items_len(file_info, file_tree_expanded);
@@ -934,10 +1003,12 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
             KeyCode::Char('d') => {
                 // toggle dry-run globally pre-apply
                 app.dry_run = !app.dry_run;
-                app.toast_message = Some(format!(
-                    "Dry-run: {}",
-                    if app.dry_run { "ON" } else { "OFF" }
-                ));
+                let toast_key = if app.dry_run {
+                    "app.toasts.dry_run_enabled"
+                } else {
+                    "app.toasts.dry_run_disabled"
+                };
+                app.toast_message = Some(crate::i18n::t(app, toast_key));
             }
             KeyCode::Char('m') => {
                 if matches!(*action, crate::state::PreflightAction::Remove) {
@@ -1047,7 +1118,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
             }
             KeyCode::Char('c') => {
                 // Snapshot placeholder
-                app.toast_message = Some("Snapshot (placeholder)".to_string());
+                app.toast_message = Some(crate::i18n::t(app, "app.toasts.snapshot_placeholder"));
             }
             KeyCode::Char('q') => {
                 // Save current service restart decisions before closing
@@ -1061,67 +1132,9 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
             KeyCode::Char('?') => {
                 // Show Deps tab help when on Deps tab, otherwise show general Preflight help
                 let help_message = if *tab == crate::state::PreflightTab::Deps {
-                    "Dependencies Tab Help\n\n\
-                        This tab shows all dependencies required for the selected packages.\n\n\
-                        Status Indicators:\n\
-                        • ✓ (green) - Already installed\n\
-                        • + (yellow) - Needs to be installed\n\
-                        • ↑ (yellow) - Needs upgrade\n\
-                        • ⚠ (red) - Conflict detected\n\
-                        • ? (red) - Missing/unavailable\n\n\
-                        Repository Badges:\n\
-                        • [core] - Core repository (fundamental system packages)\n\
-                        • [extra] - Extra repository\n\
-                        • [AUR] - Arch User Repository\n\n\
-                        Markers:\n\
-                        • [CORE] (red) - Package from core repository\n\
-                        • [SYSTEM] (yellow) - Critical system package\n\n\
-                        Navigation:\n\
-                        • Up/Down - Navigate dependency list\n\
-                        • Left/Right/Tab - Switch tabs\n\
-                        • Enter/Space - Expand/collapse package group\n\
-                        • a - Expand/collapse all package groups\n\
-                        • r - Retry dependency resolution (if error occurred)\n\
-                        • ? - Show this help\n\
-                        • q/Esc - Close preflight\n\n\
-                        Dependencies are automatically resolved when you navigate to this tab.\n\
-                        For AUR packages, dependencies are fetched from the AUR API."
-                        .to_string()
+                    crate::i18n::t(app, "app.modals.preflight.help.deps_tab")
                 } else {
-                    "Preflight Help\n\n\
-                        Navigation:\n\
-                        • Left/Right/Tab - Switch between tabs\n\
-                        • Up/Down - Navigate lists (Deps, Files, Services tabs)\n\
-                        • ? - Show help for current tab\n\
-                        • q/Esc/Enter - Close preflight (Enter also toggles expansion in Deps/Files tabs)\n\n\
-                        Tab-Specific Actions:\n\
-                        • Deps tab:\n\
-                          - Enter/Space - Expand/collapse package group\n\
-                          - a - Expand/collapse all package groups\n\
-                          - r - Retry dependency resolution (if error occurred)\n\
-                        • Files tab:\n\
-                          - Enter/Space - Expand/collapse package file list\n\
-                          - a - Expand/collapse all package file lists\n\
-                          - f - Sync pacman file database (pacman -Fy)\n\
-                          - r - Retry file resolution (if error occurred)\n\
-                        • Services tab:\n\
-                          - Space - Toggle restart/defer for selected service\n\
-                          - R - Mark selected service to restart\n\
-                          - Shift+D - Mark selected service to defer\n\
-                          - r - Retry service resolution (if error occurred)\n\n\
-                        Global Actions:\n\
-                        • s - Scan AUR packages (if AUR packages selected)\n\
-                        • d - Toggle dry-run mode\n\
-                        • m - Toggle cascade removal mode (Remove action only)\n\
-                        • p - Proceed with installation/removal\n\
-                        • c - Create snapshot (placeholder)\n\n\
-                        Tabs:\n\
-                        • Summary - Overview of packages, versions, sizes, and risk score\n\
-                        • Deps - Dependency information and reverse dependencies\n\
-                        • Files - File changes preview and pacnew/pacsave prediction\n\
-                        • Services - Systemd service impact and restart planning\n\
-                        • Sandbox - AUR build checks (placeholder)"
-                        .to_string()
+                    crate::i18n::t(app, "app.modals.preflight.help.general")
                 };
                 // Store current Preflight modal state before opening Alert
                 app.previous_modal = Some(app.modal.clone());
@@ -1186,6 +1199,37 @@ mod tests {
             name: name.into(),
             version: ">=1".into(),
             status: DependencyStatus::ToInstall,
+            source: DependencySource::Official {
+                repo: "extra".into(),
+            },
+            required_by: required_by.iter().map(|s| (*s).into()).collect(),
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        }
+    }
+
+    /// What: Build a `DependencyInfo` fixture with a specific status for testing status display.
+    ///
+    /// Inputs:
+    /// - `name`: Dependency package name to populate the struct.
+    /// - `required_by`: Slice of package names that declare the dependency.
+    /// - `status`: Specific dependency status to test.
+    ///
+    /// Output:
+    /// - `DependencyInfo` instance with the specified status for assertions.
+    ///
+    /// Details:
+    /// - Allows testing different dependency statuses (Installed, ToInstall, etc.) to verify correct display.
+    fn dep_with_status(
+        name: &str,
+        required_by: &[&str],
+        status: DependencyStatus,
+    ) -> DependencyInfo {
+        DependencyInfo {
+            name: name.into(),
+            version: ">=1".into(),
+            status,
             source: DependencySource::Official {
                 repo: "extra".into(),
             },
@@ -1590,6 +1634,385 @@ mod tests {
                 service_info[0].restart_decision,
                 ServiceRestartDecision::Defer
             );
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
+
+    #[test]
+    /// What: Verify that installed dependencies are correctly included in the dependency list.
+    ///
+    /// Inputs:
+    /// - Preflight modal with dependencies including installed ones.
+    ///
+    /// Output:
+    /// - All dependencies, including installed ones, are present in dependency_info.
+    ///
+    /// Details:
+    /// - Tests that installed dependencies are not filtered out and should display with checkmarks.
+    fn installed_dependencies_are_included_in_list() {
+        let installed_dep = dep_with_status(
+            "libinstalled",
+            &["target"],
+            DependencyStatus::Installed {
+                version: "1.2.3".into(),
+            },
+        );
+        let to_install_dep = dep("libnew", &["target"]);
+        let deps = vec![installed_dep.clone(), to_install_dep.clone()];
+        let app = setup_preflight_app(PreflightTab::Deps, deps.clone(), 0, HashSet::new());
+
+        if let Modal::Preflight {
+            dependency_info, ..
+        } = &app.modal
+        {
+            assert_eq!(dependency_info.len(), 2);
+            // Verify installed dependency is present
+            assert!(dependency_info.iter().any(|d| d.name == "libinstalled"
+                && matches!(d.status, DependencyStatus::Installed { .. })));
+            // Verify to-install dependency is present
+            assert!(
+                dependency_info
+                    .iter()
+                    .any(|d| d.name == "libnew" && matches!(d.status, DependencyStatus::ToInstall))
+            );
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
+
+    #[test]
+    /// What: Verify that cached dependencies are correctly loaded when switching to Deps tab.
+    ///
+    /// Inputs:
+    /// - AppState with cached dependencies in install_list_deps.
+    /// - Preflight modal initially on Summary tab, then switching to Deps tab.
+    ///
+    /// Output:
+    /// - Cached dependencies are loaded into dependency_info when switching to Deps tab.
+    ///
+    /// Details:
+    /// - Tests the tab switching logic that loads cached dependencies from app state.
+    fn cached_dependencies_load_on_tab_switch() {
+        let mut app = AppState::default();
+        let items = vec![pkg("target")];
+        let cached_deps = vec![dep("libcached", &["target"])];
+        app.install_list_deps = cached_deps.clone();
+        app.modal = Modal::Preflight {
+            items: items.clone(),
+            action: PreflightAction::Install,
+            tab: PreflightTab::Summary,
+            summary: None,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            dependency_info: Vec::new(),
+            dep_selected: 0,
+            dep_tree_expanded: HashSet::new(),
+            deps_error: None,
+            file_info: Vec::new(),
+            file_selected: 0,
+            file_tree_expanded: HashSet::new(),
+            files_error: None,
+            service_info: Vec::new(),
+            service_selected: 0,
+            services_loaded: false,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: std::collections::HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
+            cascade_mode: CascadeMode::Basic,
+        };
+
+        // Switch to Deps tab
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Right, KeyModifiers::empty()),
+            &mut app,
+        );
+
+        if let Modal::Preflight {
+            tab,
+            dependency_info,
+            ..
+        } = &app.modal
+        {
+            assert_eq!(*tab, PreflightTab::Deps);
+            assert_eq!(dependency_info.len(), 1);
+            assert_eq!(dependency_info[0].name, "libcached");
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
+
+    #[test]
+    /// What: Verify that cached files are correctly loaded when switching to Files tab.
+    ///
+    /// Inputs:
+    /// - AppState with cached files in install_list_files.
+    /// - Preflight modal initially on Summary tab, then switching to Files tab.
+    ///
+    /// Output:
+    /// - Cached files are loaded into file_info when switching to Files tab.
+    ///
+    /// Details:
+    /// - Tests the tab switching logic that loads cached files from app state.
+    fn cached_files_load_on_tab_switch() {
+        let mut app = AppState::default();
+        let items = vec![pkg("target")];
+        let cached_files = vec![file_info("target", 3)];
+        app.install_list_files = cached_files.clone();
+        app.modal = Modal::Preflight {
+            items: items.clone(),
+            action: PreflightAction::Install,
+            tab: PreflightTab::Summary,
+            summary: None,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            dependency_info: Vec::new(),
+            dep_selected: 0,
+            dep_tree_expanded: HashSet::new(),
+            deps_error: None,
+            file_info: Vec::new(),
+            file_selected: 0,
+            file_tree_expanded: HashSet::new(),
+            files_error: None,
+            service_info: Vec::new(),
+            service_selected: 0,
+            services_loaded: false,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: std::collections::HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
+            cascade_mode: CascadeMode::Basic,
+        };
+
+        // Switch to Files tab (Right twice: Summary -> Deps -> Files)
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Right, KeyModifiers::empty()),
+            &mut app,
+        );
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Right, KeyModifiers::empty()),
+            &mut app,
+        );
+
+        if let Modal::Preflight { tab, file_info, .. } = &app.modal {
+            assert_eq!(*tab, PreflightTab::Files);
+            assert_eq!(file_info.len(), 1);
+            assert_eq!(file_info[0].name, "target");
+            assert_eq!(file_info[0].files.len(), 3);
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
+
+    #[test]
+    /// What: Verify that dependencies with Installed status are counted correctly in display length.
+    ///
+    /// Inputs:
+    /// - Dependency list containing both installed and to-install dependencies.
+    ///
+    /// Output:
+    /// - Display length includes all dependencies regardless of status.
+    ///
+    /// Details:
+    /// - Ensures installed dependencies are not excluded from the display count.
+    fn installed_dependencies_counted_in_display_length() {
+        let items = vec![pkg("app")];
+        let deps = vec![
+            dep_with_status(
+                "libinstalled",
+                &["app"],
+                DependencyStatus::Installed {
+                    version: "1.0.0".into(),
+                },
+            ),
+            dep("libnew", &["app"]),
+        ];
+        let mut expanded = HashSet::new();
+        expanded.insert("app".to_string());
+        let len = compute_display_items_len(&items, &deps, &expanded);
+        // Should count: 1 header + 2 dependencies = 3
+        assert_eq!(len, 3);
+    }
+
+    #[test]
+    /// What: Verify that files are correctly displayed when file_info is populated.
+    ///
+    /// Inputs:
+    /// - Preflight modal with file_info containing files for a package.
+    ///
+    /// Output:
+    /// - File display length correctly counts files when package is expanded.
+    ///
+    /// Details:
+    /// - Ensures files are not filtered out and are correctly counted for display.
+    fn files_displayed_when_file_info_populated() {
+        let file_infos = vec![file_info("pkg1", 5), file_info("pkg2", 3)];
+        let mut expanded = HashSet::new();
+        expanded.insert("pkg1".to_string());
+        let len = compute_file_display_items_len(&file_infos, &expanded);
+        // Should count: 2 headers + 5 files from pkg1 = 7
+        assert_eq!(len, 7);
+
+        // Expand both packages
+        expanded.insert("pkg2".to_string());
+        let len_expanded = compute_file_display_items_len(&file_infos, &expanded);
+        // Should count: 2 headers + 5 files + 3 files = 10
+        assert_eq!(len_expanded, 10);
+    }
+
+    #[test]
+    /// What: Verify that empty file_info shows correct empty state.
+    ///
+    /// Inputs:
+    /// - Preflight modal with empty file_info.
+    ///
+    /// Output:
+    /// - File display length returns 0 for empty file_info.
+    ///
+    /// Details:
+    /// - Ensures empty states are handled correctly without panicking.
+    fn empty_file_info_handled_correctly() {
+        let file_infos = Vec::<PackageFileInfo>::new();
+        let expanded = HashSet::new();
+        let len = compute_file_display_items_len(&file_infos, &expanded);
+        assert_eq!(len, 0);
+    }
+
+    #[test]
+    /// What: Verify that dependencies are correctly filtered by required_by when loading from cache.
+    ///
+    /// Inputs:
+    /// - AppState with cached dependencies, some matching current items and some not.
+    /// - Preflight modal switching to Deps tab.
+    ///
+    /// Output:
+    /// - Only dependencies required by current items are loaded.
+    ///
+    /// Details:
+    /// - Tests the filtering logic that ensures only relevant dependencies are shown.
+    fn dependencies_filtered_by_required_by_on_cache_load() {
+        let mut app = AppState::default();
+        let items = vec![pkg("target")];
+        // Create dependencies: one for "target", one for "other" package
+        let deps_for_target = dep("libtarget", &["target"]);
+        let deps_for_other = dep("libother", &["other"]);
+        app.install_list_deps = vec![deps_for_target.clone(), deps_for_other.clone()];
+        app.modal = Modal::Preflight {
+            items: items.clone(),
+            action: PreflightAction::Install,
+            tab: PreflightTab::Summary,
+            summary: None,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            dependency_info: Vec::new(),
+            dep_selected: 0,
+            dep_tree_expanded: HashSet::new(),
+            deps_error: None,
+            file_info: Vec::new(),
+            file_selected: 0,
+            file_tree_expanded: HashSet::new(),
+            files_error: None,
+            service_info: Vec::new(),
+            service_selected: 0,
+            services_loaded: false,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: std::collections::HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
+            cascade_mode: CascadeMode::Basic,
+        };
+
+        // Switch to Deps tab
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Right, KeyModifiers::empty()),
+            &mut app,
+        );
+
+        if let Modal::Preflight {
+            dependency_info, ..
+        } = &app.modal
+        {
+            // Should only load dependency for "target", not "other"
+            assert_eq!(dependency_info.len(), 1);
+            assert_eq!(dependency_info[0].name, "libtarget");
+            assert!(
+                dependency_info[0]
+                    .required_by
+                    .iter()
+                    .any(|req| req == "target")
+            );
+        } else {
+            panic!("expected Preflight modal");
+        }
+    }
+
+    #[test]
+    /// What: Verify that files are correctly filtered by package name when loading from cache.
+    ///
+    /// Inputs:
+    /// - AppState with cached files for multiple packages.
+    /// - Preflight modal with only some packages in items.
+    ///
+    /// Output:
+    /// - Only files for packages in items are loaded.
+    ///
+    /// Details:
+    /// - Tests the filtering logic that ensures only relevant files are shown.
+    fn files_filtered_by_package_name_on_cache_load() {
+        let mut app = AppState::default();
+        let items = vec![pkg("target")];
+        let files_for_target = file_info("target", 2);
+        let files_for_other = file_info("other", 3);
+        app.install_list_files = vec![files_for_target.clone(), files_for_other.clone()];
+        app.modal = Modal::Preflight {
+            items: items.clone(),
+            action: PreflightAction::Install,
+            tab: PreflightTab::Summary,
+            summary: None,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            dependency_info: Vec::new(),
+            dep_selected: 0,
+            dep_tree_expanded: HashSet::new(),
+            deps_error: None,
+            file_info: Vec::new(),
+            file_selected: 0,
+            file_tree_expanded: HashSet::new(),
+            files_error: None,
+            service_info: Vec::new(),
+            service_selected: 0,
+            services_loaded: false,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: std::collections::HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
+            cascade_mode: CascadeMode::Basic,
+        };
+
+        // Switch to Files tab
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Right, KeyModifiers::empty()),
+            &mut app,
+        );
+        handle_preflight_key(
+            KeyEvent::new(KeyCode::Right, KeyModifiers::empty()),
+            &mut app,
+        );
+
+        if let Modal::Preflight { file_info, .. } = &app.modal {
+            // Should only load files for "target", not "other"
+            assert_eq!(file_info.len(), 1);
+            assert_eq!(file_info[0].name, "target");
+            assert_eq!(file_info[0].files.len(), 2);
         } else {
             panic!("expected Preflight modal");
         }

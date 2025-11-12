@@ -16,7 +16,9 @@ use crate::theme::reload_theme;
 /// - `pkgb_tx`: Channel used to request PKGBUILD content for the focused result
 ///
 /// Output:
-/// - `true` when the caller should exit (e.g., global exit keybind triggered); otherwise `false`.
+/// - `Some(true)` when the caller should exit (e.g., global exit keybind triggered)
+/// - `Some(false)` when a global keybind was handled (key should not be processed further)
+/// - `None` when the key was not handled by global shortcuts
 ///
 /// Details:
 /// - Gives precedence to closing dropdown menus on `Esc` before other bindings.
@@ -28,7 +30,7 @@ pub(crate) fn handle_global_key(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
-) -> bool {
+) -> Option<bool> {
     // Global keymap shortcuts (regardless of focus)
     // First: allow ESC to close the PKGBUILD viewer if it is open
     // Esc does not close the PKGBUILD viewer here
@@ -52,7 +54,7 @@ pub(crate) fn handle_global_key(
         if app.config_menu_open {
             app.config_menu_open = false;
         }
-        return false;
+        return Some(false); // Handled - don't process further
     }
     let km = &app.keymap;
     // Global keybinds (only if no modal is active, except Preflight which handles its own help)
@@ -68,7 +70,7 @@ pub(crate) fn handle_global_key(
             |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
         if matches_any(&km.help_overlay) {
             app.modal = crate::state::Modal::Help;
-            return false;
+            return Some(false); // Handled - don't process further
         }
     }
     // Normalize BackTab so that SHIFT modifier does not affect matching across terminals
@@ -82,15 +84,19 @@ pub(crate) fn handle_global_key(
         |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
     if matches_any(&km.reload_theme) {
         match reload_theme() {
-            Ok(()) => {}
+            Ok(()) => {
+                app.toast_message = Some(crate::i18n::t(app, "app.toasts.theme_reloaded"));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+            }
             Err(msg) => {
                 app.modal = crate::state::Modal::Alert { message: msg };
             }
         }
-        return false;
+        return Some(false); // Handled - don't process further
     }
     if matches_any(&km.exit) {
-        return true;
+        return Some(true); // Exit requested
     }
     // Toggle PKGBUILD viewer globally
     if matches_any(&km.show_pkgbuild) {
@@ -108,7 +114,7 @@ pub(crate) fn handle_global_key(
                 let _ = pkgb_tx.send(item);
             }
         }
-        return false;
+        return Some(false); // Handled - don't process further
     }
     // Global: Change sorting via configured keybind
     if matches_any(&km.change_sort) {
@@ -137,7 +143,7 @@ pub(crate) fn handle_global_key(
         app.sort_menu_open = true;
         app.sort_menu_auto_close_at =
             Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
-        return false;
+        return Some(false); // Handled - don't process further
     }
     // Note: menu toggles (Shift+C/O/P) handled in Search Normal mode and not globally
     // Global: When a dropdown is open, allow numeric selection 1..9 to activate rows
@@ -552,7 +558,7 @@ pub(crate) fn handle_global_key(
                 _ => {}
             }
             app.options_menu_open = false;
-            return false;
+            return Some(false); // Handled - don't process further
         }
         // Panels menu rows: 0 recent, 1 install, 2 keybinds
         if app.panels_menu_open {
@@ -578,7 +584,7 @@ pub(crate) fn handle_global_key(
                 _ => {}
             }
             // Keep menu open after toggling panels
-            return false;
+            return Some(false); // Handled - don't process further
         }
         // Config menu rows: 0 settings, 1 theme, 2 keybinds, 3 install list, 4 installed list, 5 recent
         if app.config_menu_open {
@@ -603,7 +609,7 @@ pub(crate) fn handle_global_key(
                 5 => recent_path,
                 _ => {
                     app.config_menu_open = false;
-                    return false;
+                    return Some(false); // Handled - don't process further
                 }
             };
             #[cfg(target_os = "windows")]
@@ -630,10 +636,10 @@ pub(crate) fn handle_global_key(
                 });
             }
             app.config_menu_open = false;
-            return false;
+            return Some(false); // Handled - don't process further
         }
     }
-    false
+    None // Key not handled by global shortcuts
 }
 
 #[cfg(test)]
@@ -676,7 +682,7 @@ mod tests {
             &pkgb_tx,
         );
 
-        assert!(!exit);
+        assert_eq!(exit, Some(false));
         assert!(!app.sort_menu_open);
         assert!(!app.options_menu_open);
         assert!(!app.panels_menu_open);
@@ -707,7 +713,7 @@ mod tests {
             &pkgb_tx,
         );
 
-        assert!(!exit);
+        assert_eq!(exit, Some(false));
         assert!(matches!(app.modal, crate::state::Modal::Help));
     }
 
@@ -744,7 +750,7 @@ mod tests {
             &pkgb_tx,
         );
 
-        assert!(!exit);
+        assert_eq!(exit, Some(false));
         assert!(app.pkgb_visible);
         let sent = pkgb_rx.try_recv().expect("pkgb request dispatched");
         assert_eq!(sent.name, "ripgrep");
@@ -774,6 +780,6 @@ mod tests {
             &pkgb_tx,
         );
 
-        assert!(exit);
+        assert_eq!(exit, Some(true));
     }
 }

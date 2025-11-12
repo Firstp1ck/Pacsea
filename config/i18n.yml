@@ -33,6 +33,8 @@ default_locale: en-US
 fallbacks:
   en: en-US
   de: de-DE
+  de-CH: de-DE  # Swiss German falls back to German German (translations are identical for technical software)
+  ch: de-DE  # Switzerland country code falls back to German
   fr: fr-FR
   es: es-ES
   ja: ja-JP

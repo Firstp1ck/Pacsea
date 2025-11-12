@@ -6,6 +6,8 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::i18n;
+use crate::state::AppState;
 use crate::theme::theme;
 
 #[allow(clippy::too_many_arguments)]
@@ -27,6 +29,7 @@ use crate::theme::theme;
 ///   restart shortcuts.
 pub fn render_post_summary(
     f: &mut Frame,
+    app: &AppState,
     area: Rect,
     success: bool,
     changed_files: usize,
@@ -51,29 +54,38 @@ pub fn render_post_summary(
     let border_color = if success { th.green } else { th.red };
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
-        if success { "Success" } else { "Failed" },
+        if success {
+            i18n::t(app, "app.modals.post_summary.success")
+        } else {
+            i18n::t(app, "app.modals.post_summary.failed")
+        },
         Style::default()
             .fg(border_color)
             .add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        format!(
-            "Changed files: {} (pacnew: {}, pacsave: {})",
-            changed_files, pacnew_count, pacsave_count
+        i18n::t_fmt(
+            app,
+            "app.modals.post_summary.changed_files",
+            &[
+                &changed_files.to_string(),
+                &pacnew_count.to_string(),
+                &pacsave_count.to_string(),
+            ],
         ),
         Style::default().fg(th.text),
     )));
     if let Some(label) = snapshot_label {
         lines.push(Line::from(Span::styled(
-            format!("Snapshot: {}", label),
+            i18n::t_fmt1(app, "app.modals.post_summary.snapshot", label),
             Style::default().fg(th.text),
         )));
     }
     if !services_pending.is_empty() {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            "Services pending restart:",
+            i18n::t(app, "app.modals.post_summary.services_pending"),
             Style::default()
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
@@ -90,7 +102,7 @@ pub fn render_post_summary(
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "r: rollback  •  s: restart services  •  Enter/Esc: close",
+        i18n::t(app, "app.modals.post_summary.footer_hint"),
         Style::default().fg(th.subtext1),
     )));
 
@@ -100,7 +112,7 @@ pub fn render_post_summary(
         .block(
             Block::default()
                 .title(Span::styled(
-                    " Post-Transaction Summary ",
+                    format!(" {} ", i18n::t(app, "app.modals.post_summary.title")),
                     Style::default()
                         .fg(border_color)
                         .add_modifier(Modifier::BOLD),

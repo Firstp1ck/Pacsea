@@ -152,6 +152,9 @@ pub fn settings() -> Settings {
                     let lv = val.to_ascii_lowercase();
                     out.skip_preflight = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
                 }
+                "locale" | "language" => {
+                    out.locale = val.trim().to_string();
+                }
                 // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
                 _ => {}
             }

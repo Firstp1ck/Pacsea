@@ -20,6 +20,7 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
+use crate::i18n;
 use crate::{state::AppState, theme::theme};
 
 mod details;
@@ -175,9 +176,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             height: h,
         };
         let title_text = if msg.to_lowercase().contains("news") {
-            " News "
+            i18n::t(app, "app.toasts.title_news")
         } else {
-            " Clipboard "
+            i18n::t(app, "app.toasts.title_clipboard")
         };
         let content = Span::styled(msg.clone(), Style::default().fg(th.text));
         let p = Paragraph::new(content)
@@ -206,6 +207,63 @@ mod tests {
     /// Details:
     /// - Uses `TestBackend` to render `ui`, verifying toast handling and rect bookkeeping without
     ///   panics across successive draws.
+    ///
+    /// What: Initialize minimal English translations for tests.
+    ///
+    /// Inputs:
+    /// - `app`: AppState to populate with translations
+    ///
+    /// Output:
+    /// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
+    ///
+    /// Details:
+    /// - Sets up only the translations needed for tests to pass
+    fn init_test_translations(app: &mut crate::state::AppState) {
+        use std::collections::HashMap;
+        let mut translations = HashMap::new();
+        // Details
+        translations.insert("app.details.fields.url".to_string(), "URL".to_string());
+        translations.insert("app.details.url_label".to_string(), "URL:".to_string());
+        // Results
+        translations.insert("app.results.title".to_string(), "Results".to_string());
+        translations.insert("app.results.buttons.sort".to_string(), "Sort".to_string());
+        translations.insert(
+            "app.results.buttons.options".to_string(),
+            "Options".to_string(),
+        );
+        translations.insert(
+            "app.results.buttons.panels".to_string(),
+            "Panels".to_string(),
+        );
+        translations.insert(
+            "app.results.buttons.config_lists".to_string(),
+            "Config/Lists".to_string(),
+        );
+        translations.insert("app.results.filters.aur".to_string(), "AUR".to_string());
+        translations.insert("app.results.filters.core".to_string(), "core".to_string());
+        translations.insert("app.results.filters.extra".to_string(), "extra".to_string());
+        translations.insert(
+            "app.results.filters.multilib".to_string(),
+            "multilib".to_string(),
+        );
+        translations.insert("app.results.filters.eos".to_string(), "EOS".to_string());
+        translations.insert(
+            "app.results.filters.cachyos".to_string(),
+            "CachyOS".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.manjaro".to_string(),
+            "Manjaro".to_string(),
+        );
+        // Toasts
+        translations.insert(
+            "app.toasts.copied_to_clipboard".to_string(),
+            "Copied to clipboard".to_string(),
+        );
+        app.translations = translations.clone();
+        app.translations_fallback = translations;
+    }
+
     #[test]
     fn ui_renders_frame_and_sets_rects_and_toast() {
         use ratatui::{Terminal, backend::TestBackend};
@@ -215,6 +273,7 @@ mod tests {
         let mut app = crate::state::AppState {
             ..Default::default()
         };
+        init_test_translations(&mut app);
         // Seed minimal data to exercise all three sections
         app.results = vec![crate::state::PackageItem {
             name: "pkg".into(),
@@ -224,7 +283,7 @@ mod tests {
             popularity: None,
         }];
         app.details.url = "https://example.com".into();
-        app.toast_message = Some("Copied to clipboard".into());
+        app.toast_message = Some(crate::i18n::t(&app, "app.toasts.copied_to_clipboard"));
 
         term.draw(|f| {
             super::ui(f, &mut app);

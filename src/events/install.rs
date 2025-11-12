@@ -1,6 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 
+use crate::i18n;
 use crate::state::{AppState, PackageItem};
 
 use super::utils::{
@@ -174,7 +175,10 @@ pub fn handle_install_key(
             if !app.installed_only_mode && !app.install_list.is_empty() {
                 if skip {
                     crate::install::spawn_install_all(&app.install_list, app.dry_run);
-                    app.toast_message = Some("Installing list (preflight skipped)".to_string());
+                    app.toast_message = Some(crate::i18n::t(
+                        app,
+                        "app.toasts.installing_preflight_skipped",
+                    ));
                     app.toast_expires_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 } else {
@@ -318,7 +322,7 @@ pub fn handle_install_key(
                             crate::state::modal::RiskLevel::Low
                         },
                         risk_reasons: if aur_count > 0 {
-                            vec!["AUR packages included (+2)".to_string()]
+                            vec![i18n::t(app, "app.modals.preflight.summary.aur_packages_included")]
                         } else {
                             vec![]
                         },
@@ -329,12 +333,12 @@ pub fn handle_install_key(
                         config_warning_packages: vec![],
                         service_restart_units: vec![],
                         summary_warnings: if aur_count > 0 {
-                            vec!["AUR packages included (+2)".to_string()]
+                            vec![i18n::t(app, "app.modals.preflight.summary.aur_packages_included")]
                         } else {
                             vec![]
                         },
                         summary_notes: if aur_count > 0 {
-                            vec!["AUR packages present; build steps may vary.".to_string()]
+                            vec![i18n::t(app, "app.modals.preflight.summary.aur_packages_present")]
                         } else {
                             vec![]
                         },
@@ -357,13 +361,25 @@ pub fn handle_install_key(
                     );
                     // Don't clear pending_service_plan here - it will be updated when modal closes
                     let modal_set_start = std::time::Instant::now();
+
+                    // Auto-resolve dependencies if cache is empty (since we're opening on Deps tab)
+                    let dependency_info = if cached_deps.is_empty() {
+                        tracing::debug!(
+                            "[Preflight] Auto-resolving dependencies on open for {} packages",
+                            items.len()
+                        );
+                        crate::logic::deps::resolve_dependencies(&items)
+                    } else {
+                        cached_deps
+                    };
+
                     app.modal = crate::state::Modal::Preflight {
                         items,
                         action: crate::state::PreflightAction::Install,
-                        tab: crate::state::PreflightTab::Summary,
+                        tab: crate::state::PreflightTab::Deps,
                         summary: Some(Box::new(minimal_summary)),
                         header_chips: minimal_header,
-                        dependency_info: cached_deps,
+                        dependency_info,
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),
                         deps_error: None,
@@ -406,7 +422,8 @@ pub fn handle_install_key(
                             app.dry_run,
                             app.remove_cascade_mode,
                         );
-                        app.toast_message = Some("Removing list (preflight skipped)".to_string());
+                        app.toast_message =
+                            Some(crate::i18n::t(app, "app.toasts.removing_preflight_skipped"));
                         app.toast_expires_at =
                             Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                         app.remove_list.clear();
@@ -449,7 +466,8 @@ pub fn handle_install_key(
                             cascade_mode: app.remove_cascade_mode,
                         };
                         app.remove_preflight_summary = summaries;
-                        app.toast_message = Some("Preflight: Remove list".to_string());
+                        app.toast_message =
+                            Some(crate::i18n::t(app, "app.toasts.preflight_remove_list"));
                     }
                 }
             } else if app.installed_only_mode

@@ -7,6 +7,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
 };
 
+use crate::i18n;
 use crate::state::{AppState, Focus, Source};
 use crate::theme::theme;
 
@@ -134,9 +135,9 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     }
     let input_line = Line::from(input_spans);
     let search_title = if search_focused {
-        "Search (focused)"
+        i18n::t(app, "app.titles.search_focused")
     } else {
-        "Search"
+        i18n::t(app, "app.titles.search")
     };
     let search_title_color = if search_focused {
         th.mauve
@@ -201,12 +202,13 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 ))
             })
             .collect();
+        let recent_title = if recent_focused {
+            i18n::t(app, "app.titles.recent_focused")
+        } else {
+            i18n::t(app, "app.titles.recent")
+        };
         let mut recent_title_spans: Vec<Span> = vec![Span::styled(
-            if recent_focused {
-                "Recent (focused)"
-            } else {
-                "Recent"
-            },
+            recent_title,
             Style::default().fg(if recent_focused {
                 th.mauve
             } else {
@@ -309,9 +311,9 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                     crate::state::RightPaneFocus::Downgrade
                 );
             let downgrade_title = if downgrade_is_focused {
-                "Downgrade List (focused)"
+                i18n::t(app, "app.titles.downgrade_list_focused")
             } else {
-                "Downgrade List"
+                i18n::t(app, "app.titles.downgrade_list")
             };
             let downgrade_block = Block::default()
                 .title(Line::from(vec![Span::styled(
@@ -393,9 +395,9 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
             let remove_is_focused = install_focused
                 && matches!(app.right_pane_focus, crate::state::RightPaneFocus::Remove);
             let remove_title = if remove_is_focused {
-                "Remove List (focused)"
+                i18n::t(app, "app.titles.remove_list_focused")
             } else {
-                "Remove List"
+                i18n::t(app, "app.titles.remove_list")
             };
             let remove_block = Block::default()
                 .title(Line::from(vec![Span::styled(
@@ -479,9 +481,9 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 })
                 .collect();
             let title_text = if install_focused {
-                "Install List (focused)"
+                i18n::t(app, "app.titles.install_list_focused")
             } else {
-                "Install List"
+                i18n::t(app, "app.titles.install_list")
             };
             let install_block = Block::default()
                 .title(Line::from(vec![Span::styled(
@@ -522,8 +524,8 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
 
             // Bottom border action buttons: Export (left) and Import (right)
             let th = theme();
-            let import_label = "Import";
-            let export_label = "Export";
+            let import_label = i18n::t(app, "app.actions.import");
+            let export_label = i18n::t(app, "app.actions.export");
             // Style similar to other title buttons
             let btn_style_active = Style::default()
                 .fg(th.crust)

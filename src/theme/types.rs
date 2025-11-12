@@ -99,6 +99,9 @@ pub struct Settings {
     /// When true, skip the Preflight modal and execute actions directly (install/remove/downgrade).
     /// Defaults to false to preserve the safer, review-first workflow.
     pub skip_preflight: bool,
+    /// Locale code for translations (e.g., "de-DE", "en-US").
+    /// Empty string means auto-detect from system locale.
+    pub locale: String,
 }
 
 impl Default for Settings {
@@ -141,6 +144,7 @@ impl Default for Settings {
             news_unread_symbol: "∘".to_string(),
             preferred_terminal: String::new(),
             skip_preflight: false,
+            locale: String::new(), // Empty means auto-detect from system
         }
     }
 }

@@ -68,8 +68,12 @@ pub fn handle_event(
         }
 
         // Handle global shortcuts and dropdown menus
-        if global::handle_global_key(ke, app, details_tx, pkgb_tx) {
-            return true; // Exit requested
+        if let Some(should_exit) = global::handle_global_key(ke, app, details_tx, pkgb_tx) {
+            if should_exit {
+                return true; // Exit requested
+            }
+            // Key was handled by global shortcuts, don't process further
+            return false;
         }
 
         // Pane-specific handling (Search, Recent, Install)

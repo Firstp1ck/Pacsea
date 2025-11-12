@@ -7,6 +7,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::modal::{
     CascadeMode, DependencyInfo, DependencySource, DependencyStatus, FileChangeType,
     PackageFileInfo, PreflightHeaderChips, PreflightSummaryData, ServiceImpact,
@@ -54,13 +55,21 @@ fn format_signed_bytes(value: i64) -> String {
 /// Details:
 /// - Formats package count, download size, install delta, AUR count, and risk score
 ///   as compact chips. Risk score uses color coding (green/yellow/red) based on level.
-fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
+fn render_header_chips(app: &AppState, chips: &PreflightHeaderChips) -> Line<'static> {
     let th = theme();
     let mut spans = Vec::new();
 
     // Package count chip
     let pkg_text = if chips.aur_count > 0 {
-        format!("{} ({} AUR)", chips.package_count, chips.aur_count)
+        format!(
+            "{}{}",
+            chips.package_count,
+            i18n::t_fmt1(
+                app,
+                "app.modals.preflight.header_chips.aur_packages",
+                chips.aur_count
+            )
+        )
     } else {
         format!("{}", chips.package_count)
     };
@@ -74,7 +83,11 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
     // Download size chip (always shown)
     spans.push(Span::styled(" ", Style::default()));
     spans.push(Span::styled(
-        format!("[DL: {}]", format_bytes(chips.download_bytes)),
+        i18n::t_fmt1(
+            app,
+            "app.modals.preflight.header_chips.download_label",
+            format_bytes(chips.download_bytes),
+        ),
         Style::default().fg(th.sapphire),
     ));
 
@@ -88,16 +101,26 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
         th.overlay1 // Neutral color for zero
     };
     spans.push(Span::styled(
-        format!("[Size: {}]", format_signed_bytes(chips.install_delta_bytes)),
+        i18n::t_fmt1(
+            app,
+            "app.modals.preflight.header_chips.size_label",
+            format_signed_bytes(chips.install_delta_bytes),
+        ),
         Style::default().fg(delta_color),
     ));
 
     // Risk score chip (always shown)
     spans.push(Span::styled(" ", Style::default()));
     let risk_label = match chips.risk_level {
-        crate::state::modal::RiskLevel::Low => "Low",
-        crate::state::modal::RiskLevel::Medium => "Medium",
-        crate::state::modal::RiskLevel::High => "High",
+        crate::state::modal::RiskLevel::Low => {
+            i18n::t(app, "app.modals.preflight.header_chips.risk_low")
+        }
+        crate::state::modal::RiskLevel::Medium => {
+            i18n::t(app, "app.modals.preflight.header_chips.risk_medium")
+        }
+        crate::state::modal::RiskLevel::High => {
+            i18n::t(app, "app.modals.preflight.header_chips.risk_high")
+        }
     };
     let risk_color = match chips.risk_level {
         crate::state::modal::RiskLevel::Low => th.green,
@@ -172,69 +195,56 @@ pub fn render_preflight(
         service_info.len(),
         sandbox_info.len()
     );
-    // Use cached dependencies if available
-    // Note: Cached deps are populated in background when packages are added to install list
-    // Note: Dependency resolution is triggered asynchronously in event handlers, not during rendering
-    // IMPORTANT: Check on every render when dependency_info is empty, because background resolution
-    // may complete after the modal opens and we need to update dependency_info from app.install_list_deps
-    let deps_check_start = std::time::Instant::now();
-    if dependency_info.is_empty() && matches!(*action, PreflightAction::Install) {
-        tracing::debug!(
-            "[UI] Checking for cached dependencies: deps_resolving={}, install_list_deps.len()={}, items.len()={}",
-            app.deps_resolving,
-            app.install_list_deps.len(),
-            items.len()
-        );
-        // Check if we have cached dependencies from app state that match the current items
-        // Check even if deps_resolving is true, because resolution might have completed between renders
-        let item_names: std::collections::HashSet<String> =
-            items.iter().map(|i| i.name.clone()).collect();
-
-        // If deps_resolving is false and we have dependencies, use them all (don't filter strictly)
-        // This handles the case where the cache might have dependencies for the install list
-        if !app.deps_resolving && !app.install_list_deps.is_empty() {
-            tracing::debug!(
-                "[UI] Resolution complete, using all {} cached dependencies",
-                app.install_list_deps.len()
-            );
-            *dependency_info = app.install_list_deps.clone();
-            *dep_selected = 0;
-        } else {
-            // Filter dependencies to only those required by current items
-            let cached_deps: Vec<DependencyInfo> = app
-                .install_list_deps
-                .iter()
-                .filter(|dep| {
-                    // Include dependency if any of the items require it
-                    dep.required_by
-                        .iter()
-                        .any(|req_by| item_names.contains(req_by))
-                })
-                .cloned()
-                .collect();
-            if !cached_deps.is_empty() {
+    // Load dependencies from cache - SIMPLIFIED: Always load when on Deps tab or when empty
+    // Auto-resolve if cache is empty and we're on Deps tab
+    if matches!(*action, PreflightAction::Install) {
+        let should_load = dependency_info.is_empty() || matches!(*tab, PreflightTab::Deps);
+        
+        if should_load && matches!(*tab, PreflightTab::Deps) {
+            if !app.install_list_deps.is_empty() {
+                // Get set of current package names for filtering
+                let item_names: std::collections::HashSet<String> =
+                    items.iter().map(|i| i.name.clone()).collect();
+                
+                // Filter to only show dependencies required by current items
+                let filtered: Vec<DependencyInfo> = app
+                    .install_list_deps
+                    .iter()
+                    .filter(|dep| {
+                        // Show dependency if any current item requires it
+                        dep.required_by.iter().any(|req_by| item_names.contains(req_by))
+                    })
+                    .cloned()
+                    .collect();
+                
                 tracing::debug!(
-                    "[UI] Using {} filtered cached dependencies for Preflight modal",
-                    cached_deps.len()
-                );
-                *dependency_info = cached_deps;
-                *dep_selected = 0;
-            } else {
-                tracing::debug!(
-                    "[UI] No cached dependencies found (total in cache: {}, items: {:?})",
+                    "[UI] Deps tab: cache={}, filtered={}, items={:?}, resolving={}, current={}",
                     app.install_list_deps.len(),
-                    item_names
+                    filtered.len(),
+                    item_names,
+                    app.deps_resolving,
+                    dependency_info.len()
+                );
+                
+                // Always update when on Deps tab, but only reset selection if dependencies were empty (first load)
+                // Don't reset on every render - that would break navigation
+                let was_empty = dependency_info.is_empty();
+                if !filtered.is_empty() || dependency_info.is_empty() {
+                    *dependency_info = filtered;
+                    // Only reset selection if this is the first load (was empty), not on every render
+                    if was_empty {
+                        *dep_selected = 0;
+                    }
+                }
+            } else if dependency_info.is_empty() {
+                // Cache is empty and no dependencies loaded - trigger auto-resolution
+                // This will be handled by the event handler when switching to Deps tab
+                tracing::debug!(
+                    "[UI] Deps tab: cache is empty, will auto-resolve, items={:?}",
+                    items.iter().map(|i| &i.name).collect::<Vec<_>>()
                 );
             }
         }
-        // If no cached deps available, resolution will be triggered by event handlers when user navigates to Deps tab
-    }
-    let deps_check_duration = deps_check_start.elapsed();
-    if deps_check_duration.as_millis() > 10 {
-        tracing::warn!(
-            "[UI] Dependency cache check took {:?} (slow!)",
-            deps_check_duration
-        );
     }
     // Use cached file info if available
     // Note: Cached files are populated in background when packages are added to install list
@@ -336,14 +346,20 @@ pub fn render_preflight(
     let keybinds_rect = layout[1];
 
     let title = match action {
-        PreflightAction::Install => " Preflight: Install ",
-        PreflightAction::Remove => " Preflight: Remove ",
+        PreflightAction::Install => i18n::t(app, "app.modals.preflight.title_install"),
+        PreflightAction::Remove => i18n::t(app, "app.modals.preflight.title_remove"),
     };
     let border_color = th.lavender;
     let bg_color = th.crust;
 
     // Build header tab labels and calculate tab rectangles for mouse clicks
-    let tab_labels = ["Summary", "Deps", "Files", "Services", "Sandbox"];
+    let tab_labels = [
+        i18n::t(app, "app.modals.preflight.tabs.summary"),
+        i18n::t(app, "app.modals.preflight.tabs.deps"),
+        i18n::t(app, "app.modals.preflight.tabs.files"),
+        i18n::t(app, "app.modals.preflight.tabs.services"),
+        i18n::t(app, "app.modals.preflight.tabs.sandbox"),
+    ];
     let mut header = String::new();
     let current_tab = *tab;
 
@@ -398,7 +414,7 @@ pub fn render_preflight(
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     // Header chips line
-    lines.push(render_header_chips(header_chips));
+    lines.push(render_header_chips(app, header_chips));
     // Tab header line
     lines.push(Line::from(Span::styled(
         header,
@@ -421,7 +437,7 @@ pub fn render_preflight(
 
                 if !summary_data.risk_reasons.is_empty() {
                     lines.push(Line::from(Span::styled(
-                        "Risk factors:",
+                        i18n::t(app, "app.modals.preflight.summary.risk_factors"),
                         Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
                     )));
                     for reason in &summary_data.risk_reasons {
@@ -435,7 +451,7 @@ pub fn render_preflight(
                 if !summary_data.summary_notes.is_empty() {
                     lines.push(Line::from(""));
                     lines.push(Line::from(Span::styled(
-                        "Notes:",
+                        i18n::t(app, "app.modals.preflight.summary.notes"),
                         Style::default()
                             .fg(th.overlay1)
                             .add_modifier(Modifier::BOLD),
@@ -451,7 +467,7 @@ pub fn render_preflight(
                 if !summary_data.packages.is_empty() {
                     lines.push(Line::from(""));
                     lines.push(Line::from(Span::styled(
-                        "Per-package overview:",
+                        i18n::t(app, "app.modals.preflight.summary.per_package_overview"),
                         Style::default()
                             .fg(th.overlay1)
                             .add_modifier(Modifier::BOLD),
@@ -470,16 +486,36 @@ pub fn render_preflight(
                             entry.push_str(&format!(" {}", pkg.target_version));
                         }
                         if pkg.is_major_bump {
-                            entry.push_str(" (major bump)");
+                            entry.push_str(&format!(
+                                " ({})",
+                                i18n::t(app, "app.modals.preflight.summary.major_bump")
+                            ));
                         }
                         if pkg.is_downgrade {
-                            entry.push_str(" (downgrade)");
+                            entry.push_str(&format!(
+                                " ({})",
+                                i18n::t(app, "app.modals.preflight.summary.downgrade")
+                            ));
                         }
                         if let Some(bytes) = pkg.download_bytes {
-                            entry.push_str(&format!(" • download {}", format_bytes(bytes)));
+                            entry.push_str(&format!(
+                                " {}",
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.summary.download",
+                                    format_bytes(bytes)
+                                )
+                            ));
                         }
                         if let Some(delta) = pkg.install_delta_bytes {
-                            entry.push_str(&format!(" • size {}", format_signed_bytes(delta)));
+                            entry.push_str(&format!(
+                                " {}",
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.summary.size",
+                                    format_signed_bytes(delta)
+                                )
+                            ));
                         }
                         if !pkg.notes.is_empty() {
                             entry.push_str(&format!(" • {}", pkg.notes.join("; ")));
@@ -508,7 +544,7 @@ pub fn render_preflight(
 
                     if important_deps.is_empty() {
                         lines.push(Line::from(Span::styled(
-                            "No conflicts or upgrades required.",
+                            i18n::t(app, "app.modals.preflight.summary.no_conflicts_or_upgrades"),
                             Style::default().fg(th.green),
                         )));
                     } else {
@@ -534,19 +570,35 @@ pub fn render_preflight(
                         // Summary header
                         let mut summary_parts = Vec::new();
                         if conflict_count > 0 {
-                            summary_parts.push(format!("{} conflict(s)", conflict_count));
+                            summary_parts.push(i18n::t_fmt1(
+                                app,
+                                "app.modals.preflight.summary.conflict_singular",
+                                conflict_count,
+                            ));
                         }
                         if upgrade_count > 0 {
-                            summary_parts.push(format!("{} upgrade(s)", upgrade_count));
+                            summary_parts.push(i18n::t_fmt1(
+                                app,
+                                "app.modals.preflight.summary.upgrade_singular",
+                                upgrade_count,
+                            ));
                         }
 
                         // Use different header based on what we have
                         let header_text = if conflict_count > 0 {
-                            format!("Issues: {}", summary_parts.join(", "))
+                            i18n::t_fmt1(
+                                app,
+                                "app.modals.preflight.summary.issues",
+                                summary_parts.join(", "),
+                            )
                         } else if upgrade_count > 0 {
-                            format!("Summary: {}", summary_parts.join(", "))
+                            i18n::t_fmt1(
+                                app,
+                                "app.modals.preflight.summary.summary_label",
+                                summary_parts.join(", "),
+                            )
                         } else {
-                            "Summary: No conflicts or upgrades required.".to_string()
+                            i18n::t(app, "app.modals.preflight.summary.summary_no_conflicts")
                         };
 
                         lines.push(Line::from(Span::styled(
@@ -700,7 +752,11 @@ pub fn render_preflight(
                         if displayed >= available_height && important_deps.len() > displayed {
                             lines.push(Line::from(""));
                             lines.push(Line::from(Span::styled(
-                                format!("... and {} more", important_deps.len() - displayed),
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.summary.and_more",
+                                    important_deps.len() - displayed,
+                                ),
                                 Style::default().fg(th.subtext1),
                             )));
                         }
@@ -708,8 +764,11 @@ pub fn render_preflight(
                 }
                 PreflightAction::Remove => {
                     let mode = cascade_mode;
-                    let mode_line =
-                        format!("Cascade mode: {} ({})", mode.flag(), mode.description());
+                    let mode_line = i18n::t_fmt(
+                        app,
+                        "app.modals.preflight.summary.cascade_mode",
+                        &[&mode.flag(), &mode.description()],
+                    );
                     lines.push(Line::from(Span::styled(
                         mode_line,
                         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
@@ -718,7 +777,7 @@ pub fn render_preflight(
 
                     if items.is_empty() {
                         lines.push(Line::from(Span::styled(
-                            "No removal targets selected.",
+                            i18n::t(app, "app.modals.preflight.summary.no_removal_targets"),
                             Style::default().fg(th.subtext1),
                         )));
                     } else {
@@ -728,7 +787,7 @@ pub fn render_preflight(
                             .fg(th.overlay1)
                             .add_modifier(Modifier::BOLD);
                         lines.push(Line::from(Span::styled(
-                            "Removal plan preview",
+                            i18n::t(app, "app.modals.preflight.summary.removal_plan_preview"),
                             plan_header_style,
                         )));
 
@@ -738,7 +797,11 @@ pub fn render_preflight(
                             removal_names.join(" ")
                         );
                         if app.dry_run {
-                            plan_command = format!("DRY RUN: {}", plan_command);
+                            plan_command = i18n::t_fmt1(
+                                app,
+                                "app.modals.preflight.summary.dry_run_prefix",
+                                plan_command,
+                            );
                         }
                         lines.push(Line::from(Span::styled(
                             plan_command,
@@ -748,20 +811,24 @@ pub fn render_preflight(
                         let dependent_count = dependency_info.len();
                         let (summary_text, summary_style) = if dependent_count == 0 {
                             (
-                                "No installed packages depend on the removal list.".to_string(),
+                                i18n::t(app, "app.modals.preflight.summary.no_dependents"),
                                 Style::default().fg(th.green),
                             )
                         } else if mode.allows_dependents() {
                             (
-                                format!(
-                                    "Cascade will include {dependent_count} dependent package(s)."
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.summary.cascade_will_include",
+                                    dependent_count,
                                 ),
                                 Style::default().fg(th.yellow),
                             )
                         } else {
                             (
-                                format!(
-                                    "{dependent_count} dependent package(s) currently block removal."
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.summary.dependents_block_removal",
+                                    dependent_count,
                                 ),
                                 Style::default().fg(th.red),
                             )
@@ -772,12 +839,18 @@ pub fn render_preflight(
                         if dependent_count > 0 {
                             if app.remove_preflight_summary.is_empty() {
                                 lines.push(Line::from(Span::styled(
-                                    "Calculating reverse dependencies...",
+                                    i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.calculating_reverse_deps",
+                                    ),
                                     Style::default().fg(th.subtext1),
                                 )));
                             } else {
                                 lines.push(Line::from(Span::styled(
-                                    "Removal impact overview:",
+                                    i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.removal_impact_overview",
+                                    ),
                                     Style::default()
                                         .fg(th.overlay1)
                                         .add_modifier(Modifier::BOLD),
@@ -785,20 +858,29 @@ pub fn render_preflight(
                                 lines.push(Line::from(""));
 
                                 for summary in &app.remove_preflight_summary {
-                                    let mut message = format!(
-                                        "{} → {} dependent(s)",
-                                        summary.package, summary.total_dependents
+                                    let mut message = i18n::t_fmt(
+                                        app,
+                                        "app.modals.preflight.summary.dependent_singular",
+                                        &[&summary.package, &summary.total_dependents],
                                     );
                                     if summary.direct_dependents > 0 {
                                         message.push_str(&format!(
-                                            " ({} direct)",
-                                            summary.direct_dependents
+                                            " {}",
+                                            i18n::t_fmt1(
+                                                app,
+                                                "app.modals.preflight.summary.direct_singular",
+                                                summary.direct_dependents
+                                            )
                                         ));
                                     }
                                     if summary.transitive_dependents > 0 {
                                         message.push_str(&format!(
-                                            " ({} transitive)",
-                                            summary.transitive_dependents
+                                            " {}",
+                                            i18n::t_fmt1(
+                                                app,
+                                                "app.modals.preflight.summary.transitive_singular",
+                                                summary.transitive_dependents
+                                            )
                                         ));
                                     }
                                     lines.push(Line::from(Span::styled(
@@ -811,12 +893,18 @@ pub fn render_preflight(
 
                             let (impact_header, impact_style) = if mode.allows_dependents() {
                                 (
-                                    "Cascade will also remove these package(s):".to_string(),
+                                    i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.cascade_will_remove",
+                                    ),
                                     Style::default().fg(th.red).add_modifier(Modifier::BOLD),
                                 )
                             } else {
                                 (
-                                    "Dependents (not removed in current mode):".to_string(),
+                                    i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.dependents_not_removed",
+                                    ),
                                     Style::default().fg(th.red).add_modifier(Modifier::BOLD),
                                 )
                             };
@@ -861,21 +949,30 @@ pub fn render_preflight(
                                     Style::default().fg(name_color).add_modifier(Modifier::BOLD);
                                 let detail = match &dep.status {
                                     DependencyStatus::Conflict { reason } => reason.clone(),
-                                    DependencyStatus::ToUpgrade { .. } => {
-                                        "requires version change".to_string()
+                                    DependencyStatus::ToUpgrade { .. } => i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.requires_version_change",
+                                    ),
+                                    DependencyStatus::Installed { .. } => i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.already_satisfied",
+                                    ),
+                                    DependencyStatus::ToInstall => i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.not_currently_installed",
+                                    ),
+                                    DependencyStatus::Missing => {
+                                        i18n::t(app, "app.modals.preflight.summary.missing")
                                     }
-                                    DependencyStatus::Installed { .. } => {
-                                        "already satisfied".to_string()
-                                    }
-                                    DependencyStatus::ToInstall => {
-                                        "not currently installed".to_string()
-                                    }
-                                    DependencyStatus::Missing => "missing".to_string(),
                                 };
                                 let roots = if dep.required_by.is_empty() {
                                     String::new()
                                 } else {
-                                    format!(" (targets: {})", dep.required_by.join(", "))
+                                    i18n::t_fmt1(
+                                        app,
+                                        "app.modals.preflight.summary.targets_label",
+                                        dep.required_by.join(", "),
+                                    )
                                 };
 
                                 let mut spans = Vec::new();
@@ -902,9 +999,10 @@ pub fn render_preflight(
 
                             if cascade_candidates.len() > CASCADE_PREVIEW_MAX {
                                 lines.push(Line::from(Span::styled(
-                                    format!(
-                                        "... and {} more impacted package(s)",
-                                        cascade_candidates.len() - CASCADE_PREVIEW_MAX
+                                    i18n::t_fmt1(
+                                        app,
+                                        "app.modals.preflight.summary.and_more_impacted",
+                                        cascade_candidates.len() - CASCADE_PREVIEW_MAX,
                                     ),
                                     Style::default().fg(th.subtext1),
                                 )));
@@ -913,17 +1011,23 @@ pub fn render_preflight(
                             lines.push(Line::from(""));
                             if mode.allows_dependents() {
                                 lines.push(Line::from(Span::styled(
-                                    "These packages will be removed automatically when the command runs.",
+                                    i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.will_be_removed_auto",
+                                    ),
                                     Style::default().fg(th.subtext1),
                                 )));
                             } else {
                                 lines.push(Line::from(Span::styled(
-                                    "Enable cascade mode (press 'm') to include them automatically.",
+                                    i18n::t(
+                                        app,
+                                        "app.modals.preflight.summary.enable_cascade_mode",
+                                    ),
                                     Style::default().fg(th.subtext1),
                                 )));
                             }
                             lines.push(Line::from(Span::styled(
-                                "Use the Deps tab to inspect affected packages.",
+                                i18n::t(app, "app.modals.preflight.summary.use_deps_tab"),
                                 Style::default().fg(th.subtext1),
                             )));
                         }
@@ -932,12 +1036,16 @@ pub fn render_preflight(
                 _ => {
                     if items.is_empty() {
                         lines.push(Line::from(Span::styled(
-                            "No items selected.",
+                            i18n::t(app, "app.modals.preflight.summary.no_items_selected"),
                             Style::default().fg(th.subtext1),
                         )));
                     } else {
                         lines.push(Line::from(Span::styled(
-                            format!("{} package(s) selected", items.len()),
+                            i18n::t_fmt1(
+                                app,
+                                "app.modals.preflight.summary.packages_selected",
+                                items.len(),
+                            ),
                             Style::default().fg(th.text),
                         )));
                     }
@@ -947,37 +1055,46 @@ pub fn render_preflight(
         PreflightTab::Deps => {
             // Use already resolved dependencies (resolved above if needed)
             let deps_empty = dependency_info.is_empty();
+            let deps_count = dependency_info.len();
             let deps = dependency_info;
 
             // Group dependencies by the packages that require them
+            // Deduplicate dependencies by name (a dependency can be required by multiple packages)
             use std::collections::HashMap;
             let mut grouped: HashMap<String, Vec<&DependencyInfo>> = HashMap::new();
+            let mut unique_deps: HashMap<String, &DependencyInfo> = HashMap::new();
+
             for dep in deps.iter() {
+                // Track unique dependencies for statistics (use first occurrence)
+                unique_deps.entry(dep.name.clone()).or_insert(dep);
+
+                // Group by required_by for display
                 for req_by in &dep.required_by {
                     grouped.entry(req_by.clone()).or_default().push(dep);
                 }
             }
 
-            // Calculate summary statistics
-            let total = deps.len();
-            let installed_count = deps
-                .iter()
+            // Calculate summary statistics using unique dependencies
+            // This ensures each dependency is counted only once, regardless of how many packages require it
+            let total = unique_deps.len();
+            let installed_count = unique_deps
+                .values()
                 .filter(|d| matches!(d.status, DependencyStatus::Installed { .. }))
                 .count();
-            let to_install_count = deps
-                .iter()
+            let to_install_count = unique_deps
+                .values()
                 .filter(|d| matches!(d.status, DependencyStatus::ToInstall))
                 .count();
-            let to_upgrade_count = deps
-                .iter()
+            let to_upgrade_count = unique_deps
+                .values()
                 .filter(|d| matches!(d.status, DependencyStatus::ToUpgrade { .. }))
                 .count();
-            let conflict_count = deps
-                .iter()
+            let conflict_count = unique_deps
+                .values()
                 .filter(|d| matches!(d.status, DependencyStatus::Conflict { .. }))
                 .count();
-            let missing_count = deps
-                .iter()
+            let missing_count = unique_deps
+                .values()
                 .filter(|d| matches!(d.status, DependencyStatus::Missing))
                 .count();
 
@@ -985,7 +1102,7 @@ pub fn render_preflight(
             if total > 0 {
                 if matches!(*action, PreflightAction::Remove) {
                     lines.push(Line::from(Span::styled(
-                        format!("Dependents: {} package(s) rely on the removal list", total),
+                        i18n::t_fmt1(app, "app.modals.preflight.deps.dependents_rely_on", total),
                         Style::default()
                             .fg(th.overlay1)
                             .add_modifier(Modifier::BOLD),
@@ -993,24 +1110,48 @@ pub fn render_preflight(
                     lines.push(Line::from(""));
                 } else {
                     let mut summary_parts = Vec::new();
-                    summary_parts.push(format!("{} total", total));
+                    summary_parts.push(i18n::t_fmt1(app, "app.modals.preflight.deps.total", total));
                     if installed_count > 0 {
-                        summary_parts.push(format!("{} installed", installed_count));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.deps.installed",
+                            installed_count,
+                        ));
                     }
                     if to_install_count > 0 {
-                        summary_parts.push(format!("{} to install", to_install_count));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.deps.to_install",
+                            to_install_count,
+                        ));
                     }
                     if to_upgrade_count > 0 {
-                        summary_parts.push(format!("{} to upgrade", to_upgrade_count));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.deps.to_upgrade",
+                            to_upgrade_count,
+                        ));
                     }
                     if conflict_count > 0 {
-                        summary_parts.push(format!("{} conflicts", conflict_count));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.deps.conflicts",
+                            conflict_count,
+                        ));
                     }
                     if missing_count > 0 {
-                        summary_parts.push(format!("{} missing", missing_count));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.deps.missing",
+                            missing_count,
+                        ));
                     }
                     lines.push(Line::from(Span::styled(
-                        format!("Dependencies: {}", summary_parts.join(", ")),
+                        i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.deps.dependencies_label",
+                            summary_parts.join(", "),
+                        ),
                         Style::default()
                             .fg(th.overlay1)
                             .add_modifier(Modifier::BOLD),
@@ -1018,32 +1159,39 @@ pub fn render_preflight(
                     lines.push(Line::from(""));
                 }
             } else if matches!(*action, PreflightAction::Install) {
-                // Show "Updating..." only if actually resolving AND no dependencies loaded yet
-                if app.deps_resolving && deps_empty {
-                    lines.push(Line::from(Span::styled(
-                        "Updating dependencies...",
-                        Style::default().fg(th.yellow),
-                    )));
-                } else if let Some(err_msg) = deps_error {
-                    // Display error with retry hint
-                    lines.push(Line::from(Span::styled(
-                        format!("⚠ Error: {}", err_msg),
-                        Style::default().fg(th.red),
-                    )));
-                    lines.push(Line::from(""));
-                    lines.push(Line::from(Span::styled(
-                        "Press 'r' to retry dependency resolution",
-                        Style::default().fg(th.subtext1),
-                    )));
-                } else {
-                    lines.push(Line::from(Span::styled(
-                        "Resolving dependencies...",
-                        Style::default().fg(th.subtext1),
-                    )));
+                // Show "Resolving..." if dependencies are empty and we're resolving or about to resolve
+                if deps_empty {
+                    // Check if we're currently resolving or if cache is empty (will trigger resolution)
+                    let is_resolving = app.deps_resolving 
+                        || (app.install_list_deps.is_empty() && matches!(*tab, PreflightTab::Deps));
+                    
+                    if is_resolving {
+                        lines.push(Line::from(Span::styled(
+                            i18n::t(app, "app.modals.preflight.deps.resolving"),
+                            Style::default().fg(th.yellow),
+                        )));
+                    } else if let Some(err_msg) = deps_error {
+                        // Display error with retry hint
+                        lines.push(Line::from(Span::styled(
+                            i18n::t_fmt1(app, "app.modals.preflight.deps.error", err_msg),
+                            Style::default().fg(th.red),
+                        )));
+                        lines.push(Line::from(""));
+                        lines.push(Line::from(Span::styled(
+                            i18n::t(app, "app.modals.preflight.deps.retry_hint"),
+                            Style::default().fg(th.subtext1),
+                        )));
+                    } else {
+                        // No dependencies found and not resolving
+                        lines.push(Line::from(Span::styled(
+                            i18n::t(app, "app.modals.preflight.deps.resolving"),
+                            Style::default().fg(th.subtext1),
+                        )));
+                    }
                 }
             } else {
                 lines.push(Line::from(Span::styled(
-                    "No dependencies to show for removal operation.",
+                    i18n::t(app, "app.modals.preflight.deps.no_deps_for_removal"),
                     Style::default().fg(th.subtext1),
                 )));
             }
@@ -1052,14 +1200,16 @@ pub fn render_preflight(
             // Format: [package_name, dep1, dep2, ...] for each package
             // Performance: This builds the full display list, but only visible items are rendered
             // below. For very large lists (thousands of items), consider lazy building or caching.
+            // IMPORTANT: Show ALL packages, even if they have no dependencies
             let mut display_items: Vec<(bool, String, Option<&DependencyInfo>)> = Vec::new();
             for pkg_name in items.iter().map(|p| &p.name) {
-                if let Some(pkg_deps) = grouped.get(pkg_name) {
-                    // Add package header
-                    let is_expanded = dep_tree_expanded.contains(pkg_name);
-                    display_items.push((true, pkg_name.clone(), None));
-                    // Add its dependencies only if expanded (deduplicate within this package's group)
-                    if is_expanded {
+                // Always add package header (even if no dependencies)
+                let is_expanded = dep_tree_expanded.contains(pkg_name);
+                display_items.push((true, pkg_name.clone(), None));
+                
+                // Add its dependencies only if expanded AND package has dependencies
+                if is_expanded {
+                    if let Some(pkg_deps) = grouped.get(pkg_name) {
                         use std::collections::HashSet;
                         let mut seen_deps = HashSet::new();
                         for dep in pkg_deps.iter() {
@@ -1076,8 +1226,22 @@ pub fn render_preflight(
             // This prevents performance issues with large dependency lists
             let available_height = (content_rect.height as usize).saturating_sub(6);
             let total_items = display_items.len();
+            tracing::debug!(
+                "[UI] Deps tab: total_items={}, dep_selected={}, items={}, deps={}, expanded_count={}",
+                total_items,
+                *dep_selected,
+                items.len(),
+                deps_count,
+                dep_tree_expanded.len()
+            );
             let dep_selected_clamped = (*dep_selected).min(total_items.saturating_sub(1));
             if *dep_selected != dep_selected_clamped {
+                tracing::debug!(
+                    "[UI] Deps tab: clamping dep_selected from {} to {} (total_items={})",
+                    *dep_selected,
+                    dep_selected_clamped,
+                    total_items
+                );
                 *dep_selected = dep_selected_clamped;
             }
 
@@ -1185,19 +1349,31 @@ pub fn render_preflight(
                     match &dep.status {
                         DependencyStatus::Installed { version } => {
                             spans.push(Span::styled(
-                                format!(" (installed: {})", version),
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.deps.installed_version",
+                                    version,
+                                ),
                                 Style::default().fg(th.subtext1),
                             ));
                         }
                         DependencyStatus::ToUpgrade { current, required } => {
                             spans.push(Span::styled(
-                                format!(" ({} → {})", current, required),
+                                i18n::t_fmt(
+                                    app,
+                                    "app.modals.preflight.deps.version_upgrade",
+                                    &[current, required],
+                                ),
                                 Style::default().fg(th.yellow),
                             ));
                         }
                         DependencyStatus::Conflict { reason } => {
                             spans.push(Span::styled(
-                                format!(" ({})", reason),
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.deps.conflict_reason",
+                                    reason,
+                                ),
                                 Style::default().fg(th.red),
                             ));
                         }
@@ -1211,11 +1387,14 @@ pub fn render_preflight(
             if display_items.len() > available_height {
                 lines.push(Line::from(""));
                 lines.push(Line::from(Span::styled(
-                    format!(
-                        "... showing {}-{} of {}",
-                        start_idx + 1,
-                        end_idx,
-                        display_items.len()
+                    i18n::t_fmt(
+                        app,
+                        "app.modals.preflight.deps.showing_range",
+                        &[
+                            &(start_idx + 1).to_string(),
+                            &end_idx.to_string(),
+                            &display_items.len().to_string(),
+                        ],
                     ),
                     Style::default().fg(th.subtext1),
                 )));
@@ -1224,23 +1403,23 @@ pub fn render_preflight(
         PreflightTab::Files => {
             if app.files_resolving {
                 lines.push(Line::from(Span::styled(
-                    "Updating file changes...",
+                    i18n::t(app, "app.modals.preflight.files.updating"),
                     Style::default().fg(th.yellow),
                 )));
             } else if let Some(err_msg) = files_error {
                 // Display error with retry hint
                 lines.push(Line::from(Span::styled(
-                    format!("⚠ Error: {}", err_msg),
+                    i18n::t_fmt1(app, "app.modals.preflight.files.error", err_msg),
                     Style::default().fg(th.red),
                 )));
                 lines.push(Line::from(""));
                 lines.push(Line::from(Span::styled(
-                    "Press 'r' to retry file resolution",
+                    i18n::t(app, "app.modals.preflight.files.retry_hint"),
                     Style::default().fg(th.subtext1),
                 )));
             } else if file_info.is_empty() {
                 lines.push(Line::from(Span::styled(
-                    "Resolving file changes...",
+                    i18n::t(app, "app.modals.preflight.files.resolving"),
                     Style::default().fg(th.subtext1),
                 )));
             } else {
@@ -1303,9 +1482,10 @@ pub fn render_preflight(
                         // File resolution completed but no files found
                         if !unresolved_packages.is_empty() {
                             lines.push(Line::from(Span::styled(
-                                format!(
-                                    "No file changes found for {} package(s).",
-                                    unresolved_packages.len()
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.files.no_file_changes",
+                                    unresolved_packages.len(),
                                 ),
                                 Style::default().fg(th.subtext1),
                             )));
@@ -1314,30 +1494,30 @@ pub fn render_preflight(
                             // Show appropriate notes based on package types
                             if has_official_packages {
                                 lines.push(Line::from(Span::styled(
-                                            "Note: File database may need syncing (pacman -Fy requires root).",
-                                            Style::default().fg(th.subtext0),
-                                        )));
+                                    i18n::t(app, "app.modals.preflight.files.file_db_sync_note"),
+                                    Style::default().fg(th.subtext0),
+                                )));
                                 lines.push(Line::from(Span::styled(
-                                    "Press 'f' to sync file database in a terminal.",
+                                    i18n::t(app, "app.modals.preflight.files.sync_file_db_hint"),
                                     Style::default().fg(th.subtext0),
                                 )));
                             }
                             if has_aur_packages {
                                 lines.push(Line::from(Span::styled(
-                                    "Note: AUR packages require building to determine file lists.",
+                                    i18n::t(app, "app.modals.preflight.files.aur_file_note"),
                                     Style::default().fg(th.subtext0),
                                 )));
                             }
                         } else {
                             lines.push(Line::from(Span::styled(
-                                "No file changes to display.",
+                                i18n::t(app, "app.modals.preflight.files.no_file_changes_display"),
                                 Style::default().fg(th.subtext1),
                             )));
                         }
                     } else {
                         // File resolution hasn't completed or failed
                         lines.push(Line::from(Span::styled(
-                            "File resolution in progress...",
+                            i18n::t(app, "app.modals.preflight.files.file_resolution_progress"),
                             Style::default().fg(th.subtext1),
                         )));
                     }
@@ -1346,11 +1526,11 @@ pub fn render_preflight(
                     if let Some(true) = is_stale {
                         lines.push(Line::from(""));
                         lines.push(Line::from(Span::styled(
-                            "⚠ File database is stale (older than 7 days)",
+                            i18n::t(app, "app.modals.preflight.files.file_db_stale"),
                             Style::default().fg(th.yellow),
                         )));
                         lines.push(Line::from(Span::styled(
-                            "Press 'f' to sync file database (requires root)",
+                            i18n::t(app, "app.modals.preflight.files.sync_file_db_root"),
                             Style::default().fg(th.subtext0),
                         )));
                     }
@@ -1359,9 +1539,30 @@ pub fn render_preflight(
                     if let Some((_age_days, date_str, color_category)) = sync_info.clone() {
                         lines.push(Line::from(""));
                         let (sync_color, sync_text) = match color_category {
-                            0 => (th.green, format!("Files updated on {}", date_str)),
-                            1 => (th.yellow, format!("Files updated on {}", date_str)),
-                            _ => (th.red, format!("Files updated on {}", date_str)),
+                            0 => (
+                                th.green,
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.files.files_updated_on",
+                                    date_str,
+                                ),
+                            ),
+                            1 => (
+                                th.yellow,
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.files.files_updated_on",
+                                    date_str,
+                                ),
+                            ),
+                            _ => (
+                                th.red,
+                                i18n::t_fmt1(
+                                    app,
+                                    "app.modals.preflight.files.files_updated_on",
+                                    date_str,
+                                ),
+                            ),
                         };
                         lines.push(Line::from(Span::styled(
                             sync_text,
@@ -1378,28 +1579,60 @@ pub fn render_preflight(
                     let total_pacnew: usize = file_info.iter().map(|p| p.pacnew_candidates).sum();
                     let total_pacsave: usize = file_info.iter().map(|p| p.pacsave_candidates).sum();
 
-                    let mut summary_parts = vec![format!("{} total", total_files)];
+                    let mut summary_parts = vec![i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.files.total",
+                        total_files,
+                    )];
                     if total_new > 0 {
-                        summary_parts.push(format!("{} new", total_new));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.files.new",
+                            total_new,
+                        ));
                     }
                     if total_changed > 0 {
-                        summary_parts.push(format!("{} changed", total_changed));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.files.changed",
+                            total_changed,
+                        ));
                     }
                     if total_removed > 0 {
-                        summary_parts.push(format!("{} removed", total_removed));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.files.removed",
+                            total_removed,
+                        ));
                     }
                     if total_config > 0 {
-                        summary_parts.push(format!("{} config", total_config));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.files.config",
+                            total_config,
+                        ));
                     }
                     if total_pacnew > 0 {
-                        summary_parts.push(format!("{} pacnew", total_pacnew));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.files.pacnew",
+                            total_pacnew,
+                        ));
                     }
                     if total_pacsave > 0 {
-                        summary_parts.push(format!("{} pacsave", total_pacsave));
+                        summary_parts.push(i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.files.pacsave",
+                            total_pacsave,
+                        ));
                     }
 
                     lines.push(Line::from(Span::styled(
-                        format!("Files: {}", summary_parts.join(", ")),
+                        i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.files.files_label",
+                            summary_parts.join(", "),
+                        ),
                         Style::default()
                             .fg(th.overlay1)
                             .add_modifier(Modifier::BOLD),
@@ -1410,9 +1643,30 @@ pub fn render_preflight(
                     let sync_timestamp_lines =
                         if let Some((_age_days, date_str, color_category)) = sync_info.clone() {
                             let (sync_color, sync_text) = match color_category {
-                                0 => (th.green, format!("Files updated on {}", date_str)),
-                                1 => (th.yellow, format!("Files updated on {}", date_str)),
-                                _ => (th.red, format!("Files updated on {}", date_str)),
+                                0 => (
+                                    th.green,
+                                    i18n::t_fmt1(
+                                        app,
+                                        "app.modals.preflight.files.files_updated_on",
+                                        date_str,
+                                    ),
+                                ),
+                                1 => (
+                                    th.yellow,
+                                    i18n::t_fmt1(
+                                        app,
+                                        "app.modals.preflight.files.files_updated_on",
+                                        date_str,
+                                    ),
+                                ),
+                                _ => (
+                                    th.red,
+                                    i18n::t_fmt1(
+                                        app,
+                                        "app.modals.preflight.files.files_updated_on",
+                                        date_str,
+                                    ),
+                                ),
                             };
                             lines.push(Line::from(Span::styled(
                                 sync_text,
@@ -1493,7 +1747,14 @@ pub fn render_preflight(
 
                             if pkg_info.new_count > 0 {
                                 spans.push(Span::styled(
-                                    format!(", {} new", pkg_info.new_count),
+                                    format!(
+                                        ", {}",
+                                        i18n::t_fmt1(
+                                            app,
+                                            "app.modals.preflight.files.new",
+                                            pkg_info.new_count
+                                        )
+                                    ),
                                     Style::default().fg(th.green),
                                 ));
                             }
@@ -1598,11 +1859,14 @@ pub fn render_preflight(
                     if total_items > available_height {
                         lines.push(Line::from(""));
                         lines.push(Line::from(Span::styled(
-                            format!(
-                                "... showing {}-{} of {} items (↑↓ to navigate)",
-                                start_idx + 1,
-                                end_idx,
-                                total_items
+                            i18n::t_fmt(
+                                app,
+                                "app.modals.preflight.files.showing_range_items",
+                                &[
+                                    &(start_idx + 1).to_string(),
+                                    &end_idx.to_string(),
+                                    &total_items.to_string(),
+                                ],
                             ),
                             Style::default().fg(th.subtext1),
                         )));
@@ -1676,24 +1940,35 @@ pub fn render_preflight(
                     let status_span = if svc.is_active {
                         if svc.needs_restart {
                             Span::styled(
-                                "active • restart recommended",
+                                i18n::t(
+                                    app,
+                                    "app.modals.preflight.services.active_restart_recommended",
+                                ),
                                 Style::default().fg(th.yellow),
                             )
                         } else {
-                            Span::styled("active", Style::default().fg(th.green))
+                            Span::styled(
+                                i18n::t(app, "app.modals.preflight.services.active"),
+                                Style::default().fg(th.green),
+                            )
                         }
                     } else {
-                        Span::styled("inactive", Style::default().fg(th.subtext1))
+                        Span::styled(
+                            i18n::t(app, "app.modals.preflight.services.inactive"),
+                            Style::default().fg(th.subtext1),
+                        )
                     };
                     spans.push(status_span);
                     spans.push(Span::raw(" "));
                     let decision_span = match svc.restart_decision {
-                        ServiceRestartDecision::Restart => {
-                            Span::styled("[restart]", Style::default().fg(th.green))
-                        }
-                        ServiceRestartDecision::Defer => {
-                            Span::styled("[defer]", Style::default().fg(th.yellow))
-                        }
+                        ServiceRestartDecision::Restart => Span::styled(
+                            i18n::t(app, "app.modals.preflight.services.restart"),
+                            Style::default().fg(th.green),
+                        ),
+                        ServiceRestartDecision::Defer => Span::styled(
+                            i18n::t(app, "app.modals.preflight.services.defer"),
+                            Style::default().fg(th.yellow),
+                        ),
                     };
                     spans.push(decision_span);
                     if !svc.providers.is_empty() {
@@ -1707,7 +1982,11 @@ pub fn render_preflight(
                 }
                 if end < service_info.len() {
                     lines.push(Line::from(Span::styled(
-                        format!("… {} more", service_info.len() - end),
+                        i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.services.more_services",
+                            service_info.len() - end,
+                        ),
                         Style::default().fg(th.subtext1),
                     )));
                 }
@@ -1773,22 +2052,22 @@ pub fn render_preflight(
             // Display error if any
             if let Some(err) = sandbox_error.as_ref() {
                 lines.push(Line::from(Span::styled(
-                    format!("Error: {}", err),
+                    i18n::t_fmt1(app, "app.modals.preflight.sandbox.error", err),
                     Style::default().fg(th.red),
                 )));
                 lines.push(Line::from(Span::styled(
-                    "Press 'r' to retry",
+                    i18n::t(app, "app.modals.preflight.sandbox.retry_hint"),
                     Style::default().fg(th.subtext0),
                 )));
                 lines.push(Line::from(""));
             } else if app.sandbox_resolving {
                 lines.push(Line::from(Span::styled(
-                    "Updating sandbox analysis…",
+                    i18n::t(app, "app.modals.preflight.sandbox.updating"),
                     Style::default().fg(th.yellow),
                 )));
             } else if !*sandbox_loaded {
                 lines.push(Line::from(Span::styled(
-                    "Analyzing build dependencies…",
+                    i18n::t(app, "app.modals.preflight.sandbox.analyzing"),
                     Style::default().fg(th.subtext0),
                 )));
             } else {
@@ -1923,7 +2202,7 @@ pub fn render_preflight(
                         // Show message for official packages or collapsed AUR packages
                         if !is_aur {
                             lines.push(Line::from(Span::styled(
-                                "  Official packages are pre-built and don't require sandbox analysis.",
+                                format!("  {}", i18n::t(app, "app.modals.preflight.sandbox.official_packages_prebuilt")),
                                 Style::default().fg(th.subtext0),
                             )));
                         } else if !is_expanded {
@@ -1938,14 +2217,14 @@ pub fn render_preflight(
                                 if dep_count > 0 {
                                     lines.push(Line::from(Span::styled(
                                         format!(
-                                            "  {} dependencies (press Space/Enter to expand)",
-                                            dep_count
+                                            "  {}",
+                                            i18n::t_fmt1(app, "app.modals.preflight.sandbox.dependencies_expand_hint", &dep_count.to_string())
                                         ),
                                         Style::default().fg(th.subtext1),
                                     )));
                                 } else {
                                     lines.push(Line::from(Span::styled(
-                                        "  No build dependencies found.",
+                                        format!("  {}", i18n::t(app, "app.modals.preflight.sandbox.no_build_dependencies")),
                                         Style::default().fg(th.green),
                                     )));
                                 }
@@ -1956,11 +2235,11 @@ pub fn render_preflight(
                         // Show section header when dep_type changes
                         if last_dep_type != Some(dep_type) {
                             let section_name = match *dep_type {
-                                "depends" => "Runtime Dependencies (depends):",
-                                "makedepends" => "Build Dependencies (makedepends):",
-                                "checkdepends" => "Test Dependencies (checkdepends):",
-                                "optdepends" => "Optional Dependencies (optdepends):",
-                                _ => "",
+                                "depends" => i18n::t(app, "app.modals.preflight.sandbox.runtime_dependencies"),
+                                "makedepends" => i18n::t(app, "app.modals.preflight.sandbox.build_dependencies"),
+                                "checkdepends" => i18n::t(app, "app.modals.preflight.sandbox.test_dependencies"),
+                                "optdepends" => i18n::t(app, "app.modals.preflight.sandbox.optional_dependencies"),
+                                _ => String::new(),
                             };
                             if !section_name.is_empty() {
                                 lines.push(Line::from(""));
@@ -2097,37 +2376,36 @@ pub fn render_preflight(
     let mut scan_hint = match current_tab {
         PreflightTab::Deps => {
             if has_aur {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  r: retry  •  ?: help  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                i18n::t(app, "app.modals.preflight.footer_hints.deps_with_aur")
             } else {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  r: retry  •  ?: help  •  d: dry-run  •  p: proceed  •  q: close"
+                i18n::t(app, "app.modals.preflight.footer_hints.deps_without_aur")
             }
         }
         PreflightTab::Files => {
             if has_aur {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: expand/collapse  •  a: expand/collapse all  •  r: retry  •  f: sync file DB  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                i18n::t(app, "app.modals.preflight.footer_hints.files_with_aur")
             } else {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: expand/collapse  •  a: expand/collapse all  •  r: retry  •  f: sync file DB  •  d: dry-run  •  p: proceed  •  q: close"
+                i18n::t(app, "app.modals.preflight.footer_hints.files_without_aur")
             }
         }
         PreflightTab::Services => {
             if has_aur {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Space: toggle restart  •  R: restart  •  Shift+D: defer  •  r: retry  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                i18n::t(app, "app.modals.preflight.footer_hints.services_with_aur")
             } else {
-                "Left/Right: tabs  •  Up/Down: navigate  •  Space: toggle restart  •  R: restart  •  Shift+D: defer  •  r: retry  •  d: dry-run  •  p: proceed  •  q: close"
+                i18n::t(app, "app.modals.preflight.footer_hints.services_without_aur")
             }
         }
         _ => {
             if has_aur {
-                "Left/Right: tabs  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+                i18n::t(app, "app.modals.preflight.footer_hints.default_with_aur")
             } else {
-                "Left/Right: tabs  •  d: dry-run  •  p: proceed  •  q: close"
+                i18n::t(app, "app.modals.preflight.footer_hints.default_without_aur")
             }
         }
-    }
-    .to_string();
+    };
 
     if matches!(*action, PreflightAction::Remove) {
-        scan_hint.push_str("  •  m: cascade mode");
+        scan_hint.push_str(&i18n::t(app, "app.modals.preflight.footer_hints.cascade_mode"));
     }
 
     let keybinds_lines = vec![

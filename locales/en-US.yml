@@ -53,6 +53,32 @@ en-US:
       installed_bracketed: "[Installed]"
       pop_prefix: "Pop:"
       worldwide: "Worldwide"
+    toasts:
+      title_news: " News "
+      title_clipboard: " Clipboard "
+      copying_pkgbuild: "Copying PKGBUILD to clipboard…"
+      pkgbuild_not_loaded: "PKGBUILD not loaded yet"
+      install_list_empty: "Install List is empty"
+      exported_to: "Exported to {}"
+      export_failed: "Export failed: {}"
+      installing_preflight_skipped: "Installing list (preflight skipped)"
+      removing_preflight_skipped: "Removing list (preflight skipped)"
+      preflight_remove_list: "Preflight: Remove list"
+      theme_reloaded: "Theme reloaded"
+      installing_skipped: "Installing (preflight skipped)"
+      preflight_opened: "Preflight opened"
+      no_new_news: "No new News today"
+      copied_to_clipboard: "Copied to clipboard"
+      abort_requested: "Abort requested (placeholder)"
+      rollback: "Rollback (placeholder)"
+      no_services_to_restart: "No services to restart"
+      restart_services: "Restart services (placeholder)"
+      snapshot_placeholder: "Snapshot (placeholder)"
+      dry_run_enabled: "Dry-run mode enabled"
+      dry_run_disabled: "Dry-run mode disabled"
+      cascade_mode_enabled: "Cascade mode enabled"
+      cascade_mode_disabled: "Cascade mode disabled"
+      gnome_terminal_warning: "Continuing without gnome-terminal may cause unexpected behavior"
 
     actions:
       exit: "Exit"
@@ -64,9 +90,12 @@ en-US:
       export: "Export"
       install: "Install"
       add_to_install: "Add to install"
+      add_to_remove: "Add to Remove"
+      add_to_downgrade: "Add to Downgrade"
       remove_from_list: "Remove from List"
       confirm: "Confirm"
       normal_mode: "Normal Mode"
+      insert_mode: "Insert Mode"
       move: "Move"
       move_page: "Move Page"
       select_text: "Select text"
@@ -131,15 +160,32 @@ en-US:
       url_label: "URL:"
       loading_pkgb: "Loading PKGBUILD…"
       copy_pkgbuild: "Copy PKGBUILD"
+      reload_pkgbuild: "Reload PKGBUILD"
+    footer:
+      search_hint: "Search (Enter next, Esc cancel)"
+      confirm_installation: "Confirm package Installation"
+      confirm_downgrade: "Confirm package Downgrade"
+      confirm_removal: "Confirm package Removal"
 
     results:
       title: "Results"
       status_label: "Status:"
+      status_with_key: "Status: {} [{}]"
       buttons:
-        sort: "Sort v"
-        options: "Options v"
-        panels: "Panels v"
-        config_lists: "Config/Lists v"
+        sort: "Sort"
+        options: "Options"
+        panels: "Panels"
+        config_lists: "Config/Lists"
+      menus:
+        config_lists:
+          first_letter: "C"
+          suffix: "onfig/Lists "
+        panels:
+          first_letter: "P"
+          suffix: "anels "
+        options:
+          first_letter: "O"
+          suffix: "ptions "
       filters:
         aur: "AUR"
         core: "core"
@@ -257,7 +303,7 @@ en-US:
         title: " News "
         heading: "Arch Linux News"
         none: "No news items available."
-        footer_hint: "Up/Down: select  •  Enter: open  •  Esc: close"
+        footer_hint: "Up/Down: select  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc: close"
       optional_deps:
         title: " Optional Deps "
         heading: "TUI Optional Deps"
@@ -278,3 +324,196 @@ en-US:
         input_hint: "Enter/paste your API key below and press Enter to save (Esc to cancel):"
         api_key_label: "API key:"
         tip: "Tip: After saving, scans will auto-query VirusTotal by file hash."
+      preflight:
+        title_install: " Preflight: Install "
+        title_remove: " Preflight: Remove "
+        tabs:
+          summary: "Summary"
+          deps: "Deps"
+          files: "Files"
+          services: "Services"
+          sandbox: "Sandbox"
+        header_chips:
+          aur_packages: " ({} AUR)"
+          download_label: "[DL: {}]"
+          size_label: "[Size: {}]"
+          risk_low: "Low"
+          risk_medium: "Medium"
+          risk_high: "High"
+          risk_label: "[Risk: {} ({})]"
+        summary:
+          risk_factors: "Risk factors:"
+          notes: "Notes:"
+          per_package_overview: "Per-package overview:"
+          major_bump: " (major bump)"
+          downgrade: " (downgrade)"
+          download: " • download {}"
+          size: " • size {}"
+          no_conflicts_or_upgrades: "No conflicts or upgrades required."
+          issues: "Issues: {}"
+          summary_label: "Summary: {}"
+          summary_no_conflicts: "Summary: No conflicts or upgrades required."
+          conflict_singular: "{} conflict(s)"
+          upgrade_singular: "{} upgrade(s)"
+          and_more: "... and {} more"
+          cascade_mode: "Cascade mode: {} ({})"
+          no_removal_targets: "No removal targets selected."
+          removal_plan_preview: "Removal plan preview"
+          dry_run_prefix: "DRY RUN: {}"
+          no_dependents: "No installed packages depend on the removal list."
+          cascade_will_include: "Cascade will include {} dependent package(s)."
+          dependents_block_removal: "{} dependent package(s) currently block removal."
+          calculating_reverse_deps: "Calculating reverse dependencies..."
+          removal_impact_overview: "Removal impact overview:"
+          dependent_singular: "{} → {} dependent(s)"
+          direct_singular: " ({} direct)"
+          transitive_singular: " ({} transitive)"
+          cascade_will_remove: "Cascade will also remove these package(s):"
+          dependents_not_removed: "Dependents (not removed in current mode):"
+          requires_version_change: "requires version change"
+          already_satisfied: "already satisfied"
+          not_currently_installed: "not currently installed"
+          missing: "missing"
+          targets_label: " (targets: {})"
+          and_more_impacted: "... and {} more impacted package(s)"
+          will_be_removed_auto: "These packages will be removed automatically when the command runs."
+          enable_cascade_mode: "Enable cascade mode (press 'm') to include them automatically."
+          use_deps_tab: "Use the Deps tab to inspect affected packages."
+          no_items_selected: "No items selected."
+          packages_selected: "{} package(s) selected"
+          aur_packages_included: "AUR packages included (+2)"
+          aur_packages_present: "AUR packages present; build steps may vary."
+        deps:
+          dependents_rely_on: "Dependents: {} package(s) rely on the removal list"
+          dependencies_label: "Dependencies: {}"
+          total: "{} total"
+          installed: "{} installed"
+          to_install: "{} to install"
+          to_upgrade: "{} to upgrade"
+          conflicts: "{} conflicts"
+          missing: "{} missing"
+          error: "⚠ Error: {}"
+          retry_hint: "Press 'r' to retry dependency resolution"
+          resolving: "Resolving dependencies..."
+          showing_range: "... showing {}-{} of {}"
+          installed_version: " (installed: {})"
+          version_upgrade: " ({} → {})"
+          conflict_reason: " ({})"
+        files:
+          updating: "Updating file changes..."
+          error: "⚠ Error: {}"
+          retry_hint: "Press 'r' to retry file resolution"
+          resolving: "Resolving file changes..."
+          no_file_changes: "No file changes found for {} package(s)."
+          file_db_sync_note: "Note: File database may need syncing (pacman -Fy requires root)."
+          sync_file_db_hint: "Press 'f' to sync file database in a terminal."
+          aur_file_note: "Note: AUR packages require building to determine file lists."
+          no_file_changes_display: "No file changes to display."
+          file_resolution_progress: "File resolution in progress..."
+          file_db_stale: "⚠ File database is stale (older than 7 days)"
+          sync_file_db_root: "Press 'f' to sync file database (requires root)"
+          files_updated_on: "Files updated on {}"
+          files_label: "Files: {}"
+          total: "{} total"
+          new: "{} new"
+          changed: "{} changed"
+          removed: "{} removed"
+          config: "{} config"
+          pacnew: "{} pacnew"
+          pacsave: "{} pacsave"
+          files_count: "({} files"
+          showing_range_items: "... showing {}-{} of {} items (↑↓ to navigate)"
+        services:
+          updating: "Updating service impact data…"
+          error: "⚠ Error: {}"
+          retry_hint: "Press 'r' to retry service resolution"
+          resolving: "Gathering service impact data…"
+          no_services: "No systemd services require attention."
+          active: "active"
+          active_restart_recommended: "active • restart recommended"
+          inactive: "inactive"
+          restart: "[restart]"
+          defer: "[defer]"
+          more_services: "… {} more"
+        sandbox:
+          error: "Error: {}"
+          retry_hint: "Press 'r' to retry"
+          updating: "Updating sandbox analysis…"
+          analyzing: "Analyzing build dependencies…"
+          official_packages_prebuilt: "Official packages are pre-built and don't require sandbox analysis."
+          dependencies_expand_hint: "{} dependencies (press Space/Enter to expand)"
+          no_build_dependencies: "No build dependencies found."
+          depends: "depends"
+          makedepends: "makedepends"
+          checkdepends: "checkdepends"
+          optdepends: "optdepends"
+          runtime_dependencies: "Runtime Dependencies (depends):"
+          build_dependencies: "Build Dependencies (makedepends):"
+          test_dependencies: "Test Dependencies (checkdepends):"
+          optional_dependencies: "Optional Dependencies (optdepends):"
+          new_dependency: "new"
+          upgraded_dependency: "upgraded"
+          unchanged_dependency: "unchanged"
+        footer_hints:
+          deps_with_aur: "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  r: retry  •  ?: help  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+          deps_without_aur: "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  r: retry  •  ?: help  •  d: dry-run  •  p: proceed  •  q: close"
+          files_with_aur: "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: expand/collapse  •  a: expand/collapse all  •  r: retry  •  f: sync file DB  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+          files_without_aur: "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: expand/collapse  •  a: expand/collapse all  •  r: retry  •  f: sync file DB  •  d: dry-run  •  p: proceed  •  q: close"
+          services_with_aur: "Left/Right: tabs  •  Up/Down: navigate  •  Space: toggle restart  •  R: restart  •  Shift+D: defer  •  r: retry  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+          services_without_aur: "Left/Right: tabs  •  Up/Down: navigate  •  Space: toggle restart  •  R: restart  •  Shift+D: defer  •  r: retry  •  d: dry-run  •  p: proceed  •  q: close"
+          default_with_aur: "Left/Right: tabs  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
+          default_without_aur: "Left/Right: tabs  •  d: dry-run  •  p: proceed  •  q: close"
+          cascade_mode: "  •  m: cascade mode"
+        help:
+          deps_tab: "Deps Tab Help\n\n\
+                        Navigation:\n\
+                        • Up/Down - Navigate dependency list\n\
+                        • Left/Right/Tab - Switch tabs\n\
+                        • Enter/Space - Expand/collapse package group\n\
+                        • a - Expand/collapse all package groups\n\
+                        • r - Retry dependency resolution (if error occurred)\n\
+                        • ? - Show this help\n\
+                        • q/Esc - Close preflight\n\n\
+                        Dependencies are automatically resolved when you navigate to this tab.\n\
+                        For AUR packages, dependencies are fetched from the AUR API."
+          general: "Preflight Help\n\n\
+                        Navigation:\n\
+                        • Left/Right/Tab - Switch between tabs\n\
+                        • Up/Down - Navigate lists (Deps, Files, Services tabs)\n\
+                        • ? - Show help for current tab\n\
+                        • q/Esc/Enter - Close preflight (Enter also toggles expansion in Deps/Files tabs)\n\n\
+                        Tab-Specific Actions:\n\
+                        • Deps tab:\n\
+                          - Enter/Space - Expand/collapse package group\n\
+                          - a - Expand/collapse all package groups\n\
+                          - r - Retry dependency resolution (if error occurred)\n\
+                        • Files tab:\n\
+                          - Enter/Space - Expand/collapse package file list\n\
+                          - a - Expand/collapse all package file lists\n\
+                          - f - Sync pacman file database (pacman -Fy)\n\
+                          - r - Retry file resolution (if error occurred)\n\
+                        • Services tab:\n\
+                          - Space - Toggle restart/defer for selected service\n\
+                          - R - Mark selected service to restart\n\
+                          - Shift+D - Mark selected service to defer\n\
+                          - r - Retry service resolution (if error occurred)\n\n\
+                        Global Actions:\n\
+                        • s - Scan AUR packages (if AUR packages selected)\n\
+                        • d - Toggle dry-run mode\n\
+                        • m - Toggle cascade removal mode (Remove action only)\n\
+                        • p - Proceed with installation/removal\n\
+                        • c - Create snapshot (placeholder)\n\n\
+                        Tabs:\n\
+                        • Summary - Overview of packages, versions, sizes, and risk score\n\
+                        • Deps - Dependency information and reverse dependencies\n\
+                        • Files - File changes preview and pacnew/pacsave prediction\n\
+                        • Services - Systemd service impact and restart planning\n\
+                        • Sandbox - AUR build checks (placeholder)"
+      post_summary:
+        title: " Post-Transaction Summary "
+        success: "Success"
+        failed: "Failed"
+        changed_files: "Changed files: {} (pacnew: {}, pacsave: {})"
+        snapshot: "Snapshot: {}"
+        services_pending: "Services pending restart:"
+        footer_hint: "r: rollback  •  s: restart services  •  Enter/Esc: close"

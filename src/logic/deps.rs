@@ -59,9 +59,9 @@ fn determine_dep_source(name: &str, installed: &HashSet<String>) -> Source {
 /// - Returns a vector of `DependencyInfo` records summarising dependency status and provenance.
 ///
 /// Details:
-/// - Recursively resolves transitive dependencies by following the dependency chain.
+/// - Resolves ONLY direct dependencies (non-recursive) for each package in the list.
 /// - Merges duplicates by name, retaining the most severe status across all requesters.
-/// - Populates `depends_on` and `required_by` relationships to reflect the full dependency graph.
+/// - Populates `depends_on` and `required_by` relationships to reflect dependency relationships.
 pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     tracing::info!(
         "Starting dependency resolution for {} package(s)",
@@ -86,8 +86,6 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     }
 
     let mut deps: HashMap<String, DependencyInfo> = HashMap::new();
-    let mut resolved: HashSet<String> = HashSet::new(); // Track which packages we've resolved
-    let mut to_resolve: Vec<(String, Source, Vec<String>)> = Vec::new(); // (name, source, path)
 
     // Get installed packages set
     tracing::info!("Fetching list of installed packages...");
@@ -98,34 +96,19 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     let upgradable = get_upgradable_packages();
     tracing::info!("Found {} upgradable packages", upgradable.len());
 
-    // Initialize queue with root packages (but don't add them to deps map)
+    // Initialize set of root packages (for tracking)
     let root_names: HashSet<String> = items.iter().map(|i| i.name.clone()).collect();
-    for item in items {
-        to_resolve.push((
-            item.name.clone(),
-            item.source.clone(),
-            vec![item.name.clone()],
-        ));
-        resolved.insert(item.name.clone());
-    }
 
-    // Recursively resolve dependencies
-    while let Some((name, source, path)) = to_resolve.pop() {
-        // Check for circular dependencies
-        if path.iter().filter(|&n| *n == name).count() > 1 {
-            tracing::warn!(
-                "Circular dependency detected: {} appears multiple times in path {:?}",
-                name,
-                path
-            );
-            continue;
-        }
+    // Resolve ONLY direct dependencies (non-recursive)
+    // This is faster and avoids resolving transitive dependencies which can be slow and error-prone
+    for item in items {
+        let name = item.name.clone();
+        let source = item.source.clone();
 
         tracing::debug!(
-            "Resolving dependencies for {} (source: {:?}, path: {:?})",
+            "Resolving direct dependencies for {} (source: {:?})",
             name,
-            source,
-            path
+            source
         );
 
         match resolve_package_deps(&name, &source, &installed, &upgradable) {
@@ -134,38 +117,6 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
 
                 for dep in resolved_deps.drain(..) {
                     let dep_name = dep.name.clone();
-                    let dep_source = determine_dep_source(&dep_name, &installed);
-
-                    // First, ensure parent entry exists in deps map (only if it's not a root package)
-                    // Root packages shouldn't be in the dependency list, but we need to track depends_on for them
-                    if !deps.contains_key(&name) && !root_names.contains(&name) {
-                        // Create a placeholder entry for the parent (it will be filled in later)
-                        let (parent_source_enum, is_core) =
-                            determine_dependency_source(&name, &installed);
-                        let is_system =
-                            is_core || crate::logic::deps::source::is_system_package(&name);
-                        deps.insert(
-                            name.clone(),
-                            DependencyInfo {
-                                name: name.clone(),
-                                version: String::new(),
-                                status: determine_status(&name, "", &installed, &upgradable),
-                                source: parent_source_enum,
-                                required_by: Vec::new(),
-                                depends_on: Vec::new(),
-                                is_core,
-                                is_system,
-                            },
-                        );
-                    }
-
-                    // Check if we need to add depends_on relationship (before any mutable borrows)
-                    // Only track depends_on if the parent is in deps (i.e., not a root package)
-                    let should_add_depends_on = deps.contains_key(&name)
-                        && !deps
-                            .get(&name)
-                            .map(|p| p.depends_on.contains(&dep_name))
-                            .unwrap_or(false);
 
                     // Check if dependency already exists and get its current state
                     let existing_dep = deps.get(&dep_name).cloned();
@@ -230,28 +181,8 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
                         }
                     } // Drop entry borrow here
 
-                    // Now update depends_on for the parent (after releasing the entry borrow)
-                    if let Some(parent_entry) =
-                        deps.get_mut(&name).filter(|_| should_add_depends_on)
-                    {
-                        parent_entry.depends_on.push(dep_name.clone());
-                    }
-
-                    // Recursively resolve this dependency if we haven't already
-                    if !resolved.contains(&dep_name) {
-                        resolved.insert(dep_name.clone());
-                        let mut new_path = path.clone();
-                        new_path.push(dep_name.clone());
-                        to_resolve.push((dep_name, dep_source, new_path));
-                    } else {
-                        // Even if already resolved, update required_by relationship
-                        if let Some(existing_entry) = deps
-                            .get_mut(&dep_name)
-                            .filter(|e| !e.required_by.contains(&name))
-                        {
-                            existing_entry.required_by.push(name.clone());
-                        }
-                    }
+                    // DON'T recursively resolve dependencies - only show direct dependencies
+                    // This prevents resolving transitive dependencies which can be slow and error-prone
                 }
             }
             Err(e) => {

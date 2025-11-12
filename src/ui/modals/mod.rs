@@ -44,7 +44,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             app.modal = crate::state::Modal::Alert { message };
         }
         crate::state::Modal::ConfirmInstall { items } => {
-            confirm::render_confirm_install(f, area, &items);
+            confirm::render_confirm_install(f, app, area, &items);
             app.modal = crate::state::Modal::ConfirmInstall { items };
         }
         crate::state::Modal::Preflight {
@@ -169,6 +169,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
         } => {
             post_summary::render_post_summary(
                 f,
+                app,
                 area,
                 success,
                 changed_files,
@@ -187,7 +188,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
         }
         crate::state::Modal::ConfirmRemove { items } => {
-            confirm::render_confirm_remove(f, area, &items);
+            confirm::render_confirm_remove(f, app, area, &items);
             app.modal = crate::state::Modal::ConfirmRemove { items };
         }
         crate::state::Modal::SystemUpdate {
@@ -202,6 +203,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
         } => {
             system_update::render_system_update(
                 f,
+                app,
                 area,
                 do_mirrors,
                 do_pacman,
@@ -232,7 +234,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             app.modal = crate::state::Modal::News { items, selected };
         }
         crate::state::Modal::OptionalDeps { rows, selected } => {
-            misc::render_optional_deps(f, area, &rows, selected);
+            misc::render_optional_deps(f, area, &rows, selected, app);
             app.modal = crate::state::Modal::OptionalDeps { rows, selected };
         }
         crate::state::Modal::ScanConfig {

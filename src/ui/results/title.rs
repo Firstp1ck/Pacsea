@@ -4,6 +4,7 @@ use ratatui::{
     text::Span,
 };
 
+use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
@@ -26,6 +27,7 @@ use crate::theme::theme;
 ///   and toggles optional repo chips based on availability flags.
 #[allow(clippy::too_many_arguments)]
 pub fn build_title_spans_from_values(
+    app: &AppState,
     results_len: usize,
     area: Rect,
     has_eos: bool,
@@ -44,11 +46,11 @@ pub fn build_title_spans_from_values(
     results_filter_show_manjaro: bool,
 ) -> Vec<Span<'static>> {
     let th = theme();
-    let results_title_text = format!("Results ({})", results_len);
-    let sort_button_label = "Sort v".to_string();
-    let options_button_label = "Options v".to_string();
-    let panels_button_label = "Panels v".to_string();
-    let config_button_label = "Config/Lists v".to_string();
+    let results_title_text = format!("{} ({})", i18n::t(app, "app.results.title"), results_len);
+    let sort_button_label = format!("{} v", i18n::t(app, "app.results.buttons.sort"));
+    let options_button_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
+    let panels_button_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
+    let config_button_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
     let mut title_spans: Vec<Span> = vec![Span::styled(
         results_title_text.clone(),
         Style::default().fg(th.overlay1),
@@ -80,35 +82,56 @@ pub fn build_title_spans_from_values(
             Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
         )
     };
-    title_spans.push(filt("AUR", results_filter_show_aur));
+    title_spans.push(filt(
+        &i18n::t(app, "app.results.filters.aur"),
+        results_filter_show_aur,
+    ));
     title_spans.push(Span::raw(" "));
-    title_spans.push(filt("core", results_filter_show_core));
+    title_spans.push(filt(
+        &i18n::t(app, "app.results.filters.core"),
+        results_filter_show_core,
+    ));
     title_spans.push(Span::raw(" "));
-    title_spans.push(filt("extra", results_filter_show_extra));
+    title_spans.push(filt(
+        &i18n::t(app, "app.results.filters.extra"),
+        results_filter_show_extra,
+    ));
     title_spans.push(Span::raw(" "));
-    title_spans.push(filt("multilib", results_filter_show_multilib));
+    title_spans.push(filt(
+        &i18n::t(app, "app.results.filters.multilib"),
+        results_filter_show_multilib,
+    ));
     if has_eos {
         title_spans.push(Span::raw(" "));
-        title_spans.push(filt("EOS", results_filter_show_eos));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.eos"),
+            results_filter_show_eos,
+        ));
     }
     if has_cachyos {
         title_spans.push(Span::raw(" "));
-        title_spans.push(filt("CachyOS", results_filter_show_cachyos));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.cachyos"),
+            results_filter_show_cachyos,
+        ));
     }
     if has_manjaro {
         title_spans.push(Span::raw(" "));
-        title_spans.push(filt("Manjaro", results_filter_show_manjaro));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.manjaro"),
+            results_filter_show_manjaro,
+        ));
     }
 
     // Right-aligned Config/Lists, Panels and Options buttons: compute remaining space and append to title spans
     let inner_width = area.width.saturating_sub(2); // exclude borders
-    let aur_label = "[AUR]";
-    let core_label = "[core]";
-    let extra_label = "[extra]";
-    let multilib_label = "[multilib]";
-    let eos_label = "[EOS]";
-    let cachyos_label = "[CachyOS]";
-    let manjaro_label = "[Manjaro]";
+    let aur_label = format!("[{}]", i18n::t(app, "app.results.filters.aur"));
+    let core_label = format!("[{}]", i18n::t(app, "app.results.filters.core"));
+    let extra_label = format!("[{}]", i18n::t(app, "app.results.filters.extra"));
+    let multilib_label = format!("[{}]", i18n::t(app, "app.results.filters.multilib"));
+    let eos_label = format!("[{}]", i18n::t(app, "app.results.filters.eos"));
+    let cachyos_label = format!("[{}]", i18n::t(app, "app.results.filters.cachyos"));
+    let manjaro_label = format!("[{}]", i18n::t(app, "app.results.filters.manjaro"));
     let mut consumed_left = (results_title_text.len()
         + 2 // spaces before Sort
         + sort_button_label.len()
@@ -234,11 +257,15 @@ pub fn record_title_rects(
     has_cachyos: bool,
     has_manjaro: bool,
 ) {
-    let results_title_text = format!("Results ({})", app.results.len());
-    let sort_button_label = "Sort v".to_string();
-    let options_button_label = "Options v".to_string();
-    let panels_button_label = "Panels v".to_string();
-    let config_button_label = "Config/Lists v".to_string();
+    let results_title_text = format!(
+        "{} ({})",
+        i18n::t(app, "app.results.title"),
+        app.results.len()
+    );
+    let sort_button_label = format!("{} v", i18n::t(app, "app.results.buttons.sort"));
+    let options_button_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
+    let panels_button_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
+    let config_button_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
 
     // Estimate and record clickable rects for controls on the title line (top border row)
     let mut x_cursor = area
@@ -296,9 +323,9 @@ pub fn record_title_rects(
             .saturating_add(cachyos_label.len() as u16)
             .saturating_add(1);
     }
-    let manjaro_label = "[Manjaro]";
+    let manjaro_label = format!("[{}]", i18n::t(app, "app.results.filters.manjaro"));
     if has_manjaro {
-        app.results_filter_manjaro_rect = Some(rec_rect(x_cursor, manjaro_label));
+        app.results_filter_manjaro_rect = Some(rec_rect(x_cursor, &manjaro_label));
     } else {
         app.results_filter_manjaro_rect = None;
     }

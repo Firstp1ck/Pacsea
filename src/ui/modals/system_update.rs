@@ -6,6 +6,8 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::i18n;
+use crate::state::AppState;
 use crate::theme::theme;
 
 #[allow(clippy::too_many_arguments)]
@@ -28,6 +30,7 @@ use crate::theme::theme;
 ///   hints for toggling, adjusting country, and running the update.
 pub fn render_system_update(
     f: &mut Frame,
+    app: &AppState,
     area: Rect,
     do_mirrors: bool,
     do_pacman: bool,
@@ -53,18 +56,30 @@ pub fn render_system_update(
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
-        "System Update",
+        i18n::t(app, "app.modals.system_update.heading"),
         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
 
     let mark = |b: bool| if b { "[x]" } else { "[ ]" };
 
-    let entries: [(&str, bool); 4] = [
-        ("Update Arch Mirrors", do_mirrors),
-        ("Update Pacman (sudo pacman -Syyu)", do_pacman),
-        ("Update AUR (paru/yay)", do_aur),
-        ("Remove Cache (pacman/yay)", do_cache),
+    let entries: [(String, bool); 4] = [
+        (
+            i18n::t(app, "app.modals.system_update.entries.update_arch_mirrors"),
+            do_mirrors,
+        ),
+        (
+            i18n::t(app, "app.modals.system_update.entries.update_pacman"),
+            do_pacman,
+        ),
+        (
+            i18n::t(app, "app.modals.system_update.entries.update_aur"),
+            do_aur,
+        ),
+        (
+            i18n::t(app, "app.modals.system_update.entries.remove_cache"),
+            do_cache,
+        ),
     ];
 
     for (i, (label, on)) in entries.iter().enumerate() {
@@ -84,20 +99,21 @@ pub fn render_system_update(
 
     // Country selector (mirrors)
     lines.push(Line::from(""));
+    let worldwide_text = i18n::t(app, "app.modals.system_update.worldwide");
     let country_label = if country_idx < countries.len() {
         &countries[country_idx]
     } else {
-        "Worldwide"
+        &worldwide_text
     };
     // Read configured countries and mirror count from settings for display
     let prefs = crate::theme::settings();
     let conf_countries = if prefs.selected_countries.trim().is_empty() {
-        "Worldwide".to_string()
+        worldwide_text.clone()
     } else {
         prefs.selected_countries.clone()
     };
     // If Worldwide is selected, show the configured countries
-    let shown_countries = if country_label == "Worldwide" {
+    let shown_countries = if country_label == &worldwide_text {
         conf_countries.as_str()
     } else {
         country_label
@@ -111,18 +127,21 @@ pub fn render_system_update(
         Style::default().fg(th.text)
     };
     lines.push(Line::from(vec![
-        Span::styled("Country (Mirrors): ", Style::default().fg(th.overlay1)),
+        Span::styled(
+            i18n::t(app, "app.modals.system_update.country_label"),
+            Style::default().fg(th.overlay1),
+        ),
         Span::styled(shown_countries.to_string(), style),
         Span::raw("  •  "),
         Span::styled(
-            format!("Count: {}", mirror_count),
+            i18n::t_fmt1(app, "app.modals.system_update.count_label", mirror_count),
             Style::default().fg(th.overlay1),
         ),
     ]));
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "Space: toggle  •  Left/Right: change country  •  -/+ change count  •  Enter: run  •  Esc: cancel",
+        i18n::t(app, "app.modals.system_update.footer_hint"),
         Style::default().fg(th.subtext1),
     )));
 
@@ -132,7 +151,7 @@ pub fn render_system_update(
         .block(
             Block::default()
                 .title(Span::styled(
-                    " Update System ",
+                    format!(" {} ", i18n::t(app, "app.modals.system_update.title")),
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)

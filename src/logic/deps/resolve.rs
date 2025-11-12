@@ -1,6 +1,5 @@
 //! Core dependency resolution logic for individual packages.
 
-use super::aur::fetch_aur_deps_from_api;
 use super::parse::{parse_dep_spec, parse_pacman_si_deps, parse_pacman_si_optdeps};
 use super::source::{determine_dependency_source, is_system_package};
 use super::srcinfo::{fetch_srcinfo, parse_srcinfo_deps};
@@ -157,14 +156,11 @@ pub(crate) fn resolve_package_deps(
             }
 
             // Use pacman -Si to get dependency list (shows all deps, not just ones to download)
-            tracing::debug!("Running: pacman -Si {}", name);
-            let spec = if repo.is_empty() {
-                name.to_string()
-            } else {
-                format!("{}/{}", repo, name)
-            };
+            // Note: pacman -Si doesn't need repo prefix - it will find the package in any repo
+            // Using repo prefix can cause failures if repo is incorrect (e.g., core package marked as extra)
+            tracing::debug!("Running: pacman -Si {} (repo: {})", name, repo);
             let output = Command::new("pacman")
-                .args(["-Si", &spec])
+                .args(["-Si", name])
                 .env("LC_ALL", "C")
                 .env("LANG", "C")
                 .stdin(Stdio::null())
@@ -172,7 +168,7 @@ pub(crate) fn resolve_package_deps(
                 .stderr(Stdio::piped())
                 .output()
                 .map_err(|e| {
-                    tracing::error!("Failed to execute pacman -Si {}: {}", spec, e);
+                    tracing::error!("Failed to execute pacman -Si {}: {}", name, e);
                     format!("pacman -Si failed: {}", e)
                 })?;
 
@@ -180,15 +176,15 @@ pub(crate) fn resolve_package_deps(
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 tracing::error!(
                     "pacman -Si {} failed with status {:?}: {}",
-                    spec,
+                    name,
                     output.status.code(),
                     stderr
                 );
-                return Err(format!("pacman -Si failed for {}: {}", spec, stderr));
+                return Err(format!("pacman -Si failed for {}: {}", name, stderr));
             }
 
             let text = String::from_utf8_lossy(&output.stdout);
-            tracing::debug!("pacman -Si {} output ({} bytes)", spec, text.len());
+            tracing::debug!("pacman -Si {} output ({} bytes)", name, text.len());
 
             // Parse "Depends On" field from pacman -Si output
             let dep_names = parse_pacman_si_deps(&text);
@@ -290,10 +286,12 @@ pub(crate) fn resolve_package_deps(
             }
         }
         Source::Aur => {
-            // For AUR packages, try to use paru/yay to resolve dependencies
-            // Fallback: fetch from AUR API if paru/yay is not available
+            // For AUR packages, first verify it actually exists in AUR before trying to resolve
+            // This prevents unnecessary API calls for binaries/scripts that aren't packages
+            // Quick check: if pacman -Si failed, it's likely not a real package
+            // We'll still try AUR but only if paru/yay is available (faster than API)
             tracing::debug!(
-                "Checking for paru/yay availability for AUR package: {}",
+                "Attempting to resolve AUR package: {} (will skip if not found)",
                 name
             );
 
@@ -477,29 +475,16 @@ pub(crate) fn resolve_package_deps(
                 }
             }
 
-            // Always fall back to AUR API if helper didn't work or wasn't available
-            // This ensures we get dependencies even if paru/yay fails or isn't installed
+            // Skip AUR API fallback - if paru/yay failed, the package likely doesn't exist
+            // This prevents unnecessary API calls for binaries/scripts that aren't packages
+            // The dependency will be marked as Missing by the status determination logic
             if !used_helper {
-                if has_paru || has_yay {
-                    tracing::info!(
-                        "Using AUR API to resolve dependencies for {} (paru/yay -Si failed or not available)",
-                        name
-                    );
-                } else {
-                    tracing::info!(
-                        "Using AUR API to resolve dependencies for {} (paru/yay not available)",
-                        name
-                    );
-                }
-                match fetch_aur_deps_from_api(name, installed, upgradable) {
-                    Ok(api_deps) => {
-                        tracing::info!("Fetched {} dependencies from AUR API", api_deps.len());
-                        deps.extend(api_deps);
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to fetch dependencies from AUR API: {}", e);
-                    }
-                }
+                tracing::debug!(
+                    "Skipping AUR API for {} - paru/yay failed or not available (likely not a real package)",
+                    name
+                );
+                // Return empty deps - the dependency will be marked as Missing
+                // This is better than making unnecessary API calls
             }
 
             // Try to fetch and parse .SRCINFO to get makedepends/checkdepends and enhance dependency list

@@ -10,6 +10,8 @@
 ///
 /// Details:
 /// - Scans the "Depends On" line, split on whitespace, and removes `.so` patterns that represent virtual deps.
+/// - Validates that tokens look like valid package names (alphanumeric, dashes, underscores, version operators).
+/// - Filters out common words and description text that might be parsed incorrectly.
 pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
     for line in text.lines() {
         if line.starts_with("Depends On")
@@ -20,6 +22,7 @@ pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
                 return Vec::new();
             }
             // Split by whitespace, filter out empty strings and .so files (virtual packages)
+            // Also filter out tokens that don't look like package names
             return deps_str
                 .split_whitespace()
                 .map(|s| s.trim().to_string())
@@ -29,8 +32,41 @@ pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
                     }
                     // Filter out .so files (virtual packages)
                     // Patterns: "libedit.so=0-64", "libgit2.so", "libfoo.so.1"
-                    // Check if it ends with .so or contains .so. or .so=
-                    !(s.ends_with(".so") || s.contains(".so.") || s.contains(".so="))
+                    if s.ends_with(".so") || s.contains(".so.") || s.contains(".so=") {
+                        return false;
+                    }
+                    // Filter out common words that might appear in descriptions
+                    // These are not valid package names
+                    let common_words = [
+                        "for", "to", "with", "is", "that", "using", "usually", "bundled",
+                        "bindings", "tooling", "the", "and", "or", "in", "on", "at", "by", "from",
+                        "as", "if", "when", "where", "which", "what", "how", "why",
+                    ];
+                    let lower = s.to_lowercase();
+                    if common_words.contains(&lower.as_str()) {
+                        return false;
+                    }
+                    // Filter out tokens that are too short (likely not package names)
+                    // Package names are typically at least 2 characters
+                    if s.len() < 2 {
+                        return false;
+                    }
+                    // Filter out tokens that look like description text
+                    // Valid package names contain alphanumeric, dashes, underscores, and version operators
+                    // But shouldn't be just punctuation or start/end with certain characters
+                    let first_char = s.chars().next().unwrap_or(' ');
+                    if !first_char.is_alphanumeric() && first_char != '-' && first_char != '_' {
+                        return false;
+                    }
+                    // Filter out tokens ending with colons (likely from error messages or malformed output)
+                    if s.ends_with(':') {
+                        return false;
+                    }
+                    // Check if it contains at least one alphanumeric character
+                    if !s.chars().any(|c| c.is_alphanumeric()) {
+                        return false;
+                    }
+                    true
                 })
                 .collect();
         }
@@ -48,6 +84,7 @@ pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
 ///
 /// Details:
 /// - Scans the "Optional Deps" line, split on whitespace, and removes `.so` patterns that represent virtual deps.
+/// - Uses the same validation logic as parse_pacman_si_deps to filter out invalid tokens.
 pub(crate) fn parse_pacman_si_optdeps(text: &str) -> Vec<String> {
     for line in text.lines() {
         if line.starts_with("Optional Deps")
@@ -58,6 +95,7 @@ pub(crate) fn parse_pacman_si_optdeps(text: &str) -> Vec<String> {
                 return Vec::new();
             }
             // Split by whitespace, filter out empty strings and .so files (virtual packages)
+            // Also filter out tokens that don't look like package names
             return deps_str
                 .split_whitespace()
                 .map(|s| s.trim().to_string())
@@ -66,7 +104,37 @@ pub(crate) fn parse_pacman_si_optdeps(text: &str) -> Vec<String> {
                         return false;
                     }
                     // Filter out .so files (virtual packages)
-                    !(s.ends_with(".so") || s.contains(".so.") || s.contains(".so="))
+                    if s.ends_with(".so") || s.contains(".so.") || s.contains(".so=") {
+                        return false;
+                    }
+                    // Filter out common words that might appear in descriptions
+                    let common_words = [
+                        "for", "to", "with", "is", "that", "using", "usually", "bundled",
+                        "bindings", "tooling", "the", "and", "or", "in", "on", "at", "by", "from",
+                        "as", "if", "when", "where", "which", "what", "how", "why",
+                    ];
+                    let lower = s.to_lowercase();
+                    if common_words.contains(&lower.as_str()) {
+                        return false;
+                    }
+                    // Filter out tokens that are too short
+                    if s.len() < 2 {
+                        return false;
+                    }
+                    // Filter out tokens that don't look like package names
+                    let first_char = s.chars().next().unwrap_or(' ');
+                    if !first_char.is_alphanumeric() && first_char != '-' && first_char != '_' {
+                        return false;
+                    }
+                    // Filter out tokens ending with colons (likely from error messages or malformed output)
+                    if s.ends_with(':') {
+                        return false;
+                    }
+                    // Check if it contains at least one alphanumeric character
+                    if !s.chars().any(|c| c.is_alphanumeric()) {
+                        return false;
+                    }
+                    true
                 })
                 .collect();
         }

@@ -102,9 +102,7 @@ pub fn theme() -> Theme {
 /// - Keeps the in-memory cache up to date so the UI can refresh without restarting Pacsea.
 /// - Returns an error if the theme file is missing or contains validation problems.
 pub fn reload_theme() -> std::result::Result<(), String> {
-    let path = resolve_theme_config_path().or_else(|| {
-        Some(config_dir().join("theme.conf"))
-    });
+    let path = resolve_theme_config_path().or_else(|| Some(config_dir().join("theme.conf")));
     let Some(p) = path else {
         return Err("No theme configuration file found".to_string());
     };

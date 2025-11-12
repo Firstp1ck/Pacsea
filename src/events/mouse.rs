@@ -433,7 +433,7 @@ pub fn handle_mouse_event(
         }
 
         // Handle mouse scroll for Deps tab
-        if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
+        if *tab == crate::state::PreflightTab::Deps {
             // Compute display_items length (headers + dependencies, accounting for folded groups)
             use std::collections::{HashMap, HashSet};
             let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> =
@@ -460,20 +460,22 @@ pub fn handle_mouse_event(
             }
 
             // Handle mouse scroll to navigate dependency list
-            match m.kind {
-                MouseEventKind::ScrollUp => {
-                    if *dep_selected > 0 {
-                        *dep_selected -= 1;
+            if display_len > 0 {
+                match m.kind {
+                    MouseEventKind::ScrollUp => {
+                        if *dep_selected > 0 {
+                            *dep_selected -= 1;
+                        }
+                        return false;
                     }
-                    return false;
-                }
-                MouseEventKind::ScrollDown => {
-                    if *dep_selected < display_len.saturating_sub(1) {
-                        *dep_selected += 1;
+                    MouseEventKind::ScrollDown => {
+                        if *dep_selected < display_len.saturating_sub(1) {
+                            *dep_selected += 1;
+                        }
+                        return false;
                     }
-                    return false;
+                    _ => {}
                 }
-                _ => {}
             }
         }
 
@@ -687,14 +689,15 @@ pub fn handle_mouse_event(
 
                 // Neither wl-copy nor xclip worked — report guidance to UI thread
                 let hint = if std::env::var("WAYLAND_DISPLAY").is_ok() {
-                    "Clipboard tool not found. Please install 'wl-clipboard' (provides wl-copy) or 'xclip'."
+                    "Clipboard tool not found. Please install 'wl-clipboard' (provides wl-copy) or 'xclip'.".to_string()
                 } else {
                     "Clipboard tool not found. Please install 'xclip' or 'wl-clipboard' (wl-copy)."
+                        .to_string()
                 };
-                let _ = tx_msg.send(Some(hint.to_string()));
+                let _ = tx_msg.send(Some(hint));
             });
             // Default optimistic toast; overwritten by worker if needed
-            app.toast_message = Some("Copying PKGBUILD to clipboard…".to_string());
+            app.toast_message = Some(crate::i18n::t(app, "app.toasts.copying_pkgbuild"));
             app.toast_expires_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
             // Try to receive the result quickly without blocking UI long
@@ -704,7 +707,7 @@ pub fn handle_mouse_event(
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
             }
         } else {
-            app.toast_message = Some("PKGBUILD not loaded yet".to_string());
+            app.toast_message = Some(crate::i18n::t(app, "app.toasts.pkgbuild_not_loaded"));
             app.toast_expires_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
         }
@@ -790,7 +793,7 @@ pub fn handle_mouse_event(
             let mut names: Vec<String> = app.install_list.iter().map(|p| p.name.clone()).collect();
             names.sort();
             if names.is_empty() {
-                app.toast_message = Some("Install List is empty".to_string());
+                app.toast_message = Some(crate::i18n::t(app, "app.toasts.install_list_empty"));
                 app.toast_expires_at =
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 return false;
@@ -814,13 +817,22 @@ pub fn handle_mouse_event(
             let body = names.join("\n");
             match std::fs::write(&file_path, body) {
                 Ok(_) => {
-                    app.toast_message = Some(format!("Exported to {}", file_path.display()));
+                    app.toast_message = Some(crate::i18n::t_fmt1(
+                        app,
+                        "app.toasts.exported_to",
+                        file_path.display(),
+                    ));
                     app.toast_expires_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
                     tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
                 }
                 Err(e) => {
-                    app.toast_message = Some(format!("Export failed: {e}"));
+                    let error_msg = format!("{}", e);
+                    app.toast_message = Some(crate::i18n::t_fmt1(
+                        app,
+                        "app.toasts.export_failed",
+                        &error_msg,
+                    ));
                     app.toast_expires_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
                     tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");

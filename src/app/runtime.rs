@@ -28,6 +28,120 @@ use super::persist::{
 };
 use super::recent::maybe_save_recent;
 use super::sandbox_cache;
+
+/// What: Initialize the locale system: resolve locale, load translations, set up fallbacks.
+///
+/// Inputs:
+/// - `app`: Application state to populate with locale and translations
+/// - `locale_pref`: Locale preference from settings.conf (empty = auto-detect)
+/// - `_prefs`: Settings struct (unused but kept for future use)
+///
+/// Output:
+/// - Populates `app.locale`, `app.translations`, and `app.translations_fallback`
+///
+/// Details:
+/// - Resolves locale using fallback chain (settings -> system -> default)
+/// - Loads English fallback translations first (required)
+/// - Loads primary locale translations if different from English
+/// - Handles errors gracefully: falls back to English if locale file missing/invalid
+/// - Logs warnings for missing files but continues execution
+fn initialize_locale_system(
+    app: &mut AppState,
+    locale_pref: &str,
+    _prefs: &crate::theme::Settings,
+) {
+    // Get paths
+    let locales_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales");
+    let i18n_config_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("config")
+        .join("i18n.yml");
+
+    // Validate i18n config file exists
+    if !i18n_config_path.exists() {
+        tracing::error!(
+            "i18n config file not found: {}. Using default locale 'en-US'.",
+            i18n_config_path.display()
+        );
+        app.locale = "en-US".to_string();
+        app.translations = std::collections::HashMap::new();
+        app.translations_fallback = std::collections::HashMap::new();
+        return;
+    }
+
+    // Resolve locale
+    let resolver = crate::i18n::LocaleResolver::new(&i18n_config_path);
+    let resolved_locale = resolver.resolve(locale_pref);
+    app.locale = resolved_locale.clone();
+
+    tracing::info!(
+        "Resolved locale: '{}' (from settings: '{}')",
+        resolved_locale,
+        if locale_pref.trim().is_empty() {
+            "<auto-detect>"
+        } else {
+            locale_pref
+        }
+    );
+
+    // Load translations
+    let mut loader = crate::i18n::LocaleLoader::new(locales_dir.clone());
+
+    // Load fallback (English) translations first - this is required
+    match loader.load("en-US") {
+        Ok(fallback) => {
+            let key_count = fallback.len();
+            app.translations_fallback = fallback.clone();
+            tracing::debug!("Loaded English fallback translations ({} keys)", key_count);
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to load English fallback translations: {}. Application may show untranslated keys.",
+                e
+            );
+            app.translations_fallback = std::collections::HashMap::new();
+        }
+    }
+
+    // Load primary locale translations
+    if resolved_locale != "en-US" {
+        match loader.load(&resolved_locale) {
+            Ok(translations) => {
+                let key_count = translations.len();
+                app.translations = translations;
+                tracing::info!(
+                    "Loaded translations for locale '{}' ({} keys)",
+                    resolved_locale,
+                    key_count
+                );
+                // Debug: Check if specific keys exist
+                let test_keys = [
+                    "app.details.footer.search_hint",
+                    "app.details.footer.confirm_installation",
+                ];
+                for key in &test_keys {
+                    if app.translations.contains_key(*key) {
+                        tracing::debug!("  ✓ Key '{}' found in translations", key);
+                    } else {
+                        tracing::debug!("  ✗ Key '{}' NOT found in translations", key);
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to load translations for locale '{}': {}. Using English fallback.",
+                    resolved_locale,
+                    e
+                );
+                // Use empty map - translate_with_fallback will use English fallback
+                app.translations = std::collections::HashMap::new();
+            }
+        }
+    } else {
+        // Already loaded English as fallback, use it as primary too
+        app.translations = app.translations_fallback.clone();
+        tracing::debug!("Using English as primary locale");
+    }
+}
 use super::services_cache;
 use super::terminal::{restore_terminal, setup_terminal};
 
@@ -90,7 +204,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     app.layout_left_pct = prefs.layout_left_pct;
     app.layout_center_pct = prefs.layout_center_pct;
     app.layout_right_pct = prefs.layout_right_pct;
-    app.keymap = prefs.keymap;
+    app.keymap = prefs.keymap.clone();
     app.sort_mode = prefs.sort_mode;
     app.package_marker = prefs.package_marker;
     // Apply initial visibility for middle row panes from settings
@@ -98,6 +212,10 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     app.show_install_pane = prefs.show_install_pane;
     // Apply initial keybind footer visibility (default true if not present)
     app.show_keybinds_footer = prefs.show_keybinds_footer;
+
+    // Initialize locale system (clone locale string to avoid borrow issues)
+    let locale_pref = prefs.locale.clone();
+    initialize_locale_system(&mut app, &locale_pref, &prefs);
 
     // GNOME desktop: prompt to install a GNOME terminal if none present (gnome-terminal or gnome-console/kgx)
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
@@ -818,7 +936,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             }
             Some(todays) = news_rx.recv() => {
                 if todays.is_empty() {
-                    app.toast_message = Some("No new News today".to_string());
+                    app.toast_message = Some(crate::i18n::t(&app, "app.toasts.no_new_news"));
                     app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
                 } else {
                     // Show unread news items; default to first selected

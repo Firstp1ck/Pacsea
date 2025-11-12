@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::AppState;
 use crate::theme::{KeyChord, theme};
 
@@ -47,7 +48,7 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
-        "Pacsea Help",
+        i18n::t(app, "app.modals.help.heading"),
         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
@@ -70,50 +71,71 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     };
 
     if let Some(k) = km.help_overlay.first().copied() {
-        lines.push(fmt("Help overlay", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.help_overlay"),
+            k,
+        ));
     }
     if let Some(k) = km.exit.first().copied() {
-        lines.push(fmt("Exit", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.exit"), k));
     }
     if let Some(k) = km.reload_theme.first().copied() {
-        lines.push(fmt("Reload theme", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.reload_theme"),
+            k,
+        ));
     }
     // Move menu toggles into Normal Mode section; omit here
     if let Some(k) = km.pane_next.first().copied() {
-        lines.push(fmt("Next pane", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.next_pane"),
+            k,
+        ));
     }
     if let Some(k) = km.pane_left.first().copied() {
-        lines.push(fmt("Focus left", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.focus_left"),
+            k,
+        ));
     }
     if let Some(k) = km.pane_right.first().copied() {
-        lines.push(fmt("Focus right", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.focus_right"),
+            k,
+        ));
     }
     if let Some(k) = km.show_pkgbuild.first().copied() {
-        lines.push(fmt("Show PKGBUILD", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.show_pkgbuild"),
+            k,
+        ));
     }
     // Show configured key for change sorting
     if let Some(k) = km.change_sort.first().copied() {
-        lines.push(fmt("Change sorting", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.change_sorting"),
+            k,
+        ));
     }
     lines.push(Line::from(""));
 
     // Dynamic section for per-pane actions based on keymap
     lines.push(Line::from(Span::styled(
-        "Search:",
+        i18n::t(app, "app.modals.help.sections.search"),
         Style::default()
             .fg(th.overlay1)
             .add_modifier(Modifier::BOLD),
     )));
     if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
         lines.push(fmt(
-            "  Move",
+            &i18n::t(app, "app.modals.help.key_labels.move"),
             KeyChord {
                 code: up.code,
                 mods: up.mods,
             },
         ));
         lines.push(fmt(
-            "  Move",
+            &i18n::t(app, "app.modals.help.key_labels.move"),
             KeyChord {
                 code: dn.code,
                 mods: dn.mods,
@@ -122,14 +144,14 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     }
     if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
         lines.push(fmt(
-            "  Page",
+            &i18n::t(app, "app.modals.help.key_labels.page"),
             KeyChord {
                 code: pu.code,
                 mods: pu.mods,
             },
         ));
         lines.push(fmt(
-            "  Page",
+            &i18n::t(app, "app.modals.help.key_labels.page"),
             KeyChord {
                 code: pd.code,
                 mods: pd.mods,
@@ -137,13 +159,13 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         ));
     }
     if let Some(k) = km.search_add.first().copied() {
-        lines.push(fmt("  Add", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.add"), k));
     }
     if let Some(k) = km.search_install.first().copied() {
-        lines.push(fmt("  Install", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.install"), k));
     }
     if let Some(k) = km.search_backspace.first().copied() {
-        lines.push(fmt("  Delete", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.delete"), k));
     }
 
     // Search normal mode
@@ -162,7 +184,7 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            "Search (Normal mode):",
+            i18n::t(app, "app.modals.help.sections.search_normal"),
             Style::default()
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
@@ -198,7 +220,7 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "Install:",
+        i18n::t(app, "app.modals.help.sections.install"),
         Style::default()
             .fg(th.overlay1)
             .add_modifier(Modifier::BOLD),
@@ -237,7 +259,7 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "Recent:",
+        i18n::t(app, "app.modals.help.sections.recent"),
         Style::default()
             .fg(th.overlay1)
             .add_modifier(Modifier::BOLD),
@@ -285,61 +307,80 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Mouse and UI controls
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "Mouse:",
+        i18n::t(app, "app.modals.help.sections.mouse"),
         Style::default()
             .fg(th.overlay1)
             .add_modifier(Modifier::BOLD),
     )));
-    lines.push(Line::from(Span::raw(
-        "  • Scroll lists (Results/Recent/Install) and PKGBUILD with mouse wheel",
-    )));
-    lines.push(Line::from(Span::raw(
-        "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details",
-    )));
-    lines.push(Line::from(Span::raw(
-        "  • Copy PKGBUILD: click the title button (copies with suffix from settings.conf)",
-    )));
-    lines.push(Line::from(Span::raw(
-        "  • Open details URL: Ctrl+Shift+Left click on the URL",
-    )));
-    lines.push(Line::from(Span::raw(
-        "  • Results title bar: click Sort/Options/Panels/Config to open menus",
-    )));
-    lines.push(Line::from(Span::raw(
-        "  • Toggle filters (AUR/core/extra/multilib/EOS/cachyos): click their labels",
-    )));
-    lines.push(Line::from(Span::raw(
-        "  • Arch Status (top-right): click to open status.archlinux.org",
-    )));
+    // Arrays are stored as YAML strings, so we need to parse them
+    let mouse_lines_yaml = i18n::t(app, "app.modals.help.mouse_lines");
+    for line in mouse_lines_yaml.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("- \"") || trimmed.starts_with("- '") {
+            let content = trimmed
+                .strip_prefix("- \"")
+                .or_else(|| trimmed.strip_prefix("- '"))
+                .and_then(|s| s.strip_suffix('"').or_else(|| s.strip_suffix('\'')))
+                .unwrap_or(trimmed);
+            lines.push(Line::from(Span::raw(content.to_string())));
+        } else if trimmed.starts_with("- ") {
+            lines.push(Line::from(Span::raw(
+                trimmed.strip_prefix("- ").unwrap_or(trimmed).to_string(),
+            )));
+        }
+    }
 
     // Dialogs
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "System Update dialog:",
+        i18n::t(app, "app.modals.help.sections.system_update_dialog"),
         Style::default()
             .fg(th.overlay1)
             .add_modifier(Modifier::BOLD),
     )));
-    lines.push(Line::from(Span::raw(
-        "  • Open via Options → Update System",
-    )));
-    lines.push(Line::from(Span::raw(
-        "  • Up/Down: move • Space: toggle • Left/Right: change country • Enter: run • Esc: close",
-    )));
+    let system_update_yaml = i18n::t(app, "app.modals.help.system_update_lines");
+    for line in system_update_yaml.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("- \"") || trimmed.starts_with("- '") {
+            let content = trimmed
+                .strip_prefix("- \"")
+                .or_else(|| trimmed.strip_prefix("- '"))
+                .and_then(|s| s.strip_suffix('"').or_else(|| s.strip_suffix('\'')))
+                .unwrap_or(trimmed);
+            lines.push(Line::from(Span::raw(content.to_string())));
+        } else if trimmed.starts_with("- ") {
+            lines.push(Line::from(Span::raw(
+                trimmed.strip_prefix("- ").unwrap_or(trimmed).to_string(),
+            )));
+        }
+    }
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "News dialog:",
+        i18n::t(app, "app.modals.help.sections.news_dialog"),
         Style::default()
             .fg(th.overlay1)
             .add_modifier(Modifier::BOLD),
     )));
-    lines.push(Line::from(Span::raw(
-        "  • Open via Options → News • Up/Down: select • Enter: open • Esc: close",
-    )));
+    let news_yaml = i18n::t(app, "app.modals.help.news_lines");
+    for line in news_yaml.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("- \"") || trimmed.starts_with("- '") {
+            let content = trimmed
+                .strip_prefix("- \"")
+                .or_else(|| trimmed.strip_prefix("- '"))
+                .and_then(|s| s.strip_suffix('"').or_else(|| s.strip_suffix('\'')))
+                .unwrap_or(trimmed);
+            lines.push(Line::from(Span::raw(content.to_string())));
+        } else if trimmed.starts_with("- ") {
+            lines.push(Line::from(Span::raw(
+                trimmed.strip_prefix("- ").unwrap_or(trimmed).to_string(),
+            )));
+        }
+    }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "Press Enter or Esc to close",
+        i18n::t(app, "app.modals.help.close_hint"),
         Style::default().fg(th.subtext1),
     )));
 

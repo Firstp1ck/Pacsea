@@ -1,0 +1,515 @@
+de-DE:
+  # Deutsche Übersetzung für Pacsea
+  meta:
+    name: "Deutsch (Deutschland)"
+    direction: "ltr"
+
+  app:
+    headings:
+      package_info: "Paket-Info"
+      normal_mode: "Normalmodus (Fokussiertes Suchfenster):"
+      search: "SUCHE:"
+      globals: "GLOBAL:"
+      pkgb: "PKGBUILD"
+      recent: "KÜRZLICH:"
+      install: "INSTALLIEREN:"
+      downgrade: "DOWNGRADE:"
+      remove: "ENTFERNEN:"
+      results: "Ergebnisse"
+
+    titles:
+      search: "Suche"
+      search_focused: "Suche (fokussiert)"
+      recent: "Kürzlich"
+      recent_focused: "Kürzlich (fokussiert)"
+      install_list: "Installationsliste"
+      install_list_focused: "Installationsliste (fokussiert)"
+      downgrade_list: "Herabstufungs-Liste"
+      downgrade_list_focused: "Herabstufungs-Liste (fokussiert)"
+      remove_list: "Entfernungsliste"
+      remove_list_focused: "Entfernungsliste (fokussiert)"
+      package_info: "Paket-Info"
+      pkgb: "PKGBUILD"
+      help: "Hilfe"
+      news: "Neuigkeiten"
+      update_system: "System aktualisieren"
+      configuration_error: "Konfigurationsfehler"
+      clipboard_copy: "Zwischenablage kopieren"
+      connection_issue: "Verbindungsproblem"
+      optional_deps: "Optionale Abhängigkeiten"
+      install_gnome_terminal: "GNOME-Terminal installieren"
+      virustotal: "VirusTotal"
+      arch_linux_news: "Arch Linux Neuigkeiten"
+      system_update: "System-Update"
+
+    labels:
+      open_menus: "Menüs öffnen:"
+      config: "Konfiguration"
+      options: "Optionen"
+      panels: "Panels"
+      url: "URL:"
+      loading_pkgb: "PKGBUILD wird geladen…"
+      config_lists: "Konfiguration/Listen"
+      installed_bracketed: "[Installiert]"
+      pop_prefix: "Pop:"
+      worldwide: "Weltweit"
+    toasts:
+      copying_pkgbuild: "PKGBUILD wird in Zwischenablage kopiert…"
+      pkgbuild_not_loaded: "PKGBUILD noch nicht geladen"
+      install_list_empty: "Installationsliste ist leer"
+      exported_to: "Exportiert nach {}"
+      export_failed: "Export fehlgeschlagen: {}"
+      installing_preflight_skipped: "Installiere Liste (Preflight übersprungen)"
+      removing_preflight_skipped: "Entferne Liste (Preflight übersprungen)"
+      preflight_remove_list: "Preflight: Liste entfernen"
+      theme_reloaded: "Theme neu geladen"
+      installing_skipped: "Installiere (Preflight übersprungen)"
+      preflight_opened: "Preflight geöffnet"
+      no_new_news: "Keine neuen Neuigkeiten heute"
+      copied_to_clipboard: "In Zwischenablage kopiert"
+      abort_requested: "Abbruch angefordert (Platzhalter)"
+      rollback: "Zurücksetzen (Platzhalter)"
+      no_services_to_restart: "Keine Dienste zum Neustarten"
+      restart_services: "Dienste neu starten (Platzhalter)"
+      snapshot_placeholder: "Schnappschuss (Platzhalter)"
+      dry_run_enabled: "Trockenlaufmodus aktiviert"
+      dry_run_disabled: "Trockenlaufmodus deaktiviert"
+      cascade_mode_enabled: "Kaskadenmodus aktiviert"
+      cascade_mode_disabled: "Kaskadenmodus deaktiviert"
+
+    actions:
+      exit: "Beenden"
+      help: "Hilfe"
+      reload_theme: "Theme neu laden"
+      show_hide_pkgbuild: "PKGBUILD anzeigen/verbergen"
+      change_sort_mode: "Sortiermodus ändern"
+      import: "Importieren"
+      export: "Exportieren"
+      install: "Installieren"
+      add_to_install: "Zur Installation hinzufügen"
+      add_to_remove: "Zur Entfernung hinzufügen"
+      add_to_downgrade: "Zur Herabstufung hinzufügen"
+      remove_from_list: "Aus Liste entfernen"
+      confirm: "Bestätigen"
+      normal_mode: "Normalmodus"
+      insert_mode: "Einfügemodus"
+      move: "Bewegen"
+      move_page: "Seite bewegen"
+      select_text: "Text auswählen"
+      delete_text: "Text löschen"
+      copy_pkgbuild: "PKGBUILD kopieren"
+      add: "Hinzufügen"
+      delete: "Löschen"
+      clear: "Leeren"
+      remove: "Entfernen"
+      find: "Suchen"
+      to_search: "Zur Suche"
+      use: "Verwenden"
+      search_hint_enter_next_esc_cancel: "Suchen (Enter nächster, Esc abbrechen)"
+      go_to_search: "Zur Suche gehen"
+      add_to_search: "Zur Suche hinzufügen"
+      add_first_match_to_install: "Erstes Ergebnis zur Installationsliste hinzufügen"
+      confirm_package_downgrade: "Paket-Downgrade bestätigen"
+      confirm_package_removal: "Paket-Entfernung bestätigen"
+      show_recent: "Kürzlich anzeigen"
+      hide_recent: "Kürzlich verbergen"
+      show_install_list: "Installationsliste anzeigen"
+      hide_install_list: "Installationsliste verbergen"
+      show_keybinds: "Tastenkombinationen anzeigen"
+      hide_keybinds: "Tastenkombinationen verbergen"
+      list_all_packages: "Alle Pakete auflisten"
+      list_installed_packages: "Installierte Pakete auflisten"
+      update_system: "System aktualisieren"
+      news: "Neuigkeiten"
+      tui_optional_deps: "TUI Optionale Abhängigkeiten"
+      next_pane: "Nächstes Panel"
+      focus_left: "Nach links fokussieren"
+      focus_right: "Nach rechts fokussieren"
+      open_arch_status: "Arch-Status öffnen"
+      install_list: "Installationsliste:"
+      toggle: "umschalten"
+      insert: "einfügen"
+      page: "Seite"
+
+    details:
+      fields:
+        repository: "Repository"
+        package_name: "Paketname"
+        version: "Version"
+        description: "Beschreibung"
+        architecture: "Architektur"
+        url: "URL"
+        licences: "Lizenzen"
+        provides: "Stellt bereit"
+        depends_on: "Hängt ab von"
+        optional_dependencies: "Optionale Abhängigkeiten"
+        required_by: "Benötigt von"
+        optional_for: "Optional für"
+        conflicts_with: "Konflikt mit"
+        replaces: "Ersetzt"
+        download_size: "Download-Größe"
+        install_size: "Installationsgröße"
+        package_owner: "Paketbetreuer"
+        build_date: "Build-Datum"
+        not_available: "N/V"
+      show_pkgbuild: "PKGBUILD anzeigen"
+      hide_pkgbuild: "PKGBUILD verbergen"
+      url_label: "URL:"
+      loading_pkgb: "PKGBUILD wird geladen…"
+      copy_pkgbuild: "PKGBUILD kopieren"
+      reload_pkgbuild: "PKGBUILD neu laden"
+      footer:
+        search_hint: "Suchen (Enter nächster, Esc abbrechen)"
+        confirm_installation: "Paket-Installation bestätigen"
+        confirm_downgrade: "Paket-Downgrade bestätigen"
+        confirm_removal: "Paket-Entfernung bestätigen"
+
+    results:
+      title: "Ergebnisse"
+      status_label: "Status:"
+      buttons:
+        sort: "Sortieren"
+        options: "Optionen"
+        panels: "Panels"
+        config_lists: "Konfiguration/Listen"
+      menus:
+        config_lists:
+          first_letter: "K"
+          suffix: "onfiguration/Listen "
+        panels:
+          first_letter: "P"
+          suffix: "anels "
+        options:
+          first_letter: "O"
+          suffix: "ptionen "
+      filters:
+        aur: "AUR"
+        core: "core"
+        extra: "extra"
+        multilib: "multilib"
+        eos: "EOS"
+        cachyos: "CachyOS"
+        manjaro: "Manjaro"
+      sort_menu:
+        title: "Sortieren nach"
+        options:
+          alphabetical: "Alphabetisch"
+          aur_popularity: "AUR-Beliebtheit"
+          best_matches: "Beste Treffer"
+      config_menu:
+        options:
+          settings: "Einstellungen -> settings.conf"
+          theme: "Theme -> theme.conf"
+          keybindings: "Tastenkombinationen -> keybinds.conf"
+          install_list: "Installationsliste -> install_list.json"
+          installed_packages: "Installierte Pakete -> installed_packages.txt"
+          recent_searches: "Kürzliche Suchen -> recent_searches.json"
+      panels_menu:
+        show_recent: "Kürzlich anzeigen"
+        hide_recent: "Kürzlich verbergen"
+        show_install_list: "Installationsliste anzeigen"
+        hide_install_list: "Installationsliste verbergen"
+        show_keybinds: "Tastenkombinationen anzeigen"
+        hide_keybinds: "Tastenkombinationen verbergen"
+      options_menu:
+        list_all_packages: "Alle Pakete auflisten"
+        list_installed_packages: "Installierte Pakete auflisten"
+        update_system: "System aktualisieren"
+        news: "Neuigkeiten"
+        tui_optional_deps: "TUI Optionale Abhängigkeiten"
+
+    modals:
+      common:
+        close_hint: "Enter oder Esc zum Schließen drücken"
+      alert:
+        header_configuration_error: "Konfigurationsfehler"
+        header_clipboard_copy: "Zwischenablage kopieren"
+        header_connection_issue: "Verbindungsproblem"
+        title_configuration_error: " Konfigurationsfehler "
+        title_clipboard_copy: " Zwischenablage kopieren "
+        title_connection_issue: " Verbindungsproblem "
+      confirm_install:
+        title: " Installation bestätigen "
+        heading: "Installation bestätigen"
+        none: "Nichts zu installieren"
+        list_ellipsis: "…"
+        confirm_hint: "Enter zum Bestätigen oder Esc zum Abbrechen drücken"
+        scan_hint: "S drücken, um AUR-Paket(e) vor der Installation zu scannen"
+      confirm_remove:
+        title: " Entfernung bestätigen "
+        heading: "Entfernung bestätigen"
+        warning_core: "WARNUNG: Core-Pakete ausgewählt. Das Entfernen von Core-Paketen kann Ihr System beschädigen."
+        none: "Nichts zu entfernen"
+        confirm_hint: "Enter zum Bestätigen oder Esc zum Abbrechen drücken"
+      system_update:
+        title: " System aktualisieren "
+        heading: "System-Update"
+        entries:
+          update_arch_mirrors: "Arch-Mirrors aktualisieren"
+          update_pacman: "Pacman aktualisieren (sudo pacman -Syyu)"
+          update_aur: "AUR aktualisieren (paru/yay)"
+          remove_cache: "Cache entfernen (pacman/yay)"
+        country_label: "Land (Mirrors): "
+        count_label: "Anzahl:"
+        worldwide: "Weltweit"
+        footer_hint: "Leertaste: umschalten  •  Links/Rechts: Land ändern  •  -/+ Anzahl ändern  •  Enter: ausführen  •  Esc: abbrechen"
+      help:
+        title: " Hilfe "
+        heading: "Pacsea Hilfe"
+        sections:
+          search: "Suche:"
+          search_normal: "Suche (Normalmodus):"
+          install: "Installieren:"
+          recent: "Kürzlich:"
+          mouse: "Maus:"
+          system_update_dialog: "System-Update-Dialog:"
+          news_dialog: "Neuigkeiten-Dialog:"
+        mouse_lines:
+          - "  • Listen (Ergebnisse/Kürzlich/Installieren) und PKGBUILD mit Mausrad scrollen"
+          - "  • PKGBUILD umschalten: 'PKGBUILD anzeigen' in Details klicken"
+          - "  • 'PKGBUILD kopieren' kopieren: Titel-Button im PKGBUILD klicken"
+          - "  • Details-URL öffnen: Strg+Umschalt+Linksklick auf die URL"
+          - "  • Ergebnisse-Titelleiste: Sortieren/Optionen/Panels/Konfiguration klicken, um Menüs zu öffnen"
+          - "  • Filter umschalten (AUR/core/extra/multilib/EOS/cachyos): ihre Beschriftungen klicken"
+          - "  • Arch-Status (oben rechts): klicken, um status.archlinux.org zu öffnen"
+        system_update_lines:
+          - "  • Öffnen über Optionen → System aktualisieren"
+          - "  • Hoch/Runter: bewegen • Leertaste: umschalten • Links/Rechts: Land ändern • Enter: ausführen • Esc: schließen"
+        news_lines:
+          - "  • Öffnen über Optionen → Neuigkeiten • Hoch/Runter: auswählen • Enter: öffnen • Esc: schließen"
+        close_hint: "Enter oder Esc zum Schließen drücken"
+        key_labels:
+          help_overlay: "Hilfe-Overlay"
+          exit: "Beenden"
+          reload_theme: "Theme neu laden"
+          next_pane: "Nächstes Panel"
+          focus_left: "Nach links fokussieren"
+          focus_right: "Nach rechts fokussieren"
+          show_pkgbuild: "PKGBUILD anzeigen"
+          change_sorting: "Sortierung ändern"
+          move: "  Bewegen"
+          page: "  Seite"
+          add: "  Hinzufügen"
+          install: "  Installieren"
+          delete: "  Löschen"
+          find: "  Suchen"
+          to_search: "  Zur Suche"
+          use: "  Verwenden"
+      news:
+        title: " Neuigkeiten "
+        heading: "Arch Linux Neuigkeiten"
+        none: "Keine Neuigkeiten verfügbar."
+        footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  •  Esc: schließen"
+      optional_deps:
+        title: " Optionale Abhängigkeiten "
+        heading: "TUI Optionale Abhängigkeiten"
+        markers:
+          installed: "✔ installiert"
+          not_installed: "⏺ nicht installiert"
+        footer_hint: "Hoch/Runter: auswählen  •  Enter: installieren  •  Esc: schließen"
+      gnome_terminal_prompt:
+        title: " GNOME-Terminal installieren "
+        heading: "GNOME Terminal oder Console empfohlen"
+        body_line1: "GNOME wurde erkannt, aber kein GNOME-Terminal (gnome-terminal oder gnome-console/kgx) ist installiert."
+        hint: "Enter drücken, um gnome-terminal zu installieren  •  Esc zum Abbrechen"
+        warning: "Abbrechen kann zu unerwartetem Verhalten führen."
+      virustotal:
+        title: " VirusTotal "
+        heading: "VirusTotal API-Einrichtung"
+        open_link: "Link öffnen, um Ihren API-Schlüssel anzuzeigen:"
+        input_hint: "API-Schlüssel unten eingeben/einfügen und Enter zum Speichern drücken (Esc zum Abbrechen):"
+        api_key_label: "API-Schlüssel:"
+        tip: "Tipp: Nach dem Speichern werden Scans automatisch VirusTotal per Datei-Hash abfragen."
+      preflight:
+        title_install: " Preflight: Installieren "
+        title_remove: " Preflight: Entfernen "
+        tabs:
+          summary: "Zusammenfassung"
+          deps: "Abhängigkeiten"
+          files: "Dateien"
+          services: "Dienste"
+          sandbox: "Sandbox"
+        header_chips:
+          aur_packages: " ({} AUR)"
+          download_label: "[DL: {}]"
+          size_label: "[Größe: {}]"
+          risk_low: "Niedrig"
+          risk_medium: "Mittel"
+          risk_high: "Hoch"
+          risk_label: "[Risiko: {} ({})]"
+        summary:
+          risk_factors: "Risikofaktoren:"
+          notes: "Hinweise:"
+          per_package_overview: "Paketübersicht:"
+          major_bump: " (Hauptversion)"
+          downgrade: " (Downgrade)"
+          download: " • Download {}"
+          size: " • Größe {}"
+          no_conflicts_or_upgrades: "Keine Konflikte oder Upgrades erforderlich."
+          issues: "Probleme: {}"
+          summary_label: "Zusammenfassung: {}"
+          summary_no_conflicts: "Zusammenfassung: Keine Konflikte oder Upgrades erforderlich."
+          conflict_singular: "{} Konflikt(e)"
+          upgrade_singular: "{} Upgrade(s)"
+          and_more: "... und {} weitere"
+          cascade_mode: "Kaskadenmodus: {} ({})"
+          no_removal_targets: "Keine Entfernungsziele ausgewählt."
+          removal_plan_preview: "Entfernungsplan-Vorschau"
+          dry_run_prefix: "TROCKENLAUF: {}"
+          no_dependents: "Keine installierten Pakete hängen von der Entfernungsliste ab."
+          cascade_will_include: "Kaskade wird {} abhängige(s) Paket(e) einschließen."
+          dependents_block_removal: "{} abhängige(s) Paket(e) blockieren derzeit die Entfernung."
+          calculating_reverse_deps: "Berechne umgekehrte Abhängigkeiten..."
+          removal_impact_overview: "Entfernungsauswirkungsübersicht:"
+          dependent_singular: "{} → {} Abhängige(r)"
+          direct_singular: " ({} direkt)"
+          transitive_singular: " ({} transitiv)"
+          cascade_will_remove: "Kaskade wird auch diese(s) Paket(e) entfernen:"
+          dependents_not_removed: "Abhängige (im aktuellen Modus nicht entfernt):"
+          requires_version_change: "erfordert Versionsänderung"
+          already_satisfied: "bereits erfüllt"
+          not_currently_installed: "derzeit nicht installiert"
+          missing: "fehlt"
+          targets_label: " (Ziele: {})"
+          and_more_impacted: "... und {} weitere betroffene(s) Paket(e)"
+          will_be_removed_auto: "Diese Pakete werden automatisch entfernt, wenn der Befehl ausgeführt wird."
+          enable_cascade_mode: "Kaskadenmodus aktivieren (Taste 'm' drücken), um sie automatisch einzuschließen."
+          use_deps_tab: "Abhängigkeiten-Tab verwenden, um betroffene Pakete zu prüfen."
+          no_items_selected: "Keine Elemente ausgewählt."
+          packages_selected: "{} Paket(e) ausgewählt"
+          aur_packages_included: "AUR-Pakete enthalten (+2)"
+          aur_packages_present: "AUR-Pakete vorhanden; Build-Schritte können variieren."
+        deps:
+          dependents_rely_on: "Abhängige: {} Paket(e) hängen von der Entfernungsliste ab"
+          dependencies_label: "Abhängigkeiten: {}"
+          total: "{} gesamt"
+          installed: "{} installiert"
+          to_install: "{} zu installieren"
+          to_upgrade: "{} zu aktualisieren"
+          conflicts: "{} Konflikte"
+          missing: "{} fehlt"
+          error: "⚠ Fehler: {}"
+          retry_hint: "Taste 'r' drücken, um Abhängigkeitsauflösung erneut zu versuchen"
+          resolving: "Löse Abhängigkeiten auf..."
+          showing_range: "... zeigt {}-{} von {}"
+          installed_version: " (installiert: {})"
+          version_upgrade: " ({} → {})"
+          conflict_reason: " ({})"
+        files:
+          updating: "Aktualisiere Dateiänderungen..."
+          error: "⚠ Fehler: {}"
+          retry_hint: "Taste 'r' drücken, um Dateiauflösung erneut zu versuchen"
+          resolving: "Löse Dateiänderungen auf..."
+          no_file_changes: "Keine Dateiänderungen für {} Paket(e) gefunden."
+          file_db_sync_note: "Hinweis: Dateidatenbank muss möglicherweise synchronisiert werden (pacman -Fy erfordert root)."
+          sync_file_db_hint: "Taste 'f' drücken, um Dateidatenbank in einem Terminal zu synchronisieren."
+          aur_file_note: "Hinweis: AUR-Pakete müssen gebaut werden, um Dateilisten zu bestimmen."
+          no_file_changes_display: "Keine Dateiänderungen anzuzeigen."
+          file_resolution_progress: "Dateiauflösung läuft..."
+          file_db_stale: "⚠ Dateidatenbank ist veraltet (älter als 7 Tage)"
+          sync_file_db_root: "Taste 'f' drücken, um Dateidatenbank zu synchronisieren (erfordert root)"
+          files_updated_on: "Dateien aktualisiert am {}"
+          files_label: "Dateien: {}"
+          total: "{} gesamt"
+          new: "{} neu"
+          changed: "{} geändert"
+          removed: "{} entfernt"
+          config: "{} Konfiguration"
+          pacnew: "{} pacnew"
+          pacsave: "{} pacsave"
+          files_count: "({} Dateien"
+          showing_range_items: "... zeigt {}-{} von {} Elementen (↑↓ zum Navigieren)"
+        services:
+          updating: "Aktualisiere Dienstauswirkungsdaten…"
+          error: "⚠ Fehler: {}"
+          retry_hint: "Taste 'r' drücken, um Dienstauflösung erneut zu versuchen"
+          gathering: "Sammle Dienstauswirkungsdaten…"
+          no_services: "Keine systemd-Dienste benötigen Aufmerksamkeit."
+          active: "aktiv"
+          active_restart_recommended: "aktiv • Neustart empfohlen"
+          inactive: "inaktiv"
+          restart: "[neustarten]"
+          defer: "[verschieben]"
+          more_services: "… {} weitere"
+        sandbox:
+          error: "Fehler: {}"
+          retry_hint: "Taste 'r' drücken, um erneut zu versuchen"
+          updating: "Aktualisiere Sandbox-Analyse…"
+          analyzing: "Analysiere Build-Abhängigkeiten…"
+          official_packages_prebuilt: "Offizielle Pakete sind vorgebaut und benötigen keine Sandbox-Analyse."
+          dependencies_expand_hint: "{} Abhängigkeiten (Leertaste/Enter zum Ausklappen)"
+          no_build_dependencies: "Keine Build-Abhängigkeiten gefunden."
+          depends: "depends"
+          makedepends: "makedepends"
+          checkdepends: "checkdepends"
+          optdepends: "optdepends"
+          runtime_dependencies: "Laufzeit-Abhängigkeiten (depends):"
+          build_dependencies: "Build-Abhängigkeiten (makedepends):"
+          test_dependencies: "Test-Abhängigkeiten (checkdepends):"
+          optional_dependencies: "Optionale Abhängigkeiten (optdepends):"
+          new_dependency: "neu"
+          upgraded_dependency: "aktualisiert"
+          unchanged_dependency: "unverändert"
+        footer_hints:
+          deps_with_aur: "Links/Rechts: Tabs  •  Hoch/Runter: navigieren  •  Enter/Leertaste: umschalten  •  a: alle ein-/ausklappen  •  r: erneut versuchen  •  ?: Hilfe  •  s: AUR scannen  •  d: Trockenlauf  •  p: fortfahren  •  q: schließen"
+          deps_without_aur: "Links/Rechts: Tabs  •  Hoch/Runter: navigieren  •  Enter/Leertaste: umschalten  •  a: alle ein-/ausklappen  •  r: erneut versuchen  •  ?: Hilfe  •  d: Trockenlauf  •  p: fortfahren  •  q: schließen"
+          files_with_aur: "Links/Rechts: Tabs  •  Hoch/Runter: navigieren  •  Enter/Leertaste: ein-/ausklappen  •  a: alle ein-/ausklappen  •  r: erneut versuchen  •  f: Datei-DB synchronisieren  •  s: AUR scannen  •  d: Trockenlauf  •  p: fortfahren  •  q: schließen"
+          files_without_aur: "Links/Rechts: Tabs  •  Hoch/Runter: navigieren  •  Enter/Leertaste: ein-/ausklappen  •  a: alle ein-/ausklappen  •  r: erneut versuchen  •  f: Datei-DB synchronisieren  •  d: Trockenlauf  •  p: fortfahren  •  q: schließen"
+          services_with_aur: "Links/Rechts: Tabs  •  Hoch/Runter: navigieren  •  Leertaste: Neustart umschalten  •  R: neustarten  •  Umschalt+D: verschieben  •  r: erneut versuchen  •  s: AUR scannen  •  d: Trockenlauf  •  p: fortfahren  •  q: schließen"
+          services_without_aur: "Links/Rechts: Tabs  •  Hoch/Runter: navigieren  •  Leertaste: Neustart umschalten  •  R: neustarten  •  Umschalt+D: verschieben  •  r: erneut versuchen  •  d: Trockenlauf  •  p: fortfahren  •  q: schließen"
+          default_with_aur: "Links/Rechts: Tabs  •  s: AUR scannen  •  d: Trockenlauf  •  p: fortfahren  •  q: schließen"
+          default_without_aur: "Links/Rechts: Tabs  •  d: Trockenlauf  •  p: fortfahren  •  q: schließen"
+          cascade_mode: "  •  m: Kaskadenmodus"
+        help:
+          deps_tab: "Abhängigkeiten-Tab Hilfe\n\n\
+                        Navigation:\n\
+                        • Hoch/Runter - Abhängigkeitsliste navigieren\n\
+                        • Links/Rechts/Tab - Tabs wechseln\n\
+                        • Enter/Leertaste - Paketgruppe ein-/ausklappen\n\
+                        • a - Alle Paketgruppen ein-/ausklappen\n\
+                        • r - Abhängigkeitsauflösung erneut versuchen (bei Fehler)\n\
+                        • ? - Diese Hilfe anzeigen\n\
+                        • q/Esc - Preflight schließen\n\n\
+                        Abhängigkeiten werden automatisch aufgelöst, wenn Sie zu diesem Tab navigieren.\n\
+                        Für AUR-Pakete werden Abhängigkeiten von der AUR-API abgerufen."
+          general: "Preflight Hilfe\n\n\
+                        Navigation:\n\
+                        • Links/Rechts/Tab - Zwischen Tabs wechseln\n\
+                        • Hoch/Runter - Listen navigieren (Abhängigkeiten-, Dateien-, Dienste-Tabs)\n\
+                        • ? - Hilfe für aktuellen Tab anzeigen\n\
+                        • q/Esc/Enter - Preflight schließen (Enter schaltet auch Ein-/Ausklappen in Abhängigkeiten-/Dateien-Tabs um)\n\n\
+                        Tab-spezifische Aktionen:\n\
+                        • Abhängigkeiten-Tab:\n\
+                          - Enter/Leertaste - Paketgruppe ein-/ausklappen\n\
+                          - a - Alle Paketgruppen ein-/ausklappen\n\
+                          - r - Abhängigkeitsauflösung erneut versuchen (bei Fehler)\n\
+                        • Dateien-Tab:\n\
+                          - Enter/Leertaste - Paketdateiliste ein-/ausklappen\n\
+                          - a - Alle Paketdateilisten ein-/ausklappen\n\
+                          - f - Pacman-Dateidatenbank synchronisieren (pacman -Fy)\n\
+                          - r - Dateiauflösung erneut versuchen (bei Fehler)\n\
+                        • Dienste-Tab:\n\
+                          - Leertaste - Neustart/Verschieben für ausgewählten Dienst umschalten\n\
+                          - R - Ausgewählten Dienst zum Neustarten markieren\n\
+                          - Umschalt+D - Ausgewählten Dienst zum Verschieben markieren\n\
+                          - r - Dienstauflösung erneut versuchen (bei Fehler)\n\n\
+                        Globale Aktionen:\n\
+                        • s - AUR-Pakete scannen (wenn AUR-Pakete ausgewählt)\n\
+                        • d - Trockenlaufmodus umschalten\n\
+                        • m - Kaskadenentfernungsmodus umschalten (nur Entfernungsaktion)\n\
+                        • p - Mit Installation/Entfernung fortfahren\n\
+                        • c - Schnappschuss erstellen (Platzhalter)\n\n\
+                        Tabs:\n\
+                        • Zusammenfassung - Übersicht über Pakete, Versionen, Größen und Risikobewertung\n\
+                        • Abhängigkeiten - Abhängigkeitsinformationen und umgekehrte Abhängigkeiten\n\
+                        • Dateien - Dateiänderungsvorschau und pacnew/pacsave-Vorhersage\n\
+                        • Dienste - Systemd-Dienstauswirkung und Neustartplanung\n\
+                        • Sandbox - AUR-Build-Prüfungen (Platzhalter)"
+      post_summary:
+        success: "Erfolg"
+        failed: "Fehlgeschlagen"
+        changed_files: "Geänderte Dateien: {} (pacnew: {}, pacsave: {})"
+        snapshot: "Schnappschuss: {}"
+        services_pending_restart: "Dienste mit ausstehendem Neustart:"
+        footer_hint: "r: zurücksetzen  •  s: Dienste neu starten  •  Enter/Esc: schließen"
+
