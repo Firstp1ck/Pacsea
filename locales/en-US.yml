@@ -419,6 +419,7 @@ en-US:
           to_install: "{} to install"
           to_upgrade: "{} to upgrade"
           conflicts: "{} conflicts"
+          conflicts_sentence: "Conflicts detected with installed packages."
           missing: "{} missing"
           error: "⚠ Error: {}"
           retry_hint: "Press 'r' to retry dependency resolution"
@@ -449,6 +450,8 @@ en-US:
           config: "{} config"
           pacnew: "{} pacnew"
           pacsave: "{} pacsave"
+          pacnew_label: "⚠ pacnew "
+          pacsave_label: "⚠ pacsave "
           files_count: "({} files"
           showing_range_items: "... showing {}-{} of {} items (↑↓ to navigate)"
         services:
@@ -482,6 +485,8 @@ en-US:
           new_dependency: "new"
           upgraded_dependency: "upgraded"
           unchanged_dependency: "unchanged"
+          package_label: "Package: {} ({})"
+          no_packages: "No packages in this transaction."
         footer_hints:
           deps_with_aur: "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  r: retry  •  ?: help  •  s: scan AUR  •  d: dry-run  •  p: proceed  •  q: close"
           deps_without_aur: "Left/Right: tabs  •  Up/Down: navigate  •  Enter/Space: toggle  •  a: expand/collapse all  •  r: retry  •  ?: help  •  d: dry-run  •  p: proceed  •  q: close"

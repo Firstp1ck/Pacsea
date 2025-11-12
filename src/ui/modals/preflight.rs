@@ -1923,7 +1923,10 @@ pub fn render_preflight(
                                 } else {
                                     Style::default().fg(th.yellow)
                                 };
-                                spans.push(Span::styled("⚠ pacnew ", pacnew_style));
+                                spans.push(Span::styled(
+                                    i18n::t(app, "app.modals.preflight.files.pacnew_label"),
+                                    pacnew_style,
+                                ));
                             }
                             if *predicted_pacsave {
                                 let pacsave_style = if let Some(bg) = highlight_bg {
@@ -1931,7 +1934,10 @@ pub fn render_preflight(
                                 } else {
                                     Style::default().fg(th.red)
                                 };
-                                spans.push(Span::styled("⚠ pacsave ", pacsave_style));
+                                spans.push(Span::styled(
+                                    i18n::t(app, "app.modals.preflight.files.pacsave_label"),
+                                    pacsave_style,
+                                ));
                             }
 
                             let path_style = if let Some(bg) = highlight_bg {
@@ -1970,28 +1976,28 @@ pub fn render_preflight(
         PreflightTab::Services => {
             if app.services_resolving {
                 lines.push(Line::from(Span::styled(
-                    "Updating service impact data…",
+                    i18n::t(app, "app.modals.preflight.services.updating"),
                     Style::default().fg(th.yellow),
                 )));
             } else if let Some(err_msg) = services_error {
                 // Display error with retry hint
                 lines.push(Line::from(Span::styled(
-                    format!("⚠ Error: {}", err_msg),
+                    i18n::t_fmt1(app, "app.modals.preflight.services.error", err_msg),
                     Style::default().fg(th.red),
                 )));
                 lines.push(Line::from(""));
                 lines.push(Line::from(Span::styled(
-                    "Press 'r' to retry service resolution",
+                    i18n::t(app, "app.modals.preflight.services.retry_hint"),
                     Style::default().fg(th.subtext1),
                 )));
             } else if !*services_loaded {
                 lines.push(Line::from(Span::styled(
-                    "Gathering service impact data…",
+                    i18n::t(app, "app.modals.preflight.services.resolving"),
                     Style::default().fg(th.subtext1),
                 )));
             } else if service_info.is_empty() {
                 lines.push(Line::from(Span::styled(
-                    "No systemd services require attention.",
+                    i18n::t(app, "app.modals.preflight.services.no_services"),
                     Style::default().fg(th.green),
                 )));
             } else {
@@ -2401,13 +2407,14 @@ pub fn render_preflight(
                                 .add_modifier(Modifier::BOLD)
                         };
 
-                        let mut header_text = format!(
-                            "Package: {} ({})",
-                            pkg_name,
-                            match &item.source {
-                                crate::state::Source::Aur => "AUR",
-                                crate::state::Source::Official { repo, .. } => repo,
-                            }
+                        let source_str = match &item.source {
+                            crate::state::Source::Aur => "AUR".to_string(),
+                            crate::state::Source::Official { repo, .. } => repo.clone(),
+                        };
+                        let mut header_text = i18n::t_fmt(
+                            app,
+                            "app.modals.preflight.sandbox.package_label",
+                            &[pkg_name, &source_str],
                         );
                         if !arrow_symbol.is_empty() {
                             header_text = format!("{} {}", arrow_symbol, header_text);
@@ -2578,7 +2585,7 @@ pub fn render_preflight(
                 // If no packages at all
                 if items.is_empty() {
                     lines.push(Line::from(Span::styled(
-                        "No packages in this transaction.",
+                        i18n::t(app, "app.modals.preflight.sandbox.no_packages"),
                         Style::default().fg(th.subtext0),
                     )));
                 }

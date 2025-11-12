@@ -266,6 +266,85 @@ pub(crate) fn parse_dependency_output(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// What: Extract conflict specifications from the `pacman -Si` "Conflicts With" field.
+///
+/// Inputs:
+/// - `text`: Raw stdout emitted by `pacman -Si` for a package.
+///
+/// Output:
+/// - Returns package names that conflict with this package.
+///
+/// Details:
+/// - Scans the "Conflicts With" line, splits on whitespace, and filters out invalid entries.
+/// - Similar to `parse_pacman_si_deps` but for conflicts field.
+pub(crate) fn parse_pacman_si_conflicts(text: &str) -> Vec<String> {
+    let none_labels = get_none_labels();
+
+    for line in text.lines() {
+        // Check if line starts with "Conflicts With" (or localized variants)
+        let is_conflicts_line = line.starts_with("Conflicts With")
+            || line.starts_with("Konflikt mit")
+            || (line.contains("Conflicts") && line.contains("With"));
+
+        if is_conflicts_line && let Some(colon_pos) = line.find(':') {
+            let conflicts_str = line[colon_pos + 1..].trim();
+            // Check if conflicts_str matches any "None" equivalent
+            if conflicts_str.is_empty()
+                || none_labels
+                    .iter()
+                    .any(|label| conflicts_str.eq_ignore_ascii_case(label))
+            {
+                return Vec::new();
+            }
+            // Split by whitespace and parse package names (may include version constraints)
+            return conflicts_str
+                .split_whitespace()
+                .map(|s| s.trim().to_string())
+                .filter(|s| {
+                    if s.is_empty() {
+                        return false;
+                    }
+                    // Filter out .so files (virtual packages)
+                    if s.ends_with(".so") || s.contains(".so.") || s.contains(".so=") {
+                        return false;
+                    }
+                    // Filter out common words
+                    let common_words = [
+                        "for", "to", "with", "is", "that", "using", "usually", "bundled",
+                        "bindings", "tooling", "the", "and", "or", "in", "on", "at", "by", "from",
+                        "as", "if", "when", "where", "which", "what", "how", "why",
+                    ];
+                    let lower = s.to_lowercase();
+                    if common_words.contains(&lower.as_str()) {
+                        return false;
+                    }
+                    // Filter out tokens that are too short
+                    if s.len() < 2 {
+                        return false;
+                    }
+                    // Filter out tokens that don't look like package names
+                    let first_char = s.chars().next().unwrap_or(' ');
+                    if !first_char.is_alphanumeric() && first_char != '-' && first_char != '_' {
+                        return false;
+                    }
+                    if s.ends_with(':') {
+                        return false;
+                    }
+                    if !s.chars().any(|c| c.is_alphanumeric()) {
+                        return false;
+                    }
+                    true
+                })
+                .map(|s| {
+                    // Extract package name (remove version constraints if present)
+                    parse_dep_spec(&s).0
+                })
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
 /// What: Split a dependency specification into name and version requirement components.
 ///
 /// Inputs:
@@ -340,5 +419,61 @@ mod tests {
         let (name, version) = parse_dep_spec("firefox=121.0");
         assert_eq!(name, "firefox");
         assert_eq!(version, "=121.0");
+    }
+
+    #[test]
+    /// What: Confirm conflicts parsing extracts package names from pacman output.
+    ///
+    /// Inputs:
+    /// - Sample pacman -Si output with "Conflicts With" field.
+    ///
+    /// Output:
+    /// - Returns vector of conflicting package names.
+    ///
+    /// Details:
+    /// - Validates parsing logic handles whitespace-separated conflict lists.
+    fn parse_pacman_si_conflicts_basic() {
+        let text =
+            "Name            : test-package\nConflicts With : conflicting-pkg1 conflicting-pkg2\n";
+        let conflicts = parse_pacman_si_conflicts(text);
+        assert_eq!(conflicts.len(), 2);
+        assert!(conflicts.contains(&"conflicting-pkg1".to_string()));
+        assert!(conflicts.contains(&"conflicting-pkg2".to_string()));
+    }
+
+    #[test]
+    /// What: Ensure conflicts parsing handles version constraints correctly.
+    ///
+    /// Inputs:
+    /// - Pacman output with conflicts containing version constraints.
+    ///
+    /// Output:
+    /// - Returns package names without version constraints.
+    ///
+    /// Details:
+    /// - Confirms version operators are stripped from conflict names.
+    fn parse_pacman_si_conflicts_with_versions() {
+        let text = "Name            : test-package\nConflicts With : old-pkg<2.0 new-pkg>=3.0\n";
+        let conflicts = parse_pacman_si_conflicts(text);
+        assert_eq!(conflicts.len(), 2);
+        assert!(conflicts.contains(&"old-pkg".to_string()));
+        assert!(conflicts.contains(&"new-pkg".to_string()));
+    }
+
+    #[test]
+    /// What: Validate conflicts parsing handles "None" correctly.
+    ///
+    /// Inputs:
+    /// - Pacman output with "Conflicts With: None".
+    ///
+    /// Output:
+    /// - Returns empty vector.
+    ///
+    /// Details:
+    /// - Ensures "None" label is recognized and filtered out.
+    fn parse_pacman_si_conflicts_none() {
+        let text = "Name            : test-package\nConflicts With : None\n";
+        let conflicts = parse_pacman_si_conflicts(text);
+        assert!(conflicts.is_empty());
     }
 }

@@ -10,10 +10,10 @@ mod srcinfo;
 mod status;
 mod utils;
 
-use crate::state::modal::DependencyInfo;
+use crate::state::modal::{DependencyInfo, DependencyStatus};
 use crate::state::types::PackageItem;
 use query::get_upgradable_packages;
-use resolve::resolve_package_deps;
+use resolve::{fetch_package_conflicts, resolve_package_deps};
 use status::determine_status;
 use std::collections::{HashMap, HashSet};
 use utils::dependency_priority;
@@ -74,7 +74,75 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     tracing::info!("Found {} upgradable packages", upgradable.len());
 
     // Initialize set of root packages (for tracking)
-    let _root_names: HashSet<String> = items.iter().map(|i| i.name.clone()).collect();
+    let root_names: HashSet<String> = items.iter().map(|i| i.name.clone()).collect();
+
+    // Check conflicts for packages being installed
+    // 1. Check conflicts against installed packages
+    // 2. Check conflicts between packages in the install list
+    tracing::info!("Checking conflicts for {} package(s)", items.len());
+    for item in items.iter() {
+        let conflicts = fetch_package_conflicts(&item.name, &item.source);
+        if !conflicts.is_empty() {
+            tracing::debug!("Package {} conflicts with: {:?}", item.name, conflicts);
+
+            for conflict_name in conflicts {
+                // Check if conflict is installed
+                let is_installed = installed.contains(&conflict_name)
+                    || provided.contains(&conflict_name);
+
+                // Check if conflict is in the install list
+                let is_in_install_list = root_names.contains(&conflict_name);
+
+                if is_installed || is_in_install_list {
+                    let reason = if is_installed && is_in_install_list {
+                        format!(
+                            "conflicts with {} (installed and in install list)",
+                            conflict_name
+                        )
+                    } else if is_installed {
+                        format!("conflicts with installed package {}", conflict_name)
+                    } else {
+                        format!("conflicts with package {} in install list", conflict_name)
+                    };
+
+                    // Add or update conflict entry
+                    let entry = deps.entry(conflict_name.clone()).or_insert_with(|| {
+                        // Determine source for conflicting package
+                        let (source, is_core) =
+                            crate::logic::deps::source::determine_dependency_source(
+                                &conflict_name,
+                                &installed,
+                            );
+                        let is_system = is_core
+                            || crate::logic::deps::source::is_system_package(&conflict_name);
+
+                        DependencyInfo {
+                            name: conflict_name.clone(),
+                            version: String::new(),
+                            status: DependencyStatus::Conflict {
+                                reason: reason.clone(),
+                            },
+                            source,
+                            required_by: vec![item.name.clone()],
+                            depends_on: Vec::new(),
+                            is_core,
+                            is_system,
+                        }
+                    });
+
+                    // Update status to Conflict if not already
+                    if !matches!(entry.status, DependencyStatus::Conflict { .. }) {
+                        entry.status = DependencyStatus::Conflict { reason };
+                    }
+
+                    // Add to required_by if not present
+                    if !entry.required_by.contains(&item.name) {
+                        entry.required_by.push(item.name.clone());
+                    }
+                }
+            }
+        }
+    }
 
     // Resolve ONLY direct dependencies (non-recursive)
     // This is faster and avoids resolving transitive dependencies which can be slow and error-prone

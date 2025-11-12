@@ -1,8 +1,8 @@
 //! Core dependency resolution logic for individual packages.
 
-use super::parse::{parse_dep_spec, parse_pacman_si_deps};
+use super::parse::{parse_dep_spec, parse_pacman_si_conflicts, parse_pacman_si_deps};
 use super::source::{determine_dependency_source, is_system_package};
-use super::srcinfo::{fetch_srcinfo, parse_srcinfo_deps};
+use super::srcinfo::{fetch_srcinfo, parse_srcinfo_conflicts, parse_srcinfo_deps};
 use super::status::determine_status;
 use crate::state::modal::DependencyInfo;
 use crate::state::types::Source;
@@ -482,6 +482,126 @@ pub(crate) fn resolve_package_deps(
 
     tracing::debug!("Resolved {} dependencies for package {}", deps.len(), name);
     Ok(deps)
+}
+
+/// What: Fetch conflicts for a package from pacman or AUR sources.
+///
+/// Inputs:
+/// - `name`: Package identifier.
+/// - `source`: Source enum describing whether the package is official or AUR.
+///
+/// Output:
+/// - Returns a vector of conflicting package names, or empty vector on error.
+///
+/// Details:
+/// - For official packages, uses `pacman -Si` to get conflicts.
+/// - For AUR packages, tries paru/yay first, then falls back to .SRCINFO.
+pub(crate) fn fetch_package_conflicts(name: &str, source: &Source) -> Vec<String> {
+    match source {
+        Source::Official { repo, .. } => {
+            // Handle local packages specially - use pacman -Qi instead of -Si
+            if repo == "local" {
+                tracing::debug!("Running: pacman -Qi {} (local package, conflicts)", name);
+                if let Ok(output) = Command::new("pacman")
+                    .args(["-Qi", name])
+                    .env("LC_ALL", "C")
+                    .env("LANG", "C")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output()
+                    && output.status.success()
+                {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    return parse_pacman_si_conflicts(&text);
+                }
+                return Vec::new();
+            }
+
+            // Use pacman -Si to get conflicts
+            tracing::debug!("Running: pacman -Si {} (conflicts)", name);
+            if let Ok(output) = Command::new("pacman")
+                .args(["-Si", name])
+                .env("LC_ALL", "C")
+                .env("LANG", "C")
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+                && output.status.success()
+            {
+                let text = String::from_utf8_lossy(&output.stdout);
+                return parse_pacman_si_conflicts(&text);
+            }
+            Vec::new()
+        }
+        Source::Aur => {
+            // Try paru/yay first
+            let has_paru = Command::new("paru")
+                .args(["--version"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .output()
+                .is_ok();
+
+            let has_yay = Command::new("yay")
+                .args(["--version"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .output()
+                .is_ok();
+
+            if has_paru {
+                tracing::debug!("Trying paru -Si {} for conflicts", name);
+                if let Ok(output) = Command::new("paru")
+                    .args(["-Si", name])
+                    .env("LC_ALL", "C")
+                    .env("LANG", "C")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output()
+                    && output.status.success()
+                {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    let conflicts = parse_pacman_si_conflicts(&text);
+                    if !conflicts.is_empty() {
+                        return conflicts;
+                    }
+                }
+            }
+
+            if has_yay {
+                tracing::debug!("Trying yay -Si {} for conflicts", name);
+                if let Ok(output) = Command::new("yay")
+                    .args(["-Si", name])
+                    .env("LC_ALL", "C")
+                    .env("LANG", "C")
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output()
+                    && output.status.success()
+                {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    let conflicts = parse_pacman_si_conflicts(&text);
+                    if !conflicts.is_empty() {
+                        return conflicts;
+                    }
+                }
+            }
+
+            // Fall back to .SRCINFO
+            if let Ok(srcinfo_text) = fetch_srcinfo(name) {
+                tracing::debug!("Using .SRCINFO for conflicts of {}", name);
+                return parse_srcinfo_conflicts(&srcinfo_text);
+            }
+
+            Vec::new()
+        }
+    }
 }
 
 #[cfg(all(test, unix))]
