@@ -17,10 +17,11 @@ use tokio::task;
 /// - `refresh_official_index_from_arch_api(persist_path, net_err_tx, notify_tx)`
 /// - `refresh_windows_mirrors_and_index(persist_path, repo_dir, net_err_tx, notify_tx)`
 use super::{OfficialPkg, idx, save_to_disk};
+use crate::util::curl_args;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// What: Fetch a JSON payload via `curl -sSLf` and deserialize it.
+/// What: Fetch a JSON payload via `curl` and deserialize it.
 ///
 /// Inputs:
 /// - `url`: HTTP(S) endpoint expected to return JSON.
@@ -30,10 +31,10 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 ///
 /// Details:
 /// - Treats non-success exit codes and JSON/UTF-8 parsing failures as errors to propagate.
+/// - On Windows, uses `-k` flag to skip SSL certificate verification.
 fn curl_json(url: &str) -> Result<Value> {
-    let out = std::process::Command::new("curl")
-        .args(["-sSLf", url])
-        .output()?;
+    let args = curl_args(url, &[]);
+    let out = std::process::Command::new("curl").args(&args).output()?;
     if !out.status.success() {
         return Err(format!("curl failed for {url}: {:?}", out.status).into());
     }
@@ -42,7 +43,7 @@ fn curl_json(url: &str) -> Result<Value> {
     Ok(v)
 }
 
-/// What: Fetch a text payload via `curl -sSLf`.
+/// What: Fetch a text payload via `curl`.
 ///
 /// Inputs:
 /// - `url`: HTTP(S) endpoint expected to return text data.
@@ -52,11 +53,11 @@ fn curl_json(url: &str) -> Result<Value> {
 ///
 /// Details:
 /// - Treats non-success exit codes and UTF-8 decoding failures as errors to propagate.
+/// - On Windows, uses `-k` flag to skip SSL certificate verification.
 #[allow(dead_code)]
 fn curl_text(url: &str) -> Result<String> {
-    let out = std::process::Command::new("curl")
-        .args(["-sSLf", url])
-        .output()?;
+    let args = curl_args(url, &[]);
+    let out = std::process::Command::new("curl").args(&args).output()?;
     if !out.status.success() {
         return Err(format!("curl failed for {url}: {:?}", out.status).into());
     }

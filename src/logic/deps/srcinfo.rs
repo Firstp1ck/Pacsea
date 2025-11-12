@@ -1,6 +1,6 @@
 //! Parser for AUR .SRCINFO files.
 
-use crate::util::percent_encode;
+use crate::util::{curl_args, percent_encode};
 use std::process::Command;
 
 /// What: Fetch .SRCINFO content for an AUR package.
@@ -21,8 +21,9 @@ pub(crate) fn fetch_srcinfo(name: &str) -> Result<String, String> {
     tracing::debug!("Fetching .SRCINFO from: {}", url);
 
     // Add timeout to prevent hanging (10 seconds)
+    let args = curl_args(&url, &["--max-time", "10"]);
     let output = Command::new("curl")
-        .args(["-sSLf", "--max-time", "10", &url])
+        .args(&args)
         .output()
         .map_err(|e| format!("curl failed: {}", e))?;
 

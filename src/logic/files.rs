@@ -2,7 +2,7 @@
 
 use crate::state::modal::{FileChange, FileChangeType, PackageFileInfo};
 use crate::state::types::{PackageItem, Source};
-use crate::util::percent_encode;
+use crate::util::{curl_args, percent_encode};
 use std::collections::HashSet;
 use std::path::Path;
 use std::process::Command;
@@ -819,7 +819,8 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
     );
     tracing::debug!("Fetching PKGBUILD from AUR: {}", url_aur);
 
-    let output = Command::new("curl").args(["-sSLf", &url_aur]).output();
+    let args = curl_args(&url_aur, &[]);
+    let output = Command::new("curl").args(&args).output();
 
     match output {
         Ok(output) if output.status.success() => {
@@ -838,7 +839,8 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
     );
     tracing::debug!("Fetching PKGBUILD from GitLab main: {}", url_main);
 
-    let output = Command::new("curl").args(["-sSLf", &url_main]).output();
+    let args = curl_args(&url_main, &[]);
+    let output = Command::new("curl").args(&args).output();
 
     match output {
         Ok(output) if output.status.success() => {
@@ -857,8 +859,9 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
     );
     tracing::debug!("Fetching PKGBUILD from GitLab master: {}", url_master);
 
+    let args = curl_args(&url_master, &[]);
     let output = Command::new("curl")
-        .args(["-sSLf", &url_master])
+        .args(&args)
         .output()
         .map_err(|e| format!("curl failed: {}", e))?;
 
@@ -894,8 +897,9 @@ fn fetch_srcinfo_sync(name: &str) -> Result<String, String> {
     );
     tracing::debug!("Fetching .SRCINFO from: {}", url);
 
+    let args = curl_args(&url, &[]);
     let output = Command::new("curl")
-        .args(["-sSLf", &url])
+        .args(&args)
         .output()
         .map_err(|e| format!("curl failed: {}", e))?;
 

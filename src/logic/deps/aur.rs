@@ -4,6 +4,7 @@ use super::parse::parse_dep_spec;
 use super::source::{determine_dependency_source, is_system_package};
 use super::status::determine_status;
 use crate::state::modal::DependencyInfo;
+use crate::util::curl_args;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::process::Command;
@@ -31,9 +32,10 @@ pub(crate) fn fetch_aur_deps_from_api(
         crate::util::percent_encode(name)
     );
 
-    // Use curl_json similar to sources module
+    // Use curl_args helper for Windows SSL certificate handling
+    let args = curl_args(&url, &[]);
     let out = Command::new("curl")
-        .args(["-sSLf", &url])
+        .args(&args)
         .output()
         .map_err(|e| format!("curl failed: {}", e))?;
 

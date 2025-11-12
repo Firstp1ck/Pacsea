@@ -352,33 +352,49 @@ mod tests {
 ///
 /// Input:
 /// - `items`: Packages the user attempted to install.
-/// - `dry_run`: When `true`, indicates no action would be taken.
+/// - `dry_run`: When `true`, uses PowerShell to simulate the install operation.
 ///
 /// Output:
-/// - Launches a `cmd` window echoing the intended action for user awareness.
+/// - Launches a detached PowerShell window (if available) for dry-run simulation, or `cmd` window otherwise.
 ///
 /// Details:
+/// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the batch install with Write-Host.
 /// - Always logs install attempts when not in `dry_run` to remain consistent with Unix behaviour.
 pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     let mut names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
     if names.is_empty() {
         names.push("nothing".into());
     }
-    let msg = if dry_run {
-        format!("DRY RUN: install {}", names.join(" "))
+    let names_str = names.join(" ");
+
+    if dry_run && super::utils::is_powershell_available() {
+        // Use PowerShell to simulate the batch install operation
+        let powershell_cmd = format!(
+            "Write-Host 'DRY RUN: Simulating batch install of {}' -ForegroundColor Yellow; Write-Host 'Packages: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
+            names.len(),
+            names_str.replace("'", "''")
+        );
+        let _ = Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", &powershell_cmd])
+            .spawn();
     } else {
-        format!("Install {} (not supported on Windows)", names.join(" "))
-    };
-    let _ = Command::new("cmd")
-        .args([
-            "/C",
-            "start",
-            "Pacsea Install",
-            "cmd",
-            "/K",
-            &format!("echo {msg}"),
-        ])
-        .spawn();
+        let msg = if dry_run {
+            format!("DRY RUN: install {}", names_str)
+        } else {
+            format!("Install {} (not supported on Windows)", names_str)
+        };
+        let _ = Command::new("cmd")
+            .args([
+                "/C",
+                "start",
+                "Pacsea Install",
+                "cmd",
+                "/K",
+                &format!("echo {msg}"),
+            ])
+            .spawn();
+    }
+
     if !dry_run {
         let _ = super::logging::log_installed(&names);
     }

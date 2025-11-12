@@ -1,7 +1,7 @@
 //! AUR sandbox preflight checks for build dependencies.
 
 use crate::state::types::PackageItem;
-use crate::util::percent_encode;
+use crate::util::{curl_args, percent_encode};
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
 
@@ -129,8 +129,9 @@ fn fetch_srcinfo(name: &str) -> Result<String, String> {
     );
     tracing::debug!("Fetching .SRCINFO from: {}", url);
 
+    let args = curl_args(&url, &[]);
     let output = Command::new("curl")
-        .args(["-sSLf", &url])
+        .args(&args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

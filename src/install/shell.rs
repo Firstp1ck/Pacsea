@@ -435,9 +435,10 @@ mod tests {
 /// - `cmds`: Command fragments to present to the user.
 ///
 /// Output:
-/// - Launches a `cmd` window echoing the concatenated command sequence.
+/// - Launches a PowerShell window (if available and command contains "DRY RUN") for dry-run simulation, or `cmd` window otherwise.
 ///
 /// Details:
+/// - When commands contain "DRY RUN" and PowerShell is available, uses PowerShell to simulate the operation.
 /// - Joins commands with `&&` for readability and uses `start` to detach the window.
 pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     let msg = if cmds.is_empty() {
@@ -445,14 +446,30 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     } else {
         cmds.join(" && ")
     };
-    let _ = Command::new("cmd")
-        .args([
-            "/C",
-            "start",
-            "Pacsea Update",
-            "cmd",
-            "/K",
-            &format!("echo {msg}"),
-        ])
-        .spawn();
+
+    // Check if this is a dry-run operation (for downgrade, etc.)
+    let is_dry_run = msg.contains("DRY RUN");
+
+    if is_dry_run && super::utils::is_powershell_available() {
+        // Use PowerShell to simulate the operation
+        let escaped_msg = msg.replace("'", "''");
+        let powershell_cmd = format!(
+            "Write-Host '{}' -ForegroundColor Yellow; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
+            escaped_msg
+        );
+        let _ = Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", &powershell_cmd])
+            .spawn();
+    } else {
+        let _ = Command::new("cmd")
+            .args([
+                "/C",
+                "start",
+                "Pacsea Update",
+                "cmd",
+                "/K",
+                &format!("echo {msg}"),
+            ])
+            .spawn();
+    }
 }
