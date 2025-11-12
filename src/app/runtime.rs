@@ -50,23 +50,21 @@ fn initialize_locale_system(
     locale_pref: &str,
     _prefs: &crate::theme::Settings,
 ) {
-    // Get paths
-    let locales_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales");
-    let i18n_config_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("config")
-        .join("i18n.yml");
-
-    // Validate i18n config file exists
-    if !i18n_config_path.exists() {
-        tracing::error!(
-            "i18n config file not found: {}. Using default locale 'en-US'.",
-            i18n_config_path.display()
-        );
-        app.locale = "en-US".to_string();
-        app.translations = std::collections::HashMap::new();
-        app.translations_fallback = std::collections::HashMap::new();
-        return;
-    }
+    // Get paths - try both development and installed locations
+    let locales_dir = crate::i18n::find_locales_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config").join("locales"));
+    let i18n_config_path = match crate::i18n::find_config_file("i18n.yml") {
+        Some(path) => path,
+        None => {
+            tracing::error!(
+                "i18n config file not found in development or installed locations. Using default locale 'en-US'."
+            );
+            app.locale = "en-US".to_string();
+            app.translations = std::collections::HashMap::new();
+            app.translations_fallback = std::collections::HashMap::new();
+            return;
+        }
+    };
 
     // Resolve locale
     let resolver = crate::i18n::LocaleResolver::new(&i18n_config_path);

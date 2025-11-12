@@ -69,6 +69,88 @@ pub use loader::{LocaleLoader, load_locale_file};
 pub use resolver::{LocaleResolver, resolve_locale};
 pub use translations::{TranslationMap, translate, translate_with_fallback};
 
+use std::path::PathBuf;
+
+/// What: Find a config file in development, XDG config directory, and installed locations.
+///
+/// Inputs:
+/// - `relative_path`: Relative path from config directory (e.g., "i18n.yml")
+///
+/// Output:
+/// - `Some(PathBuf)` pointing to the first existing file found, or `None` if not found
+///
+/// Details:
+/// - Tries locations in order:
+///   1. Development location: `CARGO_MANIFEST_DIR/config/{relative_path}` (prioritized when running from source)
+///   2. XDG config directory: `$HOME/.config/pacsea/{relative_path}` or `$XDG_CONFIG_HOME/pacsea/{relative_path}`
+///   3. Installed location: `/usr/share/pacsea/config/{relative_path}`
+/// - Development location is checked first to allow working with repo files during development
+pub fn find_config_file(relative_path: &str) -> Option<PathBuf> {
+    // Try development location first (when running from source)
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("config")
+        .join(relative_path);
+    if dev_path.exists() {
+        return Some(dev_path);
+    }
+
+    // Try XDG config directory (user's personal config)
+    let xdg_config_dir = crate::theme::config_dir();
+    let xdg_path = xdg_config_dir.join(relative_path);
+    if xdg_path.exists() {
+        return Some(xdg_path);
+    }
+
+    // Try installed location
+    let installed_path = PathBuf::from("/usr/share/pacsea/config").join(relative_path);
+    if installed_path.exists() {
+        return Some(installed_path);
+    }
+
+    None
+}
+
+/// What: Find the locales directory in development, XDG config directory, and installed locations.
+///
+/// Output:
+/// - `Some(PathBuf)` pointing to the first existing locales directory found, or `None` if not found
+///
+/// Details:
+/// - Tries locations in order:
+///   1. Development location: `CARGO_MANIFEST_DIR/config/locales` (prioritized when running from source)
+///   2. XDG config directory: `$HOME/.config/pacsea/locales` or `$XDG_CONFIG_HOME/pacsea/locales`
+///   3. Installed location: `/usr/share/pacsea/locales`
+/// - Development location is checked first to allow working with repo files during development
+pub fn find_locales_dir() -> Option<PathBuf> {
+    // Try development location first (when running from source)
+    // Note: locales are in config/locales/ in the dev environment
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config").join("locales");
+    if dev_path.exists() && dev_path.is_dir() {
+        return Some(dev_path);
+    }
+    
+    // Also try the old location for backwards compatibility
+    let dev_path_old = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales");
+    if dev_path_old.exists() && dev_path_old.is_dir() {
+        return Some(dev_path_old);
+    }
+
+    // Try XDG config directory (user's personal locales)
+    let xdg_config_dir = crate::theme::config_dir();
+    let xdg_locales_dir = xdg_config_dir.join("locales");
+    if xdg_locales_dir.exists() && xdg_locales_dir.is_dir() {
+        return Some(xdg_locales_dir);
+    }
+
+    // Try installed location
+    let installed_path = PathBuf::from("/usr/share/pacsea/locales");
+    if installed_path.exists() && installed_path.is_dir() {
+        return Some(installed_path);
+    }
+
+    None
+}
+
 /// What: Get a translation for a given key from AppState.
 ///
 /// Inputs:

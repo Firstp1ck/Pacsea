@@ -87,8 +87,8 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
 
             for conflict_name in conflicts {
                 // Check if conflict is installed
-                let is_installed = installed.contains(&conflict_name)
-                    || provided.contains(&conflict_name);
+                let is_installed =
+                    installed.contains(&conflict_name) || provided.contains(&conflict_name);
 
                 // Check if conflict is in the install list
                 let is_in_install_list = root_names.contains(&conflict_name);

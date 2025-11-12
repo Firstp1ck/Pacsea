@@ -18,7 +18,9 @@ fn get_depends_labels() -> &'static HashSet<String> {
         let mut labels = HashSet::new();
 
         // Try to load from all locale files
-        let locales_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales");
+        let locales_dir = crate::i18n::find_locales_dir().unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config").join("locales")
+        });
         if let Ok(entries) = std::fs::read_dir(&locales_dir) {
             for entry in entries.flatten() {
                 if let Some(file_name) = entry.file_name().to_str()
@@ -74,7 +76,9 @@ fn get_none_labels() -> &'static HashSet<String> {
         let mut labels = HashSet::new();
 
         // Try to load from all locale files
-        let locales_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales");
+        let locales_dir = crate::i18n::find_locales_dir().unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config").join("locales")
+        });
         if let Ok(entries) = std::fs::read_dir(&locales_dir) {
             for entry in entries.flatten() {
                 if let Some(file_name) = entry.file_name().to_str()
