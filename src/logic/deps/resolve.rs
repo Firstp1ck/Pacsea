@@ -685,7 +685,7 @@ pub(crate) fn resolve_package_deps(
     Ok(deps)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::fs;

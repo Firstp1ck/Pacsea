@@ -674,7 +674,7 @@ fn extract_major_component(version: &str) -> Option<u64> {
     token.parse::<u64>().ok()
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::collections::HashMap;

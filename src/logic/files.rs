@@ -1192,7 +1192,7 @@ pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<S
     files
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::state::modal::FileChangeType;
