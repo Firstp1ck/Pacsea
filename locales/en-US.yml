@@ -5,6 +5,34 @@ en-US:
     direction: "ltr"
 
   app:
+    parsing:
+      pacman_depends_labels:
+        - "Depends On"
+        - "Ist abhängig von"
+        - "Dépend de"
+        - "Depende de"
+        - "Dipende da"
+        - "Zależy od"
+        - "Зависит от"
+        - "依存"
+      pacman_optdeps_labels:
+        - "Optional Deps"
+        - "Optionale Abhängigkeiten"
+        - "Dépendances optionnelles"
+        - "Dependencias opcionales"
+        - "Dipendenze opzionali"
+        - "Opcjonalne zależności"
+        - "Необязательные зависимости"
+        - "オプション依存"
+      pacman_none_labels:
+        - "None"
+        - "Keine"
+        - "Aucune"
+        - "Ninguna"
+        - "Nessuna"
+        - "Brak"
+        - "Нет"
+        - "なし"
     headings:
       package_info: "Package Info"
       normal_mode: "Normal Mode (Focused Search Window):"

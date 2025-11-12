@@ -24,7 +24,13 @@ use crate::theme::theme;
 /// Details:
 /// - Marks installed rows, shows optional notes, and reuses the common simple modal renderer for
 ///   consistent styling.
-pub fn render_optional_deps(f: &mut Frame, area: Rect, rows: &[OptionalDepRow], selected: usize, app: &crate::state::AppState) {
+pub fn render_optional_deps(
+    f: &mut Frame,
+    area: Rect,
+    rows: &[OptionalDepRow],
+    selected: usize,
+    app: &crate::state::AppState,
+) {
     let th = theme();
     // Build content lines with selection and install status markers
     let mut lines: Vec<Line<'static>> = Vec::new();
@@ -37,9 +43,15 @@ pub fn render_optional_deps(f: &mut Frame, area: Rect, rows: &[OptionalDepRow], 
     for (i, row) in rows.iter().enumerate() {
         let is_sel = selected == i;
         let (mark, color) = if row.installed {
-            (crate::i18n::t(app, "app.modals.optional_deps.markers.installed"), th.green)
+            (
+                crate::i18n::t(app, "app.modals.optional_deps.markers.installed"),
+                th.green,
+            )
         } else {
-            (crate::i18n::t(app, "app.modals.optional_deps.markers.not_installed"), th.overlay1)
+            (
+                crate::i18n::t(app, "app.modals.optional_deps.markers.not_installed"),
+                th.overlay1,
+            )
         };
         let style = if is_sel {
             Style::default()
@@ -73,7 +85,12 @@ pub fn render_optional_deps(f: &mut Frame, area: Rect, rows: &[OptionalDepRow], 
         Style::default().fg(th.subtext1),
     )));
 
-    render_simple_list_modal(f, area, &crate::i18n::t(app, "app.modals.optional_deps.title"), lines);
+    render_simple_list_modal(
+        f,
+        area,
+        &crate::i18n::t(app, "app.modals.optional_deps.title"),
+        lines,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]

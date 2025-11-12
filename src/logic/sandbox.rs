@@ -48,13 +48,14 @@ pub struct SandboxInfo {
 pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
     let mut results = Vec::new();
     let installed = get_installed_packages();
+    let provided = crate::logic::deps::get_provided_packages(&installed);
 
     for item in items {
         if !matches!(item.source, crate::state::Source::Aur) {
             continue;
         }
 
-        match fetch_and_analyze_package(&item.name, &installed) {
+        match fetch_and_analyze_package(&item.name, &installed, &provided) {
             Ok(info) => results.push(info),
             Err(e) => {
                 tracing::warn!("Failed to analyze sandbox info for {}: {}", item.name, e);
@@ -70,12 +71,14 @@ pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
 /// Inputs:
 /// - `package_name`: AUR package name.
 /// - `installed`: Set of installed package names.
+/// - `provided`: Set of package names provided by installed packages.
 ///
 /// Output:
 /// - `SandboxInfo` with dependency deltas, or an error if fetch/parse fails.
 fn fetch_and_analyze_package(
     package_name: &str,
     installed: &HashSet<String>,
+    provided: &HashSet<String>,
 ) -> Result<SandboxInfo, String> {
     // Try to fetch .SRCINFO first (more reliable)
     let srcinfo_text = match fetch_srcinfo(package_name) {
@@ -101,10 +104,10 @@ fn fetch_and_analyze_package(
         };
 
     // Analyze each dependency against host environment
-    let depends_delta = analyze_dependencies(&depends, installed);
-    let makedepends_delta = analyze_dependencies(&makedepends, installed);
-    let checkdepends_delta = analyze_dependencies(&checkdepends, installed);
-    let optdepends_delta = analyze_dependencies(&optdepends, installed);
+    let depends_delta = analyze_dependencies(&depends, installed, provided);
+    let makedepends_delta = analyze_dependencies(&makedepends, installed, provided);
+    let checkdepends_delta = analyze_dependencies(&checkdepends, installed, provided);
+    let optdepends_delta = analyze_dependencies(&optdepends, installed, provided);
 
     Ok(SandboxInfo {
         package_name: package_name.to_string(),
@@ -148,6 +151,17 @@ fn fetch_srcinfo(name: &str) -> Result<String, String> {
     let text = String::from_utf8_lossy(&output.stdout).to_string();
     if text.trim().is_empty() {
         return Err("Empty .SRCINFO content".to_string());
+    }
+
+    // Check if we got an HTML error page instead of .SRCINFO content
+    // AUR sometimes returns HTML error pages (e.g., 502 Bad Gateway) with curl exit code 0
+    if text.trim_start().starts_with("<html") || text.trim_start().starts_with("<!DOCTYPE") {
+        return Err("Received HTML error page instead of .SRCINFO content".to_string());
+    }
+
+    // Validate that it looks like .SRCINFO format (should have pkgbase or pkgname)
+    if !text.contains("pkgbase =") && !text.contains("pkgname =") {
+        return Err("Response does not appear to be valid .SRCINFO format".to_string());
     }
 
     Ok(text)
@@ -307,12 +321,19 @@ fn parse_array_content(content: &str) -> Vec<String> {
 ///
 /// Details:
 /// - Skips local packages entirely.
-fn analyze_dependencies(deps: &[String], installed: &HashSet<String>) -> Vec<DependencyDelta> {
+fn analyze_dependencies(
+    deps: &[String],
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+) -> Vec<DependencyDelta> {
     deps.iter()
         .filter_map(|dep_spec| {
             // Extract package name (may include version requirements)
             let pkg_name = extract_package_name(dep_spec);
-            let is_installed = installed.contains(&pkg_name);
+            // Check if package is installed or provided by an installed package
+            let is_installed = crate::logic::deps::is_package_installed_or_provided(
+                &pkg_name, installed, provided,
+            );
 
             // Skip local packages - they're not relevant for sandbox analysis
             if is_installed && is_local_package(&pkg_name) {

@@ -1,6 +1,6 @@
 //! Core dependency resolution logic for individual packages.
 
-use super::parse::{parse_dep_spec, parse_pacman_si_deps, parse_pacman_si_optdeps};
+use super::parse::{parse_dep_spec, parse_pacman_si_deps};
 use super::source::{determine_dependency_source, is_system_package};
 use super::srcinfo::{fetch_srcinfo, parse_srcinfo_deps};
 use super::status::determine_status;
@@ -15,6 +15,7 @@ use std::process::{Command, Stdio};
 /// - `name`: Package identifier whose dependencies should be enumerated.
 /// - `source`: Source enum describing whether the package is official or AUR.
 /// - `installed`: Set of locally installed packages for status determination.
+/// - `provided`: Set of package names provided by installed packages.
 /// - `upgradable`: Set of packages flagged for upgrades, used to detect stale dependencies.
 ///
 /// Output:
@@ -26,6 +27,7 @@ pub(crate) fn resolve_package_deps(
     name: &str,
     source: &Source,
     installed: &HashSet<String>,
+    provided: &HashSet<String>,
     upgradable: &HashSet<String>,
 ) -> Result<Vec<DependencyInfo>, String> {
     let mut deps = Vec::new();
@@ -65,22 +67,12 @@ pub(crate) fn resolve_package_deps(
 
                 // Parse "Depends On" field from pacman -Qi output (same format as -Si)
                 let dep_names = parse_pacman_si_deps(&text);
-                let opt_dep_names = parse_pacman_si_optdeps(&text);
                 tracing::debug!(
-                    "Parsed {} dependency names and {} optional dependency names from pacman -Qi output",
-                    dep_names.len(),
-                    opt_dep_names.len()
+                    "Parsed {} dependency names from pacman -Qi output",
+                    dep_names.len()
                 );
 
-                // Process dependencies (same logic as official packages)
-                let required_dep_names: HashSet<String> = dep_names
-                    .iter()
-                    .map(|d| {
-                        let (n, _) = parse_dep_spec(d);
-                        n
-                    })
-                    .collect();
-
+                // Process runtime dependencies only
                 for dep_spec in dep_names {
                     let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
                     if pkg_name == name {
@@ -95,7 +87,8 @@ pub(crate) fn resolve_package_deps(
                         continue;
                     }
 
-                    let status = determine_status(&pkg_name, &version_req, installed, upgradable);
+                    let status =
+                        determine_status(&pkg_name, &version_req, installed, provided, upgradable);
                     let (source, is_core) = determine_dependency_source(&pkg_name, installed);
                     let is_system = is_core || is_system_package(&pkg_name);
 
@@ -111,47 +104,7 @@ pub(crate) fn resolve_package_deps(
                     });
                 }
 
-                for dep_spec in opt_dep_names {
-                    let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                    if pkg_name == name {
-                        tracing::debug!(
-                            "Skipping self-reference in optdeps: {} == {}",
-                            pkg_name,
-                            name
-                        );
-                        continue;
-                    }
-                    if pkg_name.ends_with(".so")
-                        || pkg_name.contains(".so.")
-                        || pkg_name.contains(".so=")
-                    {
-                        tracing::debug!("Filtering out virtual package in optdeps: {}", pkg_name);
-                        continue;
-                    }
-
-                    if required_dep_names.contains(&pkg_name) {
-                        tracing::debug!(
-                            "Skipping optional dep {} (already in required deps)",
-                            pkg_name
-                        );
-                        continue;
-                    }
-
-                    let status = determine_status(&pkg_name, &version_req, installed, upgradable);
-                    let (source, is_core) = determine_dependency_source(&pkg_name, installed);
-                    let is_system = is_core || is_system_package(&pkg_name);
-
-                    deps.push(DependencyInfo {
-                        name: pkg_name,
-                        version: version_req,
-                        status,
-                        source,
-                        required_by: vec![name.to_string()],
-                        depends_on: Vec::new(),
-                        is_core,
-                        is_system,
-                    });
-                }
+                // Skip optional dependencies - only show runtime dependencies
                 return Ok(deps);
             }
 
@@ -188,24 +141,12 @@ pub(crate) fn resolve_package_deps(
 
             // Parse "Depends On" field from pacman -Si output
             let dep_names = parse_pacman_si_deps(&text);
-            // Also parse "Optional Deps" for completeness (though they're optional)
-            let opt_dep_names = parse_pacman_si_optdeps(&text);
             tracing::debug!(
-                "Parsed {} dependency names and {} optional dependency names from pacman -Si output",
-                dep_names.len(),
-                opt_dep_names.len()
+                "Parsed {} dependency names from pacman -Si output",
+                dep_names.len()
             );
 
-            // Collect required dependency names for deduplication with optional deps
-            let required_dep_names: HashSet<String> = dep_names
-                .iter()
-                .map(|d| {
-                    let (n, _) = parse_dep_spec(d);
-                    n
-                })
-                .collect();
-
-            // Process required dependencies
+            // Process runtime dependencies (depends)
             for dep_spec in dep_names {
                 let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
                 // Skip if this dependency is the package itself (shouldn't happen, but be safe)
@@ -222,7 +163,8 @@ pub(crate) fn resolve_package_deps(
                     continue;
                 }
 
-                let status = determine_status(&pkg_name, &version_req, installed, upgradable);
+                let status =
+                    determine_status(&pkg_name, &version_req, installed, provided, upgradable);
                 let (source, is_core) = determine_dependency_source(&pkg_name, installed);
                 let is_system = is_core || is_system_package(&pkg_name);
 
@@ -238,52 +180,7 @@ pub(crate) fn resolve_package_deps(
                 });
             }
 
-            // Process optional dependencies (for completeness, but mark them differently if needed)
-            // Note: Optional deps are not strictly required, but we include them for visibility
-            for dep_spec in opt_dep_names {
-                let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                // Skip if this dependency is the package itself
-                if pkg_name == name {
-                    tracing::debug!(
-                        "Skipping self-reference in optdeps: {} == {}",
-                        pkg_name,
-                        name
-                    );
-                    continue;
-                }
-                // Filter out .so files (virtual packages)
-                if pkg_name.ends_with(".so")
-                    || pkg_name.contains(".so.")
-                    || pkg_name.contains(".so=")
-                {
-                    tracing::debug!("Filtering out virtual package in optdeps: {}", pkg_name);
-                    continue;
-                }
-
-                // Check if we already have this as a required dependency
-                if required_dep_names.contains(&pkg_name) {
-                    tracing::debug!(
-                        "Skipping optional dep {} (already in required deps)",
-                        pkg_name
-                    );
-                    continue;
-                }
-
-                let status = determine_status(&pkg_name, &version_req, installed, upgradable);
-                let (source, is_core) = determine_dependency_source(&pkg_name, installed);
-                let is_system = is_core || is_system_package(&pkg_name);
-
-                deps.push(DependencyInfo {
-                    name: pkg_name,
-                    version: version_req,
-                    status,
-                    source,
-                    required_by: vec![name.to_string()],
-                    depends_on: Vec::new(),
-                    is_core,
-                    is_system,
-                });
-            }
+            // Skip optional dependencies - only show runtime dependencies (depends)
         }
         Source::Aur => {
             // For AUR packages, first verify it actually exists in AUR before trying to resolve
@@ -333,8 +230,13 @@ pub(crate) fn resolve_package_deps(
                             let text = String::from_utf8_lossy(&output.stdout);
                             tracing::debug!("paru -Si {} output ({} bytes)", name, text.len());
                             let dep_names = parse_pacman_si_deps(&text);
+                            // Note: paru -Si only returns runtime dependencies (depends), not makedepends/checkdepends
+                            // We'll still fetch .SRCINFO later to get build-time dependencies
                             if !dep_names.is_empty() {
-                                tracing::info!("Using paru to resolve dependencies for {}", name);
+                                tracing::info!(
+                                    "Using paru to resolve runtime dependencies for {} (will fetch .SRCINFO for build-time deps)",
+                                    name
+                                );
                                 used_helper = true;
                                 for dep_spec in dep_names {
                                     let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
@@ -363,6 +265,7 @@ pub(crate) fn resolve_package_deps(
                                         &pkg_name,
                                         &version_req,
                                         installed,
+                                        provided,
                                         upgradable,
                                     );
                                     let (source, is_core) =
@@ -412,8 +315,13 @@ pub(crate) fn resolve_package_deps(
                             let text = String::from_utf8_lossy(&output.stdout);
                             tracing::debug!("yay -Si {} output ({} bytes)", name, text.len());
                             let dep_names = parse_pacman_si_deps(&text);
+                            // Note: yay -Si only returns runtime dependencies (depends), not makedepends/checkdepends
+                            // We'll still fetch .SRCINFO later to get build-time dependencies
                             if !dep_names.is_empty() {
-                                tracing::info!("Using yay to resolve dependencies for {}", name);
+                                tracing::info!(
+                                    "Using yay to resolve runtime dependencies for {} (will fetch .SRCINFO for build-time deps)",
+                                    name
+                                );
                                 used_helper = true;
                                 for dep_spec in dep_names {
                                     let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
@@ -442,6 +350,7 @@ pub(crate) fn resolve_package_deps(
                                         &pkg_name,
                                         &version_req,
                                         installed,
+                                        provided,
                                         upgradable,
                                     );
                                     let (source, is_core) =
@@ -487,8 +396,10 @@ pub(crate) fn resolve_package_deps(
                 // This is better than making unnecessary API calls
             }
 
-            // Try to fetch and parse .SRCINFO to get makedepends/checkdepends and enhance dependency list
-            // This complements the helper/API results with build-time dependencies
+            // Always try to fetch and parse .SRCINFO to get makedepends/checkdepends and enhance dependency list
+            // This is critical because paru/yay -Si only returns runtime dependencies (depends),
+            // not build-time dependencies (makedepends/checkdepends)
+            // Even if paru/yay succeeded, we still need .SRCINFO for complete dependency information
             match fetch_srcinfo(name) {
                 Ok(srcinfo_text) => {
                     tracing::debug!("Successfully fetched .SRCINFO for {}", name);
@@ -525,8 +436,13 @@ pub(crate) fn resolve_package_deps(
                         }
 
                         if !existing_dep_names.contains(&pkg_name) {
-                            let status =
-                                determine_status(&pkg_name, &version_req, installed, upgradable);
+                            let status = determine_status(
+                                &pkg_name,
+                                &version_req,
+                                installed,
+                                provided,
+                                upgradable,
+                            );
                             let (source, is_core) =
                                 determine_dependency_source(&pkg_name, installed);
                             let is_system = is_core || is_system_package(&pkg_name);
@@ -544,111 +460,7 @@ pub(crate) fn resolve_package_deps(
                         }
                     }
 
-                    // Add makedepends (build-time dependencies)
-                    for dep_spec in srcinfo_makedepends {
-                        let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                        if pkg_name == name {
-                            continue;
-                        }
-                        if pkg_name.ends_with(".so")
-                            || pkg_name.contains(".so.")
-                            || pkg_name.contains(".so=")
-                        {
-                            continue;
-                        }
-
-                        if !existing_dep_names.contains(&pkg_name) {
-                            let status =
-                                determine_status(&pkg_name, &version_req, installed, upgradable);
-                            let (source, is_core) =
-                                determine_dependency_source(&pkg_name, installed);
-                            let is_system = is_core || is_system_package(&pkg_name);
-
-                            deps.push(DependencyInfo {
-                                name: pkg_name.clone(),
-                                version: version_req,
-                                status,
-                                source,
-                                required_by: vec![name.to_string()],
-                                depends_on: Vec::new(),
-                                is_core,
-                                is_system,
-                            });
-                        }
-                    }
-
-                    // Add checkdepends (test dependencies)
-                    for dep_spec in srcinfo_checkdepends {
-                        let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                        if pkg_name == name {
-                            continue;
-                        }
-                        if pkg_name.ends_with(".so")
-                            || pkg_name.contains(".so.")
-                            || pkg_name.contains(".so=")
-                        {
-                            continue;
-                        }
-
-                        if !existing_dep_names.contains(&pkg_name) {
-                            let status =
-                                determine_status(&pkg_name, &version_req, installed, upgradable);
-                            let (source, is_core) =
-                                determine_dependency_source(&pkg_name, installed);
-                            let is_system = is_core || is_system_package(&pkg_name);
-
-                            deps.push(DependencyInfo {
-                                name: pkg_name.clone(),
-                                version: version_req,
-                                status,
-                                source,
-                                required_by: vec![name.to_string()],
-                                depends_on: Vec::new(),
-                                is_core,
-                                is_system,
-                            });
-                        }
-                    }
-
-                    // Add optdepends (optional dependencies)
-                    for dep_spec in srcinfo_optdepends {
-                        // optdepends format: "package: description" or just "package"
-                        let dep_spec_clean = if let Some((pkg_part, _)) = dep_spec.split_once(':') {
-                            pkg_part.trim()
-                        } else {
-                            dep_spec.trim()
-                        };
-
-                        let (pkg_name, version_req) = parse_dep_spec(dep_spec_clean);
-                        if pkg_name == name {
-                            continue;
-                        }
-                        if pkg_name.ends_with(".so")
-                            || pkg_name.contains(".so.")
-                            || pkg_name.contains(".so=")
-                        {
-                            continue;
-                        }
-
-                        if !existing_dep_names.contains(&pkg_name) {
-                            let status =
-                                determine_status(&pkg_name, &version_req, installed, upgradable);
-                            let (source, is_core) =
-                                determine_dependency_source(&pkg_name, installed);
-                            let is_system = is_core || is_system_package(&pkg_name);
-
-                            deps.push(DependencyInfo {
-                                name: pkg_name.clone(),
-                                version: version_req,
-                                status,
-                                source,
-                                required_by: vec![name.to_string()],
-                                depends_on: Vec::new(),
-                                is_core,
-                                is_system,
-                            });
-                        }
-                    }
+                    // Skip makedepends, checkdepends, and optdepends - only show runtime dependencies (depends)
 
                     tracing::info!(
                         "Enhanced dependency list with .SRCINFO data: total {} dependencies",
@@ -656,8 +468,10 @@ pub(crate) fn resolve_package_deps(
                     );
                 }
                 Err(e) => {
-                    tracing::debug!(
-                        "Could not fetch .SRCINFO for {}: {} (continuing without it)",
+                    // Log as warning since missing .SRCINFO means we won't have makedepends/checkdepends
+                    // This is important for AUR packages as build-time dependencies won't be shown
+                    tracing::warn!(
+                        "Could not fetch .SRCINFO for {}: {} (build-time dependencies will be missing)",
                         name,
                         e
                     );
@@ -752,6 +566,7 @@ exit 1
 
         let installed = HashSet::new();
         let upgradable = HashSet::new();
+        let provided = HashSet::new();
         let deps = resolve_package_deps(
             "pkg",
             &Source::Official {
@@ -759,6 +574,7 @@ exit 1
                 arch: "x86_64".into(),
             },
             &installed,
+            &provided,
             &upgradable,
         )
         .expect("resolve succeeds");
@@ -814,7 +630,8 @@ exit 1
 
         let installed = HashSet::new();
         let upgradable = HashSet::new();
-        let deps = resolve_package_deps("pkg", &Source::Aur, &installed, &upgradable)
+        let provided = HashSet::new();
+        let deps = resolve_package_deps("pkg", &Source::Aur, &installed, &provided, &upgradable)
             .expect("resolve succeeds");
 
         assert_eq!(deps.len(), 2);

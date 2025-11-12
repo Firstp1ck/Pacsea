@@ -111,7 +111,10 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let Some(k) = km.show_pkgbuild.first() {
             g_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.show_hide_pkgbuild"))),
+                Span::raw(format!(
+                    " {}",
+                    i18n::t(app, "app.actions.show_hide_pkgbuild")
+                )),
                 sep.clone(),
             ]);
         }
@@ -162,11 +165,14 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let Some(k) = km.search_add.first() {
             s_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", if app.installed_only_mode {
-                    i18n::t(app, "app.actions.add_to_remove")
-                } else {
-                    i18n::t(app, "app.actions.add_to_install")
-                })),
+                Span::raw(format!(
+                    " {}",
+                    if app.installed_only_mode {
+                        i18n::t(app, "app.actions.add_to_remove")
+                    } else {
+                        i18n::t(app, "app.actions.add_to_install")
+                    }
+                )),
                 sep.clone(),
             ]);
         }
@@ -381,14 +387,20 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let Some(k) = km.recent_add.first() {
             r_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.add_first_match_to_install"))),
+                Span::raw(format!(
+                    " {}",
+                    i18n::t(app, "app.actions.add_first_match_to_install")
+                )),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.recent_find.first() {
             r_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel"))),
+                Span::raw(format!(
+                    " {}",
+                    i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel")
+                )),
                 sep.clone(),
             ]);
         }

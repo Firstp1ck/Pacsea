@@ -32,27 +32,27 @@ pub(crate) fn determine_dependency_source(
             .stderr(Stdio::null())
             .output();
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                // Package exists in official repos - determine which repo
-                let text = String::from_utf8_lossy(&output.stdout);
-                for line in text.lines() {
-                    if line.starts_with("Repository")
-                        && let Some(colon_pos) = line.find(':')
-                    {
-                        let repo = line[colon_pos + 1..].trim().to_lowercase();
-                        let is_core = repo == "core";
-                        return (DependencySource::Official { repo }, is_core);
-                    }
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            // Package exists in official repos - determine which repo
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                if line.starts_with("Repository")
+                    && let Some(colon_pos) = line.find(':')
+                {
+                    let repo = line[colon_pos + 1..].trim().to_lowercase();
+                    let is_core = repo == "core";
+                    return (DependencySource::Official { repo }, is_core);
                 }
-                // Found in official repos but couldn't determine repo - assume extra
-                return (
-                    DependencySource::Official {
-                        repo: "extra".to_string(),
-                    },
-                    false,
-                );
             }
+            // Found in official repos but couldn't determine repo - assume extra
+            return (
+                DependencySource::Official {
+                    repo: "extra".to_string(),
+                },
+                false,
+            );
         }
         // Not found in official repos - this could be:
         // 1. A binary/script provided by a package (not a package itself) - should be Missing

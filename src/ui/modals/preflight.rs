@@ -199,24 +199,26 @@ pub fn render_preflight(
     // Auto-resolve if cache is empty and we're on Deps tab
     if matches!(*action, PreflightAction::Install) {
         let should_load = dependency_info.is_empty() || matches!(*tab, PreflightTab::Deps);
-        
+
         if should_load && matches!(*tab, PreflightTab::Deps) {
             if !app.install_list_deps.is_empty() {
                 // Get set of current package names for filtering
                 let item_names: std::collections::HashSet<String> =
                     items.iter().map(|i| i.name.clone()).collect();
-                
+
                 // Filter to only show dependencies required by current items
                 let filtered: Vec<DependencyInfo> = app
                     .install_list_deps
                     .iter()
                     .filter(|dep| {
                         // Show dependency if any current item requires it
-                        dep.required_by.iter().any(|req_by| item_names.contains(req_by))
+                        dep.required_by
+                            .iter()
+                            .any(|req_by| item_names.contains(req_by))
                     })
                     .cloned()
                     .collect();
-                
+
                 tracing::debug!(
                     "[UI] Deps tab: cache={}, filtered={}, items={:?}, resolving={}, current={}",
                     app.install_list_deps.len(),
@@ -225,7 +227,7 @@ pub fn render_preflight(
                     app.deps_resolving,
                     dependency_info.len()
                 );
-                
+
                 // Always update when on Deps tab, but only reset selection if dependencies were empty (first load)
                 // Don't reset on every render - that would break navigation
                 let was_empty = dependency_info.is_empty();
@@ -237,19 +239,28 @@ pub fn render_preflight(
                     }
                 }
             } else if dependency_info.is_empty() {
-                // Cache is empty and no dependencies loaded - trigger auto-resolution
-                // This will be handled by the event handler when switching to Deps tab
-                tracing::debug!(
-                    "[UI] Deps tab: cache is empty, will auto-resolve, items={:?}",
-                    items.iter().map(|i| &i.name).collect::<Vec<_>>()
-                );
+                // Check if background resolution is in progress
+                if app.preflight_deps_resolving || app.deps_resolving {
+                    // Background resolution in progress - UI will show loading state
+                    tracing::debug!(
+                        "[UI] Deps tab: background resolution in progress, items={:?}",
+                        items.iter().map(|i| &i.name).collect::<Vec<_>>()
+                    );
+                } else {
+                    // Cache is empty and no resolution in progress - trigger background resolution
+                    // This will be handled by the event handler when switching to Deps tab
+                    tracing::debug!(
+                        "[UI] Deps tab: cache is empty, will auto-resolve, items={:?}",
+                        items.iter().map(|i| &i.name).collect::<Vec<_>>()
+                    );
+                }
             }
         }
     }
     // Use cached file info if available
     // Note: Cached files are populated in background when packages are added to install list
     // Note: File resolution is triggered asynchronously in event handlers, not during rendering
-    if file_info.is_empty() && matches!(*tab, PreflightTab::Files) {
+    if matches!(*tab, PreflightTab::Files) {
         // Check if we have cached files from app state that match the current items
         let item_names: std::collections::HashSet<String> =
             items.iter().map(|i| i.name.clone()).collect();
@@ -259,15 +270,29 @@ pub fn render_preflight(
             .filter(|file_info| item_names.contains(&file_info.name))
             .cloned()
             .collect();
-        if !cached_files.is_empty() {
+        // Sync results from background resolution if available
+        if !cached_files.is_empty()
+            && (file_info.is_empty() || cached_files.len() != file_info.len())
+        {
             tracing::debug!(
-                "[UI] Using {} cached file infos for Preflight modal",
+                "[UI] Syncing {} file infos from background resolution to Preflight modal",
                 cached_files.len()
             );
             *file_info = cached_files;
-            *file_selected = 0;
+            if *file_selected >= file_info.len() {
+                *file_selected = 0;
+            }
+        } else if file_info.is_empty() {
+            // Check if background resolution is in progress
+            if app.preflight_files_resolving || app.files_resolving {
+                // Background resolution in progress - UI will show loading state
+                tracing::debug!(
+                    "[UI] Files tab: background resolution in progress, items={:?}",
+                    items.iter().map(|i| &i.name).collect::<Vec<_>>()
+                );
+            }
+            // If no cached files available, resolution will be triggered by event handlers when user navigates to Files tab
         }
-        // If no cached files available, resolution will be triggered by event handlers when user navigates to Files tab
     }
     // Use cached service info if available
     // Note: Cached services are pre-populated when modal opens, so this only runs if cache was empty
@@ -1159,13 +1184,26 @@ pub fn render_preflight(
                     lines.push(Line::from(""));
                 }
             } else if matches!(*action, PreflightAction::Install) {
-                // Show "Resolving..." if dependencies are empty and we're resolving or about to resolve
+                // Check if we're currently resolving (including preflight-specific resolution)
+                let is_resolving = app.preflight_deps_resolving || app.deps_resolving;
+
+                // Always show install list (package headers) even when resolving
+                // Show loading message below the list
                 if deps_empty {
-                    // Check if we're currently resolving or if cache is empty (will trigger resolution)
-                    let is_resolving = app.deps_resolving 
-                        || (app.install_list_deps.is_empty() && matches!(*tab, PreflightTab::Deps));
-                    
                     if is_resolving {
+                        // Show package headers first, then loading message
+                        for pkg_name in items.iter().map(|p| &p.name) {
+                            let mut spans = Vec::new();
+                            spans.push(Span::styled(
+                                format!("▶ {} ", pkg_name),
+                                Style::default()
+                                    .fg(th.overlay1)
+                                    .add_modifier(Modifier::BOLD),
+                            ));
+                            spans.push(Span::styled("(0 deps)", Style::default().fg(th.subtext1)));
+                            lines.push(Line::from(spans));
+                        }
+                        lines.push(Line::from(""));
                         lines.push(Line::from(Span::styled(
                             i18n::t(app, "app.modals.preflight.deps.resolving"),
                             Style::default().fg(th.yellow),
@@ -1182,7 +1220,19 @@ pub fn render_preflight(
                             Style::default().fg(th.subtext1),
                         )));
                     } else {
-                        // No dependencies found and not resolving
+                        // No dependencies found and not resolving - show package headers
+                        for pkg_name in items.iter().map(|p| &p.name) {
+                            let mut spans = Vec::new();
+                            spans.push(Span::styled(
+                                format!("▶ {} ", pkg_name),
+                                Style::default()
+                                    .fg(th.overlay1)
+                                    .add_modifier(Modifier::BOLD),
+                            ));
+                            spans.push(Span::styled("(0 deps)", Style::default().fg(th.subtext1)));
+                            lines.push(Line::from(spans));
+                        }
+                        lines.push(Line::from(""));
                         lines.push(Line::from(Span::styled(
                             i18n::t(app, "app.modals.preflight.deps.resolving"),
                             Style::default().fg(th.subtext1),
@@ -1206,16 +1256,14 @@ pub fn render_preflight(
                 // Always add package header (even if no dependencies)
                 let is_expanded = dep_tree_expanded.contains(pkg_name);
                 display_items.push((true, pkg_name.clone(), None));
-                
+
                 // Add its dependencies only if expanded AND package has dependencies
-                if is_expanded {
-                    if let Some(pkg_deps) = grouped.get(pkg_name) {
-                        use std::collections::HashSet;
-                        let mut seen_deps = HashSet::new();
-                        for dep in pkg_deps.iter() {
-                            if seen_deps.insert(dep.name.as_str()) {
-                                display_items.push((false, String::new(), Some(dep)));
-                            }
+                if is_expanded && let Some(pkg_deps) = grouped.get(pkg_name) {
+                    use std::collections::HashSet;
+                    let mut seen_deps = HashSet::new();
+                    for dep in pkg_deps.iter() {
+                        if seen_deps.insert(dep.name.as_str()) {
+                            display_items.push((false, String::new(), Some(dep)));
                         }
                     }
                 }
@@ -1278,6 +1326,23 @@ pub fn render_preflight(
                         format!("{} {} ", arrow_symbol, header_name),
                         header_style,
                     ));
+
+                    // Add dependency count in brackets (similar to Files tab)
+                    if let Some(pkg_deps) = grouped.get(header_name) {
+                        use std::collections::HashSet;
+                        let mut seen_deps = HashSet::new();
+                        let dep_count = pkg_deps
+                            .iter()
+                            .filter(|dep| seen_deps.insert(dep.name.as_str()))
+                            .count();
+                        spans.push(Span::styled(
+                            format!("({} deps)", dep_count),
+                            Style::default().fg(th.subtext1),
+                        ));
+                    } else {
+                        // Package has no dependencies
+                        spans.push(Span::styled("(0 deps)", Style::default().fg(th.subtext1)));
+                    }
                 } else if let Some(dep) = dep {
                     // Dependency item (indented)
                     spans.push(Span::styled("  ", Style::default())); // Indentation
@@ -1401,7 +1466,22 @@ pub fn render_preflight(
             }
         }
         PreflightTab::Files => {
-            if app.files_resolving {
+            let is_resolving = app.preflight_files_resolving || app.files_resolving;
+
+            if is_resolving {
+                // Show package headers first, then loading message
+                for item in items.iter() {
+                    let mut spans = Vec::new();
+                    spans.push(Span::styled(
+                        format!("▶ {} ", item.name),
+                        Style::default()
+                            .fg(th.overlay1)
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                    spans.push(Span::styled("(0 files)", Style::default().fg(th.subtext1)));
+                    lines.push(Line::from(spans));
+                }
+                lines.push(Line::from(""));
                 lines.push(Line::from(Span::styled(
                     i18n::t(app, "app.modals.preflight.files.updating"),
                     Style::default().fg(th.yellow),
@@ -1418,6 +1498,19 @@ pub fn render_preflight(
                     Style::default().fg(th.subtext1),
                 )));
             } else if file_info.is_empty() {
+                // Show package headers first, then resolving message
+                for item in items.iter() {
+                    let mut spans = Vec::new();
+                    spans.push(Span::styled(
+                        format!("▶ {} ", item.name),
+                        Style::default()
+                            .fg(th.overlay1)
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                    spans.push(Span::styled("(0 files)", Style::default().fg(th.subtext1)));
+                    lines.push(Line::from(spans));
+                }
+                lines.push(Line::from(""));
                 lines.push(Line::from(Span::styled(
                     i18n::t(app, "app.modals.preflight.files.resolving"),
                     Style::default().fg(th.subtext1),
@@ -2002,19 +2095,42 @@ pub fn render_preflight(
             // Use cached sandbox info if available
             // Note: Cached sandbox info is pre-populated when modal opens, so this only runs if cache was empty
             // Note: Sandbox resolution is triggered asynchronously in event handlers, not during rendering
-            if matches!(*action, PreflightAction::Install)
-                && !app.sandbox_resolving
-                && !*sandbox_loaded
-            {
-                // Check if we have cached sandbox info from app state
-                if !app.install_list_sandbox.is_empty() {
-                    tracing::debug!(
-                        "[UI] Using cached sandbox info for {} packages",
-                        app.install_list_sandbox.len()
-                    );
-                    *sandbox_info = app.install_list_sandbox.clone();
-                    *sandbox_loaded = true;
-                } else {
+            if matches!(*action, PreflightAction::Install) {
+                // Check if we have cached sandbox info from app state that matches current items
+                let item_names: std::collections::HashSet<String> =
+                    items.iter().map(|i| i.name.clone()).collect();
+                let cached_sandbox: Vec<_> = app
+                    .install_list_sandbox
+                    .iter()
+                    .filter(|s| item_names.contains(&s.package_name))
+                    .cloned()
+                    .collect();
+                // Sync results from background resolution if available (always sync when on Sandbox tab)
+                // Always sync cached data to sandbox_info when available
+                if !cached_sandbox.is_empty() {
+                    // Always update if sandbox_info is empty, or if content differs
+                    let needs_update = sandbox_info.is_empty()
+                        || cached_sandbox.len() != sandbox_info.len()
+                        || cached_sandbox.iter().any(|cached| {
+                            !sandbox_info
+                                .iter()
+                                .any(|existing| existing.package_name == cached.package_name)
+                        });
+                    if needs_update {
+                        tracing::debug!(
+                            "[UI] Syncing {} sandbox info entries from background resolution to Preflight modal",
+                            cached_sandbox.len()
+                        );
+                        *sandbox_info = cached_sandbox;
+                        *sandbox_loaded = true;
+                    }
+                }
+                // If sandbox_info is empty and we haven't loaded yet, check cache or trigger resolution
+                if sandbox_info.is_empty()
+                    && !*sandbox_loaded
+                    && !app.preflight_sandbox_resolving
+                    && !app.sandbox_resolving
+                {
                     // Check if cache file exists with matching signature (even if empty)
                     let sandbox_cache_start = std::time::Instant::now();
                     let signature = crate::app::sandbox_cache::compute_signature(items);
@@ -2030,18 +2146,39 @@ pub fn render_preflight(
                     }
                     if sandbox_cache_exists {
                         // Cache exists but is empty - this is valid, means no sandbox info found
-                        tracing::debug!(
-                            "[UI] Using cached sandbox info (empty - no sandbox info found)"
-                        );
-                        *sandbox_loaded = true;
+                        // But don't mark as loaded if resolution is still in progress
+                        if !app.preflight_sandbox_resolving && !app.sandbox_resolving {
+                            tracing::debug!(
+                                "[UI] Using cached sandbox info (empty - no sandbox info found)"
+                            );
+                            *sandbox_loaded = true;
+                        }
                     } else if aur_items.is_empty() {
                         // No AUR packages, mark as loaded
                         *sandbox_loaded = true;
                     } else {
-                        // No cache found and there are AUR packages - mark as loaded so we don't check again
-                        *sandbox_loaded = true;
+                        // Check if background resolution is in progress
+                        if app.preflight_sandbox_resolving || app.sandbox_resolving {
+                            // Background resolution in progress - UI will show loading state
+                            tracing::debug!(
+                                "[UI] Sandbox tab: background resolution in progress, items={:?}",
+                                items.iter().map(|i| &i.name).collect::<Vec<_>>()
+                            );
+                            // Don't mark as loaded - keep showing loading state
+                        }
+                        // If no cached sandbox info available, resolution will be triggered by event handlers when user navigates to Sandbox tab
+                        // Don't mark as loaded yet - wait for resolution to complete
                     }
-                    // If no cached sandbox info available, resolution will be triggered by event handlers when user navigates to Sandbox tab
+                }
+                // Also check if we have sandbox_info already populated (from previous sync or initial load)
+                // This ensures we show data even if cached_sandbox is empty but sandbox_info has data
+                // But don't mark as loaded if resolution is still in progress
+                if !sandbox_info.is_empty()
+                    && !*sandbox_loaded
+                    && !app.preflight_sandbox_resolving
+                    && !app.sandbox_resolving
+                {
+                    *sandbox_loaded = true;
                 }
             } else if aur_items.is_empty() {
                 // No AUR packages, mark as loaded
@@ -2060,12 +2197,43 @@ pub fn render_preflight(
                     Style::default().fg(th.subtext0),
                 )));
                 lines.push(Line::from(""));
-            } else if app.sandbox_resolving {
+            } else if app.preflight_sandbox_resolving || app.sandbox_resolving {
+                // ALWAYS show loading message when resolving, regardless of sandbox_loaded state
+                // Show package headers first (only AUR packages), then loading message
+                for item in items.iter() {
+                    let is_aur = matches!(item.source, crate::state::Source::Aur);
+                    if is_aur {
+                        let mut spans = Vec::new();
+                        spans.push(Span::styled(
+                            format!("▶ {} ", item.name),
+                            Style::default()
+                                .fg(th.overlay1)
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                        lines.push(Line::from(spans));
+                    }
+                }
+                lines.push(Line::from(""));
                 lines.push(Line::from(Span::styled(
                     i18n::t(app, "app.modals.preflight.sandbox.updating"),
                     Style::default().fg(th.yellow),
                 )));
-            } else if !*sandbox_loaded {
+            } else if !*sandbox_loaded || sandbox_info.is_empty() {
+                // Show package headers first (only AUR packages), then analyzing/resolving message
+                for item in items.iter() {
+                    let is_aur = matches!(item.source, crate::state::Source::Aur);
+                    if is_aur {
+                        let mut spans = Vec::new();
+                        spans.push(Span::styled(
+                            format!("▶ {} ", item.name),
+                            Style::default()
+                                .fg(th.overlay1)
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                        lines.push(Line::from(spans));
+                    }
+                }
+                lines.push(Line::from(""));
                 lines.push(Line::from(Span::styled(
                     i18n::t(app, "app.modals.preflight.sandbox.analyzing"),
                     Style::default().fg(th.subtext0),
@@ -2133,19 +2301,69 @@ pub fn render_preflight(
                 }
 
                 // Calculate viewport based on selected index (like Deps/Files tabs)
-                let available_height = content_rect.height.saturating_sub(6) as usize;
+                // Performance optimization: Only render visible items (viewport-based rendering)
+                // This prevents performance issues with large dependency lists
+                let available_height = (content_rect.height as usize).saturating_sub(6);
                 let total_items = display_items.len();
+                tracing::debug!(
+                    "[UI] Sandbox tab: total_items={}, sandbox_selected={}, items={}, sandbox_info={}, expanded_count={}",
+                    total_items,
+                    *sandbox_selected,
+                    items.len(),
+                    sandbox_info.len(),
+                    sandbox_tree_expanded.len()
+                );
                 let sandbox_selected_clamped =
                     (*sandbox_selected).min(total_items.saturating_sub(1));
                 if *sandbox_selected != sandbox_selected_clamped {
+                    tracing::debug!(
+                        "[UI] Sandbox tab: clamping sandbox_selected from {} to {} (total_items={})",
+                        *sandbox_selected,
+                        sandbox_selected_clamped,
+                        total_items
+                    );
                     *sandbox_selected = sandbox_selected_clamped;
                 }
 
                 // Calculate viewport range: only render items visible on screen
-                let start_idx = sandbox_selected_clamped
-                    .saturating_sub(available_height / 2)
-                    .min(total_items.saturating_sub(available_height));
-                let end_idx = (start_idx + available_height).min(total_items);
+                // Account for section headers which add extra lines but aren't in display_items
+                // Simple approach: ensure selected item is always within viewport bounds
+                let mut start_idx;
+                let mut end_idx;
+
+                if total_items <= available_height {
+                    // All items fit on screen
+                    start_idx = 0;
+                    end_idx = total_items;
+                } else {
+                    // Ensure selected item is always visible - keep it within [start_idx, end_idx)
+                    // Try to center it, but adjust if needed to keep it visible
+                    // Reduce available_height slightly to account for section headers that add extra lines
+                    let effective_height = available_height.saturating_sub(2); // Reserve space for section headers
+                    start_idx = sandbox_selected_clamped
+                        .saturating_sub(effective_height / 2)
+                        .max(0)
+                        .min(total_items.saturating_sub(effective_height));
+                    end_idx = (start_idx + effective_height).min(total_items);
+
+                    // Ensure selected item is within bounds - adjust if necessary
+                    if sandbox_selected_clamped < start_idx {
+                        // Selected item is before start - move start to include it
+                        start_idx = sandbox_selected_clamped;
+                        end_idx = (start_idx + effective_height).min(total_items);
+                    } else if sandbox_selected_clamped >= end_idx {
+                        // Selected item is at or beyond end - position it at bottom of viewport
+                        // Make sure to include it even if section headers take up space
+                        end_idx = (sandbox_selected_clamped + 1).min(total_items);
+                        start_idx = end_idx.saturating_sub(effective_height).max(0);
+                        end_idx = (start_idx + effective_height).min(total_items);
+                        // Final check: ensure selected item is visible
+                        if sandbox_selected_clamped >= end_idx {
+                            end_idx = sandbox_selected_clamped + 1;
+                            start_idx = end_idx.saturating_sub(effective_height).max(0);
+                        }
+                    }
+                }
 
                 // Track which packages we've seen to group dependencies properly
                 let mut last_dep_type: Option<&str> = None;
@@ -2157,7 +2375,7 @@ pub fn render_preflight(
                     .skip(start_idx)
                     .take(end_idx - start_idx)
                 {
-                    let is_selected = idx == sandbox_selected_clamped;
+                    let is_selected = idx == *sandbox_selected;
 
                     if *is_header {
                         // Package header
@@ -2202,7 +2420,13 @@ pub fn render_preflight(
                         // Show message for official packages or collapsed AUR packages
                         if !is_aur {
                             lines.push(Line::from(Span::styled(
-                                format!("  {}", i18n::t(app, "app.modals.preflight.sandbox.official_packages_prebuilt")),
+                                format!(
+                                    "  {}",
+                                    i18n::t(
+                                        app,
+                                        "app.modals.preflight.sandbox.official_packages_prebuilt"
+                                    )
+                                ),
                                 Style::default().fg(th.subtext0),
                             )));
                         } else if !is_expanded {
@@ -2218,13 +2442,19 @@ pub fn render_preflight(
                                     lines.push(Line::from(Span::styled(
                                         format!(
                                             "  {}",
-                                            i18n::t_fmt1(app, "app.modals.preflight.sandbox.dependencies_expand_hint", &dep_count.to_string())
+                                            i18n::t_fmt1(app, "app.modals.preflight.sandbox.dependencies_expand_hint", dep_count.to_string())
                                         ),
                                         Style::default().fg(th.subtext1),
                                     )));
                                 } else {
                                     lines.push(Line::from(Span::styled(
-                                        format!("  {}", i18n::t(app, "app.modals.preflight.sandbox.no_build_dependencies")),
+                                        format!(
+                                            "  {}",
+                                            i18n::t(
+                                                app,
+                                                "app.modals.preflight.sandbox.no_build_dependencies"
+                                            )
+                                        ),
                                         Style::default().fg(th.green),
                                     )));
                                 }
@@ -2235,14 +2465,23 @@ pub fn render_preflight(
                         // Show section header when dep_type changes
                         if last_dep_type != Some(dep_type) {
                             let section_name = match *dep_type {
-                                "depends" => i18n::t(app, "app.modals.preflight.sandbox.runtime_dependencies"),
-                                "makedepends" => i18n::t(app, "app.modals.preflight.sandbox.build_dependencies"),
-                                "checkdepends" => i18n::t(app, "app.modals.preflight.sandbox.test_dependencies"),
-                                "optdepends" => i18n::t(app, "app.modals.preflight.sandbox.optional_dependencies"),
+                                "depends" => i18n::t(
+                                    app,
+                                    "app.modals.preflight.sandbox.runtime_dependencies",
+                                ),
+                                "makedepends" => {
+                                    i18n::t(app, "app.modals.preflight.sandbox.build_dependencies")
+                                }
+                                "checkdepends" => {
+                                    i18n::t(app, "app.modals.preflight.sandbox.test_dependencies")
+                                }
+                                "optdepends" => i18n::t(
+                                    app,
+                                    "app.modals.preflight.sandbox.optional_dependencies",
+                                ),
                                 _ => String::new(),
                             };
                             if !section_name.is_empty() {
-                                lines.push(Line::from(""));
                                 lines.push(Line::from(Span::styled(
                                     section_name,
                                     Style::default()
@@ -2392,7 +2631,10 @@ pub fn render_preflight(
             if has_aur {
                 i18n::t(app, "app.modals.preflight.footer_hints.services_with_aur")
             } else {
-                i18n::t(app, "app.modals.preflight.footer_hints.services_without_aur")
+                i18n::t(
+                    app,
+                    "app.modals.preflight.footer_hints.services_without_aur",
+                )
             }
         }
         _ => {
@@ -2405,7 +2647,10 @@ pub fn render_preflight(
     };
 
     if matches!(*action, PreflightAction::Remove) {
-        scan_hint.push_str(&i18n::t(app, "app.modals.preflight.footer_hints.cascade_mode"));
+        scan_hint.push_str(&i18n::t(
+            app,
+            "app.modals.preflight.footer_hints.cascade_mode",
+        ));
     }
 
     let keybinds_lines = vec![

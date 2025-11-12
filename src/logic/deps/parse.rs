@@ -1,5 +1,121 @@
 //! Parsing utilities for dependency specifications.
 
+use std::collections::HashSet;
+use std::sync::OnceLock;
+
+/// What: Get all possible localized labels for "Depends On" field from pacman/yay/paru output.
+///
+/// Output:
+/// - HashSet of all possible labels across all locales
+///
+/// Details:
+/// - Loads labels from locale files at runtime
+/// - Falls back to hardcoded list if locale files can't be loaded
+/// - Cached on first access for performance
+fn get_depends_labels() -> &'static HashSet<String> {
+    static LABELS: OnceLock<HashSet<String>> = OnceLock::new();
+    LABELS.get_or_init(|| {
+        let mut labels = HashSet::new();
+
+        // Try to load from all locale files
+        let locales_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales");
+        if let Ok(entries) = std::fs::read_dir(&locales_dir) {
+            for entry in entries.flatten() {
+                if let Some(file_name) = entry.file_name().to_str()
+                    && file_name.ends_with(".yml")
+                {
+                    let locale = file_name.strip_suffix(".yml").unwrap_or(file_name);
+                    if let Ok(translations) = crate::i18n::load_locale_file(locale, &locales_dir) {
+                        // Extract labels from app.parsing.pacman_depends_labels (can be array or single string)
+                        if let Some(labels_str) =
+                            translations.get("app.parsing.pacman_depends_labels")
+                            && let Ok(yaml_value) =
+                                serde_norway::from_str::<serde_norway::Value>(labels_str)
+                            && let Some(seq) = yaml_value.as_sequence()
+                        {
+                            // Parse YAML array
+                            for item in seq {
+                                if let Some(label) = item.as_str() {
+                                    labels.insert(label.to_string());
+                                }
+                            }
+                        } else if let Some(label) =
+                            translations.get("app.parsing.pacman_depends_label")
+                        {
+                            // Fallback to single label format
+                            labels.insert(label.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback: add common labels if loading failed or didn't find all
+        labels.insert("Depends On".to_string());
+        labels.insert("Ist abhängig von".to_string());
+        labels.insert("Dépend de".to_string());
+        labels.insert("Depende de".to_string());
+        labels.insert("Dipende da".to_string());
+        labels.insert("Zależy od".to_string());
+        labels.insert("Зависит от".to_string());
+        labels.insert("依存".to_string());
+
+        labels
+    })
+}
+
+/// What: Get all possible localized "None" equivalents.
+///
+/// Output:
+/// - HashSet of all possible "None" labels across all locales
+fn get_none_labels() -> &'static HashSet<String> {
+    static LABELS: OnceLock<HashSet<String>> = OnceLock::new();
+    LABELS.get_or_init(|| {
+        let mut labels = HashSet::new();
+
+        // Try to load from all locale files
+        let locales_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("locales");
+        if let Ok(entries) = std::fs::read_dir(&locales_dir) {
+            for entry in entries.flatten() {
+                if let Some(file_name) = entry.file_name().to_str()
+                    && file_name.ends_with(".yml")
+                {
+                    let locale = file_name.strip_suffix(".yml").unwrap_or(file_name);
+                    if let Ok(translations) = crate::i18n::load_locale_file(locale, &locales_dir) {
+                        // Extract labels from app.parsing.pacman_none_labels (can be array or single string)
+                        if let Some(labels_str) = translations.get("app.parsing.pacman_none_labels")
+                            && let Ok(yaml_value) =
+                                serde_norway::from_str::<serde_norway::Value>(labels_str)
+                            && let Some(seq) = yaml_value.as_sequence()
+                        {
+                            // Parse YAML array
+                            for item in seq {
+                                if let Some(label) = item.as_str() {
+                                    labels.insert(label.to_string());
+                                }
+                            }
+                        } else if let Some(label) =
+                            translations.get("app.parsing.pacman_none_label")
+                        {
+                            // Fallback to single label format
+                            labels.insert(label.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback: add common labels
+        labels.insert("None".to_string());
+        labels.insert("Keine".to_string());
+        labels.insert("Aucune".to_string());
+        labels.insert("Ninguna".to_string());
+        labels.insert("Nessuna".to_string());
+
+        labels
+    })
+}
+
 /// What: Extract dependency specifications from the `pacman -Si` "Depends On" field.
 ///
 /// Inputs:
@@ -13,12 +129,22 @@
 /// - Validates that tokens look like valid package names (alphanumeric, dashes, underscores, version operators).
 /// - Filters out common words and description text that might be parsed incorrectly.
 pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
+    let depends_labels = get_depends_labels();
+    let none_labels = get_none_labels();
+
     for line in text.lines() {
-        if line.starts_with("Depends On")
-            && let Some(colon_pos) = line.find(':')
-        {
+        // Check if line starts with any known "Depends On" label
+        let is_depends_line = depends_labels.iter().any(|label| line.starts_with(label))
+            || (line.contains("Depends") && line.contains("On"));
+
+        if is_depends_line && let Some(colon_pos) = line.find(':') {
             let deps_str = line[colon_pos + 1..].trim();
-            if deps_str.is_empty() || deps_str == "None" {
+            // Check if deps_str matches any "None" equivalent
+            if deps_str.is_empty()
+                || none_labels
+                    .iter()
+                    .any(|label| deps_str.eq_ignore_ascii_case(label))
+            {
                 return Vec::new();
             }
             // Split by whitespace, filter out empty strings and .so files (virtual packages)
@@ -54,74 +180,6 @@ pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
                     // Filter out tokens that look like description text
                     // Valid package names contain alphanumeric, dashes, underscores, and version operators
                     // But shouldn't be just punctuation or start/end with certain characters
-                    let first_char = s.chars().next().unwrap_or(' ');
-                    if !first_char.is_alphanumeric() && first_char != '-' && first_char != '_' {
-                        return false;
-                    }
-                    // Filter out tokens ending with colons (likely from error messages or malformed output)
-                    if s.ends_with(':') {
-                        return false;
-                    }
-                    // Check if it contains at least one alphanumeric character
-                    if !s.chars().any(|c| c.is_alphanumeric()) {
-                        return false;
-                    }
-                    true
-                })
-                .collect();
-        }
-    }
-    Vec::new()
-}
-
-/// What: Extract optional dependency specifications from the `pacman -Si` "Optional Deps" field.
-///
-/// Inputs:
-/// - `text`: Raw stdout emitted by `pacman -Si` for a package.
-///
-/// Output:
-/// - Returns package specification strings without virtual shared-library entries.
-///
-/// Details:
-/// - Scans the "Optional Deps" line, split on whitespace, and removes `.so` patterns that represent virtual deps.
-/// - Uses the same validation logic as parse_pacman_si_deps to filter out invalid tokens.
-pub(crate) fn parse_pacman_si_optdeps(text: &str) -> Vec<String> {
-    for line in text.lines() {
-        if line.starts_with("Optional Deps")
-            && let Some(colon_pos) = line.find(':')
-        {
-            let deps_str = line[colon_pos + 1..].trim();
-            if deps_str.is_empty() || deps_str == "None" {
-                return Vec::new();
-            }
-            // Split by whitespace, filter out empty strings and .so files (virtual packages)
-            // Also filter out tokens that don't look like package names
-            return deps_str
-                .split_whitespace()
-                .map(|s| s.trim().to_string())
-                .filter(|s| {
-                    if s.is_empty() {
-                        return false;
-                    }
-                    // Filter out .so files (virtual packages)
-                    if s.ends_with(".so") || s.contains(".so.") || s.contains(".so=") {
-                        return false;
-                    }
-                    // Filter out common words that might appear in descriptions
-                    let common_words = [
-                        "for", "to", "with", "is", "that", "using", "usually", "bundled",
-                        "bindings", "tooling", "the", "and", "or", "in", "on", "at", "by", "from",
-                        "as", "if", "when", "where", "which", "what", "how", "why",
-                    ];
-                    let lower = s.to_lowercase();
-                    if common_words.contains(&lower.as_str()) {
-                        return false;
-                    }
-                    // Filter out tokens that are too short
-                    if s.len() < 2 {
-                        return false;
-                    }
-                    // Filter out tokens that don't look like package names
                     let first_char = s.chars().next().unwrap_or(' ');
                     if !first_char.is_alphanumeric() && first_char != '-' && first_char != '_' {
                         return false;

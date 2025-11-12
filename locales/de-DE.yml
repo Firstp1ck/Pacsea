@@ -5,6 +5,10 @@ de-DE:
     direction: "ltr"
 
   app:
+    parsing:
+      pacman_depends_label: "Ist abhängig von"
+      pacman_optdeps_label: "Optionale Abhängigkeiten"
+      pacman_none_label: "Keine"
     headings:
       package_info: "Paket-Info"
       normal_mode: "Normalmodus (Fokussiertes Suchfenster):"

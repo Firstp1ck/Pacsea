@@ -322,7 +322,10 @@ pub fn handle_install_key(
                             crate::state::modal::RiskLevel::Low
                         },
                         risk_reasons: if aur_count > 0 {
-                            vec![i18n::t(app, "app.modals.preflight.summary.aur_packages_included")]
+                            vec![i18n::t(
+                                app,
+                                "app.modals.preflight.summary.aur_packages_included",
+                            )]
                         } else {
                             vec![]
                         },
@@ -333,12 +336,18 @@ pub fn handle_install_key(
                         config_warning_packages: vec![],
                         service_restart_units: vec![],
                         summary_warnings: if aur_count > 0 {
-                            vec![i18n::t(app, "app.modals.preflight.summary.aur_packages_included")]
+                            vec![i18n::t(
+                                app,
+                                "app.modals.preflight.summary.aur_packages_included",
+                            )]
                         } else {
                             vec![]
                         },
                         summary_notes: if aur_count > 0 {
-                            vec![i18n::t(app, "app.modals.preflight.summary.aur_packages_present")]
+                            vec![i18n::t(
+                                app,
+                                "app.modals.preflight.summary.aur_packages_present",
+                            )]
                         } else {
                             vec![]
                         },
@@ -362,21 +371,47 @@ pub fn handle_install_key(
                     // Don't clear pending_service_plan here - it will be updated when modal closes
                     let modal_set_start = std::time::Instant::now();
 
-                    // Auto-resolve dependencies if cache is empty (since we're opening on Deps tab)
+                    // Use cached dependencies, or trigger background resolution if cache is empty
                     let dependency_info = if cached_deps.is_empty() {
                         tracing::debug!(
-                            "[Preflight] Auto-resolving dependencies on open for {} packages",
+                            "[Preflight] Cache empty, will trigger background dependency resolution for {} packages",
                             items.len()
                         );
-                        crate::logic::deps::resolve_dependencies(&items)
+                        // Trigger background resolution - results will be synced when they arrive
+                        Vec::new()
                     } else {
                         cached_deps
                     };
 
+                    // Trigger background resolution if cache is empty
+                    if dependency_info.is_empty() {
+                        app.preflight_resolve_items = Some(items.clone());
+                        app.preflight_deps_resolving = true;
+                    }
+                    if cached_files.is_empty() {
+                        if app.preflight_resolve_items.is_none() {
+                            app.preflight_resolve_items = Some(items.clone());
+                        }
+                        app.preflight_files_resolving = true;
+                    }
+                    if cached_sandbox.is_empty() {
+                        let aur_items: Vec<_> = items
+                            .iter()
+                            .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                            .cloned()
+                            .collect();
+                        if !aur_items.is_empty() {
+                            if app.preflight_resolve_items.is_none() {
+                                app.preflight_resolve_items = Some(items.clone());
+                            }
+                            app.preflight_sandbox_resolving = true;
+                        }
+                    }
+
                     app.modal = crate::state::Modal::Preflight {
                         items,
                         action: crate::state::PreflightAction::Install,
-                        tab: crate::state::PreflightTab::Deps,
+                        tab: crate::state::PreflightTab::Summary,
                         summary: Some(Box::new(minimal_summary)),
                         header_chips: minimal_header,
                         dependency_info,

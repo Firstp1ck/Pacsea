@@ -806,6 +806,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 tracing::debug!("[Runtime] Received dependency resolution results: {} deps", deps.len());
                 app.install_list_deps = deps;
                 app.deps_resolving = false; // CRITICAL: Always reset this flag when we receive ANY result
+                let was_preflight = app.preflight_deps_resolving;
+                app.preflight_deps_resolving = false; // Also reset preflight flag
+                // Clear preflight resolve items if this was a preflight request and no other resolutions pending
+                if was_preflight && !app.preflight_files_resolving && !app.preflight_sandbox_resolving {
+                    app.preflight_resolve_items = None;
+                }
                 app.deps_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
@@ -813,6 +819,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 // Update cached files
                 app.install_list_files = files;
                 app.files_resolving = false;
+                let was_preflight = app.preflight_files_resolving;
+                app.preflight_files_resolving = false; // Also reset preflight flag
+                // Clear preflight resolve items if this was a preflight request and no other resolutions pending
+                if was_preflight && !app.preflight_deps_resolving && !app.preflight_sandbox_resolving {
+                    app.preflight_resolve_items = None;
+                }
                 app.files_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
@@ -827,6 +839,12 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 // Update cached sandbox info
                 app.install_list_sandbox = sandbox_info;
                 app.sandbox_resolving = false;
+                let was_preflight = app.preflight_sandbox_resolving;
+                app.preflight_sandbox_resolving = false; // Also reset preflight flag
+                // Clear preflight resolve items if this was a preflight request and no other resolutions pending
+                if was_preflight && !app.preflight_deps_resolving && !app.preflight_files_resolving {
+                    app.preflight_resolve_items = None;
+                }
                 app.sandbox_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
@@ -842,6 +860,35 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
             }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
             Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_news_read(&mut app); maybe_flush_install(&mut app); maybe_flush_deps_cache(&mut app); maybe_flush_files_cache(&mut app); maybe_flush_services_cache(&mut app); maybe_flush_sandbox_cache(&mut app);
+                // Check for preflight resolution requests
+                if let Some(ref items) = app.preflight_resolve_items {
+                    if app.preflight_deps_resolving && !app.deps_resolving {
+                        // Trigger dependency resolution for preflight items
+                        app.deps_resolving = true;
+                        let _ = deps_req_tx.send(items.clone());
+                    }
+                    if app.preflight_files_resolving && !app.files_resolving {
+                        // Trigger file resolution for preflight items
+                        app.files_resolving = true;
+                        let _ = files_req_tx.send(items.clone());
+                    }
+                    if app.preflight_sandbox_resolving && !app.sandbox_resolving {
+                        // Trigger sandbox resolution for preflight items (only AUR packages)
+                        app.sandbox_resolving = true;
+                        let aur_items: Vec<_> = items
+                            .iter()
+                            .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                            .cloned()
+                            .collect();
+                        if !aur_items.is_empty() {
+                            let _ = sandbox_req_tx.send(aur_items);
+                        } else {
+                            // No AUR packages, reset flag immediately
+                            app.preflight_sandbox_resolving = false;
+                            app.sandbox_resolving = false;
+                        }
+                    }
+                }
                 // Check for pending PKGBUILD reload request (debounce delay)
                 const PKGBUILD_DEBOUNCE_MS: u64 = 250;
                 if let (Some(requested_at), Some(requested_for)) = (app.pkgb_reload_requested_at, &app.pkgb_reload_requested_for) {

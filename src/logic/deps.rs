@@ -11,44 +11,16 @@ mod status;
 mod utils;
 
 use crate::state::modal::DependencyInfo;
-use crate::state::types::{PackageItem, Source};
+use crate::state::types::PackageItem;
 use query::get_upgradable_packages;
 use resolve::resolve_package_deps;
-use source::determine_dependency_source;
 use status::determine_status;
 use std::collections::{HashMap, HashSet};
 use utils::dependency_priority;
 
-pub use query::get_installed_packages;
+pub use query::{get_installed_packages, get_provided_packages, is_package_installed_or_provided};
 pub use reverse::resolve_reverse_dependencies;
 pub use status::{get_installed_version, version_satisfies};
-
-/// What: Determine the source type for a dependency package name.
-///
-/// Inputs:
-/// - `name`: Package name to check.
-/// - `installed`: Set of installed packages.
-///
-/// Output:
-/// - Returns `Source` enum indicating whether the package is official or AUR.
-///
-/// Details:
-/// - Checks if package is installed and queries its repository.
-/// - Defaults to Official if repository cannot be determined.
-fn determine_dep_source(name: &str, installed: &HashSet<String>) -> Source {
-    let (source, _) = determine_dependency_source(name, installed);
-    match source {
-        crate::state::modal::DependencySource::Official { repo } => Source::Official {
-            repo,
-            arch: "x86_64".to_string(), // Default arch, could be improved
-        },
-        crate::state::modal::DependencySource::Aur => Source::Aur,
-        crate::state::modal::DependencySource::Local => Source::Official {
-            repo: "local".to_string(),
-            arch: "x86_64".to_string(),
-        },
-    }
-}
 
 /// What: Resolve dependencies for the requested install set while consolidating duplicates.
 ///
@@ -92,12 +64,17 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     let installed = get_installed_packages();
     tracing::info!("Found {} installed packages", installed.len());
 
+    // Get all provided packages (e.g., rustup provides rust)
+    tracing::info!("Building provides set from installed packages...");
+    let provided = get_provided_packages(&installed);
+    tracing::info!("Found {} provided packages", provided.len());
+
     // Get list of upgradable packages to detect if dependencies need upgrades
     let upgradable = get_upgradable_packages();
     tracing::info!("Found {} upgradable packages", upgradable.len());
 
     // Initialize set of root packages (for tracking)
-    let root_names: HashSet<String> = items.iter().map(|i| i.name.clone()).collect();
+    let _root_names: HashSet<String> = items.iter().map(|i| i.name.clone()).collect();
 
     // Resolve ONLY direct dependencies (non-recursive)
     // This is faster and avoids resolving transitive dependencies which can be slow and error-prone
@@ -111,7 +88,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             source
         );
 
-        match resolve_package_deps(&name, &source, &installed, &upgradable) {
+        match resolve_package_deps(&name, &source, &installed, &provided, &upgradable) {
             Ok(mut resolved_deps) => {
                 tracing::debug!("  Found {} dependencies for {}", resolved_deps.len(), name);
 
@@ -162,12 +139,14 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
                                     &entry.name,
                                     &entry.version,
                                     &installed,
+                                    &provided,
                                     &upgradable,
                                 );
                                 let new_status = determine_status(
                                     &entry.name,
                                     &dep.version,
                                     &installed,
+                                    &provided,
                                     &upgradable,
                                 );
                                 let existing_req_priority = dependency_priority(&existing_status);

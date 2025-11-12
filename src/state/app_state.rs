@@ -380,6 +380,16 @@ pub struct AppState {
     pub sandbox_cache_path: PathBuf,
     /// Dirty flag indicating `install_list_sandbox` needs to be saved.
     pub sandbox_cache_dirty: bool,
+
+    // Preflight modal background resolution requests
+    /// Packages to resolve for preflight modal (takes priority over install_list when set).
+    pub preflight_resolve_items: Option<Vec<PackageItem>>,
+    /// Whether preflight dependency resolution is in progress.
+    pub preflight_deps_resolving: bool,
+    /// Whether preflight file resolution is in progress.
+    pub preflight_files_resolving: bool,
+    /// Whether preflight sandbox resolution is in progress.
+    pub preflight_sandbox_resolving: bool,
 }
 
 impl Default for AppState {
@@ -579,6 +589,10 @@ impl Default for AppState {
             // Sandbox cache (lists dir under config)
             sandbox_cache_path: crate::theme::lists_dir().join("sandbox_cache.json"),
             sandbox_cache_dirty: false,
+            preflight_resolve_items: None,
+            preflight_deps_resolving: false,
+            preflight_files_resolving: false,
+            preflight_sandbox_resolving: false,
         }
     }
 }

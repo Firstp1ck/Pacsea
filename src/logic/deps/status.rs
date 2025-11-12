@@ -1,5 +1,6 @@
 //! Dependency status determination and version checking.
 
+use crate::logic::deps::is_package_installed_or_provided;
 use crate::state::modal::DependencyStatus;
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
@@ -21,9 +22,11 @@ pub(crate) fn determine_status(
     name: &str,
     version_req: &str,
     installed: &HashSet<String>,
+    provided: &HashSet<String>,
     upgradable: &HashSet<String>,
 ) -> DependencyStatus {
-    if !installed.contains(name) {
+    // Check if package is installed or provided by an installed package
+    if !is_package_installed_or_provided(name, installed, provided) {
         return DependencyStatus::ToInstall;
     }
 

@@ -41,13 +41,13 @@ pub(crate) fn compute_display_items_len(
         // Always add header for each package (even if no dependencies)
         count += 1;
         // Count unique dependencies only if package is expanded AND has dependencies
-        if dep_tree_expanded.contains(pkg_name) {
-            if let Some(pkg_deps) = grouped.get(pkg_name) {
-                let mut seen_deps = HashSet::new();
-                for dep in pkg_deps.iter() {
-                    if seen_deps.insert(dep.name.as_str()) {
-                        count += 1;
-                    }
+        if dep_tree_expanded.contains(pkg_name)
+            && let Some(pkg_deps) = grouped.get(pkg_name)
+        {
+            let mut seen_deps = HashSet::new();
+            for dep in pkg_deps.iter() {
+                if seen_deps.insert(dep.name.as_str()) {
+                    count += 1;
                 }
             }
         }
@@ -184,7 +184,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         sandbox_info,
         sandbox_selected,
         sandbox_tree_expanded,
-        sandbox_loaded: _,
+        sandbox_loaded,
         sandbox_error: _,
         selected_optdepends,
         cascade_mode,
@@ -209,18 +209,19 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         }
                     }
 
+                    // IMPORTANT: Build display_items to match UI rendering logic
+                    // Show ALL packages, even if they have no dependencies (matches UI)
                     let mut display_items: Vec<(bool, String)> = Vec::new();
                     for pkg_name in items.iter().map(|p| &p.name) {
-                        if grouped.contains_key(pkg_name) {
-                            display_items.push((true, pkg_name.clone()));
-                            if dep_tree_expanded.contains(pkg_name) {
-                                // Add placeholder entries for dependencies (we just need to count them)
+                        // Always add package header (even if no dependencies)
+                        display_items.push((true, pkg_name.clone()));
+                        if dep_tree_expanded.contains(pkg_name) {
+                            // Add placeholder entries for dependencies (we just need to count them)
+                            if let Some(pkg_deps) = grouped.get(pkg_name) {
                                 let mut seen_deps = HashSet::new();
-                                if let Some(pkg_deps) = grouped.get(pkg_name) {
-                                    for dep in pkg_deps.iter() {
-                                        if seen_deps.insert(dep.name.as_str()) {
-                                            display_items.push((false, String::new()));
-                                        }
+                                for dep in pkg_deps.iter() {
+                                    if seen_deps.insert(dep.name.as_str()) {
+                                        display_items.push((false, String::new()));
                                     }
                                 }
                             }
@@ -381,13 +382,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                 *dependency_info = cached_deps;
                                 *dep_selected = 0;
                             } else {
-                                // No cached deps - resolve automatically
+                                // No cached deps - trigger background resolution
                                 tracing::debug!(
-                                    "[Preflight] Auto-resolving dependencies for {} packages",
+                                    "[Preflight] Triggering background dependency resolution for {} packages",
                                     items.len()
                                 );
-                                *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                                *dep_selected = 0;
+                                app.preflight_resolve_items = Some(items.to_vec());
+                                app.preflight_deps_resolving = true;
+                                // Resolution will happen in background, UI will show loading state
+                                // Results will be synced to preflight modal when they arrive
                             }
                             app.remove_preflight_summary.clear();
                         }
@@ -412,13 +415,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         *file_info = cached_files;
                         *file_selected = 0;
                     } else {
-                        // No cached files - resolve automatically
+                        // No cached files - trigger background resolution
                         tracing::debug!(
-                            "[Preflight] Auto-resolving files for {} packages",
+                            "[Preflight] Triggering background file resolution for {} packages",
                             items.len()
                         );
-                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                        *file_selected = 0;
+                        app.preflight_resolve_items = Some(items.to_vec());
+                        app.preflight_files_resolving = true;
+                        // Resolution will happen in background, UI will show loading state
+                        // Results will be synced to preflight modal when they arrive
                     }
                 }
                 // Services tab resolution happens in render function for better responsiveness
@@ -457,13 +462,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                 *dependency_info = cached_deps;
                                 *dep_selected = 0;
                             } else {
-                                // No cached deps - resolve automatically
+                                // No cached deps - trigger background resolution
                                 tracing::debug!(
-                                    "[Preflight] Auto-resolving dependencies for {} packages",
+                                    "[Preflight] Triggering background dependency resolution for {} packages",
                                     items.len()
                                 );
-                                *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                                *dep_selected = 0;
+                                app.preflight_resolve_items = Some(items.to_vec());
+                                app.preflight_deps_resolving = true;
+                                // Resolution will happen in background, UI will show loading state
+                                // Results will be synced to preflight modal when they arrive
                             }
                             app.remove_preflight_summary.clear();
                         }
@@ -488,13 +495,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         *file_info = cached_files;
                         *file_selected = 0;
                     } else {
-                        // No cached files - resolve automatically
+                        // No cached files - trigger background resolution
                         tracing::debug!(
-                            "[Preflight] Auto-resolving files for {} packages",
+                            "[Preflight] Triggering background file resolution for {} packages",
                             items.len()
                         );
-                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                        *file_selected = 0;
+                        app.preflight_resolve_items = Some(items.to_vec());
+                        app.preflight_files_resolving = true;
+                        // Resolution will happen in background, UI will show loading state
+                        // Results will be synced to preflight modal when they arrive
                     }
                 }
                 // Check for cached services when switching to Services tab
@@ -521,6 +530,55 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         }
                     }
                     // If no cached services, user can press 'r' to resolve
+                }
+                // Check for cached sandbox when switching to Sandbox tab
+                if *tab == crate::state::PreflightTab::Sandbox
+                    && sandbox_info.is_empty()
+                    && !*sandbox_loaded
+                {
+                    match *action {
+                        crate::state::PreflightAction::Install => {
+                            // Try to use cached sandbox from app state
+                            let item_names: std::collections::HashSet<String> =
+                                items.iter().map(|i| i.name.clone()).collect();
+                            let cached_sandbox: Vec<crate::logic::sandbox::SandboxInfo> = app
+                                .install_list_sandbox
+                                .iter()
+                                .filter(|s| item_names.contains(&s.package_name))
+                                .cloned()
+                                .collect();
+                            if !cached_sandbox.is_empty() {
+                                *sandbox_info = cached_sandbox;
+                                *sandbox_selected = 0;
+                                *sandbox_loaded = true;
+                            } else {
+                                // No cached sandbox - trigger background resolution
+                                // Only resolve for AUR packages
+                                let aur_items: Vec<_> = items
+                                    .iter()
+                                    .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                                    .cloned()
+                                    .collect();
+                                if !aur_items.is_empty() {
+                                    tracing::debug!(
+                                        "[Preflight] Triggering background sandbox resolution for {} AUR packages",
+                                        aur_items.len()
+                                    );
+                                    app.preflight_resolve_items = Some(aur_items);
+                                    app.preflight_sandbox_resolving = true;
+                                    // Resolution will happen in background, UI will show loading state
+                                    // Results will be synced to preflight modal when they arrive
+                                } else {
+                                    // No AUR packages, mark as loaded
+                                    *sandbox_loaded = true;
+                                }
+                            }
+                        }
+                        crate::state::PreflightAction::Remove => {
+                            // Sandbox is only for install actions
+                            *sandbox_loaded = true;
+                        }
+                    }
                 }
             }
             KeyCode::Tab => {
@@ -554,13 +612,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                 *dependency_info = cached_deps;
                                 *dep_selected = 0;
                             } else {
-                                // No cached deps - resolve automatically
+                                // No cached deps - trigger background resolution
                                 tracing::debug!(
-                                    "[Preflight] Auto-resolving dependencies for {} packages",
+                                    "[Preflight] Triggering background dependency resolution for {} packages",
                                     items.len()
                                 );
-                                *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                                *dep_selected = 0;
+                                app.preflight_resolve_items = Some(items.to_vec());
+                                app.preflight_deps_resolving = true;
+                                // Resolution will happen in background, UI will show loading state
+                                // Results will be synced to preflight modal when they arrive
                             }
                             app.remove_preflight_summary.clear();
                         }
@@ -585,13 +645,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         *file_info = cached_files;
                         *file_selected = 0;
                     } else {
-                        // No cached files - resolve automatically
+                        // No cached files - trigger background resolution
                         tracing::debug!(
-                            "[Preflight] Auto-resolving files for {} packages",
+                            "[Preflight] Triggering background file resolution for {} packages",
                             items.len()
                         );
-                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                        *file_selected = 0;
+                        app.preflight_resolve_items = Some(items.to_vec());
+                        app.preflight_files_resolving = true;
+                        // Resolution will happen in background, UI will show loading state
+                        // Results will be synced to preflight modal when they arrive
                     }
                 }
                 // Check for cached services when switching to Services tab
@@ -618,6 +680,55 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         }
                     }
                     // If no cached services, user can press 'r' to resolve
+                }
+                // Check for cached sandbox when switching to Sandbox tab
+                if *tab == crate::state::PreflightTab::Sandbox
+                    && sandbox_info.is_empty()
+                    && !*sandbox_loaded
+                {
+                    match *action {
+                        crate::state::PreflightAction::Install => {
+                            // Try to use cached sandbox from app state
+                            let item_names: std::collections::HashSet<String> =
+                                items.iter().map(|i| i.name.clone()).collect();
+                            let cached_sandbox: Vec<crate::logic::sandbox::SandboxInfo> = app
+                                .install_list_sandbox
+                                .iter()
+                                .filter(|s| item_names.contains(&s.package_name))
+                                .cloned()
+                                .collect();
+                            if !cached_sandbox.is_empty() {
+                                *sandbox_info = cached_sandbox;
+                                *sandbox_selected = 0;
+                                *sandbox_loaded = true;
+                            } else {
+                                // No cached sandbox - trigger background resolution
+                                // Only resolve for AUR packages
+                                let aur_items: Vec<_> = items
+                                    .iter()
+                                    .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                                    .cloned()
+                                    .collect();
+                                if !aur_items.is_empty() {
+                                    tracing::debug!(
+                                        "[Preflight] Triggering background sandbox resolution for {} AUR packages",
+                                        aur_items.len()
+                                    );
+                                    app.preflight_resolve_items = Some(aur_items);
+                                    app.preflight_sandbox_resolving = true;
+                                    // Resolution will happen in background, UI will show loading state
+                                    // Results will be synced to preflight modal when they arrive
+                                } else {
+                                    // No AUR packages, mark as loaded
+                                    *sandbox_loaded = true;
+                                }
+                            }
+                        }
+                        crate::state::PreflightAction::Remove => {
+                            // Sandbox is only for install actions
+                            *sandbox_loaded = true;
+                        }
+                    }
                 }
             }
             KeyCode::Up => {
@@ -710,18 +821,19 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         }
                     }
 
+                    // IMPORTANT: Build display_items to match UI rendering logic
+                    // Show ALL packages, even if they have no dependencies (matches UI)
                     let mut display_items: Vec<(bool, String)> = Vec::new();
                     for pkg_name in items.iter().map(|p| &p.name) {
-                        if grouped.contains_key(pkg_name) {
-                            display_items.push((true, pkg_name.clone()));
-                            if dep_tree_expanded.contains(pkg_name) {
-                                // Add placeholder entries for dependencies (we just need to count them)
+                        // Always add package header (even if no dependencies)
+                        display_items.push((true, pkg_name.clone()));
+                        if dep_tree_expanded.contains(pkg_name) {
+                            // Add placeholder entries for dependencies (we just need to count them)
+                            if let Some(pkg_deps) = grouped.get(pkg_name) {
                                 let mut seen_deps = HashSet::new();
-                                if let Some(pkg_deps) = grouped.get(pkg_name) {
-                                    for dep in pkg_deps.iter() {
-                                        if seen_deps.insert(dep.name.as_str()) {
-                                            display_items.push((false, String::new()));
-                                        }
+                                for dep in pkg_deps.iter() {
+                                    if seen_deps.insert(dep.name.as_str()) {
+                                        display_items.push((false, String::new()));
                                     }
                                 }
                             }

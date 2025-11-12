@@ -22,6 +22,7 @@ use crate::i18n::detection::detect_system_locale;
 pub fn resolve_locale(settings_locale: &str, i18n_config_path: &PathBuf) -> String {
     let fallbacks = load_fallbacks(i18n_config_path);
     let default_locale = load_default_locale(i18n_config_path);
+    let available_locales = load_available_locales(i18n_config_path);
 
     // Determine initial locale
     let initial_locale = if settings_locale.trim().is_empty() {
@@ -48,7 +49,12 @@ pub fn resolve_locale(settings_locale: &str, i18n_config_path: &PathBuf) -> Stri
     };
 
     // Apply fallback chain
-    let resolved = resolve_with_fallbacks(&initial_locale, &fallbacks, &default_locale);
+    let resolved = resolve_with_fallbacks(
+        &initial_locale,
+        &fallbacks,
+        &default_locale,
+        &available_locales,
+    );
 
     if resolved != initial_locale {
         tracing::debug!(
@@ -105,6 +111,7 @@ fn resolve_with_fallbacks(
     locale: &str,
     fallbacks: &HashMap<String, String>,
     default_locale: &str,
+    available_locales: &std::collections::HashSet<String>,
 ) -> String {
     let mut current = locale.to_string();
     let mut visited = std::collections::HashSet::new();
@@ -113,20 +120,33 @@ fn resolve_with_fallbacks(
     while visited.insert(current.clone()) {
         // Check if we have a fallback for this locale
         if let Some(fallback) = fallbacks.get(&current) {
-            tracing::debug!(
-                "Locale '{}' has fallback: {}",
-                current,
-                fallback
-            );
+            tracing::debug!("Locale '{}' has fallback: {}", current, fallback);
             current = fallback.clone();
         } else {
-            // No fallback defined - this locale is terminal (final destination)
-            // Return it as-is (it should be a valid locale like "de-DE", "en-US", etc.)
-            tracing::debug!(
-                "Locale '{}' has no fallback (terminal locale), using it directly",
-                current
-            );
-            return current;
+            // No fallback defined - check if this locale is available
+            if available_locales.contains(&current) {
+                // Locale is available, use it directly
+                tracing::debug!(
+                    "Locale '{}' has no fallback but is available, using it directly",
+                    current
+                );
+                return current;
+            } else if current == default_locale {
+                // Default locale is always valid
+                tracing::debug!(
+                    "Locale '{}' has no fallback and is the default locale, using it directly",
+                    current
+                );
+                return current;
+            } else {
+                // Locale not available and not default, fall back to default
+                tracing::debug!(
+                    "Locale '{}' has no fallback and is not available, falling back to default: {}",
+                    current,
+                    default_locale
+                );
+                return default_locale.to_string();
+            }
         }
 
         // Safety check: prevent infinite loops
@@ -181,6 +201,35 @@ fn load_fallbacks(config_path: &PathBuf) -> HashMap<String, String> {
     fallbacks
 }
 
+/// What: Load available locales from i18n.yml.
+///
+/// Inputs:
+/// - `config_path`: Path to config/i18n.yml
+///
+/// Output:
+/// - HashSet of available locale codes
+fn load_available_locales(config_path: &PathBuf) -> std::collections::HashSet<String> {
+    let mut locales = std::collections::HashSet::new();
+
+    if let Ok(contents) = fs::read_to_string(config_path)
+        && let Ok(doc) = serde_norway::from_str::<serde_norway::Value>(&contents)
+        && let Some(locales_map) = doc.get("locales").and_then(|v| v.as_mapping())
+    {
+        for key in locales_map.keys() {
+            if let Some(locale) = key.as_str() {
+                locales.insert(locale.to_string());
+            }
+        }
+        tracing::debug!(
+            "Loaded {} available locales from i18n.yml: {:?}",
+            locales.len(),
+            locales.iter().collect::<Vec<_>>()
+        );
+    }
+
+    locales
+}
+
 /// What: Load default locale from i18n.yml.
 ///
 /// Inputs:
@@ -203,6 +252,7 @@ fn load_default_locale(config_path: &PathBuf) -> String {
 pub struct LocaleResolver {
     fallbacks: HashMap<String, String>,
     default_locale: String,
+    available_locales: std::collections::HashSet<String>,
 }
 
 impl LocaleResolver {
@@ -217,6 +267,7 @@ impl LocaleResolver {
         Self {
             fallbacks: load_fallbacks(i18n_config_path),
             default_locale: load_default_locale(i18n_config_path),
+            available_locales: load_available_locales(i18n_config_path),
         }
     }
 
@@ -259,8 +310,13 @@ impl LocaleResolver {
             }
         }
 
-        let resolved = resolve_with_fallbacks(&initial_locale, &self.fallbacks, &self.default_locale);
-        
+        let resolved = resolve_with_fallbacks(
+            &initial_locale,
+            &self.fallbacks,
+            &self.default_locale,
+            &self.available_locales,
+        );
+
         if resolved != initial_locale {
             tracing::debug!(
                 "Locale '{}' resolved to '{}' via fallback chain",
@@ -268,7 +324,7 @@ impl LocaleResolver {
                 resolved
             );
         }
-        
+
         resolved
     }
 }
@@ -285,30 +341,41 @@ mod tests {
         fallbacks.insert("de-CH".to_string(), "de-DE".to_string());
         fallbacks.insert("de".to_string(), "de-DE".to_string());
 
-        // Test fallback chain: de-CH -> de-DE -> en-US (default)
-        // Since de-DE has no fallback defined, it resolves to default
+        let mut available_locales = std::collections::HashSet::new();
+        available_locales.insert("de-DE".to_string());
+        available_locales.insert("en-US".to_string());
+
+        // Test fallback chain: de-CH -> de-DE (available, stops here)
         assert_eq!(
-            resolve_with_fallbacks("de-CH", &fallbacks, "en-US"),
-            "en-US" // de-CH -> de-DE -> (no fallback) -> en-US
+            resolve_with_fallbacks("de-CH", &fallbacks, "en-US", &available_locales),
+            "de-DE" // de-CH -> de-DE (available, stops)
         );
 
-        // Test that de-DE falls back to default (en-US) when no fallback defined
+        // Test that de-DE is used directly when available
         assert_eq!(
-            resolve_with_fallbacks("de-DE", &fallbacks, "en-US"),
-            "en-US"
+            resolve_with_fallbacks("de-DE", &fallbacks, "en-US", &available_locales),
+            "de-DE"
         );
 
         // Test that default locale returns itself
         assert_eq!(
-            resolve_with_fallbacks("en-US", &fallbacks, "en-US"),
+            resolve_with_fallbacks("en-US", &fallbacks, "en-US", &available_locales),
             "en-US"
         );
 
         // Test single-part locale fallback
-        // de -> de-DE -> (no fallback) -> en-US
+        // de -> de-DE (available, stops)
         assert_eq!(
-            resolve_with_fallbacks("de", &fallbacks, "en-US"),
-            "en-US" // de -> de-DE -> (no fallback) -> en-US
+            resolve_with_fallbacks("de", &fallbacks, "en-US", &available_locales),
+            "de-DE" // de -> de-DE (available, stops)
+        );
+
+        // Test that unavailable locale falls back to default
+        let mut available_locales_no_de = std::collections::HashSet::new();
+        available_locales_no_de.insert("en-US".to_string());
+        assert_eq!(
+            resolve_with_fallbacks("de-DE", &fallbacks, "en-US", &available_locales_no_de),
+            "en-US" // de-DE not available, falls back to default
         );
     }
 
@@ -320,8 +387,10 @@ mod tests {
         fallbacks.insert("b".to_string(), "c".to_string());
         fallbacks.insert("c".to_string(), "a".to_string());
 
+        let available_locales = std::collections::HashSet::new();
+
         // Should detect cycle and return default
-        let result = resolve_with_fallbacks("a", &fallbacks, "en-US");
+        let result = resolve_with_fallbacks("a", &fallbacks, "en-US", &available_locales);
         assert_eq!(result, "en-US");
     }
 
@@ -333,8 +402,10 @@ mod tests {
             fallbacks.insert(format!("loc{}", i), format!("loc{}", i + 1));
         }
 
+        let available_locales = std::collections::HashSet::new();
+
         // Should hit max length limit and return default
-        let result = resolve_with_fallbacks("loc0", &fallbacks, "en-US");
+        let result = resolve_with_fallbacks("loc0", &fallbacks, "en-US", &available_locales);
         assert_eq!(result, "en-US");
     }
 

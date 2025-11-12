@@ -357,16 +357,40 @@ pub fn handle_search_key(
                             .cloned()
                             .collect();
 
-                        // Auto-resolve dependencies if cache is empty (since we're opening on Deps tab)
+                        // Use cached dependencies, or trigger background resolution if cache is empty
                         let dependency_info = if cached_deps.is_empty() {
                             tracing::debug!(
-                                "[Preflight] Auto-resolving dependencies on open for {} packages",
+                                "[Preflight] Cache empty, will trigger background dependency resolution for {} packages",
                                 items.len()
                             );
-                            crate::logic::deps::resolve_dependencies(&items)
+                            // Trigger background resolution - results will be synced when they arrive
+                            Vec::new()
                         } else {
                             cached_deps
                         };
+
+                        // Trigger background resolution if cache is empty
+                        if dependency_info.is_empty() {
+                            app.preflight_resolve_items = Some(items.clone());
+                            app.preflight_deps_resolving = true;
+                        }
+                        if cached_files.is_empty() {
+                            if app.preflight_resolve_items.is_none() {
+                                app.preflight_resolve_items = Some(items.clone());
+                            }
+                            app.preflight_files_resolving = true;
+                        }
+                        let aur_items: Vec<_> = items
+                            .iter()
+                            .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                            .cloned()
+                            .collect();
+                        if !aur_items.is_empty() {
+                            if app.preflight_resolve_items.is_none() {
+                                app.preflight_resolve_items = Some(items.clone());
+                            }
+                            app.preflight_sandbox_resolving = true;
+                        }
 
                         app.modal = crate::state::Modal::Preflight {
                             items,
@@ -439,16 +463,40 @@ pub fn handle_search_key(
                             .cloned()
                             .collect();
 
-                        // Auto-resolve dependencies if cache is empty (since we're opening on Deps tab)
+                        // Use cached dependencies, or trigger background resolution if cache is empty
                         let dependency_info = if cached_deps.is_empty() {
                             tracing::debug!(
-                                "[Preflight] Auto-resolving dependencies on open for {} packages",
+                                "[Preflight] Cache empty, will trigger background dependency resolution for {} packages",
                                 items.len()
                             );
-                            crate::logic::deps::resolve_dependencies(&items)
+                            // Trigger background resolution - results will be synced when they arrive
+                            Vec::new()
                         } else {
                             cached_deps
                         };
+
+                        // Trigger background resolution if cache is empty
+                        if dependency_info.is_empty() {
+                            app.preflight_resolve_items = Some(items.clone());
+                            app.preflight_deps_resolving = true;
+                        }
+                        if cached_files.is_empty() {
+                            if app.preflight_resolve_items.is_none() {
+                                app.preflight_resolve_items = Some(items.clone());
+                            }
+                            app.preflight_files_resolving = true;
+                        }
+                        let aur_items: Vec<_> = items
+                            .iter()
+                            .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                            .cloned()
+                            .collect();
+                        if !aur_items.is_empty() {
+                            if app.preflight_resolve_items.is_none() {
+                                app.preflight_resolve_items = Some(items.clone());
+                            }
+                            app.preflight_sandbox_resolving = true;
+                        }
 
                         app.modal = crate::state::Modal::Preflight {
                             items,
