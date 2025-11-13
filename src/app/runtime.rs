@@ -219,15 +219,18 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     initialize_locale_system(&mut app, &locale_pref, &prefs);
 
     // GNOME desktop: prompt to install a GNOME terminal if none present (gnome-terminal or gnome-console/kgx)
-    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
-        .ok()
-        .map(|v| v.to_uppercase().contains("GNOME"))
-        .unwrap_or(false);
-    let has_gterm = crate::install::command_on_path("gnome-terminal");
-    let has_gconsole =
-        crate::install::command_on_path("gnome-console") || crate::install::command_on_path("kgx");
-    if is_gnome && !(has_gterm || has_gconsole) {
-        app.modal = crate::state::Modal::GnomeTerminalPrompt;
+    // Skip this check in headless mode to avoid slow PATH scanning
+    if !headless {
+        let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+            .ok()
+            .map(|v| v.to_uppercase().contains("GNOME"))
+            .unwrap_or(false);
+        let has_gterm = crate::install::command_on_path("gnome-terminal");
+        let has_gconsole = crate::install::command_on_path("gnome-console")
+            || crate::install::command_on_path("kgx");
+        if is_gnome && !(has_gterm || has_gconsole) {
+            app.modal = crate::state::Modal::GnomeTerminalPrompt;
+        }
     }
 
     if let Ok(s) = std::fs::read_to_string(&app.cache_path)
@@ -352,6 +355,10 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     let (sandbox_req_tx, mut sandbox_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
     let (sandbox_res_tx, mut sandbox_res_rx) =
         mpsc::unbounded_channel::<Vec<crate::logic::sandbox::SandboxInfo>>();
+    let (summary_req_tx, mut summary_req_rx) =
+        mpsc::unbounded_channel::<(Vec<PackageItem>, crate::state::modal::PreflightAction)>();
+    let (summary_res_tx, mut summary_res_rx) =
+        mpsc::unbounded_channel::<crate::logic::preflight::PreflightSummaryOutcome>();
 
     let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
@@ -415,24 +422,26 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     });
 
-    // Fetch Arch status text in background once at startup, then occasionally refresh
-    let status_tx_once = status_tx.clone();
-    tokio::spawn(async move {
-        if let Ok((txt, color)) = sources::fetch_arch_status_text().await {
-            let _ = status_tx_once.send((txt, color));
-        }
-    });
-
-    // Periodically refresh Arch status every 120 seconds
-    let status_tx_periodic = status_tx.clone();
-    tokio::spawn(async move {
-        loop {
-            sleep(Duration::from_secs(120)).await;
+    // Fetch Arch status text once at startup (skip in headless mode to avoid network delays)
+    if !headless {
+        let status_tx_once = status_tx.clone();
+        tokio::spawn(async move {
             if let Ok((txt, color)) = sources::fetch_arch_status_text().await {
-                let _ = status_tx_periodic.send((txt, color));
+                let _ = status_tx_once.send((txt, color));
             }
-        }
-    });
+        });
+
+        // Periodically refresh Arch status every 120 seconds
+        let status_tx_periodic = status_tx.clone();
+        tokio::spawn(async move {
+            loop {
+                sleep(Duration::from_secs(120)).await;
+                if let Ok((txt, color)) = sources::fetch_arch_status_text().await {
+                    let _ = status_tx_periodic.send((txt, color));
+                }
+            }
+        });
+    }
 
     // Background dependency resolution worker
     let deps_res_tx_bg = deps_res_tx.clone();
@@ -499,32 +508,98 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         }
     });
 
-    // Background sandbox resolution worker
+    // Background sandbox resolution worker (async HTTP with parallel fetches)
     let sandbox_res_tx_bg = sandbox_res_tx.clone();
     tokio::spawn(async move {
         while let Some(items) = sandbox_req_rx.recv().await {
-            // Run blocking sandbox resolution in a thread pool
+            // Use async version for parallel HTTP fetches
             let items_clone = items.clone();
             let res_tx = sandbox_res_tx_bg.clone();
-            tokio::task::spawn_blocking(move || {
-                let sandbox_info = crate::logic::sandbox::resolve_sandbox_info(&items_clone);
+            tokio::spawn(async move {
+                let sandbox_info =
+                    crate::logic::sandbox::resolve_sandbox_info_async(&items_clone).await;
                 let _ = res_tx.send(sandbox_info);
             });
         }
     });
 
-    // Fetch Arch news once at startup; show unread items (by URL) if any
-    let news_tx_once = news_tx.clone();
-    let read_set = app.news_read_urls.clone();
+    // Background preflight summary computation worker
+    let summary_res_tx_bg = summary_res_tx.clone();
     tokio::spawn(async move {
-        if let Ok(list) = sources::fetch_arch_news(10).await {
-            let unread: Vec<NewsItem> = list
-                .into_iter()
-                .filter(|it| !read_set.contains(&it.url))
-                .collect();
-            let _ = news_tx_once.send(unread);
+        while let Some((items, action)) = summary_req_rx.recv().await {
+            // Run blocking summary computation in a thread pool
+            let items_clone = items.clone();
+            let res_tx = summary_res_tx_bg.clone();
+            let res_tx_error = summary_res_tx_bg.clone();
+            let handle = tokio::task::spawn_blocking(move || {
+                let summary =
+                    crate::logic::preflight::compute_preflight_summary(&items_clone, action);
+                let _ = res_tx.send(summary);
+            });
+            // CRITICAL: Always await and send a result, even if task panics
+            tokio::spawn(async move {
+                match handle.await {
+                    Ok(_) => {
+                        // Task completed successfully, result already sent
+                        tracing::debug!("[Runtime] Preflight summary computation task completed");
+                    }
+                    Err(e) => {
+                        // Task panicked - send minimal result to reset flag
+                        tracing::error!(
+                            "[Runtime] Preflight summary computation task panicked: {:?}",
+                            e
+                        );
+                        // Create a minimal summary to avoid breaking the UI
+                        let minimal_summary = crate::logic::preflight::PreflightSummaryOutcome {
+                            summary: crate::state::modal::PreflightSummaryData {
+                                packages: Vec::new(),
+                                package_count: 0,
+                                aur_count: 0,
+                                download_bytes: 0,
+                                install_delta_bytes: 0,
+                                risk_score: 0,
+                                risk_level: crate::state::modal::RiskLevel::Low,
+                                risk_reasons: Vec::new(),
+                                major_bump_packages: Vec::new(),
+                                core_system_updates: Vec::new(),
+                                pacnew_candidates: 0,
+                                pacsave_candidates: 0,
+                                config_warning_packages: Vec::new(),
+                                service_restart_units: Vec::new(),
+                                summary_warnings: vec!["Summary computation failed".to_string()],
+                                summary_notes: Vec::new(),
+                            },
+                            header: crate::state::modal::PreflightHeaderChips {
+                                package_count: 0,
+                                download_bytes: 0,
+                                install_delta_bytes: 0,
+                                aur_count: 0,
+                                risk_score: 0,
+                                risk_level: crate::state::modal::RiskLevel::Low,
+                            },
+                        };
+                        let _ = res_tx_error.send(minimal_summary);
+                    }
+                }
+            });
         }
+        tracing::debug!("[Runtime] Preflight summary computation worker exiting (channel closed)");
     });
+
+    // Fetch Arch news once at startup; show unread items (by URL) if any (skip in headless mode)
+    if !headless {
+        let news_tx_once = news_tx.clone();
+        let read_set = app.news_read_urls.clone();
+        tokio::spawn(async move {
+            if let Ok(list) = sources::fetch_arch_news(10).await {
+                let unread: Vec<NewsItem> = list
+                    .into_iter()
+                    .filter(|it| !read_set.contains(&it.url))
+                    .collect();
+                let _ = news_tx_once.send(unread);
+            }
+        });
+    }
 
     #[cfg(windows)]
     {
@@ -540,16 +615,22 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     }
     #[cfg(not(windows))]
     {
-        pkgindex::update_in_background(
-            app.official_index_path.clone(),
-            net_err_tx.clone(),
-            index_notify_tx.clone(),
-        )
-        .await;
+        // Skip index update in headless mode to avoid slow network/disk operations
+        if !headless {
+            pkgindex::update_in_background(
+                app.official_index_path.clone(),
+                net_err_tx.clone(),
+                index_notify_tx.clone(),
+            )
+            .await;
+        }
     }
 
-    pkgindex::refresh_installed_cache().await;
-    pkgindex::refresh_explicit_cache().await;
+    // Skip pacman cache refreshes in headless mode to avoid slow process spawning
+    if !headless {
+        pkgindex::refresh_installed_cache().await;
+        pkgindex::refresh_explicit_cache().await;
+    }
 
     // Trigger background dependency resolution if cache was missing/invalid
     if needs_deps_resolution && !app.install_list.is_empty() {
@@ -802,51 +883,228 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 }
             }
             Some(deps) = deps_res_rx.recv() => {
-                // Update cached dependencies
-                // Always reset deps_resolving flag, even if result is empty (which indicates failure)
-                tracing::debug!("[Runtime] Received dependency resolution results: {} deps", deps.len());
-                app.install_list_deps = deps;
-                app.deps_resolving = false; // CRITICAL: Always reset this flag when we receive ANY result
+                // Check if cancelled before updating
+                let cancelled = app.preflight_cancelled.load(std::sync::atomic::Ordering::Relaxed);
                 let was_preflight = app.preflight_deps_resolving;
+                app.deps_resolving = false; // CRITICAL: Always reset this flag when we receive ANY result
                 app.preflight_deps_resolving = false; // Also reset preflight flag
-                // Clear preflight resolve items if this was a preflight request and no other resolutions pending
-                if was_preflight && !app.preflight_files_resolving && !app.preflight_sandbox_resolving {
-                    app.preflight_resolve_items = None;
+
+                if !cancelled {
+                    // Update cached dependencies
+                    tracing::info!(
+                        stage = "dependencies",
+                        result_count = deps.len(),
+                        "[Runtime] Dependency resolution worker completed"
+                    );
+                    app.install_list_deps = deps.clone();
+                    // Sync dependencies to preflight modal if it's open (whether preflight or install list resolution)
+                    if let crate::state::Modal::Preflight { items, dependency_info, .. } = &mut app.modal {
+                        // Filter dependencies to only those required by current modal items
+                        let item_names: std::collections::HashSet<String> =
+                            items.iter().map(|i| i.name.clone()).collect();
+                        let filtered_deps: Vec<_> = deps
+                            .iter()
+                            .filter(|dep| {
+                                dep.required_by
+                                    .iter()
+                                    .any(|req_by| item_names.contains(req_by))
+                            })
+                            .cloned()
+                            .collect();
+                        if !filtered_deps.is_empty() {
+                            tracing::debug!(
+                                "[Runtime] Synced {} dependencies to preflight modal (was_preflight={})",
+                                filtered_deps.len(),
+                                was_preflight
+                            );
+                            *dependency_info = filtered_deps;
+                        }
+                    }
+                    if was_preflight {
+                        app.preflight_deps_items = None;
+                    }
+                    app.deps_cache_dirty = true; // Mark cache as dirty for persistence
+                } else if was_preflight {
+                    tracing::debug!("[Runtime] Ignoring dependency result (preflight cancelled)");
+                    app.preflight_deps_items = None;
                 }
-                app.deps_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
             Some(files) = files_res_rx.recv() => {
-                // Update cached files
-                app.install_list_files = files;
-                app.files_resolving = false;
+                // Check if cancelled before updating
+                let cancelled = app.preflight_cancelled.load(std::sync::atomic::Ordering::Relaxed);
                 let was_preflight = app.preflight_files_resolving;
+                app.files_resolving = false;
                 app.preflight_files_resolving = false; // Also reset preflight flag
-                // Clear preflight resolve items if this was a preflight request and no other resolutions pending
-                if was_preflight && !app.preflight_deps_resolving && !app.preflight_sandbox_resolving {
-                    app.preflight_resolve_items = None;
+
+                if !cancelled {
+                    // Update cached files
+                    tracing::info!(
+                        stage = "files",
+                        result_count = files.len(),
+                        "[Runtime] File resolution worker completed"
+                    );
+                    app.install_list_files = files.clone();
+                    // Sync files to preflight modal if it's open (whether preflight or install list resolution)
+                    if let crate::state::Modal::Preflight { items, file_info, .. } = &mut app.modal {
+                        // Filter files to only those for current modal items
+                        let item_names: std::collections::HashSet<String> =
+                            items.iter().map(|i| i.name.clone()).collect();
+                        let filtered_files: Vec<_> = files
+                            .iter()
+                            .filter(|file_info| item_names.contains(&file_info.name))
+                            .cloned()
+                            .collect();
+                        if !filtered_files.is_empty() {
+                            tracing::debug!(
+                                "[Runtime] Synced {} file infos to preflight modal (was_preflight={})",
+                                filtered_files.len(),
+                                was_preflight
+                            );
+                            *file_info = filtered_files;
+                        }
+                    }
+                    if was_preflight {
+                        app.preflight_files_items = None;
+                    }
+                    app.files_cache_dirty = true; // Mark cache as dirty for persistence
+                } else if was_preflight {
+                    tracing::debug!("[Runtime] Ignoring file result (preflight cancelled)");
+                    app.preflight_files_items = None;
                 }
-                app.files_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
             Some(services) = services_res_rx.recv() => {
-                // Update cached services
-                app.install_list_services = services;
+                // Check if cancelled before updating
+                let cancelled = app.preflight_cancelled.load(std::sync::atomic::Ordering::Relaxed);
+                let was_preflight = app.preflight_services_resolving;
                 app.services_resolving = false;
-                app.services_cache_dirty = true; // Mark cache as dirty for persistence
+                app.preflight_services_resolving = false; // Also reset preflight flag
+
+                if !cancelled {
+                    // Update cached services
+                    tracing::info!(
+                        stage = "services",
+                        result_count = services.len(),
+                        "[Runtime] Service resolution worker completed"
+                    );
+                    app.install_list_services = services;
+                    // Sync services to preflight modal if it's open
+                    if was_preflight {
+                        if let crate::state::Modal::Preflight { service_info, services_loaded, .. } = &mut app.modal {
+                            *service_info = app.install_list_services.clone();
+                            *services_loaded = true;
+                            tracing::debug!(
+                                "[Runtime] Synced {} services to preflight modal",
+                                service_info.len()
+                            );
+                        }
+                        app.preflight_services_items = None;
+                    }
+                    app.services_cache_dirty = true; // Mark cache as dirty for persistence
+                } else if was_preflight {
+                    tracing::debug!("[Runtime] Ignoring service result (preflight cancelled)");
+                    app.preflight_services_items = None;
+                }
                 let _ = tick_tx.send(());
             }
             Some(sandbox_info) = sandbox_res_rx.recv() => {
-                // Update cached sandbox info
-                app.install_list_sandbox = sandbox_info;
-                app.sandbox_resolving = false;
+                // Check if cancelled before updating
+                let cancelled = app.preflight_cancelled.load(std::sync::atomic::Ordering::Relaxed);
                 let was_preflight = app.preflight_sandbox_resolving;
+                app.sandbox_resolving = false;
                 app.preflight_sandbox_resolving = false; // Also reset preflight flag
-                // Clear preflight resolve items if this was a preflight request and no other resolutions pending
-                if was_preflight && !app.preflight_deps_resolving && !app.preflight_files_resolving {
-                    app.preflight_resolve_items = None;
+
+                if !cancelled {
+                    // Update cached sandbox info
+                    tracing::info!(
+                        stage = "sandbox",
+                        result_count = sandbox_info.len(),
+                        "[Runtime] Sandbox resolution worker completed"
+                    );
+                    app.install_list_sandbox = sandbox_info.clone();
+                    // Sync sandbox info to preflight modal if it's open (whether preflight or install list resolution)
+                    if let crate::state::Modal::Preflight { items, sandbox_info: modal_sandbox, sandbox_loaded, sandbox_error, .. } = &mut app.modal {
+                        // Filter sandbox info to only those for current modal items (AUR only)
+                        let item_names: std::collections::HashSet<String> =
+                            items.iter().map(|i| i.name.clone()).collect();
+                        let aur_items: Vec<_> = items
+                            .iter()
+                            .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                            .collect();
+                        let filtered_sandbox: Vec<_> = sandbox_info
+                            .iter()
+                            .filter(|sb| item_names.contains(&sb.package_name))
+                            .cloned()
+                            .collect();
+                        // Always sync sandbox info if we have matching entries, even if dependency lists are empty
+                        // (empty lists mean all dependencies are already installed, which is still useful info)
+                        if !filtered_sandbox.is_empty() {
+                            tracing::debug!(
+                                "[Runtime] Synced {} sandbox infos to preflight modal (was_preflight={})",
+                                filtered_sandbox.len(),
+                                was_preflight
+                            );
+                            *modal_sandbox = filtered_sandbox;
+                            *sandbox_loaded = true;
+                            *sandbox_error = None; // Clear any previous errors
+                        } else {
+                            // Check if we have AUR packages but no sandbox info
+                            if aur_items.is_empty() {
+                                // No AUR packages, mark as loaded
+                                *sandbox_loaded = true;
+                                *sandbox_error = None;
+                            } else if !sandbox_info.is_empty() {
+                                // We have sandbox info but it doesn't match current items
+                                // This could happen if items changed between resolution start and completion
+                                // Try to sync anyway - maybe some packages match
+                                let partial_match: Vec<_> = sandbox_info
+                                    .iter()
+                                    .filter(|sb| item_names.contains(&sb.package_name))
+                                    .cloned()
+                                    .collect();
+                                if !partial_match.is_empty() {
+                                    tracing::debug!(
+                                        "[Runtime] Partial sandbox sync: {} of {} packages matched",
+                                        partial_match.len(),
+                                        item_names.len()
+                                    );
+                                    *modal_sandbox = partial_match;
+                                    *sandbox_loaded = true;
+                                    *sandbox_error = None;
+                                } else {
+                                    tracing::warn!(
+                                        "[Runtime] Sandbox info exists but doesn't match modal items. Modal items: {:?}, Sandbox packages: {:?}",
+                                        item_names,
+                                        sandbox_info.iter().map(|s| &s.package_name).collect::<Vec<_>>()
+                                    );
+                                    // Still mark as loaded to prevent infinite loading state
+                                    *sandbox_loaded = true;
+                                    *sandbox_error = None;
+                                }
+                            } else {
+                                // sandbox_info is empty but we have AUR packages - resolution likely failed
+                                // This could happen if AUR is down or network issues
+                                tracing::warn!(
+                                    "[Runtime] Sandbox resolution returned empty results for {} AUR packages (AUR may be down or network issues)",
+                                    aur_items.len()
+                                );
+                                *sandbox_loaded = true; // Mark as loaded so UI can show error/empty state
+                                *sandbox_error = Some(format!(
+                                    "Failed to fetch sandbox information for {} AUR package(s). AUR may be temporarily unavailable.",
+                                    aur_items.len()
+                                ));
+                            }
+                        }
+                    }
+                    if was_preflight {
+                        app.preflight_sandbox_items = None;
+                    }
+                    app.sandbox_cache_dirty = true; // Mark cache as dirty for persistence
+                } else if was_preflight {
+                    tracing::debug!("[Runtime] Ignoring sandbox result (preflight cancelled)");
+                    app.preflight_sandbox_items = None;
                 }
-                app.sandbox_cache_dirty = true; // Mark cache as dirty for persistence
                 let _ = tick_tx.send(());
             }
             Some((pkgname, text)) = pkgb_res_rx.recv() => {
@@ -859,35 +1117,77 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 }
                 let _ = tick_tx.send(());
             }
+            Some(summary_outcome) = summary_res_rx.recv() => {
+                // Check if cancelled before updating modal
+                let cancelled = app.preflight_cancelled.load(std::sync::atomic::Ordering::Relaxed);
+                if !cancelled {
+                    // Update preflight modal with computed summary
+                    tracing::info!(
+                        stage = "summary",
+                        package_count = summary_outcome.summary.package_count,
+                        "[Runtime] Preflight summary computation worker completed"
+                    );
+                    if let crate::state::Modal::Preflight { summary, header_chips, .. } = &mut app.modal {
+                        *summary = Some(Box::new(summary_outcome.summary));
+                        *header_chips = summary_outcome.header;
+                    }
+                } else {
+                    tracing::debug!("[Runtime] Ignoring summary result (preflight cancelled)");
+                }
+                app.preflight_summary_resolving = false;
+                // Clear preflight summary items
+                app.preflight_summary_items = None;
+                let _ = tick_tx.send(());
+            }
             Some(msg) = net_err_rx.recv() => { app.modal = Modal::Alert { message: msg }; }
             Some(_) = tick_rx.recv() => { maybe_save_recent(&mut app); maybe_flush_cache(&mut app); maybe_flush_recent(&mut app); maybe_flush_news_read(&mut app); maybe_flush_install(&mut app); maybe_flush_deps_cache(&mut app); maybe_flush_files_cache(&mut app); maybe_flush_services_cache(&mut app); maybe_flush_sandbox_cache(&mut app);
-                // Check for preflight resolution requests
-                if let Some(ref items) = app.preflight_resolve_items {
-                    if app.preflight_deps_resolving && !app.deps_resolving {
+                // Check cancellation flag - if cancelled, clear queues and skip work
+                let cancelled = app.preflight_cancelled.load(std::sync::atomic::Ordering::Relaxed);
+                if cancelled {
+                    // Clear all queues if cancelled
+                    app.preflight_summary_items = None;
+                    app.preflight_deps_items = None;
+                    app.preflight_files_items = None;
+                    app.preflight_services_items = None;
+                    app.preflight_sandbox_items = None;
+                } else {
+                    // Check for preflight resolution requests - each stage has its own queue
+                    if let Some((ref items, ref action)) = app.preflight_summary_items {
+                        if app.preflight_summary_resolving {
+                            // Summary computation is already in progress
+                        } else {
+                        // Trigger summary computation
+                        app.preflight_summary_resolving = true;
+                        let _ = summary_req_tx.send((items.clone(), *action));
+                        }
+                    }
+                    if let Some(ref items) = app.preflight_deps_items
+                        && app.preflight_deps_resolving && !app.deps_resolving
+                    {
                         // Trigger dependency resolution for preflight items
                         app.deps_resolving = true;
                         let _ = deps_req_tx.send(items.clone());
                     }
-                    if app.preflight_files_resolving && !app.files_resolving {
+                    if let Some(ref items) = app.preflight_files_items
+                        && app.preflight_files_resolving && !app.files_resolving
+                    {
                         // Trigger file resolution for preflight items
                         app.files_resolving = true;
                         let _ = files_req_tx.send(items.clone());
                     }
-                    if app.preflight_sandbox_resolving && !app.sandbox_resolving {
-                        // Trigger sandbox resolution for preflight items (only AUR packages)
+                    if let Some(ref items) = app.preflight_services_items
+                        && app.preflight_services_resolving && !app.services_resolving
+                    {
+                        // Trigger service resolution for preflight items
+                        app.services_resolving = true;
+                        let _ = services_req_tx.send(items.clone());
+                    }
+                    if let Some(ref items) = app.preflight_sandbox_items
+                        && app.preflight_sandbox_resolving && !app.sandbox_resolving
+                    {
+                        // Trigger sandbox resolution for preflight items (already filtered to AUR)
                         app.sandbox_resolving = true;
-                        let aur_items: Vec<_> = items
-                            .iter()
-                            .filter(|p| matches!(p.source, crate::state::Source::Aur))
-                            .cloned()
-                            .collect();
-                        if !aur_items.is_empty() {
-                            let _ = sandbox_req_tx.send(aur_items);
-                        } else {
-                            // No AUR packages, reset flag immediately
-                            app.preflight_sandbox_resolving = false;
-                            app.sandbox_resolving = false;
-                        }
+                        let _ = sandbox_req_tx.send(items.clone());
                     }
                 }
                 // Check for pending PKGBUILD reload request (debounce delay)

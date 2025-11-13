@@ -6,8 +6,78 @@ use super::srcinfo::{fetch_srcinfo, parse_srcinfo_conflicts, parse_srcinfo_deps}
 use super::status::determine_status;
 use crate::state::modal::DependencyInfo;
 use crate::state::types::Source;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::process::{Command, Stdio};
+
+/// What: Batch fetch dependency lists for multiple official packages using `pacman -Si`.
+///
+/// Inputs:
+/// - `names`: Package names to query (must be official packages, not local).
+///
+/// Output:
+/// - HashMap mapping package name to its dependency list (Vec<String>).
+///
+/// Details:
+/// - Batches queries into chunks of 50 to avoid command-line length limits.
+/// - Parses multi-package `pacman -Si` output (packages separated by blank lines).
+pub(crate) fn batch_fetch_official_deps(names: &[&str]) -> HashMap<String, Vec<String>> {
+    const BATCH_SIZE: usize = 50;
+    let mut result_map = HashMap::new();
+
+    for chunk in names.chunks(BATCH_SIZE) {
+        let mut args = vec!["-Si"];
+        args.extend(chunk.iter().copied());
+        match Command::new("pacman")
+            .args(&args)
+            .env("LC_ALL", "C")
+            .env("LANG", "C")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+        {
+            Ok(output) if output.status.success() => {
+                let text = String::from_utf8_lossy(&output.stdout);
+                // Parse multi-package output: packages are separated by blank lines
+                let mut package_blocks = Vec::new();
+                let mut current_block = String::new();
+                for line in text.lines() {
+                    if line.trim().is_empty() {
+                        if !current_block.is_empty() {
+                            package_blocks.push(current_block.clone());
+                            current_block.clear();
+                        }
+                    } else {
+                        current_block.push_str(line);
+                        current_block.push('\n');
+                    }
+                }
+                if !current_block.is_empty() {
+                    package_blocks.push(current_block);
+                }
+
+                // Parse each block to extract package name and dependencies
+                for block in package_blocks {
+                    let dep_names = parse_pacman_si_deps(&block);
+                    // Extract package name from block
+                    if let Some(name_line) =
+                        block.lines().find(|l| l.trim_start().starts_with("Name"))
+                        && let Some((_, name)) = name_line.split_once(':')
+                    {
+                        let pkg_name = name.trim().to_string();
+                        result_map.insert(pkg_name, dep_names);
+                    }
+                }
+            }
+            _ => {
+                // If batch fails, fall back to individual queries (but don't do it here to avoid recursion)
+                // The caller will handle individual queries
+                break;
+            }
+        }
+    }
+    result_map
+}
 
 /// What: Resolve direct dependency metadata for a single package.
 ///

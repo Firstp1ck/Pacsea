@@ -3,7 +3,7 @@
 use crate::state::modal::{FileChange, FileChangeType, PackageFileInfo};
 use crate::state::types::{PackageItem, Source};
 use crate::util::{curl_args, percent_encode};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 use std::time::SystemTime;
@@ -101,11 +101,13 @@ pub fn resolve_file_changes(
     items: &[PackageItem],
     action: crate::state::modal::PreflightAction,
 ) -> Vec<PackageFileInfo> {
-    tracing::info!(
-        "Starting file resolution for {} package(s) ({:?})",
-        items.len(),
-        action
-    );
+    let _span = tracing::info_span!(
+        "resolve_file_changes",
+        stage = "files",
+        item_count = items.len()
+    )
+    .entered();
+    let start_time = std::time::Instant::now();
 
     if items.is_empty() {
         tracing::warn!("No packages provided for file resolution");
@@ -129,6 +131,25 @@ pub fn resolve_file_changes(
         }
     }
 
+    // Batch fetch remote file lists for all official packages to reduce pacman command overhead
+    let official_packages: Vec<(&str, &Source)> = items
+        .iter()
+        .filter_map(|item| {
+            if matches!(item.source, Source::Official { .. }) {
+                Some((item.name.as_str(), &item.source))
+            } else {
+                None
+            }
+        })
+        .collect();
+    let batched_remote_files_cache = if !official_packages.is_empty()
+        && matches!(action, crate::state::modal::PreflightAction::Install)
+    {
+        batch_get_remote_file_lists(&official_packages)
+    } else {
+        std::collections::HashMap::new()
+    };
+
     let mut results = Vec::new();
 
     for (idx, item) in items.iter().enumerate() {
@@ -140,7 +161,21 @@ pub fn resolve_file_changes(
             item.source
         );
 
-        match resolve_package_files(&item.name, &item.source, action) {
+        // Check if we have batched results for this official package
+        let use_batched = matches!(action, crate::state::modal::PreflightAction::Install)
+            && matches!(item.source, Source::Official { .. })
+            && batched_remote_files_cache.contains_key(item.name.as_str());
+
+        match if use_batched {
+            // Use batched file list
+            let remote_files = batched_remote_files_cache
+                .get(item.name.as_str())
+                .cloned()
+                .unwrap_or_default();
+            resolve_install_files_with_remote_list(&item.name, &item.source, remote_files)
+        } else {
+            resolve_package_files(&item.name, &item.source, action)
+        } {
             Ok(file_info) => {
                 tracing::info!(
                     "  Found {} files for {} ({} new, {} changed, {} removed)",
@@ -170,9 +205,14 @@ pub fn resolve_file_changes(
         }
     }
 
+    let elapsed = start_time.elapsed();
+    let duration_ms = elapsed.as_millis() as u64;
     tracing::info!(
-        "File resolution complete. Returning {} package file infos",
-        results.len()
+        stage = "files",
+        item_count = items.len(),
+        result_count = results.len(),
+        duration_ms = duration_ms,
+        "File resolution complete"
     );
     results
 }
@@ -268,6 +308,88 @@ fn resolve_package_files(
     }
 }
 
+/// What: Batch fetch remote file lists for multiple official packages using `pacman -Fl`.
+///
+/// Inputs:
+/// - `packages`: Slice of (package_name, source) tuples for official packages.
+///
+/// Output:
+/// - HashMap mapping package name to its remote file list.
+///
+/// Details:
+/// - Batches queries into chunks of 50 to avoid command-line length limits.
+/// - Parses multi-package `pacman -Fl` output (format: "<pkg> <path>" per line).
+fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<String, Vec<String>> {
+    const BATCH_SIZE: usize = 50;
+    let mut result_map = HashMap::new();
+
+    // Group packages by repo to batch them together
+    let mut repo_groups: HashMap<String, Vec<&str>> = HashMap::new();
+    for (name, source) in packages {
+        if let Source::Official { repo, .. } = source {
+            let repo_key = if repo.is_empty() {
+                "".to_string()
+            } else {
+                repo.clone()
+            };
+            repo_groups.entry(repo_key).or_default().push(name);
+        }
+    }
+
+    for (repo, names) in repo_groups {
+        for chunk in names.chunks(BATCH_SIZE) {
+            let specs: Vec<String> = chunk
+                .iter()
+                .map(|name| {
+                    if repo.is_empty() {
+                        name.to_string()
+                    } else {
+                        format!("{}/{}", repo, name)
+                    }
+                })
+                .collect();
+
+            let mut args = vec!["-Fl"];
+            args.extend(specs.iter().map(|s| s.as_str()));
+
+            match Command::new("pacman")
+                .args(&args)
+                .env("LC_ALL", "C")
+                .env("LANG", "C")
+                .output()
+            {
+                Ok(output) if output.status.success() => {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    // Parse pacman -Fl output: format is "<pkg> <path>"
+                    // Group by package name
+                    let mut pkg_files: HashMap<String, Vec<String>> = HashMap::new();
+                    for line in text.lines() {
+                        if let Some((pkg, path)) = line.split_once(' ') {
+                            // Extract package name (remove repo prefix if present)
+                            let pkg_name = if let Some((_, name)) = pkg.split_once('/') {
+                                name
+                            } else {
+                                pkg
+                            };
+                            pkg_files
+                                .entry(pkg_name.to_string())
+                                .or_default()
+                                .push(path.to_string());
+                        }
+                    }
+                    result_map.extend(pkg_files);
+                }
+                _ => {
+                    // If batch fails, fall back to individual queries (but don't do it here to avoid recursion)
+                    // The caller will handle individual queries
+                    break;
+                }
+            }
+        }
+    }
+    result_map
+}
+
 /// What: Determine new and changed files introduced by installing or upgrading a package.
 ///
 /// Inputs:
@@ -282,7 +404,26 @@ fn resolve_package_files(
 fn resolve_install_files(name: &str, source: &Source) -> Result<PackageFileInfo, String> {
     // Get remote file list
     let remote_files = get_remote_file_list(name, source)?;
+    resolve_install_files_with_remote_list(name, source, remote_files)
+}
 
+/// What: Determine new and changed files using a pre-fetched remote file list.
+///
+/// Inputs:
+/// - `name`: Package name examined.
+/// - `source`: Source repository information (for backup file lookup).
+/// - `remote_files`: Pre-fetched remote file list.
+///
+/// Output:
+/// - Returns a populated `PackageFileInfo`.
+///
+/// Details:
+/// - Compares remote file listings with locally installed files and predicts potential `.pacnew` creations.
+fn resolve_install_files_with_remote_list(
+    name: &str,
+    source: &Source,
+    remote_files: Vec<String>,
+) -> Result<PackageFileInfo, String> {
     // Get installed file list (if package is already installed)
     let installed_files = get_installed_file_list(name).unwrap_or_default();
 

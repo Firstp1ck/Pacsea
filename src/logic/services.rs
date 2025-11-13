@@ -27,11 +27,18 @@ pub fn resolve_service_impacts(
     items: &[PackageItem],
     action: PreflightAction,
 ) -> Vec<ServiceImpact> {
+    let _span = tracing::info_span!(
+        "resolve_service_impacts",
+        stage = "services",
+        item_count = items.len()
+    )
+    .entered();
+    let start_time = std::time::Instant::now();
     let mut unit_to_providers: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
     // First pass: collect units shipped by packages
     for item in items {
-        match collect_service_units_for_package(&item.name) {
+        match collect_service_units_for_package(&item.name, &item.source) {
             Ok(units) => {
                 for unit in units {
                     let providers = unit_to_providers.entry(unit).or_default();
@@ -41,11 +48,20 @@ pub fn resolve_service_impacts(
                 }
             }
             Err(err) => {
-                tracing::warn!(
-                    "Failed to resolve service units for package {}: {}",
-                    item.name,
-                    err
-                );
+                // Only warn for official packages - AUR packages are expected to fail with pacman -Fl
+                if matches!(item.source, Source::Official { .. }) {
+                    tracing::warn!(
+                        "Failed to resolve service units for package {}: {}",
+                        item.name,
+                        err
+                    );
+                } else {
+                    tracing::debug!(
+                        "Could not resolve service units for AUR package {} (expected): {}",
+                        item.name,
+                        err
+                    );
+                }
             }
         }
     }
@@ -106,7 +122,7 @@ pub fn resolve_service_impacts(
         }
     }
 
-    unit_to_providers
+    let results: Vec<ServiceImpact> = unit_to_providers
         .into_iter()
         .map(|(unit_name, mut providers)| {
             providers.sort();
@@ -127,7 +143,18 @@ pub fn resolve_service_impacts(
                 restart_decision: recommended_decision,
             }
         })
-        .collect()
+        .collect();
+
+    let elapsed = start_time.elapsed();
+    let duration_ms = elapsed.as_millis() as u64;
+    tracing::info!(
+        stage = "services",
+        item_count = items.len(),
+        result_count = results.len(),
+        duration_ms = duration_ms,
+        "Service resolution complete"
+    );
+    results
 }
 
 /// What: Collect service unit filenames shipped by a specific package.
@@ -142,14 +169,100 @@ pub fn resolve_service_impacts(
 /// Details:
 /// - Executes `pacman -Fl <package>` and filters paths under the standard
 ///   systemd directories.
-fn collect_service_units_for_package(package: &str) -> Result<Vec<String>, String> {
-    let output = run_command(
-        "pacman",
-        &["-Fl", package],
-        &format!("pacman -Fl {}", package),
-    )?;
-    let units = extract_service_units_from_file_list(&output, package);
-    Ok(units)
+fn collect_service_units_for_package(
+    package: &str,
+    source: &Source,
+) -> Result<Vec<String>, String> {
+    match source {
+        Source::Official { .. } => {
+            // Use pacman -Fl for official packages
+            let output = run_command(
+                "pacman",
+                &["-Fl", package],
+                &format!("pacman -Fl {}", package),
+            )?;
+            let units = extract_service_units_from_file_list(&output, package);
+            Ok(units)
+        }
+        Source::Aur => {
+            // For AUR packages, try fallback methods similar to collect_binaries_for_package
+            // First, check if package is already installed
+            if let Ok(installed_files) = crate::logic::files::get_installed_file_list(package)
+                && !installed_files.is_empty()
+            {
+                let file_list = installed_files
+                    .iter()
+                    .map(|f| format!("{} {}", package, f))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let units = extract_service_units_from_file_list(&file_list, package);
+                if !units.is_empty() {
+                    tracing::debug!(
+                        "Found {} service units from installed AUR package {}",
+                        units.len(),
+                        package
+                    );
+                    return Ok(units);
+                }
+            }
+
+            // Try to use paru/yay -Fl if available (works for cached AUR packages)
+            let has_paru = Command::new("paru").args(["--version"]).output().is_ok();
+            let has_yay = Command::new("yay").args(["--version"]).output().is_ok();
+
+            if has_paru {
+                tracing::debug!("Trying paru -Fl {} for AUR package service units", package);
+                if let Ok(output) = Command::new("paru")
+                    .args(["-Fl", package])
+                    .env("LC_ALL", "C")
+                    .env("LANG", "C")
+                    .output()
+                    && output.status.success()
+                {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    let units = extract_service_units_from_file_list(&text, package);
+                    if !units.is_empty() {
+                        tracing::debug!(
+                            "Found {} service units from paru -Fl for {}",
+                            units.len(),
+                            package
+                        );
+                        return Ok(units);
+                    }
+                }
+            }
+
+            if has_yay {
+                tracing::debug!("Trying yay -Fl {} for AUR package service units", package);
+                if let Ok(output) = Command::new("yay")
+                    .args(["-Fl", package])
+                    .env("LC_ALL", "C")
+                    .env("LANG", "C")
+                    .output()
+                    && output.status.success()
+                {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    let units = extract_service_units_from_file_list(&text, package);
+                    if !units.is_empty() {
+                        tracing::debug!(
+                            "Found {} service units from yay -Fl for {}",
+                            units.len(),
+                            package
+                        );
+                        return Ok(units);
+                    }
+                }
+            }
+
+            // For AUR packages without file lists available, return empty (not an error)
+            // The binary-based detection will still work
+            tracing::debug!(
+                "No file list available for AUR package {} (will use binary-based detection)",
+                package
+            );
+            Ok(Vec::new())
+        }
+    }
 }
 
 /// What: Execute a command and capture stdout as UTF-8.

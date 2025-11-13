@@ -382,14 +382,28 @@ pub struct AppState {
     pub sandbox_cache_dirty: bool,
 
     // Preflight modal background resolution requests
-    /// Packages to resolve for preflight modal (takes priority over install_list when set).
-    pub preflight_resolve_items: Option<Vec<PackageItem>>,
+    /// Packages to resolve for preflight summary computation.
+    pub preflight_summary_items: Option<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Packages to resolve for preflight dependency analysis.
+    pub preflight_deps_items: Option<Vec<PackageItem>>,
+    /// Packages to resolve for preflight file analysis.
+    pub preflight_files_items: Option<Vec<PackageItem>>,
+    /// Packages to resolve for preflight service analysis.
+    pub preflight_services_items: Option<Vec<PackageItem>>,
+    /// AUR packages to resolve for preflight sandbox analysis (subset only).
+    pub preflight_sandbox_items: Option<Vec<PackageItem>>,
+    /// Whether preflight summary computation is in progress.
+    pub preflight_summary_resolving: bool,
     /// Whether preflight dependency resolution is in progress.
     pub preflight_deps_resolving: bool,
     /// Whether preflight file resolution is in progress.
     pub preflight_files_resolving: bool,
+    /// Whether preflight service resolution is in progress.
+    pub preflight_services_resolving: bool,
     /// Whether preflight sandbox resolution is in progress.
     pub preflight_sandbox_resolving: bool,
+    /// Cancellation flag for preflight operations (set to true when modal closes).
+    pub preflight_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Default for AppState {
@@ -589,10 +603,17 @@ impl Default for AppState {
             // Sandbox cache (lists dir under config)
             sandbox_cache_path: crate::theme::lists_dir().join("sandbox_cache.json"),
             sandbox_cache_dirty: false,
-            preflight_resolve_items: None,
+            preflight_summary_items: None,
+            preflight_deps_items: None,
+            preflight_files_items: None,
+            preflight_services_items: None,
+            preflight_sandbox_items: None,
+            preflight_summary_resolving: false,
             preflight_deps_resolving: false,
             preflight_files_resolving: false,
+            preflight_services_resolving: false,
             preflight_sandbox_resolving: false,
+            preflight_cancelled: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 }

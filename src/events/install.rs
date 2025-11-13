@@ -191,12 +191,33 @@ pub fn handle_install_key(
                     // Open Preflight modal listing all items to be installed
                     let items = app.install_list.clone();
                     let cache_start = std::time::Instant::now();
+                    // Filter cached dependencies to only those required by current items
+                    let item_names: std::collections::HashSet<String> =
+                        items.iter().map(|i| i.name.clone()).collect();
                     let cached_deps = if !app.deps_resolving && !app.install_list_deps.is_empty() {
-                        tracing::debug!(
-                            "[Install] Using {} cached dependencies",
-                            app.install_list_deps.len()
-                        );
-                        app.install_list_deps.clone()
+                        let filtered: Vec<crate::state::modal::DependencyInfo> = app
+                            .install_list_deps
+                            .iter()
+                            .filter(|dep| {
+                                dep.required_by
+                                    .iter()
+                                    .any(|req_by| item_names.contains(req_by))
+                            })
+                            .cloned()
+                            .collect();
+                        if !filtered.is_empty() {
+                            tracing::debug!(
+                                "[Install] Using {} cached dependencies (filtered from {} total)",
+                                filtered.len(),
+                                app.install_list_deps.len()
+                            );
+                            filtered
+                        } else {
+                            tracing::debug!(
+                                "[Install] Cached dependencies exist but none match current items"
+                            );
+                            Vec::new()
+                        }
                     } else {
                         tracing::debug!("[Install] No cached dependencies available");
                         Vec::new()
@@ -383,16 +404,27 @@ pub fn handle_install_key(
                         cached_deps
                     };
 
-                    // Trigger background resolution if cache is empty
+                    // Reset cancellation flag when opening modal
+                    app.preflight_cancelled
+                        .store(false, std::sync::atomic::Ordering::Relaxed);
+                    // Queue full summary computation in background (minimal summary shown initially)
+                    app.preflight_summary_items =
+                        Some((items.clone(), crate::state::PreflightAction::Install));
+                    app.preflight_summary_resolving = true;
+
+                    // Trigger background resolution for all stages in parallel if cache is empty
                     if dependency_info.is_empty() {
-                        app.preflight_resolve_items = Some(items.clone());
+                        app.preflight_deps_items = Some(items.clone());
                         app.preflight_deps_resolving = true;
                     }
                     if cached_files.is_empty() {
-                        if app.preflight_resolve_items.is_none() {
-                            app.preflight_resolve_items = Some(items.clone());
-                        }
+                        app.preflight_files_items = Some(items.clone());
                         app.preflight_files_resolving = true;
+                    }
+                    // Services resolution (only trigger if not already loaded)
+                    if !services_loaded {
+                        app.preflight_services_items = Some(items.clone());
+                        app.preflight_services_resolving = true;
                     }
                     if cached_sandbox.is_empty() {
                         let aur_items: Vec<_> = items
@@ -401,9 +433,7 @@ pub fn handle_install_key(
                             .cloned()
                             .collect();
                         if !aur_items.is_empty() {
-                            if app.preflight_resolve_items.is_none() {
-                                app.preflight_resolve_items = Some(items.clone());
-                            }
+                            app.preflight_sandbox_items = Some(aur_items);
                             app.preflight_sandbox_resolving = true;
                         }
                     }
@@ -412,8 +442,8 @@ pub fn handle_install_key(
                         items,
                         action: crate::state::PreflightAction::Install,
                         tab: crate::state::PreflightTab::Summary,
-                        summary: Some(Box::new(minimal_summary)),
-                        header_chips: minimal_header,
+                        summary: Some(Box::new(minimal_summary)), // Minimal summary shown initially, will be replaced by full summary
+                        header_chips: minimal_header, // Will be replaced by full header when summary completes
                         dependency_info,
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),
@@ -465,21 +495,31 @@ pub fn handle_install_key(
                         app.remove_state.select(None);
                     } else {
                         let items = app.remove_list.clone();
+                        let item_count = items.len();
                         let report = crate::logic::deps::resolve_reverse_dependencies(&items);
                         let summaries = report.summaries;
                         let dependencies = report.dependencies;
-                        let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
-                            crate::logic::preflight::compute_preflight_summary(
-                                &items,
-                                crate::state::PreflightAction::Remove,
-                            );
+                        // Reset cancellation flag when opening modal
+                        app.preflight_cancelled
+                            .store(false, std::sync::atomic::Ordering::Relaxed);
+                        // Queue summary computation in background - modal will render with None initially
+                        app.preflight_summary_items =
+                            Some((items.clone(), crate::state::PreflightAction::Remove));
+                        app.preflight_summary_resolving = true;
                         app.pending_service_plan.clear();
                         app.modal = crate::state::Modal::Preflight {
                             items,
                             action: crate::state::PreflightAction::Remove,
                             tab: crate::state::PreflightTab::Summary,
-                            summary: Some(Box::new(summary)),
-                            header_chips: header,
+                            summary: None, // Will be populated when background computation completes
+                            header_chips: crate::state::modal::PreflightHeaderChips {
+                                package_count: item_count,
+                                download_bytes: 0,
+                                install_delta_bytes: 0,
+                                aur_count: 0,
+                                risk_score: 0,
+                                risk_level: crate::state::modal::RiskLevel::Low,
+                            },
                             dependency_info: dependencies,
                             dep_selected: 0,
                             dep_tree_expanded: std::collections::HashSet::new(),

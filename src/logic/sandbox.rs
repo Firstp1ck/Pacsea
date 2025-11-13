@@ -2,6 +2,7 @@
 
 use crate::state::types::PackageItem;
 use crate::util::{curl_args, percent_encode};
+use futures::stream::{FuturesUnordered, StreamExt};
 use std::collections::HashSet;
 use std::process::{Command, Stdio};
 
@@ -33,7 +34,7 @@ pub struct SandboxInfo {
     pub optdepends: Vec<DependencyDelta>,
 }
 
-/// What: Resolve sandbox information for AUR packages.
+/// What: Resolve sandbox information for AUR packages using async HTTP.
 ///
 /// Inputs:
 /// - `items`: AUR packages to analyze.
@@ -42,31 +43,267 @@ pub struct SandboxInfo {
 /// - Vector of `SandboxInfo` entries, one per AUR package.
 ///
 /// Details:
-/// - Fetches `.SRCINFO` for each AUR package.
+/// - Fetches `.SRCINFO` for each AUR package in parallel using async HTTP.
 /// - Parses dependencies and compares against host environment.
 /// - Returns empty vector if no AUR packages are present.
-pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
-    let mut results = Vec::new();
+pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInfo> {
+    let aur_items: Vec<_> = items
+        .iter()
+        .filter(|i| matches!(i.source, crate::state::Source::Aur))
+        .collect();
+    let span = tracing::info_span!(
+        "resolve_sandbox_info",
+        stage = "sandbox",
+        item_count = aur_items.len()
+    );
+    let _guard = span.enter();
+    let start_time = std::time::Instant::now();
+
     let installed = get_installed_packages();
     let provided = crate::logic::deps::get_provided_packages(&installed);
 
-    for item in items {
-        if !matches!(item.source, crate::state::Source::Aur) {
-            continue;
-        }
+    // Fetch all .SRCINFO files in parallel
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
 
-        match fetch_and_analyze_package(&item.name, &installed, &provided) {
-            Ok(info) => results.push(info),
-            Err(e) => {
-                tracing::warn!("Failed to analyze sandbox info for {}: {}", item.name, e);
-            }
+    let mut fetch_futures = FuturesUnordered::new();
+    for item in items {
+        if matches!(item.source, crate::state::Source::Aur) {
+            let name = item.name.clone();
+            let installed_clone = installed.clone();
+            let provided_clone = provided.clone();
+            let client_clone = client.clone();
+
+            fetch_futures.push(async move {
+                match fetch_srcinfo_async(&client_clone, &name).await {
+                    Ok(srcinfo_text) => {
+                        match analyze_package_from_srcinfo(
+                            &name,
+                            &srcinfo_text,
+                            &installed_clone,
+                            &provided_clone,
+                        ) {
+                            Ok(info) => Some(info),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to analyze sandbox info for {}: {}",
+                                    name,
+                                    e
+                                );
+                                None
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // Fallback to PKGBUILD if .SRCINFO fails (use spawn_blocking for blocking call)
+                        tracing::debug!("Failed to fetch .SRCINFO for {}, trying PKGBUILD", name);
+                        let name_for_fallback = name.clone();
+                        let installed_for_fallback = installed_clone.clone();
+                        let provided_for_fallback = provided_clone.clone();
+                        match tokio::task::spawn_blocking(move || {
+                            crate::logic::files::fetch_pkgbuild_sync(&name_for_fallback)
+                        })
+                        .await
+                        {
+                            Ok(Ok(pkgbuild_text)) => {
+                                match analyze_package_from_pkgbuild(
+                                    &name,
+                                    &pkgbuild_text,
+                                    &installed_for_fallback,
+                                    &provided_for_fallback,
+                                ) {
+                                    Ok(info) => Some(info),
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            "Failed to analyze sandbox info for {}: {}",
+                                            name,
+                                            e
+                                        );
+                                        None
+                                    }
+                                }
+                            }
+                            Ok(Err(e)) => {
+                                tracing::warn!("Failed to fetch PKGBUILD for {}: {}", name, e);
+                                None
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Failed to spawn blocking task for PKGBUILD fetch for {}: {}",
+                                    name,
+                                    e
+                                );
+                                None
+                            }
+                        }
+                    }
+                }
+            });
         }
     }
 
+    // Collect all results as they complete
+    let mut results = Vec::new();
+    while let Some(result) = fetch_futures.next().await {
+        if let Some(info) = result {
+            results.push(info);
+        }
+    }
+
+    let elapsed = start_time.elapsed();
+    let duration_ms = elapsed.as_millis() as u64;
+    tracing::info!(
+        stage = "sandbox",
+        item_count = aur_items.len(),
+        result_count = results.len(),
+        duration_ms = duration_ms,
+        "Sandbox resolution complete"
+    );
     results
 }
 
-/// What: Fetch and analyze a single AUR package's build dependencies.
+/// What: Resolve sandbox information for AUR packages (synchronous wrapper for async version).
+///
+/// Inputs:
+/// - `items`: AUR packages to analyze.
+///
+/// Output:
+/// - Vector of `SandboxInfo` entries, one per AUR package.
+///
+/// Details:
+/// - Wraps the async version for use in blocking contexts.
+pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
+    // Use tokio runtime handle if available, otherwise create a new runtime
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => handle.block_on(resolve_sandbox_info_async(items)),
+        Err(_) => {
+            // No runtime available, create a new one
+            let rt = tokio::runtime::Runtime::new().unwrap_or_else(|e| {
+                tracing::error!(
+                    "Failed to create tokio runtime for sandbox resolution: {}",
+                    e
+                );
+                panic!("Cannot resolve sandbox info without tokio runtime");
+            });
+            rt.block_on(resolve_sandbox_info_async(items))
+        }
+    }
+}
+
+/// What: Fetch .SRCINFO content for an AUR package using async HTTP.
+///
+/// Inputs:
+/// - `client`: Reqwest HTTP client.
+/// - `name`: AUR package name.
+///
+/// Output:
+/// - Returns .SRCINFO content as a string, or an error if fetch fails.
+async fn fetch_srcinfo_async(client: &reqwest::Client, name: &str) -> Result<String, String> {
+    let url = format!(
+        "https://aur.archlinux.org/cgit/aur.git/plain/.SRCINFO?h={}",
+        percent_encode(name)
+    );
+    tracing::debug!("Fetching .SRCINFO from: {}", url);
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "HTTP request failed with status: {}",
+            response.status()
+        ));
+    }
+
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response body: {}", e))?;
+
+    if text.trim().is_empty() {
+        return Err("Empty .SRCINFO content".to_string());
+    }
+
+    // Check if we got an HTML error page instead of .SRCINFO content
+    if text.trim_start().starts_with("<html") || text.trim_start().starts_with("<!DOCTYPE") {
+        return Err("Received HTML error page instead of .SRCINFO".to_string());
+    }
+
+    Ok(text)
+}
+
+/// What: Analyze package dependencies from .SRCINFO content.
+///
+/// Inputs:
+/// - `package_name`: AUR package name.
+/// - `srcinfo_text`: .SRCINFO content.
+/// - `installed`: Set of installed package names.
+/// - `provided`: Set of package names provided by installed packages.
+///
+/// Output:
+/// - `SandboxInfo` with dependency deltas.
+fn analyze_package_from_srcinfo(
+    package_name: &str,
+    srcinfo_text: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+) -> Result<SandboxInfo, String> {
+    let (depends, makedepends, checkdepends, optdepends) = parse_srcinfo_deps(srcinfo_text);
+
+    // Analyze each dependency against host environment
+    let depends_delta = analyze_dependencies(&depends, installed, provided);
+    let makedepends_delta = analyze_dependencies(&makedepends, installed, provided);
+    let checkdepends_delta = analyze_dependencies(&checkdepends, installed, provided);
+    let optdepends_delta = analyze_dependencies(&optdepends, installed, provided);
+
+    Ok(SandboxInfo {
+        package_name: package_name.to_string(),
+        depends: depends_delta,
+        makedepends: makedepends_delta,
+        checkdepends: checkdepends_delta,
+        optdepends: optdepends_delta,
+    })
+}
+
+/// What: Analyze package dependencies from PKGBUILD content.
+///
+/// Inputs:
+/// - `package_name`: AUR package name.
+/// - `pkgbuild_text`: PKGBUILD content.
+/// - `installed`: Set of installed package names.
+/// - `provided`: Set of package names provided by installed packages.
+///
+/// Output:
+/// - `SandboxInfo` with dependency deltas.
+fn analyze_package_from_pkgbuild(
+    package_name: &str,
+    pkgbuild_text: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+) -> Result<SandboxInfo, String> {
+    let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild_text);
+
+    // Analyze each dependency against host environment
+    let depends_delta = analyze_dependencies(&depends, installed, provided);
+    let makedepends_delta = analyze_dependencies(&makedepends, installed, provided);
+    let checkdepends_delta = analyze_dependencies(&checkdepends, installed, provided);
+    let optdepends_delta = analyze_dependencies(&optdepends, installed, provided);
+
+    Ok(SandboxInfo {
+        package_name: package_name.to_string(),
+        depends: depends_delta,
+        makedepends: makedepends_delta,
+        checkdepends: checkdepends_delta,
+        optdepends: optdepends_delta,
+    })
+}
+
+/// What: Fetch and analyze a single AUR package's build dependencies (legacy synchronous version).
 ///
 /// Inputs:
 /// - `package_name`: AUR package name.
@@ -75,6 +312,7 @@ pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
 ///
 /// Output:
 /// - `SandboxInfo` with dependency deltas, or an error if fetch/parse fails.
+#[allow(dead_code)]
 fn fetch_and_analyze_package(
     package_name: &str,
     installed: &HashSet<String>,
@@ -94,37 +332,23 @@ fn fetch_and_analyze_package(
     };
 
     // Parse dependencies from .SRCINFO or PKGBUILD
-    let (depends, makedepends, checkdepends, optdepends) =
-        if srcinfo_text.contains("pkgbase =") || srcinfo_text.contains("pkgname =") {
-            // Looks like .SRCINFO format
-            parse_srcinfo_deps(&srcinfo_text)
-        } else {
-            // Assume PKGBUILD format - extract dependencies
-            parse_pkgbuild_deps(&srcinfo_text)
-        };
-
-    // Analyze each dependency against host environment
-    let depends_delta = analyze_dependencies(&depends, installed, provided);
-    let makedepends_delta = analyze_dependencies(&makedepends, installed, provided);
-    let checkdepends_delta = analyze_dependencies(&checkdepends, installed, provided);
-    let optdepends_delta = analyze_dependencies(&optdepends, installed, provided);
-
-    Ok(SandboxInfo {
-        package_name: package_name.to_string(),
-        depends: depends_delta,
-        makedepends: makedepends_delta,
-        checkdepends: checkdepends_delta,
-        optdepends: optdepends_delta,
-    })
+    if srcinfo_text.contains("pkgbase =") || srcinfo_text.contains("pkgname =") {
+        // Looks like .SRCINFO format
+        analyze_package_from_srcinfo(package_name, &srcinfo_text, installed, provided)
+    } else {
+        // Assume PKGBUILD format - extract dependencies
+        analyze_package_from_pkgbuild(package_name, &srcinfo_text, installed, provided)
+    }
 }
 
-/// What: Fetch .SRCINFO content for an AUR package.
+/// What: Fetch .SRCINFO content for an AUR package (legacy synchronous version using curl).
 ///
 /// Inputs:
 /// - `name`: AUR package name.
 ///
 /// Output:
 /// - Returns .SRCINFO content as a string, or an error if fetch fails.
+#[allow(dead_code)]
 fn fetch_srcinfo(name: &str) -> Result<String, String> {
     let url = format!(
         "https://aur.archlinux.org/cgit/aur.git/plain/.SRCINFO?h={}",

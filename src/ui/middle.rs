@@ -268,15 +268,59 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
 
             // Downgrade List (left)
             let dg_indices: Vec<usize> = (0..app.downgrade_list.len()).collect();
+            let downgrade_selected_idx = app.downgrade_state.selected();
             let downgrade_items: Vec<ListItem> = dg_indices
                 .iter()
-                .filter_map(|&i| app.downgrade_list.get(i))
-                .map(|p| {
+                .enumerate()
+                .filter_map(|(display_idx, &i)| app.downgrade_list.get(i).map(|p| (display_idx, p)))
+                .map(|(display_idx, p)| {
                     let (src, color) = match &p.source {
                         Source::Official { repo, .. } => (repo.to_string(), th.green),
                         Source::Aur => ("AUR".to_string(), th.yellow),
                     };
                     let mut segs: Vec<Span> = Vec::new();
+
+                    // Add selection indicator manually if this item is selected
+                    let is_selected = downgrade_selected_idx == Some(display_idx);
+                    if is_selected {
+                        segs.push(Span::styled(
+                            "▶ ",
+                            Style::default()
+                                .fg(if install_focused {
+                                    th.text
+                                } else {
+                                    th.subtext0
+                                })
+                                .bg(if install_focused {
+                                    th.surface2
+                                } else {
+                                    th.base
+                                }),
+                        ));
+                    } else {
+                        // Add spacing to align with selected items
+                        segs.push(Span::raw("  "));
+                    }
+
+                    // Add loading indicator if package is being processed (same position and style regardless of selection)
+                    if crate::ui::helpers::is_package_loading_preflight(app, &p.name) {
+                        // Use explicit style that overrides highlight_style - always sapphire blue and bold
+                        segs.push(Span::styled(
+                            "⟳ ",
+                            Style::default()
+                                .fg(th.sapphire)
+                                .bg(if is_selected && install_focused {
+                                    th.surface2
+                                } else {
+                                    th.base
+                                })
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                    } else if !is_selected {
+                        // Add spacing when not loading and not selected to maintain alignment
+                        segs.push(Span::raw("  "));
+                    }
+
                     if let Some(pop) = p.popularity {
                         segs.push(Span::styled(
                             format!("Pop: {pop:.2} "),
@@ -343,7 +387,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 )
                 .block(downgrade_block)
                 .highlight_style(Style::default().fg(th.text).bg(th.surface2))
-                .highlight_symbol("▶ ");
+                .highlight_symbol(""); // Empty symbol since we're adding it manually
             f.render_stateful_widget(downgrade_list, right_split[0], &mut app.downgrade_state);
             // Record inner Downgrade rect
             app.downgrade_rect = Some((
@@ -355,15 +399,59 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
 
             // Remove List (right)
             let rm_indices: Vec<usize> = (0..app.remove_list.len()).collect();
+            let remove_selected_idx = app.remove_state.selected();
             let remove_items: Vec<ListItem> = rm_indices
                 .iter()
-                .filter_map(|&i| app.remove_list.get(i))
-                .map(|p| {
+                .enumerate()
+                .filter_map(|(display_idx, &i)| app.remove_list.get(i).map(|p| (display_idx, p)))
+                .map(|(display_idx, p)| {
                     let (src, color) = match &p.source {
                         Source::Official { repo, .. } => (repo.to_string(), th.green),
                         Source::Aur => ("AUR".to_string(), th.yellow),
                     };
                     let mut segs: Vec<Span> = Vec::new();
+
+                    // Add selection indicator manually if this item is selected
+                    let is_selected = remove_selected_idx == Some(display_idx);
+                    if is_selected {
+                        segs.push(Span::styled(
+                            "▶ ",
+                            Style::default()
+                                .fg(if install_focused {
+                                    th.text
+                                } else {
+                                    th.subtext0
+                                })
+                                .bg(if install_focused {
+                                    th.surface2
+                                } else {
+                                    th.base
+                                }),
+                        ));
+                    } else {
+                        // Add spacing to align with selected items
+                        segs.push(Span::raw("  "));
+                    }
+
+                    // Add loading indicator if package is being processed (same position and style regardless of selection)
+                    if crate::ui::helpers::is_package_loading_preflight(app, &p.name) {
+                        // Use explicit style that overrides highlight_style - always sapphire blue and bold
+                        segs.push(Span::styled(
+                            "⟳ ",
+                            Style::default()
+                                .fg(th.sapphire)
+                                .bg(if is_selected && install_focused {
+                                    th.surface2
+                                } else {
+                                    th.base
+                                })
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                    } else if !is_selected {
+                        // Add spacing when not loading and not selected to maintain alignment
+                        segs.push(Span::raw("  "));
+                    }
+
                     if let Some(pop) = p.popularity {
                         segs.push(Span::styled(
                             format!("Pop: {pop:.2} "),
@@ -427,7 +515,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 )
                 .block(remove_block)
                 .highlight_style(Style::default().fg(th.text).bg(th.surface2))
-                .highlight_symbol("▶ ");
+                .highlight_symbol(""); // Empty symbol since we're adding it manually
             f.render_stateful_widget(remove_list, right_split[1], &mut app.remove_state);
 
             // Record inner Install rect for mouse hit-testing (map to Remove list area)
@@ -443,15 +531,60 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
         } else {
             // Normal Install List (single right pane)
             let indices: Vec<usize> = crate::ui::helpers::filtered_install_indices(app);
+            let selected_idx = app.install_state.selected();
             let install_items: Vec<ListItem> = indices
                 .iter()
-                .filter_map(|&i| app.install_list.get(i))
-                .map(|p| {
+                .enumerate()
+                .filter_map(|(display_idx, &i)| app.install_list.get(i).map(|p| (display_idx, p)))
+                .map(|(display_idx, p)| {
                     let (src, color) = match &p.source {
                         Source::Official { repo, .. } => (repo.to_string(), th.green),
                         Source::Aur => ("AUR".to_string(), th.yellow),
                     };
                     let mut segs: Vec<Span> = Vec::new();
+
+                    // Add selection indicator manually if this item is selected
+                    let is_selected = selected_idx == Some(display_idx);
+                    if is_selected {
+                        segs.push(Span::styled(
+                            "▶ ",
+                            Style::default()
+                                .fg(if install_focused {
+                                    th.text
+                                } else {
+                                    th.subtext0
+                                })
+                                .bg(if install_focused {
+                                    th.surface2
+                                } else {
+                                    th.base
+                                }),
+                        ));
+                    } else {
+                        // Add spacing to align with selected items
+                        segs.push(Span::raw("  "));
+                    }
+
+                    // Add loading indicator if package is being processed (same position and style regardless of selection)
+                    if crate::ui::helpers::is_package_loading_preflight(app, &p.name) {
+                        // Use explicit style that overrides highlight_style - always sapphire blue and bold
+                        // Match background to selection state so it blends properly
+                        segs.push(Span::styled(
+                            "⟳ ",
+                            Style::default()
+                                .fg(th.sapphire)
+                                .bg(if is_selected && install_focused {
+                                    th.surface2
+                                } else {
+                                    th.base
+                                })
+                                .add_modifier(Modifier::BOLD),
+                        ));
+                    } else {
+                        // Add spacing when not loading to maintain alignment (same width as "⟳ ")
+                        segs.push(Span::raw("  "));
+                    }
+
                     if let Some(pop) = p.popularity {
                         segs.push(Span::styled(
                             format!("Pop: {pop:.2} "),
@@ -513,7 +646,7 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
                 )
                 .block(install_block)
                 .highlight_style(Style::default().fg(th.text).bg(th.surface2))
-                .highlight_symbol("▶ ");
+                .highlight_symbol(""); // Empty symbol since we're adding it manually
             f.render_stateful_widget(install_list, middle[2], &mut app.install_state);
             app.install_rect = Some((
                 middle[2].x + 1,

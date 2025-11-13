@@ -369,26 +369,25 @@ pub fn handle_search_key(
                             cached_deps
                         };
 
-                        // Trigger background resolution if cache is empty
+                        // Trigger background resolution for all stages in parallel if cache is empty
                         if dependency_info.is_empty() {
-                            app.preflight_resolve_items = Some(items.clone());
+                            app.preflight_deps_items = Some(items.clone());
                             app.preflight_deps_resolving = true;
                         }
                         if cached_files.is_empty() {
-                            if app.preflight_resolve_items.is_none() {
-                                app.preflight_resolve_items = Some(items.clone());
-                            }
+                            app.preflight_files_items = Some(items.clone());
                             app.preflight_files_resolving = true;
                         }
+                        // Services resolution (always trigger for install actions)
+                        app.preflight_services_items = Some(items.clone());
+                        app.preflight_services_resolving = true;
                         let aur_items: Vec<_> = items
                             .iter()
                             .filter(|p| matches!(p.source, crate::state::Source::Aur))
                             .cloned()
                             .collect();
                         if !aur_items.is_empty() {
-                            if app.preflight_resolve_items.is_none() {
-                                app.preflight_resolve_items = Some(items.clone());
-                            }
+                            app.preflight_sandbox_items = Some(aur_items);
                             app.preflight_sandbox_resolving = true;
                         }
 
@@ -475,26 +474,25 @@ pub fn handle_search_key(
                             cached_deps
                         };
 
-                        // Trigger background resolution if cache is empty
+                        // Trigger background resolution for all stages in parallel if cache is empty
                         if dependency_info.is_empty() {
-                            app.preflight_resolve_items = Some(items.clone());
+                            app.preflight_deps_items = Some(items.clone());
                             app.preflight_deps_resolving = true;
                         }
                         if cached_files.is_empty() {
-                            if app.preflight_resolve_items.is_none() {
-                                app.preflight_resolve_items = Some(items.clone());
-                            }
+                            app.preflight_files_items = Some(items.clone());
                             app.preflight_files_resolving = true;
                         }
+                        // Services resolution (always trigger for install actions)
+                        app.preflight_services_items = Some(items.clone());
+                        app.preflight_services_resolving = true;
                         let aur_items: Vec<_> = items
                             .iter()
                             .filter(|p| matches!(p.source, crate::state::Source::Aur))
                             .cloned()
                             .collect();
                         if !aur_items.is_empty() {
-                            if app.preflight_resolve_items.is_none() {
-                                app.preflight_resolve_items = Some(items.clone());
-                            }
+                            app.preflight_sandbox_items = Some(aur_items);
                             app.preflight_sandbox_resolving = true;
                         }
 
@@ -662,18 +660,27 @@ pub fn handle_search_key(
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 } else {
                     let items = vec![item];
-                    let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
-                        crate::logic::preflight::compute_preflight_summary(
-                            &items,
-                            crate::state::PreflightAction::Install,
-                        );
+                    // Reset cancellation flag when opening modal
+                    app.preflight_cancelled
+                        .store(false, std::sync::atomic::Ordering::Relaxed);
+                    // Queue summary computation in background - modal will render with None initially
+                    app.preflight_summary_items =
+                        Some((items.clone(), crate::state::PreflightAction::Install));
+                    app.preflight_summary_resolving = true;
                     app.pending_service_plan.clear();
                     app.modal = crate::state::Modal::Preflight {
                         items,
                         action: crate::state::PreflightAction::Install,
                         tab: crate::state::PreflightTab::Summary,
-                        summary: Some(Box::new(summary)),
-                        header_chips: header,
+                        summary: None, // Will be populated when background computation completes
+                        header_chips: crate::state::modal::PreflightHeaderChips {
+                            package_count: 1,
+                            download_bytes: 0,
+                            install_delta_bytes: 0,
+                            aur_count: 0,
+                            risk_score: 0,
+                            risk_level: crate::state::modal::RiskLevel::Low,
+                        },
                         dependency_info: Vec::new(),
                         dep_selected: 0,
                         dep_tree_expanded: std::collections::HashSet::new(),

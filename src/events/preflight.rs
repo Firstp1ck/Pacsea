@@ -1,6 +1,6 @@
 //! Preflight modal event handling.
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::collections::{HashMap, HashSet};
 
 use crate::state::modal::ServiceRestartDecision;
@@ -169,6 +169,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         tab,
         items,
         action,
+        summary,
         dependency_info,
         dep_selected,
         dep_tree_expanded,
@@ -185,7 +186,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         sandbox_selected,
         sandbox_tree_expanded,
         sandbox_loaded,
-        sandbox_error: _,
+        sandbox_error,
         selected_optdepends,
         cascade_mode,
         ..
@@ -195,6 +196,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
             KeyCode::Esc => {
                 app.previous_modal = None; // Clear previous modal when closing Preflight
                 app.remove_preflight_summary.clear();
+                // Cancel all in-flight preflight operations
+                app.preflight_cancelled
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                // Clear all preflight queues
+                app.preflight_summary_items = None;
+                app.preflight_deps_items = None;
+                app.preflight_files_items = None;
+                app.preflight_services_items = None;
+                app.preflight_sandbox_items = None;
                 app.modal = crate::state::Modal::None;
             }
             KeyCode::Enter => {
@@ -349,6 +359,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     }
                     app.previous_modal = None;
                     app.remove_preflight_summary.clear();
+                    // Cancel all in-flight preflight operations
+                    app.preflight_cancelled
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                    // Clear all preflight queues
+                    app.preflight_summary_items = None;
+                    app.preflight_deps_items = None;
+                    app.preflight_files_items = None;
+                    app.preflight_services_items = None;
+                    app.preflight_sandbox_items = None;
                     app.modal = crate::state::Modal::None;
                 }
             }
@@ -387,7 +406,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                     "[Preflight] Triggering background dependency resolution for {} packages",
                                     items.len()
                                 );
-                                app.preflight_resolve_items = Some(items.to_vec());
+                                app.preflight_deps_items = Some(items.to_vec());
                                 app.preflight_deps_resolving = true;
                                 // Resolution will happen in background, UI will show loading state
                                 // Results will be synced to preflight modal when they arrive
@@ -420,7 +439,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             "[Preflight] Triggering background file resolution for {} packages",
                             items.len()
                         );
-                        app.preflight_resolve_items = Some(items.to_vec());
+                        app.preflight_files_items = Some(items.to_vec());
                         app.preflight_files_resolving = true;
                         // Resolution will happen in background, UI will show loading state
                         // Results will be synced to preflight modal when they arrive
@@ -467,7 +486,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                     "[Preflight] Triggering background dependency resolution for {} packages",
                                     items.len()
                                 );
-                                app.preflight_resolve_items = Some(items.to_vec());
+                                app.preflight_deps_items = Some(items.to_vec());
                                 app.preflight_deps_resolving = true;
                                 // Resolution will happen in background, UI will show loading state
                                 // Results will be synced to preflight modal when they arrive
@@ -500,7 +519,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             "[Preflight] Triggering background file resolution for {} packages",
                             items.len()
                         );
-                        app.preflight_resolve_items = Some(items.to_vec());
+                        app.preflight_files_items = Some(items.to_vec());
                         app.preflight_files_resolving = true;
                         // Resolution will happen in background, UI will show loading state
                         // Results will be synced to preflight modal when they arrive
@@ -564,7 +583,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                         "[Preflight] Triggering background sandbox resolution for {} AUR packages",
                                         aur_items.len()
                                     );
-                                    app.preflight_resolve_items = Some(aur_items);
+                                    app.preflight_sandbox_items = Some(aur_items);
                                     app.preflight_sandbox_resolving = true;
                                     // Resolution will happen in background, UI will show loading state
                                     // Results will be synced to preflight modal when they arrive
@@ -617,7 +636,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                     "[Preflight] Triggering background dependency resolution for {} packages",
                                     items.len()
                                 );
-                                app.preflight_resolve_items = Some(items.to_vec());
+                                app.preflight_deps_items = Some(items.to_vec());
                                 app.preflight_deps_resolving = true;
                                 // Resolution will happen in background, UI will show loading state
                                 // Results will be synced to preflight modal when they arrive
@@ -650,7 +669,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             "[Preflight] Triggering background file resolution for {} packages",
                             items.len()
                         );
-                        app.preflight_resolve_items = Some(items.to_vec());
+                        app.preflight_files_items = Some(items.to_vec());
                         app.preflight_files_resolving = true;
                         // Resolution will happen in background, UI will show loading state
                         // Results will be synced to preflight modal when they arrive
@@ -714,7 +733,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                                         "[Preflight] Triggering background sandbox resolution for {} AUR packages",
                                         aur_items.len()
                                     );
-                                    app.preflight_resolve_items = Some(aur_items);
+                                    app.preflight_sandbox_items = Some(aur_items);
                                     app.preflight_sandbox_resolving = true;
                                     // Resolution will happen in background, UI will show loading state
                                     // Results will be synced to preflight modal when they arrive
@@ -956,34 +975,102 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 }
             }
             KeyCode::Char('r') | KeyCode::Char('R') => {
-                // Retry resolution for current tab or toggle service restart decision
-                if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
-                    // Toggle restart decision for selected service (only if no error)
-                    if *service_selected >= service_info.len() {
-                        *service_selected = service_info.len().saturating_sub(1);
-                    }
-                    if let Some(service) = service_info.get_mut(*service_selected) {
-                        service.restart_decision = ServiceRestartDecision::Restart;
-                    }
-                } else if *tab == crate::state::PreflightTab::Deps
-                    && matches!(*action, crate::state::PreflightAction::Install)
-                {
-                    // Retry dependency resolution
+                // Shift+R: Re-run all analyses (clear cache and re-queue all stages)
+                if ke.modifiers.contains(KeyModifiers::SHIFT) {
+                    tracing::info!("Shift+R pressed: Re-running all preflight analyses");
+
+                    // Clear all cached data in the modal
+                    *dependency_info = Vec::new();
                     *deps_error = None;
-                    *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                    *dep_selected = 0;
-                } else if *tab == crate::state::PreflightTab::Files {
-                    // Retry file resolution
+                    *file_info = Vec::new();
                     *files_error = None;
-                    *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                    *file_selected = 0;
-                } else if *tab == crate::state::PreflightTab::Services {
-                    // Retry service resolution
+                    *service_info = Vec::new();
                     *services_error = None;
                     *services_loaded = false;
-                    *service_info = crate::logic::services::resolve_service_impacts(items, *action);
+                    *sandbox_info = Vec::new();
+                    *sandbox_error = None;
+                    *sandbox_loaded = false;
+                    *summary = None;
+
+                    // Reset selection indices
+                    *dep_selected = 0;
+                    *file_selected = 0;
                     *service_selected = 0;
-                    *services_loaded = true;
+                    *sandbox_selected = 0;
+
+                    // Clear expanded trees
+                    dep_tree_expanded.clear();
+                    file_tree_expanded.clear();
+                    sandbox_tree_expanded.clear();
+
+                    // Reset cancellation flag
+                    app.preflight_cancelled
+                        .store(false, std::sync::atomic::Ordering::Relaxed);
+
+                    // Queue all stages for background resolution (same as opening modal)
+                    app.preflight_summary_items = Some((items.clone(), *action));
+                    app.preflight_summary_resolving = true;
+
+                    if matches!(*action, crate::state::PreflightAction::Install) {
+                        app.preflight_deps_items = Some(items.clone());
+                        app.preflight_deps_resolving = true;
+
+                        app.preflight_files_items = Some(items.clone());
+                        app.preflight_files_resolving = true;
+
+                        app.preflight_services_items = Some(items.clone());
+                        app.preflight_services_resolving = true;
+
+                        // Only queue sandbox for AUR packages
+                        let aur_items: Vec<_> = items
+                            .iter()
+                            .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                            .cloned()
+                            .collect();
+                        if !aur_items.is_empty() {
+                            app.preflight_sandbox_items = Some(aur_items);
+                            app.preflight_sandbox_resolving = true;
+                        } else {
+                            app.preflight_sandbox_items = None;
+                            app.preflight_sandbox_resolving = false;
+                            *sandbox_loaded = true; // No AUR packages, mark as loaded
+                        }
+                    }
+
+                    app.toast_message = Some("Re-running all preflight analyses...".to_string());
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                } else {
+                    // Regular 'r': Retry resolution for current tab or toggle service restart decision
+                    if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+                        // Toggle restart decision for selected service (only if no error)
+                        if *service_selected >= service_info.len() {
+                            *service_selected = service_info.len().saturating_sub(1);
+                        }
+                        if let Some(service) = service_info.get_mut(*service_selected) {
+                            service.restart_decision = ServiceRestartDecision::Restart;
+                        }
+                    } else if *tab == crate::state::PreflightTab::Deps
+                        && matches!(*action, crate::state::PreflightAction::Install)
+                    {
+                        // Retry dependency resolution
+                        *deps_error = None;
+                        *dependency_info = crate::logic::deps::resolve_dependencies(items);
+                        *dep_selected = 0;
+                    } else if *tab == crate::state::PreflightTab::Files {
+                        // Retry file resolution
+                        *files_error = None;
+                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
+                        *file_selected = 0;
+                    } else if *tab == crate::state::PreflightTab::Services {
+                        // Retry service resolution
+                        *services_error = None;
+                        *services_loaded = false;
+                        *service_info =
+                            crate::logic::services::resolve_service_impacts(items, *action);
+                        *service_selected = 0;
+                        *services_loaded = true;
+                    }
                 }
             }
             KeyCode::Char('D') => {
@@ -1225,6 +1312,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
 
                 if close_modal {
                     app.previous_modal = None;
+                    // Cancel all in-flight preflight operations
+                    app.preflight_cancelled
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                    // Clear all preflight queues
+                    app.preflight_summary_items = None;
+                    app.preflight_deps_items = None;
+                    app.preflight_files_items = None;
+                    app.preflight_services_items = None;
+                    app.preflight_sandbox_items = None;
                     app.modal = crate::state::Modal::None;
                 }
             }
@@ -1239,6 +1335,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 }
                 app.previous_modal = None; // Clear previous modal when closing Preflight
                 app.remove_preflight_summary.clear();
+                // Cancel all in-flight preflight operations
+                app.preflight_cancelled
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                // Clear all preflight queues
+                app.preflight_summary_items = None;
+                app.preflight_deps_items = None;
+                app.preflight_files_items = None;
+                app.preflight_services_items = None;
+                app.preflight_sandbox_items = None;
                 app.modal = crate::state::Modal::None;
             }
             KeyCode::Char('?') => {

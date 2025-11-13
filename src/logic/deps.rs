@@ -11,9 +11,11 @@ mod status;
 mod utils;
 
 use crate::state::modal::{DependencyInfo, DependencyStatus};
-use crate::state::types::PackageItem;
+use crate::state::types::{PackageItem, Source};
+use parse::parse_dep_spec;
 use query::get_upgradable_packages;
-use resolve::{fetch_package_conflicts, resolve_package_deps};
+use resolve::{batch_fetch_official_deps, fetch_package_conflicts, resolve_package_deps};
+use source::{determine_dependency_source, is_system_package};
 use status::determine_status;
 use std::collections::{HashMap, HashSet};
 use utils::dependency_priority;
@@ -35,10 +37,12 @@ pub use status::{get_installed_version, version_satisfies};
 /// - Merges duplicates by name, retaining the most severe status across all requesters.
 /// - Populates `depends_on` and `required_by` relationships to reflect dependency relationships.
 pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
-    tracing::info!(
-        "Starting dependency resolution for {} package(s)",
-        items.len()
-    );
+    let _span = tracing::info_span!(
+        "resolve_dependencies",
+        stage = "dependencies",
+        item_count = items.len()
+    )
+    .entered();
     let start_time = std::time::Instant::now();
     // Only warn if called from UI thread (not from background workers)
     // Background workers use spawn_blocking which is fine and expected
@@ -144,6 +148,27 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
         }
     }
 
+    // Batch fetch official package dependencies to reduce pacman command overhead
+    let official_packages: Vec<&str> = items
+        .iter()
+        .filter_map(|item| {
+            if let Source::Official { repo, .. } = &item.source {
+                if *repo != "local" {
+                    Some(item.name.as_str())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+    let batched_deps_cache = if !official_packages.is_empty() {
+        batch_fetch_official_deps(&official_packages)
+    } else {
+        std::collections::HashMap::new()
+    };
+
     // Resolve ONLY direct dependencies (non-recursive)
     // This is faster and avoids resolving transitive dependencies which can be slow and error-prone
     for item in items {
@@ -156,7 +181,48 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             source
         );
 
-        match resolve_package_deps(&name, &source, &installed, &provided, &upgradable) {
+        // Check if we have batched results for this official package
+        let source_clone = source.clone();
+        let use_batched = matches!(source_clone, Source::Official { repo, .. } if repo != "local")
+            && batched_deps_cache.contains_key(name.as_str());
+
+        match if use_batched {
+            // Use batched dependency list
+            let dep_names = batched_deps_cache
+                .get(name.as_str())
+                .cloned()
+                .unwrap_or_default();
+            let mut deps = Vec::new();
+            for dep_spec in dep_names {
+                let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
+                if pkg_name == name {
+                    continue;
+                }
+                if pkg_name.ends_with(".so")
+                    || pkg_name.contains(".so.")
+                    || pkg_name.contains(".so=")
+                {
+                    continue;
+                }
+                let status =
+                    determine_status(&pkg_name, &version_req, &installed, &provided, &upgradable);
+                let (dep_source, is_core) = determine_dependency_source(&pkg_name, &installed);
+                let is_system = is_core || is_system_package(&pkg_name);
+                deps.push(DependencyInfo {
+                    name: pkg_name,
+                    version: version_req,
+                    status,
+                    source: dep_source,
+                    required_by: vec![name.clone()],
+                    depends_on: Vec::new(),
+                    is_core,
+                    is_system,
+                });
+            }
+            Ok(deps)
+        } else {
+            resolve_package_deps(&name, &source, &installed, &provided, &upgradable)
+        } {
             Ok(mut resolved_deps) => {
                 tracing::debug!("  Found {} dependencies for {}", resolved_deps.len(), name);
 
@@ -250,18 +316,14 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             .then_with(|| a.name.cmp(&b.name))
     });
 
-    tracing::info!(
-        "Dependency resolution complete. Returning {} dependencies",
-        result.len()
-    );
     let elapsed = start_time.elapsed();
-    if elapsed.as_secs() > 1 {
-        tracing::warn!(
-            "[Deps] Dependency resolution took {:?} (very slow!)",
-            elapsed
-        );
-    } else {
-        tracing::info!("[Deps] Dependency resolution took {:?}", elapsed);
-    }
+    let duration_ms = elapsed.as_millis() as u64;
+    tracing::info!(
+        stage = "dependencies",
+        item_count = items.len(),
+        result_count = result.len(),
+        duration_ms = duration_ms,
+        "Dependency resolution complete"
+    );
     result
 }

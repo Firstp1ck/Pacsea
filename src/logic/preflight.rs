@@ -201,6 +201,13 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
     action: PreflightAction,
     runner: &R,
 ) -> PreflightSummaryOutcome {
+    let _span = tracing::info_span!(
+        "compute_preflight_summary",
+        stage = "summary",
+        item_count = items.len()
+    )
+    .entered();
+    let start_time = std::time::Instant::now();
     let mut packages = Vec::with_capacity(items.len());
     let mut aur_count = 0usize;
     let mut total_download_bytes = 0u64;
@@ -221,29 +228,38 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
     let mut any_core_update = false;
     let mut any_aur = false;
 
-    for item in items {
+    // Batch fetch installed versions and sizes for all packages
+    let installed_versions = batch_fetch_installed_versions(runner, items);
+    let installed_sizes = batch_fetch_installed_sizes(runner, items);
+
+    for (idx, item) in items.iter().enumerate() {
         if matches!(item.source, Source::Aur) {
             aur_count += 1;
             any_aur = true;
         }
 
-        let installed_version = fetch_installed_version(runner, &item.name);
-        if let Err(err) = &installed_version {
-            tracing::debug!(
-                "Preflight summary: failed to fetch installed version for {}: {err}",
-                item.name
-            );
-        }
-        let installed_version = installed_version.ok();
+        // Use batched results
+        let installed_version = installed_versions
+            .get(idx)
+            .and_then(|v| v.as_ref().ok())
+            .cloned();
+        let installed_size = installed_sizes
+            .get(idx)
+            .and_then(|s| s.as_ref().ok())
+            .copied();
 
-        let installed_size = fetch_installed_size(runner, &item.name);
-        if let Err(err) = &installed_size {
+        if installed_version.is_none() {
             tracing::debug!(
-                "Preflight summary: failed to fetch installed size for {}: {err}",
+                "Preflight summary: failed to fetch installed version for {}",
                 item.name
             );
         }
-        let installed_size = installed_size.ok();
+        if installed_size.is_none() {
+            tracing::debug!(
+                "Preflight summary: failed to fetch installed size for {}",
+                item.name
+            );
+        }
 
         let mut download_bytes = None;
         let mut install_size_target = None;
@@ -414,6 +430,15 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
         risk_score,
         risk_level,
     };
+
+    let elapsed = start_time.elapsed();
+    let duration_ms = elapsed.as_millis() as u64;
+    tracing::info!(
+        stage = "summary",
+        item_count = items.len(),
+        duration_ms = duration_ms,
+        "Preflight summary computation complete"
+    );
 
     PreflightSummaryOutcome { summary, header }
 }
@@ -674,6 +699,147 @@ fn extract_major_component(version: &str) -> Option<u64> {
     token.parse::<u64>().ok()
 }
 
+/// What: Batch fetch installed versions for multiple packages using `pacman -Q`.
+///
+/// Inputs:
+/// - `runner`: Command executor.
+/// - `items`: Packages to query.
+///
+/// Output:
+/// - Vector of results, one per package (Ok(version) or Err).
+///
+/// Details:
+/// - Batches queries into chunks of 50 to avoid command-line length limits.
+/// - `pacman -Q` outputs "name version" per line, one per package.
+fn batch_fetch_installed_versions<R: CommandRunner>(
+    runner: &R,
+    items: &[PackageItem],
+) -> Vec<Result<String, CommandError>> {
+    const BATCH_SIZE: usize = 50;
+    let mut results = Vec::with_capacity(items.len());
+
+    for chunk in items.chunks(BATCH_SIZE) {
+        let names: Vec<&str> = chunk.iter().map(|i| i.name.as_str()).collect();
+        let mut args = vec!["-Q"];
+        args.extend(names.iter().copied());
+        match runner.run("pacman", &args) {
+            Ok(output) => {
+                // Parse output: each line is "name version"
+                let mut version_map = std::collections::HashMap::new();
+                for line in output.lines() {
+                    let mut parts = line.split_whitespace();
+                    if let (Some(name), Some(version)) = (parts.next(), parts.next_back()) {
+                        version_map.insert(name, version.to_string());
+                    }
+                }
+                // Map results back to original order
+                for item in chunk {
+                    if let Some(version) = version_map.get(item.name.as_str()) {
+                        results.push(Ok(version.clone()));
+                    } else {
+                        results.push(Err(CommandError::Parse {
+                            program: "pacman -Q".to_string(),
+                            field: format!("version for {}", item.name),
+                        }));
+                    }
+                }
+            }
+            Err(_) => {
+                // If batch fails, fall back to individual queries
+                for item in chunk {
+                    match fetch_installed_version(runner, &item.name) {
+                        Ok(v) => results.push(Ok(v)),
+                        Err(err) => results.push(Err(err)),
+                    }
+                }
+            }
+        }
+    }
+    results
+}
+
+/// What: Batch fetch installed sizes for multiple packages using `pacman -Qi`.
+///
+/// Inputs:
+/// - `runner`: Command executor.
+/// - `items`: Packages to query.
+///
+/// Output:
+/// - Vector of results, one per package (Ok(size_bytes) or Err).
+///
+/// Details:
+/// - Batches queries into chunks of 50 to avoid command-line length limits.
+/// - Parses multi-package `pacman -Qi` output (packages separated by blank lines).
+fn batch_fetch_installed_sizes<R: CommandRunner>(
+    runner: &R,
+    items: &[PackageItem],
+) -> Vec<Result<u64, CommandError>> {
+    const BATCH_SIZE: usize = 50;
+    let mut results = Vec::with_capacity(items.len());
+
+    for chunk in items.chunks(BATCH_SIZE) {
+        let names: Vec<&str> = chunk.iter().map(|i| i.name.as_str()).collect();
+        let mut args = vec!["-Qi"];
+        args.extend(names.iter().copied());
+        match runner.run("pacman", &args) {
+            Ok(output) => {
+                // Parse multi-package output: packages are separated by blank lines
+                let mut package_blocks = Vec::new();
+                let mut current_block = String::new();
+                for line in output.lines() {
+                    if line.trim().is_empty() {
+                        if !current_block.is_empty() {
+                            package_blocks.push(current_block.clone());
+                            current_block.clear();
+                        }
+                    } else {
+                        current_block.push_str(line);
+                        current_block.push('\n');
+                    }
+                }
+                if !current_block.is_empty() {
+                    package_blocks.push(current_block);
+                }
+
+                // Parse each block to extract package name and size
+                let mut size_map = std::collections::HashMap::new();
+                for block in package_blocks {
+                    let block_fields = parse_pacman_key_values(&block);
+                    if let (Some(name), Some(size_str)) = (
+                        block_fields.get("Name").map(|s| s.trim()),
+                        block_fields.get("Installed Size").map(|s| s.trim()),
+                    ) && let Some(size_bytes) = parse_size_to_bytes(size_str)
+                    {
+                        size_map.insert(name.to_string(), size_bytes);
+                    }
+                }
+
+                // Map results back to original order
+                for item in chunk {
+                    if let Some(size) = size_map.get(&item.name) {
+                        results.push(Ok(*size));
+                    } else {
+                        results.push(Err(CommandError::Parse {
+                            program: "pacman -Qi".to_string(),
+                            field: format!("Installed Size for {}", item.name),
+                        }));
+                    }
+                }
+            }
+            Err(_) => {
+                // If batch fails, fall back to individual queries
+                for item in chunk {
+                    match fetch_installed_size(runner, &item.name) {
+                        Ok(s) => results.push(Ok(s)),
+                        Err(err) => results.push(Err(err)),
+                    }
+                }
+            }
+        }
+    }
+    results
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
@@ -731,7 +897,7 @@ mod tests {
         );
         responses.insert(
             ("pacman".into(), vec!["-Qi".into(), "systemd".into()]),
-            Ok("Installed Size  : 4.00 MiB\n".to_string()),
+            Ok("Name            : systemd\nInstalled Size  : 4.00 MiB\n".to_string()),
         );
         responses.insert(
             ("pacman".into(), vec!["-Si".into(), "extra/systemd".into()]),

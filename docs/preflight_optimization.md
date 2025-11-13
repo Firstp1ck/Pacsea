@@ -91,8 +91,8 @@ Each milestone should ship independently with gated feature flags where practica
 - Sandbox resolver core: `src/logic/sandbox.rs`.
 
 ## Appendix B – Verification Checklist
-- [ ] All stages log duration and item counts under `TRACE`.
-- [ ] Modal opens instantly with placeholder summary.
-- [ ] Cancelling the modal drops background workload.
-- [ ] Caches persist across sessions and invalidate on signature mismatch.
-- [ ] UI indicates when sandbox/service data is unavailable for non-AUR or remove flows.
+- [x] All stages log duration and item counts under `TRACE` (via `PACSEA_PREFLIGHT_TRACE=1`).
+- [x] Modal opens instantly with placeholder summary.
+- [x] Cancelling the modal drops background workload.
+- [x] Caches persist across sessions and invalidate on signature mismatch.
+- [x] UI indicates when sandbox/service data is unavailable for non-AUR or remove flows.

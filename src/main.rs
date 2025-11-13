@@ -78,6 +78,10 @@ struct Args {
     /// [Not yet implemented] Update package database before starting
     #[arg(short = 'y', long)]
     refresh: bool,
+
+    /// Clear all cache files (dependencies, files, services, sandbox) and exit
+    #[arg(long)]
+    clear_cache: bool,
 }
 
 #[tokio::main]
@@ -85,8 +89,11 @@ async fn main() {
     let args = Args::parse();
 
     // Determine log level (verbose flag overrides log_level)
+    // PACSEA_PREFLIGHT_TRACE=1 enables TRACE level for detailed preflight timing
     let log_level = if args.verbose {
         "debug"
+    } else if std::env::var("PACSEA_PREFLIGHT_TRACE").ok().as_deref() == Some("1") {
+        "trace"
     } else {
         &args.log_level
     };
@@ -185,6 +192,45 @@ async fn main() {
         tracing::info!("News dialog requested from CLI");
         // TODO: Implement showing news dialog on startup
         tracing::warn!("News flag not yet implemented");
+    }
+
+    // Handle clear cache flag
+    if args.clear_cache {
+        tracing::info!("Clear cache requested from CLI");
+        let lists_dir = theme::lists_dir();
+        let cache_files = [
+            "install_deps_cache.json",
+            "file_cache.json",
+            "services_cache.json",
+            "sandbox_cache.json",
+            "details_cache.json",
+        ];
+
+        let mut cleared_count = 0;
+        for cache_file in &cache_files {
+            let cache_path = lists_dir.join(cache_file);
+            match std::fs::remove_file(&cache_path) {
+                Ok(_) => {
+                    tracing::info!(path = %cache_path.display(), "cleared cache file");
+                    cleared_count += 1;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    tracing::debug!(path = %cache_path.display(), "cache file does not exist, skipping");
+                }
+                Err(e) => {
+                    tracing::warn!(path = %cache_path.display(), error = %e, "failed to clear cache file");
+                }
+            }
+        }
+
+        if cleared_count > 0 {
+            tracing::info!(cleared_count = cleared_count, "cleared cache files");
+            println!("Cleared {} cache file(s)", cleared_count);
+        } else {
+            tracing::info!("No cache files found to clear");
+            println!("No cache files found to clear");
+        }
+        return;
     }
 
     tracing::info!(dry_run = args.dry_run, "Pacsea starting");
