@@ -31,11 +31,15 @@ fn curl_json(url: &str) -> Result<Value> {
 
 /// What: Fetch plain text from a URL using curl
 ///
-/// Input: `url` to request
-/// Output: `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
+/// Input:
+/// - `url` to request
 ///
-/// Details: Executes curl with appropriate flags and returns the raw body as a `String`.
-/// On Windows, uses `-k` flag to skip SSL certificate verification.
+/// Output:
+/// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
+///
+/// Details:
+/// - Executes curl with appropriate flags and returns the raw body as a `String`.
+/// - On Windows, uses `-k` flag to skip SSL certificate verification.
 fn curl_text(url: &str) -> Result<String> {
     let args = curl_args(url, &[]);
     let out = std::process::Command::new("curl").args(&args).output()?;

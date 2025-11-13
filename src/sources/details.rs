@@ -193,7 +193,7 @@ mod size_tests {
     }
 }
 
-/// Fetch package details for either official repositories or AUR, based on the item's source.
+/// What: Fetch package details for either official repositories or AUR, based on the item's source.
 ///
 /// Inputs:
 /// - `item`: Package to fetch details for.
