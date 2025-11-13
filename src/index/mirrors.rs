@@ -275,13 +275,13 @@ pub async fn refresh_windows_mirrors_and_index(
 }
 
 #[cfg(test)]
+#[cfg(not(target_os = "windows"))]
 mod tests {
     use super::*;
     use std::time::Duration;
     use tokio::sync::mpsc;
     use tokio::time;
 
-    #[cfg(not(target_os = "windows"))]
     #[tokio::test]
     /// What: Ensure mirror fetching persists raw JSON and filtered HTTPS-only mirror list.
     async fn fetch_mirrors_to_repo_dir_writes_json_and_filtered_mirrorlist() {
@@ -363,7 +363,6 @@ exit 1
         let _ = std::fs::remove_dir_all(&shim_root);
     }
 
-    #[cfg(not(target_os = "windows"))]
     #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     /// What: Ensure Windows index refresh consumes API responses, persists, and notifies without errors.
