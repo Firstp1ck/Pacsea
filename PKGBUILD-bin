@@ -1,6 +1,6 @@
 # Maintainer: Firstpick firstpick1992@proton.me
 pkgname=pacsea-bin
-pkgver=0.4.5
+pkgver=0.5.0
 _tag="v$pkgver"
 pkgrel=1
 pkgdesc="Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in Rust (binary version)"
@@ -54,4 +54,11 @@ package() {
   # Install license and documentation from tagged source tarball
   install -Dm644 "$srcdir"/Pacsea-*/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 "$srcdir"/Pacsea-*/README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  
+  # Install i18n configuration
+  install -Dm644 "$srcdir"/Pacsea-*/config/i18n.yml "$pkgdir/usr/share/pacsea/config/i18n.yml"
+  
+  # Install locale files
+  install -d "$pkgdir/usr/share/pacsea/locales"
+  install -m644 "$srcdir"/Pacsea-*/config/locales/*.yml "$pkgdir/usr/share/pacsea/locales/"
 }
