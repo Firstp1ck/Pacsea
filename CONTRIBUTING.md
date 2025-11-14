@@ -93,5 +93,8 @@ Thank you for helping improve Pacsea!
 
 <details>
   <summary>Support indirectly</summary>
+   
+If you want to support the project, please vote on the AUR: [Pacsea](https://aur.archlinux.org/packages/pacsea-bin)
+   
 If Pacsea has been helpful, you can support ongoing development here ❤️ [Patreon](https://www.patreon.com/Firstp1ck)
 </details>
