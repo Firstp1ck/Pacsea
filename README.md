@@ -122,10 +122,18 @@ For example configuration files, see the [`config/`](config/) directory:
 
 ![Settings overview (v0.4.1)](Images/Settings_v0.4.1.png "Settings overview (v0.4.1)")
 
-### Skipping the Preflight Modal
-By default Pacsea does not show a Preflight review modal before installs/removals so you have to set it to false to enable this modal. This allows you to inspect dependencies, files, config conflicts, and optionally run AUR security scans.
+### Preflight Modal
+By default Pacsea shows a Preflight review modal before installs/removals. This allows you to inspect dependencies, files, config conflicts, and optionally run AUR security scans.
 
-Change the following key in `~/.config/pacsea/settings.conf`:
+The Install list shows all packages queued for installation. You can export your list to a file or import packages from a previously saved list. The blue refresh icon next to each package indicates the loading/update status.
+
+![Install list (v0.5.0)](Images/Install_List_v0.5.0.png "Install list (v0.5.0)")
+
+![Preflight summary (v0.5.0)](Images/Preflight_summery_v0.5.0.png "Preflight summary (v0.5.0)")
+
+![Preflight sandbox (v0.5.0)](Images/Preflight_sandbox_v0.5.0.png "Preflight sandbox (v0.5.0)")
+
+To skip this modal, change the following key in `~/.config/pacsea/settings.conf`:
 ```
 skip_preflight = true
 ```
