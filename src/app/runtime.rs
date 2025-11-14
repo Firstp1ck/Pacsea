@@ -330,6 +330,8 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     tracing::info!(path = %app.official_index_path.display(), "attempted to load official index from disk");
 
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<CEvent>();
+    // Cancellation flag for event reading thread to allow immediate exit
+    let event_thread_cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (search_result_tx, mut results_rx) = mpsc::unbounded_channel::<SearchResults>();
     let (details_req_tx, mut details_req_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (details_res_tx, mut details_res_rx) = mpsc::unbounded_channel::<PackageDetails>();
@@ -654,14 +656,49 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     }
 
     if !headless {
+        let event_tx_for_thread = event_tx.clone();
+        let cancelled = event_thread_cancelled.clone();
         std::thread::spawn(move || {
             loop {
-                match crossterm::event::read() {
-                    Ok(ev) => {
-                        let _ = event_tx.send(ev);
+                // Check cancellation flag first for immediate exit
+                if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+                // Use poll with timeout to allow periodic cancellation checks
+                // This prevents blocking indefinitely when exit is requested
+                match crossterm::event::poll(std::time::Duration::from_millis(50)) {
+                    Ok(true) => {
+                        // Event available, read it
+                        match crossterm::event::read() {
+                            Ok(ev) => {
+                                // Check cancellation again before sending
+                                if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                                    break;
+                                }
+                                // Check if channel is still open before sending
+                                // When receiver is dropped (on exit), send will fail
+                                if event_tx_for_thread.send(ev).is_err() {
+                                    // Channel closed, exit thread
+                                    break;
+                                }
+                            }
+                            Err(_) => {
+                                // ignore transient read errors and continue
+                            }
+                        }
+                    }
+                    Ok(false) => {
+                        // No event available, check cancellation flag
+                        // This allows the thread to exit promptly when exit is requested
+                        if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                            break;
+                        }
                     }
                     Err(_) => {
-                        // ignore transient read errors and continue
+                        // Poll error, check cancellation before continuing
+                        if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                            break;
+                        }
                     }
                 }
             }
@@ -1306,6 +1343,9 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     app.files_resolving = false;
     app.services_resolving = false;
     app.sandbox_resolving = false;
+
+    // Signal event reading thread to exit immediately
+    event_thread_cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
 
     maybe_flush_cache(&mut app);
     maybe_flush_recent(&mut app);
