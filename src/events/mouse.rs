@@ -2,6 +2,7 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use crossterm::execute;
 use tokio::sync::mpsc;
 
+use crate::state::modal::ServiceRestartDecision;
 use crate::state::{AppState, PackageItem};
 
 use super::utils::{refresh_install_details, refresh_selected_details};
@@ -50,6 +51,12 @@ pub fn handle_mouse_event(
     _add_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
+    // Ensure mouse capture is enabled (important after external terminal processes)
+    crate::util::ensure_mouse_capture();
+    if !app.mouse_capture_enabled {
+        app.mouse_capture_enabled = true;
+    }
+
     let mx = m.column;
     let my = m.row;
     let is_left_down = matches!(m.kind, MouseEventKind::Down(MouseButton::Left));
@@ -136,10 +143,16 @@ pub fn handle_mouse_event(
         dependency_info,
         dep_selected,
         dep_tree_expanded,
+        deps_error: _,
         file_info,
         file_selected,
         file_tree_expanded,
-        cascade_mode: _,
+        files_error: _,
+        service_info,
+        service_selected,
+        services_loaded,
+        services_error: _,
+        ..
     } = &mut app.modal
     {
         // Handle tab clicks
@@ -162,18 +175,72 @@ pub fn handle_mouse_event(
                     };
                     *tab = new_tab;
 
-                    // Resolve dependencies when switching to Deps tab
+                    // Check for cached dependencies when switching to Deps tab
                     if *tab == crate::state::PreflightTab::Deps
                         && dependency_info.is_empty()
                         && matches!(*action, crate::state::PreflightAction::Install)
                     {
-                        *dependency_info = crate::logic::deps::resolve_dependencies(items);
-                        *dep_selected = 0;
+                        // Try to use cached dependencies from app state
+                        let item_names: std::collections::HashSet<String> =
+                            items.iter().map(|i| i.name.clone()).collect();
+                        let cached_deps: Vec<crate::state::modal::DependencyInfo> = app
+                            .install_list_deps
+                            .iter()
+                            .filter(|dep| {
+                                dep.required_by
+                                    .iter()
+                                    .any(|req_by| item_names.contains(req_by))
+                            })
+                            .cloned()
+                            .collect();
+                        if !cached_deps.is_empty() {
+                            *dependency_info = cached_deps;
+                            *dep_selected = 0;
+                        }
+                        // If no cached deps, user can press 'r' to resolve
                     }
-                    // Resolve files when switching to Files tab
+                    // Check for cached files when switching to Files tab
                     if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-                        *file_info = crate::logic::files::resolve_file_changes(items, *action);
-                        *file_selected = 0;
+                        // Try to use cached files from app state
+                        let item_names: std::collections::HashSet<String> =
+                            items.iter().map(|i| i.name.clone()).collect();
+                        let cached_files: Vec<crate::state::modal::PackageFileInfo> = app
+                            .install_list_files
+                            .iter()
+                            .filter(|file_info| item_names.contains(&file_info.name))
+                            .cloned()
+                            .collect();
+                        if !cached_files.is_empty() {
+                            *file_info = cached_files;
+                            *file_selected = 0;
+                        }
+                        // If no cached files, user can press 'r' to resolve
+                    }
+                    // Check for cached services when switching to Services tab
+                    if *tab == crate::state::PreflightTab::Services && service_info.is_empty() {
+                        // Try to use cached services from app state (for install actions)
+                        if matches!(*action, crate::state::PreflightAction::Install)
+                            && !app.services_resolving
+                        {
+                            // Check if cache file exists with matching signature
+                            let cache_exists = if !items.is_empty() {
+                                let signature =
+                                    crate::app::services_cache::compute_signature(items);
+                                crate::app::services_cache::load_cache(
+                                    &app.services_cache_path,
+                                    &signature,
+                                )
+                                .is_some()
+                            } else {
+                                false
+                            };
+                            if cache_exists && !app.install_list_services.is_empty() {
+                                *service_info = app.install_list_services.clone();
+                                *service_selected = 0;
+                                *services_loaded = true;
+                            }
+                        }
+                        // If no cached services, user can press 'r' to resolve
                     }
                     return false;
                 }
@@ -314,10 +381,59 @@ pub fn handle_mouse_event(
                     }
                 }
             }
+
+            if *tab == crate::state::PreflightTab::Services
+                && !service_info.is_empty()
+                && let Some((content_x, content_y, content_w, content_h)) =
+                    app.preflight_content_rect
+                && mx >= content_x
+                && mx < content_x + content_w
+                && my >= content_y
+                && my < content_y + content_h
+            {
+                let list_start_offset = 2;
+                if (my - content_y) as usize >= list_start_offset {
+                    let list_clicked_row = (my - content_y) as usize - list_start_offset;
+                    let available_height =
+                        content_h.saturating_sub(list_start_offset as u16) as usize;
+                    let total_items = service_info.len();
+                    if total_items > 0 {
+                        let selected_clamped =
+                            (*service_selected).min(total_items.saturating_sub(1));
+                        let start_idx = if total_items <= available_height {
+                            0
+                        } else {
+                            selected_clamped
+                                .saturating_sub(available_height / 2)
+                                .min(total_items.saturating_sub(available_height))
+                        };
+                        let end_idx = (start_idx + available_height).min(total_items);
+                        let actual_idx = start_idx + list_clicked_row;
+                        if actual_idx < end_idx {
+                            let actual_idx = actual_idx.min(total_items.saturating_sub(1));
+                            if actual_idx == *service_selected {
+                                if let Some(service) = service_info.get_mut(actual_idx) {
+                                    service.restart_decision = match service.restart_decision {
+                                        ServiceRestartDecision::Restart => {
+                                            ServiceRestartDecision::Defer
+                                        }
+                                        ServiceRestartDecision::Defer => {
+                                            ServiceRestartDecision::Restart
+                                        }
+                                    };
+                                }
+                            } else {
+                                *service_selected = actual_idx;
+                            }
+                            return false;
+                        }
+                    }
+                }
+            }
         }
 
         // Handle mouse scroll for Deps tab
-        if *tab == crate::state::PreflightTab::Deps && !dependency_info.is_empty() {
+        if *tab == crate::state::PreflightTab::Deps {
             // Compute display_items length (headers + dependencies, accounting for folded groups)
             use std::collections::{HashMap, HashSet};
             let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> =
@@ -344,20 +460,22 @@ pub fn handle_mouse_event(
             }
 
             // Handle mouse scroll to navigate dependency list
-            match m.kind {
-                MouseEventKind::ScrollUp => {
-                    if *dep_selected > 0 {
-                        *dep_selected -= 1;
+            if display_len > 0 {
+                match m.kind {
+                    MouseEventKind::ScrollUp => {
+                        if *dep_selected > 0 {
+                            *dep_selected -= 1;
+                        }
+                        return false;
                     }
-                    return false;
-                }
-                MouseEventKind::ScrollDown => {
-                    if *dep_selected < display_len.saturating_sub(1) {
-                        *dep_selected += 1;
+                    MouseEventKind::ScrollDown => {
+                        if *dep_selected < display_len.saturating_sub(1) {
+                            *dep_selected += 1;
+                        }
+                        return false;
                     }
-                    return false;
+                    _ => {}
                 }
-                _ => {}
             }
         }
 
@@ -377,6 +495,25 @@ pub fn handle_mouse_event(
                     );
                     if *file_selected < display_len.saturating_sub(1) {
                         *file_selected += 1;
+                    }
+                    return false;
+                }
+                _ => {}
+            }
+        }
+
+        // Handle mouse scroll for Services tab
+        if *tab == crate::state::PreflightTab::Services && !service_info.is_empty() {
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    if *service_selected > 0 {
+                        *service_selected -= 1;
+                    }
+                    return false;
+                }
+                MouseEventKind::ScrollDown => {
+                    if *service_selected + 1 < service_info.len() {
+                        *service_selected += 1;
                     }
                     return false;
                 }
@@ -552,14 +689,15 @@ pub fn handle_mouse_event(
 
                 // Neither wl-copy nor xclip worked — report guidance to UI thread
                 let hint = if std::env::var("WAYLAND_DISPLAY").is_ok() {
-                    "Clipboard tool not found. Please install 'wl-clipboard' (provides wl-copy) or 'xclip'."
+                    "Clipboard tool not found. Please install 'wl-clipboard' (provides wl-copy) or 'xclip'.".to_string()
                 } else {
                     "Clipboard tool not found. Please install 'xclip' or 'wl-clipboard' (wl-copy)."
+                        .to_string()
                 };
-                let _ = tx_msg.send(Some(hint.to_string()));
+                let _ = tx_msg.send(Some(hint));
             });
             // Default optimistic toast; overwritten by worker if needed
-            app.toast_message = Some("Copying PKGBUILD to clipboard…".to_string());
+            app.toast_message = Some(crate::i18n::t(app, "app.toasts.copying_pkgbuild"));
             app.toast_expires_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
             // Try to receive the result quickly without blocking UI long
@@ -569,7 +707,7 @@ pub fn handle_mouse_event(
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
             }
         } else {
-            app.toast_message = Some("PKGBUILD not loaded yet".to_string());
+            app.toast_message = Some(crate::i18n::t(app, "app.toasts.pkgbuild_not_loaded"));
             app.toast_expires_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
         }
@@ -655,7 +793,7 @@ pub fn handle_mouse_event(
             let mut names: Vec<String> = app.install_list.iter().map(|p| p.name.clone()).collect();
             names.sort();
             if names.is_empty() {
-                app.toast_message = Some("Install List is empty".to_string());
+                app.toast_message = Some(crate::i18n::t(app, "app.toasts.install_list_empty"));
                 app.toast_expires_at =
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 return false;
@@ -679,13 +817,22 @@ pub fn handle_mouse_event(
             let body = names.join("\n");
             match std::fs::write(&file_path, body) {
                 Ok(_) => {
-                    app.toast_message = Some(format!("Exported to {}", file_path.display()));
+                    app.toast_message = Some(crate::i18n::t_fmt1(
+                        app,
+                        "app.toasts.exported_to",
+                        file_path.display(),
+                    ));
                     app.toast_expires_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
                     tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
                 }
                 Err(e) => {
-                    app.toast_message = Some(format!("Export failed: {e}"));
+                    let error_msg = format!("{}", e);
+                    app.toast_message = Some(crate::i18n::t_fmt1(
+                        app,
+                        "app.toasts.export_failed",
+                        &error_msg,
+                    ));
                     app.toast_expires_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
                     tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
@@ -1343,24 +1490,32 @@ pub fn handle_mouse_event(
                 }
             };
 
-            // Build a single OR-chained command so only the first available editor runs
-            let path_str = target.display().to_string();
-            let editor_cmd = format!(
-                "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \
-                 ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \
-                 ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \
-                 ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \
-                 ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \
-                 ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \
-                 ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \
-                 (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)",
-            );
-            let cmds = vec![editor_cmd];
+            #[cfg(target_os = "windows")]
+            {
+                // On Windows, use PowerShell to open file with default application
+                crate::util::open_file(&target);
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                // Build a single OR-chained command so only the first available editor runs
+                let path_str = target.display().to_string();
+                let editor_cmd = format!(
+                    "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \
+                     ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \
+                     ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \
+                     ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \
+                     ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \
+                     ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \
+                     ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \
+                     (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)",
+                );
+                let cmds = vec![editor_cmd];
 
-            // Run in external terminal window
-            std::thread::spawn(move || {
-                crate::install::spawn_shell_commands_in_terminal(&cmds);
-            });
+                // Run in external terminal window
+                std::thread::spawn(move || {
+                    crate::install::spawn_shell_commands_in_terminal(&cmds);
+                });
+            }
 
             app.config_menu_open = false;
             return false;

@@ -1,5 +1,6 @@
 //! Network and system data retrieval module split into submodules.
 
+use crate::util::curl_args;
 use serde_json::Value;
 
 mod details;
@@ -15,11 +16,11 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// Input: `url` HTTP(S) to request
 /// Output: `Ok(Value)` on success; `Err` if curl fails or the response is not valid JSON
 ///
-/// Details: Executes `curl -sSLf` and parses the UTF-8 body with `serde_json`.
+/// Details: Executes curl with appropriate flags and parses the UTF-8 body with `serde_json`.
+/// On Windows, uses `-k` flag to skip SSL certificate verification.
 fn curl_json(url: &str) -> Result<Value> {
-    let out = std::process::Command::new("curl")
-        .args(["-sSLf", url])
-        .output()?;
+    let args = curl_args(url, &[]);
+    let out = std::process::Command::new("curl").args(&args).output()?;
     if !out.status.success() {
         return Err(format!("curl failed: {:?}", out.status).into());
     }
@@ -30,14 +31,18 @@ fn curl_json(url: &str) -> Result<Value> {
 
 /// What: Fetch plain text from a URL using curl
 ///
-/// Input: `url` to request
-/// Output: `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
+/// Input:
+/// - `url` to request
 ///
-/// Details: Executes `curl -sSLf` and returns the raw body as a `String`.
+/// Output:
+/// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
+///
+/// Details:
+/// - Executes curl with appropriate flags and returns the raw body as a `String`.
+/// - On Windows, uses `-k` flag to skip SSL certificate verification.
 fn curl_text(url: &str) -> Result<String> {
-    let out = std::process::Command::new("curl")
-        .args(["-sSLf", url])
-        .output()?;
+    let args = curl_args(url, &[]);
+    let out = std::process::Command::new("curl").args(&args).output()?;
     if !out.status.success() {
         return Err(format!("curl failed: {:?}", out.status).into());
     }

@@ -27,11 +27,14 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
 
 /// What: Append removed package names to an audit log under the logs directory.
 ///
-/// Input: `names` slice of package names to append (one per line).
+/// Input:
+/// - `names` slice of package names to append (one per line).
 ///
-/// Output: `Ok(())` on success; otherwise an I/O error.
+/// Output:
+/// - `Ok(())` on success; otherwise an I/O error.
 ///
-/// Details: Appends to logs_dir/remove_log.log without timestamps.
+/// Details:
+/// - Appends to logs_dir/remove_log.log without timestamps.
 pub fn log_removed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
     path.push("remove_log.log");

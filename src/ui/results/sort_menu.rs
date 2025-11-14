@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::{AppState, SortMode};
 use crate::theme::theme;
 
@@ -28,7 +29,11 @@ pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u1
 
     app.sort_menu_rect = None;
     if app.sort_menu_open {
-        let opts = ["Alphabetical", "AUR popularity", "Best matches"];
+        let opts: Vec<String> = vec![
+            i18n::t(app, "app.results.sort_menu.options.alphabetical"),
+            i18n::t(app, "app.results.sort_menu.options.aur_popularity"),
+            i18n::t(app, "app.results.sort_menu.options.best_matches"),
+        ];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
         // Place menu just under the title, aligned to button if possible
@@ -66,7 +71,7 @@ pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u1
             };
             lines.push(Line::from(vec![
                 Span::styled(mark.to_string(), Style::default().fg(th.overlay1)),
-                Span::styled(text.to_string(), style),
+                Span::styled(text.clone(), style),
             ]));
         }
         let menu = Paragraph::new(lines)
@@ -74,7 +79,10 @@ pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u1
             .wrap(Wrap { trim: true })
             .block(
                 Block::default()
-                    .title(Span::styled(" Sort by ", Style::default().fg(th.overlay1)))
+                    .title(Span::styled(
+                        format!(" {} ", i18n::t(app, "app.results.sort_menu.title")),
+                        Style::default().fg(th.overlay1),
+                    ))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(th.surface2)),

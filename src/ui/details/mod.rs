@@ -42,6 +42,25 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
 
 #[cfg(test)]
 mod tests {
+    /// What: Initialize minimal English translations for tests.
+    ///
+    /// Inputs:
+    /// - `app`: AppState to populate with translations
+    ///
+    /// Output:
+    /// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
+    ///
+    /// Details:
+    /// - Sets up only the translations needed for tests to pass
+    fn init_test_translations(app: &mut crate::state::AppState) {
+        use std::collections::HashMap;
+        let mut translations = HashMap::new();
+        translations.insert("app.details.fields.url".to_string(), "URL".to_string());
+        translations.insert("app.details.url_label".to_string(), "URL:".to_string());
+        app.translations = translations.clone();
+        app.translations_fallback = translations;
+    }
+
     /// What: Confirm rendering the details pane records hit-test rectangles and disables mouse interactions when appropriate.
     ///
     /// Inputs:
@@ -61,6 +80,7 @@ mod tests {
         let mut app = crate::state::AppState {
             ..Default::default()
         };
+        init_test_translations(&mut app);
         app.details = crate::state::PackageDetails {
             repository: "extra".into(),
             name: "ripgrep".into(),

@@ -13,10 +13,14 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 #[cfg(not(target_os = "windows"))]
 /// What: Spawn a terminal to install a single package.
 ///
-/// Input: item to install; password for sudo on official installs (optional); dry_run to print instead of execute
-/// Output: Launches a terminal (or bash) running pacman/paru/yay to perform the install
+/// Input:
+/// - item to install; password for sudo on official installs (optional); dry_run to print instead of execute
 ///
-/// Details: Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.), falling back to bash. Uses pacman for official packages and paru/yay for AUR; appends a hold tail to keep the window open; logs installed names when not in dry_run.
+/// Output:
+/// - Launches a terminal (or bash) running pacman/paru/yay to perform the install
+///
+/// Details:
+/// - Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.), falling back to bash. Uses pacman for official packages and paru/yay for AUR; appends a hold tail to keep the window open; logs installed names when not in dry_run.
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, uses_sudo) = build_install_command(item, password, dry_run);
     let src = match item.source {
@@ -210,18 +214,33 @@ mod tests {
 /// Input:
 /// - `item`: Package metadata used to build the informational command.
 /// - `password`: Ignored; included for API parity.
-/// - `dry_run`: When `true`, prefixes the message with `DRY RUN`.
+/// - `dry_run`: When `true`, uses PowerShell to simulate the install operation.
 ///
 /// Output:
-/// - Launches a detached `cmd` window echoing the intended command.
+/// - Launches a detached PowerShell window (if available) for dry-run simulation, or `cmd` window otherwise.
 ///
 /// Details:
+/// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the install with Write-Host.
 /// - Logs the install attempt when not a dry run to keep audit behaviour consistent with Unix platforms.
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
-    let _ = Command::new("cmd")
-        .args(["/C", "start", "Pacsea Install", "cmd", "/K", &cmd_str])
-        .spawn();
+
+    if dry_run && super::utils::is_powershell_available() {
+        // Use PowerShell to simulate the install operation
+        let powershell_cmd = format!(
+            "Write-Host 'DRY RUN: Simulating install of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
+            item.name,
+            cmd_str.replace("'", "''")
+        );
+        let _ = Command::new("powershell.exe")
+            .args(["-NoProfile", "-Command", &powershell_cmd])
+            .spawn();
+    } else {
+        let _ = Command::new("cmd")
+            .args(["/C", "start", "Pacsea Install", "cmd", "/K", &cmd_str])
+            .spawn();
+    }
+
     if !dry_run {
         let _ = super::logging::log_installed(std::slice::from_ref(&item.name));
     }

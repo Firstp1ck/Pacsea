@@ -58,6 +58,7 @@ pub(crate) fn handle_modal_key(
             log_lines: _,
             abortable,
             items,
+            header_chips: _,
             ..
         } => {
             match ke.code {
@@ -81,7 +82,7 @@ pub(crate) fn handle_modal_key(
                 }
                 KeyCode::Char('x') => {
                     if *abortable {
-                        app.toast_message = Some("Abort requested (placeholder)".to_string());
+                        app.toast_message = Some(crate::i18n::t(app, "app.toasts.abort_requested"));
                     }
                 }
                 _ => {}
@@ -101,13 +102,15 @@ pub(crate) fn handle_modal_key(
                     app.modal = crate::state::Modal::None
                 }
                 KeyCode::Char('r') => {
-                    app.toast_message = Some("Rollback (placeholder)".to_string());
+                    app.toast_message = Some(crate::i18n::t(app, "app.toasts.rollback"));
                 }
                 KeyCode::Char('s') => {
                     if services_pending.is_empty() {
-                        app.toast_message = Some("No services to restart".to_string());
+                        app.toast_message =
+                            Some(crate::i18n::t(app, "app.toasts.no_services_to_restart"));
                     } else {
-                        app.toast_message = Some("Restart services (placeholder)".to_string());
+                        app.toast_message =
+                            Some(crate::i18n::t(app, "app.toasts.restart_services"));
                     }
                 }
                 _ => {}
@@ -692,10 +695,8 @@ pub(crate) fn handle_modal_key(
 
                 KeyCode::Esc => {
                     // Warn user about potential unexpected behavior and close the prompt
-                    app.toast_message = Some(
-                        "Continuing without gnome-terminal may cause unexpected behavior"
-                            .to_string(),
-                    );
+                    app.toast_message =
+                        Some(crate::i18n::t(app, "app.toasts.gnome_terminal_warning"));
                     app.toast_expires_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
                     app.modal = crate::state::Modal::None;

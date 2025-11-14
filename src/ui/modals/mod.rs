@@ -44,19 +44,33 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             app.modal = crate::state::Modal::Alert { message };
         }
         crate::state::Modal::ConfirmInstall { items } => {
-            confirm::render_confirm_install(f, area, &items);
+            confirm::render_confirm_install(f, app, area, &items);
             app.modal = crate::state::Modal::ConfirmInstall { items };
         }
         crate::state::Modal::Preflight {
             items,
             action,
             tab,
+            mut summary,
+            mut header_chips,
             mut dependency_info,
             mut dep_selected,
             dep_tree_expanded,
+            mut deps_error,
             mut file_info,
             mut file_selected,
             file_tree_expanded,
+            mut files_error,
+            mut service_info,
+            mut service_selected,
+            mut services_loaded,
+            mut services_error,
+            mut sandbox_info,
+            mut sandbox_selected,
+            sandbox_tree_expanded,
+            mut sandbox_loaded,
+            mut sandbox_error,
+            mut selected_optdepends,
             cascade_mode,
         } => {
             preflight::render_preflight(
@@ -66,24 +80,52 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 &items,
                 &action,
                 &tab,
+                &mut summary,
+                &mut header_chips,
                 &mut dependency_info,
                 &mut dep_selected,
                 &dep_tree_expanded,
+                &mut deps_error,
                 &mut file_info,
                 &mut file_selected,
                 &file_tree_expanded,
+                &mut files_error,
+                &mut service_info,
+                &mut service_selected,
+                &mut services_loaded,
+                &mut services_error,
+                &mut sandbox_info,
+                &mut sandbox_selected,
+                &sandbox_tree_expanded,
+                &mut sandbox_loaded,
+                &mut sandbox_error,
+                &mut selected_optdepends,
                 cascade_mode,
             );
             app.modal = crate::state::Modal::Preflight {
                 items,
                 action,
                 tab,
+                summary,
+                header_chips,
                 dependency_info,
                 dep_selected,
                 dep_tree_expanded,
+                deps_error,
                 file_info,
                 file_selected,
                 file_tree_expanded,
+                files_error,
+                service_info,
+                service_selected,
+                services_loaded,
+                services_error,
+                sandbox_info,
+                sandbox_selected,
+                sandbox_tree_expanded,
+                sandbox_loaded,
+                sandbox_error,
+                selected_optdepends,
                 cascade_mode,
             };
         }
@@ -94,9 +136,18 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             verbose,
             log_lines,
             abortable,
+            header_chips,
         } => {
             preflight_exec::render_preflight_exec(
-                f, area, &items, action, tab, verbose, &log_lines, abortable,
+                f,
+                area,
+                &items,
+                action,
+                tab,
+                verbose,
+                &log_lines,
+                abortable,
+                &header_chips,
             );
             app.modal = crate::state::Modal::PreflightExec {
                 items,
@@ -105,6 +156,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
                 verbose,
                 log_lines,
                 abortable,
+                header_chips,
             };
         }
         crate::state::Modal::PostSummary {
@@ -117,6 +169,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
         } => {
             post_summary::render_post_summary(
                 f,
+                app,
                 area,
                 success,
                 changed_files,
@@ -135,7 +188,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             };
         }
         crate::state::Modal::ConfirmRemove { items } => {
-            confirm::render_confirm_remove(f, area, &items);
+            confirm::render_confirm_remove(f, app, area, &items);
             app.modal = crate::state::Modal::ConfirmRemove { items };
         }
         crate::state::Modal::SystemUpdate {
@@ -150,6 +203,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
         } => {
             system_update::render_system_update(
                 f,
+                app,
                 area,
                 do_mirrors,
                 do_pacman,
@@ -180,7 +234,7 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             app.modal = crate::state::Modal::News { items, selected };
         }
         crate::state::Modal::OptionalDeps { rows, selected } => {
-            misc::render_optional_deps(f, area, &rows, selected);
+            misc::render_optional_deps(f, area, &rows, selected, app);
             app.modal = crate::state::Modal::OptionalDeps { rows, selected };
         }
         crate::state::Modal::ScanConfig {

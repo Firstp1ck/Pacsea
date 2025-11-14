@@ -16,11 +16,17 @@ async fn runtime_smoke_headless_initializes_and_runs_without_panic() {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
+    // Note: Mouse position reports (^[[<35;...]) may appear in test output when moving
+    // the mouse over the terminal if mouse reporting was enabled elsewhere (e.g., by
+    // Fish shell or the terminal emulator itself). The setup_terminal() function now
+    // explicitly disables mouse reporting in headless mode to prevent this.
+
     // Spawn the runtime in the background. Use dry-run to avoid any real install actions.
     let handle = tokio::spawn(async { pacsea::app::run(true).await });
 
-    // Allow a short window for initialization + first render + background tasks to spin up.
-    tokio::time::sleep(Duration::from_millis(400)).await;
+    // Allow a minimal window for initialization - just enough to verify it starts without panicking
+    // In headless mode, we skip slow operations (pacman calls, network), so this should be fast
+    tokio::time::sleep(Duration::from_millis(50)).await;
 
     // If it already finished, it must have returned Ok(()) and not panicked.
     if handle.is_finished() {

@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
@@ -25,7 +26,8 @@ use crate::theme::theme;
 pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
     let th = theme();
 
-    let pkgb_text = app.pkgb_text.as_deref().unwrap_or("Loading PKGBUILD…");
+    let loading_text = i18n::t(app, "app.details.loading_pkgb");
+    let pkgb_text = app.pkgb_text.as_deref().unwrap_or(&loading_text);
     // Remember PKGBUILD rect for mouse interactions (scrolling)
     app.pkgb_rect = Some((
         pkgb_area.x + 1,
@@ -45,9 +47,12 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
         visible.push('\n');
     }
     // Title with clickable "Copy PKGBUILD" button and optional "Reload PKGBUILD" button
-    let check_button_label = "Copy PKGBUILD".to_string();
-    let mut pkgb_title_spans: Vec<Span> =
-        vec![Span::styled("PKGBUILD", Style::default().fg(th.overlay1))];
+    let check_button_label = i18n::t(app, "app.details.copy_pkgbuild");
+    let pkgb_title_text = i18n::t(app, "app.titles.pkgb");
+    let mut pkgb_title_spans: Vec<Span> = vec![Span::styled(
+        pkgb_title_text.clone(),
+        Style::default().fg(th.overlay1),
+    )];
     pkgb_title_spans.push(Span::raw("  "));
     let check_btn_style = Style::default()
         .fg(th.mauve)
@@ -65,7 +70,7 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
     let btn_x = pkgb_area
         .x
         .saturating_add(1)
-        .saturating_add("PKGBUILD".len() as u16)
+        .saturating_add(pkgb_title_text.len() as u16)
         .saturating_add(2);
     let btn_w = check_button_label.len() as u16;
     app.pkgb_check_button_rect = Some((btn_x, btn_y, btn_w, 1));
@@ -74,7 +79,7 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
     app.pkgb_reload_button_rect = None;
     if needs_reload {
         pkgb_title_spans.push(Span::raw("  "));
-        let reload_button_label = "Reload PKGBUILD".to_string();
+        let reload_button_label = i18n::t(app, "app.details.reload_pkgbuild");
         let reload_btn_style = Style::default()
             .fg(th.mauve)
             .bg(th.surface2)

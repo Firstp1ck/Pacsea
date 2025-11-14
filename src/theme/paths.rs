@@ -117,11 +117,29 @@ fn xdg_base_dir(var: &str, home_default: &[&str]) -> PathBuf {
 ///
 /// Details:
 /// - Serves as the preferred base for other configuration directories.
+/// - On Windows, also checks `APPDATA` and `USERPROFILE` if `HOME` is not set.
 fn home_config_dir() -> Option<PathBuf> {
+    // Try HOME first (works on Unix and Windows if set)
     if let Ok(home) = env::var("HOME") {
         let dir = Path::new(&home).join(".config").join("pacsea");
         if std::fs::create_dir_all(&dir).is_ok() {
             return Some(dir);
+        }
+    }
+    // Windows fallback: use APPDATA or USERPROFILE
+    #[cfg(windows)]
+    {
+        if let Ok(appdata) = env::var("APPDATA") {
+            let dir = Path::new(&appdata).join("pacsea");
+            if std::fs::create_dir_all(&dir).is_ok() {
+                return Some(dir);
+            }
+        }
+        if let Ok(userprofile) = env::var("USERPROFILE") {
+            let dir = Path::new(&userprofile).join(".config").join("pacsea");
+            if std::fs::create_dir_all(&dir).is_ok() {
+                return Some(dir);
+            }
         }
     }
     None

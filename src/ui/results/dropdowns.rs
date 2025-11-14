@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
@@ -28,13 +29,13 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
     // Optional: render Config/Lists dropdown overlay near its button
     app.config_menu_rect = None;
     if app.config_menu_open {
-        let opts = [
-            "Settings -> settings.conf",
-            "Theme -> theme.conf",
-            "Keybindings -> keybinds.conf",
-            "Install List -> install_list.json",
-            "Installed Packages -> installed_packages.txt",
-            "Recent Searches -> recent_searches.json",
+        let opts: Vec<String> = vec![
+            i18n::t(app, "app.results.config_menu.options.settings"),
+            i18n::t(app, "app.results.config_menu.options.theme"),
+            i18n::t(app, "app.results.config_menu.options.keybindings"),
+            i18n::t(app, "app.results.config_menu.options.install_list"),
+            i18n::t(app, "app.results.config_menu.options.installed_packages"),
+            i18n::t(app, "app.results.config_menu.options.recent_searches"),
         ];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let w = widest
@@ -66,7 +67,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
             let padding = " ".repeat(pad as usize);
             lines.push(Line::from(vec![
-                Span::styled(text.to_string(), Style::default().fg(th.text)),
+                Span::styled(text.clone(), Style::default().fg(th.text)),
                 Span::raw(padding),
                 Span::styled(num, Style::default().fg(th.overlay1)),
             ]));
@@ -80,12 +81,15 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
                     .title(Line::from(vec![
                         Span::styled(" ", Style::default().fg(th.overlay1)),
                         Span::styled(
-                            "C",
+                            i18n::t(app, "app.results.menus.config_lists.first_letter"),
                             Style::default()
                                 .fg(th.overlay1)
                                 .add_modifier(Modifier::UNDERLINED),
                         ),
-                        Span::styled("onfig/Lists ", Style::default().fg(th.overlay1)),
+                        Span::styled(
+                            i18n::t(app, "app.results.menus.config_lists.suffix"),
+                            Style::default().fg(th.overlay1),
+                        ),
                     ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
@@ -99,21 +103,21 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
     app.panels_menu_rect = None;
     if app.panels_menu_open {
         let label_recent = if app.show_recent_pane {
-            "Hide Recent"
+            i18n::t(app, "app.results.panels_menu.hide_recent")
         } else {
-            "Show Recent"
+            i18n::t(app, "app.results.panels_menu.show_recent")
         };
         let label_install = if app.show_install_pane {
-            "Hide Install List"
+            i18n::t(app, "app.results.panels_menu.hide_install_list")
         } else {
-            "Show Install List"
+            i18n::t(app, "app.results.panels_menu.show_install_list")
         };
         let label_keybinds = if app.show_keybinds_footer {
-            "Hide Keybinds"
+            i18n::t(app, "app.results.panels_menu.hide_keybinds")
         } else {
-            "Show Keybinds"
+            i18n::t(app, "app.results.panels_menu.show_keybinds")
         };
-        let opts = [label_recent, label_install, label_keybinds];
+        let opts: Vec<String> = vec![label_recent, label_install, label_keybinds];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let w = widest
             .saturating_add(2)
@@ -143,7 +147,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
             let padding = " ".repeat(pad as usize);
             lines.push(Line::from(vec![
-                Span::styled(text.to_string(), Style::default().fg(th.text)),
+                Span::styled(text.clone(), Style::default().fg(th.text)),
                 Span::raw(padding),
                 Span::styled(num, Style::default().fg(th.overlay1)),
             ]));
@@ -157,12 +161,15 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
                     .title(Line::from(vec![
                         Span::styled(" ", Style::default().fg(th.overlay1)),
                         Span::styled(
-                            "P",
+                            i18n::t(app, "app.results.menus.panels.first_letter"),
                             Style::default()
                                 .fg(th.overlay1)
                                 .add_modifier(Modifier::UNDERLINED),
                         ),
-                        Span::styled("anels ", Style::default().fg(th.overlay1)),
+                        Span::styled(
+                            i18n::t(app, "app.results.menus.panels.suffix"),
+                            Style::default().fg(th.overlay1),
+                        ),
                     ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
@@ -176,11 +183,16 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
     app.options_menu_rect = None;
     if app.options_menu_open {
         let label_toggle = if app.installed_only_mode {
-            "List all packages"
+            i18n::t(app, "app.results.options_menu.list_all_packages")
         } else {
-            "List installed packages"
+            i18n::t(app, "app.results.options_menu.list_installed_packages")
         };
-        let opts = [label_toggle, "Update System", "News", "TUI Optional Dep's"];
+        let opts = [
+            label_toggle,
+            i18n::t(app, "app.results.options_menu.update_system"),
+            i18n::t(app, "app.results.options_menu.news"),
+            i18n::t(app, "app.results.options_menu.tui_optional_deps"),
+        ];
         let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
         let w = widest
             .saturating_add(2)
@@ -211,7 +223,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
             let padding = " ".repeat(pad as usize);
             lines.push(Line::from(vec![
-                Span::styled(text.to_string(), Style::default().fg(th.text)),
+                Span::styled(text.clone(), Style::default().fg(th.text)),
                 Span::raw(padding),
                 Span::styled(num, Style::default().fg(th.overlay1)),
             ]));
@@ -225,12 +237,15 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
                     .title(Line::from(vec![
                         Span::styled(" ", Style::default().fg(th.overlay1)),
                         Span::styled(
-                            "O",
+                            i18n::t(app, "app.results.menus.options.first_letter"),
                             Style::default()
                                 .fg(th.overlay1)
                                 .add_modifier(Modifier::UNDERLINED),
                         ),
-                        Span::styled("ptions ", Style::default().fg(th.overlay1)),
+                        Span::styled(
+                            i18n::t(app, "app.results.menus.options.suffix"),
+                            Style::default().fg(th.overlay1),
+                        ),
                     ]))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)

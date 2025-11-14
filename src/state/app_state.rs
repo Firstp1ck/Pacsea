@@ -3,7 +3,7 @@
 use ratatui::widgets::ListState;
 use std::{collections::HashMap, path::PathBuf, time::Instant};
 
-use crate::state::modal::{CascadeMode, Modal};
+use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
     ArchStatusColor, Focus, PackageDetails, PackageItem, RightPaneFocus, SortMode,
 };
@@ -194,6 +194,13 @@ pub struct AppState {
     pub layout_right_pct: u16,
     /// Resolved key bindings from user settings
     pub keymap: KeyMap,
+    // Internationalization (i18n)
+    /// Resolved locale code (e.g., "de-DE", "en-US")
+    pub locale: String,
+    /// Translation map for the current locale
+    pub translations: crate::i18n::translations::TranslationMap,
+    /// Fallback translation map (English) for missing keys
+    pub translations_fallback: crate::i18n::translations::TranslationMap,
 
     // Mouse hit-test rectangles for panes
     /// Inner content rectangle of the Results list (x, y, w, h).
@@ -343,6 +350,60 @@ pub struct AppState {
     pub files_cache_path: PathBuf,
     /// Dirty flag indicating `install_list_files` needs to be saved.
     pub files_cache_dirty: bool,
+
+    // Service impact cache for install list
+    /// Cached resolved service impacts for the current install list (updated in background).
+    pub install_list_services: Vec<crate::state::modal::ServiceImpact>,
+    /// Whether service impact resolution is currently in progress.
+    pub services_resolving: bool,
+    /// Path where the service cache is persisted as JSON.
+    pub services_cache_path: PathBuf,
+    /// Dirty flag indicating `install_list_services` needs to be saved.
+    pub services_cache_dirty: bool,
+    /// Flag requesting that the runtime schedule service impact resolution for the active Preflight modal.
+    pub service_resolve_now: bool,
+    /// Identifier of the active service impact resolution request, if any.
+    pub active_service_request: Option<u64>,
+    /// Monotonic counter used to tag service impact resolution requests.
+    pub next_service_request_id: u64,
+    /// Signature of the package set currently queued for service impact resolution.
+    pub services_pending_signature: Option<(PreflightAction, Vec<String>)>,
+    /// Service restart decisions captured during the Preflight Services tab.
+    pub pending_service_plan: Vec<ServiceImpact>,
+
+    // Sandbox analysis cache for install list
+    /// Cached resolved sandbox information for the current install list (updated in background).
+    pub install_list_sandbox: Vec<crate::logic::sandbox::SandboxInfo>,
+    /// Whether sandbox resolution is currently in progress.
+    pub sandbox_resolving: bool,
+    /// Path where the sandbox cache is persisted as JSON.
+    pub sandbox_cache_path: PathBuf,
+    /// Dirty flag indicating `install_list_sandbox` needs to be saved.
+    pub sandbox_cache_dirty: bool,
+
+    // Preflight modal background resolution requests
+    /// Packages to resolve for preflight summary computation.
+    pub preflight_summary_items: Option<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Packages to resolve for preflight dependency analysis.
+    pub preflight_deps_items: Option<Vec<PackageItem>>,
+    /// Packages to resolve for preflight file analysis.
+    pub preflight_files_items: Option<Vec<PackageItem>>,
+    /// Packages to resolve for preflight service analysis.
+    pub preflight_services_items: Option<Vec<PackageItem>>,
+    /// AUR packages to resolve for preflight sandbox analysis (subset only).
+    pub preflight_sandbox_items: Option<Vec<PackageItem>>,
+    /// Whether preflight summary computation is in progress.
+    pub preflight_summary_resolving: bool,
+    /// Whether preflight dependency resolution is in progress.
+    pub preflight_deps_resolving: bool,
+    /// Whether preflight file resolution is in progress.
+    pub preflight_files_resolving: bool,
+    /// Whether preflight service resolution is in progress.
+    pub preflight_services_resolving: bool,
+    /// Whether preflight sandbox resolution is in progress.
+    pub preflight_sandbox_resolving: bool,
+    /// Cancellation flag for preflight operations (set to true when modal closes).
+    pub preflight_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Default for AppState {
@@ -439,6 +500,9 @@ impl Default for AppState {
             layout_center_pct: 60,
             layout_right_pct: 20,
             keymap: crate::theme::Settings::default().keymap,
+            locale: "en-US".to_string(),
+            translations: std::collections::HashMap::new(),
+            translations_fallback: std::collections::HashMap::new(),
 
             results_rect: None,
             details_rect: None,
@@ -520,8 +584,36 @@ impl Default for AppState {
             install_list_files: Vec::new(),
             files_resolving: false,
             // File cache (lists dir under config)
-            files_cache_path: crate::theme::lists_dir().join("install_files_cache.json"),
+            files_cache_path: crate::theme::lists_dir().join("file_cache.json"),
             files_cache_dirty: false,
+
+            install_list_services: Vec::new(),
+            services_resolving: false,
+            // Service cache (lists dir under config)
+            services_cache_path: crate::theme::lists_dir().join("services_cache.json"),
+            services_cache_dirty: false,
+            service_resolve_now: false,
+            active_service_request: None,
+            next_service_request_id: 1,
+            services_pending_signature: None,
+            pending_service_plan: Vec::new(),
+
+            install_list_sandbox: Vec::new(),
+            sandbox_resolving: false,
+            // Sandbox cache (lists dir under config)
+            sandbox_cache_path: crate::theme::lists_dir().join("sandbox_cache.json"),
+            sandbox_cache_dirty: false,
+            preflight_summary_items: None,
+            preflight_deps_items: None,
+            preflight_files_items: None,
+            preflight_services_items: None,
+            preflight_sandbox_items: None,
+            preflight_summary_resolving: false,
+            preflight_deps_resolving: false,
+            preflight_files_resolving: false,
+            preflight_services_resolving: false,
+            preflight_sandbox_resolving: false,
+            preflight_cancelled: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 }

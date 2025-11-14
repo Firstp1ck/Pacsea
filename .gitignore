@@ -39,3 +39,4 @@ semgrep-bin/
 */logs/*
 
 repository/
+*.bat

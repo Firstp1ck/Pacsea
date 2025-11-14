@@ -2,7 +2,7 @@
 
 use crate::state::modal::DependencySource;
 use std::collections::HashSet;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// What: Infer the origin repository for a dependency currently under analysis.
 ///
@@ -21,7 +21,56 @@ pub(crate) fn determine_dependency_source(
     installed: &HashSet<String>,
 ) -> (DependencySource, bool) {
     if !installed.contains(name) {
-        // Not installed - could be AUR or official, default to AUR
+        // Not installed - check if it exists in official repos first
+        // Only default to AUR if it's not found in official repos
+        let output = Command::new("pacman")
+            .args(["-Si", name])
+            .env("LC_ALL", "C")
+            .env("LANG", "C")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output();
+
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            // Package exists in official repos - determine which repo
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                if line.starts_with("Repository")
+                    && let Some(colon_pos) = line.find(':')
+                {
+                    let repo = line[colon_pos + 1..].trim().to_lowercase();
+                    let is_core = repo == "core";
+                    return (DependencySource::Official { repo }, is_core);
+                }
+            }
+            // Found in official repos but couldn't determine repo - assume extra
+            return (
+                DependencySource::Official {
+                    repo: "extra".to_string(),
+                },
+                false,
+            );
+        }
+        // Not found in official repos - this could be:
+        // 1. A binary/script provided by a package (not a package itself) - should be Missing
+        // 2. A virtual package (.so file) - should be filtered out earlier
+        // 3. A real AUR package - but we can't distinguish without checking AUR
+        //
+        // IMPORTANT: We don't try AUR here because:
+        // - Most dependencies are from official repos or are binaries/scripts
+        // - Trying AUR for every unknown dependency causes unnecessary API calls
+        // - Real AUR packages should be explicitly specified by the user, not discovered as dependencies
+        // - If it's truly an AUR dependency, it will be marked as Missing and the user can handle it
+        tracing::debug!(
+            "Package {} not found in official repos and not installed - will be marked as Missing (skipping AUR check)",
+            name
+        );
+        // Return AUR but the resolve logic should check if it exists before trying API
+        // Actually, let's return Official with a special marker - but that won't work with current code
+        // Better: return AUR but add a check in resolve_package_deps to verify it exists first
         return (DependencySource::Aur, false);
     }
 
@@ -30,6 +79,9 @@ pub(crate) fn determine_dependency_source(
         .args(["-Qi", name])
         .env("LC_ALL", "C")
         .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output();
 
     match output {
@@ -42,16 +94,11 @@ pub(crate) fn determine_dependency_source(
                 {
                     let repo = line[colon_pos + 1..].trim().to_lowercase();
                     let is_core = repo == "core";
-                    return (
-                        DependencySource::Official {
-                            repo: if repo.is_empty() {
-                                "unknown".to_string()
-                            } else {
-                                repo
-                            },
-                        },
-                        is_core,
-                    );
+                    // Handle local packages specially
+                    if repo == "local" || repo.is_empty() {
+                        return (DependencySource::Local, false);
+                    }
+                    return (DependencySource::Official { repo }, is_core);
                 }
             }
         }

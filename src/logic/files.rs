@@ -2,7 +2,8 @@
 
 use crate::state::modal::{FileChange, FileChangeType, PackageFileInfo};
 use crate::state::types::{PackageItem, Source};
-use std::collections::HashSet;
+use crate::util::{curl_args, percent_encode};
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 use std::time::SystemTime;
@@ -100,19 +101,54 @@ pub fn resolve_file_changes(
     items: &[PackageItem],
     action: crate::state::modal::PreflightAction,
 ) -> Vec<PackageFileInfo> {
-    tracing::info!(
-        "Starting file resolution for {} package(s) ({:?})",
-        items.len(),
-        action
-    );
+    let _span = tracing::info_span!(
+        "resolve_file_changes",
+        stage = "files",
+        item_count = items.len()
+    )
+    .entered();
+    let start_time = std::time::Instant::now();
 
     if items.is_empty() {
         tracing::warn!("No packages provided for file resolution");
         return Vec::new();
     }
 
-    // Ensure file database is synced (best-effort, cache timestamp in future)
-    ensure_file_db_synced();
+    // Check if file database is stale, but don't force sync (let user decide)
+    // Only sync if database doesn't exist or is very old (>30 days)
+    const MAX_AUTO_SYNC_AGE_DAYS: u64 = 30;
+    match ensure_file_db_synced(false, MAX_AUTO_SYNC_AGE_DAYS) {
+        Ok(synced) => {
+            if synced {
+                tracing::info!("File database was synced automatically (was very stale)");
+            } else {
+                tracing::debug!("File database is fresh, no sync needed");
+            }
+        }
+        Err(e) => {
+            // Sync failed (likely requires root), but continue anyway
+            tracing::warn!("File database sync failed: {} (continuing without sync)", e);
+        }
+    }
+
+    // Batch fetch remote file lists for all official packages to reduce pacman command overhead
+    let official_packages: Vec<(&str, &Source)> = items
+        .iter()
+        .filter_map(|item| {
+            if matches!(item.source, Source::Official { .. }) {
+                Some((item.name.as_str(), &item.source))
+            } else {
+                None
+            }
+        })
+        .collect();
+    let batched_remote_files_cache = if !official_packages.is_empty()
+        && matches!(action, crate::state::modal::PreflightAction::Install)
+    {
+        batch_get_remote_file_lists(&official_packages)
+    } else {
+        std::collections::HashMap::new()
+    };
 
     let mut results = Vec::new();
 
@@ -125,7 +161,21 @@ pub fn resolve_file_changes(
             item.source
         );
 
-        match resolve_package_files(&item.name, &item.source, action) {
+        // Check if we have batched results for this official package
+        let use_batched = matches!(action, crate::state::modal::PreflightAction::Install)
+            && matches!(item.source, Source::Official { .. })
+            && batched_remote_files_cache.contains_key(item.name.as_str());
+
+        match if use_batched {
+            // Use batched file list
+            let remote_files = batched_remote_files_cache
+                .get(item.name.as_str())
+                .cloned()
+                .unwrap_or_default();
+            resolve_install_files_with_remote_list(&item.name, &item.source, remote_files)
+        } else {
+            resolve_package_files(&item.name, &item.source, action)
+        } {
             Ok(file_info) => {
                 tracing::info!(
                     "  Found {} files for {} ({} new, {} changed, {} removed)",
@@ -155,43 +205,83 @@ pub fn resolve_file_changes(
         }
     }
 
+    let elapsed = start_time.elapsed();
+    let duration_ms = elapsed.as_millis() as u64;
     tracing::info!(
-        "File resolution complete. Returning {} package file infos",
-        results.len()
+        stage = "files",
+        item_count = items.len(),
+        result_count = results.len(),
+        duration_ms = duration_ms,
+        "File resolution complete"
     );
     results
+}
+
+/// What: Check if the pacman file database is stale and needs syncing.
+///
+/// Inputs:
+/// - `max_age_days`: Maximum age in days before considering the database stale.
+///
+/// Output:
+/// - Returns `Some(true)` if stale, `Some(false)` if fresh, `None` if timestamp cannot be determined.
+///
+/// Details:
+/// - Uses `get_file_db_sync_timestamp()` to check the last sync time.
+pub fn is_file_db_stale(max_age_days: u64) -> Option<bool> {
+    let sync_time = get_file_db_sync_timestamp()?;
+    let now = SystemTime::now();
+    let age = now.duration_since(sync_time).ok()?;
+    let age_days = age.as_secs() / 86400;
+    Some(age_days >= max_age_days)
 }
 
 /// What: Attempt a best-effort synchronization of the pacman file database.
 ///
 /// Inputs:
-/// - (none): Executes `pacman -Fy` with locale overrides.
+/// - `force`: If true, sync regardless of timestamp. If false, only sync if stale.
+/// - `max_age_days`: Maximum age in days before considering the database stale (default: 7).
 ///
 /// Output:
-/// - No return value; logs warnings when the sync fails.
+/// - Returns `Ok(true)` if sync was performed, `Ok(false)` if sync was skipped (fresh DB), `Err` if sync failed.
 ///
 /// Details:
+/// - Checks timestamp first if `force` is false, only syncing when stale.
 /// - Intended to reduce false negatives when later querying remote file lists.
-fn ensure_file_db_synced() {
-    tracing::debug!("Ensuring pacman file database is synced...");
+pub fn ensure_file_db_synced(force: bool, max_age_days: u64) -> Result<bool, String> {
+    // Check if we need to sync
+    if !force {
+        if let Some(is_stale) = is_file_db_stale(max_age_days) {
+            if !is_stale {
+                tracing::debug!("File database is fresh, skipping sync");
+                return Ok(false);
+            }
+            tracing::debug!(
+                "File database is stale (older than {} days), syncing...",
+                max_age_days
+            );
+        } else {
+            // Can't determine timestamp, try to sync anyway
+            tracing::debug!("Cannot determine file database timestamp, attempting sync...");
+        }
+    } else {
+        tracing::debug!("Force syncing pacman file database...");
+    }
+
     let output = Command::new("pacman")
         .args(["-Fy"])
         .env("LC_ALL", "C")
         .env("LANG", "C")
-        .output();
+        .output()
+        .map_err(|e| format!("Failed to execute pacman -Fy: {}", e))?;
 
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                tracing::debug!("File database sync successful");
-            } else {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                tracing::warn!("File database sync failed: {}", stderr);
-            }
-        }
-        Err(e) => {
-            tracing::warn!("Failed to execute pacman -Fy: {}", e);
-        }
+    if output.status.success() {
+        tracing::debug!("File database sync successful");
+        Ok(true)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let error_msg = format!("File database sync failed: {}", stderr);
+        tracing::warn!("{}", error_msg);
+        Err(error_msg)
     }
 }
 
@@ -218,6 +308,88 @@ fn resolve_package_files(
     }
 }
 
+/// What: Batch fetch remote file lists for multiple official packages using `pacman -Fl`.
+///
+/// Inputs:
+/// - `packages`: Slice of (package_name, source) tuples for official packages.
+///
+/// Output:
+/// - HashMap mapping package name to its remote file list.
+///
+/// Details:
+/// - Batches queries into chunks of 50 to avoid command-line length limits.
+/// - Parses multi-package `pacman -Fl` output (format: "<pkg> <path>" per line).
+fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<String, Vec<String>> {
+    const BATCH_SIZE: usize = 50;
+    let mut result_map = HashMap::new();
+
+    // Group packages by repo to batch them together
+    let mut repo_groups: HashMap<String, Vec<&str>> = HashMap::new();
+    for (name, source) in packages {
+        if let Source::Official { repo, .. } = source {
+            let repo_key = if repo.is_empty() {
+                "".to_string()
+            } else {
+                repo.clone()
+            };
+            repo_groups.entry(repo_key).or_default().push(name);
+        }
+    }
+
+    for (repo, names) in repo_groups {
+        for chunk in names.chunks(BATCH_SIZE) {
+            let specs: Vec<String> = chunk
+                .iter()
+                .map(|name| {
+                    if repo.is_empty() {
+                        name.to_string()
+                    } else {
+                        format!("{}/{}", repo, name)
+                    }
+                })
+                .collect();
+
+            let mut args = vec!["-Fl"];
+            args.extend(specs.iter().map(|s| s.as_str()));
+
+            match Command::new("pacman")
+                .args(&args)
+                .env("LC_ALL", "C")
+                .env("LANG", "C")
+                .output()
+            {
+                Ok(output) if output.status.success() => {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    // Parse pacman -Fl output: format is "<pkg> <path>"
+                    // Group by package name
+                    let mut pkg_files: HashMap<String, Vec<String>> = HashMap::new();
+                    for line in text.lines() {
+                        if let Some((pkg, path)) = line.split_once(' ') {
+                            // Extract package name (remove repo prefix if present)
+                            let pkg_name = if let Some((_, name)) = pkg.split_once('/') {
+                                name
+                            } else {
+                                pkg
+                            };
+                            pkg_files
+                                .entry(pkg_name.to_string())
+                                .or_default()
+                                .push(path.to_string());
+                        }
+                    }
+                    result_map.extend(pkg_files);
+                }
+                _ => {
+                    // If batch fails, fall back to individual queries (but don't do it here to avoid recursion)
+                    // The caller will handle individual queries
+                    break;
+                }
+            }
+        }
+    }
+    result_map
+}
+
 /// What: Determine new and changed files introduced by installing or upgrading a package.
 ///
 /// Inputs:
@@ -232,7 +404,26 @@ fn resolve_package_files(
 fn resolve_install_files(name: &str, source: &Source) -> Result<PackageFileInfo, String> {
     // Get remote file list
     let remote_files = get_remote_file_list(name, source)?;
+    resolve_install_files_with_remote_list(name, source, remote_files)
+}
 
+/// What: Determine new and changed files using a pre-fetched remote file list.
+///
+/// Inputs:
+/// - `name`: Package name examined.
+/// - `source`: Source repository information (for backup file lookup).
+/// - `remote_files`: Pre-fetched remote file list.
+///
+/// Output:
+/// - Returns a populated `PackageFileInfo`.
+///
+/// Details:
+/// - Compares remote file listings with locally installed files and predicts potential `.pacnew` creations.
+fn resolve_install_files_with_remote_list(
+    name: &str,
+    source: &Source,
+    remote_files: Vec<String>,
+) -> Result<PackageFileInfo, String> {
     // Get installed file list (if package is already installed)
     let installed_files = get_installed_file_list(name).unwrap_or_default();
 
@@ -447,10 +638,89 @@ fn get_remote_file_list(name: &str, source: &Source) -> Result<Vec<String>, Stri
             Ok(files)
         }
         Source::Aur => {
-            // For AUR packages, we can't easily get file lists without building
-            // For now, return empty list (can be enhanced later with PKGBUILD parsing)
+            // First, check if package is already installed
+            if let Ok(installed_files) = get_installed_file_list(name)
+                && !installed_files.is_empty()
+            {
+                tracing::debug!(
+                    "Found {} files from installed AUR package {}",
+                    installed_files.len(),
+                    name
+                );
+                return Ok(installed_files);
+            }
+
+            // Try to use paru/yay -Fl if available (works for cached AUR packages)
+            let has_paru = Command::new("paru").args(["--version"]).output().is_ok();
+            let has_yay = Command::new("yay").args(["--version"]).output().is_ok();
+
+            if has_paru {
+                tracing::debug!("Trying paru -Fl {} for AUR package file list", name);
+                if let Ok(output) = Command::new("paru")
+                    .args(["-Fl", name])
+                    .env("LC_ALL", "C")
+                    .env("LANG", "C")
+                    .output()
+                    && output.status.success()
+                {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    let mut files = Vec::new();
+                    for line in text.lines() {
+                        if let Some((_pkg, path)) = line.split_once(' ') {
+                            files.push(path.to_string());
+                        }
+                    }
+                    if !files.is_empty() {
+                        tracing::debug!("Found {} files from paru -Fl for {}", files.len(), name);
+                        return Ok(files);
+                    }
+                }
+            }
+
+            if has_yay {
+                tracing::debug!("Trying yay -Fl {} for AUR package file list", name);
+                if let Ok(output) = Command::new("yay")
+                    .args(["-Fl", name])
+                    .env("LC_ALL", "C")
+                    .env("LANG", "C")
+                    .output()
+                    && output.status.success()
+                {
+                    let text = String::from_utf8_lossy(&output.stdout);
+                    let mut files = Vec::new();
+                    for line in text.lines() {
+                        if let Some((_pkg, path)) = line.split_once(' ') {
+                            files.push(path.to_string());
+                        }
+                    }
+                    if !files.is_empty() {
+                        tracing::debug!("Found {} files from yay -Fl for {}", files.len(), name);
+                        return Ok(files);
+                    }
+                }
+            }
+
+            // Fallback: try to parse PKGBUILD to extract install paths
+            match fetch_pkgbuild_sync(name) {
+                Ok(pkgbuild) => {
+                    let files = parse_install_paths_from_pkgbuild(&pkgbuild, name);
+                    if !files.is_empty() {
+                        tracing::debug!(
+                            "Found {} files from PKGBUILD parsing for {}",
+                            files.len(),
+                            name
+                        );
+                        return Ok(files);
+                    }
+                }
+                Err(e) => {
+                    tracing::debug!("Failed to fetch PKGBUILD for {}: {}", name, e);
+                }
+            }
+
+            // No file list available
             tracing::debug!(
-                "AUR package {}: file list not available without build",
+                "AUR package {}: file list not available (not installed, not cached, PKGBUILD parsing failed)",
                 name
             );
             Ok(Vec::new())
@@ -468,7 +738,7 @@ fn get_remote_file_list(name: &str, source: &Source) -> Result<Vec<String>, Stri
 ///
 /// Details:
 /// - Logs errors if the command fails for reasons other than the package being absent.
-fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
+pub fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
     tracing::debug!("Running: pacman -Ql {}", name);
     let output = Command::new("pacman")
         .args(["-Ql", name])
@@ -537,21 +807,60 @@ fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, String> 
     // Second try: parse from PKGBUILD/.SRCINFO (best-effort, may fail)
     match source {
         Source::Official { .. } => {
-            // For official packages, we could fetch PKGBUILD, but that's expensive
-            // For now, return empty (can be enhanced later)
-            tracing::debug!(
-                "Backup files for official package {}: not available without PKGBUILD fetch",
-                name
-            );
+            // Try to fetch PKGBUILD and parse backup array
+            match fetch_pkgbuild_sync(name) {
+                Ok(pkgbuild) => {
+                    let backup_files = parse_backup_from_pkgbuild(&pkgbuild);
+                    if !backup_files.is_empty() {
+                        tracing::debug!(
+                            "Found {} backup files from PKGBUILD for {}",
+                            backup_files.len(),
+                            name
+                        );
+                        return Ok(backup_files);
+                    }
+                }
+                Err(e) => {
+                    tracing::debug!("Failed to fetch PKGBUILD for {}: {}", name, e);
+                }
+            }
             Ok(Vec::new())
         }
         Source::Aur => {
-            // For AUR packages, we could fetch .SRCINFO, but that's expensive
-            // For now, return empty (can be enhanced later)
-            tracing::debug!(
-                "Backup files for AUR package {}: not available without .SRCINFO fetch",
-                name
-            );
+            // Try to fetch .SRCINFO first (more reliable for AUR)
+            match fetch_srcinfo_sync(name) {
+                Ok(srcinfo) => {
+                    let backup_files = parse_backup_from_srcinfo(&srcinfo);
+                    if !backup_files.is_empty() {
+                        tracing::debug!(
+                            "Found {} backup files from .SRCINFO for {}",
+                            backup_files.len(),
+                            name
+                        );
+                        return Ok(backup_files);
+                    }
+                }
+                Err(e) => {
+                    tracing::debug!("Failed to fetch .SRCINFO for {}: {}", name, e);
+                }
+            }
+            // Fallback to PKGBUILD if .SRCINFO failed
+            match fetch_pkgbuild_sync(name) {
+                Ok(pkgbuild) => {
+                    let backup_files = parse_backup_from_pkgbuild(&pkgbuild);
+                    if !backup_files.is_empty() {
+                        tracing::debug!(
+                            "Found {} backup files from PKGBUILD for {}",
+                            backup_files.len(),
+                            name
+                        );
+                        return Ok(backup_files);
+                    }
+                }
+                Err(e) => {
+                    tracing::debug!("Failed to fetch PKGBUILD for {}: {}", name, e);
+                }
+            }
             Ok(Vec::new())
         }
     }
@@ -633,7 +942,398 @@ fn get_backup_files_from_installed(name: &str) -> Result<Vec<String>, String> {
     Ok(backup_files)
 }
 
-#[cfg(test)]
+/// What: Fetch PKGBUILD content synchronously (blocking).
+///
+/// Inputs:
+/// - `name`: Package name.
+///
+/// Output:
+/// - Returns PKGBUILD content as a string, or an error if fetch fails.
+///
+/// Details:
+/// - Uses curl to fetch PKGBUILD from AUR or official GitLab repos.
+pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
+    // Try AUR first (works for both AUR and official packages via AUR mirror)
+    let url_aur = format!(
+        "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h={}",
+        percent_encode(name)
+    );
+    tracing::debug!("Fetching PKGBUILD from AUR: {}", url_aur);
+
+    let args = curl_args(&url_aur, &[]);
+    let output = Command::new("curl").args(&args).output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let text = String::from_utf8_lossy(&output.stdout).to_string();
+            if !text.trim().is_empty() && text.contains("pkgname") {
+                return Ok(text);
+            }
+        }
+        _ => {}
+    }
+
+    // Fallback to official GitLab repos
+    let url_main = format!(
+        "https://gitlab.archlinux.org/archlinux/packaging/packages/{}/-/raw/main/PKGBUILD",
+        percent_encode(name)
+    );
+    tracing::debug!("Fetching PKGBUILD from GitLab main: {}", url_main);
+
+    let args = curl_args(&url_main, &[]);
+    let output = Command::new("curl").args(&args).output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let text = String::from_utf8_lossy(&output.stdout).to_string();
+            if !text.trim().is_empty() {
+                return Ok(text);
+            }
+        }
+        _ => {}
+    }
+
+    // Try master branch as fallback
+    let url_master = format!(
+        "https://gitlab.archlinux.org/archlinux/packaging/packages/{}/-/raw/master/PKGBUILD",
+        percent_encode(name)
+    );
+    tracing::debug!("Fetching PKGBUILD from GitLab master: {}", url_master);
+
+    let args = curl_args(&url_master, &[]);
+    let output = Command::new("curl")
+        .args(&args)
+        .output()
+        .map_err(|e| format!("curl failed: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "curl failed with status: {:?}",
+            output.status.code()
+        ));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout).to_string();
+    if text.trim().is_empty() {
+        return Err("Empty PKGBUILD content".to_string());
+    }
+
+    Ok(text)
+}
+
+/// What: Fetch .SRCINFO content synchronously (blocking).
+///
+/// Inputs:
+/// - `name`: AUR package name.
+///
+/// Output:
+/// - Returns .SRCINFO content as a string, or an error if fetch fails.
+///
+/// Details:
+/// - Downloads .SRCINFO from AUR cgit repository.
+fn fetch_srcinfo_sync(name: &str) -> Result<String, String> {
+    let url = format!(
+        "https://aur.archlinux.org/cgit/aur.git/plain/.SRCINFO?h={}",
+        percent_encode(name)
+    );
+    tracing::debug!("Fetching .SRCINFO from: {}", url);
+
+    let args = curl_args(&url, &[]);
+    let output = Command::new("curl")
+        .args(&args)
+        .output()
+        .map_err(|e| format!("curl failed: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "curl failed with status: {:?}",
+            output.status.code()
+        ));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout).to_string();
+    if text.trim().is_empty() {
+        return Err("Empty .SRCINFO content".to_string());
+    }
+
+    Ok(text)
+}
+
+/// What: Parse backup array from PKGBUILD content.
+///
+/// Inputs:
+/// - `pkgbuild`: Raw PKGBUILD file content.
+///
+/// Output:
+/// - Returns a vector of backup file paths.
+///
+/// Details:
+/// - Parses bash array syntax: `backup=('file1' 'file2' '/etc/config')`
+/// - Handles single-line and multi-line array definitions.
+fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
+    let mut backup_files = Vec::new();
+    let mut in_backup_array = false;
+    let mut current_line = String::new();
+
+    for line in pkgbuild.lines() {
+        let line = line.trim();
+
+        // Skip comments and empty lines
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        // Look for backup= array declaration
+        if line.starts_with("backup=") || line.starts_with("backup =") {
+            in_backup_array = true;
+            current_line = line.to_string();
+
+            // Check if array is on single line: backup=('file1' 'file2')
+            if let Some(start) = line.find('(')
+                && let Some(end) = line.rfind(')')
+            {
+                let array_content = &line[start + 1..end];
+                parse_backup_array_content(array_content, &mut backup_files);
+                in_backup_array = false;
+                current_line.clear();
+            } else if line.contains('(') {
+                // Multi-line array starting
+                if let Some(start) = line.find('(') {
+                    let array_content = &line[start + 1..];
+                    parse_backup_array_content(array_content, &mut backup_files);
+                }
+            }
+        } else if in_backup_array {
+            // Continuation of multi-line array
+            current_line.push(' ');
+            current_line.push_str(line);
+
+            // Check if array ends
+            if line.contains(')') {
+                if let Some(end) = line.rfind(')') {
+                    let remaining = &line[..end];
+                    parse_backup_array_content(remaining, &mut backup_files);
+                }
+                in_backup_array = false;
+                current_line.clear();
+            } else {
+                // Still in array, parse this line
+                parse_backup_array_content(line, &mut backup_files);
+            }
+        }
+    }
+
+    backup_files
+}
+
+/// What: Parse backup array content (handles quoted strings).
+///
+/// Inputs:
+/// - `content`: String content containing quoted file paths.
+/// - `backup_files`: Vector to append parsed file paths to.
+///
+/// Details:
+/// - Extracts quoted strings (single or double quotes) from array content.
+fn parse_backup_array_content(content: &str, backup_files: &mut Vec<String>) {
+    let mut in_quotes = false;
+    let mut quote_char = '\0';
+    let mut current_file = String::new();
+
+    for ch in content.chars() {
+        match ch {
+            '\'' | '"' => {
+                if !in_quotes {
+                    in_quotes = true;
+                    quote_char = ch;
+                } else if ch == quote_char {
+                    // End of quoted string
+                    if !current_file.is_empty() {
+                        backup_files.push(current_file.clone());
+                        current_file.clear();
+                    }
+                    in_quotes = false;
+                    quote_char = '\0';
+                } else {
+                    // Different quote type, treat as part of string
+                    current_file.push(ch);
+                }
+            }
+            _ if in_quotes => {
+                current_file.push(ch);
+            }
+            _ => {
+                // Skip whitespace and other characters outside quotes
+            }
+        }
+    }
+
+    // Handle unclosed quote (edge case)
+    if !current_file.is_empty() && in_quotes {
+        backup_files.push(current_file);
+    }
+}
+
+/// What: Parse backup array from .SRCINFO content.
+///
+/// Inputs:
+/// - `srcinfo`: Raw .SRCINFO file content.
+///
+/// Output:
+/// - Returns a vector of backup file paths.
+///
+/// Details:
+/// - Parses key-value pairs: `backup = file1`
+/// - Handles multiple backup entries.
+fn parse_backup_from_srcinfo(srcinfo: &str) -> Vec<String> {
+    let mut backup_files = Vec::new();
+
+    for line in srcinfo.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        // .SRCINFO format: backup = file_path
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim();
+            let value = value.trim();
+
+            if key == "backup" && !value.is_empty() {
+                backup_files.push(value.to_string());
+            }
+        }
+    }
+
+    backup_files
+}
+
+/// What: Parse install paths from PKGBUILD content.
+///
+/// Inputs:
+/// - `pkgbuild`: Raw PKGBUILD file content.
+/// - `pkgname`: Package name (used for default install paths).
+///
+/// Output:
+/// - Returns a vector of file paths that would be installed.
+///
+/// Details:
+/// - Parses `package()` functions and `install` scripts to extract file paths.
+/// - Handles common patterns like `install -Dm755`, `cp`, `mkdir -p`, etc.
+/// - Extracts paths from `package()` functions that use `install` commands.
+/// - This is a best-effort heuristic and may not capture all files.
+pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<String> {
+    let mut files = Vec::new();
+    let mut in_package_function = false;
+    let mut package_function_depth = 0;
+
+    for line in pkgbuild.lines() {
+        let trimmed = line.trim();
+
+        // Skip comments and empty lines
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        // Detect package() function start
+        if trimmed.starts_with("package()") || trimmed.starts_with("package_") {
+            in_package_function = true;
+            package_function_depth = 0;
+            continue;
+        }
+
+        // Track function depth (handle nested functions)
+        if in_package_function {
+            if trimmed.contains('{') {
+                package_function_depth += trimmed.matches('{').count();
+            }
+            if trimmed.contains('}') {
+                let closing_count = trimmed.matches('}').count();
+                if package_function_depth >= closing_count {
+                    package_function_depth -= closing_count;
+                } else {
+                    package_function_depth = 0;
+                }
+                if package_function_depth == 0 {
+                    in_package_function = false;
+                    continue;
+                }
+            }
+
+            // Parse install commands within package() function
+            // Common patterns:
+            // install -Dm755 "$srcdir/binary" "$pkgdir/usr/bin/binary"
+            // install -Dm644 "$srcdir/config" "$pkgdir/etc/config"
+            // cp -r "$srcdir/data" "$pkgdir/usr/share/app"
+
+            if trimmed.contains("install") && trimmed.contains("$pkgdir") {
+                // Extract destination path from install command
+                // Pattern: install ... "$pkgdir/path/to/file"
+                if let Some(pkgdir_pos) = trimmed.find("$pkgdir") {
+                    let after_pkgdir = &trimmed[pkgdir_pos + 7..]; // Skip "$pkgdir"
+                    // Find the path (may be quoted)
+                    let path_start = after_pkgdir
+                        .chars()
+                        .position(|c| c != ' ' && c != '/' && c != '"' && c != '\'')
+                        .unwrap_or(0);
+                    let path_part = &after_pkgdir[path_start..];
+
+                    // Extract path until space, quote, or end
+                    let path_end = path_part
+                        .chars()
+                        .position(|c| c == ' ' || c == '"' || c == '\'' || c == ';')
+                        .unwrap_or(path_part.len());
+
+                    let mut path = path_part[..path_end].to_string();
+                    // Remove leading slash if present (we'll add it)
+                    if path.starts_with('/') {
+                        path.remove(0);
+                    }
+                    if !path.is_empty() {
+                        files.push(format!("/{}", path));
+                    }
+                }
+            } else if trimmed.contains("cp") && trimmed.contains("$pkgdir") {
+                // Extract destination from cp command
+                // Pattern: cp ... "$pkgdir/path/to/file"
+                if let Some(pkgdir_pos) = trimmed.find("$pkgdir") {
+                    let after_pkgdir = &trimmed[pkgdir_pos + 7..];
+                    let path_start = after_pkgdir
+                        .chars()
+                        .position(|c| c != ' ' && c != '/' && c != '"' && c != '\'')
+                        .unwrap_or(0);
+                    let path_part = &after_pkgdir[path_start..];
+                    let path_end = path_part
+                        .chars()
+                        .position(|c| c == ' ' || c == '"' || c == '\'' || c == ';')
+                        .unwrap_or(path_part.len());
+
+                    let mut path = path_part[..path_end].to_string();
+                    if path.starts_with('/') {
+                        path.remove(0);
+                    }
+                    if !path.is_empty() {
+                        files.push(format!("/{}", path));
+                    }
+                }
+            }
+        }
+    }
+
+    // Remove duplicates and sort
+    files.sort();
+    files.dedup();
+
+    // If we didn't find any files, try to infer common paths based on package name
+    if files.is_empty() {
+        // Common default paths for AUR packages
+        files.push(format!("/usr/bin/{}", pkgname));
+        files.push(format!("/usr/share/{}", pkgname));
+    }
+
+    files
+}
+
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::state::modal::FileChangeType;
@@ -679,9 +1379,67 @@ mod tests {
         let path = dir.join(name);
         let mut file = fs::File::create(&path).expect("create stub");
         file.write_all(body.as_bytes()).expect("write stub");
-        let mut perms = fs::metadata(&path).expect("metadata").permissions();
+        let mut perms = fs::metadata(&path).expect("meta").permissions();
         perms.set_mode(0o755);
         fs::set_permissions(&path, perms).expect("chmod stub");
+    }
+
+    #[test]
+    fn test_parse_backup_from_pkgbuild_single_line() {
+        let pkgbuild = r#"
+pkgname=test
+pkgver=1.0
+backup=('/etc/config' '/etc/other.conf')
+"#;
+        let backup_files = parse_backup_from_pkgbuild(pkgbuild);
+        assert_eq!(backup_files.len(), 2);
+        assert!(backup_files.contains(&"/etc/config".to_string()));
+        assert!(backup_files.contains(&"/etc/other.conf".to_string()));
+    }
+
+    #[test]
+    fn test_parse_backup_from_pkgbuild_multi_line() {
+        let pkgbuild = r#"
+pkgname=test
+pkgver=1.0
+backup=(
+    '/etc/config'
+    '/etc/other.conf'
+    '/etc/more.conf'
+)
+"#;
+        let backup_files = parse_backup_from_pkgbuild(pkgbuild);
+        assert_eq!(backup_files.len(), 3);
+        assert!(backup_files.contains(&"/etc/config".to_string()));
+        assert!(backup_files.contains(&"/etc/other.conf".to_string()));
+        assert!(backup_files.contains(&"/etc/more.conf".to_string()));
+    }
+
+    #[test]
+    fn test_parse_backup_from_srcinfo() {
+        let srcinfo = r#"
+pkgbase = test-package
+pkgname = test-package
+pkgver = 1.0.0
+backup = /etc/config
+backup = /etc/other.conf
+backup = /etc/more.conf
+"#;
+        let backup_files = parse_backup_from_srcinfo(srcinfo);
+        assert_eq!(backup_files.len(), 3);
+        assert!(backup_files.contains(&"/etc/config".to_string()));
+        assert!(backup_files.contains(&"/etc/other.conf".to_string()));
+        assert!(backup_files.contains(&"/etc/more.conf".to_string()));
+    }
+
+    #[test]
+    fn test_parse_backup_array_content() {
+        let content = "'/etc/config' '/etc/other.conf'";
+        let mut backup_files = Vec::new();
+        parse_backup_array_content(content, &mut backup_files);
+        assert_eq!(backup_files.len(), 2);
+        assert!(backup_files.contains(&"/etc/config".to_string()));
+        assert!(backup_files.contains(&"/etc/other.conf".to_string()));
     }
 
     #[test]

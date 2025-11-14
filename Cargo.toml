@@ -1,6 +1,6 @@
 [package]
 name = "pacsea"
-version = "0.4.5"
+version = "0.5.0"
 edition = "2024"
 
 [dependencies]
@@ -9,6 +9,7 @@ crossterm = "0.29.0"
 ratatui = "0.29.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
+serde_norway = "0.9"  # Maintained fork of deprecated serde_yaml
 tokio = { version = "1.48.0", features = [
   "macros",
   "rt-multi-thread",
@@ -19,6 +20,9 @@ tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "time"] }
 which = "8.0.0"
+reqwest = { version = "0.12", features = [] }
+futures = "0.3"
 
 [dev-dependencies]
 tempfile = "3.10"
+syn = { version = "2.0", features = ["full", "parsing", "extra-traits"] }

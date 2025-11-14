@@ -80,7 +80,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         }
     }
     // Desired keys and their values from prefs
-    let pairs: [(&str, String); 16] = [
+    let pairs: [(&str, String); 17] = [
         ("layout_left_pct", prefs.layout_left_pct.to_string()),
         ("layout_center_pct", prefs.layout_center_pct.to_string()),
         ("layout_right_pct", prefs.layout_right_pct.to_string()),
@@ -137,6 +137,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
             }
             .to_string(),
         ),
+        ("locale", prefs.locale.clone()),
     ];
     let mut appended_any = false;
     // Ensure scan toggles exist; default to true when missing

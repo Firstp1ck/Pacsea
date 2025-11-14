@@ -1,12 +1,10 @@
-use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::sync::{OnceLock, RwLock};
 
 use super::config::{
     THEME_SKELETON_CONTENT, load_theme_from_file, try_load_theme_with_diagnostics,
 };
-use super::paths::resolve_theme_config_path;
+use super::paths::{config_dir, resolve_theme_config_path};
 use super::types::Theme;
 
 /// Global theme store with live-reload capability.
@@ -54,26 +52,22 @@ fn load_initial_theme_or_exit() -> Theme {
         }
         std::process::exit(1);
     } else {
-        // No config found: write default skeleton to $XDG_CONFIG_HOME/pacsea/theme.conf
-        let xdg_base = env::var("XDG_CONFIG_HOME")
-            .ok()
-            .map(PathBuf::from)
-            .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")));
-        if let Some(base) = xdg_base {
-            let target = base.join("pacsea").join("theme.conf");
-            if !target.exists() {
-                if let Some(dir) = target.parent() {
-                    let _ = fs::create_dir_all(dir);
-                }
-                let _ = fs::write(&target, THEME_SKELETON_CONTENT);
+        // No config found: write default skeleton to config_dir()/theme.conf
+        let config_directory = config_dir();
+        let target = config_directory.join("theme.conf");
+        if !target.exists() {
+            if let Some(dir) = target.parent() {
+                let _ = fs::create_dir_all(dir);
             }
-            if let Some(t) = load_theme_from_file(&target) {
-                tracing::info!(path = %target.display(), "initialized theme from default path");
-                return t;
-            }
+            let _ = fs::write(&target, THEME_SKELETON_CONTENT);
+        }
+        if let Some(t) = load_theme_from_file(&target) {
+            tracing::info!(path = %target.display(), "initialized theme from default path");
+            return t;
         }
         tracing::error!(
-            "theme configuration missing or incomplete. Please edit $XDG_CONFIG_HOME/pacsea/theme.conf (or ~/.config/pacsea/theme.conf)."
+            path = %target.display(),
+            "theme configuration missing or incomplete. Please edit the theme.conf file at the path shown above."
         );
         std::process::exit(1);
     }
@@ -108,14 +102,7 @@ pub fn theme() -> Theme {
 /// - Keeps the in-memory cache up to date so the UI can refresh without restarting Pacsea.
 /// - Returns an error if the theme file is missing or contains validation problems.
 pub fn reload_theme() -> std::result::Result<(), String> {
-    let path = resolve_theme_config_path().or_else(|| {
-        env::var("HOME").ok().map(|h| {
-            Path::new(&h)
-                .join(".config")
-                .join("pacsea")
-                .join("theme.conf")
-        })
-    });
+    let path = resolve_theme_config_path().or_else(|| Some(config_dir().join("theme.conf")));
     let Some(p) = path else {
         return Err("No theme configuration file found".to_string());
     };

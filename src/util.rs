@@ -5,6 +5,18 @@
 //! indexing, and UI code.
 use serde_json::Value;
 
+/// Ensure mouse capture is enabled for the TUI.
+///
+/// This function should be called after spawning external processes (like terminals)
+/// that might disable mouse capture. It's safe to call multiple times.
+pub fn ensure_mouse_capture() {
+    #[cfg(not(target_os = "windows"))]
+    {
+        use crossterm::execute;
+        let _ = execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+    }
+}
+
 /// Percent-encode a string for use in URLs.
 ///
 /// Encoding rules:
@@ -238,6 +250,62 @@ fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
+/// Open a file in the default editor (cross-platform).
+///
+/// On Windows, uses PowerShell's `Invoke-Item` to open files with the default application.
+/// On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
+///
+/// This function spawns the command in a background thread and ignores errors.
+pub fn open_file(path: &std::path::Path) {
+    std::thread::spawn({
+        let path = path.to_path_buf();
+        move || {
+            #[cfg(target_os = "windows")]
+            {
+                // Use PowerShell to open file with default application
+                let path_str = path.display().to_string().replace("'", "''");
+                let _ = std::process::Command::new("powershell.exe")
+                    .args([
+                        "-NoProfile",
+                        "-Command",
+                        &format!("Invoke-Item '{}'", path_str),
+                    ])
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .or_else(|_| {
+                        // Fallback: try cmd start
+                        std::process::Command::new("cmd")
+                            .args(["/c", "start", "", &path.display().to_string()])
+                            .stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn()
+                    });
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                // Try xdg-open first (Linux), then open (macOS)
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(&path)
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .or_else(|_| {
+                        std::process::Command::new("open")
+                            .arg(&path)
+                            .stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .spawn()
+                    });
+            }
+        }
+    });
+}
+
 /// Open a URL in the default browser (cross-platform).
 ///
 /// On Windows, uses `cmd /c start`.
@@ -287,6 +355,43 @@ pub fn open_url(url: &str) {
             }
         }
     });
+}
+
+/// Build curl command arguments for fetching a URL.
+///
+/// On Windows, adds `-k` flag to skip SSL certificate verification to work around
+/// common SSL certificate issues (exit code 77). On other platforms, uses standard
+/// SSL verification.
+///
+/// Inputs:
+/// - `url`: The URL to fetch
+/// - `extra_args`: Additional curl arguments (e.g., `["--max-time", "10"]`)
+///
+/// Output:
+/// - Vector of curl arguments ready to pass to `Command::args()`
+///
+/// Details:
+/// - Base arguments: `-sSLf` (silent, show errors, follow redirects, fail on HTTP errors)
+/// - Windows: Adds `-k` to skip SSL verification
+/// - Appends `extra_args` and `url` at the end
+pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
+    let mut args = vec!["-sSLf".to_string()];
+
+    #[cfg(target_os = "windows")]
+    {
+        // Skip SSL certificate verification on Windows to avoid exit code 77
+        args.push("-k".to_string());
+    }
+
+    // Add any extra arguments
+    for arg in extra_args {
+        args.push((*arg).to_string());
+    }
+
+    // URL goes last
+    args.push(url.to_string());
+
+    args
 }
 
 /// Return today's UTC date formatted as `YYYYMMDD` using only the standard library.

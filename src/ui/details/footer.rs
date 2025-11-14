@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::{AppState, Focus, RightPaneFocus};
 use crate::theme::{KeyChord, theme};
 
@@ -88,21 +89,21 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let Some(k) = km.exit.first() {
             g_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Exit"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.exit"))),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.help_overlay.first() {
             g_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Help"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.help"))),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.reload_theme.first() {
             g_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Reload theme"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.reload_theme"))),
                 sep.clone(),
             ]);
         }
@@ -110,7 +111,10 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let Some(k) = km.show_pkgbuild.first() {
             g_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Show/Hide PKGBUILD"),
+                Span::raw(format!(
+                    " {}",
+                    i18n::t(app, "app.actions.show_hide_pkgbuild")
+                )),
                 sep.clone(),
             ]);
         }
@@ -118,14 +122,14 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let Some(k) = km.change_sort.first() {
             g_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Change Sort Mode"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.change_sort_mode"))),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.search_normal_toggle.first() {
             g_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Insert Mode"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.insert_mode"))),
                 sep.clone(),
             ]);
         }
@@ -145,7 +149,7 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
             s_spans.extend([
                 Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
-                Span::raw(" Move"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.move"))),
                 sep.clone(),
             ]);
         }
@@ -153,7 +157,7 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
             s_spans.extend([
                 Span::styled(format!("[{} / {}]", pu.label(), pd.label()), key_style),
-                Span::raw(" Move Page"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.move_page"))),
                 sep.clone(),
             ]);
         }
@@ -161,25 +165,28 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let Some(k) = km.search_add.first() {
             s_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(if app.installed_only_mode {
-                    " Add to Remove"
-                } else {
-                    " Add to install"
-                }),
+                Span::raw(format!(
+                    " {}",
+                    if app.installed_only_mode {
+                        i18n::t(app, "app.actions.add_to_remove")
+                    } else {
+                        i18n::t(app, "app.actions.add_to_install")
+                    }
+                )),
                 sep.clone(),
             ]);
         }
         if app.installed_only_mode {
             s_spans.extend([
                 Span::styled("[Ctrl+Space]", key_style),
-                Span::raw(" Add to Downgrade"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.add_to_downgrade"))),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.search_install.first() {
             s_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Install"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.install"))),
                 sep.clone(),
             ]);
         }
@@ -201,7 +208,7 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
             {
                 spans.extend([
                     Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
-                    Span::raw(" Move"),
+                    Span::raw(format!(" {}", i18n::t(app, "app.actions.move"))),
                     sep.clone(),
                 ]);
             }
@@ -221,28 +228,31 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
                     .join(" / ");
                 spans.extend([
                     Span::styled(format!("[{keys}]"), key_style),
-                    Span::raw(" Remove from List"),
+                    Span::raw(format!(" {}", i18n::t(app, "app.actions.remove_from_list"))),
                     sep.clone(),
                 ]);
             }
             if let Some(k) = km.install_clear.first() {
                 spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Clear"),
+                    Span::raw(format!(" {}", i18n::t(app, "app.actions.clear"))),
                     sep.clone(),
                 ]);
             }
             if let Some(k) = km.install_find.first() {
                 spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Search (Enter next, Esc cancel)"),
+                    Span::raw(format!(
+                        " {}",
+                        i18n::t(app, "app.details.footer.search_hint")
+                    )),
                     sep.clone(),
                 ]);
             }
             if let Some(k) = km.install_to_search.first() {
                 spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Go to Search"),
+                    Span::raw(format!(" {}", i18n::t(app, "app.actions.go_to_search"))),
                     sep.clone(),
                 ]);
             }
@@ -251,17 +261,20 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
 
         let (right_lines_install, right_lines_split) = if app.installed_only_mode {
             let d_spans = build_right_spans(
-                "DOWNGRADE:",
+                &format!("{}:", i18n::t(app, "app.headings.downgrade")),
                 downgrade_label_color,
-                "Confirm package Downgrade",
+                &i18n::t(app, "app.details.footer.confirm_downgrade"),
             );
-            let r_spans =
-                build_right_spans("REMOVE:   ", remove_label_color, "Confirm package Removal");
+            let r_spans = build_right_spans(
+                &format!("{}:   ", i18n::t(app, "app.headings.remove")),
+                remove_label_color,
+                &i18n::t(app, "app.details.footer.confirm_removal"),
+            );
             (None, Some((Line::from(d_spans), Line::from(r_spans))))
         } else {
             let mut i_spans: Vec<Span> = vec![
                 Span::styled(
-                    "INSTALL:  ",
+                    format!("{}:  ", i18n::t(app, "app.headings.install")),
                     Style::default()
                         .fg(install_label_color)
                         .add_modifier(Modifier::BOLD),
@@ -272,14 +285,17 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
             {
                 i_spans.extend([
                     Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
-                    Span::raw(" Move"),
+                    Span::raw(format!(" {}", i18n::t(app, "app.actions.move"))),
                     sep.clone(),
                 ]);
             }
             if let Some(k) = km.install_confirm.first() {
                 i_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Confirm"),
+                    Span::raw(format!(
+                        " {}",
+                        i18n::t(app, "app.details.footer.confirm_installation")
+                    )),
                     sep.clone(),
                 ]);
             }
@@ -292,28 +308,31 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
                     .join(" / ");
                 i_spans.extend([
                     Span::styled(format!("[{keys}]"), key_style),
-                    Span::raw(" Remove from List"),
+                    Span::raw(format!(" {}", i18n::t(app, "app.actions.remove_from_list"))),
                     sep.clone(),
                 ]);
             }
             if let Some(k) = km.install_clear.first() {
                 i_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Clear"),
+                    Span::raw(format!(" {}", i18n::t(app, "app.actions.clear"))),
                     sep.clone(),
                 ]);
             }
             if let Some(k) = km.install_find.first() {
                 i_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Search (Enter next, Esc cancel)"),
+                    Span::raw(format!(
+                        " {}",
+                        i18n::t(app, "app.details.footer.search_hint")
+                    )),
                     sep.clone(),
                 ]);
             }
             if let Some(k) = km.install_to_search.first() {
                 i_spans.extend([
                     Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(" Go to Search"),
+                    Span::raw(format!(" {}", i18n::t(app, "app.actions.go_to_search"))),
                     sep.clone(),
                 ]);
             }
@@ -333,14 +352,14 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
             r_spans.extend([
                 Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
-                Span::raw(" Move"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.move"))),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.recent_use.first() {
             r_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Add to Search"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.add_to_search"))),
                 sep.clone(),
             ]);
         }
@@ -353,7 +372,7 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
                 .join(" / ");
             r_spans.extend([
                 Span::styled(format!("[{keys}]"), key_style),
-                Span::raw(" Remove from List"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.remove_from_list"))),
                 sep.clone(),
             ]);
         }
@@ -361,28 +380,34 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         if let Some(k) = km.recent_clear.first() {
             r_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Clear"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.clear"))),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.recent_add.first() {
             r_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Add first match to Install list"),
+                Span::raw(format!(
+                    " {}",
+                    i18n::t(app, "app.actions.add_first_match_to_install")
+                )),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.recent_find.first() {
             r_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Search (Enter next, Esc cancel)"),
+                Span::raw(format!(
+                    " {}",
+                    i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel")
+                )),
                 sep.clone(),
             ]);
         }
         if let Some(k) = km.recent_to_search.first() {
             r_spans.extend([
                 Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(" Go to Search"),
+                Span::raw(format!(" {}", i18n::t(app, "app.actions.go_to_search"))),
                 sep.clone(),
             ]);
         }

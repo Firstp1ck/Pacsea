@@ -3,7 +3,7 @@
 use crate::state::modal::{DependencyInfo, DependencySource, DependencyStatus, ReverseRootSummary};
 use crate::state::types::PackageItem;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque, hash_map::Entry};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// What: Aggregate data produced by the reverse dependency walk for removal checks.
 ///
@@ -474,6 +474,9 @@ fn fetch_pkg_info(name: &str) -> Result<PkgInfo, String> {
         .args(["-Qi", name])
         .env("LC_ALL", "C")
         .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .map_err(|e| format!("pacman -Qi {} failed: {}", name, e))?;
 

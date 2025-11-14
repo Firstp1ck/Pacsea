@@ -13,6 +13,7 @@ use ratatui::{
 };
 
 use crate::{
+    i18n,
     state::{AppState, Focus},
     theme::Theme,
 };
@@ -63,42 +64,102 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
     };
     // Each line is a label/value pair derived from the current details view.
     let mut lines = vec![
-        kv("Repository", repo_display, th),
-        kv("Package Name", d.name.clone(), th),
-        kv("Version", d.version.clone(), th),
-        kv("Description", d.description.clone(), th),
-        kv("Architecture", d.architecture.clone(), th),
-        kv("URL", d.url.clone(), th),
-        kv("Licences", join(&d.licenses), th),
-        kv("Provides", join(&d.provides), th),
-        kv("Depends on", join(&d.depends), th),
-        kv("Optional dependencies", join(&d.opt_depends), th),
-        kv("Required by", join(&d.required_by), th),
-        kv("Optional for", join(&d.optional_for), th),
-        kv("Conflicts with", join(&d.conflicts), th),
-        kv("Replaces", join(&d.replaces), th),
         kv(
-            "Download size",
+            &i18n::t(app, "app.details.fields.repository"),
+            repo_display,
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.package_name"),
+            d.name.clone(),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.version"),
+            d.version.clone(),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.description"),
+            d.description.clone(),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.architecture"),
+            d.architecture.clone(),
+            th,
+        ),
+        kv(&i18n::t(app, "app.details.fields.url"), d.url.clone(), th),
+        kv(
+            &i18n::t(app, "app.details.fields.licences"),
+            join(&d.licenses),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.provides"),
+            join(&d.provides),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.depends_on"),
+            join(&d.depends),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.optional_dependencies"),
+            join(&d.opt_depends),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.required_by"),
+            join(&d.required_by),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.optional_for"),
+            join(&d.optional_for),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.conflicts_with"),
+            join(&d.conflicts),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.replaces"),
+            join(&d.replaces),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.download_size"),
             d.download_size
                 .map(human_bytes)
-                .unwrap_or_else(|| "N/A".to_string()),
+                .unwrap_or_else(|| i18n::t(app, "app.details.fields.not_available")),
             th,
         ),
         kv(
-            "Install size",
+            &i18n::t(app, "app.details.fields.install_size"),
             d.install_size
                 .map(human_bytes)
-                .unwrap_or_else(|| "N/A".to_string()),
+                .unwrap_or_else(|| i18n::t(app, "app.details.fields.not_available")),
             th,
         ),
-        kv("Package Owner", d.owner.clone(), th),
-        kv("Build date", d.build_date.clone(), th),
+        kv(
+            &i18n::t(app, "app.details.fields.package_owner"),
+            d.owner.clone(),
+            th,
+        ),
+        kv(
+            &i18n::t(app, "app.details.fields.build_date"),
+            d.build_date.clone(),
+            th,
+        ),
     ];
     // Add a clickable helper line to Show/Hide PKGBUILD below Build date
     let pkgb_label = if app.pkgb_visible {
-        "Hide PKGBUILD"
+        i18n::t(app, "app.details.hide_pkgbuild")
     } else {
-        "Show PKGBUILD"
+        i18n::t(app, "app.details.show_pkgbuild")
     };
     lines.push(Line::from(vec![Span::styled(
         pkgb_label,
@@ -297,9 +358,238 @@ pub fn trigger_recent_preview(
     });
 }
 
+/// What: Check if a package is currently being processed by any preflight resolver.
+///
+/// Inputs:
+/// - `app`: Application state containing preflight resolution queues and flags.
+/// - `package_name`: Name of the package to check.
+///
+/// Output:
+/// - `true` if the package is in any preflight resolution queue and the corresponding resolver is active.
+///
+/// Details:
+/// - Checks if the package name appears in any of the preflight queues (summary, deps, files, services, sandbox)
+///   and if the corresponding resolving flag is set to true.
+/// - Also checks install list resolution (when preflight modal is not open) by checking if the package
+///   is in `app.install_list` and any resolver is active.
+pub fn is_package_loading_preflight(app: &AppState, package_name: &str) -> bool {
+    // Check summary resolution (preflight-specific)
+    if app.preflight_summary_resolving
+        && let Some((ref items, _)) = app.preflight_summary_items
+        && items.iter().any(|p| p.name == package_name)
+    {
+        return true;
+    }
+
+    // Check dependency resolution
+    // First check preflight-specific queue (when modal is open)
+    if app.preflight_deps_resolving
+        && let Some(ref items) = app.preflight_deps_items
+        && items.iter().any(|p| p.name == package_name)
+    {
+        return true;
+    }
+    // Then check install list resolution (when modal is not open)
+    // Only show indicator if deps are actually resolving AND package is in install list
+    if app.deps_resolving
+        && !app.preflight_deps_resolving
+        && app.install_list.iter().any(|p| p.name == package_name)
+    {
+        return true;
+    }
+
+    // Check file resolution
+    // First check preflight-specific queue (when modal is open)
+    if app.preflight_files_resolving
+        && let Some(ref items) = app.preflight_files_items
+        && items.iter().any(|p| p.name == package_name)
+    {
+        return true;
+    }
+    // Then check install list resolution (when modal is not open)
+    // Only show indicator if files are actually resolving AND preflight is not resolving
+    if app.files_resolving
+        && !app.preflight_files_resolving
+        && app.install_list.iter().any(|p| p.name == package_name)
+    {
+        return true;
+    }
+
+    // Check service resolution
+    // First check preflight-specific queue (when modal is open)
+    if app.preflight_services_resolving
+        && let Some(ref items) = app.preflight_services_items
+        && items.iter().any(|p| p.name == package_name)
+    {
+        return true;
+    }
+    // Then check install list resolution (when modal is not open)
+    // Only show indicator if services are actually resolving AND preflight is not resolving
+    if app.services_resolving
+        && !app.preflight_services_resolving
+        && app.install_list.iter().any(|p| p.name == package_name)
+    {
+        return true;
+    }
+
+    // Check sandbox resolution
+    // First check preflight-specific queue (when modal is open)
+    if app.preflight_sandbox_resolving
+        && let Some(ref items) = app.preflight_sandbox_items
+        && items.iter().any(|p| p.name == package_name)
+    {
+        return true;
+    }
+    // Then check install list resolution (when modal is not open)
+    // Note: sandbox only applies to AUR packages
+    // Only show indicator if sandbox is actually resolving AND preflight is not resolving
+    if app.sandbox_resolving
+        && !app.preflight_sandbox_resolving
+        && app
+            .install_list
+            .iter()
+            .any(|p| p.name == package_name && matches!(p.source, crate::state::Source::Aur))
+    {
+        return true;
+    }
+
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What: Initialize minimal English translations for tests.
+    ///
+    /// Inputs:
+    /// - `app`: AppState to populate with translations
+    ///
+    /// Output:
+    /// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
+    ///
+    /// Details:
+    /// - Sets up only the translations needed for tests to pass
+    fn init_test_translations(app: &mut crate::state::AppState) {
+        use std::collections::HashMap;
+        let mut translations = HashMap::new();
+        // Details fields
+        translations.insert(
+            "app.details.fields.repository".to_string(),
+            "Repository".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.package_name".to_string(),
+            "Package Name".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.version".to_string(),
+            "Version".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.description".to_string(),
+            "Description".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.architecture".to_string(),
+            "Architecture".to_string(),
+        );
+        translations.insert("app.details.fields.url".to_string(), "URL".to_string());
+        translations.insert(
+            "app.details.fields.licences".to_string(),
+            "Licences".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.provides".to_string(),
+            "Provides".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.depends_on".to_string(),
+            "Depends on".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.optional_dependencies".to_string(),
+            "Optional dependencies".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.required_by".to_string(),
+            "Required by".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.optional_for".to_string(),
+            "Optional for".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.conflicts_with".to_string(),
+            "Conflicts with".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.replaces".to_string(),
+            "Replaces".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.download_size".to_string(),
+            "Download size".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.install_size".to_string(),
+            "Install size".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.package_owner".to_string(),
+            "Package Owner".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.build_date".to_string(),
+            "Build date".to_string(),
+        );
+        translations.insert(
+            "app.details.fields.not_available".to_string(),
+            "N/A".to_string(),
+        );
+        translations.insert(
+            "app.details.show_pkgbuild".to_string(),
+            "Show PKGBUILD".to_string(),
+        );
+        translations.insert(
+            "app.details.hide_pkgbuild".to_string(),
+            "Hide PKGBUILD".to_string(),
+        );
+        translations.insert("app.details.url_label".to_string(), "URL:".to_string());
+        // Results
+        translations.insert("app.results.title".to_string(), "Results".to_string());
+        translations.insert("app.results.buttons.sort".to_string(), "Sort".to_string());
+        translations.insert(
+            "app.results.buttons.options".to_string(),
+            "Options".to_string(),
+        );
+        translations.insert(
+            "app.results.buttons.panels".to_string(),
+            "Panels".to_string(),
+        );
+        translations.insert(
+            "app.results.buttons.config_lists".to_string(),
+            "Config/Lists".to_string(),
+        );
+        translations.insert("app.results.filters.aur".to_string(), "AUR".to_string());
+        translations.insert("app.results.filters.core".to_string(), "core".to_string());
+        translations.insert("app.results.filters.extra".to_string(), "extra".to_string());
+        translations.insert(
+            "app.results.filters.multilib".to_string(),
+            "multilib".to_string(),
+        );
+        translations.insert("app.results.filters.eos".to_string(), "EOS".to_string());
+        translations.insert(
+            "app.results.filters.cachyos".to_string(),
+            "CachyOS".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.manjaro".to_string(),
+            "Manjaro".to_string(),
+        );
+        app.translations = translations.clone();
+        app.translations_fallback = translations;
+    }
 
     fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
         crate::state::PackageItem {
@@ -329,6 +619,7 @@ mod tests {
         let mut app = crate::state::AppState {
             ..Default::default()
         };
+        init_test_translations(&mut app);
         app.recent = vec!["alpha".into(), "bravo".into(), "charlie".into()];
         assert_eq!(filtered_recent_indices(&app), vec![0, 1, 2]);
         app.focus = crate::state::Focus::Recent;
@@ -383,6 +674,7 @@ mod tests {
         let mut app2 = crate::state::AppState {
             ..Default::default()
         };
+        init_test_translations(&mut app2);
         app2.details = app.details.clone();
         app2.pkgb_visible = true;
         let lines2 = format_details_lines(&app2, 80, &th);
@@ -408,6 +700,7 @@ mod tests {
         let mut app = crate::state::AppState {
             ..Default::default()
         };
+        init_test_translations(&mut app);
         app.details = crate::state::PackageDetails {
             repository: "extra".into(),
             name: "ripgrep".into(),

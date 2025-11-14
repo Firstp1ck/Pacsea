@@ -6,13 +6,15 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
-use crate::state::PackageItem;
+use crate::i18n;
+use crate::state::{AppState, PackageItem};
 use crate::theme::theme;
 
 /// What: Render the confirmation modal listing packages slated for installation.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
+/// - `app`: AppState for translations
 /// - `area`: Full screen area used to center the modal
 /// - `items`: Packages selected for installation
 ///
@@ -22,7 +24,7 @@ use crate::theme::theme;
 /// Details:
 /// - Highlights the heading, truncates the list to fit the modal, and shows instructions for
 ///   confirming, cancelling, or initiating security scans.
-pub fn render_confirm_install(f: &mut Frame, area: Rect, items: &[PackageItem]) {
+pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: &[PackageItem]) {
     let th = theme();
     let w = area.width.saturating_sub(6).min(90);
     let h = area.height.saturating_sub(6).min(20);
@@ -37,13 +39,13 @@ pub fn render_confirm_install(f: &mut Frame, area: Rect, items: &[PackageItem]) 
     f.render_widget(Clear, rect);
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
-        "Confirm installation",
+        i18n::t(app, "app.modals.confirm_install.heading"),
         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
     if items.is_empty() {
         lines.push(Line::from(Span::styled(
-            "Nothing to install",
+            i18n::t(app, "app.modals.confirm_install.none"),
             Style::default().fg(th.subtext1),
         )));
     } else {
@@ -55,18 +57,18 @@ pub fn render_confirm_install(f: &mut Frame, area: Rect, items: &[PackageItem]) 
         }
         if items.len() + 6 > h as usize {
             lines.push(Line::from(Span::styled(
-                "…",
+                i18n::t(app, "app.modals.confirm_install.list_ellipsis"),
                 Style::default().fg(th.subtext1),
             )));
         }
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "Press Enter to confirm or Esc to cancel",
+        i18n::t(app, "app.modals.confirm_install.confirm_hint"),
         Style::default().fg(th.subtext1),
     )));
     lines.push(Line::from(Span::styled(
-        "Press S to scan AUR package(s) before install",
+        i18n::t(app, "app.modals.confirm_install.scan_hint"),
         Style::default().fg(th.overlay1),
     )));
     let boxw = Paragraph::new(lines)
@@ -75,7 +77,7 @@ pub fn render_confirm_install(f: &mut Frame, area: Rect, items: &[PackageItem]) 
         .block(
             Block::default()
                 .title(Span::styled(
-                    " Confirm Install ",
+                    i18n::t(app, "app.modals.confirm_install.title"),
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)
@@ -90,6 +92,7 @@ pub fn render_confirm_install(f: &mut Frame, area: Rect, items: &[PackageItem]) 
 ///
 /// Inputs:
 /// - `f`: Frame to render into
+/// - `app`: AppState for translations
 /// - `area`: Full screen area used to center the modal
 /// - `items`: Packages scheduled for removal
 ///
@@ -99,7 +102,7 @@ pub fn render_confirm_install(f: &mut Frame, area: Rect, items: &[PackageItem]) 
 /// Details:
 /// - Emphasizes critical warnings when core packages are present, truncates long lists, and
 ///   instructs on confirm/cancel actions while matching the theme.
-pub fn render_confirm_remove(f: &mut Frame, area: Rect, items: &[PackageItem]) {
+pub fn render_confirm_remove(f: &mut Frame, app: &AppState, area: Rect, items: &[PackageItem]) {
     let th = theme();
     let w = area.width.saturating_sub(6).min(90);
     let h = area.height.saturating_sub(6).min(20);
@@ -114,7 +117,7 @@ pub fn render_confirm_remove(f: &mut Frame, area: Rect, items: &[PackageItem]) {
     f.render_widget(Clear, rect);
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
-        "Confirm removal",
+        i18n::t(app, "app.modals.confirm_remove.heading"),
         Style::default().fg(th.red).add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
@@ -125,14 +128,14 @@ pub fn render_confirm_remove(f: &mut Frame, area: Rect, items: &[PackageItem]) {
     });
     if has_core {
         lines.push(Line::from(Span::styled(
-            "WARNING: core packages selected. Removing core packages may break your system.",
+            i18n::t(app, "app.modals.confirm_remove.warning_core"),
             Style::default().fg(th.red).add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
     }
     if items.is_empty() {
         lines.push(Line::from(Span::styled(
-            "Nothing to remove",
+            i18n::t(app, "app.modals.confirm_remove.none"),
             Style::default().fg(th.subtext1),
         )));
     } else {
@@ -144,14 +147,14 @@ pub fn render_confirm_remove(f: &mut Frame, area: Rect, items: &[PackageItem]) {
         }
         if items.len() + 6 > h as usize {
             lines.push(Line::from(Span::styled(
-                "…",
+                i18n::t(app, "app.modals.confirm_install.list_ellipsis"),
                 Style::default().fg(th.subtext1),
             )));
         }
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "Press Enter to confirm or Esc to cancel",
+        i18n::t(app, "app.modals.confirm_remove.confirm_hint"),
         Style::default().fg(th.subtext1),
     )));
     let boxw = Paragraph::new(lines)
@@ -160,7 +163,7 @@ pub fn render_confirm_remove(f: &mut Frame, area: Rect, items: &[PackageItem]) {
         .block(
             Block::default()
                 .title(Span::styled(
-                    " Confirm Remove ",
+                    i18n::t(app, "app.modals.confirm_remove.title"),
                     Style::default().fg(th.red).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)

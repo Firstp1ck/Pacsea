@@ -57,6 +57,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Build title with Sort button, filter toggles, and a right-aligned Options button
     // (using extracted values to avoid borrow conflicts)
     let title_spans = title::build_title_spans_from_values(
+        app,
         results_len,
         area,
         has_eos,
@@ -277,6 +278,54 @@ mod tests {
     ///
     /// Details:
     /// - Uses a `TestBackend` terminal to exercise layout code and verify hit-test regions are recorded.
+    ///
+    /// What: Initialize minimal English translations for tests.
+    ///
+    /// Inputs:
+    /// - `app`: AppState to populate with translations
+    ///
+    /// Output:
+    /// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
+    ///
+    /// Details:
+    /// - Sets up only the translations needed for tests to pass
+    fn init_test_translations(app: &mut crate::state::AppState) {
+        use std::collections::HashMap;
+        let mut translations = HashMap::new();
+        translations.insert("app.results.title".to_string(), "Results".to_string());
+        translations.insert("app.results.buttons.sort".to_string(), "Sort".to_string());
+        translations.insert(
+            "app.results.buttons.options".to_string(),
+            "Options".to_string(),
+        );
+        translations.insert(
+            "app.results.buttons.panels".to_string(),
+            "Panels".to_string(),
+        );
+        translations.insert(
+            "app.results.buttons.config_lists".to_string(),
+            "Config/Lists".to_string(),
+        );
+        translations.insert("app.results.filters.aur".to_string(), "AUR".to_string());
+        translations.insert("app.results.filters.core".to_string(), "core".to_string());
+        translations.insert("app.results.filters.extra".to_string(), "extra".to_string());
+        translations.insert(
+            "app.results.filters.multilib".to_string(),
+            "multilib".to_string(),
+        );
+        translations.insert("app.results.filters.eos".to_string(), "EOS".to_string());
+        translations.insert(
+            "app.results.filters.cachyos".to_string(),
+            "CachyOS".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.manjaro".to_string(),
+            "Manjaro".to_string(),
+        );
+        app.translations = translations.clone();
+        app.translations_fallback = translations;
+    }
+
     #[test]
     fn results_sets_title_button_rects_and_status_rect() {
         use ratatui::{Terminal, backend::TestBackend};
@@ -285,6 +334,7 @@ mod tests {
         let mut app = crate::state::AppState {
             ..Default::default()
         };
+        init_test_translations(&mut app);
         // Seed minimal results to render
         app.results = vec![crate::state::PackageItem {
             name: "pkg".into(),

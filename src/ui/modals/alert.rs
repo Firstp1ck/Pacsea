@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
@@ -61,13 +62,13 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
             || ml.contains("wl-clipboard")
     };
     let header_text = if is_help {
-        "Help"
+        i18n::t(app, "app.modals.help.heading")
     } else if is_config {
-        "Configuration error"
+        i18n::t(app, "app.modals.alert.header_configuration_error")
     } else if clippy_block {
-        "Clipboard Copy"
+        i18n::t(app, "app.modals.alert.header_clipboard_copy")
     } else {
-        "Connection issue"
+        i18n::t(app, "app.modals.alert.header_connection_issue")
     };
     let is_clipboard = {
         let ml = message.to_lowercase();
@@ -77,13 +78,13 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
             || ml.contains("wl-clipboard")
     };
     let box_title = if is_help {
-        " Help "
+        format!(" {} ", i18n::t(app, "app.modals.help.title"))
     } else if is_config {
-        " Configuration Error "
+        i18n::t(app, "app.modals.alert.title_configuration_error")
     } else if is_clipboard {
-        " Clipboard Copy "
+        i18n::t(app, "app.modals.alert.title_clipboard_copy")
     } else {
-        " Connection issue "
+        i18n::t(app, "app.modals.alert.title_connection_issue")
     };
     let header_color = if is_help || is_config {
         th.mauve
@@ -115,7 +116,7 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "Press Enter or Esc to close",
+        i18n::t(app, "app.modals.common.close_hint"),
         Style::default().fg(th.subtext1),
     )));
 

@@ -3,7 +3,7 @@ use crate::util::percent_encode;
 
 type Result<T> = super::Result<T>;
 
-/// Fetch PKGBUILD content for a package from AUR or official Git packaging repos.
+/// What: Fetch PKGBUILD content for a package from AUR or official Git packaging repos.
 ///
 /// Inputs:
 /// - `item`: Package whose PKGBUILD should be retrieved.

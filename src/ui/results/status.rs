@@ -6,6 +6,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 
+use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
@@ -36,13 +37,17 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
         && app.search_normal_mode
         && key_label_opt.is_some();
     let status_text = if show_key {
-        format!(
-            "Status: {} [{}]",
-            app.arch_status_text,
-            key_label_opt.unwrap()
+        i18n::t_fmt(
+            app,
+            "app.results.status_with_key",
+            &[&app.arch_status_text, &key_label_opt.unwrap()],
         )
     } else {
-        format!("Status: {}", app.arch_status_text)
+        format!(
+            "{} {}",
+            i18n::t(app, "app.results.status_label"),
+            app.arch_status_text
+        )
     };
     let sx = area.x.saturating_add(2); // a bit of left padding after corner
     let sy = area.y.saturating_add(area.height.saturating_sub(1));

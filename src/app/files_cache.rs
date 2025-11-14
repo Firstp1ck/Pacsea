@@ -48,6 +48,28 @@ pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> 
 /// - Reads the JSON, deserializes it, sorts both signatures, and compares them before
 ///   returning the cached file change data.
 pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<PackageFileInfo>> {
+    load_cache_partial(path, current_signature, true)
+}
+
+/// What: Load cached file change data with partial matching support.
+///
+/// Inputs:
+/// - `path`: Filesystem location of the serialized `FileCache` JSON.
+/// - `current_signature`: Signature derived from the current selection for validation.
+/// - `exact_match_only`: If true, only match when signatures are identical. If false, allow subset matching.
+///
+/// Output:
+/// - `Some(Vec<PackageFileInfo>)` when the cache exists and matches (exact or partial);
+///   `None` otherwise.
+///
+/// Details:
+/// - If `exact_match_only` is false and the current signature is a subset of the cached signature,
+///   filters the cached results to match the current selection.
+pub fn load_cache_partial(
+    path: &PathBuf,
+    current_signature: &[String],
+    exact_match_only: bool,
+) -> Option<Vec<PackageFileInfo>> {
     if let Ok(s) = fs::read_to_string(path)
         && let Ok(cache) = serde_json::from_str::<FileCache>(&s)
     {
@@ -58,11 +80,37 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<Pa
         current_sig.sort();
 
         if cached_sig == current_sig {
-            tracing::info!(path = %path.display(), count = cache.files.len(), "loaded file cache");
+            tracing::info!(path = %path.display(), count = cache.files.len(), "loaded file cache (exact match)");
             return Some(cache.files);
-        } else {
-            tracing::debug!(path = %path.display(), "file cache signature mismatch, ignoring");
+        } else if !exact_match_only {
+            // Check if current signature is a subset of cached signature
+            let cached_set: std::collections::HashSet<&String> = cached_sig.iter().collect();
+            let current_set: std::collections::HashSet<&String> = current_sig.iter().collect();
+
+            if current_set.is_subset(&cached_set) {
+                // Filter cached results to match current selection
+                let current_names: std::collections::HashSet<&str> =
+                    current_sig.iter().map(|s| s.as_str()).collect();
+                let filtered: Vec<PackageFileInfo> = cache
+                    .files
+                    .iter()
+                    .filter(|file_info| current_names.contains(file_info.name.as_str()))
+                    .cloned()
+                    .collect();
+
+                if !filtered.is_empty() {
+                    tracing::info!(
+                        path = %path.display(),
+                        cached_count = cache.files.len(),
+                        filtered_count = filtered.len(),
+                        "loaded file cache (partial match)"
+                    );
+                    return Some(filtered);
+                }
+            }
         }
+
+        tracing::debug!(path = %path.display(), "file cache signature mismatch, ignoring");
     }
     None
 }

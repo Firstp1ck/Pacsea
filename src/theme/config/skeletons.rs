@@ -292,7 +292,13 @@ preferred_terminal = \n\
 # - full_line: color the entire line\n\
 # - front: add marker at the front of the line (default)\n\
 # - end: add marker at the end of the line\n\
-package_marker = front\n";
+package_marker = front
+
+# Language / Locale
+# Locale code for translations (e.g., \"en-US\", \"de-DE\").
+# Leave empty to auto-detect from system locale (LANG/LC_ALL environment variables).
+# Available locales: en-US, de-DE (more coming soon)
+locale = \n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub(crate) const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\

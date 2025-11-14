@@ -16,6 +16,9 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 pub fn setup_terminal() -> Result<()> {
     if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {
         // Skip raw TTY setup in headless/test mode
+        // Explicitly disable mouse reporting to prevent mouse position escape sequences
+        // from appearing in test output when mouse moves over terminal
+        let _ = execute!(std::io::stdout(), DisableMouseCapture);
         return Ok(());
     }
     enable_raw_mode()?;

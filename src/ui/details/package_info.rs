@@ -47,10 +47,11 @@ pub fn render_package_info(f: &mut Frame, app: &mut AppState, details_area: Rect
     let inner_w: u16 = details_area.width.saturating_sub(2);
 
     // Process original lines to style URL
+    let url_label = crate::i18n::t(app, "app.details.url_label");
     for line in details_lines.iter_mut() {
         if line.spans.len() >= 2 {
             let key_txt = line.spans[0].content.to_string();
-            if key_txt.starts_with("URL:") {
+            if key_txt.starts_with(&url_label) {
                 let url_txt = app.details.url.clone();
                 let mut style = Style::default().fg(th.text);
                 if !url_txt.is_empty() {
@@ -72,7 +73,8 @@ pub fn render_package_info(f: &mut Frame, app: &mut AppState, details_area: Rect
         // Check for URL button
         if original_line.spans.len() >= 2 {
             let key_txt = original_line.spans[0].content.to_string();
-            if key_txt.starts_with("URL:") {
+            let url_label = crate::i18n::t(app, "app.details.url_label");
+            if key_txt.starts_with(&url_label) {
                 let url_txt = app.details.url.clone();
                 if !url_txt.is_empty() {
                     let key_len = key_txt.len() as u16;
@@ -90,7 +92,9 @@ pub fn render_package_info(f: &mut Frame, app: &mut AppState, details_area: Rect
         if original_line.spans.len() == 1 {
             let txt = original_line.spans[0].content.to_string();
             let lowered = txt.to_lowercase();
-            if lowered.contains("show pkgbuild") || lowered.contains("hide pkgbuild") {
+            let show_pkgb = crate::i18n::t(app, "app.details.show_pkgbuild").to_lowercase();
+            let hide_pkgb = crate::i18n::t(app, "app.details.hide_pkgbuild").to_lowercase();
+            if lowered.contains(&show_pkgb) || lowered.contains(&hide_pkgb) {
                 let x_start = content_x;
                 let w = txt.len().min(inner_w as usize) as u16;
                 if w > 0 {

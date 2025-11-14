@@ -6,18 +6,23 @@ mod query;
 mod resolve;
 mod reverse;
 mod source;
+mod srcinfo;
 mod status;
 mod utils;
 
-use crate::state::modal::DependencyInfo;
-use crate::state::types::PackageItem;
-use query::{get_installed_packages, get_upgradable_packages};
-use resolve::resolve_package_deps;
+use crate::state::modal::{DependencyInfo, DependencyStatus};
+use crate::state::types::{PackageItem, Source};
+use parse::parse_dep_spec;
+use query::get_upgradable_packages;
+use resolve::{batch_fetch_official_deps, fetch_package_conflicts, resolve_package_deps};
+use source::{determine_dependency_source, is_system_package};
 use status::determine_status;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use utils::dependency_priority;
 
+pub use query::{get_installed_packages, get_provided_packages, is_package_installed_or_provided};
 pub use reverse::resolve_reverse_dependencies;
+pub use status::{get_installed_version, version_satisfies};
 
 /// What: Resolve dependencies for the requested install set while consolidating duplicates.
 ///
@@ -28,136 +33,282 @@ pub use reverse::resolve_reverse_dependencies;
 /// - Returns a vector of `DependencyInfo` records summarising dependency status and provenance.
 ///
 /// Details:
-/// - Invokes pacman/paru helpers to enumerate direct and transitive dependencies, then merges them
-///   by name, retaining the most severe status across all requesters for UI presentation.
+/// - Resolves ONLY direct dependencies (non-recursive) for each package in the list.
+/// - Merges duplicates by name, retaining the most severe status across all requesters.
+/// - Populates `depends_on` and `required_by` relationships to reflect dependency relationships.
 pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
-    tracing::info!(
-        "Starting dependency resolution for {} package(s)",
-        items.len()
-    );
+    let _span = tracing::info_span!(
+        "resolve_dependencies",
+        stage = "dependencies",
+        item_count = items.len()
+    )
+    .entered();
+    let start_time = std::time::Instant::now();
+    // Only warn if called from UI thread (not from background workers)
+    // Background workers use spawn_blocking which is fine and expected
+    let backtrace = std::backtrace::Backtrace::force_capture();
+    let backtrace_str = format!("{:?}", backtrace);
+    // Only warn if NOT in a blocking task (i.e., called from UI thread/event handlers)
+    if !backtrace_str.contains("blocking::task") && !backtrace_str.contains("spawn_blocking") {
+        tracing::warn!(
+            "[Deps] resolve_dependencies called synchronously from UI thread! This will block! Backtrace:\n{}",
+            backtrace_str
+        );
+    }
 
     if items.is_empty() {
         tracing::warn!("No packages provided for dependency resolution");
         return Vec::new();
     }
 
-    let mut deps = Vec::new();
-    let mut seen = HashSet::new();
+    let mut deps: HashMap<String, DependencyInfo> = HashMap::new();
 
     // Get installed packages set
     tracing::info!("Fetching list of installed packages...");
     let installed = get_installed_packages();
     tracing::info!("Found {} installed packages", installed.len());
 
+    // Get all provided packages (e.g., rustup provides rust)
+    tracing::info!("Building provides set from installed packages...");
+    let provided = get_provided_packages(&installed);
+    tracing::info!("Found {} provided packages", provided.len());
+
     // Get list of upgradable packages to detect if dependencies need upgrades
     let upgradable = get_upgradable_packages();
     tracing::info!("Found {} upgradable packages", upgradable.len());
 
-    // For each package, resolve its dependencies
-    for (idx, item) in items.iter().enumerate() {
-        tracing::info!(
-            "[{}/{}] Resolving dependencies for package: {} ({:?})",
-            idx + 1,
-            items.len(),
-            item.name,
-            item.source
+    // Initialize set of root packages (for tracking)
+    let root_names: HashSet<String> = items.iter().map(|i| i.name.clone()).collect();
+
+    // Check conflicts for packages being installed
+    // 1. Check conflicts against installed packages
+    // 2. Check conflicts between packages in the install list
+    tracing::info!("Checking conflicts for {} package(s)", items.len());
+    for item in items.iter() {
+        let conflicts = fetch_package_conflicts(&item.name, &item.source);
+        if !conflicts.is_empty() {
+            tracing::debug!("Package {} conflicts with: {:?}", item.name, conflicts);
+
+            for conflict_name in conflicts {
+                // Check if conflict is installed
+                let is_installed =
+                    installed.contains(&conflict_name) || provided.contains(&conflict_name);
+
+                // Check if conflict is in the install list
+                let is_in_install_list = root_names.contains(&conflict_name);
+
+                if is_installed || is_in_install_list {
+                    let reason = if is_installed && is_in_install_list {
+                        format!(
+                            "conflicts with {} (installed and in install list)",
+                            conflict_name
+                        )
+                    } else if is_installed {
+                        format!("conflicts with installed package {}", conflict_name)
+                    } else {
+                        format!("conflicts with package {} in install list", conflict_name)
+                    };
+
+                    // Add or update conflict entry
+                    let entry = deps.entry(conflict_name.clone()).or_insert_with(|| {
+                        // Determine source for conflicting package
+                        let (source, is_core) =
+                            crate::logic::deps::source::determine_dependency_source(
+                                &conflict_name,
+                                &installed,
+                            );
+                        let is_system = is_core
+                            || crate::logic::deps::source::is_system_package(&conflict_name);
+
+                        DependencyInfo {
+                            name: conflict_name.clone(),
+                            version: String::new(),
+                            status: DependencyStatus::Conflict {
+                                reason: reason.clone(),
+                            },
+                            source,
+                            required_by: vec![item.name.clone()],
+                            depends_on: Vec::new(),
+                            is_core,
+                            is_system,
+                        }
+                    });
+
+                    // Update status to Conflict if not already
+                    if !matches!(entry.status, DependencyStatus::Conflict { .. }) {
+                        entry.status = DependencyStatus::Conflict { reason };
+                    }
+
+                    // Add to required_by if not present
+                    if !entry.required_by.contains(&item.name) {
+                        entry.required_by.push(item.name.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    // Batch fetch official package dependencies to reduce pacman command overhead
+    let official_packages: Vec<&str> = items
+        .iter()
+        .filter_map(|item| {
+            if let Source::Official { repo, .. } = &item.source {
+                if *repo != "local" {
+                    Some(item.name.as_str())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+    let batched_deps_cache = if !official_packages.is_empty() {
+        batch_fetch_official_deps(&official_packages)
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    // Resolve ONLY direct dependencies (non-recursive)
+    // This is faster and avoids resolving transitive dependencies which can be slow and error-prone
+    for item in items {
+        let name = item.name.clone();
+        let source = item.source.clone();
+
+        tracing::debug!(
+            "Resolving direct dependencies for {} (source: {:?})",
+            name,
+            source
         );
 
-        match resolve_package_deps(&item.name, &item.source, &installed, &upgradable) {
-            Ok(mut resolved) => {
-                tracing::info!("  Found {} dependencies for {}", resolved.len(), item.name);
-                for dep in resolved.drain(..) {
-                    let dep_name = dep.name.clone();
-                    if let Some(existing_idx) = deps
-                        .iter()
-                        .position(|d: &DependencyInfo| d.name == dep_name)
-                    {
-                        // Merge required_by lists for duplicate dependencies
-                        let existing = &mut deps[existing_idx];
-                        for req in &dep.required_by {
-                            if !existing.required_by.contains(req) {
-                                existing.required_by.push(req.clone());
-                            }
-                        }
-                        // Keep the "worst" status when merging (Conflict > Missing > ToUpgrade > ToInstall > Installed)
-                        let existing_priority = dependency_priority(&existing.status);
-                        let new_priority = dependency_priority(&dep.status);
+        // Check if we have batched results for this official package
+        let source_clone = source.clone();
+        let use_batched = matches!(source_clone, Source::Official { repo, .. } if repo != "local")
+            && batched_deps_cache.contains_key(name.as_str());
 
-                        // Update version requirement if needed and re-evaluate status
-                        let version_changed = if !dep.version.is_empty()
-                            && dep.version != existing.version
-                        {
-                            if existing.version.is_empty() {
-                                // Existing has no version requirement, use the new one
-                                existing.version = dep.version.clone();
-                                true
+        match if use_batched {
+            // Use batched dependency list
+            let dep_names = batched_deps_cache
+                .get(name.as_str())
+                .cloned()
+                .unwrap_or_default();
+            let mut deps = Vec::new();
+            for dep_spec in dep_names {
+                let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
+                if pkg_name == name {
+                    continue;
+                }
+                if pkg_name.ends_with(".so")
+                    || pkg_name.contains(".so.")
+                    || pkg_name.contains(".so=")
+                {
+                    continue;
+                }
+                let status =
+                    determine_status(&pkg_name, &version_req, &installed, &provided, &upgradable);
+                let (dep_source, is_core) = determine_dependency_source(&pkg_name, &installed);
+                let is_system = is_core || is_system_package(&pkg_name);
+                deps.push(DependencyInfo {
+                    name: pkg_name,
+                    version: version_req,
+                    status,
+                    source: dep_source,
+                    required_by: vec![name.clone()],
+                    depends_on: Vec::new(),
+                    is_core,
+                    is_system,
+                });
+            }
+            Ok(deps)
+        } else {
+            resolve_package_deps(&name, &source, &installed, &provided, &upgradable)
+        } {
+            Ok(mut resolved_deps) => {
+                tracing::debug!("  Found {} dependencies for {}", resolved_deps.len(), name);
+
+                for dep in resolved_deps.drain(..) {
+                    let dep_name = dep.name.clone();
+
+                    // Check if dependency already exists and get its current state
+                    let existing_dep = deps.get(&dep_name).cloned();
+                    let needs_required_by_update = existing_dep
+                        .as_ref()
+                        .map(|e| !e.required_by.contains(&name))
+                        .unwrap_or(true);
+
+                    // Update or create dependency entry
+                    {
+                        let entry =
+                            deps.entry(dep_name.clone())
+                                .or_insert_with(|| DependencyInfo {
+                                    name: dep_name.clone(),
+                                    version: dep.version.clone(),
+                                    status: dep.status.clone(),
+                                    source: dep.source.clone(),
+                                    required_by: vec![name.clone()],
+                                    depends_on: Vec::new(),
+                                    is_core: dep.is_core,
+                                    is_system: dep.is_system,
+                                });
+
+                        // Update required_by (add the parent if not already present)
+                        if needs_required_by_update {
+                            entry.required_by.push(name.clone());
+                        }
+
+                        // Merge status (keep worst)
+                        let existing_priority = dependency_priority(&entry.status);
+                        let new_priority = dependency_priority(&dep.status);
+                        if new_priority < existing_priority {
+                            entry.status = dep.status.clone();
+                        }
+
+                        // Merge version requirements (keep more restrictive)
+                        if !dep.version.is_empty() && dep.version != entry.version {
+                            if entry.version.is_empty() {
+                                entry.version = dep.version.clone();
                             } else {
-                                // Both have version requirements - check which one is more restrictive
-                                // by evaluating both and keeping the one that results in worse status
+                                // Check which version requirement is more restrictive
                                 let existing_status = determine_status(
-                                    &existing.name,
-                                    &existing.version,
+                                    &entry.name,
+                                    &entry.version,
                                     &installed,
+                                    &provided,
                                     &upgradable,
                                 );
                                 let new_status = determine_status(
-                                    &existing.name,
+                                    &entry.name,
                                     &dep.version,
                                     &installed,
+                                    &provided,
                                     &upgradable,
                                 );
                                 let existing_req_priority = dependency_priority(&existing_status);
                                 let new_req_priority = dependency_priority(&new_status);
 
                                 if new_req_priority < existing_req_priority {
-                                    // New requirement is more restrictive (results in worse status)
-                                    existing.version = dep.version.clone();
-                                    true
-                                } else {
-                                    // Existing requirement is more restrictive, keep it
-                                    false
+                                    entry.version = dep.version.clone();
+                                    entry.status = new_status;
                                 }
                             }
-                        } else {
-                            false
-                        };
-
-                        // If version requirement changed, we need to re-evaluate the status
-                        if version_changed {
-                            // Re-evaluate status based on the updated version requirement
-                            existing.status = determine_status(
-                                &existing.name,
-                                &existing.version,
-                                &installed,
-                                &upgradable,
-                            );
-                        } else if new_priority < existing_priority {
-                            // New status is worse (lower priority number), so update it
-                            existing.status = dep.status.clone();
                         }
-                        tracing::debug!(
-                            "    Merged dependency: {} (now required by: {:?}, status: {:?})",
-                            dep_name,
-                            existing.required_by,
-                            existing.status
-                        );
-                    } else {
-                        seen.insert(dep_name.clone());
-                        tracing::debug!("    Added dependency: {} ({:?})", dep_name, dep.status);
-                        deps.push(dep);
-                    }
+                    } // Drop entry borrow here
+
+                    // DON'T recursively resolve dependencies - only show direct dependencies
+                    // This prevents resolving transitive dependencies which can be slow and error-prone
                 }
             }
             Err(e) => {
-                tracing::warn!("  Failed to resolve dependencies for {}: {}", item.name, e);
+                tracing::warn!("  Failed to resolve dependencies for {}: {}", name, e);
             }
         }
     }
 
-    tracing::info!("Total unique dependencies found: {}", deps.len());
+    let mut result: Vec<DependencyInfo> = deps.into_values().collect();
+    tracing::info!("Total unique dependencies found: {}", result.len());
 
     // Sort dependencies: conflicts first, then missing, then to-install, then installed
-    deps.sort_by(|a, b| {
+    result.sort_by(|a, b| {
         let priority_a = dependency_priority(&a.status);
         let priority_b = dependency_priority(&b.status);
         priority_a
@@ -165,9 +316,14 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             .then_with(|| a.name.cmp(&b.name))
     });
 
+    let elapsed = start_time.elapsed();
+    let duration_ms = elapsed.as_millis() as u64;
     tracing::info!(
-        "Dependency resolution complete. Returning {} dependencies",
-        deps.len()
+        stage = "dependencies",
+        item_count = items.len(),
+        result_count = result.len(),
+        duration_ms = duration_ms,
+        "Dependency resolution complete"
     );
-    deps
+    result
 }

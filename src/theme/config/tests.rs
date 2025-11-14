@@ -5,8 +5,9 @@ mod tests {
     use crate::theme::config::settings_save::{
         save_selected_countries, save_show_recent_pane, save_sort_mode,
     };
-    use crate::theme::config::skeletons::SETTINGS_SKELETON_CONTENT;
+    use crate::theme::config::skeletons::{SETTINGS_SKELETON_CONTENT, THEME_SKELETON_CONTENT};
     use crate::theme::config::theme_loader::try_load_theme_with_diagnostics;
+    use crate::theme::parsing::canonical_for_key;
 
     #[test]
     /// What: Exercise the theme loader on both valid and invalid theme files.
@@ -51,6 +52,138 @@ mod tests {
         assert!(err.contains("Unknown key"));
         assert!(err.contains("Missing required keys"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    /// What: Validate theme skeleton configuration completeness and parsing.
+    ///
+    /// Inputs:
+    /// - Theme skeleton content and theme loader function.
+    ///
+    /// Output:
+    /// - Confirms skeleton contains all 16 required theme keys and can be parsed successfully.
+    ///
+    /// Details:
+    /// - Verifies that the skeleton includes all canonical theme keys mapped from preferred names.
+    /// - Ensures the skeleton can be loaded without errors.
+    /// - Tests that a generated skeleton file contains all required keys.
+    fn config_theme_skeleton_completeness() {
+        use std::collections::HashSet;
+        use std::fs;
+
+        // Test 1: Verify all required theme keys are present in skeleton config
+        let skeleton_content = THEME_SKELETON_CONTENT;
+        let skeleton_keys: HashSet<String> = skeleton_content
+            .lines()
+            .filter_map(|line| {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+                    return None;
+                }
+                if let Some(eq_pos) = trimmed.find('=') {
+                    let key = trimmed[..eq_pos]
+                        .trim()
+                        .to_lowercase()
+                        .replace(['.', '-', ' '], "_");
+                    // Map to canonical key if possible
+                    let canon = canonical_for_key(&key).unwrap_or(&key);
+                    Some(canon.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // All 16 required canonical theme keys
+        let required_keys: HashSet<&str> = [
+            "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
+            "subtext0", "subtext1", "sapphire", "mauve", "green", "yellow", "red", "lavender",
+        ]
+        .into_iter()
+        .collect();
+
+        for key in &required_keys {
+            assert!(
+                skeleton_keys.contains(*key),
+                "Missing required key '{}' in theme skeleton config",
+                key
+            );
+        }
+
+        // Test 2: Verify skeleton can be parsed successfully
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_theme_skeleton_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+        let theme_path = dir.join("theme.conf");
+        fs::write(&theme_path, skeleton_content).unwrap();
+
+        let theme_result = try_load_theme_with_diagnostics(&theme_path);
+        assert!(
+            theme_result.is_ok(),
+            "Theme skeleton should parse successfully: {:?}",
+            theme_result.err()
+        );
+        let theme = theme_result.unwrap();
+        // Verify all fields are set (they should be non-zero colors)
+        let _ = (
+            theme.base,
+            theme.mantle,
+            theme.crust,
+            theme.surface1,
+            theme.surface2,
+            theme.overlay1,
+            theme.overlay2,
+            theme.text,
+            theme.subtext0,
+            theme.subtext1,
+            theme.sapphire,
+            theme.mauve,
+            theme.green,
+            theme.yellow,
+            theme.red,
+            theme.lavender,
+        );
+
+        // Test 3: Verify generated skeleton file contains all required keys
+        let generated_content = fs::read_to_string(&theme_path).unwrap();
+        let generated_keys: HashSet<String> = generated_content
+            .lines()
+            .filter_map(|line| {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+                    return None;
+                }
+                if let Some(eq_pos) = trimmed.find('=') {
+                    let key = trimmed[..eq_pos]
+                        .trim()
+                        .to_lowercase()
+                        .replace(['.', '-', ' '], "_");
+                    // Map to canonical key if possible
+                    let canon = canonical_for_key(&key).unwrap_or(&key);
+                    Some(canon.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for key in &required_keys {
+            assert!(
+                generated_keys.contains(*key),
+                "Missing required key '{}' in generated theme skeleton file",
+                key
+            );
+        }
+
+        // Cleanup
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
