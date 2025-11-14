@@ -1095,6 +1095,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_norway",
+ "syn",
  "tempfile",
  "tokio",
  "tracing",
