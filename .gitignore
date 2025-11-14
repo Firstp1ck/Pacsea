@@ -40,3 +40,5 @@ semgrep-bin/
 
 repository/
 *.bat
+
+complexity_report.txt
