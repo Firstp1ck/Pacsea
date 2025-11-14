@@ -282,6 +282,9 @@ mod tests {
             source: crate::state::Source::Aur,
             popularity: None,
         }];
+        app.all_results = app.results.clone();
+        app.selected = 0;
+        app.list_state.select(Some(0));
         app.details.url = "https://example.com".into();
         app.toast_message = Some(crate::i18n::t(&app, "app.toasts.copied_to_clipboard"));
 
@@ -295,11 +298,26 @@ mod tests {
         assert!(app.details_rect.is_some());
         assert!(app.url_button_rect.is_some());
 
+        // Verify buffer was rendered with correct dimensions
+        let buffer = term.backend().buffer();
+        assert_eq!(buffer.area.width, 120);
+        assert_eq!(buffer.area.height, 40);
+
         // Second render without toast should still work
         app.toast_message = None;
         term.draw(|f| {
             super::ui(f, &mut app);
         })
         .unwrap();
+
+        // Verify rects are still set after second render
+        assert!(app.results_rect.is_some());
+        assert!(app.details_rect.is_some());
+        assert!(app.url_button_rect.is_some());
+
+        // Verify buffer dimensions remain correct
+        let buffer = term.backend().buffer();
+        assert_eq!(buffer.area.width, 120);
+        assert_eq!(buffer.area.height, 40);
     }
 }
