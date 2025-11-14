@@ -113,7 +113,7 @@ Future implementation will include: Enhanced AI Security Scan (optional)
   - `settings.conf` — app behavior (layout, defaults, visibility)
   - `theme.conf` — colors and styling
   - `keybinds.conf` — keyboard shortcuts
-- Press **Ctrl+R** in the app to reload your config.
+- Press **Ctrl+R** in the app to reload your theme (`theme.conf`). Settings and keybinds (`settings.conf`, `keybinds.conf`) are read fresh from disk automatically — no reload needed.
 
 For example configuration files, see the [`config/`](config/) directory:
 - [`config/settings.conf`](config/settings.conf) — app behavior (layout, defaults, visibility, scans, news, etc.)
