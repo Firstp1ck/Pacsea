@@ -150,10 +150,7 @@ cargo run
 - Check out what's next and what I am working on [What's Next...?](https://github.com/Firstp1ck/Pacsea/discussions/26)
 
 ### Potential future Features
-- **Extensive Preflight Check** (on going)
-- **Additional Language Support** (on going)
 - **User chooseable Terminal via Options (implemented via settings.conf)** (on going)
-- **Ability to list and install optional dependencies when installing packages (implementation in Preflight)** (on going)
 - **Keybind harmonization and improvements**
 - **Mirror Search and extensive Mirror Selection**
 - **Possibiltiy to switch between Normal search and Fuzzy search modes**
