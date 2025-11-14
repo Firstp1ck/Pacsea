@@ -169,7 +169,7 @@ cargo run
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
-- Built with ratatui + crossterm
+- Built with [Ratatui](https://ratatui.rs/) + [Crossterm](https://crates.io/crates/crossterm)
 - Powered by Arch + AUR
 
 ## License
