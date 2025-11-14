@@ -163,7 +163,7 @@ pub fn settings() -> Settings {
         if !saw_skip_preflight {
             // Append a single line for discoverability; keep it minimal
             if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(p) {
-                let _ = f.write_all(b"\nskip_preflight = true\n");
+                let _ = f.write_all(b"\nskip_preflight = false\n");
             }
         }
     }
