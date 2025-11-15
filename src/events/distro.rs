@@ -13,7 +13,7 @@
 /// - On Manjaro (detected via /etc/os-release), ensures pacman-mirrors exists, then:
 ///   - Worldwide: `pacman-mirrors --fasttrack {count}` followed by `pacman -Syy`
 ///   - Countries: `pacman-mirrors --method rank --country '{countries}'` followed by `pacman -Syy`
-/// - On Artix (detected via /etc/os-release), checks for rate-mirrors and AUR helper (yay/paru), prompts for installation if needed, creates backup of mirrorlist, then runs rate-mirrors with country validation (only one country allowed).
+/// - On Artix (detected via /etc/os-release), checks for rate-mirrors and AUR helper (yay/paru), prompts for installation if needed, creates backup of mirrorlist, then runs rate-mirrors with country filtering using --entry-country option (only one country allowed, global option must come before the artix command).
 /// - On EndeavourOS, ensures `eos-rankmirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
 /// - On CachyOS, ensures `cachyos-rate-mirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
 /// - Otherwise, attempts to use `reflector` to write `/etc/pacman.d/mirrorlist`; if not found, prints a notice.
@@ -51,7 +51,7 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
     fi; \
     sudo cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.backup.$(date +%Y%m%d_%H%M%S) || exit 1; \
     if [ \"{countries}\" = \"Worldwide\" ]; then \
-      rate-mirrors --protocol=https --allow-root artix --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
+      rate-mirrors --protocol=https --allow-root --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
     else \
       country_count=$(echo '{countries}' | tr ',' '\\n' | wc -l); \
       if [ \"$country_count\" -ne 1 ]; then \
@@ -59,7 +59,7 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
         echo 'Please select a single country.'; \
         exit 1; \
       fi; \
-      rate-mirrors --protocol=https --allow-root artix --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
+      rate-mirrors --protocol=https --allow-root --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
     fi; \
   else \
     (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
@@ -103,7 +103,7 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
       echo 'Please select a single country.'; \
       exit 1; \
     fi; \
-    rate-mirrors --protocol=https --allow-root artix --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
+    rate-mirrors --protocol=https --allow-root --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
   else \
     (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   fi)"
