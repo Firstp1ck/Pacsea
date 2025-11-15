@@ -121,21 +121,3 @@ pub use persist::*;
 pub use query::*;
 #[cfg(not(windows))]
 pub use update::update_in_background;
-
-#[cfg(test)]
-static TEST_MUTEX: OnceLock<std::sync::Mutex<()>> = OnceLock::new();
-
-#[cfg(test)]
-/// What: Provide a shared mutex to serialize test execution that mutates global state.
-///
-/// Inputs:
-/// - None (initializes lazily the first time it is invoked)
-///
-/// Output:
-/// - `&'static std::sync::Mutex<()>` guarding critical sections across tests.
-///
-/// Details:
-/// - Ensures tests manipulating the global index do not run concurrently, preventing races.
-pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
-    TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
-}

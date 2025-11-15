@@ -24,12 +24,4 @@ pub use query::send_query;
 pub use selection::move_sel_cached;
 pub use services::resolve_service_impacts;
 pub use sort::sort_results_preserve_selection;
-
-#[cfg(test)]
-static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
-
-#[cfg(test)]
-pub(crate) fn test_mutex() -> &'static std::sync::Mutex<()> {
-    TEST_MUTEX.get_or_init(|| std::sync::Mutex::new(()))
-}
 pub use summary::compute_post_summary;

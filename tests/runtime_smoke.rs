@@ -9,7 +9,7 @@
 use std::io::Write;
 use std::time::Duration;
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn runtime_smoke_headless_initializes_and_runs_without_panic() {
     // Ensure terminal raw mode/alternate screen are bypassed during this test
     unsafe {

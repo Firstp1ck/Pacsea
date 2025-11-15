@@ -99,7 +99,7 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn pkgbuild_fetches_official_main_then_master() {
-        let _guard = crate::sources::test_mutex().lock().unwrap();
+        let _guard = crate::global_test_mutex_lock();
         let old_path = std::env::var("PATH").unwrap_or_default();
         let mut root = std::env::temp_dir();
         root.push(format!(

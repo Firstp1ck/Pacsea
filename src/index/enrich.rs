@@ -172,7 +172,7 @@ mod tests {
     /// Details:
     /// - Demonstrates deduplication of requested names and background task execution.
     async fn enrich_updates_fields_and_notifies() {
-        let _guard = crate::index::test_mutex().lock().unwrap();
+        let _guard = crate::global_test_mutex_lock();
         // Seed index with minimal entries
         if let Ok(mut g) = crate::index::idx().write() {
             g.pkgs = vec![crate::index::OfficialPkg {

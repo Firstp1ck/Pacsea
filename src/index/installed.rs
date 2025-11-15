@@ -71,7 +71,7 @@ mod tests {
     /// - Confirms empty cache behaves as expected without panicking.
     #[test]
     fn is_installed_returns_false_when_uninitialized_or_missing() {
-        let _guard = crate::index::test_mutex()
+        let _guard = crate::global_test_mutex()
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         if let Ok(mut g) = super::installed_lock().write() {
@@ -92,7 +92,7 @@ mod tests {
     /// - Exercises both positive and negative membership checks.
     #[test]
     fn is_installed_checks_membership_in_cached_set() {
-        let _guard = crate::index::test_mutex()
+        let _guard = crate::global_test_mutex()
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         if let Ok(mut g) = super::installed_lock().write() {
@@ -117,7 +117,7 @@ mod tests {
     /// Details:
     /// - Exercises the async refresh path, ensures PATH is restored, and verifies cache contents via helper accessors.
     async fn refresh_installed_cache_populates_cache_from_pacman_output() {
-        let _guard = crate::index::test_mutex().lock().unwrap();
+        let _guard = crate::global_test_mutex_lock();
 
         if let Ok(mut g) = super::installed_lock().write() {
             g.clear();
