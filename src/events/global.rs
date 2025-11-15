@@ -54,6 +54,9 @@ pub(crate) fn handle_global_key(
         if app.config_menu_open {
             app.config_menu_open = false;
         }
+        if app.artix_filter_menu_open {
+            app.artix_filter_menu_open = false;
+        }
         return Some(false); // Handled - don't process further
     }
     let km = &app.keymap;
@@ -609,6 +612,7 @@ pub(crate) fn handle_global_key(
                 5 => recent_path,
                 _ => {
                     app.config_menu_open = false;
+                    app.artix_filter_menu_open = false;
                     return Some(false); // Handled - don't process further
                 }
             };
@@ -636,6 +640,7 @@ pub(crate) fn handle_global_key(
                 });
             }
             app.config_menu_open = false;
+            app.artix_filter_menu_open = false;
             return Some(false); // Handled - don't process further
         }
     }

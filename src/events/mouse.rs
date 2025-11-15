@@ -877,6 +877,7 @@ pub fn handle_mouse_event(
             if app.options_menu_open {
                 app.panels_menu_open = false;
                 app.config_menu_open = false;
+                app.artix_filter_menu_open = false;
             }
             return false;
         }
@@ -905,6 +906,7 @@ pub fn handle_mouse_event(
             if app.panels_menu_open {
                 app.options_menu_open = false;
                 app.config_menu_open = false;
+                app.artix_filter_menu_open = false;
             }
             return false;
         }
@@ -975,24 +977,38 @@ pub fn handle_mouse_event(
             && my >= y
             && my < y + h
         {
-            // Check if all individual Artix repo filters are on
-            let all_on = app.results_filter_show_artix_omniverse
-                && app.results_filter_show_artix_universe
-                && app.results_filter_show_artix_lib32
-                && app.results_filter_show_artix_galaxy
-                && app.results_filter_show_artix_world
-                && app.results_filter_show_artix_system;
+            // Check if Artix-specific filters are hidden (dropdown mode)
+            let has_hidden_filters = app.results_filter_artix_omniverse_rect.is_none()
+                && app.results_filter_artix_universe_rect.is_none()
+                && app.results_filter_artix_lib32_rect.is_none()
+                && app.results_filter_artix_galaxy_rect.is_none()
+                && app.results_filter_artix_world_rect.is_none()
+                && app.results_filter_artix_system_rect.is_none();
 
-            // If all are on, turn all off; otherwise turn all on
-            let new_state = !all_on;
-            app.results_filter_show_artix_omniverse = new_state;
-            app.results_filter_show_artix_universe = new_state;
-            app.results_filter_show_artix_lib32 = new_state;
-            app.results_filter_show_artix_galaxy = new_state;
-            app.results_filter_show_artix_world = new_state;
-            app.results_filter_show_artix_system = new_state;
-            app.results_filter_show_artix = new_state;
-            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            if has_hidden_filters {
+                // Toggle dropdown instead of filters
+                app.artix_filter_menu_open = !app.artix_filter_menu_open;
+            } else {
+                // Normal behavior: toggle all Artix filters
+                // Check if all individual Artix repo filters are on
+                let all_on = app.results_filter_show_artix_omniverse
+                    && app.results_filter_show_artix_universe
+                    && app.results_filter_show_artix_lib32
+                    && app.results_filter_show_artix_galaxy
+                    && app.results_filter_show_artix_world
+                    && app.results_filter_show_artix_system;
+
+                // If all are on, turn all off; otherwise turn all on
+                let new_state = !all_on;
+                app.results_filter_show_artix_omniverse = new_state;
+                app.results_filter_show_artix_universe = new_state;
+                app.results_filter_show_artix_lib32 = new_state;
+                app.results_filter_show_artix_galaxy = new_state;
+                app.results_filter_show_artix_world = new_state;
+                app.results_filter_show_artix_system = new_state;
+                app.results_filter_show_artix = new_state;
+                crate::logic::apply_filters_and_sort_preserve_selection(app);
+            }
             return false;
         }
         if let Some((x, y, w, h)) = app.results_filter_artix_omniverse_rect
@@ -1063,6 +1079,53 @@ pub fn handle_mouse_event(
         {
             app.results_filter_show_manjaro = !app.results_filter_show_manjaro;
             crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        // If Artix filter dropdown open, handle clicks inside menu
+        if app.artix_filter_menu_open
+            && let Some((x, y, w, h)) = app.artix_filter_menu_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let row = my.saturating_sub(y) as usize; // 0-based within options
+            match row {
+                0 => {
+                    app.results_filter_show_artix_omniverse =
+                        !app.results_filter_show_artix_omniverse;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                1 => {
+                    app.results_filter_show_artix_universe =
+                        !app.results_filter_show_artix_universe;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                2 => {
+                    app.results_filter_show_artix_lib32 = !app.results_filter_show_artix_lib32;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                3 => {
+                    app.results_filter_show_artix_galaxy = !app.results_filter_show_artix_galaxy;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                4 => {
+                    app.results_filter_show_artix_world = !app.results_filter_show_artix_world;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                5 => {
+                    app.results_filter_show_artix_system = !app.results_filter_show_artix_system;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                _ => {}
+            }
+            // Update the main Artix filter state based on individual filters
+            app.results_filter_show_artix = app.results_filter_show_artix_omniverse
+                || app.results_filter_show_artix_universe
+                || app.results_filter_show_artix_lib32
+                || app.results_filter_show_artix_galaxy
+                || app.results_filter_show_artix_world
+                || app.results_filter_show_artix_system;
             return false;
         }
         // If sort menu open, handle option click inside menu
@@ -1572,6 +1635,7 @@ pub fn handle_mouse_event(
                 5 => recent_path,
                 _ => {
                     app.config_menu_open = false;
+                    app.artix_filter_menu_open = false;
                     return false;
                 }
             };
