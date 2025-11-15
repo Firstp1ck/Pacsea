@@ -276,6 +276,12 @@ pub struct AppState {
     /// Inner content rectangle of the Config/Lists dropdown menu when visible (x, y, w, h).
     pub config_menu_rect: Option<(u16, u16, u16, u16)>,
 
+    // Artix filter dropdown UI (when specific repo filters are hidden)
+    /// Whether the Artix filter dropdown is currently visible.
+    pub artix_filter_menu_open: bool,
+    /// Inner content rectangle of the Artix filter dropdown menu when visible (x, y, w, h).
+    pub artix_filter_menu_rect: Option<(u16, u16, u16, u16)>,
+
     /// Whether Results is currently showing only explicitly installed packages.
     pub installed_only_mode: bool,
     /// Which right subpane is focused when installed-only mode splits the pane.
@@ -571,6 +577,8 @@ impl Default for AppState {
 
             // Config/Lists dropdown (top-right of Results)
             config_menu_open: false,
+            artix_filter_menu_open: false,
+            artix_filter_menu_rect: None,
             config_button_rect: None,
             config_menu_rect: None,
 

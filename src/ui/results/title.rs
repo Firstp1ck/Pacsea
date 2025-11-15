@@ -129,14 +129,6 @@ pub fn build_title_spans_from_values(
             results_filter_show_cachyos,
         ));
     }
-    if has_artix {
-        title_spans.push(Span::raw(" "));
-        title_spans.push(filt(
-            &i18n::t(app, "app.results.filters.artix"),
-            results_filter_show_artix,
-        ));
-    }
-
     // Right-aligned Config/Lists, Panels and Options buttons: compute remaining space first
     // to determine if we should show Artix-specific repo filters
     let inner_width = area.width.saturating_sub(2); // exclude borders
@@ -245,6 +237,27 @@ pub fn build_title_spans_from_values(
             show_artix_specific_repos = false;
         }
     }
+
+    // Render Artix filter (with dropdown indicator if specific filters are hidden)
+    if has_artix {
+        title_spans.push(Span::raw(" "));
+        let artix_label_text = i18n::t(app, "app.results.filters.artix");
+        let artix_text = if show_artix_specific_repos {
+            format!("[{artix_label_text}]")
+        } else {
+            format!("[{artix_label_text}] v")
+        };
+        let (fg, bg) = if results_filter_show_artix {
+            (th.crust, th.green)
+        } else {
+            (th.mauve, th.surface2)
+        };
+        title_spans.push(Span::styled(
+            artix_text,
+            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+        ));
+    }
+
     // Render Artix-specific repo filters if there's space (before Manjaro)
     if show_artix_specific_repos {
         if has_artix_omniverse {
@@ -467,16 +480,6 @@ pub fn record_title_rects(
     } else {
         app.results_filter_cachyos_rect = None;
     }
-    let artix_label = format!("[{}]", i18n::t(app, "app.results.filters.artix"));
-    if has_artix {
-        app.results_filter_artix_rect = Some(rec_rect(x_cursor, &artix_label));
-        x_cursor = x_cursor
-            .saturating_add(artix_label.len() as u16)
-            .saturating_add(1);
-    } else {
-        app.results_filter_artix_rect = None;
-    }
-
     // Right-aligned Config/Lists, Panels and Options buttons: compute remaining space first
     // to determine if we should show Artix-specific repo filters
     let inner_width = area.width.saturating_sub(2); // exclude borders
@@ -581,6 +584,21 @@ pub fn record_title_rects(
         if pad >= 1 {
             show_artix_specific_repos = false;
         }
+    }
+
+    // Record Artix filter rect (accounting for dropdown indicator if needed)
+    if has_artix {
+        let artix_label_with_indicator = if show_artix_specific_repos {
+            artix_label.clone()
+        } else {
+            format!("{artix_label} v")
+        };
+        app.results_filter_artix_rect = Some(rec_rect(x_cursor, &artix_label_with_indicator));
+        x_cursor = x_cursor
+            .saturating_add(artix_label_with_indicator.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_artix_rect = None;
     }
 
     // Record Artix-specific repo filter rects only if there's space
