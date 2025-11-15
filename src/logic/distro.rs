@@ -67,7 +67,8 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
 /// - Returns a display label describing the ecosystem the package belongs to.
 ///
 /// Details:
-/// - Distinguishes EndeavourOS, CachyOS, and Artix Linux repos, and detects Manjaro branding by name/owner heuristics.
+/// - Distinguishes EndeavourOS, CachyOS, and Artix Linux repos (with specific labels for each Artix repo:
+///   OMNI, UNI, LIB32, GALAX, WORLD, SYSTEM), and detects Manjaro branding by name/owner heuristics.
 /// - Falls back to the raw repository string when no special classification matches.
 pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     let r = repo.to_lowercase();
@@ -75,7 +76,20 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
         "EOS".to_string()
     } else if crate::index::is_cachyos_repo(&r) {
         "CachyOS".to_string()
+    } else if crate::index::is_artix_omniverse(&r) {
+        "OMNI".to_string()
+    } else if crate::index::is_artix_universe(&r) {
+        "UNI".to_string()
+    } else if crate::index::is_artix_lib32(&r) {
+        "LIB32".to_string()
+    } else if crate::index::is_artix_galaxy(&r) {
+        "GALAX".to_string()
+    } else if crate::index::is_artix_world(&r) {
+        "WORLD".to_string()
+    } else if crate::index::is_artix_system(&r) {
+        "SYSTEM".to_string()
     } else if crate::index::is_artix_repo(&r) {
+        // Fallback for any other Artix repo (shouldn't happen, but safe)
         "Artix".to_string()
     } else if crate::index::is_manjaro_name_or_owner(name, owner) {
         "Manjaro".to_string()
