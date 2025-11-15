@@ -8,14 +8,15 @@ use crate::state::{AppState, Source};
 /// - `app`: Application state providing `all_results`
 ///
 /// Output:
-/// - Tuple `(has_eos, has_cachyos, has_manjaro)` indicating which repo chips to show.
+/// - Tuple `(has_eos, has_cachyos, has_artix, has_manjaro)` indicating which repo chips to show.
 ///
 /// Details:
-/// - Scans official result sources and package names to infer EOS/CachyOS/Manjaro presence, short
-///   circuiting once all three are detected.
-pub fn detect_optional_repos(app: &AppState) -> (bool, bool, bool) {
+/// - Scans official result sources and package names to infer EOS/CachyOS/Artix/Manjaro presence, short
+///   circuiting once all four are detected.
+pub fn detect_optional_repos(app: &AppState) -> (bool, bool, bool, bool) {
     let mut eos = false;
     let mut cach = false;
+    let mut artix = false;
     let mut manj = false;
     for it in app.all_results.iter() {
         if let Source::Official { repo, .. } = &it.source {
@@ -26,16 +27,19 @@ pub fn detect_optional_repos(app: &AppState) -> (bool, bool, bool) {
             if !cach && crate::index::is_cachyos_repo(&r) {
                 cach = true;
             }
+            if !artix && crate::index::is_artix_repo(&r) {
+                artix = true;
+            }
         }
         // Treat presence by name prefix rather than repo value
         if !manj && crate::index::is_name_manjaro(&it.name) {
             manj = true;
         }
-        if eos && cach && manj {
+        if eos && cach && artix && manj {
             break;
         }
     }
-    (eos, cach, manj)
+    (eos, cach, artix, manj)
 }
 
 /// What: Keep the results selection centered within the visible viewport when possible.

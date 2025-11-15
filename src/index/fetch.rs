@@ -1,6 +1,6 @@
 use super::OfficialPkg;
 #[cfg(not(windows))]
-use super::distro::{cachyos_repo_names, eos_repo_names};
+use super::distro::{artix_repo_names, cachyos_repo_names, eos_repo_names};
 
 /// What: Fetch a minimal list of official packages using `pacman -Sl`.
 ///
@@ -12,7 +12,7 @@ use super::distro::{cachyos_repo_names, eos_repo_names};
 ///   are empty for speed. The result is deduplicated by `(repo, name)`.
 ///
 /// Details:
-/// - Combines results from core, extra, multilib, EndeavourOS, and CachyOS repositories before
+/// - Combines results from core, extra, multilib, EndeavourOS, CachyOS, and Artix Linux repositories before
 ///   sorting and deduplicating entries.
 #[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()
@@ -70,11 +70,22 @@ pub async fn fetch_official_pkg_names()
             .unwrap_or_default();
         cach_pairs.push((repo, body));
     }
+    // Artix Linux: attempt all known Artix repo names; missing ones yield empty output
+    let mut artix_pairs: Vec<(&str, String)> = Vec::new();
+    for &repo in artix_repo_names().iter() {
+        let body = tokio::task::spawn_blocking(move || run_pacman(&["-Sl", repo]))
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .unwrap_or_default();
+        artix_pairs.push((repo, body));
+    }
     let mut pkgs: Vec<OfficialPkg> = Vec::new();
     for (repo, text) in [("core", core), ("extra", extra), ("multilib", multilib)]
         .into_iter()
         .chain(eos_pairs.into_iter())
         .chain(cach_pairs.into_iter())
+        .chain(artix_pairs.into_iter())
     {
         for line in text.lines() {
             // Format: "repo pkgname version [installed]"

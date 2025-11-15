@@ -10,7 +10,7 @@
 /// - `true` when the repository passes the active filters; otherwise `false`.
 ///
 /// Details:
-/// - Normalizes repository names and applies special-handling for EOS/CachyOS classification helpers.
+/// - Normalizes repository names and applies special-handling for EOS/CachyOS/Artix classification helpers.
 /// - Unknown repositories are only allowed when every official filter is enabled simultaneously.
 pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
     let r = repo.to_lowercase();
@@ -24,6 +24,8 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
         app.results_filter_show_eos
     } else if crate::index::is_cachyos_repo(&r) {
         app.results_filter_show_cachyos
+    } else if crate::index::is_artix_repo(&r) {
+        app.results_filter_show_artix
     } else {
         // Unknown official repo: include only when all official filters are enabled
         app.results_filter_show_core
@@ -31,6 +33,7 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
             && app.results_filter_show_multilib
             && app.results_filter_show_eos
             && app.results_filter_show_cachyos
+            && app.results_filter_show_artix
     }
 }
 
@@ -45,7 +48,7 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
 /// - Returns a display label describing the ecosystem the package belongs to.
 ///
 /// Details:
-/// - Distinguishes EndeavourOS and CachyOS repos, and detects Manjaro branding by name/owner heuristics.
+/// - Distinguishes EndeavourOS, CachyOS, and Artix Linux repos, and detects Manjaro branding by name/owner heuristics.
 /// - Falls back to the raw repository string when no special classification matches.
 pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     let r = repo.to_lowercase();
@@ -53,6 +56,8 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
         "EOS".to_string()
     } else if crate::index::is_cachyos_repo(&r) {
         "CachyOS".to_string()
+    } else if crate::index::is_artix_repo(&r) {
+        "Artix".to_string()
     } else if crate::index::is_manjaro_name_or_owner(name, owner) {
         "Manjaro".to_string()
     } else {
@@ -85,6 +90,7 @@ mod tests {
         app.results_filter_show_multilib = false;
         app.results_filter_show_eos = false;
         app.results_filter_show_cachyos = false;
+        app.results_filter_show_artix = false;
 
         assert!(repo_toggle_for("core", &app));
         assert!(!repo_toggle_for("extra", &app));
@@ -111,6 +117,7 @@ mod tests {
         app.results_filter_show_multilib = true;
         app.results_filter_show_eos = true;
         app.results_filter_show_cachyos = true;
+        app.results_filter_show_artix = true;
 
         assert!(repo_toggle_for("unlisted", &app));
 
@@ -122,16 +129,18 @@ mod tests {
     /// What: Confirm label helper emits ecosystem-specific aliases for recognised repositories.
     ///
     /// Inputs:
-    /// - Repository/name permutations covering EndeavourOS, CachyOS, Manjaro, and a generic repo.
+    /// - Repository/name permutations covering EndeavourOS, CachyOS, Artix Linux, Manjaro, and a generic repo.
     ///
     /// Output:
-    /// - Labels reduce to `EOS`, `CachyOS`, `Manjaro`, and the original repo name respectively.
+    /// - Labels reduce to `EOS`, `CachyOS`, `Artix`, `Manjaro`, and the original repo name respectively.
     ///
     /// Details:
     /// - Validates the Manjaro heuristic via package name and the repo classification helpers.
     fn label_for_official_prefers_special_cases() {
         assert_eq!(label_for_official("endeavouros", "pkg", ""), "EOS");
         assert_eq!(label_for_official("cachyos-extra", "pkg", ""), "CachyOS");
+        assert_eq!(label_for_official("omniverse", "pkg", ""), "Artix");
+        assert_eq!(label_for_official("universe", "pkg", ""), "Artix");
         assert_eq!(label_for_official("extra", "manjaro-kernel", ""), "Manjaro");
         assert_eq!(label_for_official("core", "glibc", ""), "core");
     }

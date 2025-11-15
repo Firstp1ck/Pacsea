@@ -15,7 +15,7 @@ use crate::theme::theme;
 /// Inputs:
 /// - `results_len`: Number of results
 /// - `area`: Target rectangle for the results block
-/// - `has_eos`, `has_cachyos`, `has_manjaro`: Whether optional repos are available
+/// - `has_eos`, `has_cachyos`, `has_artix`, `has_manjaro`: Whether optional repos are available
 /// - `sort_menu_open`, `config_menu_open`, `panels_menu_open`, `options_menu_open`: Menu states
 /// - Filter flags for each repo type
 ///
@@ -32,6 +32,7 @@ pub fn build_title_spans_from_values(
     area: Rect,
     has_eos: bool,
     has_cachyos: bool,
+    has_artix: bool,
     has_manjaro: bool,
     sort_menu_open: bool,
     config_menu_open: bool,
@@ -43,6 +44,7 @@ pub fn build_title_spans_from_values(
     results_filter_show_multilib: bool,
     results_filter_show_eos: bool,
     results_filter_show_cachyos: bool,
+    results_filter_show_artix: bool,
     results_filter_show_manjaro: bool,
 ) -> Vec<Span<'static>> {
     let th = theme();
@@ -115,6 +117,13 @@ pub fn build_title_spans_from_values(
             results_filter_show_cachyos,
         ));
     }
+    if has_artix {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.artix"),
+            results_filter_show_artix,
+        ));
+    }
     if has_manjaro {
         title_spans.push(Span::raw(" "));
         title_spans.push(filt(
@@ -131,6 +140,7 @@ pub fn build_title_spans_from_values(
     let multilib_label = format!("[{}]", i18n::t(app, "app.results.filters.multilib"));
     let eos_label = format!("[{}]", i18n::t(app, "app.results.filters.eos"));
     let cachyos_label = format!("[{}]", i18n::t(app, "app.results.filters.cachyos"));
+    let artix_label = format!("[{}]", i18n::t(app, "app.results.filters.artix"));
     let manjaro_label = format!("[{}]", i18n::t(app, "app.results.filters.manjaro"));
     let mut consumed_left = (results_title_text.len()
         + 2 // spaces before Sort
@@ -148,6 +158,9 @@ pub fn build_title_spans_from_values(
     }
     if has_cachyos {
         consumed_left = consumed_left.saturating_add(1 + cachyos_label.len() as u16);
+    }
+    if has_artix {
+        consumed_left = consumed_left.saturating_add(1 + artix_label.len() as u16);
     }
     if has_manjaro {
         consumed_left = consumed_left.saturating_add(1 + manjaro_label.len() as u16);
@@ -242,7 +255,7 @@ pub fn build_title_spans_from_values(
 /// Inputs:
 /// - `app`: Mutable application state (rects will be updated)
 /// - `area`: Target rectangle for the results block
-/// - `has_eos`, `has_cachyos`, `has_manjaro`: Whether optional repos are available
+/// - `has_eos`, `has_cachyos`, `has_artix`, `has_manjaro`: Whether optional repos are available
 ///
 /// Output:
 /// - Updates `app` with rectangles for filters, buttons, and optional repo chips.
@@ -255,6 +268,7 @@ pub fn record_title_rects(
     area: Rect,
     has_eos: bool,
     has_cachyos: bool,
+    has_artix: bool,
     has_manjaro: bool,
 ) {
     let results_title_text = format!(
@@ -315,13 +329,20 @@ pub fn record_title_rects(
     let cachyos_label = "[CachyOS]";
     if has_cachyos {
         app.results_filter_cachyos_rect = Some(rec_rect(x_cursor, cachyos_label));
-    } else {
-        app.results_filter_cachyos_rect = None;
-    }
-    if has_cachyos {
         x_cursor = x_cursor
             .saturating_add(cachyos_label.len() as u16)
             .saturating_add(1);
+    } else {
+        app.results_filter_cachyos_rect = None;
+    }
+    let artix_label = format!("[{}]", i18n::t(app, "app.results.filters.artix"));
+    if has_artix {
+        app.results_filter_artix_rect = Some(rec_rect(x_cursor, &artix_label));
+        x_cursor = x_cursor
+            .saturating_add(artix_label.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_artix_rect = None;
     }
     let manjaro_label = format!("[{}]", i18n::t(app, "app.results.filters.manjaro"));
     if has_manjaro {
@@ -348,6 +369,9 @@ pub fn record_title_rects(
     }
     if has_cachyos {
         consumed_left = consumed_left.saturating_add(1 + cachyos_label.len() as u16);
+    }
+    if has_artix {
+        consumed_left = consumed_left.saturating_add(1 + artix_label.len() as u16);
     }
     if has_manjaro {
         consumed_left = consumed_left.saturating_add(1 + manjaro_label.len() as u16);
