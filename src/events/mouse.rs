@@ -1092,28 +1092,46 @@ pub fn handle_mouse_event(
             let row = my.saturating_sub(y) as usize; // 0-based within options
             match row {
                 0 => {
+                    // Toggle all Artix filters
+                    let all_on = app.results_filter_show_artix_omniverse
+                        && app.results_filter_show_artix_universe
+                        && app.results_filter_show_artix_lib32
+                        && app.results_filter_show_artix_galaxy
+                        && app.results_filter_show_artix_world
+                        && app.results_filter_show_artix_system;
+                    let new_state = !all_on;
+                    app.results_filter_show_artix_omniverse = new_state;
+                    app.results_filter_show_artix_universe = new_state;
+                    app.results_filter_show_artix_lib32 = new_state;
+                    app.results_filter_show_artix_galaxy = new_state;
+                    app.results_filter_show_artix_world = new_state;
+                    app.results_filter_show_artix_system = new_state;
+                    app.results_filter_show_artix = new_state;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                1 => {
                     app.results_filter_show_artix_omniverse =
                         !app.results_filter_show_artix_omniverse;
                     crate::logic::apply_filters_and_sort_preserve_selection(app);
                 }
-                1 => {
+                2 => {
                     app.results_filter_show_artix_universe =
                         !app.results_filter_show_artix_universe;
                     crate::logic::apply_filters_and_sort_preserve_selection(app);
                 }
-                2 => {
+                3 => {
                     app.results_filter_show_artix_lib32 = !app.results_filter_show_artix_lib32;
                     crate::logic::apply_filters_and_sort_preserve_selection(app);
                 }
-                3 => {
+                4 => {
                     app.results_filter_show_artix_galaxy = !app.results_filter_show_artix_galaxy;
                     crate::logic::apply_filters_and_sort_preserve_selection(app);
                 }
-                4 => {
+                5 => {
                     app.results_filter_show_artix_world = !app.results_filter_show_artix_world;
                     crate::logic::apply_filters_and_sort_preserve_selection(app);
                 }
-                5 => {
+                6 => {
                     app.results_filter_show_artix_system = !app.results_filter_show_artix_system;
                     crate::logic::apply_filters_and_sort_preserve_selection(app);
                 }

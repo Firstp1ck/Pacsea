@@ -267,7 +267,16 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             && app.results_filter_artix_system_rect.is_none();
 
         if has_hidden_filters {
+            // Check if all individual Artix repo filters are on
+            let all_on = app.results_filter_show_artix_omniverse
+                && app.results_filter_show_artix_universe
+                && app.results_filter_show_artix_lib32
+                && app.results_filter_show_artix_galaxy
+                && app.results_filter_show_artix_world
+                && app.results_filter_show_artix_system;
+
             let opts: Vec<(String, bool)> = vec![
+                (i18n::t(app, "app.results.filters.artix"), all_on),
                 (
                     i18n::t(app, "app.results.filters.artix_omniverse"),
                     app.results_filter_show_artix_omniverse,
