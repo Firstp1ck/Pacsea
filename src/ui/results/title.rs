@@ -573,8 +573,9 @@ pub fn record_title_rects(
                 consumed_without_specific.saturating_add(1 + cachyos_label.len() as u16);
         }
         if has_artix {
+            // Add 3 extra chars for " v" dropdown indicator
             consumed_without_specific =
-                consumed_without_specific.saturating_add(1 + artix_label.len() as u16);
+                consumed_without_specific.saturating_add(1 + artix_label.len() as u16 + 3);
         }
         if has_manjaro {
             consumed_without_specific =
