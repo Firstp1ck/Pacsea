@@ -161,7 +161,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                             || label == "OMNI"
                             || label == "UNI"
                             || label == "LIB32"
-                            || label == "GALAX"
+                            || label == "GALAXY"
                             || label == "WORLD"
                             || label == "SYSTEM"
                             || label == "Manjaro"
@@ -386,7 +386,7 @@ mod tests {
         );
         translations.insert(
             "app.results.filters.artix_galaxy".to_string(),
-            "GALAX".to_string(),
+            "GALAXY".to_string(),
         );
         translations.insert(
             "app.results.filters.artix_world".to_string(),

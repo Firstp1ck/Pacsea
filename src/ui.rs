@@ -266,7 +266,7 @@ mod tests {
         );
         translations.insert(
             "app.results.filters.artix_galaxy".to_string(),
-            "GALAX".to_string(),
+            "GALAXY".to_string(),
         );
         translations.insert(
             "app.results.filters.artix_world".to_string(),
