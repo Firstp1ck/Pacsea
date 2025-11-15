@@ -47,6 +47,14 @@ hu-HU:
       downgrade: "VISSZAFEJLESZTÉS:"
       remove: "ELTÁVOLÍTÁS:"
       results: "Találatok"
+      # TODO: add translations for Optional Dependency headings
+    optional_deps:
+      categories:
+        editor: "Editor"
+        terminal: "Terminal"
+        clipboard: "Clipboard"
+        aur_helper: "AUR Helper"
+        security: "Security"
       
     titles:
       search: "Keresés"
@@ -330,6 +338,32 @@ hu-HU:
           find: "  Keresés"
           to_search: "  Kereséshez"
           use: "  Használat"
+          # TODO: add translations for the missing key_labels
+          confirm: "  Confirm"
+          remove: "  Remove"
+          clear: "  Clear"
+          toggle_normal: "  Toggle normal"
+          insert_mode: "  Insert Mode"
+          select_left: "  Select left"
+          select_right: "  Select right"
+          open_arch_status: "  Open Arch status"
+          config_lists_menu: "  Config/Lists menu"
+          options_menu: "  Options menu"
+          panels_menu: "  Panels menu"
+        normal_mode:
+          label: "Normal Mode:"
+          insert_mode: " Insert Mode, "
+          move: " move, "
+          page: " page, "
+          select_text: " Select text, "
+          delete_text: " Delete text, "
+          clear_input: " Clear input"
+          open_config_list: " Open Config/List"
+          open_options: " Open Options"
+          open_panels: " Open Panels"
+          install_list: "  • Install List:  "
+          import: " Import"
+          export: " Export"
       news:
         title: " Hírek "
         heading: "Arch Linux hírek"

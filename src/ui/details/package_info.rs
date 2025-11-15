@@ -5,6 +5,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Paragraph, Wrap},
 };
 
+use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
@@ -113,9 +114,10 @@ pub fn render_package_info(f: &mut Frame, app: &mut AppState, details_area: Rect
         cur_y = cur_y.saturating_add(rows);
     }
 
+    let package_info_title = i18n::t(app, "app.headings.package_info");
     let details_block = Block::default()
         .title(ratatui::text::Span::styled(
-            "Package Info",
+            &package_info_title,
             Style::default().fg(th.overlay1),
         ))
         .borders(Borders::ALL)

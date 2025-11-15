@@ -77,9 +77,10 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
 
         // GLOBALS (dynamic from keymap)
         let km = &app.keymap;
+        let globals_label = format!("{}  ", i18n::t(app, "app.headings.globals"));
         let mut g_spans: Vec<Span> = vec![
             Span::styled(
-                "GLOBALS:  ",
+                globals_label,
                 Style::default()
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
@@ -136,9 +137,10 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         // (Pane focus left/right intentionally omitted from footer)
 
         // SEARCH
+        let search_label = format!("{}   ", i18n::t(app, "app.headings.search"));
         let mut s_spans: Vec<Span> = vec![
             Span::styled(
-                "SEARCH:   ",
+                search_label,
                 Style::default()
                     .fg(search_label_color)
                     .add_modifier(Modifier::BOLD),
@@ -340,9 +342,10 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         };
 
         // RECENT
+        let recent_label = format!("{}   ", i18n::t(app, "app.headings.recent"));
         let mut r_spans: Vec<Span> = vec![
             Span::styled(
-                "RECENT:   ",
+                recent_label,
                 Style::default()
                     .fg(recent_label_color)
                     .add_modifier(Modifier::BOLD),
@@ -449,24 +452,33 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
             let delete_label = label(&km.search_normal_delete, "d");
             let clear_label = label(&km.search_normal_clear, "Shift+Del");
 
+            // Store translated strings to avoid borrow checker issues
+            let normal_mode_label = i18n::t(app, "app.modals.help.normal_mode.label");
+            let insert_mode_text = i18n::t(app, "app.modals.help.normal_mode.insert_mode");
+            let move_text = i18n::t(app, "app.modals.help.normal_mode.move");
+            let page_text = i18n::t(app, "app.modals.help.normal_mode.page");
+            let select_text_text = i18n::t(app, "app.modals.help.normal_mode.select_text");
+            let delete_text_text = i18n::t(app, "app.modals.help.normal_mode.delete_text");
+            let clear_input_text = i18n::t(app, "app.modals.help.normal_mode.clear_input");
+
             let n_spans: Vec<Span> = vec![
                 Span::styled(
-                    "Normal Mode:",
+                    normal_mode_label.clone(),
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ),
                 Span::raw("  "),
                 Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
-                Span::raw(" Insert Mode, "),
+                Span::raw(insert_mode_text.clone()),
                 Span::styled("[j / k]", key_style),
-                Span::raw(" move, "),
+                Span::raw(move_text.clone()),
                 Span::styled("[Ctrl+d / Ctrl+u]", key_style),
-                Span::raw(" page, "),
+                Span::raw(page_text.clone()),
                 Span::styled(format!("[{left_label} / {right_label}]"), key_style),
-                Span::raw(" Select text, "),
+                Span::raw(select_text_text.clone()),
                 Span::styled(format!("[{delete_label}]"), key_style),
-                Span::raw(" Delete text, "),
+                Span::raw(delete_text_text.clone()),
                 Span::styled(format!("[{clear_label}]"), key_style),
-                Span::raw(" Clear input"),
+                Span::raw(clear_input_text.clone()),
                 // Close first line (base Normal Mode help)
             ];
             lines.push(Line::from(n_spans));
@@ -479,20 +491,24 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
                 || !km.options_menu_toggle.is_empty()
                 || !km.panels_menu_toggle.is_empty()
             {
+                let open_config_list_text = i18n::t(app, "app.modals.help.normal_mode.open_config_list");
+                let open_options_text = i18n::t(app, "app.modals.help.normal_mode.open_options");
+                let open_panels_text = i18n::t(app, "app.modals.help.normal_mode.open_panels");
+                
                 if let Some(k) = km.config_menu_toggle.first() {
                     n2_spans.push(Span::raw("  •  "));
                     n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(" Open Config/List"));
+                    n2_spans.push(Span::raw(open_config_list_text.clone()));
                 }
                 if let Some(k) = km.options_menu_toggle.first() {
                     n2_spans.push(Span::raw("  •  "));
                     n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(" Open Options"));
+                    n2_spans.push(Span::raw(open_options_text.clone()));
                 }
                 if let Some(k) = km.panels_menu_toggle.first() {
                     n2_spans.push(Span::raw("  •  "));
                     n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(" Open Panels"));
+                    n2_spans.push(Span::raw(open_panels_text.clone()));
                 }
             }
 
@@ -500,18 +516,22 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
             if !app.installed_only_mode
                 && (!km.search_normal_import.is_empty() || !km.search_normal_export.is_empty())
             {
-                n2_spans.push(Span::raw("  • Install List:  "));
+                let install_list_text = i18n::t(app, "app.modals.help.normal_mode.install_list");
+                let import_text = i18n::t(app, "app.modals.help.normal_mode.import");
+                let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
+                
+                n2_spans.push(Span::raw(install_list_text.clone()));
                 if let Some(k) = km.search_normal_import.first() {
                     n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(" Import"));
+                    n2_spans.push(Span::raw(import_text.clone()));
                     if let Some(k2) = km.search_normal_export.first() {
                         n2_spans.push(Span::raw(", "));
                         n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                        n2_spans.push(Span::raw(" Export"));
+                        n2_spans.push(Span::raw(export_text.clone()));
                     }
                 } else if let Some(k) = km.search_normal_export.first() {
                     n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(" Export"));
+                    n2_spans.push(Span::raw(export_text.clone()));
                 }
             }
 
