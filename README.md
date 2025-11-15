@@ -12,6 +12,16 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 ❤️ Thank you to the Pacsea community for your ideas, reports, and support!
 </p>
 
+## Supported Platforms
+| Supported Distributions | Supported Languages |
+|:---|:---|
+| [![Arch Linux](https://img.shields.io/badge/Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/) | [![English](https://img.shields.io/badge/English-1793D1)](https://github.com/Firstp1ck/Pacsea) |
+| [![EndeavourOS](https://img.shields.io/badge/EndeavourOS-1793D1?logo=endeavouros&logoColor=white)](https://endeavouros.com/) | [![German](https://img.shields.io/badge/German-1793D1)](https://github.com/Firstp1ck/Pacsea) |
+| [![CachyOS](https://img.shields.io/badge/CachyOS-1793D1?logo=arch-linux&logoColor=white)](https://cachyos.org/) | [![Hungarian](https://img.shields.io/badge/Hungarian-in%20Progress-yellow)](https://github.com/Firstp1ck/Pacsea) |
+| [![Manjaro](https://img.shields.io/badge/Manjaro-35BF5C?logo=manjaro&logoColor=white)](https://manjaro.org/) | |
+| [![Artix](https://img.shields.io/badge/Artix-1793D1?logo=arch-linux&logoColor=white)](https://artixlinux.org/) | |
+
+
 ### Main app view
 ![Main app view (v0.4.1)](Images/AppView_v0.4.5_PKGBUILD_AUR.png "Main app view (v0.4.1)")
 
