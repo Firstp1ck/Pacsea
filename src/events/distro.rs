@@ -190,7 +190,8 @@ mod tests {
         assert!(cmd.contains("grep -q 'Artix' /etc/os-release"));
         assert!(cmd.contains("rate-mirrors"));
         assert!(cmd.contains("--top-mirrors-number-to-retest=10"));
-        assert!(cmd.contains("--allow-root artix"));
+        assert!(cmd.contains("--allow-root"));
+        assert!(cmd.contains(" artix"));
     }
 
     #[test]

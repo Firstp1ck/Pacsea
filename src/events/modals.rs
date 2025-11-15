@@ -477,7 +477,14 @@ pub(crate) fn handle_modal_key(
                             } else if pkg == "semgrep-bin" {
                                 "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
                             } else if pkg == "rate-mirrors" {
-                                format!("{}{}", crate::install::command::aur_install_body("-S --needed --noconfirm", &pkg), hold_tail)
+                                format!(
+                                    "{}{}",
+                                    crate::install::command::aur_install_body(
+                                        "-S --needed --noconfirm",
+                                        &pkg
+                                    ),
+                                    hold_tail
+                                )
                             } else {
                                 format!("sudo pacman -S --needed --noconfirm {}", pkg)
                             };
