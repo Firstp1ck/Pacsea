@@ -174,18 +174,19 @@ mod tests {
     /// What: Confirm label helper emits ecosystem-specific aliases for recognised repositories.
     ///
     /// Inputs:
-    /// - Repository/name permutations covering EndeavourOS, CachyOS, Artix Linux, Manjaro, and a generic repo.
+    /// - Repository/name permutations covering EndeavourOS, CachyOS, Artix Linux (with specific repo labels), Manjaro, and a generic repo.
     ///
     /// Output:
-    /// - Labels reduce to `EOS`, `CachyOS`, `Artix`, `Manjaro`, and the original repo name respectively.
+    /// - Labels reduce to `EOS`, `CachyOS`, `OMNI`, `UNI` (for specific Artix repos), `Manjaro`, and the original repo name respectively.
     ///
     /// Details:
     /// - Validates the Manjaro heuristic via package name and the repo classification helpers.
+    /// - Confirms specific Artix repos return their specific labels (OMNI, UNI, etc.) rather than the generic "Artix" label.
     fn label_for_official_prefers_special_cases() {
         assert_eq!(label_for_official("endeavouros", "pkg", ""), "EOS");
         assert_eq!(label_for_official("cachyos-extra", "pkg", ""), "CachyOS");
-        assert_eq!(label_for_official("omniverse", "pkg", ""), "Artix");
-        assert_eq!(label_for_official("universe", "pkg", ""), "Artix");
+        assert_eq!(label_for_official("omniverse", "pkg", ""), "OMNI");
+        assert_eq!(label_for_official("universe", "pkg", ""), "UNI");
         assert_eq!(label_for_official("extra", "manjaro-kernel", ""), "Manjaro");
         assert_eq!(label_for_official("core", "glibc", ""), "core");
     }
