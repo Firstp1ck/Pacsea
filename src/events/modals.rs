@@ -213,6 +213,7 @@ pub(crate) fn handle_modal_key(
                         app.modal = crate::state::Modal::Alert {
                             message: "No actions selected".to_string(),
                         };
+                        return false; // Allow Alert modal to handle further events
                     } else {
                         let to_run: Vec<String> = if app.dry_run {
                             cmds.iter()
@@ -223,6 +224,8 @@ pub(crate) fn handle_modal_key(
                         };
                         crate::install::spawn_shell_commands_in_terminal(&to_run);
                         app.modal = crate::state::Modal::None;
+                        // Return true to stop event propagation and prevent preflight from being triggered
+                        return true;
                     }
                 }
                 _ => {}
@@ -462,14 +465,26 @@ pub(crate) fn handle_modal_key(
                             };
                             crate::install::spawn_shell_commands_in_terminal(&to_run);
                             app.modal = crate::state::Modal::None;
+                            // Return true to stop event propagation and prevent preflight from being triggered
+                            return true;
                         } else if !row.installed && row.selectable {
                             let pkg = row.package.clone();
+                            let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
                             let cmd = if pkg == "paru" {
                                 "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
                             } else if pkg == "yay" {
                                 "rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
                             } else if pkg == "semgrep-bin" {
                                 "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
+                            } else if pkg == "rate-mirrors" {
+                                format!(
+                                    "{}{}",
+                                    crate::install::command::aur_install_body(
+                                        "-S --needed --noconfirm",
+                                        &pkg
+                                    ),
+                                    hold_tail
+                                )
                             } else {
                                 format!("sudo pacman -S --needed --noconfirm {}", pkg)
                             };
@@ -480,6 +495,8 @@ pub(crate) fn handle_modal_key(
                             };
                             crate::install::spawn_shell_commands_in_terminal(&to_run);
                             app.modal = crate::state::Modal::None;
+                            // Return true to stop event propagation and prevent preflight from being triggered
+                            return true;
                         }
                     }
                 }

@@ -60,6 +60,54 @@ pub fn is_cachyos_repo(repo: &str) -> bool {
     r.starts_with("cachyos")
 }
 
+/// What: Check if a repo name belongs to Artix Linux
+///
+/// Input:
+/// - `repo` repository name
+///
+/// Output:
+/// - `true` if it matches known Artix repository names (case-insensitive)
+///
+/// Details:
+/// - Checks against the list of Artix repositories: omniverse, universe, lib32, galaxy, world, system.
+pub fn is_artix_repo(repo: &str) -> bool {
+    let r = repo.to_lowercase();
+    matches!(
+        r.as_str(),
+        "omniverse" | "universe" | "lib32" | "galaxy" | "world" | "system"
+    )
+}
+
+/// What: Check if a repo name is the Artix omniverse repository.
+pub fn is_artix_omniverse(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("omniverse")
+}
+
+/// What: Check if a repo name is the Artix universe repository.
+pub fn is_artix_universe(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("universe")
+}
+
+/// What: Check if a repo name is the Artix lib32 repository.
+pub fn is_artix_lib32(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("lib32")
+}
+
+/// What: Check if a repo name is the Artix galaxy repository.
+pub fn is_artix_galaxy(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("galaxy")
+}
+
+/// What: Check if a repo name is the Artix world repository.
+pub fn is_artix_world(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("world")
+}
+
+/// What: Check if a repo name is the Artix system repository.
+pub fn is_artix_system(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("system")
+}
+
 #[cfg(not(target_os = "windows"))]
 /// What: Known EndeavourOS repo names usable with pacman -Sl
 ///
@@ -91,6 +139,25 @@ pub fn cachyos_repo_names() -> &'static [&'static str] {
         "cachyos-v4",
         "cachyos-core-v4",
         "cachyos-extra-v4",
+    ]
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Known Artix Linux repo names usable with pacman -Sl
+///
+/// Output:
+/// - Static slice of repo names
+///
+/// Details:
+/// - Returns the standard Artix repositories: omniverse, universe, lib32, galaxy, world, system.
+pub fn artix_repo_names() -> &'static [&'static str] {
+    &[
+        "omniverse",
+        "universe",
+        "lib32",
+        "galaxy",
+        "world",
+        "system",
     ]
 }
 
@@ -180,5 +247,29 @@ mod tests {
         assert!(super::is_eos_name("eos-hello"));
         assert!(super::is_eos_name("my-eos-helper"));
         assert!(!super::is_eos_name("hello"));
+    }
+
+    #[test]
+    /// What: Confirm repo heuristics for Artix Linux.
+    ///
+    /// Inputs:
+    /// - Various repo strings spanning expected matches and misses.
+    ///
+    /// Output:
+    /// - Assertions that only Artix repos return true.
+    ///
+    /// Details:
+    /// - Checks case-insensitive matching for all Artix repository names.
+    fn artix_repo_rules() {
+        assert!(super::is_artix_repo("omniverse"));
+        assert!(super::is_artix_repo("Omniverse"));
+        assert!(super::is_artix_repo("universe"));
+        assert!(super::is_artix_repo("lib32"));
+        assert!(super::is_artix_repo("galaxy"));
+        assert!(super::is_artix_repo("world"));
+        assert!(super::is_artix_repo("system"));
+        assert!(!super::is_artix_repo("core"));
+        assert!(!super::is_artix_repo("extra"));
+        assert!(!super::is_artix_repo("cachyos"));
     }
 }

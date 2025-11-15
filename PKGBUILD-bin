@@ -16,6 +16,7 @@ optdepends=(
     'xclip: clipboard support on X11'
     'reflector: update Arch mirrors'
     'pacman-mirrors: Manjaro mirrorlist'
+    'rate-mirrors: Artix mirror rating'
     'alacritty: run external commands in a terminal'
     'kitty: run external commands in a terminal'
     'ghostty: run external commands in a terminal'

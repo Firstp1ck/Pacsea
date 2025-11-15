@@ -10,7 +10,7 @@
 /// - `true` when the repository passes the active filters; otherwise `false`.
 ///
 /// Details:
-/// - Normalizes repository names and applies special-handling for EOS/CachyOS classification helpers.
+/// - Normalizes repository names and applies special-handling for EOS/CachyOS/Artix classification helpers.
 /// - Unknown repositories are only allowed when every official filter is enabled simultaneously.
 pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
     let r = repo.to_lowercase();
@@ -24,6 +24,21 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
         app.results_filter_show_eos
     } else if crate::index::is_cachyos_repo(&r) {
         app.results_filter_show_cachyos
+    } else if crate::index::is_artix_omniverse(&r) {
+        app.results_filter_show_artix_omniverse
+    } else if crate::index::is_artix_universe(&r) {
+        app.results_filter_show_artix_universe
+    } else if crate::index::is_artix_lib32(&r) {
+        app.results_filter_show_artix_lib32
+    } else if crate::index::is_artix_galaxy(&r) {
+        app.results_filter_show_artix_galaxy
+    } else if crate::index::is_artix_world(&r) {
+        app.results_filter_show_artix_world
+    } else if crate::index::is_artix_system(&r) {
+        app.results_filter_show_artix_system
+    } else if crate::index::is_artix_repo(&r) {
+        // Fallback for any other Artix repo (shouldn't happen, but safe)
+        app.results_filter_show_artix
     } else {
         // Unknown official repo: include only when all official filters are enabled
         app.results_filter_show_core
@@ -31,6 +46,13 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
             && app.results_filter_show_multilib
             && app.results_filter_show_eos
             && app.results_filter_show_cachyos
+            && app.results_filter_show_artix
+            && app.results_filter_show_artix_omniverse
+            && app.results_filter_show_artix_universe
+            && app.results_filter_show_artix_lib32
+            && app.results_filter_show_artix_galaxy
+            && app.results_filter_show_artix_world
+            && app.results_filter_show_artix_system
     }
 }
 
@@ -45,7 +67,8 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
 /// - Returns a display label describing the ecosystem the package belongs to.
 ///
 /// Details:
-/// - Distinguishes EndeavourOS and CachyOS repos, and detects Manjaro branding by name/owner heuristics.
+/// - Distinguishes EndeavourOS, CachyOS, and Artix Linux repos (with specific labels for each Artix repo:
+///   OMNI, UNI, LIB32, GALAXY, WORLD, SYSTEM), and detects Manjaro branding by name/owner heuristics.
 /// - Falls back to the raw repository string when no special classification matches.
 pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     let r = repo.to_lowercase();
@@ -53,6 +76,21 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
         "EOS".to_string()
     } else if crate::index::is_cachyos_repo(&r) {
         "CachyOS".to_string()
+    } else if crate::index::is_artix_omniverse(&r) {
+        "OMNI".to_string()
+    } else if crate::index::is_artix_universe(&r) {
+        "UNI".to_string()
+    } else if crate::index::is_artix_lib32(&r) {
+        "LIB32".to_string()
+    } else if crate::index::is_artix_galaxy(&r) {
+        "GALAXY".to_string()
+    } else if crate::index::is_artix_world(&r) {
+        "WORLD".to_string()
+    } else if crate::index::is_artix_system(&r) {
+        "SYSTEM".to_string()
+    } else if crate::index::is_artix_repo(&r) {
+        // Fallback for any other Artix repo (shouldn't happen, but safe)
+        "Artix".to_string()
     } else if crate::index::is_manjaro_name_or_owner(name, owner) {
         "Manjaro".to_string()
     } else {
@@ -85,6 +123,13 @@ mod tests {
         app.results_filter_show_multilib = false;
         app.results_filter_show_eos = false;
         app.results_filter_show_cachyos = false;
+        app.results_filter_show_artix = false;
+        app.results_filter_show_artix_omniverse = false;
+        app.results_filter_show_artix_universe = false;
+        app.results_filter_show_artix_lib32 = false;
+        app.results_filter_show_artix_galaxy = false;
+        app.results_filter_show_artix_world = false;
+        app.results_filter_show_artix_system = false;
 
         assert!(repo_toggle_for("core", &app));
         assert!(!repo_toggle_for("extra", &app));
@@ -111,6 +156,13 @@ mod tests {
         app.results_filter_show_multilib = true;
         app.results_filter_show_eos = true;
         app.results_filter_show_cachyos = true;
+        app.results_filter_show_artix = true;
+        app.results_filter_show_artix_omniverse = true;
+        app.results_filter_show_artix_universe = true;
+        app.results_filter_show_artix_lib32 = true;
+        app.results_filter_show_artix_galaxy = true;
+        app.results_filter_show_artix_world = true;
+        app.results_filter_show_artix_system = true;
 
         assert!(repo_toggle_for("unlisted", &app));
 
@@ -122,16 +174,19 @@ mod tests {
     /// What: Confirm label helper emits ecosystem-specific aliases for recognised repositories.
     ///
     /// Inputs:
-    /// - Repository/name permutations covering EndeavourOS, CachyOS, Manjaro, and a generic repo.
+    /// - Repository/name permutations covering EndeavourOS, CachyOS, Artix Linux (with specific repo labels), Manjaro, and a generic repo.
     ///
     /// Output:
-    /// - Labels reduce to `EOS`, `CachyOS`, `Manjaro`, and the original repo name respectively.
+    /// - Labels reduce to `EOS`, `CachyOS`, `OMNI`, `UNI` (for specific Artix repos), `Manjaro`, and the original repo name respectively.
     ///
     /// Details:
     /// - Validates the Manjaro heuristic via package name and the repo classification helpers.
+    /// - Confirms specific Artix repos return their specific labels (OMNI, UNI, etc.) rather than the generic "Artix" label.
     fn label_for_official_prefers_special_cases() {
         assert_eq!(label_for_official("endeavouros", "pkg", ""), "EOS");
         assert_eq!(label_for_official("cachyos-extra", "pkg", ""), "CachyOS");
+        assert_eq!(label_for_official("omniverse", "pkg", ""), "OMNI");
+        assert_eq!(label_for_official("universe", "pkg", ""), "UNI");
         assert_eq!(label_for_official("extra", "manjaro-kernel", ""), "Manjaro");
         assert_eq!(label_for_official("core", "glibc", ""), "core");
     }

@@ -35,7 +35,16 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 
     // Detect availability of optional repos from all_results (unfiltered) to keep chips visible
-    let (has_eos, has_cachyos, has_manjaro) = utils::detect_optional_repos(app);
+    let (has_eos, has_cachyos, has_artix, has_artix_repos, has_manjaro) =
+        utils::detect_optional_repos(app);
+    let (
+        has_artix_omniverse,
+        has_artix_universe,
+        has_artix_lib32,
+        has_artix_galaxy,
+        has_artix_world,
+        has_artix_system,
+    ) = has_artix_repos;
 
     // Keep selection centered within the visible results list when possible
     utils::center_selection(app, area);
@@ -52,6 +61,13 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let results_filter_show_multilib = app.results_filter_show_multilib;
     let results_filter_show_eos = app.results_filter_show_eos;
     let results_filter_show_cachyos = app.results_filter_show_cachyos;
+    let results_filter_show_artix = app.results_filter_show_artix;
+    let results_filter_show_artix_omniverse = app.results_filter_show_artix_omniverse;
+    let results_filter_show_artix_universe = app.results_filter_show_artix_universe;
+    let results_filter_show_artix_lib32 = app.results_filter_show_artix_lib32;
+    let results_filter_show_artix_galaxy = app.results_filter_show_artix_galaxy;
+    let results_filter_show_artix_world = app.results_filter_show_artix_world;
+    let results_filter_show_artix_system = app.results_filter_show_artix_system;
     let results_filter_show_manjaro = app.results_filter_show_manjaro;
 
     // Build title with Sort button, filter toggles, and a right-aligned Options button
@@ -62,6 +78,13 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         area,
         has_eos,
         has_cachyos,
+        has_artix,
+        has_artix_omniverse,
+        has_artix_universe,
+        has_artix_lib32,
+        has_artix_galaxy,
+        has_artix_world,
+        has_artix_system,
         has_manjaro,
         sort_menu_open,
         config_menu_open,
@@ -73,11 +96,31 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         results_filter_show_multilib,
         results_filter_show_eos,
         results_filter_show_cachyos,
+        results_filter_show_artix,
+        results_filter_show_artix_omniverse,
+        results_filter_show_artix_universe,
+        results_filter_show_artix_lib32,
+        results_filter_show_artix_galaxy,
+        results_filter_show_artix_world,
+        results_filter_show_artix_system,
         results_filter_show_manjaro,
     );
 
     // Record clickable rects for title bar controls (mutates app)
-    title::record_title_rects(app, area, has_eos, has_cachyos, has_manjaro);
+    title::record_title_rects(
+        app,
+        area,
+        has_eos,
+        has_cachyos,
+        has_artix,
+        has_artix_omniverse,
+        has_artix_universe,
+        has_artix_lib32,
+        has_artix_galaxy,
+        has_artix_world,
+        has_artix_system,
+        has_manjaro,
+    );
 
     // Extract sort button x position for sort menu positioning
     let btn_x = app.sort_button_rect.map(|(x, _, _, _)| x).unwrap_or(area.x);
@@ -112,7 +155,17 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                             .map(|d| d.owner.clone())
                             .unwrap_or_default();
                         let label = crate::logic::distro::label_for_official(repo, &p.name, &owner);
-                        let color = if label == "EOS" || label == "CachyOS" || label == "Manjaro" {
+                        let color = if label == "EOS"
+                            || label == "CachyOS"
+                            || label == "Artix"
+                            || label == "OMNI"
+                            || label == "UNI"
+                            || label == "LIB32"
+                            || label == "GALAXY"
+                            || label == "WORLD"
+                            || label == "SYSTEM"
+                            || label == "Manjaro"
+                        {
                             th.sapphire
                         } else {
                             th.green
@@ -317,6 +370,31 @@ mod tests {
         translations.insert(
             "app.results.filters.cachyos".to_string(),
             "CachyOS".to_string(),
+        );
+        translations.insert("app.results.filters.artix".to_string(), "Artix".to_string());
+        translations.insert(
+            "app.results.filters.artix_omniverse".to_string(),
+            "OMNI".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_universe".to_string(),
+            "UNI".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_lib32".to_string(),
+            "LIB32".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_galaxy".to_string(),
+            "GALAXY".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_world".to_string(),
+            "WORLD".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_system".to_string(),
+            "SYSTEM".to_string(),
         );
         translations.insert(
             "app.results.filters.manjaro".to_string(),

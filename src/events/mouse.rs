@@ -877,6 +877,7 @@ pub fn handle_mouse_event(
             if app.options_menu_open {
                 app.panels_menu_open = false;
                 app.config_menu_open = false;
+                app.artix_filter_menu_open = false;
             }
             return false;
         }
@@ -905,6 +906,7 @@ pub fn handle_mouse_event(
             if app.panels_menu_open {
                 app.options_menu_open = false;
                 app.config_menu_open = false;
+                app.artix_filter_menu_open = false;
             }
             return false;
         }
@@ -969,6 +971,106 @@ pub fn handle_mouse_event(
             crate::logic::apply_filters_and_sort_preserve_selection(app);
             return false;
         }
+        if let Some((x, y, w, h)) = app.results_filter_artix_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            // Check if Artix-specific filters are hidden (dropdown mode)
+            let has_hidden_filters = app.results_filter_artix_omniverse_rect.is_none()
+                && app.results_filter_artix_universe_rect.is_none()
+                && app.results_filter_artix_lib32_rect.is_none()
+                && app.results_filter_artix_galaxy_rect.is_none()
+                && app.results_filter_artix_world_rect.is_none()
+                && app.results_filter_artix_system_rect.is_none();
+
+            if has_hidden_filters {
+                // Toggle dropdown instead of filters
+                app.artix_filter_menu_open = !app.artix_filter_menu_open;
+            } else {
+                // Normal behavior: toggle all Artix filters
+                // Check if all individual Artix repo filters are on
+                let all_on = app.results_filter_show_artix_omniverse
+                    && app.results_filter_show_artix_universe
+                    && app.results_filter_show_artix_lib32
+                    && app.results_filter_show_artix_galaxy
+                    && app.results_filter_show_artix_world
+                    && app.results_filter_show_artix_system;
+
+                // If all are on, turn all off; otherwise turn all on
+                let new_state = !all_on;
+                app.results_filter_show_artix_omniverse = new_state;
+                app.results_filter_show_artix_universe = new_state;
+                app.results_filter_show_artix_lib32 = new_state;
+                app.results_filter_show_artix_galaxy = new_state;
+                app.results_filter_show_artix_world = new_state;
+                app.results_filter_show_artix_system = new_state;
+                app.results_filter_show_artix = new_state;
+                crate::logic::apply_filters_and_sort_preserve_selection(app);
+            }
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_omniverse_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_omniverse = !app.results_filter_show_artix_omniverse;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_universe_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_universe = !app.results_filter_show_artix_universe;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_lib32_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_lib32 = !app.results_filter_show_artix_lib32;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_galaxy_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_galaxy = !app.results_filter_show_artix_galaxy;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_world_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_world = !app.results_filter_show_artix_world;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_system_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_system = !app.results_filter_show_artix_system;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
         if let Some((x, y, w, h)) = app.results_filter_manjaro_rect
             && mx >= x
             && mx < x + w
@@ -977,6 +1079,71 @@ pub fn handle_mouse_event(
         {
             app.results_filter_show_manjaro = !app.results_filter_show_manjaro;
             crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        // If Artix filter dropdown open, handle clicks inside menu
+        if app.artix_filter_menu_open
+            && let Some((x, y, w, h)) = app.artix_filter_menu_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let row = my.saturating_sub(y) as usize; // 0-based within options
+            match row {
+                0 => {
+                    // Toggle all Artix filters
+                    let all_on = app.results_filter_show_artix_omniverse
+                        && app.results_filter_show_artix_universe
+                        && app.results_filter_show_artix_lib32
+                        && app.results_filter_show_artix_galaxy
+                        && app.results_filter_show_artix_world
+                        && app.results_filter_show_artix_system;
+                    let new_state = !all_on;
+                    app.results_filter_show_artix_omniverse = new_state;
+                    app.results_filter_show_artix_universe = new_state;
+                    app.results_filter_show_artix_lib32 = new_state;
+                    app.results_filter_show_artix_galaxy = new_state;
+                    app.results_filter_show_artix_world = new_state;
+                    app.results_filter_show_artix_system = new_state;
+                    app.results_filter_show_artix = new_state;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                1 => {
+                    app.results_filter_show_artix_omniverse =
+                        !app.results_filter_show_artix_omniverse;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                2 => {
+                    app.results_filter_show_artix_universe =
+                        !app.results_filter_show_artix_universe;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                3 => {
+                    app.results_filter_show_artix_lib32 = !app.results_filter_show_artix_lib32;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                4 => {
+                    app.results_filter_show_artix_galaxy = !app.results_filter_show_artix_galaxy;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                5 => {
+                    app.results_filter_show_artix_world = !app.results_filter_show_artix_world;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                6 => {
+                    app.results_filter_show_artix_system = !app.results_filter_show_artix_system;
+                    crate::logic::apply_filters_and_sort_preserve_selection(app);
+                }
+                _ => {}
+            }
+            // Update the main Artix filter state based on individual filters
+            app.results_filter_show_artix = app.results_filter_show_artix_omniverse
+                || app.results_filter_show_artix_universe
+                || app.results_filter_show_artix_lib32
+                || app.results_filter_show_artix_galaxy
+                || app.results_filter_show_artix_world
+                || app.results_filter_show_artix_system;
             return false;
         }
         // If sort menu open, handle option click inside menu
@@ -1302,10 +1469,10 @@ pub fn handle_mouse_event(
                         }
                     }
 
-                    // Reflector/pacman-mirrors: Manjaro -> pacman-mirrors, else reflector
-                    let manjaro = std::fs::read_to_string("/etc/os-release")
-                        .map(|s| s.contains("Manjaro"))
-                        .unwrap_or(false);
+                    // Mirrors: Manjaro -> pacman-mirrors, Artix -> rate-mirrors, else reflector
+                    let os_release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
+                    let manjaro = os_release.contains("Manjaro");
+                    let artix = os_release.contains("Artix");
                     if manjaro {
                         let pkg = "pacman-mirrors";
                         rows.push(crate::state::types::OptionalDepRow {
@@ -1314,6 +1481,15 @@ pub fn handle_mouse_event(
                             installed: is_pkg_installed(pkg),
                             selectable: !is_pkg_installed(pkg),
                             note: Some("Manjaro".to_string()),
+                        });
+                    } else if artix {
+                        let pkg = "rate-mirrors";
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Mirrors: rate mirrors".to_string(),
+                            package: pkg.to_string(),
+                            installed: on_path("rate-mirrors") || is_pkg_installed(pkg),
+                            selectable: !(on_path("rate-mirrors") || is_pkg_installed(pkg)),
+                            note: Some("Artix".to_string()),
                         });
                     } else {
                         let pkg = "reflector";
@@ -1486,6 +1662,7 @@ pub fn handle_mouse_event(
                 5 => recent_path,
                 _ => {
                     app.config_menu_open = false;
+                    app.artix_filter_menu_open = false;
                     return false;
                 }
             };

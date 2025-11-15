@@ -221,6 +221,13 @@ en-US:
         multilib: "multilib"
         eos: "EOS"
         cachyos: "CachyOS"
+        artix: "Artix"
+        artix_omniverse: "OMNI"
+        artix_universe: "UNI"
+        artix_lib32: "LIB32"
+        artix_galaxy: "GALAXY"
+        artix_world: "WORLD"
+        artix_system: "SYSTEM"
         manjaro: "Manjaro"
       sort_menu:
         title: "Sort by"
@@ -302,7 +309,7 @@ en-US:
           - "  • Copy 'Copy PKGBUILD': click the title button in PKGBUILD"
           - "  • Open details URL: Ctrl+Shift+Left click on the URL"
           - "  • Results title bar: click Sort/Options/Panels/Config to open menus"
-          - "  • Toggle filters (AUR/core/extra/multilib/EOS/cachyos): click their labels"
+          - "  • Toggle filters (AUR/core/extra/multilib/EOS/cachyos/Artix): click their labels"
           - "  • Arch Status (top-right): click to open status.archlinux.org"
         system_update_lines:
           - "  • Open via Options → Update System"

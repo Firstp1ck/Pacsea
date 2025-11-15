@@ -54,6 +54,9 @@ pub(crate) fn handle_global_key(
         if app.config_menu_open {
             app.config_menu_open = false;
         }
+        if app.artix_filter_menu_open {
+            app.artix_filter_menu_open = false;
+        }
         return Some(false); // Handled - don't process further
     }
     let km = &app.keymap;
@@ -414,10 +417,10 @@ pub(crate) fn handle_global_key(
                             });
                         }
                     }
-                    // Mirrors
-                    let manjaro = std::fs::read_to_string("/etc/os-release")
-                        .map(|s| s.contains("Manjaro"))
-                        .unwrap_or(false);
+                    // Mirrors: Manjaro -> pacman-mirrors, Artix -> rate-mirrors, else reflector
+                    let os_release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
+                    let manjaro = os_release.contains("Manjaro");
+                    let artix = os_release.contains("Artix");
                     if manjaro {
                         let pkg = "pacman-mirrors";
                         rows.push(crate::state::types::OptionalDepRow {
@@ -426,6 +429,15 @@ pub(crate) fn handle_global_key(
                             installed: is_pkg_installed(pkg),
                             selectable: !is_pkg_installed(pkg),
                             note: Some("Manjaro".to_string()),
+                        });
+                    } else if artix {
+                        let pkg = "rate-mirrors";
+                        rows.push(crate::state::types::OptionalDepRow {
+                            label: "Mirrors: rate mirrors".to_string(),
+                            package: pkg.to_string(),
+                            installed: on_path("rate-mirrors") || is_pkg_installed(pkg),
+                            selectable: !(on_path("rate-mirrors") || is_pkg_installed(pkg)),
+                            note: Some("Artix".to_string()),
                         });
                     } else {
                         let pkg = "reflector";
@@ -609,6 +621,7 @@ pub(crate) fn handle_global_key(
                 5 => recent_path,
                 _ => {
                     app.config_menu_open = false;
+                    app.artix_filter_menu_open = false;
                     return Some(false); // Handled - don't process further
                 }
             };
@@ -636,6 +649,7 @@ pub(crate) fn handle_global_key(
                 });
             }
             app.config_menu_open = false;
+            app.artix_filter_menu_open = false;
             return Some(false); // Handled - don't process further
         }
     }

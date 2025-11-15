@@ -254,4 +254,111 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         f.render_widget(Clear, rect);
         f.render_widget(menu, rect);
     }
+
+    // Optional: render Artix filter dropdown overlay near the Artix filter button
+    app.artix_filter_menu_rect = None;
+    if app.artix_filter_menu_open {
+        // Check if Artix-specific filters are hidden (dropdown should only show when they're hidden)
+        let has_hidden_filters = app.results_filter_artix_omniverse_rect.is_none()
+            && app.results_filter_artix_universe_rect.is_none()
+            && app.results_filter_artix_lib32_rect.is_none()
+            && app.results_filter_artix_galaxy_rect.is_none()
+            && app.results_filter_artix_world_rect.is_none()
+            && app.results_filter_artix_system_rect.is_none();
+
+        if has_hidden_filters {
+            // Check if all individual Artix repo filters are on
+            let all_on = app.results_filter_show_artix_omniverse
+                && app.results_filter_show_artix_universe
+                && app.results_filter_show_artix_lib32
+                && app.results_filter_show_artix_galaxy
+                && app.results_filter_show_artix_world
+                && app.results_filter_show_artix_system;
+
+            let opts: Vec<(String, bool)> = vec![
+                (i18n::t(app, "app.results.filters.artix"), all_on),
+                (
+                    i18n::t(app, "app.results.filters.artix_omniverse"),
+                    app.results_filter_show_artix_omniverse,
+                ),
+                (
+                    i18n::t(app, "app.results.filters.artix_universe"),
+                    app.results_filter_show_artix_universe,
+                ),
+                (
+                    i18n::t(app, "app.results.filters.artix_lib32"),
+                    app.results_filter_show_artix_lib32,
+                ),
+                (
+                    i18n::t(app, "app.results.filters.artix_galaxy"),
+                    app.results_filter_show_artix_galaxy,
+                ),
+                (
+                    i18n::t(app, "app.results.filters.artix_world"),
+                    app.results_filter_show_artix_world,
+                ),
+                (
+                    i18n::t(app, "app.results.filters.artix_system"),
+                    app.results_filter_show_artix_system,
+                ),
+            ];
+            let widest = opts.iter().map(|(s, _)| s.len()).max().unwrap_or(0) as u16;
+            let w = widest
+                .saturating_add(4) // space for checkbox indicator
+                .saturating_add(2)
+                .min(results_area.width.saturating_sub(2));
+            // Place menu below the Artix filter button aligned to its left edge
+            let rect_w = w.saturating_add(2);
+            let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
+            let artix_x = app
+                .results_filter_artix_rect
+                .map(|(x, _, _, _)| x)
+                .unwrap_or(max_x);
+            let menu_x = artix_x.min(max_x);
+            let h = (opts.len() as u16) + 2; // borders
+            let menu_y = results_area.y.saturating_add(1); // just below top border
+            let rect = ratatui::prelude::Rect {
+                x: menu_x,
+                y: menu_y,
+                width: rect_w,
+                height: h,
+            };
+            // Record inner list area for hit-testing (exclude borders)
+            app.artix_filter_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
+
+            // Build lines with checkmarks for enabled filters
+            let mut lines: Vec<Line> = Vec::new();
+            for (text, enabled) in opts.iter() {
+                let indicator = if *enabled { "✓ " } else { "  " };
+                let pad = w
+                    .saturating_sub(text.len() as u16)
+                    .saturating_sub(indicator.len() as u16);
+                let padding = " ".repeat(pad as usize);
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        indicator.to_string(),
+                        Style::default().fg(if *enabled { th.green } else { th.overlay1 }),
+                    ),
+                    Span::styled(text.clone(), Style::default().fg(th.text)),
+                    Span::raw(padding),
+                ]));
+            }
+            let menu = Paragraph::new(lines)
+                .style(Style::default().fg(th.text).bg(th.base))
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::default()
+                        .style(Style::default().bg(th.base))
+                        .title(Line::from(vec![Span::styled(
+                            "Artix Filters",
+                            Style::default().fg(th.overlay1),
+                        )]))
+                        .borders(Borders::ALL)
+                        .border_type(BorderType::Rounded)
+                        .border_style(Style::default().fg(th.mauve)),
+                );
+            f.render_widget(Clear, rect);
+            f.render_widget(menu, rect);
+        }
+    }
 }
