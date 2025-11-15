@@ -63,7 +63,7 @@ fn init_test_translations(app: &mut AppState) {
     );
     translations.insert(
         "app.results.filters.artix_galaxy".to_string(),
-        "GALAX".to_string(),
+        "GALAXY".to_string(),
     );
     translations.insert(
         "app.results.filters.artix_world".to_string(),

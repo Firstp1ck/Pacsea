@@ -68,7 +68,7 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
 ///
 /// Details:
 /// - Distinguishes EndeavourOS, CachyOS, and Artix Linux repos (with specific labels for each Artix repo:
-///   OMNI, UNI, LIB32, GALAX, WORLD, SYSTEM), and detects Manjaro branding by name/owner heuristics.
+///   OMNI, UNI, LIB32, GALAXY, WORLD, SYSTEM), and detects Manjaro branding by name/owner heuristics.
 /// - Falls back to the raw repository string when no special classification matches.
 pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     let r = repo.to_lowercase();
@@ -83,7 +83,7 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     } else if crate::index::is_artix_lib32(&r) {
         "LIB32".to_string()
     } else if crate::index::is_artix_galaxy(&r) {
-        "GALAX".to_string()
+        "GALAXY".to_string()
     } else if crate::index::is_artix_world(&r) {
         "WORLD".to_string()
     } else if crate::index::is_artix_system(&r) {
