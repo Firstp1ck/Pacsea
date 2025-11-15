@@ -190,31 +190,55 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )));
         if let Some(k) = km.search_normal_toggle.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.toggle_normal"), k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.toggle_normal"),
+                k,
+            ));
         }
         if let Some(k) = km.search_normal_insert.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.insert_mode"), k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.insert_mode"),
+                k,
+            ));
         }
         if let Some(k) = km.search_normal_select_left.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.select_left"), k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.select_left"),
+                k,
+            ));
         }
         if let Some(k) = km.search_normal_select_right.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.select_right"), k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.select_right"),
+                k,
+            ));
         }
         if let Some(k) = km.search_normal_delete.first().copied() {
             lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.delete"), k));
         }
         if let Some(k) = km.search_normal_open_status.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.open_arch_status"), k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.open_arch_status"),
+                k,
+            ));
         }
         if let Some(k) = km.config_menu_toggle.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.config_lists_menu"), k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.config_lists_menu"),
+                k,
+            ));
         }
         if let Some(k) = km.options_menu_toggle.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.options_menu"), k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.options_menu"),
+                k,
+            ));
         }
         if let Some(k) = km.panels_menu_toggle.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.panels_menu"), k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.panels_menu"),
+                k,
+            ));
         }
     }
 
@@ -254,7 +278,10 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.find"), k));
     }
     if let Some(k) = km.install_to_search.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.to_search"), k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.to_search"),
+            k,
+        ));
     }
 
     lines.push(Line::from(""));
@@ -290,7 +317,10 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.find"), k));
     }
     if let Some(k) = km.recent_to_search.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.to_search"), k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.to_search"),
+            k,
+        ));
     }
     if let Some(k) = km.recent_remove.first().copied() {
         lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.remove"), k));

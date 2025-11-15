@@ -304,7 +304,11 @@ pub(crate) fn handle_global_key(
                     }
                     if let Some((bin, pkg)) = editor_installed {
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: {}", crate::i18n::t(app, "app.optional_deps.categories.editor"), bin),
+                            label: format!(
+                                "{}: {}",
+                                crate::i18n::t(app, "app.optional_deps.categories.editor"),
+                                bin
+                            ),
                             package: pkg.to_string(),
                             installed: (is_pkg_installed(pkg)
                                 || on_path(bin)
@@ -319,7 +323,11 @@ pub(crate) fn handle_global_key(
                         for (bin, pkg) in editor_candidates.iter() {
                             if seen.insert(*pkg) {
                                 rows.push(crate::state::types::OptionalDepRow {
-                                    label: format!("{}: {}", crate::i18n::t(app, "app.optional_deps.categories.editor"), bin),
+                                    label: format!(
+                                        "{}: {}",
+                                        crate::i18n::t(app, "app.optional_deps.categories.editor"),
+                                        bin
+                                    ),
                                     package: pkg.to_string(),
                                     installed: (is_pkg_installed(pkg)
                                         || on_path(bin)
@@ -359,7 +367,11 @@ pub(crate) fn handle_global_key(
                     }
                     if let Some((bin, pkg)) = term_installed {
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: {}", crate::i18n::t(app, "app.optional_deps.categories.terminal"), bin),
+                            label: format!(
+                                "{}: {}",
+                                crate::i18n::t(app, "app.optional_deps.categories.terminal"),
+                                bin
+                            ),
                             package: pkg.to_string(),
                             installed: (is_pkg_installed(pkg) || on_path(bin)),
                             selectable: false,
@@ -368,7 +380,11 @@ pub(crate) fn handle_global_key(
                     } else {
                         for (bin, pkg) in term_candidates.iter() {
                             rows.push(crate::state::types::OptionalDepRow {
-                                label: format!("{}: {}", crate::i18n::t(app, "app.optional_deps.categories.terminal"), bin),
+                                label: format!(
+                                    "{}: {}",
+                                    crate::i18n::t(app, "app.optional_deps.categories.terminal"),
+                                    bin
+                                ),
                                 package: pkg.to_string(),
                                 installed: (is_pkg_installed(pkg) || on_path(bin)),
                                 selectable: !(is_pkg_installed(pkg) || on_path(bin)),
@@ -389,7 +405,10 @@ pub(crate) fn handle_global_key(
                     if is_kde {
                         let pkg = "plasma-workspace";
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: Klipper (KDE)", crate::i18n::t(app, "app.optional_deps.categories.clipboard")),
+                            label: format!(
+                                "{}: Klipper (KDE)",
+                                crate::i18n::t(app, "app.optional_deps.categories.clipboard")
+                            ),
                             package: pkg.to_string(),
                             installed: is_pkg_installed(pkg) || on_path("klipper"),
                             selectable: !(is_pkg_installed(pkg) || on_path("klipper")),
@@ -400,7 +419,10 @@ pub(crate) fn handle_global_key(
                         if is_wayland {
                             let pkg = "wl-clipboard";
                             rows.push(crate::state::types::OptionalDepRow {
-                                label: format!("{}: wl-clipboard", crate::i18n::t(app, "app.optional_deps.categories.clipboard")),
+                                label: format!(
+                                    "{}: wl-clipboard",
+                                    crate::i18n::t(app, "app.optional_deps.categories.clipboard")
+                                ),
                                 package: pkg.to_string(),
                                 installed: is_pkg_installed(pkg) || on_path("wl-copy"),
                                 selectable: !(is_pkg_installed(pkg) || on_path("wl-copy")),
@@ -409,7 +431,10 @@ pub(crate) fn handle_global_key(
                         } else {
                             let pkg = "xclip";
                             rows.push(crate::state::types::OptionalDepRow {
-                                label: format!("{}: xclip", crate::i18n::t(app, "app.optional_deps.categories.clipboard")),
+                                label: format!(
+                                    "{}: xclip",
+                                    crate::i18n::t(app, "app.optional_deps.categories.clipboard")
+                                ),
                                 package: pkg.to_string(),
                                 installed: is_pkg_installed(pkg) || on_path("xclip"),
                                 selectable: !(is_pkg_installed(pkg) || on_path("xclip")),
@@ -456,7 +481,10 @@ pub(crate) fn handle_global_key(
                     if paru_inst || yay_inst {
                         if paru_inst {
                             rows.push(crate::state::types::OptionalDepRow {
-                                label: format!("{}: paru", crate::i18n::t(app, "app.optional_deps.categories.aur_helper")),
+                                label: format!(
+                                    "{}: paru",
+                                    crate::i18n::t(app, "app.optional_deps.categories.aur_helper")
+                                ),
                                 package: "paru".to_string(),
                                 installed: true,
                                 selectable: false,
@@ -464,7 +492,10 @@ pub(crate) fn handle_global_key(
                             });
                         } else if yay_inst {
                             rows.push(crate::state::types::OptionalDepRow {
-                                label: format!("{}: yay", crate::i18n::t(app, "app.optional_deps.categories.aur_helper")),
+                                label: format!(
+                                    "{}: yay",
+                                    crate::i18n::t(app, "app.optional_deps.categories.aur_helper")
+                                ),
                                 package: "yay".to_string(),
                                 installed: true,
                                 selectable: false,
@@ -473,14 +504,20 @@ pub(crate) fn handle_global_key(
                         }
                     } else {
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: paru", crate::i18n::t(app, "app.optional_deps.categories.aur_helper")),
+                            label: format!(
+                                "{}: paru",
+                                crate::i18n::t(app, "app.optional_deps.categories.aur_helper")
+                            ),
                             package: "paru".to_string(),
                             installed: false,
                             selectable: true,
                             note: Some("Install via git clone + makepkg -si".to_string()),
                         });
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: yay", crate::i18n::t(app, "app.optional_deps.categories.aur_helper")),
+                            label: format!(
+                                "{}: yay",
+                                crate::i18n::t(app, "app.optional_deps.categories.aur_helper")
+                            ),
                             package: "yay".to_string(),
                             installed: false,
                             selectable: true,
@@ -493,7 +530,10 @@ pub(crate) fn handle_global_key(
                         let pkg = "clamav";
                         let installed = is_pkg_installed(pkg) || on_path("clamscan");
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: clamav", crate::i18n::t(app, "app.optional_deps.categories.security")),
+                            label: format!(
+                                "{}: clamav",
+                                crate::i18n::t(app, "app.optional_deps.categories.security")
+                            ),
                             package: pkg.to_string(),
                             installed,
                             selectable: !installed,
@@ -503,7 +543,10 @@ pub(crate) fn handle_global_key(
                         let pkg = "trivy";
                         let installed = is_pkg_installed(pkg) || on_path("trivy");
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: trivy", crate::i18n::t(app, "app.optional_deps.categories.security")),
+                            label: format!(
+                                "{}: trivy",
+                                crate::i18n::t(app, "app.optional_deps.categories.security")
+                            ),
                             package: pkg.to_string(),
                             installed,
                             selectable: !installed,
@@ -513,7 +556,10 @@ pub(crate) fn handle_global_key(
                         let pkg = "semgrep-bin";
                         let installed = is_pkg_installed(pkg) || on_path("semgrep");
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: semgrep-bin", crate::i18n::t(app, "app.optional_deps.categories.security")),
+                            label: format!(
+                                "{}: semgrep-bin",
+                                crate::i18n::t(app, "app.optional_deps.categories.security")
+                            ),
                             package: pkg.to_string(),
                             installed,
                             selectable: !installed,
@@ -523,7 +569,10 @@ pub(crate) fn handle_global_key(
                         let pkg = "shellcheck";
                         let installed = is_pkg_installed(pkg) || on_path("shellcheck");
                         rows.push(crate::state::types::OptionalDepRow {
-                            label: format!("{}: shellcheck", crate::i18n::t(app, "app.optional_deps.categories.security")),
+                            label: format!(
+                                "{}: shellcheck",
+                                crate::i18n::t(app, "app.optional_deps.categories.security")
+                            ),
                             package: pkg.to_string(),
                             installed,
                             selectable: !installed,
@@ -534,7 +583,10 @@ pub(crate) fn handle_global_key(
                             let vt_key_present =
                                 !crate::theme::settings().virustotal_api_key.is_empty();
                             rows.push(crate::state::types::OptionalDepRow {
-                                label: format!("{}: VirusTotal API", crate::i18n::t(app, "app.optional_deps.categories.security")),
+                                label: format!(
+                                    "{}: VirusTotal API",
+                                    crate::i18n::t(app, "app.optional_deps.categories.security")
+                                ),
                                 package: "virustotal-setup".to_string(),
                                 installed: vt_key_present,
                                 selectable: true,
@@ -557,7 +609,10 @@ pub(crate) fn handle_global_key(
                                 onpath || user_local || usr_local
                             };
                             rows.push(crate::state::types::OptionalDepRow {
-                                label: format!("{}: aur-sleuth", crate::i18n::t(app, "app.optional_deps.categories.security")),
+                                label: format!(
+                                    "{}: aur-sleuth",
+                                    crate::i18n::t(app, "app.optional_deps.categories.security")
+                                ),
                                 package: "aur-sleuth-setup".to_string(),
                                 installed: sleuth_installed,
                                 selectable: true,

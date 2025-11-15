@@ -53,7 +53,7 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn search_returns_items_on_success_and_error_on_failure() {
-        let _guard = crate::sources::test_mutex().lock().unwrap();
+        let _guard = crate::global_test_mutex_lock();
         // Shim PATH curl to return a small JSON for success call, then fail on a second invocation
         let old_path = std::env::var("PATH").unwrap_or_default();
         let mut root = std::env::temp_dir();

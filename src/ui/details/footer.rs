@@ -491,10 +491,11 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
                 || !km.options_menu_toggle.is_empty()
                 || !km.panels_menu_toggle.is_empty()
             {
-                let open_config_list_text = i18n::t(app, "app.modals.help.normal_mode.open_config_list");
+                let open_config_list_text =
+                    i18n::t(app, "app.modals.help.normal_mode.open_config_list");
                 let open_options_text = i18n::t(app, "app.modals.help.normal_mode.open_options");
                 let open_panels_text = i18n::t(app, "app.modals.help.normal_mode.open_panels");
-                
+
                 if let Some(k) = km.config_menu_toggle.first() {
                     n2_spans.push(Span::raw("  •  "));
                     n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
@@ -519,7 +520,7 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
                 let install_list_text = i18n::t(app, "app.modals.help.normal_mode.install_list");
                 let import_text = i18n::t(app, "app.modals.help.normal_mode.import");
                 let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
-                
+
                 n2_spans.push(Span::raw(install_list_text.clone()));
                 if let Some(k) = km.search_normal_import.first() {
                     n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));

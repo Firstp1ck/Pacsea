@@ -112,7 +112,8 @@ pub fn handle_event(
 mod tests {
     use super::*;
     use crossterm::event::{
-        Event as CEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
+        MouseEventKind,
     };
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
@@ -130,6 +131,7 @@ mod tests {
     /// Details:
     /// - Uses environment overrides plus a fake terminal script to observe the spawn command safely.
     fn ui_options_update_system_enter_triggers_xfce4_args_shape() {
+        let _guard = crate::global_test_mutex_lock();
         // fake xfce4-terminal
         let mut dir: PathBuf = std::env::temp_dir();
         dir.push(format!(
@@ -223,6 +225,7 @@ mod tests {
     /// Details:
     /// - Drives the Options menu to render optional dependencies while observing row attributes.
     fn optional_deps_rows_reflect_installed_and_x11_and_reflector() {
+        let _guard = crate::global_test_mutex_lock();
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
         use std::path::PathBuf;
@@ -263,6 +266,31 @@ mod tests {
         let mut app = AppState {
             ..Default::default()
         };
+        // Initialize i18n translations for optional deps
+        use std::collections::HashMap;
+        let mut translations = HashMap::new();
+        translations.insert(
+            "app.optional_deps.categories.editor".to_string(),
+            "Editor".to_string(),
+        );
+        translations.insert(
+            "app.optional_deps.categories.terminal".to_string(),
+            "Terminal".to_string(),
+        );
+        translations.insert(
+            "app.optional_deps.categories.clipboard".to_string(),
+            "Clipboard".to_string(),
+        );
+        translations.insert(
+            "app.optional_deps.categories.aur_helper".to_string(),
+            "AUR Helper".to_string(),
+        );
+        translations.insert(
+            "app.optional_deps.categories.security".to_string(),
+            "Security".to_string(),
+        );
+        app.translations = translations.clone();
+        app.translations_fallback = translations;
         let (qtx, _qrx) = mpsc::unbounded_channel();
         let (dtx, _drx) = mpsc::unbounded_channel();
         let (ptx, _prx) = mpsc::unbounded_channel();
@@ -281,10 +309,10 @@ mod tests {
         assert!(app.options_menu_open);
 
         // Press '4' (row index 3) to open Optional Deps
-        let key_four = CEvent::Key(crossterm::event::KeyEvent::new(
-            KeyCode::Char('4'),
-            KeyModifiers::empty(),
-        ));
+        let mut key_four_event =
+            crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
+        key_four_event.kind = KeyEventKind::Press;
+        let key_four = CEvent::Key(key_four_event);
         let _ = super::handle_event(key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
 
         match &app.modal {
@@ -326,10 +354,10 @@ mod tests {
                 assert!(mirrors.selectable, "reflector should be selectable");
 
                 // AUR helper: both paru and yay should be present and selectable when not installed
-                let paru = find("AUR helper: paru").expect("paru row");
+                let paru = find("AUR Helper: paru").expect("paru row");
                 assert!(!paru.installed);
                 assert!(paru.selectable);
-                let yay = find("AUR helper: yay").expect("yay row");
+                let yay = find("AUR Helper: yay").expect("yay row");
                 assert!(!yay.installed);
                 assert!(yay.selectable);
             }
@@ -360,6 +388,7 @@ mod tests {
     /// - Setup: Empty PATH; set WAYLAND_DISPLAY
     /// - Expect: A row "Clipboard: wl-clipboard" with note "Wayland", not installed and selectable
     fn optional_deps_rows_wayland_shows_wl_clipboard() {
+        let _guard = crate::global_test_mutex_lock();
         use std::fs;
         use std::path::PathBuf;
 
@@ -383,6 +412,31 @@ mod tests {
         let mut app = AppState {
             ..Default::default()
         };
+        // Initialize i18n translations for optional deps
+        use std::collections::HashMap;
+        let mut translations = HashMap::new();
+        translations.insert(
+            "app.optional_deps.categories.editor".to_string(),
+            "Editor".to_string(),
+        );
+        translations.insert(
+            "app.optional_deps.categories.terminal".to_string(),
+            "Terminal".to_string(),
+        );
+        translations.insert(
+            "app.optional_deps.categories.clipboard".to_string(),
+            "Clipboard".to_string(),
+        );
+        translations.insert(
+            "app.optional_deps.categories.aur_helper".to_string(),
+            "AUR Helper".to_string(),
+        );
+        translations.insert(
+            "app.optional_deps.categories.security".to_string(),
+            "Security".to_string(),
+        );
+        app.translations = translations.clone();
+        app.translations_fallback = translations;
         let (qtx, _qrx) = mpsc::unbounded_channel();
         let (dtx, _drx) = mpsc::unbounded_channel();
         let (ptx, _prx) = mpsc::unbounded_channel();
@@ -401,10 +455,10 @@ mod tests {
         assert!(app.options_menu_open);
 
         // Press '4' to open Optional Deps
-        let key_four = CEvent::Key(crossterm::event::KeyEvent::new(
-            KeyCode::Char('4'),
-            KeyModifiers::empty(),
-        ));
+        let mut key_four_event =
+            crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
+        key_four_event.kind = KeyEventKind::Press;
+        let key_four = CEvent::Key(key_four_event);
         let _ = super::handle_event(key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
 
         match &app.modal {

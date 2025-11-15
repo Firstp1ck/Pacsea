@@ -151,7 +151,7 @@ mod tests {
     /// Details:
     /// - Validates that cross-repo lines are filtered and duplicates removed before returning.
     async fn fetch_parses_sl_and_dedups_by_repo_and_name() {
-        let _guard = crate::index::test_mutex().lock().unwrap();
+        let _guard = crate::global_test_mutex_lock();
 
         // Create a fake pacman on PATH
         let old_path = std::env::var("PATH").unwrap_or_default();

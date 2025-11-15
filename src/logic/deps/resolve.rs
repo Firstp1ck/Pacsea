@@ -737,7 +737,7 @@ mod tests {
     /// - Guards against regressions in parsing logic for the pacman path while isolating the function from system binaries via PATH overrides.
     fn resolve_official_uses_pacman_si_stub() {
         let dir = tempdir().expect("tempdir");
-        let _test_guard = crate::logic::test_mutex().lock().unwrap();
+        let _test_guard = crate::global_test_mutex_lock();
         let _guard = PathGuard::push(dir.path());
         write_executable(
             dir.path(),
@@ -795,7 +795,7 @@ exit 1
     /// - Ensures helper discovery short-circuits the API fallback and that parsing behaves consistently for AUR responses.
     fn resolve_aur_prefers_paru_stub_and_skips_self() {
         let dir = tempdir().expect("tempdir");
-        let _test_guard = crate::logic::test_mutex().lock().unwrap();
+        let _test_guard = crate::global_test_mutex_lock();
         let _guard = PathGuard::push(dir.path());
         write_executable(
             dir.path(),
