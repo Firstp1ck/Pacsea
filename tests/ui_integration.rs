@@ -48,6 +48,7 @@ fn init_test_translations(app: &mut AppState) {
         "app.results.filters.cachyos".to_string(),
         "CachyOS".to_string(),
     );
+    translations.insert("app.results.filters.artix".to_string(), "Artix".to_string());
     translations.insert(
         "app.results.filters.manjaro".to_string(),
         "Manjaro".to_string(),

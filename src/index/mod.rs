@@ -54,7 +54,8 @@ static EXPLICIT_SET: OnceLock<RwLock<HashSet<String>>> = OnceLock::new();
 
 mod distro;
 pub use distro::{
-    is_cachyos_repo, is_eos_name, is_eos_repo, is_manjaro_name_or_owner, is_name_manjaro,
+    is_artix_repo, is_cachyos_repo, is_eos_name, is_eos_repo, is_manjaro_name_or_owner,
+    is_name_manjaro,
 };
 
 /// What: Access the process-wide `OfficialIndex` lock for mutation or reads.

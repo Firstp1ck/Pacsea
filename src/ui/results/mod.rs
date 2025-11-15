@@ -35,7 +35,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 
     // Detect availability of optional repos from all_results (unfiltered) to keep chips visible
-    let (has_eos, has_cachyos, has_manjaro) = utils::detect_optional_repos(app);
+    let (has_eos, has_cachyos, has_artix, has_manjaro) = utils::detect_optional_repos(app);
 
     // Keep selection centered within the visible results list when possible
     utils::center_selection(app, area);
@@ -52,6 +52,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let results_filter_show_multilib = app.results_filter_show_multilib;
     let results_filter_show_eos = app.results_filter_show_eos;
     let results_filter_show_cachyos = app.results_filter_show_cachyos;
+    let results_filter_show_artix = app.results_filter_show_artix;
     let results_filter_show_manjaro = app.results_filter_show_manjaro;
 
     // Build title with Sort button, filter toggles, and a right-aligned Options button
@@ -62,6 +63,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         area,
         has_eos,
         has_cachyos,
+        has_artix,
         has_manjaro,
         sort_menu_open,
         config_menu_open,
@@ -73,11 +75,12 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         results_filter_show_multilib,
         results_filter_show_eos,
         results_filter_show_cachyos,
+        results_filter_show_artix,
         results_filter_show_manjaro,
     );
 
     // Record clickable rects for title bar controls (mutates app)
-    title::record_title_rects(app, area, has_eos, has_cachyos, has_manjaro);
+    title::record_title_rects(app, area, has_eos, has_cachyos, has_artix, has_manjaro);
 
     // Extract sort button x position for sort menu positioning
     let btn_x = app.sort_button_rect.map(|(x, _, _, _)| x).unwrap_or(area.x);
@@ -112,7 +115,11 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                             .map(|d| d.owner.clone())
                             .unwrap_or_default();
                         let label = crate::logic::distro::label_for_official(repo, &p.name, &owner);
-                        let color = if label == "EOS" || label == "CachyOS" || label == "Manjaro" {
+                        let color = if label == "EOS"
+                            || label == "CachyOS"
+                            || label == "Artix"
+                            || label == "Manjaro"
+                        {
                             th.sapphire
                         } else {
                             th.green
@@ -318,6 +325,7 @@ mod tests {
             "app.results.filters.cachyos".to_string(),
             "CachyOS".to_string(),
         );
+        translations.insert("app.results.filters.artix".to_string(), "Artix".to_string());
         translations.insert(
             "app.results.filters.manjaro".to_string(),
             "Manjaro".to_string(),
