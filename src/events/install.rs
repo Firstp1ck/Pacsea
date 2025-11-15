@@ -171,7 +171,13 @@ pub fn handle_install_key(
             app.pane_find = Some(String::new());
         }
         KeyCode::Enter => {
-            let skip = crate::theme::settings().skip_preflight;
+            // Never trigger preflight when SystemUpdate or OptionalDeps modals are active
+            // These modals use spawn_shell_commands_in_terminal which bypasses preflight
+            let skip_preflight_for_modals = matches!(
+                app.modal,
+                crate::state::Modal::SystemUpdate { .. } | crate::state::Modal::OptionalDeps { .. }
+            );
+            let skip = crate::theme::settings().skip_preflight || skip_preflight_for_modals;
             if !app.installed_only_mode && !app.install_list.is_empty() {
                 if skip {
                     crate::install::spawn_install_all(&app.install_list, app.dry_run);
