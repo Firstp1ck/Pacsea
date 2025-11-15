@@ -253,6 +253,30 @@ mod tests {
         );
         translations.insert("app.results.filters.artix".to_string(), "Artix".to_string());
         translations.insert(
+            "app.results.filters.artix_omniverse".to_string(),
+            "OMNI".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_universe".to_string(),
+            "UNI".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_lib32".to_string(),
+            "LIB32".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_galaxy".to_string(),
+            "GALAX".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_world".to_string(),
+            "WORLD".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.artix_system".to_string(),
+            "SYSTEM".to_string(),
+        );
+        translations.insert(
             "app.results.filters.manjaro".to_string(),
             "Manjaro".to_string(),
         );

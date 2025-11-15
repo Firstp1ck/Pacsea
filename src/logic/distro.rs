@@ -24,7 +24,20 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
         app.results_filter_show_eos
     } else if crate::index::is_cachyos_repo(&r) {
         app.results_filter_show_cachyos
+    } else if crate::index::is_artix_omniverse(&r) {
+        app.results_filter_show_artix_omniverse
+    } else if crate::index::is_artix_universe(&r) {
+        app.results_filter_show_artix_universe
+    } else if crate::index::is_artix_lib32(&r) {
+        app.results_filter_show_artix_lib32
+    } else if crate::index::is_artix_galaxy(&r) {
+        app.results_filter_show_artix_galaxy
+    } else if crate::index::is_artix_world(&r) {
+        app.results_filter_show_artix_world
+    } else if crate::index::is_artix_system(&r) {
+        app.results_filter_show_artix_system
     } else if crate::index::is_artix_repo(&r) {
+        // Fallback for any other Artix repo (shouldn't happen, but safe)
         app.results_filter_show_artix
     } else {
         // Unknown official repo: include only when all official filters are enabled
@@ -34,6 +47,12 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
             && app.results_filter_show_eos
             && app.results_filter_show_cachyos
             && app.results_filter_show_artix
+            && app.results_filter_show_artix_omniverse
+            && app.results_filter_show_artix_universe
+            && app.results_filter_show_artix_lib32
+            && app.results_filter_show_artix_galaxy
+            && app.results_filter_show_artix_world
+            && app.results_filter_show_artix_system
     }
 }
 
@@ -91,6 +110,12 @@ mod tests {
         app.results_filter_show_eos = false;
         app.results_filter_show_cachyos = false;
         app.results_filter_show_artix = false;
+        app.results_filter_show_artix_omniverse = false;
+        app.results_filter_show_artix_universe = false;
+        app.results_filter_show_artix_lib32 = false;
+        app.results_filter_show_artix_galaxy = false;
+        app.results_filter_show_artix_world = false;
+        app.results_filter_show_artix_system = false;
 
         assert!(repo_toggle_for("core", &app));
         assert!(!repo_toggle_for("extra", &app));
@@ -118,6 +143,12 @@ mod tests {
         app.results_filter_show_eos = true;
         app.results_filter_show_cachyos = true;
         app.results_filter_show_artix = true;
+        app.results_filter_show_artix_omniverse = true;
+        app.results_filter_show_artix_universe = true;
+        app.results_filter_show_artix_lib32 = true;
+        app.results_filter_show_artix_galaxy = true;
+        app.results_filter_show_artix_world = true;
+        app.results_filter_show_artix_system = true;
 
         assert!(repo_toggle_for("unlisted", &app));
 

@@ -8,15 +8,25 @@ use crate::state::{AppState, Source};
 /// - `app`: Application state providing `all_results`
 ///
 /// Output:
-/// - Tuple `(has_eos, has_cachyos, has_artix, has_manjaro)` indicating which repo chips to show.
+/// - Tuple `(has_eos, has_cachyos, has_artix, has_artix_repos, has_manjaro)` indicating which repo chips to show.
+///   `has_artix_repos` is a tuple of (omniverse, universe, lib32, galaxy, world, system) booleans.
 ///
 /// Details:
 /// - Scans official result sources and package names to infer EOS/CachyOS/Artix/Manjaro presence, short
-///   circuiting once all four are detected.
-pub fn detect_optional_repos(app: &AppState) -> (bool, bool, bool, bool) {
+///   circuiting once all are detected.
+#[allow(clippy::type_complexity)]
+pub fn detect_optional_repos(
+    app: &AppState,
+) -> (bool, bool, bool, (bool, bool, bool, bool, bool, bool), bool) {
     let mut eos = false;
     let mut cach = false;
     let mut artix = false;
+    let mut artix_omniverse = false;
+    let mut artix_universe = false;
+    let mut artix_lib32 = false;
+    let mut artix_galaxy = false;
+    let mut artix_world = false;
+    let mut artix_system = false;
     let mut manj = false;
     for it in app.all_results.iter() {
         if let Source::Official { repo, .. } = &it.source {
@@ -30,16 +40,57 @@ pub fn detect_optional_repos(app: &AppState) -> (bool, bool, bool, bool) {
             if !artix && crate::index::is_artix_repo(&r) {
                 artix = true;
             }
+            if !artix_omniverse && crate::index::is_artix_omniverse(&r) {
+                artix_omniverse = true;
+            }
+            if !artix_universe && crate::index::is_artix_universe(&r) {
+                artix_universe = true;
+            }
+            if !artix_lib32 && crate::index::is_artix_lib32(&r) {
+                artix_lib32 = true;
+            }
+            if !artix_galaxy && crate::index::is_artix_galaxy(&r) {
+                artix_galaxy = true;
+            }
+            if !artix_world && crate::index::is_artix_world(&r) {
+                artix_world = true;
+            }
+            if !artix_system && crate::index::is_artix_system(&r) {
+                artix_system = true;
+            }
         }
         // Treat presence by name prefix rather than repo value
         if !manj && crate::index::is_name_manjaro(&it.name) {
             manj = true;
         }
-        if eos && cach && artix && manj {
+        if eos
+            && cach
+            && artix
+            && manj
+            && artix_omniverse
+            && artix_universe
+            && artix_lib32
+            && artix_galaxy
+            && artix_world
+            && artix_system
+        {
             break;
         }
     }
-    (eos, cach, artix, manj)
+    (
+        eos,
+        cach,
+        artix,
+        (
+            artix_omniverse,
+            artix_universe,
+            artix_lib32,
+            artix_galaxy,
+            artix_world,
+            artix_system,
+        ),
+        manj,
+    )
 }
 
 /// What: Keep the results selection centered within the visible viewport when possible.

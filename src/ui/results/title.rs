@@ -15,7 +15,7 @@ use crate::theme::theme;
 /// Inputs:
 /// - `results_len`: Number of results
 /// - `area`: Target rectangle for the results block
-/// - `has_eos`, `has_cachyos`, `has_artix`, `has_manjaro`: Whether optional repos are available
+/// - `has_eos`, `has_cachyos`, `has_artix`, `has_artix_*`, `has_manjaro`: Whether optional repos are available
 /// - `sort_menu_open`, `config_menu_open`, `panels_menu_open`, `options_menu_open`: Menu states
 /// - Filter flags for each repo type
 ///
@@ -33,6 +33,12 @@ pub fn build_title_spans_from_values(
     has_eos: bool,
     has_cachyos: bool,
     has_artix: bool,
+    has_artix_omniverse: bool,
+    has_artix_universe: bool,
+    has_artix_lib32: bool,
+    has_artix_galaxy: bool,
+    has_artix_world: bool,
+    has_artix_system: bool,
     has_manjaro: bool,
     sort_menu_open: bool,
     config_menu_open: bool,
@@ -45,6 +51,12 @@ pub fn build_title_spans_from_values(
     results_filter_show_eos: bool,
     results_filter_show_cachyos: bool,
     results_filter_show_artix: bool,
+    results_filter_show_artix_omniverse: bool,
+    results_filter_show_artix_universe: bool,
+    results_filter_show_artix_lib32: bool,
+    results_filter_show_artix_galaxy: bool,
+    results_filter_show_artix_world: bool,
+    results_filter_show_artix_system: bool,
     results_filter_show_manjaro: bool,
 ) -> Vec<Span<'static>> {
     let th = theme();
@@ -124,6 +136,48 @@ pub fn build_title_spans_from_values(
             results_filter_show_artix,
         ));
     }
+    if has_artix_omniverse {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.artix_omniverse"),
+            results_filter_show_artix_omniverse,
+        ));
+    }
+    if has_artix_universe {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.artix_universe"),
+            results_filter_show_artix_universe,
+        ));
+    }
+    if has_artix_lib32 {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.artix_lib32"),
+            results_filter_show_artix_lib32,
+        ));
+    }
+    if has_artix_galaxy {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.artix_galaxy"),
+            results_filter_show_artix_galaxy,
+        ));
+    }
+    if has_artix_world {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.artix_world"),
+            results_filter_show_artix_world,
+        ));
+    }
+    if has_artix_system {
+        title_spans.push(Span::raw(" "));
+        title_spans.push(filt(
+            &i18n::t(app, "app.results.filters.artix_system"),
+            results_filter_show_artix_system,
+        ));
+    }
     if has_manjaro {
         title_spans.push(Span::raw(" "));
         title_spans.push(filt(
@@ -141,6 +195,13 @@ pub fn build_title_spans_from_values(
     let eos_label = format!("[{}]", i18n::t(app, "app.results.filters.eos"));
     let cachyos_label = format!("[{}]", i18n::t(app, "app.results.filters.cachyos"));
     let artix_label = format!("[{}]", i18n::t(app, "app.results.filters.artix"));
+    let artix_omniverse_label =
+        format!("[{}]", i18n::t(app, "app.results.filters.artix_omniverse"));
+    let artix_universe_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_universe"));
+    let artix_lib32_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_lib32"));
+    let artix_galaxy_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_galaxy"));
+    let artix_world_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_world"));
+    let artix_system_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_system"));
     let manjaro_label = format!("[{}]", i18n::t(app, "app.results.filters.manjaro"));
     let mut consumed_left = (results_title_text.len()
         + 2 // spaces before Sort
@@ -161,6 +222,24 @@ pub fn build_title_spans_from_values(
     }
     if has_artix {
         consumed_left = consumed_left.saturating_add(1 + artix_label.len() as u16);
+    }
+    if has_artix_omniverse {
+        consumed_left = consumed_left.saturating_add(1 + artix_omniverse_label.len() as u16);
+    }
+    if has_artix_universe {
+        consumed_left = consumed_left.saturating_add(1 + artix_universe_label.len() as u16);
+    }
+    if has_artix_lib32 {
+        consumed_left = consumed_left.saturating_add(1 + artix_lib32_label.len() as u16);
+    }
+    if has_artix_galaxy {
+        consumed_left = consumed_left.saturating_add(1 + artix_galaxy_label.len() as u16);
+    }
+    if has_artix_world {
+        consumed_left = consumed_left.saturating_add(1 + artix_world_label.len() as u16);
+    }
+    if has_artix_system {
+        consumed_left = consumed_left.saturating_add(1 + artix_system_label.len() as u16);
     }
     if has_manjaro {
         consumed_left = consumed_left.saturating_add(1 + manjaro_label.len() as u16);
@@ -263,12 +342,19 @@ pub fn build_title_spans_from_values(
 /// Details:
 /// - Mirrors title layout calculations to align rects with rendered elements and clears entries when
 ///   controls cannot fit in the available width.
+#[allow(clippy::too_many_arguments)]
 pub fn record_title_rects(
     app: &mut AppState,
     area: Rect,
     has_eos: bool,
     has_cachyos: bool,
     has_artix: bool,
+    has_artix_omniverse: bool,
+    has_artix_universe: bool,
+    has_artix_lib32: bool,
+    has_artix_galaxy: bool,
+    has_artix_world: bool,
+    has_artix_system: bool,
     has_manjaro: bool,
 ) {
     let results_title_text = format!(
@@ -344,6 +430,61 @@ pub fn record_title_rects(
     } else {
         app.results_filter_artix_rect = None;
     }
+    let artix_omniverse_label =
+        format!("[{}]", i18n::t(app, "app.results.filters.artix_omniverse"));
+    if has_artix_omniverse {
+        app.results_filter_artix_omniverse_rect = Some(rec_rect(x_cursor, &artix_omniverse_label));
+        x_cursor = x_cursor
+            .saturating_add(artix_omniverse_label.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_artix_omniverse_rect = None;
+    }
+    let artix_universe_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_universe"));
+    if has_artix_universe {
+        app.results_filter_artix_universe_rect = Some(rec_rect(x_cursor, &artix_universe_label));
+        x_cursor = x_cursor
+            .saturating_add(artix_universe_label.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_artix_universe_rect = None;
+    }
+    let artix_lib32_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_lib32"));
+    if has_artix_lib32 {
+        app.results_filter_artix_lib32_rect = Some(rec_rect(x_cursor, &artix_lib32_label));
+        x_cursor = x_cursor
+            .saturating_add(artix_lib32_label.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_artix_lib32_rect = None;
+    }
+    let artix_galaxy_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_galaxy"));
+    if has_artix_galaxy {
+        app.results_filter_artix_galaxy_rect = Some(rec_rect(x_cursor, &artix_galaxy_label));
+        x_cursor = x_cursor
+            .saturating_add(artix_galaxy_label.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_artix_galaxy_rect = None;
+    }
+    let artix_world_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_world"));
+    if has_artix_world {
+        app.results_filter_artix_world_rect = Some(rec_rect(x_cursor, &artix_world_label));
+        x_cursor = x_cursor
+            .saturating_add(artix_world_label.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_artix_world_rect = None;
+    }
+    let artix_system_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_system"));
+    if has_artix_system {
+        app.results_filter_artix_system_rect = Some(rec_rect(x_cursor, &artix_system_label));
+        x_cursor = x_cursor
+            .saturating_add(artix_system_label.len() as u16)
+            .saturating_add(1);
+    } else {
+        app.results_filter_artix_system_rect = None;
+    }
     let manjaro_label = format!("[{}]", i18n::t(app, "app.results.filters.manjaro"));
     if has_manjaro {
         app.results_filter_manjaro_rect = Some(rec_rect(x_cursor, &manjaro_label));
@@ -372,6 +513,32 @@ pub fn record_title_rects(
     }
     if has_artix {
         consumed_left = consumed_left.saturating_add(1 + artix_label.len() as u16);
+    }
+    if has_artix_omniverse {
+        let artix_omniverse_label =
+            format!("[{}]", i18n::t(app, "app.results.filters.artix_omniverse"));
+        consumed_left = consumed_left.saturating_add(1 + artix_omniverse_label.len() as u16);
+    }
+    if has_artix_universe {
+        let artix_universe_label =
+            format!("[{}]", i18n::t(app, "app.results.filters.artix_universe"));
+        consumed_left = consumed_left.saturating_add(1 + artix_universe_label.len() as u16);
+    }
+    if has_artix_lib32 {
+        let artix_lib32_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_lib32"));
+        consumed_left = consumed_left.saturating_add(1 + artix_lib32_label.len() as u16);
+    }
+    if has_artix_galaxy {
+        let artix_galaxy_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_galaxy"));
+        consumed_left = consumed_left.saturating_add(1 + artix_galaxy_label.len() as u16);
+    }
+    if has_artix_world {
+        let artix_world_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_world"));
+        consumed_left = consumed_left.saturating_add(1 + artix_world_label.len() as u16);
+    }
+    if has_artix_system {
+        let artix_system_label = format!("[{}]", i18n::t(app, "app.results.filters.artix_system"));
+        consumed_left = consumed_left.saturating_add(1 + artix_system_label.len() as u16);
     }
     if has_manjaro {
         consumed_left = consumed_left.saturating_add(1 + manjaro_label.len() as u16);

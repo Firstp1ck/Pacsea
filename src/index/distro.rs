@@ -78,6 +78,36 @@ pub fn is_artix_repo(repo: &str) -> bool {
     )
 }
 
+/// What: Check if a repo name is the Artix omniverse repository.
+pub fn is_artix_omniverse(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("omniverse")
+}
+
+/// What: Check if a repo name is the Artix universe repository.
+pub fn is_artix_universe(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("universe")
+}
+
+/// What: Check if a repo name is the Artix lib32 repository.
+pub fn is_artix_lib32(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("lib32")
+}
+
+/// What: Check if a repo name is the Artix galaxy repository.
+pub fn is_artix_galaxy(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("galaxy")
+}
+
+/// What: Check if a repo name is the Artix world repository.
+pub fn is_artix_world(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("world")
+}
+
+/// What: Check if a repo name is the Artix system repository.
+pub fn is_artix_system(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("system")
+}
+
 #[cfg(not(target_os = "windows"))]
 /// What: Known EndeavourOS repo names usable with pacman -Sl
 ///

@@ -975,7 +975,83 @@ pub fn handle_mouse_event(
             && my >= y
             && my < y + h
         {
-            app.results_filter_show_artix = !app.results_filter_show_artix;
+            // Check if all individual Artix repo filters are on
+            let all_on = app.results_filter_show_artix_omniverse
+                && app.results_filter_show_artix_universe
+                && app.results_filter_show_artix_lib32
+                && app.results_filter_show_artix_galaxy
+                && app.results_filter_show_artix_world
+                && app.results_filter_show_artix_system;
+
+            // If all are on, turn all off; otherwise turn all on
+            let new_state = !all_on;
+            app.results_filter_show_artix_omniverse = new_state;
+            app.results_filter_show_artix_universe = new_state;
+            app.results_filter_show_artix_lib32 = new_state;
+            app.results_filter_show_artix_galaxy = new_state;
+            app.results_filter_show_artix_world = new_state;
+            app.results_filter_show_artix_system = new_state;
+            app.results_filter_show_artix = new_state;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_omniverse_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_omniverse = !app.results_filter_show_artix_omniverse;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_universe_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_universe = !app.results_filter_show_artix_universe;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_lib32_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_lib32 = !app.results_filter_show_artix_lib32;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_galaxy_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_galaxy = !app.results_filter_show_artix_galaxy;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_world_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_world = !app.results_filter_show_artix_world;
+            crate::logic::apply_filters_and_sort_preserve_selection(app);
+            return false;
+        }
+        if let Some((x, y, w, h)) = app.results_filter_artix_system_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            app.results_filter_show_artix_system = !app.results_filter_show_artix_system;
             crate::logic::apply_filters_and_sort_preserve_selection(app);
             return false;
         }

@@ -298,6 +298,18 @@ pub struct AppState {
     pub results_filter_show_cachyos: bool,
     /// Whether to include packages from Artix Linux repos in the Results view.
     pub results_filter_show_artix: bool,
+    /// Whether to include packages from Artix omniverse repo in the Results view.
+    pub results_filter_show_artix_omniverse: bool,
+    /// Whether to include packages from Artix universe repo in the Results view.
+    pub results_filter_show_artix_universe: bool,
+    /// Whether to include packages from Artix lib32 repo in the Results view.
+    pub results_filter_show_artix_lib32: bool,
+    /// Whether to include packages from Artix galaxy repo in the Results view.
+    pub results_filter_show_artix_galaxy: bool,
+    /// Whether to include packages from Artix world repo in the Results view.
+    pub results_filter_show_artix_world: bool,
+    /// Whether to include packages from Artix system repo in the Results view.
+    pub results_filter_show_artix_system: bool,
     /// Whether to include packages labeled as `manjaro` in the Results view.
     pub results_filter_show_manjaro: bool,
     /// Clickable rectangle for the AUR filter toggle in the Results title (x, y, w, h).
@@ -314,6 +326,18 @@ pub struct AppState {
     pub results_filter_cachyos_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the Artix filter toggle in the Results title (x, y, w, h).
     pub results_filter_artix_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Artix omniverse filter toggle in the Results title (x, y, w, h).
+    pub results_filter_artix_omniverse_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Artix universe filter toggle in the Results title (x, y, w, h).
+    pub results_filter_artix_universe_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Artix lib32 filter toggle in the Results title (x, y, w, h).
+    pub results_filter_artix_lib32_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Artix galaxy filter toggle in the Results title (x, y, w, h).
+    pub results_filter_artix_galaxy_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Artix world filter toggle in the Results title (x, y, w, h).
+    pub results_filter_artix_world_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the Artix system filter toggle in the Results title (x, y, w, h).
+    pub results_filter_artix_system_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the Manjaro filter toggle in the Results title (x, y, w, h).
     pub results_filter_manjaro_rect: Option<(u16, u16, u16, u16)>,
 
@@ -562,6 +586,12 @@ impl Default for AppState {
             results_filter_show_eos: true,
             results_filter_show_cachyos: true,
             results_filter_show_artix: true,
+            results_filter_show_artix_omniverse: true,
+            results_filter_show_artix_universe: true,
+            results_filter_show_artix_lib32: true,
+            results_filter_show_artix_galaxy: true,
+            results_filter_show_artix_world: true,
+            results_filter_show_artix_system: true,
             results_filter_show_manjaro: true,
             results_filter_aur_rect: None,
             results_filter_core_rect: None,
@@ -570,6 +600,12 @@ impl Default for AppState {
             results_filter_eos_rect: None,
             results_filter_cachyos_rect: None,
             results_filter_artix_rect: None,
+            results_filter_artix_omniverse_rect: None,
+            results_filter_artix_universe_rect: None,
+            results_filter_artix_lib32_rect: None,
+            results_filter_artix_galaxy_rect: None,
+            results_filter_artix_world_rect: None,
+            results_filter_artix_system_rect: None,
             results_filter_manjaro_rect: None,
 
             // Package mutation cache refresh state (inactive by default)
