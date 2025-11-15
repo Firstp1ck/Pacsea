@@ -12,7 +12,7 @@ use crate::state::{PackageItem, Source};
 /// Details:
 /// - Prompts for helper installation when neither `paru` nor `yay` is present.
 /// - Offers an interactive retry with `-Syy` after failures.
-fn aur_install_body(flags: &str, n: &str) -> String {
+pub fn aur_install_body(flags: &str, n: &str) -> String {
     format!(
         "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
             paru {flags} {n} || (echo; echo 'Install failed.'; \
