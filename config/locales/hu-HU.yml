@@ -516,7 +516,7 @@ hu-HU:
                         Navigáció:\n\
                         • Balra/Jobbra/Tab - Váltás a fülek között\n\
                         • Fel/Le - Navigálás a listákban (Függőségek, Fájlok, Szolgáltatások fülek)\n\
-                        • ? - Súgó megjelenítése a jelenlegi fülhöz\n\
+                        • ? - Súgó megjelenítése a tényleges fülhöz\n\
                         • q/Esc/Enter - Preflight bezárása (az Enter a Függőségek/Fájlok fülön a kibontást/összecsukást is végzi)\n\n\
                         Fül-specifikus műveletek:\n\
                         • Függőségek fül:\n\
