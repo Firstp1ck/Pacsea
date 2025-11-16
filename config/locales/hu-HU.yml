@@ -320,7 +320,7 @@ hu-HU:
           - "  • Részletek webcímének megnyitása: Ctrl+Shift+Bal kattintás a webcímre"
           - "  • Találati címsor: kattintson a Rendezés/Beállítások/Panelek/Konfiguráció gombra a menük megnyitásához"
           - "  • Szűrők be-/kikapcsolása (AUR/core/extra/multilib/EOS/cachyos): kattintson a címkéjükre"
-          - "  • Arch állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
+          - "  • Arch Linux állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
         system_update_lines:
           - "  • Megnyitás: Beállítások → Rendszer frissítése"
           - "  • Fel/Le: mozgás • Szóköz: be-/kikapcsolás • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
@@ -351,7 +351,7 @@ hu-HU:
           insert_mode: "  Beszúrás mód"
           select_left: "  Bal oldali kiválasztása"
           select_right: "  Jobb oldali kiválasztása"
-          open_arch_status: "  Arch állapot megnyitása"
+          open_arch_status: "  Arch Linux állapotának megnyitása"
           config_lists_menu: "  Konfigurációk/Listák menü"
           options_menu: "  Beállítások menü"
           panels_menu: "  Panelek menü"
