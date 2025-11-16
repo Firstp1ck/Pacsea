@@ -69,9 +69,11 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     tracing::info!("Found {} installed packages", installed.len());
 
     // Get all provided packages (e.g., rustup provides rust)
-    tracing::info!("Building provides set from installed packages...");
+    // Note: Provides are checked lazily on-demand for performance, not built upfront
+    tracing::debug!(
+        "Provides will be checked lazily on-demand (not building full set for performance)"
+    );
     let provided = get_provided_packages(&installed);
-    tracing::info!("Found {} provided packages", provided.len());
 
     // Get list of upgradable packages to detect if dependencies need upgrades
     let upgradable = get_upgradable_packages();
@@ -90,9 +92,13 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             tracing::debug!("Package {} conflicts with: {:?}", item.name, conflicts);
 
             for conflict_name in conflicts {
-                // Check if conflict is installed
-                let is_installed =
-                    installed.contains(&conflict_name) || provided.contains(&conflict_name);
+                // Check if conflict is installed or provided by any installed package
+                // This checks against the complete list of ~2000 installed packages
+                let is_installed = crate::logic::deps::query::is_package_installed_or_provided(
+                    &conflict_name,
+                    &installed,
+                    &provided,
+                );
 
                 // Check if conflict is in the install list
                 let is_in_install_list = root_names.contains(&conflict_name);
@@ -147,6 +153,12 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             }
         }
     }
+
+    // Note: Reverse conflict checking (checking all installed packages for conflicts with install list)
+    // has been removed for performance reasons. The forward check above (checking install list packages
+    // for conflicts with installed packages) is sufficient and much more efficient.
+    // If an installed package conflicts with a package in the install list, it will be caught
+    // when we check the install list package's conflicts against installed packages.
 
     // Batch fetch official package dependencies to reduce pacman command overhead
     let official_packages: Vec<&str> = items

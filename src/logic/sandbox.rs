@@ -520,7 +520,7 @@ fn parse_srcinfo_deps(srcinfo: &str) -> (Vec<String>, Vec<String>, Vec<String>, 
 ///       'bar>=1.2'
 ///   )
 ///   ```
-fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
+pub fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
     tracing::debug!(
         "parse_pkgbuild_deps: Starting parse, PKGBUILD length={}, first 500 chars: {:?}",
         pkgbuild.len(),

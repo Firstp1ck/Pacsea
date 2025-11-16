@@ -958,7 +958,7 @@ fn get_backup_files_from_installed(name: &str) -> Result<Vec<String>, String> {
 /// Details:
 /// - Checks yay cache (~/.cache/yay) and paru cache (~/.cache/paru).
 /// - Also tries using `yay -G` or `paru -G` commands.
-fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
+pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
     // Try yay -G or paru -G first (fastest, uses helper's cache)
     // These commands clone to current working directory, so we use a temp dir
     let temp_dir = std::env::temp_dir().join(format!("pacsea_pkgbuild_{}", name));

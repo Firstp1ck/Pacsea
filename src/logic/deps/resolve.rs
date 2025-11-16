@@ -4,6 +4,8 @@ use super::parse::{parse_dep_spec, parse_pacman_si_conflicts, parse_pacman_si_de
 use super::source::{determine_dependency_source, is_system_package};
 use super::srcinfo::{fetch_srcinfo, parse_srcinfo_conflicts, parse_srcinfo_deps};
 use super::status::determine_status;
+use crate::logic::files::get_pkgbuild_from_cache;
+use crate::logic::sandbox::parse_pkgbuild_deps;
 use crate::state::modal::DependencyInfo;
 use crate::state::types::Source;
 use std::collections::{HashMap, HashSet};
@@ -545,6 +547,65 @@ pub(crate) fn resolve_package_deps(
                         name,
                         e
                     );
+
+                    // Fallback to cached PKGBUILD if available (useful when offline)
+                    // This allows dependency resolution to work even when network is unavailable
+                    if !used_helper && deps.is_empty() {
+                        if let Some(pkgbuild_text) = get_pkgbuild_from_cache(name) {
+                            tracing::info!(
+                                "Using cached PKGBUILD for {} to resolve dependencies (offline fallback)",
+                                name
+                            );
+                            let (pkgbuild_depends, _, _, _) = parse_pkgbuild_deps(&pkgbuild_text);
+
+                            // Process runtime dependencies from PKGBUILD
+                            for dep_spec in pkgbuild_depends {
+                                let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
+                                if pkg_name == name {
+                                    continue;
+                                }
+                                if pkg_name.ends_with(".so")
+                                    || pkg_name.contains(".so.")
+                                    || pkg_name.contains(".so=")
+                                {
+                                    continue;
+                                }
+
+                                let status = determine_status(
+                                    &pkg_name,
+                                    &version_req,
+                                    installed,
+                                    provided,
+                                    upgradable,
+                                );
+                                let (source, is_core) =
+                                    determine_dependency_source(&pkg_name, installed);
+                                let is_system = is_core || is_system_package(&pkg_name);
+
+                                deps.push(DependencyInfo {
+                                    name: pkg_name,
+                                    version: version_req,
+                                    status,
+                                    source,
+                                    required_by: vec![name.to_string()],
+                                    depends_on: Vec::new(),
+                                    is_core,
+                                    is_system,
+                                });
+                            }
+
+                            tracing::info!(
+                                "Resolved {} dependencies from cached PKGBUILD for {}",
+                                deps.len(),
+                                name
+                            );
+                        } else {
+                            tracing::debug!(
+                                "No cached PKGBUILD available for {} (offline, no dependencies resolved)",
+                                name
+                            );
+                        }
+                    }
                 }
             }
         }
