@@ -21,6 +21,17 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
         if let Ok(Ok(html)) =
             tokio::task::spawn_blocking(|| super::curl_text("https://status.archlinux.org")).await
         {
+            // FIRST PRIORITY: Check if AUR specifically shows "Down" status in monitors section
+            // This must be checked before anything else as it's the most specific indicator
+            if is_aur_down_in_monitors(&html) {
+                let aur_pct_opt = extract_aur_today_percent(&html);
+                let aur_pct_suffix = aur_pct_opt
+                    .map(|p| format!(" — AUR today: {p}%"))
+                    .unwrap_or_default();
+                let text = format!("Status: AUR Down{aur_pct_suffix}");
+                return Ok((text, ArchStatusColor::IncidentSevereToday));
+            }
+
             // Extract today's AUR uptime percentage (best-effort)
             let aur_pct_opt = extract_aur_today_percent(&html);
             if let Some(p) = aur_pct_opt {
@@ -99,8 +110,21 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
         tokio::task::spawn_blocking(move || super::curl_json(uptimerobot_api_url)).await;
 
     if let Ok(Ok(v)) = uptimerobot_result
-        && let Some((text, color)) = parse_uptimerobot_api(&v)
+        && let Some((mut text, mut color)) = parse_uptimerobot_api(&v)
     {
+        // Also fetch HTML to check if AUR specifically shows "Down" status
+        // This takes priority over API response
+        if let Ok(Ok(html)) =
+            tokio::task::spawn_blocking(|| super::curl_text("https://status.archlinux.org")).await
+            && is_aur_down_in_monitors(&html)
+        {
+            let aur_pct_opt = extract_aur_today_percent(&html);
+            let aur_pct_suffix = aur_pct_opt
+                .map(|p| format!(" — AUR today: {p}%"))
+                .unwrap_or_default();
+            text = format!("Status: AUR Down{aur_pct_suffix}");
+            color = ArchStatusColor::IncidentSevereToday;
+        }
         return Ok((text, color));
     }
 
@@ -125,15 +149,21 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
 /// - `Some(ArchStatusColor)` if "Some Systems down" or "Down" is detected in the status context, `None` otherwise.
 ///
 /// Details: Searches for the "Status: Arch systems..." pattern and checks if it's followed by "Some Systems down" or "Down" indicators.
-/// Also checks the monitors section for individual systems showing "Down" status.
+/// Also checks for "Some systems down" as a standalone heading/text and the monitors section for individual systems showing "Down" status.
 fn extract_arch_systems_status_color(body: &str) -> Option<ArchStatusColor> {
     let lowered = body.to_lowercase();
 
-    // Look for "Status: Arch systems..." pattern (case-insensitive)
-    let status_patterns = ["status: arch systems", "status arch systems"];
-
     let mut found_severe = false;
     let mut found_moderate = false;
+
+    // First, check for "Some systems down" as a standalone heading/text (most common case)
+    // This appears as a heading on the status page when systems are down
+    if lowered.contains("some systems down") {
+        found_severe = true;
+    }
+
+    // Look for "Status: Arch systems..." pattern (case-insensitive)
+    let status_patterns = ["status: arch systems", "status arch systems"];
 
     // Check for overall status message pattern
     for pattern in status_patterns.iter() {
@@ -194,6 +224,92 @@ fn extract_arch_systems_status_color(body: &str) -> Option<ArchStatusColor> {
     }
 }
 
+/// What: Check if AUR specifically shows "Down" status in the monitors section.
+///
+/// Inputs:
+/// - `body`: Raw HTML content to analyze.
+///
+/// Output:
+/// - `true` if AUR monitor shows "Down" status, `false` otherwise.
+///
+/// Details: Searches the monitors section for AUR and checks if it has "Down" status indicator.
+/// Looks for patterns like `title="Down"`, `>Down<`, or "Down" text near AUR.
+/// The actual HTML structure has: `<a title="AUR"...>` followed by `<div... title="Down">`
+fn is_aur_down_in_monitors(body: &str) -> bool {
+    let lowered = body.to_lowercase();
+
+    // Find the monitors section
+    if let Some(monitors_pos) = lowered.find("monitors") {
+        let monitors_window_start = monitors_pos;
+        let monitors_window_end = std::cmp::min(body.len(), monitors_pos + 15000);
+        let monitors_window = &lowered[monitors_window_start..monitors_window_end];
+
+        // Look for AUR in the monitors section - be more specific: look for title="aur" or "aur" in monitor context
+        // The actual HTML has: <a title="AUR" class="psp-monitor-name...
+        let aur_patterns = ["title=\"aur\"", "title='aur'", ">aur<", "\"aur\""];
+        let mut aur_pos_opt = None;
+
+        for pattern in aur_patterns.iter() {
+            if let Some(pos) = monitors_window.find(pattern) {
+                aur_pos_opt = Some(pos);
+                break;
+            }
+        }
+
+        // Fallback: just search for "aur" if pattern search didn't work
+        if aur_pos_opt.is_none() {
+            aur_pos_opt = monitors_window.find("aur");
+        }
+
+        if let Some(aur_pos) = aur_pos_opt {
+            // Check in a much larger window around AUR (2000 chars after) for "Down" status
+            // The actual HTML structure has quite a bit of content between AUR and Down
+            let aur_window_start = aur_pos;
+            let aur_window_end = std::cmp::min(monitors_window.len(), aur_pos + 2000);
+            let aur_window = &monitors_window[aur_window_start..aur_window_end];
+
+            // Check for "Down" status indicators near AUR
+            // Look for various patterns:
+            // 1. title="Down" or title='Down' (most reliable - this is what the actual HTML has)
+            // 2. psp-monitor-row-status-inner with title="Down" (specific to status page)
+            // 3. >down< (text content between tags)
+            // 4. "down" or 'down' (in quotes)
+            let has_title_down =
+                aur_window.contains("title=\"down\"") || aur_window.contains("title='down'");
+            let has_status_inner_down = aur_window.contains("psp-monitor-row-status-inner")
+                && (aur_window.contains("title=\"down\"") || aur_window.contains("title='down'"));
+            let has_tagged_down = aur_window.contains(">down<");
+            let has_quoted_down = aur_window.contains("\"down\"") || aur_window.contains("'down'");
+
+            // Check for plain "down" text, but make sure it's a standalone word
+            // Look for word boundaries (space, >, <, etc.) before and after "down"
+            let has_plain_down = aur_window.contains(" down ")
+                || aur_window.contains(">down<")
+                || aur_window.contains(">down ")
+                || aur_window.contains(" down<");
+
+            if has_title_down
+                || has_status_inner_down
+                || has_tagged_down
+                || has_quoted_down
+                || has_plain_down
+            {
+                // Verify it's not part of "operational" or other positive status
+                // Also check that we're not seeing "download" or similar words
+                if !aur_window.contains("operational")
+                    && !aur_window.contains("download")
+                    && !aur_window.contains("shutdown")
+                    && !aur_window.contains("breakdown")
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
+
 /// Parse a status message and color from the HTML of a status page.
 ///
 /// Inputs:
@@ -206,7 +322,52 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
     let has_all_ok = lowered.contains("all systems operational");
 
     // Check for "Status: Arch systems..." with "Some Systems down" or "Down"
+    // This must be checked FIRST as it represents the overall system status
     let arch_systems_status_color = extract_arch_systems_status_color(body);
+
+    // Check if AUR specifically shows "Down" status - this should be prioritized
+    let aur_is_down = is_aur_down_in_monitors(body);
+
+    // If arch systems status shows a problem, check if AUR is specifically down
+    if let Some(systems_status_color) = arch_systems_status_color
+        && matches!(
+            systems_status_color,
+            ArchStatusColor::IncidentToday | ArchStatusColor::IncidentSevereToday
+        )
+    {
+        let aur_pct_opt = extract_aur_today_percent(body);
+        let aur_pct_suffix = aur_pct_opt
+            .map(|p| format!(" — AUR today: {p}%"))
+            .unwrap_or_default();
+
+        // If AUR is specifically down, show AUR-specific message
+        if aur_is_down {
+            let text = format!("Status: AUR Down{aur_pct_suffix}");
+            return (text, ArchStatusColor::IncidentSevereToday);
+        }
+
+        // Otherwise show generic systems down message
+        let text = match systems_status_color {
+            ArchStatusColor::IncidentSevereToday => {
+                format!("Some Arch systems down (see status){aur_pct_suffix}")
+            }
+            ArchStatusColor::IncidentToday => {
+                format!("Arch systems degraded (see status){aur_pct_suffix}")
+            }
+            _ => format!("Arch systems nominal{aur_pct_suffix}"),
+        };
+        return (text, systems_status_color);
+    }
+
+    // Also check if AUR is down even if overall status doesn't show problems
+    if aur_is_down {
+        let aur_pct_opt = extract_aur_today_percent(body);
+        let aur_pct_suffix = aur_pct_opt
+            .map(|p| format!(" — AUR today: {p}%"))
+            .unwrap_or_default();
+        let text = format!("Status: AUR Down{aur_pct_suffix}");
+        return (text, ArchStatusColor::IncidentSevereToday);
+    }
 
     // Try to extract today's AUR uptime percentage from the Monitors/90-day uptime section
     let aur_pct_opt = extract_aur_today_percent(body);
@@ -314,25 +475,6 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
             format!("Arch systems nominal{aur_pct_suffix}"),
             final_color.unwrap_or(ArchStatusColor::IncidentToday),
         );
-    }
-
-    // If arch systems status shows a problem, prioritize it
-    if let Some(systems_status_color) = arch_systems_status_color
-        && matches!(
-            systems_status_color,
-            ArchStatusColor::IncidentToday | ArchStatusColor::IncidentSevereToday
-        )
-    {
-        let text = match systems_status_color {
-            ArchStatusColor::IncidentSevereToday => {
-                format!("Some Arch systems down (see status){aur_pct_suffix}")
-            }
-            ArchStatusColor::IncidentToday => {
-                format!("Arch systems degraded (see status){aur_pct_suffix}")
-            }
-            _ => format!("Arch systems nominal{aur_pct_suffix}"),
-        };
-        return (text, systems_status_color);
     }
 
     // If rect color shows a problem, prioritize it even if text says "operational"
@@ -1117,6 +1259,25 @@ mod tests {
     use super::*;
 
     #[test]
+    /// What: Verify that "Some systems down" heading is detected and returns correct status.
+    ///
+    /// Inputs:
+    /// - HTML with "Some systems down" as a heading (actual status page format) but AUR is operational.
+    ///
+    /// Output:
+    /// - Returns status text "Some Arch systems down (see status)" with `IncidentSevereToday` color.
+    ///
+    /// Details:
+    /// - Ensures the early check for arch systems status works correctly and isn't overridden by other checks.
+    fn status_parse_detects_some_systems_down_heading() {
+        // HTML with "Some systems down" but AUR is operational (so it should show generic message)
+        let html = r#"<html><body><h2>Some systems down</h2><div>Monitors (default)</div><div>AUR</div><div>Operational</div></body></html>"#;
+        let (text, color) = parse_arch_status_from_html(html);
+        assert_eq!(color, ArchStatusColor::IncidentSevereToday);
+        assert!(text.contains("Some Arch systems down"));
+    }
+
+    #[test]
     /// What: Parse Arch status HTML to derive AUR color by percentage buckets and outage flag.
     ///
     /// Inputs:
@@ -1324,5 +1485,96 @@ mod tests {
         let html_no_colon = r#"<html><body><div>Status Arch systems Down</div></body></html>"#;
         let color = extract_arch_systems_status_color(html_no_colon);
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
+
+        // Test "Some systems down" as a standalone heading (actual status page format)
+        let html_standalone_heading =
+            r#"<html><body><h2>Some systems down</h2><div>Monitors</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_standalone_heading);
+        assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
+
+        // Test "Some systems down" in body text
+        let html_body_text = r#"<html><body><div>Some systems down</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_body_text);
+        assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
+    }
+
+    #[test]
+    /// What: Verify that AUR "Down" status is detected and returns "Status: AUR Down" message.
+    ///
+    /// Inputs:
+    /// - HTML with "Some systems down" heading and AUR showing "Down" in monitors section.
+    ///
+    /// Output:
+    /// - Returns status text "Status: AUR Down" with `IncidentSevereToday` color.
+    ///
+    /// Details:
+    /// - Ensures AUR-specific "Down" status is prioritized over generic "Some systems down" message.
+    fn status_parse_prioritizes_aur_down_over_some_systems_down() {
+        // HTML with "Some systems down" heading and AUR showing "Down"
+        let html = r#"<html><body><h2>Some systems down</h2><div>Monitors (default)</div><div>AUR</div><div>>Down<</div></body></html>"#;
+        let (text, color) = parse_arch_status_from_html(html);
+        assert_eq!(color, ArchStatusColor::IncidentSevereToday);
+        assert!(
+            text.contains("Status: AUR Down"),
+            "Expected 'Status: AUR Down' but got: {}",
+            text
+        );
+    }
+
+    #[test]
+    /// What: Verify that `is_aur_down_in_monitors` correctly detects AUR "Down" status.
+    ///
+    /// Inputs:
+    /// - HTML snippets with AUR showing "Down" in various formats in monitors section.
+    ///
+    /// Output:
+    /// - Returns `true` when AUR shows "Down", `false` otherwise.
+    ///
+    /// Details:
+    /// - Tests various HTML patterns for AUR "Down" status detection.
+    fn status_is_aur_down_in_monitors() {
+        // Test AUR Down with title="Down" pattern (actual status page format)
+        let html_title = r#"<html><body><div>Monitors</div><div>AUR</div><div title="Down">Status</div></body></html>"#;
+        assert!(is_aur_down_in_monitors(html_title));
+
+        // Test AUR Down with title='Down' pattern
+        let html_title_single = r#"<html><body><div>Monitors</div><div>AUR</div><div title='Down'>Status</div></body></html>"#;
+        assert!(is_aur_down_in_monitors(html_title_single));
+
+        // Test AUR Down with actual status page HTML structure
+        let html_real = r#"<div class="psp-monitor-row"><div>Monitors</div><div>AUR</div><div class="psp-monitor-row-status-inner" title="Down"><span>Down</span></div></div>"#;
+        assert!(is_aur_down_in_monitors(html_real));
+
+        // Test with actual website HTML structure (from status.archlinux.org)
+        // Must include "Monitors" text for the function to find the monitors section
+        let html_actual = r#"<div>Monitors (default)</div><div class="psp-monitor-row"><div class="uk-flex uk-flex-between uk-flex-wrap"><div class="psp-monitor-row-header uk-text-muted uk-flex uk-flex-auto"><a title="AUR" class="psp-monitor-name uk-text-truncate uk-display-inline-block" href="https://status.archlinux.org/788139639">AUR<svg class="icon icon-plus-square uk-flex-none"><use href="/assets/symbol-defs.svg#icon-arrow-right"></use></svg></a><div class="uk-flex-none"><span class="m-r-5 m-l-5 uk-visible@s">|</span><span class="uk-text-primary uk-visible@s">94.864%</span><div class="uk-hidden@s uk-margin-small-left"><div class="uk-text-danger psp-monitor-row-status-inner" title="Down"><span class="dot is-error" aria-hidden="true"></span><span class="uk-visible@s">Down</span></div></div></div></div></div><div class="psp-monitor-row-status uk-visible@s"><div class="uk-text-danger psp-monitor-row-status-inner" title="Down"><span class="dot is-error" aria-hidden="true"></span><span class="uk-visible@s">Down</span></div></div></div>"#;
+        assert!(
+            is_aur_down_in_monitors(html_actual),
+            "Should detect AUR Down in actual website HTML structure"
+        );
+
+        // Test AUR Down with >down< pattern
+        let html1 =
+            r#"<html><body><div>Monitors</div><div>AUR</div><div>>Down<</div></body></html>"#;
+        assert!(is_aur_down_in_monitors(html1));
+
+        // Test AUR Down with "down" pattern
+        let html2 =
+            r#"<html><body><div>Monitors</div><div>AUR</div><div>"Down"</div></body></html>"#;
+        assert!(is_aur_down_in_monitors(html2));
+
+        // Test AUR Down with 'down' pattern
+        let html3 =
+            r#"<html><body><div>Monitors</div><div>AUR</div><div>'Down'</div></body></html>"#;
+        assert!(is_aur_down_in_monitors(html3));
+
+        // Test AUR Operational (should return false)
+        let html4 =
+            r#"<html><body><div>Monitors</div><div>AUR</div><div>Operational</div></body></html>"#;
+        assert!(!is_aur_down_in_monitors(html4));
+
+        // Test no monitors section (should return false)
+        let html5 = r#"<html><body><div>AUR</div><div>Down</div></body></html>"#;
+        assert!(!is_aur_down_in_monitors(html5));
     }
 }

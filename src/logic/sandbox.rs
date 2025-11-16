@@ -514,7 +514,7 @@ fn parse_srcinfo_deps(srcinfo: &str) -> (Vec<String>, Vec<String>, Vec<String>, 
 /// - Also handles `depends+=` patterns used in functions like `package()`
 /// - Handles both quoted and unquoted dependencies
 /// - Also handles multi-line arrays:
-///   ```
+///   ```text
 ///   depends=(
 ///       'foo'
 ///       'bar>=1.2'
