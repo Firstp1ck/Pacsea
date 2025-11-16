@@ -54,7 +54,7 @@ By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 Please ensure all of the above pass before opening a PR.
 
 ## Commit and branch guidelines
-- Branch naming: `feature/<short-description>` or `fix/<short-description>`
+- Branch naming: `feat/<short-description>` or `fix/<short-description>`
 - Commit style: Prefer Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `perf:`, `test:`)
 - Keep commits focused and reasonably small; add rationale in the body if non-obvious.
 
