@@ -1,0 +1,645 @@
+use ratatui::{
+    prelude::Rect,
+    style::{Modifier, Style},
+    text::{Line, Span},
+};
+
+use crate::i18n;
+use crate::state::modal::{
+    CascadeMode, DependencyInfo, DependencySource, DependencyStatus, PreflightHeaderChips,
+    PreflightSummaryData,
+};
+use crate::state::{AppState, PackageItem, PreflightAction, Source};
+use crate::theme::theme;
+
+use super::super::helpers::{format_bytes, format_signed_bytes};
+
+/// What: Render the Summary tab content for the preflight modal.
+///
+/// Inputs:
+/// - `app`: Application state for i18n and data access.
+/// - `items`: Packages under review.
+/// - `action`: Whether install or remove.
+/// - `summary`: Summary data (optional).
+/// - `header_chips`: Header chip data for risk level.
+/// - `dependency_info`: Dependency information.
+/// - `cascade_mode`: Removal cascade mode.
+/// - `content_rect`: Content area rectangle.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Shows risk factors, notes, per-package overview, and dependency conflicts/upgrades for install.
+/// - Shows removal plan and cascade impact for remove actions.
+#[allow(clippy::too_many_arguments)]
+pub fn render_summary_tab(
+    app: &AppState,
+    items: &[PackageItem],
+    action: &PreflightAction,
+    summary: &Option<Box<PreflightSummaryData>>,
+    header_chips: &PreflightHeaderChips,
+    dependency_info: &[DependencyInfo],
+    cascade_mode: CascadeMode,
+    content_rect: Rect,
+) -> Vec<Line<'static>> {
+    let th = theme();
+    let mut lines = Vec::new();
+
+    if let Some(summary_data) = summary.as_ref() {
+        // Header chips already display package count, download size, install delta, and risk score
+        // So we skip those here and focus on detailed information
+        let risk_color = match header_chips.risk_level {
+            crate::state::modal::RiskLevel::Low => th.green,
+            crate::state::modal::RiskLevel::Medium => th.yellow,
+            crate::state::modal::RiskLevel::High => th.red,
+        };
+
+        if !summary_data.risk_reasons.is_empty() {
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.summary.risk_factors"),
+                Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+            )));
+            for reason in &summary_data.risk_reasons {
+                let bullet = format!("  • {}", reason);
+                lines.push(Line::from(Span::styled(
+                    bullet,
+                    Style::default().fg(th.subtext1),
+                )));
+            }
+        }
+        if !summary_data.summary_notes.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.summary.notes"),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            for note in &summary_data.summary_notes {
+                let bullet = format!("  • {}", note);
+                lines.push(Line::from(Span::styled(
+                    bullet,
+                    Style::default().fg(th.subtext1),
+                )));
+            }
+        }
+        if !summary_data.packages.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.summary.per_package_overview"),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            for pkg in &summary_data.packages {
+                let mut entry = format!("  • {}", pkg.name);
+                match &pkg.source {
+                    Source::Aur => entry.push_str(" [AUR]"),
+                    Source::Official { repo, .. } => entry.push_str(&format!(" [{}]", repo)),
+                }
+                if let Some(installed) = &pkg.installed_version {
+                    entry.push_str(&format!(" {} → {}", installed, pkg.target_version));
+                } else {
+                    entry.push_str(&format!(" {}", pkg.target_version));
+                }
+                if pkg.is_major_bump {
+                    entry.push_str(&format!(
+                        " ({})",
+                        i18n::t(app, "app.modals.preflight.summary.major_bump")
+                    ));
+                }
+                if pkg.is_downgrade {
+                    entry.push_str(&format!(
+                        " ({})",
+                        i18n::t(app, "app.modals.preflight.summary.downgrade")
+                    ));
+                }
+                if let Some(bytes) = pkg.download_bytes {
+                    entry.push_str(&format!(
+                        " {}",
+                        i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.summary.download",
+                            format_bytes(bytes)
+                        )
+                    ));
+                }
+                if let Some(delta) = pkg.install_delta_bytes {
+                    entry.push_str(&format!(
+                        " {}",
+                        i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.summary.size",
+                            format_signed_bytes(delta)
+                        )
+                    ));
+                }
+                if !pkg.notes.is_empty() {
+                    entry.push_str(&format!(" • {}", pkg.notes.join("; ")));
+                }
+                lines.push(Line::from(Span::styled(
+                    entry,
+                    Style::default().fg(th.subtext0),
+                )));
+            }
+        }
+        lines.push(Line::from(""));
+    } else {
+        // Summary is still being computed in background
+        lines.push(Line::from(Span::styled(
+            "Computing summary...",
+            Style::default().fg(th.overlay1),
+        )));
+        lines.push(Line::from(""));
+    }
+    match *action {
+        PreflightAction::Install if !dependency_info.is_empty() => {
+            // Filter dependencies to only show conflicts and upgrades
+            let important_deps: Vec<&DependencyInfo> = dependency_info
+                .iter()
+                .filter(|d| {
+                    matches!(
+                        d.status,
+                        DependencyStatus::Conflict { .. } | DependencyStatus::ToUpgrade { .. }
+                    )
+                })
+                .collect();
+
+            if important_deps.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    i18n::t(app, "app.modals.preflight.summary.no_conflicts_or_upgrades"),
+                    Style::default().fg(th.green),
+                )));
+            } else {
+                // Group by packages that require them
+                use std::collections::{HashMap, HashSet};
+                let mut grouped: HashMap<String, Vec<&DependencyInfo>> = HashMap::new();
+                for dep in important_deps.iter() {
+                    for req_by in &dep.required_by {
+                        grouped.entry(req_by.clone()).or_default().push(dep);
+                    }
+                }
+
+                // Count conflicts and upgrades
+                let conflict_count = important_deps
+                    .iter()
+                    .filter(|d| matches!(d.status, DependencyStatus::Conflict { .. }))
+                    .count();
+                let upgrade_count = important_deps
+                    .iter()
+                    .filter(|d| matches!(d.status, DependencyStatus::ToUpgrade { .. }))
+                    .count();
+
+                // Summary header
+                let mut summary_parts = Vec::new();
+                if conflict_count > 0 {
+                    summary_parts.push(i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.summary.conflict_singular",
+                        conflict_count,
+                    ));
+                }
+                if upgrade_count > 0 {
+                    summary_parts.push(i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.summary.upgrade_singular",
+                        upgrade_count,
+                    ));
+                }
+
+                // Use different header based on what we have
+                let header_text = if conflict_count > 0 {
+                    i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.summary.issues",
+                        summary_parts.join(", "),
+                    )
+                } else if upgrade_count > 0 {
+                    i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.summary.summary_label",
+                        summary_parts.join(", "),
+                    )
+                } else {
+                    i18n::t(app, "app.modals.preflight.summary.summary_no_conflicts")
+                };
+
+                lines.push(Line::from(Span::styled(
+                    header_text,
+                    Style::default()
+                        .fg(if conflict_count > 0 {
+                            th.red
+                        } else {
+                            th.yellow
+                        })
+                        .add_modifier(Modifier::BOLD),
+                )));
+                lines.push(Line::from(""));
+
+                // Display grouped dependencies
+                let available_height = (content_rect.height as usize).saturating_sub(6);
+                let mut displayed = 0;
+                for pkg_name in items.iter().map(|p| &p.name) {
+                    if let Some(pkg_deps) = grouped.get(pkg_name) {
+                        if displayed >= available_height {
+                            break;
+                        }
+                        // Package header
+                        lines.push(Line::from(Span::styled(
+                            format!("▶ {}", pkg_name),
+                            Style::default()
+                                .fg(th.overlay1)
+                                .add_modifier(Modifier::BOLD),
+                        )));
+                        displayed += 1;
+
+                        // Deduplicate dependencies within this package's group
+                        let mut seen_deps = HashSet::new();
+                        for dep in pkg_deps.iter() {
+                            if seen_deps.insert(dep.name.as_str()) && displayed < available_height {
+                                let mut spans = Vec::new();
+                                spans.push(Span::styled("  ", Style::default())); // Indentation
+
+                                // Status indicator and dependency info
+                                match &dep.status {
+                                    DependencyStatus::Conflict { reason } => {
+                                        spans.push(Span::styled("⚠ ", Style::default().fg(th.red)));
+                                        spans.push(Span::styled(
+                                            dep.name.clone(),
+                                            Style::default().fg(th.text),
+                                        ));
+                                        // Version requirement
+                                        if !dep.version.is_empty() {
+                                            spans.push(Span::styled(
+                                                format!(" {}", dep.version),
+                                                Style::default().fg(th.overlay2),
+                                            ));
+                                        }
+                                        // Source badge
+                                        let (source_badge, badge_color) = match &dep.source {
+                                            DependencySource::Official { repo } => {
+                                                let repo_lower = repo.to_lowercase();
+                                                let color =
+                                                    if crate::index::is_eos_repo(&repo_lower)
+                                                        || crate::index::is_cachyos_repo(
+                                                            &repo_lower,
+                                                        )
+                                                    {
+                                                        th.sapphire
+                                                    } else {
+                                                        th.green
+                                                    };
+                                                (format!(" [{}]", repo), color)
+                                            }
+                                            DependencySource::Aur => {
+                                                (" [AUR]".to_string(), th.yellow)
+                                            }
+                                            DependencySource::Local => {
+                                                (" [local]".to_string(), th.overlay1)
+                                            }
+                                        };
+                                        spans.push(Span::styled(
+                                            source_badge,
+                                            Style::default().fg(badge_color),
+                                        ));
+                                        spans.push(Span::styled(
+                                            format!(" ({})", reason),
+                                            Style::default().fg(th.red),
+                                        ));
+                                    }
+                                    DependencyStatus::ToUpgrade { current, required } => {
+                                        spans.push(Span::styled(
+                                            "↑ ",
+                                            Style::default().fg(th.yellow),
+                                        ));
+                                        spans.push(Span::styled(
+                                            dep.name.clone(),
+                                            Style::default().fg(th.text),
+                                        ));
+                                        // Version requirement
+                                        if !dep.version.is_empty() {
+                                            spans.push(Span::styled(
+                                                format!(" {}", dep.version),
+                                                Style::default().fg(th.overlay2),
+                                            ));
+                                        }
+                                        // Source badge
+                                        let (source_badge, badge_color) = match &dep.source {
+                                            DependencySource::Official { repo } => {
+                                                let repo_lower = repo.to_lowercase();
+                                                let color =
+                                                    if crate::index::is_eos_repo(&repo_lower)
+                                                        || crate::index::is_cachyos_repo(
+                                                            &repo_lower,
+                                                        )
+                                                    {
+                                                        th.sapphire
+                                                    } else {
+                                                        th.green
+                                                    };
+                                                (format!(" [{}]", repo), color)
+                                            }
+                                            DependencySource::Aur => {
+                                                (" [AUR]".to_string(), th.yellow)
+                                            }
+                                            DependencySource::Local => {
+                                                (" [local]".to_string(), th.overlay1)
+                                            }
+                                        };
+                                        spans.push(Span::styled(
+                                            source_badge,
+                                            Style::default().fg(badge_color),
+                                        ));
+                                        spans.push(Span::styled(
+                                            format!(" ({} → {})", current, required),
+                                            Style::default().fg(th.yellow),
+                                        ));
+                                    }
+                                    _ => continue, // Shouldn't happen due to filter, but be safe
+                                }
+
+                                displayed += 1;
+                                lines.push(Line::from(spans));
+                            }
+                        }
+                    }
+                }
+
+                if displayed >= available_height && important_deps.len() > displayed {
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(Span::styled(
+                        i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.summary.and_more",
+                            important_deps.len() - displayed,
+                        ),
+                        Style::default().fg(th.subtext1),
+                    )));
+                }
+            }
+        }
+        PreflightAction::Remove => {
+            let mode = cascade_mode;
+            let mode_line = i18n::t_fmt(
+                app,
+                "app.modals.preflight.summary.cascade_mode",
+                &[&mode.flag(), &mode.description()],
+            );
+            lines.push(Line::from(Span::styled(
+                mode_line,
+                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+
+            if items.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    i18n::t(app, "app.modals.preflight.summary.no_removal_targets"),
+                    Style::default().fg(th.subtext1),
+                )));
+            } else {
+                let removal_names: Vec<&str> = items.iter().map(|pkg| pkg.name.as_str()).collect();
+                let plan_header_style = Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD);
+                lines.push(Line::from(Span::styled(
+                    i18n::t(app, "app.modals.preflight.summary.removal_plan_preview"),
+                    plan_header_style,
+                )));
+
+                let mut plan_command = format!(
+                    "sudo pacman {} --noconfirm {}",
+                    mode.flag(),
+                    removal_names.join(" ")
+                );
+                if app.dry_run {
+                    plan_command = i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.summary.dry_run_prefix",
+                        plan_command,
+                    );
+                }
+                lines.push(Line::from(Span::styled(
+                    plan_command,
+                    Style::default().fg(th.text),
+                )));
+
+                let dependent_count = dependency_info.len();
+                let (summary_text, summary_style) = if dependent_count == 0 {
+                    (
+                        i18n::t(app, "app.modals.preflight.summary.no_dependents"),
+                        Style::default().fg(th.green),
+                    )
+                } else if mode.allows_dependents() {
+                    (
+                        i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.summary.cascade_will_include",
+                            dependent_count,
+                        ),
+                        Style::default().fg(th.yellow),
+                    )
+                } else {
+                    (
+                        i18n::t_fmt1(
+                            app,
+                            "app.modals.preflight.summary.dependents_block_removal",
+                            dependent_count,
+                        ),
+                        Style::default().fg(th.red),
+                    )
+                };
+                lines.push(Line::from(Span::styled(summary_text, summary_style)));
+                lines.push(Line::from(""));
+
+                if dependent_count > 0 {
+                    if app.remove_preflight_summary.is_empty() {
+                        lines.push(Line::from(Span::styled(
+                            i18n::t(app, "app.modals.preflight.summary.calculating_reverse_deps"),
+                            Style::default().fg(th.subtext1),
+                        )));
+                    } else {
+                        lines.push(Line::from(Span::styled(
+                            i18n::t(app, "app.modals.preflight.summary.removal_impact_overview"),
+                            Style::default()
+                                .fg(th.overlay1)
+                                .add_modifier(Modifier::BOLD),
+                        )));
+                        lines.push(Line::from(""));
+
+                        for summary in &app.remove_preflight_summary {
+                            let mut message = i18n::t_fmt(
+                                app,
+                                "app.modals.preflight.summary.dependent_singular",
+                                &[&summary.package, &summary.total_dependents],
+                            );
+                            if summary.direct_dependents > 0 {
+                                message.push_str(&format!(
+                                    " {}",
+                                    i18n::t_fmt1(
+                                        app,
+                                        "app.modals.preflight.summary.direct_singular",
+                                        summary.direct_dependents
+                                    )
+                                ));
+                            }
+                            if summary.transitive_dependents > 0 {
+                                message.push_str(&format!(
+                                    " {}",
+                                    i18n::t_fmt1(
+                                        app,
+                                        "app.modals.preflight.summary.transitive_singular",
+                                        summary.transitive_dependents
+                                    )
+                                ));
+                            }
+                            lines.push(Line::from(Span::styled(
+                                message,
+                                Style::default().fg(th.text),
+                            )));
+                        }
+                        lines.push(Line::from(""));
+                    }
+
+                    let (impact_header, impact_style) = if mode.allows_dependents() {
+                        (
+                            i18n::t(app, "app.modals.preflight.summary.cascade_will_remove"),
+                            Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                        )
+                    } else {
+                        (
+                            i18n::t(app, "app.modals.preflight.summary.dependents_not_removed"),
+                            Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+                        )
+                    };
+                    lines.push(Line::from(Span::styled(impact_header, impact_style)));
+
+                    let removal_targets: std::collections::HashSet<String> = items
+                        .iter()
+                        .map(|pkg| pkg.name.to_ascii_lowercase())
+                        .collect();
+                    let mut cascade_candidates: Vec<&DependencyInfo> =
+                        dependency_info.iter().collect();
+                    cascade_candidates.sort_by(|a, b| {
+                        let a_direct = a
+                            .depends_on
+                            .iter()
+                            .any(|parent| removal_targets.contains(&parent.to_ascii_lowercase()));
+                        let b_direct = b
+                            .depends_on
+                            .iter()
+                            .any(|parent| removal_targets.contains(&parent.to_ascii_lowercase()));
+                        b_direct.cmp(&a_direct).then_with(|| a.name.cmp(&b.name))
+                    });
+
+                    const CASCADE_PREVIEW_MAX: usize = 8;
+                    for dep in cascade_candidates.iter().take(CASCADE_PREVIEW_MAX) {
+                        let is_direct = dep
+                            .depends_on
+                            .iter()
+                            .any(|parent| removal_targets.contains(&parent.to_ascii_lowercase()));
+                        let bullet = if mode.allows_dependents() {
+                            if is_direct { "● " } else { "○ " }
+                        } else if is_direct {
+                            "⛔ "
+                        } else {
+                            "⚠ "
+                        };
+                        let name_color = if mode.allows_dependents() {
+                            if is_direct { th.red } else { th.yellow }
+                        } else if is_direct {
+                            th.red
+                        } else {
+                            th.yellow
+                        };
+                        let name_style =
+                            Style::default().fg(name_color).add_modifier(Modifier::BOLD);
+                        let detail = match &dep.status {
+                            DependencyStatus::Conflict { reason } => reason.clone(),
+                            DependencyStatus::ToUpgrade { .. } => {
+                                i18n::t(app, "app.modals.preflight.summary.requires_version_change")
+                            }
+                            DependencyStatus::Installed { .. } => {
+                                i18n::t(app, "app.modals.preflight.summary.already_satisfied")
+                            }
+                            DependencyStatus::ToInstall => {
+                                i18n::t(app, "app.modals.preflight.summary.not_currently_installed")
+                            }
+                            DependencyStatus::Missing => {
+                                i18n::t(app, "app.modals.preflight.summary.missing")
+                            }
+                        };
+                        let roots = if dep.required_by.is_empty() {
+                            String::new()
+                        } else {
+                            i18n::t_fmt1(
+                                app,
+                                "app.modals.preflight.summary.targets_label",
+                                dep.required_by.join(", "),
+                            )
+                        };
+
+                        let mut spans = Vec::new();
+                        spans.push(Span::styled(bullet, Style::default().fg(th.subtext0)));
+                        spans.push(Span::styled(dep.name.clone(), name_style));
+                        if !detail.is_empty() {
+                            spans.push(Span::styled(" — ", Style::default().fg(th.subtext1)));
+                            spans.push(Span::styled(detail, Style::default().fg(th.subtext1)));
+                        }
+                        if !roots.is_empty() {
+                            spans.push(Span::styled(roots, Style::default().fg(th.overlay1)));
+                        }
+                        lines.push(Line::from(spans));
+                    }
+
+                    if cascade_candidates.len() > CASCADE_PREVIEW_MAX {
+                        lines.push(Line::from(Span::styled(
+                            i18n::t_fmt1(
+                                app,
+                                "app.modals.preflight.summary.and_more_impacted",
+                                cascade_candidates.len() - CASCADE_PREVIEW_MAX,
+                            ),
+                            Style::default().fg(th.subtext1),
+                        )));
+                    }
+
+                    lines.push(Line::from(""));
+                    if mode.allows_dependents() {
+                        lines.push(Line::from(Span::styled(
+                            i18n::t(app, "app.modals.preflight.summary.will_be_removed_auto"),
+                            Style::default().fg(th.subtext1),
+                        )));
+                    } else {
+                        lines.push(Line::from(Span::styled(
+                            i18n::t(app, "app.modals.preflight.summary.enable_cascade_mode"),
+                            Style::default().fg(th.subtext1),
+                        )));
+                    }
+                    lines.push(Line::from(Span::styled(
+                        i18n::t(app, "app.modals.preflight.summary.use_deps_tab"),
+                        Style::default().fg(th.subtext1),
+                    )));
+                }
+            }
+        }
+        _ => {
+            if items.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    i18n::t(app, "app.modals.preflight.summary.no_items_selected"),
+                    Style::default().fg(th.subtext1),
+                )));
+            } else {
+                lines.push(Line::from(Span::styled(
+                    i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.summary.packages_selected",
+                        items.len(),
+                    ),
+                    Style::default().fg(th.text),
+                )));
+            }
+        }
+    }
+
+    lines
+}

@@ -1,0 +1,151 @@
+use ratatui::{
+    style::{Modifier, Style},
+    text::{Line, Span},
+};
+
+use crate::i18n;
+use crate::state::AppState;
+use crate::state::modal::PreflightHeaderChips;
+use crate::theme::theme;
+
+/// What: Format bytes into human-readable string with appropriate unit.
+///
+/// Inputs:
+/// - `value`: Number of bytes to format.
+///
+/// Output:
+/// - Returns a formatted string like "1.5 MiB" or "1024 B".
+///
+/// Details:
+/// - Uses binary units (KiB, MiB, GiB, etc.) and rounds to 1 decimal place for non-zero values.
+pub fn format_bytes(value: u64) -> String {
+    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+    let mut size = value as f64;
+    let mut unit_index = 0usize;
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+    if unit_index == 0 {
+        format!("{} {}", value, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_index])
+    }
+}
+
+/// What: Format signed bytes into human-readable string with +/- prefix.
+///
+/// Inputs:
+/// - `value`: Signed number of bytes to format.
+///
+/// Output:
+/// - Returns a formatted string like "+1.5 MiB" or "-512 KiB" or "0 B".
+///
+/// Details:
+/// - Uses format_bytes for magnitude and adds +/- prefix based on sign.
+pub fn format_signed_bytes(value: i64) -> String {
+    if value == 0 {
+        return "0 B".to_string();
+    }
+    let magnitude = value.unsigned_abs();
+    if value > 0 {
+        format!("+{}", format_bytes(magnitude))
+    } else {
+        format!("-{}", format_bytes(magnitude))
+    }
+}
+
+/// What: Render header chips as a compact horizontal line of metrics.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `chips`: Header chip data containing counts and sizes.
+///
+/// Output:
+/// - Returns a `Line` containing styled chip spans separated by spaces.
+///
+/// Details:
+/// - Formats package count, download size, install delta, AUR count, and risk score
+///   as compact chips. Risk score uses color coding (green/yellow/red) based on level.
+pub fn render_header_chips(app: &AppState, chips: &PreflightHeaderChips) -> Line<'static> {
+    let th = theme();
+    let mut spans = Vec::new();
+
+    // Package count chip
+    let pkg_text = if chips.aur_count > 0 {
+        format!(
+            "{}{}",
+            chips.package_count,
+            i18n::t_fmt1(
+                app,
+                "app.modals.preflight.header_chips.aur_packages",
+                chips.aur_count
+            )
+        )
+    } else {
+        format!("{}", chips.package_count)
+    };
+    spans.push(Span::styled(
+        format!("[{}]", pkg_text),
+        Style::default()
+            .fg(th.sapphire)
+            .add_modifier(Modifier::BOLD),
+    ));
+
+    // Download size chip (always shown)
+    spans.push(Span::styled(" ", Style::default()));
+    spans.push(Span::styled(
+        i18n::t_fmt1(
+            app,
+            "app.modals.preflight.header_chips.download_label",
+            format_bytes(chips.download_bytes),
+        ),
+        Style::default().fg(th.sapphire),
+    ));
+
+    // Install delta chip (always shown)
+    spans.push(Span::styled(" ", Style::default()));
+    let delta_color = if chips.install_delta_bytes > 0 {
+        th.green
+    } else if chips.install_delta_bytes < 0 {
+        th.red
+    } else {
+        th.overlay1 // Neutral color for zero
+    };
+    spans.push(Span::styled(
+        i18n::t_fmt1(
+            app,
+            "app.modals.preflight.header_chips.size_label",
+            format_signed_bytes(chips.install_delta_bytes),
+        ),
+        Style::default().fg(delta_color),
+    ));
+
+    // Risk score chip (always shown)
+    spans.push(Span::styled(" ", Style::default()));
+    let risk_label = match chips.risk_level {
+        crate::state::modal::RiskLevel::Low => {
+            i18n::t(app, "app.modals.preflight.header_chips.risk_low")
+        }
+        crate::state::modal::RiskLevel::Medium => {
+            i18n::t(app, "app.modals.preflight.header_chips.risk_medium")
+        }
+        crate::state::modal::RiskLevel::High => {
+            i18n::t(app, "app.modals.preflight.header_chips.risk_high")
+        }
+    };
+    let risk_color = match chips.risk_level {
+        crate::state::modal::RiskLevel::Low => th.green,
+        crate::state::modal::RiskLevel::Medium => th.yellow,
+        crate::state::modal::RiskLevel::High => th.red,
+    };
+    spans.push(Span::styled(
+        format!("[Risk: {} ({})]", risk_label, chips.risk_score),
+        Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
+    ));
+
+    Line::from(spans)
+}
+
+#[cfg(test)]
+mod tests;
