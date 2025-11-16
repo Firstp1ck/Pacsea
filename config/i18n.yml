@@ -39,6 +39,7 @@ fallbacks:
   es: es-ES
   ja: ja-JP
   ar: ar-SA
+  hu: hu-HU
 
 locales:
   en-US:
@@ -345,6 +346,56 @@ locales:
         space_before_punctuation: []
         space_after_punctuation: [",", ";", ":", ".", "؟", "!"]
 
+  hu-HU:
+    name: Magyar (Magyarország)
+    direction: ltr
+    number_format:
+      decimal: ","
+      thousand: " "
+      group: 3
+    typography:
+      sentence:
+        start: []
+        end: [".", "?", "!"]
+      quotes:
+        primary:
+          open: "„"
+          close: "”"
+        secondary:
+          open: "‚"
+          close: "ʼ"
+        apostrophe: "ʼ"
+      separators:
+        comma: ","
+        period: "."
+        colon: ":"
+        semicolon: ";"
+        question: "?"
+        exclamation: "!"
+        slash: "/"
+        backslash: "\\"
+        pipe: "|"
+      dashes:
+        hyphen: "-"
+        en: "–"
+        em: "—"
+      ellipsis: "…"
+      interpuncts:
+        middle_dot: "·"
+      brackets:
+        round: { open: "(", close: ")" }
+        square: { open: "[", close: "]" }
+        curly: { open: "{", close: "}" }
+        angle: { open: "<", close: ">" }
+      spacing:
+        nbsp: "\u00A0"
+        thin_nbsp: "\u202F"
+        word_joiner: "\u2060"
+        use_nbsp_inside_guillemets: false
+        use_narrow_nbsp_before: []
+        space_before_punctuation: []
+        space_after_punctuation: [",", ";", ":", ".", "?", "!"]
+
 # Optional normalization presets that a future formatter can use to "smartify" ASCII text
 # by locale. This does not perform any changes by itself; it documents intended behavior.
 normalization_presets:
@@ -388,5 +439,11 @@ normalization_presets:
       comma: "،"
       semicolon: "؛"
       question: "؟"
+      dashes: { "--": "–", "---": "—" }
+      ellipsis: { "...": "…" }
+  hu-HU:
+    ascii_to_smart:
+      double_quote: { open: "„", close: "" }
+      single_quote: { open: "‚", close: "ʼ", apostrophe: "ʼ" }
       dashes: { "--": "–", "---": "—" }
       ellipsis: { "...": "…" }

@@ -96,7 +96,7 @@ mod tests {
     /// Details:
     /// - Simulates pacman output via PATH override to exercise merge path.
     async fn update_merges_preserving_enriched_fields_and_notifies_on_name_changes() {
-        let _guard = crate::index::test_mutex().lock().unwrap();
+        let _guard = crate::global_test_mutex_lock();
 
         // Seed current index with enriched fields
         if let Ok(mut g) = super::idx().write() {

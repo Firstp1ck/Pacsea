@@ -9,7 +9,7 @@
 use pacsea as crate_root;
 use tokio::sync::mpsc;
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 /// What: Verify that preflight modal handles out-of-order data arrival correctly.
 ///
 /// Inputs:
@@ -367,7 +367,7 @@ async fn preflight_handles_out_of_order_data_arrival() {
     assert!(app.preflight_services_items.is_none());
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 /// What: Verify that preflight cancellation aborts in-flight work correctly.
 ///
 /// Inputs:

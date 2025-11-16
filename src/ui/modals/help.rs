@@ -190,31 +190,55 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )));
         if let Some(k) = km.search_normal_toggle.first().copied() {
-            lines.push(fmt("  Toggle normal", k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.toggle_normal"),
+                k,
+            ));
         }
         if let Some(k) = km.search_normal_insert.first().copied() {
-            lines.push(fmt("  Insert Mode", k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.insert_mode"),
+                k,
+            ));
         }
         if let Some(k) = km.search_normal_select_left.first().copied() {
-            lines.push(fmt("  Select left", k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.select_left"),
+                k,
+            ));
         }
         if let Some(k) = km.search_normal_select_right.first().copied() {
-            lines.push(fmt("  Select right", k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.select_right"),
+                k,
+            ));
         }
         if let Some(k) = km.search_normal_delete.first().copied() {
-            lines.push(fmt("  Delete", k));
+            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.delete"), k));
         }
         if let Some(k) = km.search_normal_open_status.first().copied() {
-            lines.push(fmt("  Open Arch status", k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.open_arch_status"),
+                k,
+            ));
         }
         if let Some(k) = km.config_menu_toggle.first().copied() {
-            lines.push(fmt("  Config/Lists menu", k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.config_lists_menu"),
+                k,
+            ));
         }
         if let Some(k) = km.options_menu_toggle.first().copied() {
-            lines.push(fmt("  Options menu", k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.options_menu"),
+                k,
+            ));
         }
         if let Some(k) = km.panels_menu_toggle.first().copied() {
-            lines.push(fmt("  Panels menu", k));
+            lines.push(fmt(
+                &i18n::t(app, "app.modals.help.key_labels.panels_menu"),
+                k,
+            ));
         }
     }
 
@@ -227,14 +251,14 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     )));
     if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first()) {
         lines.push(fmt(
-            "  Move",
+            &i18n::t(app, "app.modals.help.key_labels.move"),
             KeyChord {
                 code: up.code,
                 mods: up.mods,
             },
         ));
         lines.push(fmt(
-            "  Move",
+            &i18n::t(app, "app.modals.help.key_labels.move"),
             KeyChord {
                 code: dn.code,
                 mods: dn.mods,
@@ -242,19 +266,22 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         ));
     }
     if let Some(k) = km.install_confirm.first().copied() {
-        lines.push(fmt("  Confirm", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.confirm"), k));
     }
     if let Some(k) = km.install_remove.first().copied() {
-        lines.push(fmt("  Remove", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.remove"), k));
     }
     if let Some(k) = km.install_clear.first().copied() {
-        lines.push(fmt("  Clear", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.clear"), k));
     }
     if let Some(k) = km.install_find.first().copied() {
-        lines.push(fmt("  Find", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.find"), k));
     }
     if let Some(k) = km.install_to_search.first().copied() {
-        lines.push(fmt("  To Search", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.to_search"),
+            k,
+        ));
     }
 
     lines.push(Line::from(""));
@@ -266,14 +293,14 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     )));
     if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
         lines.push(fmt(
-            "  Move",
+            &i18n::t(app, "app.modals.help.key_labels.move"),
             KeyChord {
                 code: up.code,
                 mods: up.mods,
             },
         ));
         lines.push(fmt(
-            "  Move",
+            &i18n::t(app, "app.modals.help.key_labels.move"),
             KeyChord {
                 code: dn.code,
                 mods: dn.mods,
@@ -281,23 +308,26 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         ));
     }
     if let Some(k) = km.recent_use.first().copied() {
-        lines.push(fmt("  Use", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.use"), k));
     }
     if let Some(k) = km.recent_add.first().copied() {
-        lines.push(fmt("  Add", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.add"), k));
     }
     if let Some(k) = km.recent_find.first().copied() {
-        lines.push(fmt("  Find", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.find"), k));
     }
     if let Some(k) = km.recent_to_search.first().copied() {
-        lines.push(fmt("  To Search", k));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.to_search"),
+            k,
+        ));
     }
     if let Some(k) = km.recent_remove.first().copied() {
-        lines.push(fmt("  Remove", k));
+        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.remove"), k));
     }
     // Explicit: Shift+Del clears Recent (display only)
     lines.push(fmt(
-        "  Clear",
+        &i18n::t(app, "app.modals.help.key_labels.clear"),
         KeyChord {
             code: crossterm::event::KeyCode::Delete,
             mods: crossterm::event::KeyModifiers::SHIFT,
@@ -384,6 +414,7 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         Style::default().fg(th.subtext1),
     )));
 
+    let help_title = format!(" {} ", i18n::t(app, "app.titles.help"));
     let boxw = Paragraph::new(lines)
         .style(Style::default().fg(th.text).bg(th.mantle))
         .wrap(Wrap { trim: true })
@@ -391,7 +422,7 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         .block(
             Block::default()
                 .title(Span::styled(
-                    " Help ",
+                    &help_title,
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)

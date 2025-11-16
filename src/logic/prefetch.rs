@@ -81,7 +81,7 @@ mod tests {
     /// Details:
     /// - Uses a short timeout to confirm no unexpected sends occur during the async loop.
     async fn prefetch_noop_on_empty_results() {
-        let _guard = crate::logic::test_mutex().lock().unwrap();
+        let _guard = crate::global_test_mutex_lock();
         let mut app = AppState {
             ..Default::default()
         };
@@ -107,7 +107,7 @@ mod tests {
     /// Details:
     /// - Toggles `set_allowed_only_selected` and `set_allowed_ring`, updating the cache between passes to target specific neighbours.
     async fn prefetch_respects_allowed_and_cache() {
-        let _guard = crate::logic::test_mutex().lock().unwrap();
+        let _guard = crate::global_test_mutex_lock();
         let mut app = AppState {
             ..Default::default()
         };
