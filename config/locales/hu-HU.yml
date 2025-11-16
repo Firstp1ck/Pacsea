@@ -265,7 +265,7 @@ hu-HU:
         list_installed_packages: "Telepített csomagok listázása"
         update_system: "Rendszer frissítése"
         news: "Hírek"
-        tui_optional_deps: "TUI nem kötelező függőségek"
+        tui_optional_deps: "A TUI nem kötelező függőségei"
         
     modals:
       common:
@@ -376,7 +376,7 @@ hu-HU:
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: olvasottnak jelölés • {}: összes olvasottnak jelölése • Esc: bezárás"
       optional_deps:
         title: " Nem kötelező függőségek "
-        heading: "TUI nem kötelező függőségek"
+        heading: "A TUI nem kötelező függőségei"
         markers:
           installed: "✔ telepítve"
           not_installed: "⏺ nincs telepítve"
@@ -433,7 +433,7 @@ hu-HU:
           no_dependents: "Nincsenek telepített csomagok, amelyek függnének az eltávolítási listától."
           cascade_will_include: "A lépcsőzetes eltávolítás {} függőségi csomagot is tartalmazni fog."
           dependents_block_removal: "{} függőségi csomag jelenleg blokkolja az eltávolítást."
-          calculating_reverse_deps: "Fordított függőségek számítása…"
+          calculating_reverse_deps: "Fordított függőségek kiszámítása…"
           removal_impact_overview: "Eltávolítás hatásának áttekintése:"
           dependent_singular: "{} → {} függő csomag"
           direct_singular: " ({} közvetlen)"
@@ -460,9 +460,9 @@ hu-HU:
           installed: "{} telepítve"
           to_install: "{} telepítendő"
           to_upgrade: "{} frissítendő"
-          conflicts: "{} ütközik"
+          conflicts: "{} ütközés"
           conflicts_sentence: "Ütközés észlelve a telepített csomagokkal."
-          missing: "{} hiányzik"
+          missing: "{} hiányzó"
           error: "⚠ Hiba: {}"
           retry_hint: "Nyomja meg az „r” billentyűt a függőségek feloldásának újrapróbálásához"
           resolving: "Függőségek feloldása…"
@@ -532,8 +532,8 @@ hu-HU:
         footer_hints:
           deps_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • ?: súgó • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
           deps_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • ?: súgó • d: próbafuttatás • p: folytatás • q: bezárás"
-          files_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • f: fájl DB szinkr. • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
-          files_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • f: fájl DB szinkr. • d: próbafuttatás • p: folytatás • q: bezárás"
+          files_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
+          files_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • d: próbafuttatás • p: folytatás • q: bezárás"
           services_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be-/kikapcsolás • R: újraindítás • Shift+D: elhalasztás • r: újra • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
           services_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be-/kikapcsolás • R: újraindítás • Shift+D: elhalasztás • r: újra • d: próbafuttatás • p: folytatás • q: bezárás"
           default_with_aur: "Balra/Jobbra: fülek • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
@@ -548,7 +548,7 @@ hu-HU:
                         • a - Összes csomagcsoport kibontása/összecsukása\n\
                         • r - Függőségek feloldásának újrapróbálása (hiba esetén)\n\
                         • ? - Megjeleníti ezt a súgót\n\
-                        • q/Esc - Preflight bezárása\n\n\
+                        • q/Esc - Előzetes ellenőrzés bezárása\n\n\
                         A függőségek automatikusan feloldódnak, amikor erre a fülre navigál.\n\
                         AUR-csomagok esetén a függőségek az AUR API-ról töltődnek le."
           general: "Preflight súgó\n\n\
@@ -556,7 +556,7 @@ hu-HU:
                         • Balra/Jobbra/Tab - Váltás a fülek között\n\
                         • Fel/Le - Navigálás a listákban (Függőségek, Fájlok, Szolgáltatások fülek)\n\
                         • ? - Súgó megjelenítése a tényleges fülhöz\n\
-                        • q/Esc/Enter - Preflight bezárása (az Enter a Függőségek/Fájlok fülön a kibontást/összecsukást is végzi)\n\n\
+                        • q/Esc/Enter - Előzetes ellenőrzés bezárása (az Enter a Függőségek/Fájlok fülön a kibontást/összecsukást is végzi)\n\n\
                         Fül-specifikus műveletek:\n\
                         • Függőségek fül:\n\
                           - Enter/Szóköz - Csomagcsoport kibontása/összecsukása\n\
