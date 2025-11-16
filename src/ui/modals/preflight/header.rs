@@ -84,9 +84,8 @@ pub fn render_tab_header(
     // This is conservative but correct - when resolution finishes, if all packages have deps,
     // they'll all appear in required_by, so it will be marked complete.
     // Show loading if resolution is in progress OR if items are queued (waiting to start)
-    let deps_loading = app.preflight_deps_resolving
-        || app.deps_resolving
-        || app.preflight_deps_items.is_some();
+    let deps_loading =
+        app.preflight_deps_resolving || app.deps_resolving || app.preflight_deps_items.is_some();
     let packages_with_deps: std::collections::HashSet<String> = dependency_info
         .iter()
         .flat_map(|d| d.required_by.iter())
@@ -112,9 +111,8 @@ pub fn render_tab_header(
     // 1. We're not resolving
     // 2. AND all packages have file info (file_info.len() == items.len())
     // Show loading if resolution is in progress OR if items are queued (waiting to start)
-    let files_loading = app.preflight_files_resolving
-        || app.files_resolving
-        || app.preflight_files_items.is_some();
+    let files_loading =
+        app.preflight_files_resolving || app.files_resolving || app.preflight_files_items.is_some();
     let files_complete = !files_loading
         && ((!item_names.is_empty() && file_info_names.len() == item_names.len())
             || (item_names.is_empty() && !app.install_list_files.is_empty()));

@@ -24,7 +24,10 @@ fn curl_json(url: &str) -> Result<Value> {
     if !out.status.success() {
         let error_msg = if let Some(code) = out.status.code() {
             match code {
-                22 => "HTTP error from server (likely 502/503/504 - server temporarily unavailable)".to_string(),
+                22 => {
+                    "HTTP error from server (likely 502/503/504 - server temporarily unavailable)"
+                        .to_string()
+                }
                 6 => "Could not resolve host (DNS/network issue)".to_string(),
                 7 => "Failed to connect to host (network unreachable)".to_string(),
                 28 => "Operation timeout".to_string(),

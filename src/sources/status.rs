@@ -116,6 +116,84 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     Ok((text, color))
 }
 
+/// What: Check for "Status: Arch systems..." pattern and detect if "Some Systems down" or "Down" is shown.
+///
+/// Inputs:
+/// - `body`: Raw HTML content to analyze.
+///
+/// Output:
+/// - `Some(ArchStatusColor)` if "Some Systems down" or "Down" is detected in the status context, `None` otherwise.
+///
+/// Details: Searches for the "Status: Arch systems..." pattern and checks if it's followed by "Some Systems down" or "Down" indicators.
+/// Also checks the monitors section for individual systems showing "Down" status.
+fn extract_arch_systems_status_color(body: &str) -> Option<ArchStatusColor> {
+    let lowered = body.to_lowercase();
+
+    // Look for "Status: Arch systems..." pattern (case-insensitive)
+    let status_patterns = ["status: arch systems", "status arch systems"];
+
+    let mut found_severe = false;
+    let mut found_moderate = false;
+
+    // Check for overall status message pattern
+    for pattern in status_patterns.iter() {
+        if let Some(pos) = lowered.find(pattern) {
+            // Check in a window around the pattern (500 chars after)
+            let window_start = pos;
+            let window_end = std::cmp::min(body.len(), pos + pattern.len() + 500);
+            let window = &lowered[window_start..window_end];
+
+            // Check for "Some Systems down" or "Down" in the context
+            if window.contains("some systems down") {
+                found_severe = true;
+            } else if window.contains("down") {
+                // Only treat as incident if not part of "operational" or "all systems operational"
+                if !window.contains("all systems operational") && !window.contains("operational") {
+                    found_moderate = true;
+                }
+            }
+        }
+    }
+
+    // Also check the monitors section for "Down" status
+    // Look for the monitors section and check if any monitor shows "Down"
+    if let Some(monitors_pos) = lowered.find("monitors") {
+        let monitors_window_start = monitors_pos;
+        let monitors_window_end = std::cmp::min(body.len(), monitors_pos + 5000);
+        let monitors_window = &lowered[monitors_window_start..monitors_window_end];
+
+        // Check if "Down" appears in the monitors section (but not as part of "operational")
+        // Look for patterns like ">Down<" or "Down" in quotes, indicating a status
+        if monitors_window.contains("down") {
+            // More specific check: look for "Down" that appears to be a status indicator
+            // This avoids false positives from words containing "down" like "download"
+            // Check for HTML patterns that indicate status: >down< or "down" or 'down'
+            if monitors_window.contains(">down<")
+                || monitors_window.contains("\"down\"")
+                || monitors_window.contains("'down'")
+            {
+                // Verify it's not part of "operational" or other positive status
+                if !monitors_window.contains("operational") {
+                    found_moderate = true;
+                }
+            }
+
+            // Check for "Some Systems down" in monitors context
+            if monitors_window.contains("some systems down") {
+                found_severe = true;
+            }
+        }
+    }
+
+    if found_severe {
+        Some(ArchStatusColor::IncidentSevereToday)
+    } else if found_moderate {
+        Some(ArchStatusColor::IncidentToday)
+    } else {
+        None
+    }
+}
+
 /// Parse a status message and color from the HTML of a status page.
 ///
 /// Inputs:
@@ -126,6 +204,9 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
 pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
     let lowered = body.to_lowercase();
     let has_all_ok = lowered.contains("all systems operational");
+
+    // Check for "Status: Arch systems..." with "Some Systems down" or "Down"
+    let arch_systems_status_color = extract_arch_systems_status_color(body);
 
     // Try to extract today's AUR uptime percentage from the Monitors/90-day uptime section
     let aur_pct_opt = extract_aur_today_percent(body);
@@ -147,8 +228,9 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
     // Check status updates for today's date and keywords
     let status_update_color = extract_status_updates_today_color(body);
 
-    // Prioritize: rect color > status updates > percentage > default
-    let final_color = aur_color_from_rect
+    // Prioritize: arch systems status > rect color > status updates > percentage > default
+    let final_color = arch_systems_status_color
+        .or(aur_color_from_rect)
         .or(status_update_color)
         .or(aur_color_from_pct);
 
@@ -232,6 +314,25 @@ pub fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColor) {
             format!("Arch systems nominal{aur_pct_suffix}"),
             final_color.unwrap_or(ArchStatusColor::IncidentToday),
         );
+    }
+
+    // If arch systems status shows a problem, prioritize it
+    if let Some(systems_status_color) = arch_systems_status_color
+        && matches!(
+            systems_status_color,
+            ArchStatusColor::IncidentToday | ArchStatusColor::IncidentSevereToday
+        )
+    {
+        let text = match systems_status_color {
+            ArchStatusColor::IncidentSevereToday => {
+                format!("Some Arch systems down (see status){aur_pct_suffix}")
+            }
+            ArchStatusColor::IncidentToday => {
+                format!("Arch systems degraded (see status){aur_pct_suffix}")
+            }
+            _ => format!("Arch systems nominal{aur_pct_suffix}"),
+        };
+        return (text, systems_status_color);
     }
 
     // If rect color shows a problem, prioritize it even if text says "operational"
@@ -1154,5 +1255,74 @@ mod tests {
         );
         let (_txt, color) = parse_arch_status_from_html(&html);
         assert_eq!(color, ArchStatusColor::IncidentToday);
+    }
+
+    #[test]
+    /// What: Detect "Status: Arch systems..." pattern with "Some Systems down" or "Down" indicators.
+    ///
+    /// Inputs:
+    /// - HTML snippets containing "Status: Arch systems..." followed by "Some Systems down" or "Down" status.
+    /// - HTML with monitors section showing "Down" status.
+    ///
+    /// Output:
+    /// - Returns `ArchStatusColor::IncidentSevereToday` for "Some Systems down", `IncidentToday` for "Down", `None` when no issues detected.
+    ///
+    /// Details:
+    /// - Verifies the function correctly identifies status patterns and monitor down indicators while avoiding false positives.
+    fn status_extract_arch_systems_status_color() {
+        // Test "Some Systems down" pattern
+        let html_severe =
+            r#"<html><body><div>Status: Arch systems Some Systems down</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_severe);
+        assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
+
+        // Test "Down" pattern in status context
+        let html_moderate = r#"<html><body><div>Status: Arch systems Down</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_moderate);
+        assert_eq!(color, Some(ArchStatusColor::IncidentToday));
+
+        // Test "Down" in monitors section
+        let html_monitors_down = r#"<html><body><div>Monitors (default)</div><div>AUR</div><div>Down</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_monitors_down);
+        assert_eq!(color, Some(ArchStatusColor::IncidentToday));
+
+        // Test "Down" in monitors section with HTML tags
+        let html_monitors_html =
+            r#"<html><body><div>Monitors</div><div>>Down<</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_monitors_html);
+        assert_eq!(color, Some(ArchStatusColor::IncidentToday));
+
+        // Test "Down" in monitors section with quotes
+        let html_monitors_quotes =
+            r#"<html><body><div>Monitors</div><div>"Down"</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_monitors_quotes);
+        assert_eq!(color, Some(ArchStatusColor::IncidentToday));
+
+        // Test "Some Systems down" in monitors section
+        let html_monitors_severe =
+            r#"<html><body><div>Monitors</div><div>Some Systems down</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_monitors_severe);
+        assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
+
+        // Test no issues (should return None)
+        let html_ok = r#"<html><body><div>Status: Arch systems Operational</div><div>Monitors</div><div>Operational</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_ok);
+        assert_eq!(color, None);
+
+        // Test "Down" but with "operational" context (should not trigger false positive)
+        let html_operational = r#"<html><body><div>Status: Arch systems Operational</div><div>Monitors</div><div>All systems operational</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_operational);
+        assert_eq!(color, None);
+
+        // Test case-insensitive matching
+        let html_lowercase =
+            r#"<html><body><div>status: arch systems some systems down</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_lowercase);
+        assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
+
+        // Test "Down" without colon (alternative pattern)
+        let html_no_colon = r#"<html><body><div>Status Arch systems Down</div></body></html>"#;
+        let color = extract_arch_systems_status_color(html_no_colon);
+        assert_eq!(color, Some(ArchStatusColor::IncidentToday));
     }
 }
