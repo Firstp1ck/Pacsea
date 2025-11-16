@@ -155,10 +155,18 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     }
 
     // Note: Reverse conflict checking (checking all installed packages for conflicts with install list)
-    // has been removed for performance reasons. The forward check above (checking install list packages
-    // for conflicts with installed packages) is sufficient and much more efficient.
-    // If an installed package conflicts with a package in the install list, it will be caught
-    // when we check the install list package's conflicts against installed packages.
+    // has been removed for performance reasons. Checking 2000+ installed packages would require
+    // 2000+ calls to pacman -Si / yay -Si, which is extremely slow.
+    //
+    // The forward check above is sufficient and fast:
+    // - For each package in install list, fetch its conflicts once (1-10 calls total)
+    // - Check if those conflict names are in the installed package set (O(1) HashSet lookup)
+    // - This catches all conflicts where install list packages conflict with installed packages
+    //
+    // Conflicts are typically symmetric (if A conflicts with B, then B conflicts with A),
+    // so the forward check should catch most cases. If an installed package declares a conflict
+    // with a package in the install list, it will be detected when we check the install list
+    // package's conflicts against the installed package set.
 
     // Batch fetch official package dependencies to reduce pacman command overhead
     let official_packages: Vec<&str> = items
