@@ -8,6 +8,7 @@ use crate::i18n;
 use crate::state::modal::{FileChangeType, PackageFileInfo};
 use crate::state::{AppState, PackageItem};
 use crate::theme::theme;
+use crate::ui::modals::preflight::helpers::format_count_with_indicator;
 
 /// What: Render the Files tab content for the preflight modal.
 ///
@@ -40,6 +41,36 @@ pub fn render_files_tab(
     let mut lines = Vec::new();
 
     let is_resolving = app.preflight_files_resolving || app.files_resolving;
+
+    // Log render state for debugging
+    tracing::debug!(
+        "[UI] render_files_tab: items={}, file_info={}, file_selected={}, expanded={}, resolving={}/{}, error={:?}",
+        items.len(),
+        file_info.len(),
+        *file_selected,
+        file_tree_expanded.len(),
+        app.preflight_files_resolving,
+        app.files_resolving,
+        files_error.is_some()
+    );
+    if !file_info.is_empty() {
+        tracing::info!(
+            "[UI] render_files_tab: Rendering {} file info entries",
+            file_info.len()
+        );
+        for pkg_info in file_info.iter() {
+            tracing::info!(
+                "[UI] render_files_tab: Package '{}' - total={}, new={}, changed={}, removed={}, config={}, files={}",
+                pkg_info.name,
+                pkg_info.total_count,
+                pkg_info.new_count,
+                pkg_info.changed_count,
+                pkg_info.removed_count,
+                pkg_info.config_count,
+                pkg_info.files.len()
+            );
+        }
+    }
 
     if is_resolving {
         // Show package headers first, then loading message
@@ -233,37 +264,54 @@ pub fn render_files_tab(
             let total_pacnew: usize = file_info.iter().map(|p| p.pacnew_candidates).sum();
             let total_pacsave: usize = file_info.iter().map(|p| p.pacsave_candidates).sum();
 
+            // Check if we have incomplete data
+            // Data is incomplete if:
+            // 1. We're resolving AND we have fewer file_info entries than items (resolution in progress)
+            // 2. OR we're not resolving but not all packages have file info (partial data exists)
+            let has_incomplete_data = (is_resolving && file_info.len() < items.len())
+                || (!is_resolving && file_info.len() < items.len());
+
+            let total_files_text =
+                format_count_with_indicator(total_files, items.len() * 10, has_incomplete_data); // Heuristic: assume ~10 files per package
             let mut summary_parts = vec![i18n::t_fmt1(
                 app,
                 "app.modals.preflight.files.total",
-                total_files,
+                total_files_text,
             )];
             if total_new > 0 {
+                let count_text =
+                    format_count_with_indicator(total_new, total_files, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.files.new",
-                    total_new,
+                    count_text,
                 ));
             }
             if total_changed > 0 {
+                let count_text =
+                    format_count_with_indicator(total_changed, total_files, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.files.changed",
-                    total_changed,
+                    count_text,
                 ));
             }
             if total_removed > 0 {
+                let count_text =
+                    format_count_with_indicator(total_removed, total_files, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.files.removed",
-                    total_removed,
+                    count_text,
                 ));
             }
             if total_config > 0 {
+                let count_text =
+                    format_count_with_indicator(total_config, total_files, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.files.config",
-                    total_config,
+                    count_text,
                 ));
             }
             if total_pacnew > 0 {

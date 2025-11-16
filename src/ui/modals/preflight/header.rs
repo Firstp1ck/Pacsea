@@ -18,6 +18,7 @@ use super::helpers::render_header_chips;
 /// - `content_rect`: Content area rectangle.
 /// - `tab`: Current active tab.
 /// - `header_chips`: Header chip data.
+/// - `items`: Packages in the preflight modal (for checking completion).
 /// - `summary`: Summary data (for completion status).
 /// - `dependency_info`: Dependency info (for completion status).
 /// - `file_info`: File info (for completion status).
@@ -31,6 +32,7 @@ use super::helpers::render_header_chips;
 ///
 /// Details:
 /// - Calculates completion status for each tab and displays progress indicators.
+/// - Checks if data is complete for ALL packages, not just if any data exists.
 /// - Stores tab rectangles in `app.preflight_tab_rects` for mouse click detection.
 /// - Stores content area rectangle in `app.preflight_content_rect`.
 #[allow(clippy::too_many_arguments)]
@@ -39,6 +41,7 @@ pub fn render_tab_header(
     content_rect: Rect,
     tab: &PreflightTab,
     header_chips: &PreflightHeaderChips,
+    items: &[crate::state::PackageItem],
     summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
     dependency_info: &[crate::state::modal::DependencyInfo],
     file_info: &[crate::state::modal::PackageFileInfo],
@@ -60,33 +63,87 @@ pub fn render_tab_header(
     ];
 
     // Determine completion status for each stage
-    // A stage is complete if it has data OR if resolution has finished (even if empty)
+    // A stage is complete if it has data for ALL packages OR if resolution has finished (even if empty)
     let summary_complete = summary.is_some();
     let summary_loading = app.preflight_summary_resolving;
-    // Deps is complete if we have data in modal OR if install list has deps and we're not resolving
-    let deps_complete = !dependency_info.is_empty()
-        || (!app.preflight_deps_resolving
-            && !app.deps_resolving
-            && !app.install_list_deps.is_empty());
-    let deps_loading = app.preflight_deps_resolving || app.deps_resolving;
-    // Files is complete if we have data in modal OR if install list has files and we're not resolving
-    let files_complete = !file_info.is_empty()
-        || (!app.preflight_files_resolving
-            && !app.files_resolving
-            && !app.install_list_files.is_empty());
-    let files_loading = app.preflight_files_resolving || app.files_resolving;
+
+    // Get item names for file completion check
+    let item_names: std::collections::HashSet<String> =
+        items.iter().map(|i| i.name.clone()).collect();
+
+    // Deps is complete if:
+    // 1. We're not resolving (resolution has finished)
+    // 2. AND we can verify all packages are represented:
+    //    - All packages have dependencies (packages_with_deps.len() == item_names.len())
+    //    - OR all packages have 0 deps (dependency_info is empty)
+    // Note: Packages with 0 dependencies won't appear in required_by, so we can't
+    // easily verify all packages are represented when using cached data with mixed deps.
+    // We only mark complete if we can definitively verify all packages are represented:
+    // - All packages appear in required_by (all have deps), OR
+    // - dependency_info is empty (all have 0 deps)
+    // This is conservative but correct - when resolution finishes, if all packages have deps,
+    // they'll all appear in required_by, so it will be marked complete.
+    // Show loading if resolution is in progress OR if items are queued (waiting to start)
+    let deps_loading = app.preflight_deps_resolving
+        || app.deps_resolving
+        || app.preflight_deps_items.is_some();
+    let packages_with_deps: std::collections::HashSet<String> = dependency_info
+        .iter()
+        .flat_map(|d| d.required_by.iter())
+        .cloned()
+        .collect();
+    // Check if all packages are represented in dependency data
+    let all_packages_have_deps = packages_with_deps.len() == item_names.len();
+    // Only mark as complete if:
+    // - Not loading AND
+    // - (All packages have deps AND all are represented, OR all have 0 deps)
+    // Note: We don't check preflight_deps_items because it's None both when using cached data
+    // and when resolution finishes, so we can't distinguish. Instead, we only mark complete
+    // when we can verify all packages are represented.
+    let deps_complete = !deps_loading
+        && (item_names.is_empty()
+            || dependency_info.is_empty() // All have 0 deps
+            || all_packages_have_deps); // All have deps and all are represented
+
+    // Check if all packages have file data
+    let file_info_names: std::collections::HashSet<String> =
+        file_info.iter().map(|f| f.name.clone()).collect();
+    // Files is complete if:
+    // 1. We're not resolving
+    // 2. AND all packages have file info (file_info.len() == items.len())
+    // Show loading if resolution is in progress OR if items are queued (waiting to start)
+    let files_loading = app.preflight_files_resolving
+        || app.files_resolving
+        || app.preflight_files_items.is_some();
+    let files_complete = !files_loading
+        && ((!item_names.is_empty() && file_info_names.len() == item_names.len())
+            || (item_names.is_empty() && !app.install_list_files.is_empty()));
+
     // Services is complete if marked as loaded OR if install list has services and we're not resolving
     let services_complete = services_loaded
         || (!app.preflight_services_resolving
             && !app.services_resolving
             && !app.install_list_services.is_empty());
     let services_loading = app.preflight_services_resolving || app.services_resolving;
-    // Sandbox is complete if marked as loaded OR if install list has sandbox and we're not resolving
-    let sandbox_complete = sandbox_loaded
-        || (!app.preflight_sandbox_resolving
-            && !app.sandbox_resolving
-            && !app.install_list_sandbox.is_empty());
+
+    // Check if all AUR packages have sandbox data
+    let aur_items: std::collections::HashSet<String> = items
+        .iter()
+        .filter(|p| matches!(p.source, crate::state::Source::Aur))
+        .map(|i| i.name.clone())
+        .collect();
+    let sandbox_info_names: std::collections::HashSet<String> = _sandbox_info
+        .iter()
+        .map(|s| s.package_name.clone())
+        .collect();
+    // Sandbox is complete if:
+    // 1. We're not resolving
+    // 2. AND (sandbox_loaded flag is set OR all AUR packages have sandbox info)
     let sandbox_loading = app.preflight_sandbox_resolving || app.sandbox_resolving;
+    let sandbox_complete = !sandbox_loading
+        && ((sandbox_loaded
+            || (aur_items.is_empty() || sandbox_info_names.len() == aur_items.len()))
+            || (aur_items.is_empty() && !app.install_list_sandbox.is_empty()));
 
     // Track completion order (for highlighting)
     let mut completion_order = Vec::new();

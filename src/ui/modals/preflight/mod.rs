@@ -76,7 +76,7 @@ pub fn render_preflight(
     };
 
     let th = theme();
-    tracing::info!(
+    tracing::debug!(
         "[UI] render_preflight START: tab={:?}, items={}, deps={}, files={}, services={}, sandbox={}",
         tab,
         items.len(),
@@ -117,6 +117,7 @@ pub fn render_preflight(
         content_rect,
         tab,
         header_chips,
+        items,
         summary,
         dependency_info,
         file_info,

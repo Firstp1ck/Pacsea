@@ -321,7 +321,27 @@ fn spawn_file_worker(
                     &items_clone,
                     crate::state::modal::PreflightAction::Install,
                 );
-                let _ = res_tx.send(files);
+                tracing::debug!(
+                    "[Background] Sending file result: {} entries for packages: {:?}",
+                    files.len(),
+                    files.iter().map(|f| &f.name).collect::<Vec<_>>()
+                );
+                for file_info in &files {
+                    tracing::debug!(
+                        "[Background] Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
+                        file_info.name,
+                        file_info.total_count,
+                        file_info.new_count,
+                        file_info.changed_count,
+                        file_info.removed_count,
+                        file_info.config_count
+                    );
+                }
+                if let Err(e) = res_tx.send(files) {
+                    tracing::error!("[Background] Failed to send file result: {}", e);
+                } else {
+                    tracing::debug!("[Background] Successfully sent file result");
+                }
             });
         }
     });
@@ -374,7 +394,19 @@ fn spawn_sandbox_worker(
             tokio::spawn(async move {
                 let sandbox_info =
                     crate::logic::sandbox::resolve_sandbox_info_async(&items_clone).await;
-                let _ = res_tx.send(sandbox_info);
+                tracing::debug!(
+                    "[Background] Sending sandbox result: {} entries for packages: {:?}",
+                    sandbox_info.len(),
+                    sandbox_info
+                        .iter()
+                        .map(|s| &s.package_name)
+                        .collect::<Vec<_>>()
+                );
+                if let Err(e) = res_tx.send(sandbox_info) {
+                    tracing::error!("[Background] Failed to send sandbox result: {}", e);
+                } else {
+                    tracing::debug!("[Background] Successfully sent sandbox result");
+                }
             });
         }
     });

@@ -8,6 +8,7 @@ use crate::i18n;
 use crate::state::modal::{DependencyInfo, DependencySource, DependencyStatus};
 use crate::state::{AppState, PackageItem, PreflightAction};
 use crate::theme::theme;
+use crate::ui::modals::preflight::helpers::format_count_with_indicator;
 use std::collections::{HashMap, HashSet};
 
 /// What: Render the Dependencies tab content for the preflight modal.
@@ -86,11 +87,42 @@ pub fn render_deps_tab(
         .filter(|d| matches!(d.status, DependencyStatus::Missing))
         .count();
 
+    // Check if we have incomplete data
+    // Data is incomplete if:
+    // 1. We're resolving AND we have dependencies (resolution in progress)
+    // 2. OR we're not resolving but we have very few dependencies compared to packages (heuristic for partial data)
+    let is_resolving = app.preflight_deps_resolving || app.deps_resolving;
+
+    // Check if all packages are represented in dependency data
+    // Note: Packages with 0 dependencies won't appear in required_by, so we use a heuristic
+    let packages_with_deps: std::collections::HashSet<String> = deps
+        .iter()
+        .flat_map(|d| d.required_by.iter())
+        .cloned()
+        .collect();
+
+    // Heuristic: If we have dependencies but very few packages are represented,
+    // and the number of dependencies is much less than packages, it's likely incomplete
+    // This handles the case where resolution completed for a subset but not all packages
+    let packages_with_deps_count = packages_with_deps.len();
+    let likely_incomplete =
+        !is_resolving && total > 0 && packages_with_deps_count < items.len() && total < items.len(); // Very few dependencies suggests incomplete resolution
+
+    // Show indicator if:
+    // - Resolving and we have some data (resolution in progress)
+    // - OR likely incomplete based on heuristic (partial data exists)
+    let has_incomplete_data = (is_resolving && total > 0) || likely_incomplete;
+
     // Summary header
     if total > 0 {
         if matches!(*action, PreflightAction::Remove) {
+            let count_text = format_count_with_indicator(total, items.len(), has_incomplete_data);
             lines.push(Line::from(Span::styled(
-                i18n::t_fmt1(app, "app.modals.preflight.deps.dependents_rely_on", total),
+                i18n::t_fmt1(
+                    app,
+                    "app.modals.preflight.deps.dependents_rely_on",
+                    count_text,
+                ),
                 Style::default()
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
@@ -98,40 +130,55 @@ pub fn render_deps_tab(
             lines.push(Line::from(""));
         } else {
             let mut summary_parts = Vec::new();
-            summary_parts.push(i18n::t_fmt1(app, "app.modals.preflight.deps.total", total));
+            let total_text = format_count_with_indicator(total, items.len(), has_incomplete_data);
+            summary_parts.push(i18n::t_fmt1(
+                app,
+                "app.modals.preflight.deps.total",
+                total_text,
+            ));
             if installed_count > 0 {
+                let count_text =
+                    format_count_with_indicator(installed_count, total, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.deps.installed",
-                    installed_count,
+                    count_text,
                 ));
             }
             if to_install_count > 0 {
+                let count_text =
+                    format_count_with_indicator(to_install_count, total, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.deps.to_install",
-                    to_install_count,
+                    count_text,
                 ));
             }
             if to_upgrade_count > 0 {
+                let count_text =
+                    format_count_with_indicator(to_upgrade_count, total, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.deps.to_upgrade",
-                    to_upgrade_count,
+                    count_text,
                 ));
             }
             if conflict_count > 0 {
+                let count_text =
+                    format_count_with_indicator(conflict_count, total, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.deps.conflicts",
-                    conflict_count,
+                    count_text,
                 ));
             }
             if missing_count > 0 {
+                let count_text =
+                    format_count_with_indicator(missing_count, total, has_incomplete_data);
                 summary_parts.push(i18n::t_fmt1(
                     app,
                     "app.modals.preflight.deps.missing",
-                    missing_count,
+                    count_text,
                 ));
             }
             lines.push(Line::from(Span::styled(

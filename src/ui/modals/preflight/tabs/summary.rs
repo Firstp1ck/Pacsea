@@ -153,6 +153,67 @@ pub fn render_summary_tab(
         )));
         lines.push(Line::from(""));
     }
+
+    // Show incomplete data indicator if any data is still resolving OR incomplete
+    let deps_resolving = app.preflight_deps_resolving || app.deps_resolving;
+    let files_resolving = app.preflight_files_resolving || app.files_resolving;
+    let sandbox_resolving = app.preflight_sandbox_resolving || app.sandbox_resolving;
+
+    // Check if data is incomplete even when not resolving
+    // For dependencies: use heuristic - if we have very few dependencies compared to packages,
+    // it's likely incomplete (handles case where resolution completed for subset)
+    let item_names: std::collections::HashSet<String> =
+        items.iter().map(|i| i.name.clone()).collect();
+    let packages_with_deps: std::collections::HashSet<String> = dependency_info
+        .iter()
+        .flat_map(|d| d.required_by.iter())
+        .cloned()
+        .collect();
+    let packages_with_deps_count = packages_with_deps.len();
+    let deps_incomplete = !deps_resolving
+        && !item_names.is_empty()
+        && packages_with_deps_count < items.len()
+        && dependency_info.len() < items.len(); // Very few dependencies suggests incomplete
+
+    // For files: check if we have file_info for all packages (we don't have access to file_info here,
+    // but we can check if files_resolving is false and assume incomplete if modal was just opened)
+    // Note: This is a simplified check - the Files tab has more detailed logic
+
+    // For sandbox: similar check would be needed, but sandbox_info is not available here
+    // The Sandbox tab handles this internally
+
+    let has_incomplete_data =
+        deps_resolving || files_resolving || sandbox_resolving || deps_incomplete;
+
+    if has_incomplete_data {
+        let mut resolving_parts = Vec::new();
+        if deps_resolving {
+            resolving_parts.push(i18n::t(app, "app.modals.preflight.summary.resolving_deps"));
+        }
+        if files_resolving {
+            resolving_parts.push(i18n::t(app, "app.modals.preflight.summary.resolving_files"));
+        }
+        if sandbox_resolving {
+            resolving_parts.push(i18n::t(
+                app,
+                "app.modals.preflight.summary.resolving_sandbox",
+            ));
+        }
+        if !resolving_parts.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                format!("⟳ {}", resolving_parts.join(", ")),
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.summary.data_will_update"),
+                Style::default().fg(th.subtext1),
+            )));
+        }
+    }
+
     match *action {
         PreflightAction::Install if !dependency_info.is_empty() => {
             // Filter dependencies to only show conflicts and upgrades

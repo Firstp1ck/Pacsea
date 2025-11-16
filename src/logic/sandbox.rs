@@ -92,13 +92,28 @@ pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInf
                                     name,
                                     e
                                 );
-                                None
+                                // Create empty SandboxInfo so package still appears in results
+                                tracing::info!(
+                                    "Creating empty sandbox info for {} (.SRCINFO analysis failed)",
+                                    name
+                                );
+                                Some(SandboxInfo {
+                                    package_name: name,
+                                    depends: Vec::new(),
+                                    makedepends: Vec::new(),
+                                    checkdepends: Vec::new(),
+                                    optdepends: Vec::new(),
+                                })
                             }
                         }
                     }
-                    Err(_) => {
+                    Err(e) => {
                         // Fallback to PKGBUILD if .SRCINFO fails (use spawn_blocking for blocking call)
-                        tracing::debug!("Failed to fetch .SRCINFO for {}, trying PKGBUILD", name);
+                        tracing::debug!(
+                            "Failed to fetch .SRCINFO for {}: {}, trying PKGBUILD",
+                            name,
+                            e
+                        );
                         let name_for_fallback = name.clone();
                         let installed_for_fallback = installed_clone.clone();
                         let provided_for_fallback = provided_clone.clone();
@@ -108,26 +123,68 @@ pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInf
                         .await
                         {
                             Ok(Ok(pkgbuild_text)) => {
+                                tracing::debug!(
+                                    "Successfully fetched PKGBUILD for {}, parsing dependencies",
+                                    name
+                                );
                                 match analyze_package_from_pkgbuild(
                                     &name,
                                     &pkgbuild_text,
                                     &installed_for_fallback,
                                     &provided_for_fallback,
                                 ) {
-                                    Ok(info) => Some(info),
+                                    Ok(info) => {
+                                        let total_deps = info.depends.len()
+                                            + info.makedepends.len()
+                                            + info.checkdepends.len()
+                                            + info.optdepends.len();
+                                        tracing::info!(
+                                            "Parsed PKGBUILD for {}: {} total dependencies (depends={}, makedepends={}, checkdepends={}, optdepends={})",
+                                            name,
+                                            total_deps,
+                                            info.depends.len(),
+                                            info.makedepends.len(),
+                                            info.checkdepends.len(),
+                                            info.optdepends.len()
+                                        );
+                                        Some(info)
+                                    }
                                     Err(e) => {
                                         tracing::warn!(
-                                            "Failed to analyze sandbox info for {}: {}",
+                                            "Failed to analyze sandbox info from PKGBUILD for {}: {}",
                                             name,
                                             e
                                         );
-                                        None
+                                        // Create empty SandboxInfo so package still appears in results
+                                        tracing::info!(
+                                            "Creating empty sandbox info for {} (PKGBUILD analysis failed)",
+                                            name
+                                        );
+                                        Some(SandboxInfo {
+                                            package_name: name,
+                                            depends: Vec::new(),
+                                            makedepends: Vec::new(),
+                                            checkdepends: Vec::new(),
+                                            optdepends: Vec::new(),
+                                        })
                                     }
                                 }
                             }
                             Ok(Err(e)) => {
                                 tracing::warn!("Failed to fetch PKGBUILD for {}: {}", name, e);
-                                None
+                                // Create empty SandboxInfo so package still appears in results
+                                // This allows UI to show that resolution failed for this package
+                                tracing::info!(
+                                    "Creating empty sandbox info for {} (both .SRCINFO and PKGBUILD fetch failed)",
+                                    name
+                                );
+                                Some(SandboxInfo {
+                                    package_name: name,
+                                    depends: Vec::new(),
+                                    makedepends: Vec::new(),
+                                    checkdepends: Vec::new(),
+                                    optdepends: Vec::new(),
+                                })
                             }
                             Err(e) => {
                                 tracing::warn!(
@@ -135,7 +192,18 @@ pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInf
                                     name,
                                     e
                                 );
-                                None
+                                // Create empty SandboxInfo so package still appears in results
+                                tracing::info!(
+                                    "Creating empty sandbox info for {} (spawn task failed)",
+                                    name
+                                );
+                                Some(SandboxInfo {
+                                    package_name: name,
+                                    depends: Vec::new(),
+                                    makedepends: Vec::new(),
+                                    checkdepends: Vec::new(),
+                                    optdepends: Vec::new(),
+                                })
                             }
                         }
                     }
@@ -442,38 +510,111 @@ fn parse_srcinfo_deps(srcinfo: &str) -> (Vec<String>, Vec<String>, Vec<String>, 
 /// - Returns a tuple of (depends, makedepends, checkdepends, optdepends) vectors.
 ///
 /// Details:
-/// - Parses bash array syntax: `depends=('foo' 'bar>=1.2')`
+/// - Parses bash array syntax: `depends=('foo' 'bar>=1.2')` (single-line)
+/// - Also handles `depends+=` patterns used in functions like `package()`
+/// - Handles both quoted and unquoted dependencies
+/// - Also handles multi-line arrays:
+///   ```
+///   depends=(
+///       'foo'
+///       'bar>=1.2'
+///   )
+///   ```
 fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
+    tracing::debug!(
+        "parse_pkgbuild_deps: Starting parse, PKGBUILD length={}, first 500 chars: {:?}",
+        pkgbuild.len(),
+        pkgbuild.chars().take(500).collect::<String>()
+    );
     let mut depends = Vec::new();
     let mut makedepends = Vec::new();
     let mut checkdepends = Vec::new();
     let mut optdepends = Vec::new();
 
-    for line in pkgbuild.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+    let lines: Vec<&str> = pkgbuild.lines().collect();
+    tracing::debug!(
+        "parse_pkgbuild_deps: Total lines in PKGBUILD: {}",
+        lines.len()
+    );
+    let mut i = 0;
+
+    while i < lines.len() {
+        let line = lines[i].trim();
+        i += 1;
+
+        if line.is_empty() || line.starts_with('#') {
             continue;
         }
 
-        // Parse array declarations: depends=('foo' 'bar')
-        if let Some((key, value)) = trimmed.split_once('=') {
+        // Parse array declarations: depends=('foo' 'bar') or depends=( or depends+=('foo' 'bar')
+        if let Some((key, value)) = line.split_once('=') {
             let key = key.trim();
             let value = value.trim();
 
-            // Extract array content (handle both single-line and multi-line)
+            // Handle both depends= and depends+= patterns
+            let base_key = if let Some(stripped) = key.strip_suffix('+') {
+                stripped
+            } else {
+                key
+            };
+
+            tracing::debug!(
+                "parse_pkgbuild_deps: Found key-value pair: key='{}', base_key='{}', value='{}'",
+                key,
+                base_key,
+                value.chars().take(100).collect::<String>()
+            );
+
+            // Check if this is an array declaration
             if value.starts_with('(') {
-                let array_content = if value.ends_with(')') {
-                    // Single-line array
-                    &value[1..value.len() - 1]
+                tracing::debug!(
+                    "parse_pkgbuild_deps: Detected array declaration for key='{}'",
+                    key
+                );
+                let deps = if let Some(closing_paren_pos) = find_matching_closing_paren(value) {
+                    // Single-line array (may have content after closing paren): depends=('foo' 'bar') or depends+=('foo' 'bar') other_code
+                    let array_content = &value[1..closing_paren_pos];
+                    tracing::debug!("Parsing single-line {} array: {}", key, array_content);
+                    parse_array_content(array_content)
                 } else {
-                    // Multi-line array - would need more complex parsing
-                    // For now, just extract from single line
-                    continue;
+                    // Multi-line array: depends=(
+                    //     'foo'
+                    //     'bar'
+                    // )
+                    tracing::debug!("Parsing multi-line {} array", key);
+                    let mut array_lines = Vec::new();
+                    // Collect lines until we find the closing parenthesis
+                    while i < lines.len() {
+                        let next_line = lines[i].trim();
+                        i += 1;
+
+                        // Skip empty lines and comments
+                        if next_line.is_empty() || next_line.starts_with('#') {
+                            continue;
+                        }
+
+                        // Check if this line closes the array
+                        if next_line == ")" {
+                            break;
+                        }
+
+                        // Add this line to the array content
+                        array_lines.push(next_line);
+                    }
+
+                    // Parse all collected lines as array content
+                    let array_content = array_lines.join(" ");
+                    tracing::debug!(
+                        "Collected {} lines for multi-line {} array: {}",
+                        array_lines.len(),
+                        key,
+                        array_content
+                    );
+                    parse_array_content(&array_content)
                 };
 
-                // Parse quoted strings from array
-                let deps = parse_array_content(array_content);
-                match key {
+                // Add dependencies to the appropriate vector (using base_key to handle both = and +=)
+                match base_key {
                     "depends" => depends.extend(deps),
                     "makedepends" => makedepends.extend(deps),
                     "checkdepends" => checkdepends.extend(deps),
@@ -487,13 +628,58 @@ fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<String>
     (depends, makedepends, checkdepends, optdepends)
 }
 
-/// What: Parse quoted strings from bash array content.
+/// What: Find the position of the matching closing parenthesis in a string.
 ///
 /// Inputs:
-/// - `content`: Array content string (e.g., "'foo' 'bar>=1.2'").
+/// - `s`: String starting with an opening parenthesis.
+///
+/// Output:
+/// - `Some(position)` if a matching closing parenthesis is found, `None` otherwise.
+///
+/// Details:
+/// - Handles nested parentheses and quoted strings.
+fn find_matching_closing_paren(s: &str) -> Option<usize> {
+    let mut depth = 0;
+    let mut in_quotes = false;
+    let mut quote_char = '\0';
+
+    for (pos, ch) in s.char_indices() {
+        match ch {
+            '\'' | '"' => {
+                if !in_quotes {
+                    in_quotes = true;
+                    quote_char = ch;
+                } else if ch == quote_char {
+                    in_quotes = false;
+                    quote_char = '\0';
+                }
+            }
+            '(' if !in_quotes => {
+                depth += 1;
+            }
+            ')' if !in_quotes => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(pos);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// What: Parse quoted and unquoted strings from bash array content.
+///
+/// Inputs:
+/// - `content`: Array content string (e.g., "'foo' 'bar>=1.2'" or "libcairo.so libdbus-1.so").
 ///
 /// Output:
 /// - Vector of dependency strings.
+///
+/// Details:
+/// - Handles both quoted ('foo') and unquoted (foo) dependencies.
+/// - Splits on whitespace for unquoted values.
 fn parse_array_content(content: &str) -> Vec<String> {
     let mut deps = Vec::new();
     let mut in_quotes = false;
@@ -520,14 +706,22 @@ fn parse_array_content(content: &str) -> Vec<String> {
             _ if in_quotes => {
                 current.push(ch);
             }
+            ch if ch.is_whitespace() => {
+                // Whitespace outside quotes - end current unquoted value
+                if !current.is_empty() {
+                    deps.push(current.clone());
+                    current.clear();
+                }
+            }
             _ => {
-                // Skip whitespace outside quotes
+                // Non-whitespace character outside quotes - add to current value
+                current.push(ch);
             }
         }
     }
 
-    // Handle unclosed quote
-    if !current.is_empty() && in_quotes {
+    // Handle unclosed quote or trailing unquoted value
+    if !current.is_empty() {
         deps.push(current);
     }
 
@@ -672,4 +866,167 @@ fn is_local_package(name: &str) -> bool {
 /// - Set of installed package names.
 fn get_installed_packages() -> HashSet<String> {
     crate::logic::deps::get_installed_packages()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Test parsing dependencies from PKGBUILD with depends= syntax.
+    ///
+    /// Inputs:
+    /// - PKGBUILD with standard depends= array.
+    ///
+    /// Output:
+    /// - Correctly parsed dependencies.
+    ///
+    /// Details:
+    /// - Validates basic dependency parsing works.
+    fn test_parse_pkgbuild_deps_basic() {
+        let pkgbuild = r#"
+pkgname=test-package
+pkgver=1.0.0
+depends=('foo' 'bar>=1.2')
+makedepends=('make' 'gcc')
+"#;
+
+        let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends.len(), 2);
+        assert!(depends.contains(&"foo".to_string()));
+        assert!(depends.contains(&"bar>=1.2".to_string()));
+
+        assert_eq!(makedepends.len(), 2);
+        assert!(makedepends.contains(&"make".to_string()));
+        assert!(makedepends.contains(&"gcc".to_string()));
+
+        assert_eq!(checkdepends.len(), 0);
+        assert_eq!(optdepends.len(), 0);
+    }
+
+    #[test]
+    /// What: Test parsing dependencies with depends+= syntax in package() function.
+    ///
+    /// Inputs:
+    /// - PKGBUILD with depends+= inside package() function.
+    ///
+    /// Output:
+    /// - Correctly parsed dependencies from depends+=.
+    ///
+    /// Details:
+    /// - Validates that depends+= patterns are detected and parsed.
+    fn test_parse_pkgbuild_deps_append() {
+        let pkgbuild = r#"
+pkgname=test-package
+pkgver=1.0.0
+package() {
+    depends+=(libcairo.so libdbus-1.so)
+    cd $_pkgname
+    make DESTDIR="$pkgdir" PREFIX=/usr install
+}
+"#;
+
+        let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends.len(), 2);
+        assert!(depends.contains(&"libcairo.so".to_string()));
+        assert!(depends.contains(&"libdbus-1.so".to_string()));
+
+        assert_eq!(makedepends.len(), 0);
+        assert_eq!(checkdepends.len(), 0);
+        assert_eq!(optdepends.len(), 0);
+    }
+
+    #[test]
+    /// What: Test parsing unquoted dependencies.
+    ///
+    /// Inputs:
+    /// - PKGBUILD with unquoted dependencies.
+    ///
+    /// Output:
+    /// - Correctly parsed unquoted dependencies.
+    ///
+    /// Details:
+    /// - Validates that unquoted dependencies are parsed correctly.
+    fn test_parse_pkgbuild_deps_unquoted() {
+        let pkgbuild = r#"
+pkgname=test-package
+depends=(libcairo.so libdbus-1.so)
+"#;
+
+        let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends.len(), 2);
+        assert!(depends.contains(&"libcairo.so".to_string()));
+        assert!(depends.contains(&"libdbus-1.so".to_string()));
+
+        assert_eq!(makedepends.len(), 0);
+        assert_eq!(checkdepends.len(), 0);
+        assert_eq!(optdepends.len(), 0);
+    }
+
+    #[test]
+    /// What: Test parsing multi-line dependency arrays.
+    ///
+    /// Inputs:
+    /// - PKGBUILD with multi-line depends array.
+    ///
+    /// Output:
+    /// - Correctly parsed dependencies from multi-line array.
+    ///
+    /// Details:
+    /// - Validates multi-line array parsing works correctly.
+    fn test_parse_pkgbuild_deps_multiline() {
+        let pkgbuild = r#"
+pkgname=test-package
+depends=(
+    'foo'
+    'bar>=1.2'
+    'baz'
+)
+"#;
+
+        let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends.len(), 3);
+        assert!(depends.contains(&"foo".to_string()));
+        assert!(depends.contains(&"bar>=1.2".to_string()));
+        assert!(depends.contains(&"baz".to_string()));
+
+        assert_eq!(makedepends.len(), 0);
+        assert_eq!(checkdepends.len(), 0);
+        assert_eq!(optdepends.len(), 0);
+    }
+
+    #[test]
+    /// What: Test parsing makedepends+= syntax.
+    ///
+    /// Inputs:
+    /// - PKGBUILD with makedepends+= pattern.
+    ///
+    /// Output:
+    /// - Correctly parsed makedepends from += pattern.
+    ///
+    /// Details:
+    /// - Validates that makedepends+= is also handled.
+    fn test_parse_pkgbuild_deps_makedepends_append() {
+        let pkgbuild = r#"
+pkgname=test-package
+build() {
+    makedepends+=(cmake ninja)
+    cmake -B build
+}
+"#;
+
+        let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(makedepends.len(), 2);
+        assert!(makedepends.contains(&"cmake".to_string()));
+        assert!(makedepends.contains(&"ninja".to_string()));
+
+        assert_eq!(depends.len(), 0);
+        assert_eq!(checkdepends.len(), 0);
+        assert_eq!(optdepends.len(), 0);
+    }
 }

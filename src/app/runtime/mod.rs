@@ -159,12 +159,33 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
                 handle_dependency_result(&mut app, deps, &channels.tick_tx);
             }
             Some(files) = channels.files_res_rx.recv() => {
+                tracing::debug!(
+                    "[Runtime] Received file result: {} entries for packages: {:?}",
+                    files.len(),
+                    files.iter().map(|f| &f.name).collect::<Vec<_>>()
+                );
+                for file_info in &files {
+                    tracing::debug!(
+                        "[Runtime] Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
+                        file_info.name,
+                        file_info.total_count,
+                        file_info.new_count,
+                        file_info.changed_count,
+                        file_info.removed_count,
+                        file_info.config_count
+                    );
+                }
                 handle_file_result(&mut app, files, &channels.tick_tx);
             }
             Some(services) = channels.services_res_rx.recv() => {
                 handle_service_result(&mut app, services, &channels.tick_tx);
             }
             Some(sandbox_info) = channels.sandbox_res_rx.recv() => {
+                tracing::debug!(
+                    "[Runtime] Received sandbox result: {} entries for packages: {:?}",
+                    sandbox_info.len(),
+                    sandbox_info.iter().map(|s| &s.package_name).collect::<Vec<_>>()
+                );
                 handle_sandbox_result(&mut app, sandbox_info, &channels.tick_tx);
             }
             Some((pkgname, text)) = channels.pkgb_res_rx.recv() => {

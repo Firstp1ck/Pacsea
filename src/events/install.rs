@@ -228,15 +228,40 @@ pub fn handle_install_key(
                         tracing::debug!("[Install] No cached dependencies available");
                         Vec::new()
                     };
+                    tracing::debug!(
+                        "[Install] Checking file cache: resolving={}, install_list_files={}, items={:?}",
+                        app.files_resolving,
+                        app.install_list_files.len(),
+                        items.iter().map(|i| &i.name).collect::<Vec<_>>()
+                    );
                     let cached_files = if !app.files_resolving && !app.install_list_files.is_empty()
                     {
                         tracing::debug!(
-                            "[Install] Using {} cached file infos",
-                            app.install_list_files.len()
+                            "[Install] Using {} cached file entries: {:?}",
+                            app.install_list_files.len(),
+                            app.install_list_files
+                                .iter()
+                                .map(|f| &f.name)
+                                .collect::<Vec<_>>()
                         );
+                        for file_info in &app.install_list_files {
+                            tracing::debug!(
+                                "[Install] Cached file entry: Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
+                                file_info.name,
+                                file_info.total_count,
+                                file_info.new_count,
+                                file_info.changed_count,
+                                file_info.removed_count,
+                                file_info.config_count
+                            );
+                        }
                         app.install_list_files.clone()
                     } else {
-                        tracing::debug!("[Install] No cached file infos available");
+                        tracing::debug!(
+                            "[Install] No cached files available (resolving={}, empty={})",
+                            app.files_resolving,
+                            app.install_list_files.is_empty()
+                        );
                         Vec::new()
                     };
                     let cached_services =
@@ -294,22 +319,62 @@ pub fn handle_install_key(
                     }
 
                     // Load cached sandbox info
+                    tracing::debug!(
+                        "[Install] Checking sandbox cache: resolving={}, install_list_sandbox={}, items={:?}",
+                        app.sandbox_resolving,
+                        app.install_list_sandbox.len(),
+                        items.iter().map(|i| &i.name).collect::<Vec<_>>()
+                    );
                     let cached_sandbox =
                         if !app.sandbox_resolving && !app.install_list_sandbox.is_empty() {
+                            tracing::debug!(
+                                "[Install] Using {} cached sandbox entries: {:?}",
+                                app.install_list_sandbox.len(),
+                                app.install_list_sandbox
+                                    .iter()
+                                    .map(|s| &s.package_name)
+                                    .collect::<Vec<_>>()
+                            );
                             app.install_list_sandbox.clone()
                         } else {
+                            tracing::debug!(
+                                "[Install] No cached sandbox available (resolving={}, empty={})",
+                                app.sandbox_resolving,
+                                app.install_list_sandbox.is_empty()
+                            );
                             Vec::new()
                         };
 
                     // Check if sandbox cache file exists with matching signature (even if empty)
                     let sandbox_cache_loaded = if !items.is_empty() {
                         let signature = crate::app::sandbox_cache::compute_signature(&items);
-                        crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature)
-                            .is_some()
+                        let cache_result = crate::app::sandbox_cache::load_cache(
+                            &app.sandbox_cache_path,
+                            &signature,
+                        );
+                        tracing::debug!(
+                            "[Install] Sandbox cache file check: signature={:?}, found={}, cached_entries={}",
+                            signature,
+                            cache_result.is_some(),
+                            cache_result.as_ref().map(|v| v.len()).unwrap_or(0)
+                        );
+                        if let Some(ref cached) = cache_result {
+                            tracing::debug!(
+                                "[Install] Cached sandbox packages: {:?}",
+                                cached.iter().map(|s| &s.package_name).collect::<Vec<_>>()
+                            );
+                        }
+                        cache_result.is_some()
                     } else {
                         false
                     };
                     let sandbox_loaded = sandbox_cache_loaded || !cached_sandbox.is_empty();
+                    tracing::debug!(
+                        "[Install] Final sandbox state: cached_sandbox={}, sandbox_cache_loaded={}, sandbox_loaded={}",
+                        cached_sandbox.len(),
+                        sandbox_cache_loaded,
+                        sandbox_loaded
+                    );
 
                     // Compute a minimal summary without blocking pacman calls to avoid freezing the UI
                     // The full summary will be computed asynchronously after the modal opens

@@ -43,8 +43,30 @@ pub fn render_sandbox_tab(
     let th = theme();
     let mut lines = Vec::new();
 
+    // Log render state for debugging
+    tracing::debug!(
+        "[UI] render_sandbox_tab: items={}, sandbox_info={}, sandbox_loaded={}, sandbox_selected={}, expanded={}, resolving={}/{}",
+        items.len(),
+        sandbox_info.len(),
+        sandbox_loaded,
+        sandbox_selected,
+        sandbox_tree_expanded.len(),
+        app.preflight_sandbox_resolving,
+        app.sandbox_resolving
+    );
+
+    // Log detailed dependency information only at DEBUG level (called on every render)
+    // Detailed package info is already logged in sync_sandbox when data changes
+    if !sandbox_info.is_empty() {
+        tracing::debug!(
+            "[UI] render_sandbox_tab: Rendering {} sandbox info entries",
+            sandbox_info.len()
+        );
+    }
+
     // Display error if any
     if let Some(err) = sandbox_error.as_ref() {
+        tracing::warn!("[UI] render_sandbox_tab: Displaying error: {}", err);
         lines.push(Line::from(Span::styled(
             i18n::t_fmt1(app, "app.modals.preflight.sandbox.error", err),
             Style::default().fg(th.red),
@@ -56,7 +78,20 @@ pub fn render_sandbox_tab(
         lines.push(Line::from(""));
     } else if app.preflight_sandbox_resolving || app.sandbox_resolving {
         // ALWAYS show loading message when resolving, regardless of sandbox_loaded state
+        tracing::debug!(
+            "[UI] render_sandbox_tab: Showing loading state (resolving={}/{})",
+            app.preflight_sandbox_resolving,
+            app.sandbox_resolving
+        );
         // Show package headers first (only AUR packages), then loading message
+        let aur_count = items
+            .iter()
+            .filter(|i| matches!(i.source, crate::state::Source::Aur))
+            .count();
+        tracing::debug!(
+            "[UI] render_sandbox_tab: Showing {} AUR package headers",
+            aur_count
+        );
         for item in items.iter() {
             let is_aur = matches!(item.source, crate::state::Source::Aur);
             if is_aur {
@@ -77,6 +112,11 @@ pub fn render_sandbox_tab(
         )));
     } else if !sandbox_loaded || sandbox_info.is_empty() {
         // Show package headers first (only AUR packages), then analyzing/resolving message
+        tracing::debug!(
+            "[UI] render_sandbox_tab: Not loaded or empty (loaded={}, info_len={}), showing analyzing message",
+            sandbox_loaded,
+            sandbox_info.len()
+        );
         for item in items.iter() {
             let is_aur = matches!(item.source, crate::state::Source::Aur);
             if is_aur {
@@ -121,6 +161,14 @@ pub fn render_sandbox_tab(
                 && is_aur
                 && let Some(info) = sandbox_info.iter().find(|s| s.package_name == item.name)
             {
+                tracing::debug!(
+                    "[UI] render_sandbox_tab: Expanding package '{}' with {} depends, {} makedepends, {} checkdepends, {} optdepends",
+                    item.name,
+                    info.depends.len(),
+                    info.makedepends.len(),
+                    info.checkdepends.len(),
+                    info.optdepends.len()
+                );
                 // Runtime dependencies (depends)
                 for dep in &info.depends {
                     display_items.push((
@@ -153,6 +201,12 @@ pub fn render_sandbox_tab(
                         Some(("optdepends", dep.name.clone(), dep.clone())),
                     ));
                 }
+            } else if is_aur && is_expanded {
+                // AUR package is expanded but no sandbox info found - log warning
+                tracing::warn!(
+                    "[UI] render_sandbox_tab: Package '{}' is AUR and expanded but no sandbox info found",
+                    item.name
+                );
             }
         }
 
@@ -162,17 +216,24 @@ pub fn render_sandbox_tab(
         let available_height = (content_rect.height as usize).saturating_sub(6);
         let total_items = display_items.len();
         tracing::debug!(
-            "[UI] Sandbox tab: total_items={}, sandbox_selected={}, items={}, sandbox_info={}, expanded_count={}",
+            "[UI] render_sandbox_tab: Rendering data - total_items={}, sandbox_selected={}, items={}, sandbox_info={}, expanded_count={}, available_height={}",
             total_items,
             *sandbox_selected,
             items.len(),
             sandbox_info.len(),
-            sandbox_tree_expanded.len()
+            sandbox_tree_expanded.len(),
+            available_height
         );
-        let sandbox_selected_clamped = (*sandbox_selected).min(total_items.saturating_sub(1));
+
+        // Validate and clamp selected index to prevent out-of-bounds access
+        let sandbox_selected_clamped = if total_items > 0 {
+            (*sandbox_selected).min(total_items.saturating_sub(1))
+        } else {
+            0
+        };
         if *sandbox_selected != sandbox_selected_clamped {
-            tracing::debug!(
-                "[UI] Sandbox tab: clamping sandbox_selected from {} to {} (total_items={})",
+            tracing::warn!(
+                "[UI] render_sandbox_tab: Clamping sandbox_selected from {} to {} (total_items={})",
                 *sandbox_selected,
                 sandbox_selected_clamped,
                 total_items
@@ -234,7 +295,15 @@ pub fn render_sandbox_tab(
 
             if *is_header {
                 // Package header
-                let item = items.iter().find(|p| p.name == *pkg_name).unwrap();
+                let item = items.iter().find(|p| p.name == *pkg_name);
+                if item.is_none() {
+                    tracing::warn!(
+                        "[UI] render_sandbox_tab: Package '{}' not found in items list, skipping",
+                        pkg_name
+                    );
+                    continue;
+                }
+                let item = item.unwrap();
                 let is_aur = matches!(item.source, crate::state::Source::Aur);
                 let is_expanded = sandbox_tree_expanded.contains(pkg_name);
                 let arrow_symbol = if is_aur && is_expanded {
@@ -316,6 +385,12 @@ pub fn render_sandbox_tab(
                                 Style::default().fg(th.green),
                             )));
                         }
+                    } else {
+                        // AUR package but no sandbox info - this shouldn't happen but handle gracefully
+                        tracing::debug!(
+                            "[UI] render_sandbox_tab: AUR package '{}' collapsed but no sandbox info found",
+                            pkg_name
+                        );
                     }
                 }
             } else if let Some((dep_type, dep_name, dep)) = dep_opt {

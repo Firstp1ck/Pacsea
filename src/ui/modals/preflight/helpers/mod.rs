@@ -58,6 +58,33 @@ pub fn format_signed_bytes(value: i64) -> String {
     }
 }
 
+/// What: Format count with incomplete data indicator when data is still resolving.
+///
+/// Inputs:
+/// - `count`: Current count of resolved items.
+/// - `total_items`: Total number of items expected.
+/// - `is_resolving`: Whether resolution is still in progress.
+///
+/// Output:
+/// - Returns formatted string like "7", "7...", or "7/9" depending on state.
+///
+/// Details:
+/// - Shows plain count if complete or not resolving.
+/// - Shows count with "..." if partial and still resolving.
+/// - Shows "count/total" if complete but count doesn't match total (shouldn't happen normally).
+pub fn format_count_with_indicator(count: usize, total_items: usize, is_resolving: bool) -> String {
+    if !is_resolving {
+        // Resolution complete, show actual count
+        format!("{}", count)
+    } else if count < total_items {
+        // Still resolving and we have partial data
+        format!("{}...", count)
+    } else {
+        // Resolving but count matches total (shouldn't happen, but be safe)
+        format!("{}", count)
+    }
+}
+
 /// What: Render header chips as a compact horizontal line of metrics.
 ///
 /// Inputs:

@@ -22,7 +22,18 @@ fn curl_json(url: &str) -> Result<Value> {
     let args = curl_args(url, &[]);
     let out = std::process::Command::new("curl").args(&args).output()?;
     if !out.status.success() {
-        return Err(format!("curl failed: {:?}", out.status).into());
+        let error_msg = if let Some(code) = out.status.code() {
+            match code {
+                22 => "HTTP error from server (likely 502/503/504 - server temporarily unavailable)".to_string(),
+                6 => "Could not resolve host (DNS/network issue)".to_string(),
+                7 => "Failed to connect to host (network unreachable)".to_string(),
+                28 => "Operation timeout".to_string(),
+                _ => format!("curl failed with exit code {}", code),
+            }
+        } else {
+            format!("curl failed: {:?}", out.status)
+        };
+        return Err(error_msg.into());
     }
     let body = String::from_utf8(out.stdout)?;
     let v: Value = serde_json::from_str(&body)?;
