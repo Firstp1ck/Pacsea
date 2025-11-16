@@ -450,6 +450,10 @@ en-US:
           packages_selected: "{} package(s) selected"
           aur_packages_included: "AUR packages included (+2)"
           aur_packages_present: "AUR packages present; build steps may vary."
+          resolving_deps: "dependencies"
+          resolving_files: "files"
+          resolving_sandbox: "sandbox"
+          data_will_update: "Data is still resolving. Counts will update automatically."
         deps:
           dependents_rely_on: "Dependents: {} package(s) rely on the removal list"
           dependencies_label: "Dependencies: {}"

@@ -453,6 +453,11 @@ hu-HU:
           packages_selected: "{} csomag kiválasztva"
           aur_packages_included: "AUR-csomagok is vannak (+2)"
           aur_packages_present: "AUR-csomagok is vannak; az összeállítási lépések eltérhetnek."
+          # TODO: Translate these keys to Hungarian
+          resolving_deps: "dependencies"
+          resolving_files: "files"
+          resolving_sandbox: "sandbox"
+          data_will_update: "Data is still resolving. Counts will update automatically."
         deps:
           dependents_rely_on: "Függőségi csomagok: {} csomag is függ az eltávolítási listán szereplőtől"
           dependencies_label: "Függőségek: {}"
