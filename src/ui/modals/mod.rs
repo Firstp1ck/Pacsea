@@ -38,6 +38,16 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Extract modal to avoid borrow conflicts
     let modal = std::mem::replace(&mut app.modal, crate::state::Modal::None);
 
+    // Handle Preflight separately since it needs mutable access to the whole modal
+    if let crate::state::Modal::Preflight { .. } = modal {
+        let mut preflight_modal = modal;
+        preflight::render_preflight(f, area, app, &mut preflight_modal);
+        app.modal = preflight_modal;
+        return;
+    }
+
+    let modal = modal;
+
     match modal {
         crate::state::Modal::Alert { message } => {
             alert::render_alert(f, app, area, &message);
@@ -47,87 +57,8 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
             confirm::render_confirm_install(f, app, area, &items);
             app.modal = crate::state::Modal::ConfirmInstall { items };
         }
-        crate::state::Modal::Preflight {
-            items,
-            action,
-            tab,
-            mut summary,
-            mut header_chips,
-            mut dependency_info,
-            mut dep_selected,
-            dep_tree_expanded,
-            mut deps_error,
-            mut file_info,
-            mut file_selected,
-            file_tree_expanded,
-            mut files_error,
-            mut service_info,
-            mut service_selected,
-            mut services_loaded,
-            mut services_error,
-            mut sandbox_info,
-            mut sandbox_selected,
-            sandbox_tree_expanded,
-            mut sandbox_loaded,
-            mut sandbox_error,
-            mut selected_optdepends,
-            cascade_mode,
-        } => {
-            preflight::render_preflight(
-                f,
-                area,
-                app,
-                &items,
-                &action,
-                &tab,
-                &mut summary,
-                &mut header_chips,
-                &mut dependency_info,
-                &mut dep_selected,
-                &dep_tree_expanded,
-                &mut deps_error,
-                &mut file_info,
-                &mut file_selected,
-                &file_tree_expanded,
-                &mut files_error,
-                &mut service_info,
-                &mut service_selected,
-                &mut services_loaded,
-                &mut services_error,
-                &mut sandbox_info,
-                &mut sandbox_selected,
-                &sandbox_tree_expanded,
-                &mut sandbox_loaded,
-                &mut sandbox_error,
-                &mut selected_optdepends,
-                cascade_mode,
-            );
-            app.modal = crate::state::Modal::Preflight {
-                items,
-                action,
-                tab,
-                summary,
-                header_chips,
-                dependency_info,
-                dep_selected,
-                dep_tree_expanded,
-                deps_error,
-                file_info,
-                file_selected,
-                file_tree_expanded,
-                files_error,
-                service_info,
-                service_selected,
-                services_loaded,
-                services_error,
-                sandbox_info,
-                sandbox_selected,
-                sandbox_tree_expanded,
-                sandbox_loaded,
-                sandbox_error,
-                selected_optdepends,
-                cascade_mode,
-            };
+        crate::state::Modal::Preflight { .. } => {
+            unreachable!("Preflight should have been handled above");
         }
         crate::state::Modal::PreflightExec {
             items,

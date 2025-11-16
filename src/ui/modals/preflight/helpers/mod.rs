@@ -8,6 +8,9 @@ use crate::state::AppState;
 use crate::state::modal::PreflightHeaderChips;
 use crate::theme::theme;
 
+pub mod layout;
+pub mod sync;
+
 /// What: Format bytes into human-readable string with appropriate unit.
 ///
 /// Inputs:
