@@ -154,6 +154,34 @@ semantic_error = #f38ba8\n\
 # semantic_warning = #f1fa8c\n\
 # semantic_error = #ff5555\n\
 #\n\
+# ---------- Alternative Theme (Gruvbox Dark) ----------\n\
+#\n\
+# # Background layers (from darkest to lightest)\n\
+# background_base = #171717\n\
+# background_mantle = #1d2021\n\
+# background_crust = #0d1011\n\
+#\n\
+# # Component surfaces\n\
+# surface_level1 = #3c3836\n\
+# surface_level2 = #504945\n\
+#\n\
+# # Low-contrast lines/borders\n\
+# overlay_primary = #665c54\n\
+# overlay_secondary = #7c6f64\n\
+#\n\
+# # Text hierarchy\n\
+# text_primary = #ebdbb2\n\
+# text_secondary = #d5c4a1\n\
+# text_tertiary = #bdae93\n\
+#\n\
+# # Accents and semantic colors\n\
+# accent_interactive = #83a598\n\
+# accent_heading = #b16286\n\
+# accent_emphasis = #d3869b\n\
+# semantic_success = #b8bb26\n\
+# semantic_warning = #fabd2f\n\
+# semantic_error = #fb4934\n\
+#\n\
 #-----------------------------------------------------------------------------------------------------------------------\n";
 
 /// Standalone settings skeleton used when initializing a separate settings.conf

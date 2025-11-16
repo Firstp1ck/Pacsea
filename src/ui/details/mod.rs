@@ -6,6 +6,7 @@ mod footer;
 mod layout;
 mod package_info;
 mod pkgbuild;
+mod pkgbuild_highlight;
 
 /// What: Render the bottom details pane, footer, and optional PKGBUILD viewer.
 ///

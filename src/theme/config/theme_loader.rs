@@ -69,6 +69,7 @@ pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, Stri
         "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
         "subtext0", "subtext1", "sapphire", "mauve", "green", "yellow", "red", "lavender",
     ];
+    // Syntax command color defaults to sapphire if not specified
     let mut missing: Vec<&str> = Vec::new();
     for k in REQUIRED {
         if !map.contains_key(k) {

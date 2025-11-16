@@ -10,6 +10,8 @@ use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
+use super::pkgbuild_highlight;
+
 /// What: Render the PKGBUILD viewer pane with scroll support and action buttons.
 ///
 /// Inputs:
@@ -35,17 +37,22 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
         pkgb_area.width.saturating_sub(2),
         pkgb_area.height.saturating_sub(2),
     ));
+
     // Apply vertical scroll offset by trimming top lines
-    let mut visible = String::new();
-    let mut skip = app.pkgb_scroll as usize;
-    for line in pkgb_text.lines() {
-        if skip > 0 {
-            skip -= 1;
-            continue;
-        }
-        visible.push_str(line);
-        visible.push('\n');
-    }
+    // First, get all lines (highlighted or plain)
+    let all_lines = if pkgb_text == loading_text {
+        // For loading text, use plain text
+        vec![Line::from(loading_text)]
+    } else {
+        // Apply syntax highlighting
+        pkgbuild_highlight::highlight_pkgbuild(pkgb_text, &th)
+    };
+
+    // Apply scroll offset
+    let visible_lines: Vec<Line> = all_lines
+        .into_iter()
+        .skip(app.pkgb_scroll as usize)
+        .collect();
     // Title with clickable "Copy PKGBUILD" button and optional "Reload PKGBUILD" button
     let check_button_label = i18n::t(app, "app.details.copy_pkgbuild");
     let pkgb_title_text = i18n::t(app, "app.titles.pkgb");
@@ -92,7 +99,7 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
         app.pkgb_reload_button_rect = Some((reload_btn_x, btn_y, reload_btn_w, 1));
     }
 
-    let pkgb = Paragraph::new(visible)
+    let pkgb = Paragraph::new(visible_lines)
         .style(Style::default().fg(th.text).bg(th.base))
         .wrap(Wrap { trim: false })
         .block(
