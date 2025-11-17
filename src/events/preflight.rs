@@ -425,7 +425,8 @@ fn handle_enter_or_space(ctx: EnterOrSpaceContext<'_>) -> bool {
     }
 
     if *ctx.tab == crate::state::PreflightTab::Files {
-        let display_items = build_file_display_items(ctx.items, ctx.file_info, ctx.file_tree_expanded);
+        let display_items =
+            build_file_display_items(ctx.items, ctx.file_info, ctx.file_tree_expanded);
         if let Some((is_header, pkg_name)) = display_items.get(ctx.file_selected)
             && *is_header
         {
@@ -710,7 +711,8 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         );
                     }
                 } else if *tab == crate::state::PreflightTab::Files {
-                    let display_len = compute_file_display_items_len(items, file_info, file_tree_expanded);
+                    let display_len =
+                        compute_file_display_items_len(items, file_info, file_tree_expanded);
                     if *file_selected < display_len.saturating_sub(1) {
                         *file_selected += 1;
                     }

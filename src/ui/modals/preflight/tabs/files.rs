@@ -624,10 +624,7 @@ fn render_file_list(
                 };
                 let spans = vec![
                     Span::styled(format!("{} {} ", arrow_symbol, pkg_name), header_style),
-                    Span::styled(
-                        "(0 files)",
-                        Style::default().fg(th.subtext1),
-                    ),
+                    Span::styled("(0 files)", Style::default().fg(th.subtext1)),
                 ];
                 lines.push(Line::from(spans));
             }

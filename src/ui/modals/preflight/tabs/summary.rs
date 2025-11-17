@@ -328,7 +328,7 @@ fn render_install_dependencies(
 
     // Build display items list (package headers + their dependencies)
     let mut display_items: Vec<(bool, String, Option<&DependencyInfo>)> = Vec::new();
-    
+
     // First, show packages with conflicts/upgrades
     for pkg_name in items.iter().map(|p| &p.name) {
         if let Some(pkg_deps) = grouped.get(pkg_name) {
@@ -341,7 +341,7 @@ fn render_install_dependencies(
             }
         }
     }
-    
+
     // Then, show installed packages (if not already shown)
     for installed_pkg in installed_packages.iter() {
         if !grouped.contains_key(&installed_pkg.name) {
@@ -366,20 +366,12 @@ fn render_install_dependencies(
         } else if !pkg_name.is_empty() && installed_packages.iter().any(|p| p.name == *pkg_name) {
             // This is an installed package entry (not a real dependency)
             // Show "installed" status
-            let mut spans = Vec::new();
-            spans.push(Span::styled("  ", Style::default()));
-            spans.push(Span::styled(
-                "✓ ",
-                Style::default().fg(th.green),
-            ));
-            spans.push(Span::styled(
-                pkg_name.clone(),
-                Style::default().fg(th.text),
-            ));
-            spans.push(Span::styled(
-                " (installed)",
-                Style::default().fg(th.subtext1),
-            ));
+            let spans = vec![
+                Span::styled("  ", Style::default()),
+                Span::styled("✓ ", Style::default().fg(th.green)),
+                Span::styled(pkg_name.clone(), Style::default().fg(th.text)),
+                Span::styled(" (installed)", Style::default().fg(th.subtext1)),
+            ];
             lines.push(Line::from(spans));
         }
     }

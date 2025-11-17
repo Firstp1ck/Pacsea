@@ -535,8 +535,11 @@ fn handle_files_tab_click(mx: u16, my: u16, app: &mut AppState) -> bool {
 
         // Build display items list to find which package header was clicked
         // Always show all packages, even if they have no files
-        let display_items =
-            crate::events::preflight::build_file_display_items(items, file_info, file_tree_expanded);
+        let display_items = crate::events::preflight::build_file_display_items(
+            items,
+            file_info,
+            file_tree_expanded,
+        );
 
         // Calculate offset for summary lines before the list
         // Files tab has: summary line (1) + empty line (1) + optional sync timestamp (0-2) + empty line (0-1)
