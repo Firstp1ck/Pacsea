@@ -7,6 +7,285 @@ use crate::events::utils;
 use crate::state::{AppState, PackageItem};
 use crate::theme::reload_theme;
 
+/// What: Close all open dropdown menus when ESC is pressed.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if menus were closed, `false` otherwise
+///
+/// Details:
+/// - Closes sort, options, panels, config, and artix filter menus.
+fn close_all_dropdowns(app: &mut AppState) -> bool {
+    let any_open = app.sort_menu_open
+        || app.options_menu_open
+        || app.panels_menu_open
+        || app.config_menu_open
+        || app.artix_filter_menu_open;
+    if any_open {
+        app.sort_menu_open = false;
+        app.sort_menu_auto_close_at = None;
+        app.options_menu_open = false;
+        app.panels_menu_open = false;
+        app.config_menu_open = false;
+        app.artix_filter_menu_open = false;
+        true
+    } else {
+        false
+    }
+}
+
+/// What: Handle installed-only mode toggle from options menu.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request package details
+///
+/// Details:
+/// - Toggles between showing all packages and only explicitly installed packages.
+/// - When enabling, saves installed packages list to config directory.
+fn handle_options_installed_only_toggle(
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
+    if app.installed_only_mode {
+        if let Some(prev) = app.results_backup_for_toggle.take() {
+            app.all_results = prev;
+        }
+        app.installed_only_mode = false;
+        app.right_pane_focus = crate::state::RightPaneFocus::Install;
+        crate::logic::apply_filters_and_sort_preserve_selection(app);
+        utils::refresh_selected_details(app, details_tx);
+    } else {
+        app.results_backup_for_toggle = Some(app.all_results.clone());
+        let explicit = crate::index::explicit_names();
+        let mut items: Vec<crate::state::PackageItem> = crate::index::all_official()
+            .into_iter()
+            .filter(|p| explicit.contains(&p.name))
+            .collect();
+        use std::collections::HashSet;
+        let official_names: HashSet<String> = items.iter().map(|p| p.name.clone()).collect();
+        for name in explicit.into_iter() {
+            if !official_names.contains(&name) {
+                let is_eos = crate::index::is_eos_name(&name);
+                let src = if is_eos {
+                    crate::state::Source::Official {
+                        repo: "EOS".to_string(),
+                        arch: String::new(),
+                    }
+                } else {
+                    crate::state::Source::Aur
+                };
+                items.push(crate::state::PackageItem {
+                    name: name.clone(),
+                    version: String::new(),
+                    description: String::new(),
+                    source: src,
+                    popularity: None,
+                });
+            }
+        }
+        app.all_results = items;
+        app.installed_only_mode = true;
+        app.right_pane_focus = crate::state::RightPaneFocus::Remove;
+        crate::logic::apply_filters_and_sort_preserve_selection(app);
+        utils::refresh_selected_details(app, details_tx);
+        let path = crate::theme::config_dir().join("installed_packages.txt");
+        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
+        names.sort();
+        let body = names.join("\n");
+        let _ = std::fs::write(path, body);
+    }
+}
+
+/// What: Handle system update option from options menu.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Details:
+/// - Opens SystemUpdate modal with default settings.
+fn handle_options_system_update(app: &mut AppState) {
+    let countries = vec![
+        "Worldwide".to_string(),
+        "Germany".to_string(),
+        "United States".to_string(),
+        "United Kingdom".to_string(),
+        "France".to_string(),
+        "Netherlands".to_string(),
+        "Sweden".to_string(),
+        "Canada".to_string(),
+        "Australia".to_string(),
+        "Japan".to_string(),
+    ];
+    let prefs = crate::theme::settings();
+    let initial_country_idx = {
+        let sel = prefs
+            .selected_countries
+            .split(',')
+            .next()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "Worldwide".to_string());
+        countries.iter().position(|c| c == &sel).unwrap_or(0)
+    };
+    app.modal = crate::state::Modal::SystemUpdate {
+        do_mirrors: false,
+        do_pacman: true,
+        do_aur: true,
+        do_cache: false,
+        country_idx: initial_country_idx,
+        countries,
+        mirror_count: prefs.mirror_count,
+        cursor: 0,
+    };
+}
+
+/// What: Handle news option from options menu.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Details:
+/// - Fetches latest Arch news and opens News modal.
+/// - Shows alert modal if fetch fails or times out.
+fn handle_options_news(app: &mut AppState) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build();
+        let res = match rt {
+            Ok(rt) => rt.block_on(crate::sources::fetch_arch_news(10)),
+            Err(e) => Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into()),
+        };
+        let _ = tx.send(res);
+    });
+    match rx.recv_timeout(std::time::Duration::from_secs(3)) {
+        Ok(Ok(list)) => {
+            app.modal = crate::state::Modal::News {
+                items: list,
+                selected: 0,
+            };
+        }
+        Ok(Err(e)) => {
+            app.modal = crate::state::Modal::Alert {
+                message: format!("Failed to fetch news: {e}"),
+            };
+        }
+        Err(_) => {
+            app.modal = crate::state::Modal::Alert {
+                message: "Timed out fetching news".to_string(),
+            };
+        }
+    }
+}
+
+/// What: Handle optional deps option from options menu.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Details:
+/// - Builds optional dependencies rows and opens OptionalDeps modal.
+fn handle_options_optional_deps(app: &mut AppState) {
+    let rows = crate::events::mouse::menu_options::build_optional_deps_rows(app);
+    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
+}
+
+/// What: Handle panels menu numeric selection.
+///
+/// Inputs:
+/// - `idx`: Selected menu index (0=recent, 1=install, 2=keybinds)
+/// - `app`: Mutable application state
+///
+/// Details:
+/// - Toggles visibility of recent pane, install pane, or keybinds footer.
+fn handle_panels_menu_selection(idx: usize, app: &mut AppState) {
+    match idx {
+        0 => {
+            app.show_recent_pane = !app.show_recent_pane;
+            if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
+                app.focus = crate::state::Focus::Search;
+            }
+            crate::theme::save_show_recent_pane(app.show_recent_pane);
+        }
+        1 => {
+            app.show_install_pane = !app.show_install_pane;
+            if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
+                app.focus = crate::state::Focus::Search;
+            }
+            crate::theme::save_show_install_pane(app.show_install_pane);
+        }
+        2 => {
+            app.show_keybinds_footer = !app.show_keybinds_footer;
+            crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+        }
+        _ => {}
+    }
+}
+
+/// What: Handle config menu numeric selection.
+///
+/// Inputs:
+/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds, 3=install, 4=installed, 5=recent)
+/// - `app`: Mutable application state
+///
+/// Details:
+/// - Opens the selected config file in a terminal editor.
+/// - Exports installed packages list if index 4 is selected.
+fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
+    let settings_path = crate::theme::config_dir().join("settings.conf");
+    let theme_path = crate::theme::config_dir().join("theme.conf");
+    let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
+    let install_path = app.install_path.clone();
+    let recent_path = app.recent_path.clone();
+    let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
+    if idx == 4 {
+        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
+        names.sort();
+        let body = names.join("\n");
+        let _ = std::fs::write(&installed_list_path, body);
+    }
+    let target = match idx {
+        0 => settings_path,
+        1 => theme_path,
+        2 => keybinds_path,
+        3 => install_path,
+        4 => installed_list_path,
+        5 => recent_path,
+        _ => {
+            app.config_menu_open = false;
+            app.artix_filter_menu_open = false;
+            return;
+        }
+    };
+    #[cfg(target_os = "windows")]
+    {
+        crate::util::open_file(&target);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let path_str = target.display().to_string();
+        let editor_cmd = format!(
+            "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \\
+             ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \\
+             ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \\
+             ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \\
+             ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \\
+             ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \\
+             ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \\
+             (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)",
+        );
+        let cmds = vec![editor_cmd];
+        std::thread::spawn(move || {
+            crate::install::spawn_shell_commands_in_terminal(&cmds);
+        });
+    }
+    app.config_menu_open = false;
+    app.artix_filter_menu_open = false;
+}
+
 /// What: Handle global shortcuts plus dropdown menus and optionally stop propagation.
 ///
 /// Inputs:
@@ -35,28 +314,7 @@ pub(crate) fn handle_global_key(
     // First: allow ESC to close the PKGBUILD viewer if it is open
     // Esc does not close the PKGBUILD viewer here
     // If any dropdown is open, ESC closes it instead of changing modes
-    if ke.code == KeyCode::Esc
-        && (app.sort_menu_open
-            || app.options_menu_open
-            || app.panels_menu_open
-            || app.config_menu_open)
-    {
-        if app.sort_menu_open {
-            app.sort_menu_open = false;
-            app.sort_menu_auto_close_at = None;
-        }
-        if app.options_menu_open {
-            app.options_menu_open = false;
-        }
-        if app.panels_menu_open {
-            app.panels_menu_open = false;
-        }
-        if app.config_menu_open {
-            app.config_menu_open = false;
-        }
-        if app.artix_filter_menu_open {
-            app.artix_filter_menu_open = false;
-        }
+    if ke.code == KeyCode::Esc && close_all_dropdowns(app) {
         return Some(false); // Handled - don't process further
     }
     let km = &app.keymap;
@@ -158,470 +416,10 @@ pub(crate) fn handle_global_key(
         // Options menu rows: 0 toggle installed-only, 1 update system, 2 news, 3 optional deps
         if app.options_menu_open {
             match idx {
-                0 => {
-                    // same as mouse options handler row 0
-                    if app.installed_only_mode {
-                        if let Some(prev) = app.results_backup_for_toggle.take() {
-                            app.all_results = prev;
-                        }
-                        app.installed_only_mode = false;
-                        app.right_pane_focus = crate::state::RightPaneFocus::Install;
-                        crate::logic::apply_filters_and_sort_preserve_selection(app);
-                        utils::refresh_selected_details(app, details_tx);
-                    } else {
-                        app.results_backup_for_toggle = Some(app.all_results.clone());
-                        let explicit = crate::index::explicit_names();
-                        let mut items: Vec<crate::state::PackageItem> =
-                            crate::index::all_official()
-                                .into_iter()
-                                .filter(|p| explicit.contains(&p.name))
-                                .collect();
-                        use std::collections::HashSet;
-                        let official_names: HashSet<String> =
-                            items.iter().map(|p| p.name.clone()).collect();
-                        for name in explicit.into_iter() {
-                            if !official_names.contains(&name) {
-                                let is_eos = crate::index::is_eos_name(&name);
-                                let src = if is_eos {
-                                    crate::state::Source::Official {
-                                        repo: "EOS".to_string(),
-                                        arch: String::new(),
-                                    }
-                                } else {
-                                    crate::state::Source::Aur
-                                };
-                                items.push(crate::state::PackageItem {
-                                    name: name.clone(),
-                                    version: String::new(),
-                                    description: String::new(),
-                                    source: src,
-                                    popularity: None,
-                                });
-                            }
-                        }
-                        app.all_results = items;
-                        app.installed_only_mode = true;
-                        app.right_pane_focus = crate::state::RightPaneFocus::Remove;
-                        crate::logic::apply_filters_and_sort_preserve_selection(app);
-                        utils::refresh_selected_details(app, details_tx);
-                        let path = crate::theme::config_dir().join("installed_packages.txt");
-                        let mut names: Vec<String> =
-                            crate::index::explicit_names().into_iter().collect();
-                        names.sort();
-                        let body = names.join("\n");
-                        let _ = std::fs::write(path, body);
-                    }
-                }
-                1 => {
-                    let countries = vec![
-                        "Worldwide".to_string(),
-                        "Germany".to_string(),
-                        "United States".to_string(),
-                        "United Kingdom".to_string(),
-                        "France".to_string(),
-                        "Netherlands".to_string(),
-                        "Sweden".to_string(),
-                        "Canada".to_string(),
-                        "Australia".to_string(),
-                        "Japan".to_string(),
-                    ];
-                    let prefs = crate::theme::settings();
-                    let initial_country_idx = {
-                        let sel = prefs
-                            .selected_countries
-                            .split(',')
-                            .next()
-                            .map(|s| s.trim().to_string())
-                            .unwrap_or_else(|| "Worldwide".to_string());
-                        countries.iter().position(|c| c == &sel).unwrap_or(0)
-                    };
-                    app.modal = crate::state::Modal::SystemUpdate {
-                        do_mirrors: false,
-                        do_pacman: true,
-                        do_aur: true,
-                        do_cache: false,
-                        country_idx: initial_country_idx,
-                        countries,
-                        mirror_count: prefs.mirror_count,
-                        cursor: 0,
-                    };
-                }
-                2 => {
-                    let (tx, rx) = std::sync::mpsc::channel();
-                    std::thread::spawn(move || {
-                        let rt = tokio::runtime::Builder::new_current_thread()
-                            .enable_all()
-                            .build();
-                        let res = match rt {
-                            Ok(rt) => rt.block_on(crate::sources::fetch_arch_news(10)),
-                            Err(e) => {
-                                Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into())
-                            }
-                        };
-                        let _ = tx.send(res);
-                    });
-                    match rx.recv_timeout(std::time::Duration::from_secs(3)) {
-                        Ok(Ok(list)) => {
-                            app.modal = crate::state::Modal::News {
-                                items: list,
-                                selected: 0,
-                            };
-                        }
-                        Ok(Err(e)) => {
-                            app.modal = crate::state::Modal::Alert {
-                                message: format!("Failed to fetch news: {e}"),
-                            };
-                        }
-                        Err(_) => {
-                            app.modal = crate::state::Modal::Alert {
-                                message: "Timed out fetching news".to_string(),
-                            };
-                        }
-                    }
-                }
-                3 => {
-                    // Open Optional Deps modal (same as mouse handler row 3)
-                    let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();
-                    let is_pkg_installed = |pkg: &str| crate::index::is_installed(pkg);
-                    let on_path = |cmd: &str| crate::install::command_on_path(cmd);
-                    // (Security rows will be appended after AUR helper for desired order)
-                    // Editor
-                    let editor_candidates: &[(&str, &str)] = &[
-                        ("nvim", "neovim"),
-                        ("vim", "vim"),
-                        ("hx", "helix"),
-                        ("helix", "helix"),
-                        ("emacsclient", "emacs"),
-                        ("emacs", "emacs"),
-                        ("nano", "nano"),
-                    ];
-                    let mut editor_installed: Option<(&str, &str)> = None;
-                    for (bin, pkg) in editor_candidates.iter() {
-                        if on_path(bin) || is_pkg_installed(pkg) {
-                            editor_installed = Some((*bin, *pkg));
-                            break;
-                        }
-                    }
-                    if let Some((bin, pkg)) = editor_installed {
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: {}",
-                                crate::i18n::t(app, "app.optional_deps.categories.editor"),
-                                bin
-                            ),
-                            package: pkg.to_string(),
-                            installed: (is_pkg_installed(pkg)
-                                || on_path(bin)
-                                || ((pkg == "helix") && (on_path("hx") || on_path("helix")))
-                                || ((pkg == "emacs")
-                                    && (on_path("emacs") || on_path("emacsclient")))),
-                            selectable: false,
-                            note: None,
-                        });
-                    } else {
-                        let mut seen = std::collections::HashSet::new();
-                        for (bin, pkg) in editor_candidates.iter() {
-                            if seen.insert(*pkg) {
-                                rows.push(crate::state::types::OptionalDepRow {
-                                    label: format!(
-                                        "{}: {}",
-                                        crate::i18n::t(app, "app.optional_deps.categories.editor"),
-                                        bin
-                                    ),
-                                    package: pkg.to_string(),
-                                    installed: (is_pkg_installed(pkg)
-                                        || on_path(bin)
-                                        || ((*pkg == "helix")
-                                            && (on_path("hx") || on_path("helix")))
-                                        || ((*pkg == "emacs")
-                                            && (on_path("emacs") || on_path("emacsclient")))),
-                                    selectable: !(is_pkg_installed(pkg)
-                                        || on_path(bin)
-                                        || ((*pkg == "helix")
-                                            && (on_path("hx") || on_path("helix")))
-                                        || ((*pkg == "emacs")
-                                            && (on_path("emacs") || on_path("emacsclient")))),
-                                    note: None,
-                                });
-                            }
-                        }
-                    }
-                    // Terminal
-                    let term_candidates: &[(&str, &str)] = &[
-                        ("alacritty", "alacritty"),
-                        ("ghostty", "ghostty"),
-                        ("kitty", "kitty"),
-                        ("xterm", "xterm"),
-                        ("gnome-terminal", "gnome-terminal"),
-                        ("konsole", "konsole"),
-                        ("xfce4-terminal", "xfce4-terminal"),
-                        ("tilix", "tilix"),
-                        ("mate-terminal", "mate-terminal"),
-                    ];
-                    let mut term_installed: Option<(&str, &str)> = None;
-                    for (bin, pkg) in term_candidates.iter() {
-                        if on_path(bin) || is_pkg_installed(pkg) {
-                            term_installed = Some((*bin, *pkg));
-                            break;
-                        }
-                    }
-                    if let Some((bin, pkg)) = term_installed {
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: {}",
-                                crate::i18n::t(app, "app.optional_deps.categories.terminal"),
-                                bin
-                            ),
-                            package: pkg.to_string(),
-                            installed: (is_pkg_installed(pkg) || on_path(bin)),
-                            selectable: false,
-                            note: None,
-                        });
-                    } else {
-                        for (bin, pkg) in term_candidates.iter() {
-                            rows.push(crate::state::types::OptionalDepRow {
-                                label: format!(
-                                    "{}: {}",
-                                    crate::i18n::t(app, "app.optional_deps.categories.terminal"),
-                                    bin
-                                ),
-                                package: pkg.to_string(),
-                                installed: (is_pkg_installed(pkg) || on_path(bin)),
-                                selectable: !(is_pkg_installed(pkg) || on_path(bin)),
-                                note: None,
-                            });
-                        }
-                    }
-                    // Clipboard: Prefer Klipper when KDE session detected; else Wayland/X11 specific
-                    let is_kde = std::env::var("KDE_FULL_SESSION").is_ok()
-                        || std::env::var("XDG_CURRENT_DESKTOP")
-                            .ok()
-                            .map(|v| {
-                                let u = v.to_uppercase();
-                                u.contains("KDE") || u.contains("PLASMA")
-                            })
-                            .unwrap_or(false)
-                        || on_path("klipper");
-                    if is_kde {
-                        let pkg = "plasma-workspace";
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: Klipper (KDE)",
-                                crate::i18n::t(app, "app.optional_deps.categories.clipboard")
-                            ),
-                            package: pkg.to_string(),
-                            installed: is_pkg_installed(pkg) || on_path("klipper"),
-                            selectable: !(is_pkg_installed(pkg) || on_path("klipper")),
-                            note: Some("KDE Plasma".to_string()),
-                        });
-                    } else {
-                        let is_wayland = std::env::var("WAYLAND_DISPLAY").is_ok();
-                        if is_wayland {
-                            let pkg = "wl-clipboard";
-                            rows.push(crate::state::types::OptionalDepRow {
-                                label: format!(
-                                    "{}: wl-clipboard",
-                                    crate::i18n::t(app, "app.optional_deps.categories.clipboard")
-                                ),
-                                package: pkg.to_string(),
-                                installed: is_pkg_installed(pkg) || on_path("wl-copy"),
-                                selectable: !(is_pkg_installed(pkg) || on_path("wl-copy")),
-                                note: Some("Wayland".to_string()),
-                            });
-                        } else {
-                            let pkg = "xclip";
-                            rows.push(crate::state::types::OptionalDepRow {
-                                label: format!(
-                                    "{}: xclip",
-                                    crate::i18n::t(app, "app.optional_deps.categories.clipboard")
-                                ),
-                                package: pkg.to_string(),
-                                installed: is_pkg_installed(pkg) || on_path("xclip"),
-                                selectable: !(is_pkg_installed(pkg) || on_path("xclip")),
-                                note: Some("X11".to_string()),
-                            });
-                        }
-                    }
-                    // Mirrors: Manjaro -> pacman-mirrors, Artix -> rate-mirrors, else reflector
-                    let os_release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
-                    let manjaro = os_release.contains("Manjaro");
-                    let artix = os_release.contains("Artix");
-                    if manjaro {
-                        let pkg = "pacman-mirrors";
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: "Mirrors: pacman-mirrors".to_string(),
-                            package: pkg.to_string(),
-                            installed: is_pkg_installed(pkg),
-                            selectable: !is_pkg_installed(pkg),
-                            note: Some("Manjaro".to_string()),
-                        });
-                    } else if artix {
-                        let pkg = "rate-mirrors";
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: "Mirrors: rate mirrors".to_string(),
-                            package: pkg.to_string(),
-                            installed: on_path("rate-mirrors") || is_pkg_installed(pkg),
-                            selectable: !(on_path("rate-mirrors") || is_pkg_installed(pkg)),
-                            note: Some("Artix".to_string()),
-                        });
-                    } else {
-                        let pkg = "reflector";
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: "Mirrors: reflector".to_string(),
-                            package: pkg.to_string(),
-                            installed: is_pkg_installed(pkg),
-                            selectable: !is_pkg_installed(pkg),
-                            note: None,
-                        });
-                    }
-                    // (VirusTotal API row will be appended at the end for desired order)
-                    // AUR helper
-                    let paru_inst = on_path("paru") || is_pkg_installed("paru");
-                    let yay_inst = on_path("yay") || is_pkg_installed("yay");
-                    if paru_inst || yay_inst {
-                        if paru_inst {
-                            rows.push(crate::state::types::OptionalDepRow {
-                                label: format!(
-                                    "{}: paru",
-                                    crate::i18n::t(app, "app.optional_deps.categories.aur_helper")
-                                ),
-                                package: "paru".to_string(),
-                                installed: true,
-                                selectable: false,
-                                note: None,
-                            });
-                        } else if yay_inst {
-                            rows.push(crate::state::types::OptionalDepRow {
-                                label: format!(
-                                    "{}: yay",
-                                    crate::i18n::t(app, "app.optional_deps.categories.aur_helper")
-                                ),
-                                package: "yay".to_string(),
-                                installed: true,
-                                selectable: false,
-                                note: None,
-                            });
-                        }
-                    } else {
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: paru",
-                                crate::i18n::t(app, "app.optional_deps.categories.aur_helper")
-                            ),
-                            package: "paru".to_string(),
-                            installed: false,
-                            selectable: true,
-                            note: Some("Install via git clone + makepkg -si".to_string()),
-                        });
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: yay",
-                                crate::i18n::t(app, "app.optional_deps.categories.aur_helper")
-                            ),
-                            package: "yay".to_string(),
-                            installed: false,
-                            selectable: true,
-                            note: Some("Install via git clone + makepkg -si".to_string()),
-                        });
-                    }
-                    // Append Security rows after AUR helper
-                    {
-                        // Security: clamav (official)
-                        let pkg = "clamav";
-                        let installed = is_pkg_installed(pkg) || on_path("clamscan");
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: clamav",
-                                crate::i18n::t(app, "app.optional_deps.categories.security")
-                            ),
-                            package: pkg.to_string(),
-                            installed,
-                            selectable: !installed,
-                            note: None,
-                        });
-                        // Security: trivy (official)
-                        let pkg = "trivy";
-                        let installed = is_pkg_installed(pkg) || on_path("trivy");
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: trivy",
-                                crate::i18n::t(app, "app.optional_deps.categories.security")
-                            ),
-                            package: pkg.to_string(),
-                            installed,
-                            selectable: !installed,
-                            note: None,
-                        });
-                        // Security: semgrep-bin (AUR)
-                        let pkg = "semgrep-bin";
-                        let installed = is_pkg_installed(pkg) || on_path("semgrep");
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: semgrep-bin",
-                                crate::i18n::t(app, "app.optional_deps.categories.security")
-                            ),
-                            package: pkg.to_string(),
-                            installed,
-                            selectable: !installed,
-                            note: Some("AUR".to_string()),
-                        });
-                        // Security: shellcheck (official)
-                        let pkg = "shellcheck";
-                        let installed = is_pkg_installed(pkg) || on_path("shellcheck");
-                        rows.push(crate::state::types::OptionalDepRow {
-                            label: format!(
-                                "{}: shellcheck",
-                                crate::i18n::t(app, "app.optional_deps.categories.security")
-                            ),
-                            package: pkg.to_string(),
-                            installed,
-                            selectable: !installed,
-                            note: None,
-                        });
-                        // Security: VirusTotal API (Setup)
-                        {
-                            let vt_key_present =
-                                !crate::theme::settings().virustotal_api_key.is_empty();
-                            rows.push(crate::state::types::OptionalDepRow {
-                                label: format!(
-                                    "{}: VirusTotal API",
-                                    crate::i18n::t(app, "app.optional_deps.categories.security")
-                                ),
-                                package: "virustotal-setup".to_string(),
-                                installed: vt_key_present,
-                                selectable: true,
-                                note: Some("Setup".to_string()),
-                            });
-                            // aur-sleuth (LLM audit) setup
-                            let sleuth_installed = {
-                                let onpath = on_path("aur-sleuth");
-                                let home = std::env::var("HOME").ok();
-                                let user_local = home
-                                    .as_deref()
-                                    .map(|h| {
-                                        std::path::Path::new(h)
-                                            .join(".local/bin/aur-sleuth")
-                                            .exists()
-                                    })
-                                    .unwrap_or(false);
-                                let usr_local =
-                                    std::path::Path::new("/usr/local/bin/aur-sleuth").exists();
-                                onpath || user_local || usr_local
-                            };
-                            rows.push(crate::state::types::OptionalDepRow {
-                                label: format!(
-                                    "{}: aur-sleuth",
-                                    crate::i18n::t(app, "app.optional_deps.categories.security")
-                                ),
-                                package: "aur-sleuth-setup".to_string(),
-                                installed: sleuth_installed,
-                                selectable: true,
-                                note: Some("Setup".to_string()),
-                            });
-                        }
-                    }
-                    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
-                }
+                0 => handle_options_installed_only_toggle(app, details_tx),
+                1 => handle_options_system_update(app),
+                2 => handle_options_news(app),
+                3 => handle_options_optional_deps(app),
                 _ => {}
             }
             app.options_menu_open = false;
@@ -629,82 +427,13 @@ pub(crate) fn handle_global_key(
         }
         // Panels menu rows: 0 recent, 1 install, 2 keybinds
         if app.panels_menu_open {
-            match idx {
-                0 => {
-                    app.show_recent_pane = !app.show_recent_pane;
-                    if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
-                        app.focus = crate::state::Focus::Search;
-                    }
-                    crate::theme::save_show_recent_pane(app.show_recent_pane);
-                }
-                1 => {
-                    app.show_install_pane = !app.show_install_pane;
-                    if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
-                        app.focus = crate::state::Focus::Search;
-                    }
-                    crate::theme::save_show_install_pane(app.show_install_pane);
-                }
-                2 => {
-                    app.show_keybinds_footer = !app.show_keybinds_footer;
-                    crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
-                }
-                _ => {}
-            }
+            handle_panels_menu_selection(idx, app);
             // Keep menu open after toggling panels
             return Some(false); // Handled - don't process further
         }
         // Config menu rows: 0 settings, 1 theme, 2 keybinds, 3 install list, 4 installed list, 5 recent
         if app.config_menu_open {
-            let settings_path = crate::theme::config_dir().join("settings.conf");
-            let theme_path = crate::theme::config_dir().join("theme.conf");
-            let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-            let install_path = app.install_path.clone();
-            let recent_path = app.recent_path.clone();
-            let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
-            if idx == 4 {
-                let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-                names.sort();
-                let body = names.join("\n");
-                let _ = std::fs::write(&installed_list_path, body);
-            }
-            let target = match idx {
-                0 => settings_path,
-                1 => theme_path,
-                2 => keybinds_path,
-                3 => install_path,
-                4 => installed_list_path,
-                5 => recent_path,
-                _ => {
-                    app.config_menu_open = false;
-                    app.artix_filter_menu_open = false;
-                    return Some(false); // Handled - don't process further
-                }
-            };
-            #[cfg(target_os = "windows")]
-            {
-                // On Windows, use PowerShell to open file with default application
-                crate::util::open_file(&target);
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                let path_str = target.display().to_string();
-                let editor_cmd = format!(
-                    "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \\
-                     ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \\
-                     ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \\
-                     ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \\
-                     ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \\
-                     ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \\
-                     ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \\
-                     (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)",
-                );
-                let cmds = vec![editor_cmd];
-                std::thread::spawn(move || {
-                    crate::install::spawn_shell_commands_in_terminal(&cmds);
-                });
-            }
-            app.config_menu_open = false;
-            app.artix_filter_menu_open = false;
+            handle_config_menu_selection(idx, app);
             return Some(false); // Handled - don't process further
         }
     }

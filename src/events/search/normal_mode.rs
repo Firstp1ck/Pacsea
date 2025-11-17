@@ -8,6 +8,420 @@ use super::helpers::{matches_any, navigate_pane};
 use super::preflight_helpers::open_preflight_modal;
 use crate::events::utils::{byte_index_for_char, char_count, refresh_install_details};
 
+/// What: Handle numeric selection (1-9) for config menu items.
+///
+/// Inputs:
+/// - `idx`: Numeric index (0-8) from key press
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if handled, `false` otherwise
+///
+/// Details:
+/// - Opens the selected config file in a terminal editor.
+/// - Handles settings, theme, keybinds, install list, installed list, and recent paths.
+fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool {
+    if !app.config_menu_open {
+        return false;
+    }
+
+    let settings_path = crate::theme::config_dir().join("settings.conf");
+    let theme_path = crate::theme::config_dir().join("theme.conf");
+    let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
+    let install_path = app.install_path.clone();
+    let recent_path = app.recent_path.clone();
+    let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
+
+    if idx == 4 {
+        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
+        names.sort();
+        let body = names.join("\n");
+        let _ = std::fs::write(&installed_list_path, body);
+    }
+
+    let target = match idx {
+        0 => settings_path,
+        1 => theme_path,
+        2 => keybinds_path,
+        3 => install_path,
+        4 => installed_list_path,
+        5 => recent_path,
+        _ => {
+            app.config_menu_open = false;
+            return false;
+        }
+    };
+
+    let path_str = target.display().to_string();
+    let editor_cmd = format!(
+        "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \\\n                         ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \\\n                         ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \\\n                         ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \\\n                         ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \\\n                         ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \\\n                         ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \\\n                         (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
+    );
+    let cmds = vec![editor_cmd];
+    std::thread::spawn(move || {
+        crate::install::spawn_shell_commands_in_terminal(&cmds);
+    });
+    app.config_menu_open = false;
+    true
+}
+
+/// What: Handle menu toggle key events.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if a menu toggle was handled, `false` otherwise
+///
+/// Details:
+/// - Toggles config, options, or panels menu.
+/// - Ensures only one menu is open at a time.
+fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
+    let km = &app.keymap;
+
+    if matches_any(ke, &km.config_menu_toggle) {
+        app.config_menu_open = !app.config_menu_open;
+        if app.config_menu_open {
+            app.options_menu_open = false;
+            app.panels_menu_open = false;
+            app.sort_menu_open = false;
+            app.sort_menu_auto_close_at = None;
+        }
+        return true;
+    }
+
+    if matches_any(ke, &km.options_menu_toggle) {
+        app.options_menu_open = !app.options_menu_open;
+        if app.options_menu_open {
+            app.config_menu_open = false;
+            app.panels_menu_open = false;
+            app.sort_menu_open = false;
+            app.sort_menu_auto_close_at = None;
+        }
+        return true;
+    }
+
+    if matches_any(ke, &km.panels_menu_toggle) {
+        app.panels_menu_open = !app.panels_menu_open;
+        if app.panels_menu_open {
+            app.config_menu_open = false;
+            app.options_menu_open = false;
+            app.sort_menu_open = false;
+            app.sort_menu_auto_close_at = None;
+        }
+        return true;
+    }
+
+    false
+}
+
+/// What: Handle export of install list to file.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - None (modifies app state directly)
+///
+/// Details:
+/// - Exports current Install List package names to config export dir.
+/// - Creates files with format: install_list_YYYYMMDD_serial.txt
+/// - Shows toast messages for success or failure.
+fn handle_export(app: &mut AppState) {
+    if app.installed_only_mode {
+        return;
+    }
+
+    let mut names: Vec<String> = app.install_list.iter().map(|p| p.name.clone()).collect();
+    names.sort();
+
+    if names.is_empty() {
+        app.toast_message = Some(crate::i18n::t(app, "app.toasts.install_list_empty"));
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        return;
+    }
+
+    let export_dir = crate::theme::config_dir().join("export");
+    let _ = std::fs::create_dir_all(&export_dir);
+    let date_str = crate::util::today_yyyymmdd_utc();
+    let mut serial: u32 = 1;
+    let file_path = loop {
+        let fname = format!("install_list_{date_str}_{serial}.txt");
+        let path = export_dir.join(&fname);
+        if !path.exists() {
+            break path;
+        }
+        serial += 1;
+        if serial > 9999 {
+            break export_dir.join(format!("install_list_{date_str}_fallback.txt"));
+        }
+    };
+
+    let body = names.join("\n");
+    match std::fs::write(&file_path, body) {
+        Ok(_) => {
+            app.toast_message = Some(crate::i18n::t_fmt1(
+                app,
+                "app.toasts.exported_to",
+                file_path.display(),
+            ));
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
+        }
+        Err(e) => {
+            let error_msg = format!("{}", e);
+            app.toast_message = Some(crate::i18n::t_fmt1(
+                app,
+                "app.toasts.export_failed",
+                &error_msg,
+            ));
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+            tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
+        }
+    }
+}
+
+/// What: Handle text selection movement (left/right).
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `direction`: Direction to move (-1 for left, 1 for right)
+///
+/// Output:
+/// - None (modifies app state directly)
+///
+/// Details:
+/// - Begins selection if not already started.
+/// - Moves caret in the specified direction within input bounds.
+fn handle_selection_move(app: &mut AppState, direction: isize) {
+    if app.search_select_anchor.is_none() {
+        app.search_select_anchor = Some(app.search_caret);
+    }
+
+    let cc = char_count(&app.input);
+    let cur = app.search_caret as isize + direction;
+    let new_ci = if cur < 0 { 0 } else { cur as usize };
+    app.search_caret = new_ci.min(cc);
+}
+
+/// What: Handle deletion of selected text range.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `query_tx`: Channel to send debounced search queries
+///
+/// Output:
+/// - `true` if deletion occurred, `false` otherwise
+///
+/// Details:
+/// - Deletes the selected range between anchor and caret.
+/// - Updates input and triggers query refresh.
+fn handle_selection_delete(
+    app: &mut AppState,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
+) -> bool {
+    let Some(anchor) = app.search_select_anchor.take() else {
+        return false;
+    };
+
+    let a = anchor.min(app.search_caret);
+    let b = anchor.max(app.search_caret);
+    if a == b {
+        return false;
+    }
+
+    let bs = byte_index_for_char(&app.input, a);
+    let be = byte_index_for_char(&app.input, b);
+    let mut new_input = String::with_capacity(app.input.len());
+    new_input.push_str(&app.input[..bs]);
+    new_input.push_str(&app.input[be..]);
+    app.input = new_input;
+    app.search_caret = a;
+    app.last_input_change = std::time::Instant::now();
+    app.last_saved_value = None;
+    send_query(app, query_tx);
+    true
+}
+
+/// What: Handle navigation key events (j/k, Ctrl+D/U).
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request details for the focused item
+///
+/// Output:
+/// - `true` if navigation was handled, `false` otherwise
+///
+/// Details:
+/// - Handles vim-like navigation: j/k for single line, Ctrl+D/U for page movement.
+fn handle_navigation(
+    ke: &KeyEvent,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> bool {
+    match (ke.code, ke.modifiers) {
+        (KeyCode::Char('j'), _) => {
+            move_sel_cached(app, 1, details_tx);
+            true
+        }
+        (KeyCode::Char('k'), _) => {
+            move_sel_cached(app, -1, details_tx);
+            true
+        }
+        (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
+            move_sel_cached(app, 10, details_tx);
+            true
+        }
+        (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
+            move_sel_cached(app, -10, details_tx);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Handle space key events (add to list or downgrade).
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request details for the focused item
+/// - `add_tx`: Channel to add items to the Install/Remove lists
+///
+/// Output:
+/// - `true` if space key was handled, `false` otherwise
+///
+/// Details:
+/// - Ctrl+Space: Adds to downgrade list (installed-only mode only).
+/// - Space: Adds to install list or remove list depending on mode.
+fn handle_space_key(
+    ke: &KeyEvent,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    add_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> bool {
+    match (ke.code, ke.modifiers) {
+        (KeyCode::Char(' '), KeyModifiers::CONTROL) => {
+            if app.installed_only_mode
+                && let Some(item) = app.results.get(app.selected).cloned()
+            {
+                crate::logic::add_to_downgrade_list(app, item);
+                crate::events::utils::refresh_downgrade_details(app, details_tx);
+            }
+            true
+        }
+        (KeyCode::Char(' '), _) => {
+            if let Some(item) = app.results.get(app.selected).cloned() {
+                if app.installed_only_mode {
+                    crate::logic::add_to_remove_list(app, item);
+                    crate::events::utils::refresh_remove_details(app, details_tx);
+                } else {
+                    let _ = add_tx.send(item);
+                }
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Handle preflight modal opening.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if preflight was opened, `false` otherwise
+///
+/// Details:
+/// - Opens preflight modal for the selected package using configured key or Enter.
+fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
+    let should_open = matches_any(ke, &app.keymap.search_install)
+        || matches!(ke.code, KeyCode::Char('\n') | KeyCode::Enter);
+
+    if should_open && let Some(item) = app.results.get(app.selected).cloned() {
+        open_preflight_modal(app, vec![item], true);
+        return true;
+    }
+    false
+}
+
+/// What: Handle pane navigation (Left/Right arrows and pane_next).
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request details for the focused item
+/// - `preview_tx`: Channel to request preview details when moving focus
+///
+/// Output:
+/// - `true` if pane navigation was handled, `false` otherwise
+///
+/// Details:
+/// - Handles Left/Right arrow keys and configured pane_next key.
+/// - Switches focus between panes and updates details accordingly.
+fn handle_pane_navigation(
+    ke: &KeyEvent,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    preview_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> bool {
+    match ke.code {
+        KeyCode::Right => {
+            navigate_pane(app, "right", details_tx, preview_tx);
+            true
+        }
+        KeyCode::Left => {
+            navigate_pane(app, "left", details_tx, preview_tx);
+            true
+        }
+        _ if matches_any(ke, &app.keymap.pane_next) => {
+            if app.installed_only_mode {
+                app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
+                if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
+                    app.downgrade_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Install;
+                crate::events::utils::refresh_downgrade_details(app, details_tx);
+            } else {
+                if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                    app.install_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Install;
+                refresh_install_details(app, details_tx);
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Handle input clearing.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `query_tx`: Channel to send debounced search queries
+///
+/// Output:
+/// - None (modifies app state directly)
+///
+/// Details:
+/// - Clears the entire search input and resets caret/selection.
+fn handle_input_clear(app: &mut AppState, query_tx: &mpsc::UnboundedSender<QueryInput>) {
+    if !app.input.is_empty() {
+        app.input.clear();
+        app.search_caret = 0;
+        app.search_select_anchor = None;
+        app.last_input_change = std::time::Instant::now();
+        app.last_saved_value = None;
+        send_query(app, query_tx);
+    }
+}
+
 /// What: Handle key events in Normal mode for the Search pane.
 ///
 /// Inputs:
@@ -32,286 +446,91 @@ pub fn handle_normal_mode(
     add_tx: &mpsc::UnboundedSender<PackageItem>,
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
-    let km = &app.keymap;
-
-    // If any dropdown is open, allow numeric selection 1..9 here as a fallback
+    // Handle numeric selection for config menu (1-9)
     if let KeyCode::Char(ch) = ke.code
         && ch.is_ascii_digit()
         && ch != '0'
     {
         let idx = (ch as u8 - b'1') as usize;
-        // Config/Lists menu numeric selection (rows 0..5)
-        if app.config_menu_open {
-            let settings_path = crate::theme::config_dir().join("settings.conf");
-            let theme_path = crate::theme::config_dir().join("theme.conf");
-            let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-            let install_path = app.install_path.clone();
-            let recent_path = app.recent_path.clone();
-            let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
-            if idx == 4 {
-                let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-                names.sort();
-                let body = names.join("\n");
-                let _ = std::fs::write(&installed_list_path, body);
-            }
-            let target = match idx {
-                0 => settings_path,
-                1 => theme_path,
-                2 => keybinds_path,
-                3 => install_path,
-                4 => installed_list_path,
-                5 => recent_path,
-                _ => {
-                    app.config_menu_open = false;
-                    return false;
-                }
-            };
-            let path_str = target.display().to_string();
-            let editor_cmd = format!(
-                "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \\\n                         ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \\\n                         ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \\\n                         ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \\\n                         ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \\\n                         ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \\\n                         ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \\\n                         (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
-            );
-            let cmds = vec![editor_cmd];
-            std::thread::spawn(move || {
-                crate::install::spawn_shell_commands_in_terminal(&cmds);
-            });
-            app.config_menu_open = false;
+        if handle_config_menu_numeric_selection(idx, app) {
             return false;
         }
     }
 
-    match (ke.code, ke.modifiers) {
-        // Menu toggles in Normal mode
-        (c, m) if matches_any(&ke, &km.config_menu_toggle) && (c, m) == (ke.code, ke.modifiers) => {
-            app.config_menu_open = !app.config_menu_open;
-            if app.config_menu_open {
-                app.options_menu_open = false;
-                app.panels_menu_open = false;
-                app.sort_menu_open = false;
-                app.sort_menu_auto_close_at = None;
-            }
-        }
-        (c, m)
-            if matches_any(&ke, &km.options_menu_toggle) && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            app.options_menu_open = !app.options_menu_open;
-            if app.options_menu_open {
-                app.config_menu_open = false;
-                app.panels_menu_open = false;
-                app.sort_menu_open = false;
-                app.sort_menu_auto_close_at = None;
-            }
-        }
-        (c, m) if matches_any(&ke, &km.panels_menu_toggle) && (c, m) == (ke.code, ke.modifiers) => {
-            app.panels_menu_open = !app.panels_menu_open;
-            if app.panels_menu_open {
-                app.config_menu_open = false;
-                app.options_menu_open = false;
-                app.sort_menu_open = false;
-                app.sort_menu_auto_close_at = None;
-            }
-        }
-        // Open Arch status page in default browser
-        (c, m)
-            if matches_any(&ke, &km.search_normal_open_status)
-                && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            crate::util::open_url("https://status.archlinux.org");
-        }
-        // Normal mode: Import (Shift+I)
-        (c, m)
-            if matches_any(&ke, &km.search_normal_import) && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            // Disabled while in installed-only mode to match UI (buttons hidden)
-            if !app.installed_only_mode {
-                // Show ImportHelp modal first
-                app.modal = crate::state::Modal::ImportHelp;
-            }
-            return false;
-        }
-        // Normal mode: Export (Shift+E)
-        (c, m)
-            if matches_any(&ke, &km.search_normal_export) && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            // Disabled while in installed-only mode to match UI (buttons hidden)
-            if !app.installed_only_mode {
-                // Export current Install List package names to config export dir
-                let mut names: Vec<String> =
-                    app.install_list.iter().map(|p| p.name.clone()).collect();
-                names.sort();
-                if names.is_empty() {
-                    app.toast_message = Some(crate::i18n::t(app, "app.toasts.install_list_empty"));
-                    app.toast_expires_at =
-                        Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
-                } else {
-                    // Build export directory and file name install_list_YYYYMMDD_serial
-                    let export_dir = crate::theme::config_dir().join("export");
-                    let _ = std::fs::create_dir_all(&export_dir);
-                    let date_str = crate::util::today_yyyymmdd_utc();
-                    let mut serial: u32 = 1;
-                    let file_path = loop {
-                        let fname = format!("install_list_{date_str}_{serial}.txt");
-                        let path = export_dir.join(&fname);
-                        if !path.exists() {
-                            break path;
-                        }
-                        serial += 1;
-                        if serial > 9999 {
-                            break export_dir.join(format!("install_list_{date_str}_fallback.txt"));
-                        }
-                    };
-                    let body = names.join("\n");
-                    match std::fs::write(&file_path, body) {
-                        Ok(_) => {
-                            app.toast_message = Some(crate::i18n::t_fmt1(
-                                app,
-                                "app.toasts.exported_to",
-                                file_path.display(),
-                            ));
-                            app.toast_expires_at =
-                                Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
-                            tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
-                        }
-                        Err(e) => {
-                            let error_msg = format!("{}", e);
-                            app.toast_message = Some(crate::i18n::t_fmt1(
-                                app,
-                                "app.toasts.export_failed",
-                                &error_msg,
-                            ));
-                            app.toast_expires_at =
-                                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
-                            tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
-                        }
-                    }
-                }
-            }
-        }
-        (c, m)
-            if matches_any(&ke, &km.search_normal_insert) && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            // return to insert mode
-            app.search_normal_mode = false;
-            app.search_select_anchor = None;
-        }
-        // Selection with configured left/right (default: h/l)
-        (c, m)
-            if matches_any(&ke, &km.search_normal_select_left)
-                && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            // Begin selection if not started
-            if app.search_select_anchor.is_none() {
-                app.search_select_anchor = Some(app.search_caret);
-            }
-            let cc = char_count(&app.input);
-            let cur = app.search_caret as isize - 1;
-            let new_ci = if cur < 0 { 0 } else { cur as usize };
-            app.search_caret = new_ci.min(cc);
-        }
-        (c, m)
-            if matches_any(&ke, &km.search_normal_select_right)
-                && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            if app.search_select_anchor.is_none() {
-                app.search_select_anchor = Some(app.search_caret);
-            }
-            let cc = char_count(&app.input);
-            let cur = app.search_caret + 1;
-            app.search_caret = cur.min(cc);
-        }
-        // Delete selected range (default: d)
-        (c, m)
-            if matches_any(&ke, &km.search_normal_delete) && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            if let Some(anchor) = app.search_select_anchor.take() {
-                let a = anchor.min(app.search_caret);
-                let b = anchor.max(app.search_caret);
-                if a != b {
-                    let bs = byte_index_for_char(&app.input, a);
-                    let be = byte_index_for_char(&app.input, b);
-                    let mut new_input = String::with_capacity(app.input.len());
-                    new_input.push_str(&app.input[..bs]);
-                    new_input.push_str(&app.input[be..]);
-                    app.input = new_input;
-                    app.search_caret = a;
-                    app.last_input_change = std::time::Instant::now();
-                    app.last_saved_value = None;
-                    send_query(app, query_tx);
-                }
-            }
-        }
-        // Clear entire input (default: Shift+Del)
-        (c, m)
-            if matches_any(&ke, &km.search_normal_clear) && (c, m) == (ke.code, ke.modifiers) =>
-        {
-            if !app.input.is_empty() {
-                app.input.clear();
-                app.search_caret = 0;
-                app.search_select_anchor = None;
-                app.last_input_change = std::time::Instant::now();
-                app.last_saved_value = None;
-                send_query(app, query_tx);
-            }
-        }
-        (KeyCode::Char('j'), _) => move_sel_cached(app, 1, details_tx),
-        (KeyCode::Char('k'), _) => move_sel_cached(app, -1, details_tx),
-        (KeyCode::Char('d'), KeyModifiers::CONTROL) => move_sel_cached(app, 10, details_tx),
-        (KeyCode::Char('u'), KeyModifiers::CONTROL) => move_sel_cached(app, -10, details_tx),
-        (KeyCode::Char(' '), KeyModifiers::CONTROL) => {
-            if app.installed_only_mode
-                && let Some(item) = app.results.get(app.selected).cloned()
-            {
-                crate::logic::add_to_downgrade_list(app, item);
-                // Do not change focus; only update details to reflect the new selection
-                crate::events::utils::refresh_downgrade_details(app, details_tx);
-            }
-        }
-        (KeyCode::Char(' '), _) => {
-            if let Some(item) = app.results.get(app.selected).cloned() {
-                if app.installed_only_mode {
-                    crate::logic::add_to_remove_list(app, item);
-                    crate::events::utils::refresh_remove_details(app, details_tx);
-                } else {
-                    let _ = add_tx.send(item);
-                }
-            }
-        }
-        // Open Preflight (or bypass if skip_preflight) using configured search_install key (default: Enter)
-        (c, m) if matches_any(&ke, &km.search_install) && (c, m) == (ke.code, ke.modifiers) => {
-            if let Some(item) = app.results.get(app.selected).cloned() {
-                open_preflight_modal(app, vec![item], true);
-            }
-        }
-        // Fallback on raw Enter
-        (KeyCode::Char('\n') | KeyCode::Enter, _) => {
-            if let Some(item) = app.results.get(app.selected).cloned() {
-                open_preflight_modal(app, vec![item], true);
-            }
-        }
-        (c, m) if matches_any(&ke, &km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
-            // Desired cycle: Recent -> Search -> Downgrade -> Remove -> Recent
-            if app.installed_only_mode {
-                // From Search move to Downgrade first
-                app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
-                if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
-                    app.downgrade_state.select(Some(0));
-                }
-                app.focus = crate::state::Focus::Install;
-                crate::events::utils::refresh_downgrade_details(app, details_tx);
-            } else {
-                if app.install_state.selected().is_none() && !app.install_list.is_empty() {
-                    app.install_state.select(Some(0));
-                }
-                app.focus = crate::state::Focus::Install;
-                refresh_install_details(app, details_tx);
-            }
-        }
-        (KeyCode::Right, _) => {
-            navigate_pane(app, "right", details_tx, preview_tx);
-        }
-        (KeyCode::Left, _) => {
-            navigate_pane(app, "left", details_tx, preview_tx);
-        }
-        _ => {}
+    // Handle menu toggles
+    let menu_toggled = {
+        let km = &app.keymap;
+        matches_any(&ke, &km.config_menu_toggle)
+            || matches_any(&ke, &km.options_menu_toggle)
+            || matches_any(&ke, &km.panels_menu_toggle)
+    };
+    if menu_toggled && handle_menu_toggles(&ke, app) {
+        return false;
     }
+
+    // Handle keymap-based actions with early returns
+    if matches_any(&ke, &app.keymap.search_normal_open_status) {
+        crate::util::open_url("https://status.archlinux.org");
+        return false;
+    }
+
+    if matches_any(&ke, &app.keymap.search_normal_import) {
+        if !app.installed_only_mode {
+            app.modal = crate::state::Modal::ImportHelp;
+        }
+        return false;
+    }
+
+    if matches_any(&ke, &app.keymap.search_normal_export) {
+        handle_export(app);
+        return false;
+    }
+
+    if matches_any(&ke, &app.keymap.search_normal_insert) {
+        app.search_normal_mode = false;
+        app.search_select_anchor = None;
+        return false;
+    }
+
+    if matches_any(&ke, &app.keymap.search_normal_select_left) {
+        handle_selection_move(app, -1);
+        return false;
+    }
+
+    if matches_any(&ke, &app.keymap.search_normal_select_right) {
+        handle_selection_move(app, 1);
+        return false;
+    }
+
+    if matches_any(&ke, &app.keymap.search_normal_delete) {
+        handle_selection_delete(app, query_tx);
+        return false;
+    }
+
+    if matches_any(&ke, &app.keymap.search_normal_clear) {
+        handle_input_clear(app, query_tx);
+        return false;
+    }
+
+    // Handle navigation keys
+    if handle_navigation(&ke, app, details_tx) {
+        return false;
+    }
+
+    // Handle space key
+    if handle_space_key(&ke, app, details_tx, add_tx) {
+        return false;
+    }
+
+    // Handle preflight opening
+    if handle_preflight_open(&ke, app) {
+        return false;
+    }
+
+    // Handle pane navigation
+    if handle_pane_navigation(&ke, app, details_tx, preview_tx) {
+        return false;
+    }
+
     false
 }

@@ -8,7 +8,615 @@ use ratatui::{
 
 use crate::i18n;
 use crate::state::{AppState, Focus, RightPaneFocus};
-use crate::theme::{KeyChord, theme};
+use crate::theme::{KeyChord, Theme, theme};
+
+/// What: Determine label color based on focus state.
+///
+/// Inputs:
+/// - `is_focused`: Whether the section is currently focused
+///
+/// Output:
+/// - Returns mauve if focused, overlay1 otherwise.
+///
+/// Details:
+/// - Used to highlight active sections in the footer.
+fn get_label_color(is_focused: bool, th: &Theme) -> ratatui::style::Color {
+    if is_focused { th.mauve } else { th.overlay1 }
+}
+
+/// What: Add a single keybind entry to spans if key exists.
+///
+/// Inputs:
+/// - `spans`: Mutable reference to spans vector to append to
+/// - `key_opt`: Optional key chord
+/// - `key_style`: Style for the key label
+/// - `text`: Text to display after the key
+/// - `sep_style`: Style for the separator
+///
+/// Output:
+/// - Appends keybind entry to spans if key exists.
+///
+/// Details:
+/// - Only adds entry if key is present, reducing conditional complexity.
+fn add_keybind_entry(
+    spans: &mut Vec<Span<'static>>,
+    key_opt: Option<&KeyChord>,
+    key_style: Style,
+    text: String,
+    sep_style: Style,
+) {
+    if let Some(k) = key_opt {
+        spans.extend([
+            Span::styled(format!("[{}]", k.label()), key_style),
+            Span::raw(format!(" {text}")),
+            Span::styled("  |  ", sep_style),
+        ]);
+    }
+}
+
+/// What: Add a dual keybind entry (up/down) to spans if both keys exist.
+///
+/// Inputs:
+/// - `spans`: Mutable reference to spans vector to append to
+/// - `up_opt`: Optional up key chord
+/// - `down_opt`: Optional down key chord
+/// - `key_style`: Style for the key label
+/// - `text`: Text to display after the keys
+/// - `sep_style`: Style for the separator
+///
+/// Output:
+/// - Appends dual keybind entry to spans if both keys exist.
+///
+/// Details:
+/// - Only adds entry if both keys are present.
+fn add_dual_keybind_entry(
+    spans: &mut Vec<Span<'static>>,
+    up_opt: Option<&KeyChord>,
+    down_opt: Option<&KeyChord>,
+    key_style: Style,
+    text: String,
+    sep_style: Style,
+) {
+    if let (Some(up), Some(dn)) = (up_opt, down_opt) {
+        spans.extend([
+            Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
+            Span::raw(format!(" {text}")),
+            Span::styled("  |  ", sep_style),
+        ]);
+    }
+}
+
+/// What: Add multiple keybind labels joined by " / " to spans.
+///
+/// Inputs:
+/// - `spans`: Mutable reference to spans vector to append to
+/// - `keys`: Vector of key chords
+/// - `key_style`: Style for the key label
+/// - `text`: Text to display after the keys
+/// - `sep_style`: Style for the separator
+///
+/// Output:
+/// - Appends multi-keybind entry to spans if keys exist.
+///
+/// Details:
+/// - Only adds entry if keys vector is not empty.
+fn add_multi_keybind_entry(
+    spans: &mut Vec<Span<'static>>,
+    keys: &[KeyChord],
+    key_style: Style,
+    text: String,
+    sep_style: Style,
+) {
+    if !keys.is_empty() {
+        let keys_str = keys
+            .iter()
+            .map(|c| c.label())
+            .collect::<Vec<_>>()
+            .join(" / ");
+        spans.extend([
+            Span::styled(format!("[{keys_str}]"), key_style),
+            Span::raw(format!(" {text}")),
+            Span::styled("  |  ", sep_style),
+        ]);
+    }
+}
+
+/// What: Build section header span with label and color.
+///
+/// Inputs:
+/// - `label`: Section label text
+/// - `label_color`: Color for the label
+///
+/// Output:
+/// - Returns vector with styled label span and spacing.
+///
+/// Details:
+/// - Creates bold, colored label followed by spacing.
+fn build_section_header(label: String, label_color: ratatui::style::Color) -> Vec<Span<'static>> {
+    vec![
+        Span::styled(
+            label,
+            Style::default()
+                .fg(label_color)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw("  "),
+    ]
+}
+
+/// What: Build GLOBALS section spans.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `th`: Theme
+/// - `key_style`: Style for keys
+/// - `sep_style`: Style for separator
+///
+/// Output:
+/// - Returns vector of spans for GLOBALS section.
+///
+/// Details:
+/// - Includes exit, help, reload theme, show pkgbuild, change sort, and normal mode toggle.
+fn build_globals_section(
+    app: &AppState,
+    th: &Theme,
+    key_style: Style,
+    sep_style: Style,
+) -> Vec<Span<'static>> {
+    let km = &app.keymap;
+    let mut spans = build_section_header(
+        format!("{}  ", i18n::t(app, "app.headings.globals")),
+        th.overlay1,
+    );
+
+    add_keybind_entry(
+        &mut spans,
+        km.exit.first(),
+        key_style,
+        i18n::t(app, "app.actions.exit"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.help_overlay.first(),
+        key_style,
+        i18n::t(app, "app.actions.help"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.reload_theme.first(),
+        key_style,
+        i18n::t(app, "app.actions.reload_theme"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.show_pkgbuild.first(),
+        key_style,
+        i18n::t(app, "app.actions.show_hide_pkgbuild"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.change_sort.first(),
+        key_style,
+        i18n::t(app, "app.actions.change_sort_mode"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.search_normal_toggle.first(),
+        key_style,
+        i18n::t(app, "app.actions.insert_mode"),
+        sep_style,
+    );
+
+    spans
+}
+
+/// What: Build SEARCH section spans.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `th`: Theme
+/// - `key_style`: Style for keys
+/// - `sep_style`: Style for separator
+///
+/// Output:
+/// - Returns vector of spans for SEARCH section.
+///
+/// Details:
+/// - Includes move, page, add, and install actions.
+fn build_search_section(
+    app: &AppState,
+    th: &Theme,
+    key_style: Style,
+    sep_style: Style,
+) -> Vec<Span<'static>> {
+    let km = &app.keymap;
+    let search_label_color = get_label_color(matches!(app.focus, Focus::Search), th);
+    let mut spans = build_section_header(
+        format!("{}   ", i18n::t(app, "app.headings.search")),
+        search_label_color,
+    );
+
+    add_dual_keybind_entry(
+        &mut spans,
+        km.search_move_up.first(),
+        km.search_move_down.first(),
+        key_style,
+        i18n::t(app, "app.actions.move"),
+        sep_style,
+    );
+    add_dual_keybind_entry(
+        &mut spans,
+        km.search_page_up.first(),
+        km.search_page_down.first(),
+        key_style,
+        i18n::t(app, "app.actions.move_page"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.search_add.first(),
+        key_style,
+        if app.installed_only_mode {
+            i18n::t(app, "app.actions.add_to_remove")
+        } else {
+            i18n::t(app, "app.actions.add_to_install")
+        },
+        sep_style,
+    );
+    if app.installed_only_mode {
+        spans.extend([
+            Span::styled("[Ctrl+Space]", key_style),
+            Span::raw(format!(" {}", i18n::t(app, "app.actions.add_to_downgrade"))),
+            Span::styled("  |  ", sep_style),
+        ]);
+    }
+    add_keybind_entry(
+        &mut spans,
+        km.search_install.first(),
+        key_style,
+        i18n::t(app, "app.actions.install"),
+        sep_style,
+    );
+
+    spans
+}
+
+/// What: Build common right-pane action spans (install/downgrade/remove).
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `label`: Section label
+/// - `label_color`: Color for label
+/// - `confirm_text`: Text for confirm action
+/// - `key_style`: Style for keys
+/// - `sep_style`: Style for separator
+///
+/// Output:
+/// - Returns vector of spans for right-pane section.
+///
+/// Details:
+/// - Includes move, confirm, remove, clear, find, and go to search actions.
+fn build_right_pane_spans(
+    app: &AppState,
+    label: String,
+    label_color: ratatui::style::Color,
+    confirm_text: String,
+    key_style: Style,
+    sep_style: Style,
+) -> Vec<Span<'static>> {
+    let km = &app.keymap;
+    let mut spans = build_section_header(label, label_color);
+
+    add_dual_keybind_entry(
+        &mut spans,
+        km.install_move_up.first(),
+        km.install_move_down.first(),
+        key_style,
+        i18n::t(app, "app.actions.move"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.install_confirm.first(),
+        key_style,
+        confirm_text,
+        sep_style,
+    );
+    add_multi_keybind_entry(
+        &mut spans,
+        &km.install_remove,
+        key_style,
+        i18n::t(app, "app.actions.remove_from_list"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.install_clear.first(),
+        key_style,
+        i18n::t(app, "app.actions.clear"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.install_find.first(),
+        key_style,
+        i18n::t(app, "app.details.footer.search_hint"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.install_to_search.first(),
+        key_style,
+        i18n::t(app, "app.actions.go_to_search"),
+        sep_style,
+    );
+
+    spans
+}
+
+/// What: Build INSTALL section spans (or DOWNGRADE/REMOVE in installed-only mode).
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `th`: Theme
+/// - `key_style`: Style for keys
+/// - `sep_style`: Style for separator
+///
+/// Output:
+/// - Returns tuple: (install line option, split lines option for downgrade/remove).
+///
+/// Details:
+/// - Returns split lines in installed-only mode, single install line otherwise.
+fn build_install_section(
+    app: &AppState,
+    th: &Theme,
+    key_style: Style,
+    sep_style: Style,
+) -> (
+    Option<Line<'static>>,
+    Option<(Line<'static>, Line<'static>)>,
+) {
+    if app.installed_only_mode {
+        let downgrade_color = get_label_color(
+            matches!(app.focus, Focus::Install)
+                && matches!(app.right_pane_focus, RightPaneFocus::Downgrade),
+            th,
+        );
+        let remove_color = get_label_color(
+            matches!(app.focus, Focus::Install)
+                && matches!(app.right_pane_focus, RightPaneFocus::Remove),
+            th,
+        );
+
+        let d_spans = build_right_pane_spans(
+            app,
+            format!("{}:", i18n::t(app, "app.headings.downgrade")),
+            downgrade_color,
+            i18n::t(app, "app.details.footer.confirm_downgrade"),
+            key_style,
+            sep_style,
+        );
+        let r_spans = build_right_pane_spans(
+            app,
+            format!("{}:   ", i18n::t(app, "app.headings.remove")),
+            remove_color,
+            i18n::t(app, "app.details.footer.confirm_removal"),
+            key_style,
+            sep_style,
+        );
+        (None, Some((Line::from(d_spans), Line::from(r_spans))))
+    } else {
+        let install_color = get_label_color(matches!(app.focus, Focus::Install), th);
+        let i_spans = build_right_pane_spans(
+            app,
+            format!("{}:  ", i18n::t(app, "app.headings.install")),
+            install_color,
+            i18n::t(app, "app.details.footer.confirm_installation"),
+            key_style,
+            sep_style,
+        );
+        (Some(Line::from(i_spans)), None)
+    }
+}
+
+/// What: Build RECENT section spans.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `th`: Theme
+/// - `key_style`: Style for keys
+/// - `sep_style`: Style for separator
+///
+/// Output:
+/// - Returns vector of spans for RECENT section.
+///
+/// Details:
+/// - Includes move, use, remove, clear, add, find, and go to search actions.
+fn build_recent_section(
+    app: &AppState,
+    th: &Theme,
+    key_style: Style,
+    sep_style: Style,
+) -> Vec<Span<'static>> {
+    let km = &app.keymap;
+    let recent_label_color = get_label_color(matches!(app.focus, Focus::Recent), th);
+    let mut spans = build_section_header(
+        format!("{}   ", i18n::t(app, "app.headings.recent")),
+        recent_label_color,
+    );
+
+    add_dual_keybind_entry(
+        &mut spans,
+        km.recent_move_up.first(),
+        km.recent_move_down.first(),
+        key_style,
+        i18n::t(app, "app.actions.move"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.recent_use.first(),
+        key_style,
+        i18n::t(app, "app.actions.add_to_search"),
+        sep_style,
+    );
+    add_multi_keybind_entry(
+        &mut spans,
+        &km.recent_remove,
+        key_style,
+        i18n::t(app, "app.actions.remove_from_list"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.recent_clear.first(),
+        key_style,
+        i18n::t(app, "app.actions.clear"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.recent_add.first(),
+        key_style,
+        i18n::t(app, "app.actions.add_first_match_to_install"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.recent_find.first(),
+        key_style,
+        i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.recent_to_search.first(),
+        key_style,
+        i18n::t(app, "app.actions.go_to_search"),
+        sep_style,
+    );
+
+    spans
+}
+
+/// What: Build Normal Mode section spans.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `th`: Theme
+/// - `key_style`: Style for keys
+///
+/// Output:
+/// - Returns vector of lines for Normal Mode section (may be empty).
+///
+/// Details:
+/// - Returns two lines: base normal mode help and optional menus/import-export line.
+fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Vec<Line<'static>> {
+    let km = &app.keymap;
+    let mut lines = Vec::new();
+
+    let label = |v: &Vec<KeyChord>, def: &str| {
+        v.first()
+            .map(|c| c.label())
+            .unwrap_or_else(|| def.to_string())
+    };
+    let toggle_label = label(&km.search_normal_toggle, "Esc");
+    let insert_label = label(&km.search_normal_insert, "i");
+    let left_label = label(&km.search_normal_select_left, "h");
+    let right_label = label(&km.search_normal_select_right, "l");
+    let delete_label = label(&km.search_normal_delete, "d");
+    let clear_label = label(&km.search_normal_clear, "Shift+Del");
+
+    let normal_mode_label = i18n::t(app, "app.modals.help.normal_mode.label");
+    let insert_mode_text = i18n::t(app, "app.modals.help.normal_mode.insert_mode");
+    let move_text = i18n::t(app, "app.modals.help.normal_mode.move");
+    let page_text = i18n::t(app, "app.modals.help.normal_mode.page");
+    let select_text_text = i18n::t(app, "app.modals.help.normal_mode.select_text");
+    let delete_text_text = i18n::t(app, "app.modals.help.normal_mode.delete_text");
+    let clear_input_text = i18n::t(app, "app.modals.help.normal_mode.clear_input");
+
+    let n_spans: Vec<Span> = vec![
+        Span::styled(
+            normal_mode_label.clone(),
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw("  "),
+        Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
+        Span::raw(insert_mode_text.clone()),
+        Span::styled("[j / k]", key_style),
+        Span::raw(move_text.clone()),
+        Span::styled("[Ctrl+d / Ctrl+u]", key_style),
+        Span::raw(page_text.clone()),
+        Span::styled(format!("[{left_label} / {right_label}]"), key_style),
+        Span::raw(select_text_text.clone()),
+        Span::styled(format!("[{delete_label}]"), key_style),
+        Span::raw(delete_text_text.clone()),
+        Span::styled(format!("[{clear_label}]"), key_style),
+        Span::raw(clear_input_text.clone()),
+    ];
+    lines.push(Line::from(n_spans));
+
+    // Second line: menus and import/export (if any)
+    let mut n2_spans: Vec<Span> = Vec::new();
+
+    if !km.config_menu_toggle.is_empty()
+        || !km.options_menu_toggle.is_empty()
+        || !km.panels_menu_toggle.is_empty()
+    {
+        let open_config_list_text = i18n::t(app, "app.modals.help.normal_mode.open_config_list");
+        let open_options_text = i18n::t(app, "app.modals.help.normal_mode.open_options");
+        let open_panels_text = i18n::t(app, "app.modals.help.normal_mode.open_panels");
+
+        if let Some(k) = km.config_menu_toggle.first() {
+            n2_spans.push(Span::raw("  •  "));
+            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            n2_spans.push(Span::raw(open_config_list_text.clone()));
+        }
+        if let Some(k) = km.options_menu_toggle.first() {
+            n2_spans.push(Span::raw("  •  "));
+            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            n2_spans.push(Span::raw(open_options_text.clone()));
+        }
+        if let Some(k) = km.panels_menu_toggle.first() {
+            n2_spans.push(Span::raw("  •  "));
+            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            n2_spans.push(Span::raw(open_panels_text.clone()));
+        }
+    }
+
+    if !app.installed_only_mode
+        && (!km.search_normal_import.is_empty() || !km.search_normal_export.is_empty())
+    {
+        let install_list_text = i18n::t(app, "app.modals.help.normal_mode.install_list");
+        let import_text = i18n::t(app, "app.modals.help.normal_mode.import");
+        let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
+
+        n2_spans.push(Span::raw(install_list_text.clone()));
+        if let Some(k) = km.search_normal_import.first() {
+            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            n2_spans.push(Span::raw(import_text.clone()));
+            if let Some(k2) = km.search_normal_export.first() {
+                n2_spans.push(Span::raw(", "));
+                n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
+                n2_spans.push(Span::raw(export_text.clone()));
+            }
+        } else if let Some(k) = km.search_normal_export.first() {
+            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            n2_spans.push(Span::raw(export_text.clone()));
+        }
+    }
+
+    if !n2_spans.is_empty() {
+        lines.push(Line::from(n2_spans));
+    }
+
+    lines
+}
 
 /// What: Render the keybind help footer inside the Package Info pane.
 ///
@@ -41,504 +649,38 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
             height: h,
         };
 
-        let search_label_color = if matches!(app.focus, Focus::Search) {
-            th.mauve
-        } else {
-            th.overlay1
-        };
-        let install_label_color = if matches!(app.focus, Focus::Install) {
-            th.mauve
-        } else {
-            th.overlay1
-        };
-        // Subpane label colors when installed-only mode splits the right pane
-        let downgrade_label_color = if matches!(app.focus, Focus::Install)
-            && matches!(app.right_pane_focus, RightPaneFocus::Downgrade)
-        {
-            th.mauve
-        } else {
-            th.overlay1
-        };
-        let remove_label_color = if matches!(app.focus, Focus::Install)
-            && matches!(app.right_pane_focus, RightPaneFocus::Remove)
-        {
-            th.mauve
-        } else {
-            th.overlay1
-        };
-        let recent_label_color = if matches!(app.focus, Focus::Recent) {
-            th.mauve
-        } else {
-            th.overlay1
-        };
-
         let key_style = Style::default().fg(th.text).add_modifier(Modifier::BOLD);
-        let sep = Span::styled("  |  ", Style::default().fg(th.overlay2));
+        let sep_style = Style::default().fg(th.overlay2);
 
-        // GLOBALS (dynamic from keymap)
-        let km = &app.keymap;
-        let globals_label = format!("{}  ", i18n::t(app, "app.headings.globals"));
-        let mut g_spans: Vec<Span> = vec![
-            Span::styled(
-                globals_label,
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw("  "),
-        ];
-        if let Some(k) = km.exit.first() {
-            g_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.exit"))),
-                sep.clone(),
-            ]);
-        }
-        if let Some(k) = km.help_overlay.first() {
-            g_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.help"))),
-                sep.clone(),
-            ]);
-        }
-        if let Some(k) = km.reload_theme.first() {
-            g_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.reload_theme"))),
-                sep.clone(),
-            ]);
-        }
-        // Menu toggles are shown under Search (Normal mode) now
-        if let Some(k) = km.show_pkgbuild.first() {
-            g_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(
-                    " {}",
-                    i18n::t(app, "app.actions.show_hide_pkgbuild")
-                )),
-                sep.clone(),
-            ]);
-        }
-        // Change sorting (global) using configured keybind
-        if let Some(k) = km.change_sort.first() {
-            g_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.change_sort_mode"))),
-                sep.clone(),
-            ]);
-        }
-        if let Some(k) = km.search_normal_toggle.first() {
-            g_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.insert_mode"))),
-                sep.clone(),
-            ]);
-        }
-        // (Pane focus left/right intentionally omitted from footer)
+        // Build all sections
+        let g_spans = build_globals_section(app, &th, key_style, sep_style);
+        let s_spans = build_search_section(app, &th, key_style, sep_style);
+        let (right_lines_install, right_lines_split) =
+            build_install_section(app, &th, key_style, sep_style);
+        let r_spans = build_recent_section(app, &th, key_style, sep_style);
 
-        // SEARCH
-        let search_label = format!("{}   ", i18n::t(app, "app.headings.search"));
-        let mut s_spans: Vec<Span> = vec![
-            Span::styled(
-                search_label,
-                Style::default()
-                    .fg(search_label_color)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw("  "),
-        ];
-        // Move
-        if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
-            s_spans.extend([
-                Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.move"))),
-                sep.clone(),
-            ]);
-        }
-        // Page
-        if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
-            s_spans.extend([
-                Span::styled(format!("[{} / {}]", pu.label(), pd.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.move_page"))),
-                sep.clone(),
-            ]);
-        }
-        // Add / Install
-        if let Some(k) = km.search_add.first() {
-            s_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(
-                    " {}",
-                    if app.installed_only_mode {
-                        i18n::t(app, "app.actions.add_to_remove")
-                    } else {
-                        i18n::t(app, "app.actions.add_to_install")
-                    }
-                )),
-                sep.clone(),
-            ]);
-        }
-        if app.installed_only_mode {
-            s_spans.extend([
-                Span::styled("[Ctrl+Space]", key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.add_to_downgrade"))),
-                sep.clone(),
-            ]);
-        }
-        if let Some(k) = km.search_install.first() {
-            s_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.install"))),
-                sep.clone(),
-            ]);
-        }
-        // (Pane next, delete char, and focus left/right intentionally omitted from footer)
-
-        // INSTALL or split into DOWNGRADE and REMOVE when installed-only mode is active
-        // Helper to build common spans for right-pane actions
-        let build_right_spans = |label: &str, label_color, confirm_text: &str| {
-            let mut spans: Vec<Span> = vec![
-                Span::styled(
-                    label.to_string(),
-                    Style::default()
-                        .fg(label_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw("  "),
-            ];
-            if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first())
-            {
-                spans.extend([
-                    Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
-                    Span::raw(format!(" {}", i18n::t(app, "app.actions.move"))),
-                    sep.clone(),
-                ]);
-            }
-            if let Some(k) = km.install_confirm.first() {
-                spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(format!(" {confirm_text}")),
-                    sep.clone(),
-                ]);
-            }
-            if !km.install_remove.is_empty() {
-                let keys = km
-                    .install_remove
-                    .iter()
-                    .map(|c| c.label())
-                    .collect::<Vec<_>>()
-                    .join(" / ");
-                spans.extend([
-                    Span::styled(format!("[{keys}]"), key_style),
-                    Span::raw(format!(" {}", i18n::t(app, "app.actions.remove_from_list"))),
-                    sep.clone(),
-                ]);
-            }
-            if let Some(k) = km.install_clear.first() {
-                spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(format!(" {}", i18n::t(app, "app.actions.clear"))),
-                    sep.clone(),
-                ]);
-            }
-            if let Some(k) = km.install_find.first() {
-                spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(format!(
-                        " {}",
-                        i18n::t(app, "app.details.footer.search_hint")
-                    )),
-                    sep.clone(),
-                ]);
-            }
-            if let Some(k) = km.install_to_search.first() {
-                spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(format!(" {}", i18n::t(app, "app.actions.go_to_search"))),
-                    sep.clone(),
-                ]);
-            }
-            spans
-        };
-
-        let (right_lines_install, right_lines_split) = if app.installed_only_mode {
-            let d_spans = build_right_spans(
-                &format!("{}:", i18n::t(app, "app.headings.downgrade")),
-                downgrade_label_color,
-                &i18n::t(app, "app.details.footer.confirm_downgrade"),
-            );
-            let r_spans = build_right_spans(
-                &format!("{}:   ", i18n::t(app, "app.headings.remove")),
-                remove_label_color,
-                &i18n::t(app, "app.details.footer.confirm_removal"),
-            );
-            (None, Some((Line::from(d_spans), Line::from(r_spans))))
-        } else {
-            let mut i_spans: Vec<Span> = vec![
-                Span::styled(
-                    format!("{}:  ", i18n::t(app, "app.headings.install")),
-                    Style::default()
-                        .fg(install_label_color)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::raw("  "),
-            ];
-            if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first())
-            {
-                i_spans.extend([
-                    Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
-                    Span::raw(format!(" {}", i18n::t(app, "app.actions.move"))),
-                    sep.clone(),
-                ]);
-            }
-            if let Some(k) = km.install_confirm.first() {
-                i_spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(format!(
-                        " {}",
-                        i18n::t(app, "app.details.footer.confirm_installation")
-                    )),
-                    sep.clone(),
-                ]);
-            }
-            if !km.install_remove.is_empty() {
-                let keys = km
-                    .install_remove
-                    .iter()
-                    .map(|c| c.label())
-                    .collect::<Vec<_>>()
-                    .join(" / ");
-                i_spans.extend([
-                    Span::styled(format!("[{keys}]"), key_style),
-                    Span::raw(format!(" {}", i18n::t(app, "app.actions.remove_from_list"))),
-                    sep.clone(),
-                ]);
-            }
-            if let Some(k) = km.install_clear.first() {
-                i_spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(format!(" {}", i18n::t(app, "app.actions.clear"))),
-                    sep.clone(),
-                ]);
-            }
-            if let Some(k) = km.install_find.first() {
-                i_spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(format!(
-                        " {}",
-                        i18n::t(app, "app.details.footer.search_hint")
-                    )),
-                    sep.clone(),
-                ]);
-            }
-            if let Some(k) = km.install_to_search.first() {
-                i_spans.extend([
-                    Span::styled(format!("[{}]", k.label()), key_style),
-                    Span::raw(format!(" {}", i18n::t(app, "app.actions.go_to_search"))),
-                    sep.clone(),
-                ]);
-            }
-            (Some(Line::from(i_spans)), None)
-        };
-
-        // RECENT
-        let recent_label = format!("{}   ", i18n::t(app, "app.headings.recent"));
-        let mut r_spans: Vec<Span> = vec![
-            Span::styled(
-                recent_label,
-                Style::default()
-                    .fg(recent_label_color)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw("  "),
-        ];
-        if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
-            r_spans.extend([
-                Span::styled(format!("[{} / {}]", up.label(), dn.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.move"))),
-                sep.clone(),
-            ]);
-        }
-        if let Some(k) = km.recent_use.first() {
-            r_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.add_to_search"))),
-                sep.clone(),
-            ]);
-        }
-        if !km.recent_remove.is_empty() {
-            let keys = km
-                .recent_remove
-                .iter()
-                .map(|c| c.label())
-                .collect::<Vec<_>>()
-                .join(" / ");
-            r_spans.extend([
-                Span::styled(format!("[{keys}]"), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.remove_from_list"))),
-                sep.clone(),
-            ]);
-        }
-        // Clear all entries in Recent: configurable keybind (fallback to Shift+Del label)
-        if let Some(k) = km.recent_clear.first() {
-            r_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.clear"))),
-                sep.clone(),
-            ]);
-        }
-        if let Some(k) = km.recent_add.first() {
-            r_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(
-                    " {}",
-                    i18n::t(app, "app.actions.add_first_match_to_install")
-                )),
-                sep.clone(),
-            ]);
-        }
-        if let Some(k) = km.recent_find.first() {
-            r_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(
-                    " {}",
-                    i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel")
-                )),
-                sep.clone(),
-            ]);
-        }
-        if let Some(k) = km.recent_to_search.first() {
-            r_spans.extend([
-                Span::styled(format!("[{}]", k.label()), key_style),
-                Span::raw(format!(" {}", i18n::t(app, "app.actions.go_to_search"))),
-                sep.clone(),
-            ]);
-        }
-        // (Pane next and focus right intentionally omitted from footer)
-
-        // Optional Normal Mode line when Search is focused and active
-        let mut lines: Vec<Line> = vec![Line::from(g_spans)];
+        // Assemble lines based on focus
+        let mut lines: Vec<Line<'static>> = vec![Line::from(g_spans)];
         if matches!(app.focus, Focus::Search) {
             lines.push(Line::from(s_spans));
         }
-        if matches!(app.focus, Focus::Install)
-            && let Some(i_line) = right_lines_install
-        {
-            lines.push(i_line);
-        }
-        if matches!(app.focus, Focus::Install)
-            && let Some((d_line, rm_line)) = right_lines_split
-        {
-            match app.right_pane_focus {
-                RightPaneFocus::Downgrade => lines.push(d_line),
-                RightPaneFocus::Remove => lines.push(rm_line),
-                _ => {}
+        if matches!(app.focus, Focus::Install) {
+            if let Some(i_line) = right_lines_install {
+                lines.push(i_line);
+            }
+            if let Some((d_line, rm_line)) = right_lines_split {
+                match app.right_pane_focus {
+                    RightPaneFocus::Downgrade => lines.push(d_line),
+                    RightPaneFocus::Remove => lines.push(rm_line),
+                    _ => {}
+                }
             }
         }
         if matches!(app.focus, Focus::Recent) {
             lines.push(Line::from(r_spans));
         }
         if matches!(app.focus, Focus::Search) && app.search_normal_mode {
-            // Use configured labels
-            let label = |v: &Vec<KeyChord>, def: &str| {
-                v.first()
-                    .map(|c| c.label())
-                    .unwrap_or_else(|| def.to_string())
-            };
-            let toggle_label = label(&km.search_normal_toggle, "Esc");
-            let insert_label = label(&km.search_normal_insert, "i");
-            let left_label = label(&km.search_normal_select_left, "h");
-            let right_label = label(&km.search_normal_select_right, "l");
-            let delete_label = label(&km.search_normal_delete, "d");
-            let clear_label = label(&km.search_normal_clear, "Shift+Del");
-
-            // Store translated strings to avoid borrow checker issues
-            let normal_mode_label = i18n::t(app, "app.modals.help.normal_mode.label");
-            let insert_mode_text = i18n::t(app, "app.modals.help.normal_mode.insert_mode");
-            let move_text = i18n::t(app, "app.modals.help.normal_mode.move");
-            let page_text = i18n::t(app, "app.modals.help.normal_mode.page");
-            let select_text_text = i18n::t(app, "app.modals.help.normal_mode.select_text");
-            let delete_text_text = i18n::t(app, "app.modals.help.normal_mode.delete_text");
-            let clear_input_text = i18n::t(app, "app.modals.help.normal_mode.clear_input");
-
-            let n_spans: Vec<Span> = vec![
-                Span::styled(
-                    normal_mode_label.clone(),
-                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-                ),
-                Span::raw("  "),
-                Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
-                Span::raw(insert_mode_text.clone()),
-                Span::styled("[j / k]", key_style),
-                Span::raw(move_text.clone()),
-                Span::styled("[Ctrl+d / Ctrl+u]", key_style),
-                Span::raw(page_text.clone()),
-                Span::styled(format!("[{left_label} / {right_label}]"), key_style),
-                Span::raw(select_text_text.clone()),
-                Span::styled(format!("[{delete_label}]"), key_style),
-                Span::raw(delete_text_text.clone()),
-                Span::styled(format!("[{clear_label}]"), key_style),
-                Span::raw(clear_input_text.clone()),
-                // Close first line (base Normal Mode help)
-            ];
-            lines.push(Line::from(n_spans));
-
-            // Second line: menus and import/export (if any)
-            let mut n2_spans: Vec<Span> = Vec::new();
-
-            // Menus: explicit entries in Normal Mode
-            if !km.config_menu_toggle.is_empty()
-                || !km.options_menu_toggle.is_empty()
-                || !km.panels_menu_toggle.is_empty()
-            {
-                let open_config_list_text =
-                    i18n::t(app, "app.modals.help.normal_mode.open_config_list");
-                let open_options_text = i18n::t(app, "app.modals.help.normal_mode.open_options");
-                let open_panels_text = i18n::t(app, "app.modals.help.normal_mode.open_panels");
-
-                if let Some(k) = km.config_menu_toggle.first() {
-                    n2_spans.push(Span::raw("  •  "));
-                    n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(open_config_list_text.clone()));
-                }
-                if let Some(k) = km.options_menu_toggle.first() {
-                    n2_spans.push(Span::raw("  •  "));
-                    n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(open_options_text.clone()));
-                }
-                if let Some(k) = km.panels_menu_toggle.first() {
-                    n2_spans.push(Span::raw("  •  "));
-                    n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(open_panels_text.clone()));
-                }
-            }
-
-            // Import/Export shortcuts on the same second line
-            if !app.installed_only_mode
-                && (!km.search_normal_import.is_empty() || !km.search_normal_export.is_empty())
-            {
-                let install_list_text = i18n::t(app, "app.modals.help.normal_mode.install_list");
-                let import_text = i18n::t(app, "app.modals.help.normal_mode.import");
-                let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
-
-                n2_spans.push(Span::raw(install_list_text.clone()));
-                if let Some(k) = km.search_normal_import.first() {
-                    n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(import_text.clone()));
-                    if let Some(k2) = km.search_normal_export.first() {
-                        n2_spans.push(Span::raw(", "));
-                        n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                        n2_spans.push(Span::raw(export_text.clone()));
-                    }
-                } else if let Some(k) = km.search_normal_export.first() {
-                    n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-                    n2_spans.push(Span::raw(export_text.clone()));
-                }
-            }
-
-            if !n2_spans.is_empty() {
-                lines.push(Line::from(n2_spans));
-            }
+            lines.extend(build_normal_mode_section(app, &th, key_style));
         }
 
         // Bottom-align the content within the reserved footer area

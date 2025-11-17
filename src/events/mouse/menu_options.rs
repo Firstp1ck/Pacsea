@@ -22,7 +22,7 @@ use crate::state::AppState;
 /// - AUR helper: Shows installed paru/yay if present, or both if neither installed.
 /// - Security scanners: Always includes ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal API setup,
 ///   and aur-sleuth setup. Marks installed items as non-selectable.
-pub(super) fn build_optional_deps_rows(app: &AppState) -> Vec<crate::state::types::OptionalDepRow> {
+pub(crate) fn build_optional_deps_rows(app: &AppState) -> Vec<crate::state::types::OptionalDepRow> {
     let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();
     let is_pkg_installed = |pkg: &str| crate::index::is_installed(pkg);
     let on_path = |cmd: &str| crate::install::command_on_path(cmd);

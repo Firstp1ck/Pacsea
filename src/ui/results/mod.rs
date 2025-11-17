@@ -16,6 +16,78 @@ mod status;
 mod title;
 mod utils;
 
+/// What: Context struct containing all extracted values needed for rendering.
+///
+/// Inputs: Values extracted from AppState to avoid borrow conflicts.
+///
+/// Output: Grouped context data.
+///
+/// Details: Reduces data flow complexity by grouping related values together.
+pub struct RenderContext {
+    pub results_len: usize,
+    pub optional_repos: OptionalRepos,
+    pub menu_states: MenuStates,
+    pub filter_states: FilterStates,
+}
+
+/// What: Optional repository availability flags.
+///
+/// Inputs: Individual boolean flags for each optional repo.
+///
+/// Output: Struct containing all optional repo flags.
+///
+/// Details: Used to pass multiple optional repo flags as a single parameter.
+pub struct OptionalRepos {
+    pub has_eos: bool,
+    pub has_cachyos: bool,
+    pub has_artix: bool,
+    pub has_artix_omniverse: bool,
+    pub has_artix_universe: bool,
+    pub has_artix_lib32: bool,
+    pub has_artix_galaxy: bool,
+    pub has_artix_world: bool,
+    pub has_artix_system: bool,
+    pub has_manjaro: bool,
+}
+
+/// What: Menu open/closed states.
+///
+/// Inputs: Individual boolean flags for each menu.
+///
+/// Output: Struct containing all menu states.
+///
+/// Details: Used to pass multiple menu states as a single parameter.
+pub struct MenuStates {
+    pub sort_menu_open: bool,
+    pub config_menu_open: bool,
+    pub panels_menu_open: bool,
+    pub options_menu_open: bool,
+}
+
+/// What: Filter toggle states.
+///
+/// Inputs: Individual boolean flags for each filter.
+///
+/// Output: Struct containing all filter states.
+///
+/// Details: Used to pass multiple filter states as a single parameter.
+pub struct FilterStates {
+    pub show_aur: bool,
+    pub show_core: bool,
+    pub show_extra: bool,
+    pub show_multilib: bool,
+    pub show_eos: bool,
+    pub show_cachyos: bool,
+    pub show_artix: bool,
+    pub show_artix_omniverse: bool,
+    pub show_artix_universe: bool,
+    pub show_artix_lib32: bool,
+    pub show_artix_galaxy: bool,
+    pub show_artix_world: bool,
+    pub show_artix_system: bool,
+    pub show_manjaro: bool,
+}
+
 /// What: Render the top results list and title controls.
 ///
 /// Inputs:
@@ -34,7 +106,11 @@ mod utils;
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 
-    // Detect availability of optional repos from all_results (unfiltered) to keep chips visible
+    // Keep selection centered within the visible results list when possible
+    utils::center_selection(app, area);
+
+    // Extract values needed for title building before mutating app
+    // Group into context struct to reduce data flow complexity
     let (has_eos, has_cachyos, has_artix, has_artix_repos, has_manjaro) =
         utils::detect_optional_repos(app);
     let (
@@ -46,81 +122,50 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         has_artix_system,
     ) = has_artix_repos;
 
-    // Keep selection centered within the visible results list when possible
-    utils::center_selection(app, area);
-
-    // Extract values needed for title building before mutating app
-    let results_len = app.results.len();
-    let sort_menu_open = app.sort_menu_open;
-    let config_menu_open = app.config_menu_open;
-    let panels_menu_open = app.panels_menu_open;
-    let options_menu_open = app.options_menu_open;
-    let results_filter_show_aur = app.results_filter_show_aur;
-    let results_filter_show_core = app.results_filter_show_core;
-    let results_filter_show_extra = app.results_filter_show_extra;
-    let results_filter_show_multilib = app.results_filter_show_multilib;
-    let results_filter_show_eos = app.results_filter_show_eos;
-    let results_filter_show_cachyos = app.results_filter_show_cachyos;
-    let results_filter_show_artix = app.results_filter_show_artix;
-    let results_filter_show_artix_omniverse = app.results_filter_show_artix_omniverse;
-    let results_filter_show_artix_universe = app.results_filter_show_artix_universe;
-    let results_filter_show_artix_lib32 = app.results_filter_show_artix_lib32;
-    let results_filter_show_artix_galaxy = app.results_filter_show_artix_galaxy;
-    let results_filter_show_artix_world = app.results_filter_show_artix_world;
-    let results_filter_show_artix_system = app.results_filter_show_artix_system;
-    let results_filter_show_manjaro = app.results_filter_show_manjaro;
+    let ctx = RenderContext {
+        results_len: app.results.len(),
+        optional_repos: OptionalRepos {
+            has_eos,
+            has_cachyos,
+            has_artix,
+            has_artix_omniverse,
+            has_artix_universe,
+            has_artix_lib32,
+            has_artix_galaxy,
+            has_artix_world,
+            has_artix_system,
+            has_manjaro,
+        },
+        menu_states: MenuStates {
+            sort_menu_open: app.sort_menu_open,
+            config_menu_open: app.config_menu_open,
+            panels_menu_open: app.panels_menu_open,
+            options_menu_open: app.options_menu_open,
+        },
+        filter_states: FilterStates {
+            show_aur: app.results_filter_show_aur,
+            show_core: app.results_filter_show_core,
+            show_extra: app.results_filter_show_extra,
+            show_multilib: app.results_filter_show_multilib,
+            show_eos: app.results_filter_show_eos,
+            show_cachyos: app.results_filter_show_cachyos,
+            show_artix: app.results_filter_show_artix,
+            show_artix_omniverse: app.results_filter_show_artix_omniverse,
+            show_artix_universe: app.results_filter_show_artix_universe,
+            show_artix_lib32: app.results_filter_show_artix_lib32,
+            show_artix_galaxy: app.results_filter_show_artix_galaxy,
+            show_artix_world: app.results_filter_show_artix_world,
+            show_artix_system: app.results_filter_show_artix_system,
+            show_manjaro: app.results_filter_show_manjaro,
+        },
+    };
 
     // Build title with Sort button, filter toggles, and a right-aligned Options button
-    // (using extracted values to avoid borrow conflicts)
-    let title_spans = title::build_title_spans_from_values(
-        app,
-        results_len,
-        area,
-        has_eos,
-        has_cachyos,
-        has_artix,
-        has_artix_omniverse,
-        has_artix_universe,
-        has_artix_lib32,
-        has_artix_galaxy,
-        has_artix_world,
-        has_artix_system,
-        has_manjaro,
-        sort_menu_open,
-        config_menu_open,
-        panels_menu_open,
-        options_menu_open,
-        results_filter_show_aur,
-        results_filter_show_core,
-        results_filter_show_extra,
-        results_filter_show_multilib,
-        results_filter_show_eos,
-        results_filter_show_cachyos,
-        results_filter_show_artix,
-        results_filter_show_artix_omniverse,
-        results_filter_show_artix_universe,
-        results_filter_show_artix_lib32,
-        results_filter_show_artix_galaxy,
-        results_filter_show_artix_world,
-        results_filter_show_artix_system,
-        results_filter_show_manjaro,
-    );
+    // (using context struct to avoid borrow conflicts and reduce data flow complexity)
+    let title_spans = title::build_title_spans_from_context(app, &ctx, area);
 
     // Record clickable rects for title bar controls (mutates app)
-    title::record_title_rects(
-        app,
-        area,
-        has_eos,
-        has_cachyos,
-        has_artix,
-        has_artix_omniverse,
-        has_artix_universe,
-        has_artix_lib32,
-        has_artix_galaxy,
-        has_artix_world,
-        has_artix_system,
-        has_manjaro,
-    );
+    title::record_title_rects_from_context(app, &ctx, area);
 
     // Extract sort button x position for sort menu positioning
     let btn_x = app.sort_button_rect.map(|(x, _, _, _)| x).unwrap_or(area.x);

@@ -178,54 +178,24 @@ pub(crate) fn handle_modal_key(
                     }
                 }
                 KeyCode::Enter => {
-                    // Build the command lines and run in a terminal
-                    let mut cmds: Vec<String> = Vec::new();
-                    if *do_mirrors {
-                        let sel = if *country_idx < countries.len() {
-                            countries[*country_idx].as_str()
-                        } else {
-                            "Worldwide"
-                        };
-                        // Build distro-aware mirror command via helper using user settings for multi-country and count
-                        let prefs = crate::theme::settings();
-                        let countries_arg = if sel == "Worldwide" {
-                            prefs.selected_countries.as_str()
-                        } else {
-                            sel
-                        };
-                        let count = *mirror_count;
-                        // Persist selection and mirror count to settings.conf
-                        crate::theme::save_selected_countries(countries_arg);
-                        crate::theme::save_mirror_count(count);
-                        cmds.push(distro::mirror_update_command(countries_arg, count));
-                    }
-                    if *do_pacman {
-                        cmds.push("sudo pacman -Syyu --noconfirm".to_string());
-                    }
-                    if *do_aur {
-                        cmds.push("(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi)".to_string());
-                    }
-                    if *do_cache {
-                        cmds.push("sudo pacman -Sc --noconfirm".to_string());
-                        cmds.push("((command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1) && paru -Sc --noconfirm) || ((command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1) && yay -Sc --noconfirm) || true".to_string());
-                    }
-                    if cmds.is_empty() {
-                        app.modal = crate::state::Modal::Alert {
-                            message: "No actions selected".to_string(),
-                        };
-                        return false; // Allow Alert modal to handle further events
-                    } else {
-                        let to_run: Vec<String> = if app.dry_run {
-                            cmds.iter()
-                                .map(|c| format!("echo DRY RUN: {}", c))
-                                .collect()
-                        } else {
-                            cmds
-                        };
-                        crate::install::spawn_shell_commands_in_terminal(&to_run);
-                        app.modal = crate::state::Modal::None;
-                        // Return true to stop event propagation and prevent preflight from being triggered
-                        return true;
+                    let new_modal = handle_system_update_enter(
+                        app.dry_run,
+                        *do_mirrors,
+                        *do_pacman,
+                        *do_aur,
+                        *do_cache,
+                        *country_idx,
+                        countries,
+                        *mirror_count,
+                    );
+                    match new_modal {
+                        Some(m) => {
+                            app.modal = m;
+                            return true;
+                        }
+                        None => {
+                            return false;
+                        }
                     }
                 }
                 _ => {}
@@ -238,60 +208,19 @@ pub(crate) fn handle_modal_key(
                     app.modal = crate::state::Modal::None;
                 }
                 KeyCode::Enter => {
-                    let list = items.clone();
-                    app.modal = crate::state::Modal::None;
-                    if list.len() <= 1 {
-                        if let Some(it) = list.first() {
-                            crate::install::spawn_install(it, None, app.dry_run);
-                            if !app.dry_run {
-                                // Begin a short polling window to refresh installed caches
-                                app.refresh_installed_until = Some(
-                                    std::time::Instant::now() + std::time::Duration::from_secs(12),
-                                );
-                                app.next_installed_refresh_at = None;
-                                app.pending_install_names = Some(vec![it.name.clone()]);
-                            }
-                        }
-                    } else {
-                        crate::install::spawn_install_all(&list, app.dry_run);
-                        if !app.dry_run {
-                            app.refresh_installed_until = Some(
-                                std::time::Instant::now() + std::time::Duration::from_secs(12),
-                            );
-                            app.next_installed_refresh_at = None;
-                            app.pending_install_names =
-                                Some(list.iter().map(|p| p.name.clone()).collect());
-                        }
-                    }
+                    let new_modal = handle_confirm_install_enter(
+                        &mut app.refresh_installed_until,
+                        &mut app.next_installed_refresh_at,
+                        &mut app.pending_install_names,
+                        app.dry_run,
+                        items,
+                    );
+                    app.modal = new_modal;
                 }
                 KeyCode::Char('s') | KeyCode::Char('S') => {
-                    // Build AUR package name list to scan
-                    let list = items.clone();
-                    let mut names: Vec<String> = Vec::new();
-                    for it in list.iter() {
-                        if matches!(it.source, crate::state::Source::Aur) {
-                            names.push(it.name.clone());
-                        }
-                    }
-                    if names.is_empty() {
-                        app.modal = crate::state::Modal::Alert {
-        message: "No AUR packages selected to scan.\nSelect AUR results or add AUR packages to the Install list, then press 's'.".into(),
-        };
-                    } else {
-                        app.pending_install_names = Some(names);
-                        // Open Scan Configuration modal initialized from settings.conf
-                        let prefs = crate::theme::settings();
-                        app.modal = crate::state::Modal::ScanConfig {
-                            do_clamav: prefs.scan_do_clamav,
-                            do_trivy: prefs.scan_do_trivy,
-                            do_semgrep: prefs.scan_do_semgrep,
-                            do_shellcheck: prefs.scan_do_shellcheck,
-                            do_virustotal: prefs.scan_do_virustotal,
-                            do_custom: prefs.scan_do_custom,
-                            do_sleuth: prefs.scan_do_sleuth,
-                            cursor: 0,
-                        };
-                    }
+                    let new_modal =
+                        handle_confirm_install_scan(&mut app.pending_install_names, items);
+                    app.modal = new_modal;
                 }
                 _ => {}
             }
@@ -301,31 +230,16 @@ pub(crate) fn handle_modal_key(
             match ke.code {
                 KeyCode::Esc | KeyCode::Enter => {
                     if ke.code == KeyCode::Enter {
-                        let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-                        if app.dry_run {
-                            // Show the dry-run command and still remove from the list in UI
-                            crate::install::spawn_remove_all(&names, true, app.remove_cascade_mode);
-                            app.remove_list
-                                .retain(|p| !names.iter().any(|n| n == &p.name));
-                            app.remove_state.select(None);
-                        } else {
-                            // Launch a terminal view to perform removal (non-blocking)
-                            crate::install::spawn_remove_all(
-                                &names,
-                                false,
-                                app.remove_cascade_mode,
-                            );
-                            // Remove from remove_list in app state
-                            app.remove_list
-                                .retain(|p| !names.iter().any(|n| n == &p.name));
-                            app.remove_state.select(None);
-                            // Begin a short polling window to refresh installed caches
-                            app.refresh_installed_until =
-                                Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
-                            app.next_installed_refresh_at = None;
-                            // Track pending removals to log after confirmation
-                            app.pending_remove_names = Some(names);
-                        }
+                        handle_confirm_remove_execute(
+                            &mut app.remove_list,
+                            &mut app.remove_state,
+                            &mut app.refresh_installed_until,
+                            &mut app.next_installed_refresh_at,
+                            &mut app.pending_remove_names,
+                            app.dry_run,
+                            app.remove_cascade_mode,
+                            items,
+                        );
                     }
                     app.modal = crate::state::Modal::None;
                 }
@@ -402,101 +316,14 @@ pub(crate) fn handle_modal_key(
                 }
                 KeyCode::Enter => {
                     if let Some(row) = rows.get(*selected) {
-                        if row.package == "virustotal-setup" {
-                            let current = crate::theme::settings().virustotal_api_key;
-                            let cur_len = current.len();
-                            app.modal = crate::state::Modal::VirusTotalSetup {
-                                input: current,
-                                cursor: cur_len,
-                            };
-                        } else if row.package == "aur-sleuth-setup" {
-                            let cmd = r##"(set -e
-            if ! command -v aur-sleuth >/dev/null 2>&1; then
-            echo "aur-sleuth not found."
-            echo
-            echo "Install aur-sleuth:"
-            echo "  1) system (/usr/local) requires sudo"
-            echo "  2) user (~/.local)"
-            echo "  3) cancel"
-            read -rp "Choose [1/2/3]: " choice
-            case "$choice" in
-            1)
-            tmp="$(mktemp -d)"; cd "$tmp"
-            git clone https://github.com/mgalgs/aur-sleuth.git
-            cd aur-sleuth
-            sudo make install
-            ;;
-            2)
-            tmp="$(mktemp -d)"; cd "$tmp"
-            git clone https://github.com/mgalgs/aur-sleuth.git
-            cd aur-sleuth
-            make install PREFIX="$HOME/.local"
-            ;;
-            *)
-            echo "Cancelled."; echo "Press any key to close..."; read -rn1 -s _; exit 0;;
-            esac
-            else
-            echo "aur-sleuth already installed; continuing to setup"
-            fi
-            conf="${XDG_CONFIG_HOME:-$HOME/.config}/aur-sleuth.conf"
-            mkdir -p "$(dirname "$conf")"
-            echo "# aur-sleuth configuration" > "$conf"
-            echo "[default]" >> "$conf"
-            read -rp "OPENAI_BASE_URL (e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1): " base
-            read -rp "OPENAI_MODEL (e.g. qwen/qwen3-30b-a3b-instruct-2507 or llama3.1:8b): " model
-            read -rp "OPENAI_API_KEY: " key
-            read -rp "MAX_LLM_JOBS (default 3): " jobs
-            read -rp "AUDIT_FAILURE_FATAL (true/false) [true]: " fatal
-            jobs=${jobs:-3}
-            fatal=${fatal:-true}
-            [ -n "$base" ] && echo "OPENAI_BASE_URL = $base" >> "$conf"
-            [ -n "$model" ] && echo "OPENAI_MODEL = $model" >> "$conf"
-            echo "OPENAI_API_KEY = $key" >> "$conf"
-            echo "MAX_LLM_JOBS = $jobs" >> "$conf"
-            echo "AUDIT_FAILURE_FATAL = $fatal" >> "$conf"
-            echo; echo "Wrote $conf"
-            echo "Tip: You can run 'aur-sleuth package-name' or audit a local pkgdir with '--pkgdir .'"
-            echo; echo "Press any key to close..."; read -rn1 -s _)"##
-        .to_string();
-                            let to_run = if app.dry_run {
-                                vec![format!("echo DRY RUN: {}", cmd)]
-                            } else {
-                                vec![cmd]
-                            };
-                            crate::install::spawn_shell_commands_in_terminal(&to_run);
-                            app.modal = crate::state::Modal::None;
-                            // Return true to stop event propagation and prevent preflight from being triggered
-                            return true;
-                        } else if !row.installed && row.selectable {
-                            let pkg = row.package.clone();
-                            let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-                            let cmd = if pkg == "paru" {
-                                "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si".to_string()
-                            } else if pkg == "yay" {
-                                "rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si".to_string()
-                            } else if pkg == "semgrep-bin" {
-                                "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
-                            } else if pkg == "rate-mirrors" {
-                                format!(
-                                    "{}{}",
-                                    crate::install::command::aur_install_body(
-                                        "-S --needed --noconfirm",
-                                        &pkg
-                                    ),
-                                    hold_tail
-                                )
-                            } else {
-                                format!("sudo pacman -S --needed --noconfirm {}", pkg)
-                            };
-                            let to_run = if app.dry_run {
-                                vec![format!("echo DRY RUN: {}", cmd)]
-                            } else {
-                                vec![cmd]
-                            };
-                            crate::install::spawn_shell_commands_in_terminal(&to_run);
-                            app.modal = crate::state::Modal::None;
-                            // Return true to stop event propagation and prevent preflight from being triggered
-                            return true;
+                        match handle_optional_deps_enter(app.dry_run, row) {
+                            (new_modal, true) => {
+                                app.modal = new_modal;
+                                return true;
+                            }
+                            (new_modal, false) => {
+                                app.modal = new_modal;
+                            }
                         }
                     }
                 }
@@ -544,89 +371,18 @@ pub(crate) fn handle_modal_key(
                     _ => {}
                 },
                 KeyCode::Enter => {
-                    tracing::info!(
-                        event = "scan_config_confirm",
-                        dry_run = app.dry_run,
-                        do_clamav = *do_clamav,
-                        do_trivy = *do_trivy,
-                        do_semgrep = *do_semgrep,
-                        do_shellcheck = *do_shellcheck,
-                        do_virustotal = *do_virustotal,
-                        do_custom = *do_custom,
-                        pending_count = app.pending_install_names.as_ref().map_or(0, |v| v.len()),
-                        "Scan Configuration confirmed"
+                    let new_modal = handle_scan_config_confirm(
+                        &mut app.pending_install_names,
+                        app.dry_run,
+                        *do_clamav,
+                        *do_trivy,
+                        *do_semgrep,
+                        *do_shellcheck,
+                        *do_virustotal,
+                        *do_custom,
+                        *do_sleuth,
                     );
-                    // Persist scan selection to settings.conf
-                    crate::theme::save_scan_do_clamav(*do_clamav);
-                    crate::theme::save_scan_do_trivy(*do_trivy);
-                    crate::theme::save_scan_do_semgrep(*do_semgrep);
-                    crate::theme::save_scan_do_shellcheck(*do_shellcheck);
-                    crate::theme::save_scan_do_virustotal(*do_virustotal);
-                    crate::theme::save_scan_do_custom(*do_custom);
-                    crate::theme::save_scan_do_sleuth(*do_sleuth);
-
-                    // PACSEA_SCAN_DO_* flags are injected into the spawned terminal by spawn_aur_scan_for_with_config
-
-                    // Spawn scans for pending names (set when opening modal)
-
-                    #[cfg(not(target_os = "windows"))]
-                    if let Some(names) = app.pending_install_names.clone() {
-                        tracing::info!(
-                        names = ?names,
-                        count = names.len(),
-                        dry_run = app.dry_run,
-                        "Launching AUR scans"
-                        );
-                        if app.dry_run {
-                            for n in names.iter() {
-                                tracing::info!(
-                                package = %n,
-                                "Dry-run: spawning AUR scan terminal"
-                                );
-                                let msg = format!(
-                                    "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={} custom={} sleuth={})",
-                                    n,
-                                    *do_clamav,
-                                    *do_trivy,
-                                    *do_semgrep,
-                                    *do_shellcheck,
-                                    *do_virustotal,
-                                    *do_custom,
-                                    *do_sleuth
-                                );
-                                crate::install::spawn_shell_commands_in_terminal(&[msg]);
-                            }
-                        } else {
-                            for n in names.iter() {
-                                tracing::info!(
-                                package = %n,
-                                do_clamav = *do_clamav,
-                                do_trivy = *do_trivy,
-                                do_semgrep = *do_semgrep,
-                                do_shellcheck = *do_shellcheck,
-                                do_virustotal = *do_virustotal,
-                                do_custom = *do_custom,
-                                "Spawning AUR scan terminal"
-                                );
-                                crate::install::spawn_aur_scan_for_with_config(
-                                    n,
-                                    *do_clamav,
-                                    *do_trivy,
-                                    *do_semgrep,
-                                    *do_shellcheck,
-                                    *do_virustotal,
-                                    *do_custom,
-                                    *do_sleuth,
-                                );
-                            }
-                        }
-                    } else {
-                        tracing::warn!(
-                            "Scan confirmed but no pending AUR package names were found"
-                        );
-                    }
-
-                    app.modal = crate::state::Modal::None;
+                    app.modal = new_modal;
                 }
                 _ => {}
             }
@@ -725,108 +481,8 @@ pub(crate) fn handle_modal_key(
         crate::state::Modal::ImportHelp => {
             match ke.code {
                 KeyCode::Enter => {
-                    tracing::info!("import: Enter pressed in ImportHelp modal");
                     app.modal = crate::state::Modal::None;
-                    // Trigger import file picker immediately (executed in background thread)
-                    let add_tx_clone = add_tx.clone();
-                    std::thread::spawn(move || {
-                        tracing::info!("import: thread started, opening file picker");
-                        #[cfg(target_os = "windows")]
-                        let path_opt: Option<String> = {
-                            let script = r#"
-        Add-Type -AssemblyName System.Windows.Forms
-        $ofd = New-Object System.Windows.Forms.OpenFileDialog
-        $ofd.Filter = 'Text Files (*.txt)|*.txt|All Files (*.*)|*.*'
-        $ofd.Multiselect = $false
-        if ($ofd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $ofd.FileName }
-        "#;
-                            let output = std::process::Command::new("powershell")
-                                .args(["-NoProfile", "-Command", script])
-                                .stdin(std::process::Stdio::null())
-                                .output()
-                                .ok();
-                            output.and_then(|o| {
-                                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                                if s.is_empty() { None } else { Some(s) }
-                            })
-                        };
-
-                        #[cfg(not(target_os = "windows"))]
-                        let path_opt: Option<String> = {
-                            // Try zenity, then kdialog; else fall back to reading a default file path
-                            let try_cmd = |prog: &str, args: &[&str]| -> Option<String> {
-                                tracing::debug!(prog = %prog, "import: trying file picker");
-                                let res = std::process::Command::new(prog)
-                                    .args(args)
-                                    .stdin(std::process::Stdio::null())
-                                    .output()
-                                    .ok()?;
-                                // zenity/kdialog return non-zero exit code when cancelled
-                                // Check stdout content - non-empty means file was selected
-                                let s = String::from_utf8_lossy(&res.stdout).trim().to_string();
-                                if s.is_empty() {
-                                    tracing::debug!(prog = %prog, "import: file picker returned empty");
-                                    None
-                                } else {
-                                    tracing::debug!(prog = %prog, path = %s, "import: file picker returned path");
-                                    Some(s)
-                                }
-                            };
-                            try_cmd(
-                                "zenity",
-                                &[
-                                    "--file-selection",
-                                    "--title=Import packages",
-                                    "--file-filter=*.txt",
-                                ],
-                            )
-                            .or_else(|| {
-                                tracing::debug!("import: zenity failed, trying kdialog");
-                                try_cmd("kdialog", &["--getopenfilename", ".", "*.txt"])
-                            })
-                        };
-
-                        if let Some(path) = path_opt {
-                            let path = path.trim().to_string();
-                            tracing::info!(path = %path, "import: selected file");
-                            if let Ok(body) = std::fs::read_to_string(&path) {
-                                use std::collections::HashSet;
-                                let mut official_names: HashSet<String> = HashSet::new();
-                                for it in crate::index::all_official().iter() {
-                                    official_names.insert(it.name.to_lowercase());
-                                }
-                                let mut imported: usize = 0;
-                                for line in body.lines() {
-                                    let name = line.trim();
-                                    if name.is_empty() || name.starts_with('#') {
-                                        continue;
-                                    }
-                                    let src = if official_names.contains(&name.to_lowercase()) {
-                                        crate::state::Source::Official {
-                                            repo: String::new(),
-                                            arch: String::new(),
-                                        }
-                                    } else {
-                                        crate::state::Source::Aur
-                                    };
-                                    let item = crate::state::PackageItem {
-                                        name: name.to_string(),
-                                        version: String::new(),
-                                        description: String::new(),
-                                        source: src,
-                                        popularity: None,
-                                    };
-                                    let _ = add_tx_clone.send(item);
-                                    imported += 1;
-                                }
-                                tracing::info!(path = %path, imported, "import: queued items from list");
-                            } else {
-                                tracing::warn!(path = %path, "import: failed to read file");
-                            }
-                        } else {
-                            tracing::info!("import: canceled by user");
-                        }
-                    });
+                    handle_import_help_enter(add_tx);
                 }
                 KeyCode::Esc => app.modal = crate::state::Modal::None,
                 _ => {}
@@ -840,4 +496,529 @@ pub(crate) fn handle_modal_key(
         }
     }
     false
+}
+
+/// What: Build and execute system update commands.
+///
+/// Inputs:
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `do_mirrors`: Whether to update mirrors
+/// - `do_pacman`: Whether to update pacman packages
+/// - `do_aur`: Whether to update AUR packages
+/// - `do_cache`: Whether to clean cache
+/// - `country_idx`: Selected country index
+/// - `countries`: Available countries list
+/// - `mirror_count`: Number of mirrors to use
+///
+/// Output:
+/// - `Some(Modal::None)` if commands were executed (to stop propagation), `Some(Modal::Alert)` if no actions selected
+///
+/// Details:
+/// - Builds command list based on selected options and spawns them in a terminal
+#[allow(clippy::too_many_arguments)]
+fn handle_system_update_enter(
+    dry_run: bool,
+    do_mirrors: bool,
+    do_pacman: bool,
+    do_aur: bool,
+    do_cache: bool,
+    country_idx: usize,
+    countries: &[String],
+    mirror_count: u16,
+) -> Option<crate::state::Modal> {
+    let mut cmds: Vec<String> = Vec::new();
+    if do_mirrors {
+        let sel = if country_idx < countries.len() {
+            countries[country_idx].as_str()
+        } else {
+            "Worldwide"
+        };
+        let prefs = crate::theme::settings();
+        let countries_arg = if sel == "Worldwide" {
+            prefs.selected_countries.as_str()
+        } else {
+            sel
+        };
+        crate::theme::save_selected_countries(countries_arg);
+        crate::theme::save_mirror_count(mirror_count);
+        cmds.push(distro::mirror_update_command(countries_arg, mirror_count));
+    }
+    if do_pacman {
+        cmds.push("sudo pacman -Syyu --noconfirm".to_string());
+    }
+    if do_aur {
+        cmds.push("(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syyu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syyu --noconfirm; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi)".to_string());
+    }
+    if do_cache {
+        cmds.push("sudo pacman -Sc --noconfirm".to_string());
+        cmds.push("((command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1) && paru -Sc --noconfirm) || ((command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1) && yay -Sc --noconfirm) || true".to_string());
+    }
+    if cmds.is_empty() {
+        return Some(crate::state::Modal::Alert {
+            message: "No actions selected".to_string(),
+        });
+    }
+    let to_run: Vec<String> = if dry_run {
+        cmds.iter()
+            .map(|c| format!("echo DRY RUN: {}", c))
+            .collect()
+    } else {
+        cmds
+    };
+    crate::install::spawn_shell_commands_in_terminal(&to_run);
+    Some(crate::state::Modal::None)
+}
+
+/// What: Execute package installation.
+///
+/// Inputs:
+/// - `refresh_installed_until`: Mutable reference to refresh timer
+/// - `next_installed_refresh_at`: Mutable reference to next refresh time
+/// - `pending_install_names`: Mutable reference to pending install names
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `items`: Package items to install
+///
+/// Output: New modal state (always None after install)
+///
+/// Details:
+/// - Spawns install command(s) and sets up refresh tracking
+fn handle_confirm_install_enter(
+    refresh_installed_until: &mut Option<std::time::Instant>,
+    next_installed_refresh_at: &mut Option<std::time::Instant>,
+    pending_install_names: &mut Option<Vec<String>>,
+    dry_run: bool,
+    items: &[PackageItem],
+) -> crate::state::Modal {
+    let list = items.to_vec();
+    if list.len() <= 1 {
+        if let Some(it) = list.first() {
+            crate::install::spawn_install(it, None, dry_run);
+            if !dry_run {
+                *refresh_installed_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(12));
+                *next_installed_refresh_at = None;
+                *pending_install_names = Some(vec![it.name.clone()]);
+            }
+        }
+    } else {
+        crate::install::spawn_install_all(&list, dry_run);
+        if !dry_run {
+            *refresh_installed_until =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(12));
+            *next_installed_refresh_at = None;
+            *pending_install_names = Some(list.iter().map(|p| p.name.clone()).collect());
+        }
+    }
+    crate::state::Modal::None
+}
+
+/// What: Setup scan configuration for AUR packages.
+///
+/// Inputs:
+/// - `pending_install_names`: Mutable reference to pending install names
+/// - `items`: Package items to scan
+///
+/// Output: New modal state (Alert or ScanConfig)
+///
+/// Details:
+/// - Filters AUR packages and opens scan configuration modal
+fn handle_confirm_install_scan(
+    pending_install_names: &mut Option<Vec<String>>,
+    items: &[PackageItem],
+) -> crate::state::Modal {
+    let list = items.to_vec();
+    let mut names: Vec<String> = Vec::new();
+    for it in list.iter() {
+        if matches!(it.source, crate::state::Source::Aur) {
+            names.push(it.name.clone());
+        }
+    }
+    if names.is_empty() {
+        crate::state::Modal::Alert {
+            message: "No AUR packages selected to scan.\nSelect AUR results or add AUR packages to the Install list, then press 's'.".into(),
+        }
+    } else {
+        *pending_install_names = Some(names);
+        let prefs = crate::theme::settings();
+        crate::state::Modal::ScanConfig {
+            do_clamav: prefs.scan_do_clamav,
+            do_trivy: prefs.scan_do_trivy,
+            do_semgrep: prefs.scan_do_semgrep,
+            do_shellcheck: prefs.scan_do_shellcheck,
+            do_virustotal: prefs.scan_do_virustotal,
+            do_custom: prefs.scan_do_custom,
+            do_sleuth: prefs.scan_do_sleuth,
+            cursor: 0,
+        }
+    }
+}
+
+/// What: Execute package removal.
+///
+/// Inputs:
+/// - `remove_list`: Mutable reference to remove list
+/// - `remove_state`: Mutable reference to remove state
+/// - `refresh_installed_until`: Mutable reference to refresh timer
+/// - `next_installed_refresh_at`: Mutable reference to next refresh time
+/// - `pending_remove_names`: Mutable reference to pending remove names
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `remove_cascade_mode`: Cascade mode for removal
+/// - `items`: Package items to remove
+///
+/// Output: None (modifies state)
+///
+/// Details:
+/// - Spawns removal command and updates UI state
+#[allow(clippy::too_many_arguments)]
+fn handle_confirm_remove_execute(
+    remove_list: &mut Vec<PackageItem>,
+    remove_state: &mut ratatui::widgets::ListState,
+    refresh_installed_until: &mut Option<std::time::Instant>,
+    next_installed_refresh_at: &mut Option<std::time::Instant>,
+    pending_remove_names: &mut Option<Vec<String>>,
+    dry_run: bool,
+    remove_cascade_mode: crate::state::modal::CascadeMode,
+    items: &[PackageItem],
+) {
+    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+    if dry_run {
+        crate::install::spawn_remove_all(&names, true, remove_cascade_mode);
+        remove_list.retain(|p| !names.iter().any(|n| n == &p.name));
+        remove_state.select(None);
+    } else {
+        crate::install::spawn_remove_all(&names, false, remove_cascade_mode);
+        remove_list.retain(|p| !names.iter().any(|n| n == &p.name));
+        remove_state.select(None);
+        *refresh_installed_until =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+        *next_installed_refresh_at = None;
+        *pending_remove_names = Some(names);
+    }
+}
+
+/// What: Handle Enter key in OptionalDeps modal.
+///
+/// Inputs:
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `row`: Selected optional dependency row
+///
+/// Output:
+/// - `(new_modal, should_stop_propagation)` tuple
+///
+/// Details:
+/// - Handles setup for virustotal/aur-sleuth or installs optional dependencies
+fn handle_optional_deps_enter(
+    dry_run: bool,
+    row: &crate::state::types::OptionalDepRow,
+) -> (crate::state::Modal, bool) {
+    if row.package == "virustotal-setup" {
+        let current = crate::theme::settings().virustotal_api_key;
+        let cur_len = current.len();
+        return (
+            crate::state::Modal::VirusTotalSetup {
+                input: current,
+                cursor: cur_len,
+            },
+            false,
+        );
+    }
+    if row.package == "aur-sleuth-setup" {
+        let cmd = r##"(set -e
+            if ! command -v aur-sleuth >/dev/null 2>&1; then
+            echo "aur-sleuth not found."
+            echo
+            echo "Install aur-sleuth:"
+            echo "  1) system (/usr/local) requires sudo"
+            echo "  2) user (~/.local)"
+            echo "  3) cancel"
+            read -rp "Choose [1/2/3]: " choice
+            case "$choice" in
+            1)
+            tmp="$(mktemp -d)"; cd "$tmp"
+            git clone https://github.com/mgalgs/aur-sleuth.git
+            cd aur-sleuth
+            sudo make install
+            ;;
+            2)
+            tmp="$(mktemp -d)"; cd "$tmp"
+            git clone https://github.com/mgalgs/aur-sleuth.git
+            cd aur-sleuth
+            make install PREFIX="$HOME/.local"
+            ;;
+            *)
+            echo "Cancelled."; echo "Press any key to close..."; read -rn1 -s _; exit 0;;
+            esac
+            else
+            echo "aur-sleuth already installed; continuing to setup"
+            fi
+            conf="${XDG_CONFIG_HOME:-$HOME/.config}/aur-sleuth.conf"
+            mkdir -p "$(dirname "$conf")"
+            echo "# aur-sleuth configuration" > "$conf"
+            echo "[default]" >> "$conf"
+            read -rp "OPENAI_BASE_URL (e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1): " base
+            read -rp "OPENAI_MODEL (e.g. qwen/qwen3-30b-a3b-instruct-2507 or llama3.1:8b): " model
+            read -rp "OPENAI_API_KEY: " key
+            read -rp "MAX_LLM_JOBS (default 3): " jobs
+            read -rp "AUDIT_FAILURE_FATAL (true/false) [true]: " fatal
+            jobs=${jobs:-3}
+            fatal=${fatal:-true}
+            [ -n "$base" ] && echo "OPENAI_BASE_URL = $base" >> "$conf"
+            [ -n "$model" ] && echo "OPENAI_MODEL = $model" >> "$conf"
+            echo "OPENAI_API_KEY = $key" >> "$conf"
+            echo "MAX_LLM_JOBS = $jobs" >> "$conf"
+            echo "AUDIT_FAILURE_FATAL = $fatal" >> "$conf"
+            echo; echo "Wrote $conf"
+            echo "Tip: You can run 'aur-sleuth package-name' or audit a local pkgdir with '--pkgdir .'"
+            echo; echo "Press any key to close..."; read -rn1 -s _)"##
+            .to_string();
+        let to_run = if dry_run {
+            vec![format!("echo DRY RUN: {}", cmd)]
+        } else {
+            vec![cmd]
+        };
+        crate::install::spawn_shell_commands_in_terminal(&to_run);
+        return (crate::state::Modal::None, true);
+    }
+    if !row.installed && row.selectable {
+        let pkg = row.package.clone();
+        let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
+        let cmd = if pkg == "paru" {
+            "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si"
+                .to_string()
+        } else if pkg == "yay" {
+            "rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si"
+                .to_string()
+        } else if pkg == "semgrep-bin" {
+            "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
+        } else if pkg == "rate-mirrors" {
+            format!(
+                "{}{}",
+                crate::install::command::aur_install_body("-S --needed --noconfirm", &pkg),
+                hold_tail
+            )
+        } else {
+            format!("sudo pacman -S --needed --noconfirm {}", pkg)
+        };
+        let to_run = if dry_run {
+            vec![format!("echo DRY RUN: {}", cmd)]
+        } else {
+            vec![cmd]
+        };
+        crate::install::spawn_shell_commands_in_terminal(&to_run);
+        return (crate::state::Modal::None, true);
+    }
+    (crate::state::Modal::None, false)
+}
+
+/// What: Confirm and execute scan configuration.
+///
+/// Inputs:
+/// - `pending_install_names`: Mutable reference to pending install names
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `do_clamav`: ClamAV scan flag
+/// - `do_trivy`: Trivy scan flag
+/// - `do_semgrep`: Semgrep scan flag
+/// - `do_shellcheck`: Shellcheck scan flag
+/// - `do_virustotal`: VirusTotal scan flag
+/// - `do_custom`: Custom scan flag
+/// - `do_sleuth`: Sleuth scan flag
+///
+/// Output: New modal state (always None after confirm)
+///
+/// Details:
+/// - Persists scan settings and spawns AUR scans for pending packages
+#[allow(clippy::too_many_arguments)]
+fn handle_scan_config_confirm(
+    pending_install_names: &mut Option<Vec<String>>,
+    dry_run: bool,
+    do_clamav: bool,
+    do_trivy: bool,
+    do_semgrep: bool,
+    do_shellcheck: bool,
+    do_virustotal: bool,
+    do_custom: bool,
+    do_sleuth: bool,
+) -> crate::state::Modal {
+    tracing::info!(
+        event = "scan_config_confirm",
+        dry_run,
+        do_clamav,
+        do_trivy,
+        do_semgrep,
+        do_shellcheck,
+        do_virustotal,
+        do_custom,
+        pending_count = pending_install_names.as_ref().map_or(0, |v| v.len()),
+        "Scan Configuration confirmed"
+    );
+    crate::theme::save_scan_do_clamav(do_clamav);
+    crate::theme::save_scan_do_trivy(do_trivy);
+    crate::theme::save_scan_do_semgrep(do_semgrep);
+    crate::theme::save_scan_do_shellcheck(do_shellcheck);
+    crate::theme::save_scan_do_virustotal(do_virustotal);
+    crate::theme::save_scan_do_custom(do_custom);
+    crate::theme::save_scan_do_sleuth(do_sleuth);
+
+    #[cfg(not(target_os = "windows"))]
+    if let Some(names) = pending_install_names.clone() {
+        tracing::info!(
+            names = ?names,
+            count = names.len(),
+            dry_run,
+            "Launching AUR scans"
+        );
+        if dry_run {
+            for n in names.iter() {
+                tracing::info!(package = %n, "Dry-run: spawning AUR scan terminal");
+                let msg = format!(
+                    "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={} custom={} sleuth={})",
+                    n,
+                    do_clamav,
+                    do_trivy,
+                    do_semgrep,
+                    do_shellcheck,
+                    do_virustotal,
+                    do_custom,
+                    do_sleuth
+                );
+                crate::install::spawn_shell_commands_in_terminal(&[msg]);
+            }
+        } else {
+            for n in names.iter() {
+                tracing::info!(
+                    package = %n,
+                    do_clamav,
+                    do_trivy,
+                    do_semgrep,
+                    do_shellcheck,
+                    do_virustotal,
+                    do_custom,
+                    "Spawning AUR scan terminal"
+                );
+                crate::install::spawn_aur_scan_for_with_config(
+                    n,
+                    do_clamav,
+                    do_trivy,
+                    do_semgrep,
+                    do_shellcheck,
+                    do_virustotal,
+                    do_custom,
+                    do_sleuth,
+                );
+            }
+        }
+    } else {
+        tracing::warn!("Scan confirmed but no pending AUR package names were found");
+    }
+
+    crate::state::Modal::None
+}
+
+/// What: Handle Enter key in ImportHelp modal - open file picker and import packages.
+///
+/// Inputs:
+/// - `add_tx`: Channel for adding packages
+///
+/// Output: None (spawns background thread)
+///
+/// Details:
+/// - Opens file picker dialog and imports package names from selected file
+fn handle_import_help_enter(add_tx: &mpsc::UnboundedSender<PackageItem>) {
+    tracing::info!("import: Enter pressed in ImportHelp modal");
+    let add_tx_clone = add_tx.clone();
+    std::thread::spawn(move || {
+        tracing::info!("import: thread started, opening file picker");
+        #[cfg(target_os = "windows")]
+        let path_opt: Option<String> = {
+            let script = r#"
+        Add-Type -AssemblyName System.Windows.Forms
+        $ofd = New-Object System.Windows.Forms.OpenFileDialog
+        $ofd.Filter = 'Text Files (*.txt)|*.txt|All Files (*.*)|*.*'
+        $ofd.Multiselect = $false
+        if ($ofd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $ofd.FileName }
+        "#;
+            let output = std::process::Command::new("powershell")
+                .args(["-NoProfile", "-Command", script])
+                .stdin(std::process::Stdio::null())
+                .output()
+                .ok();
+            output.and_then(|o| {
+                let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if s.is_empty() { None } else { Some(s) }
+            })
+        };
+
+        #[cfg(not(target_os = "windows"))]
+        let path_opt: Option<String> = {
+            let try_cmd = |prog: &str, args: &[&str]| -> Option<String> {
+                tracing::debug!(prog = %prog, "import: trying file picker");
+                let res = std::process::Command::new(prog)
+                    .args(args)
+                    .stdin(std::process::Stdio::null())
+                    .output()
+                    .ok()?;
+                let s = String::from_utf8_lossy(&res.stdout).trim().to_string();
+                if s.is_empty() {
+                    tracing::debug!(prog = %prog, "import: file picker returned empty");
+                    None
+                } else {
+                    tracing::debug!(prog = %prog, path = %s, "import: file picker returned path");
+                    Some(s)
+                }
+            };
+            try_cmd(
+                "zenity",
+                &[
+                    "--file-selection",
+                    "--title=Import packages",
+                    "--file-filter=*.txt",
+                ],
+            )
+            .or_else(|| {
+                tracing::debug!("import: zenity failed, trying kdialog");
+                try_cmd("kdialog", &["--getopenfilename", ".", "*.txt"])
+            })
+        };
+
+        if let Some(path) = path_opt {
+            let path = path.trim().to_string();
+            tracing::info!(path = %path, "import: selected file");
+            if let Ok(body) = std::fs::read_to_string(&path) {
+                use std::collections::HashSet;
+                let mut official_names: HashSet<String> = HashSet::new();
+                for it in crate::index::all_official().iter() {
+                    official_names.insert(it.name.to_lowercase());
+                }
+                let mut imported: usize = 0;
+                for line in body.lines() {
+                    let name = line.trim();
+                    if name.is_empty() || name.starts_with('#') {
+                        continue;
+                    }
+                    let src = if official_names.contains(&name.to_lowercase()) {
+                        crate::state::Source::Official {
+                            repo: String::new(),
+                            arch: String::new(),
+                        }
+                    } else {
+                        crate::state::Source::Aur
+                    };
+                    let item = crate::state::PackageItem {
+                        name: name.to_string(),
+                        version: String::new(),
+                        description: String::new(),
+                        source: src,
+                        popularity: None,
+                    };
+                    let _ = add_tx_clone.send(item);
+                    imported += 1;
+                }
+                tracing::info!(path = %path, imported, "import: queued items from list");
+            } else {
+                tracing::warn!(path = %path, "import: failed to read file");
+            }
+        } else {
+            tracing::info!("import: canceled by user");
+        }
+    });
 }
