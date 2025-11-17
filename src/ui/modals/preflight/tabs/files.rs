@@ -81,21 +81,38 @@ fn render_error_state(app: &AppState, err_msg: &str) -> Vec<Line<'static>> {
 /// What: Build flat list of display items from file info.
 ///
 /// Inputs:
+/// - `items`: All packages under review.
 /// - `file_info`: File information.
 /// - `file_tree_expanded`: Set of expanded package names.
 ///
 /// Output:
 /// - Returns a vector of display items (headers and files).
+///
+/// Details:
+/// - Always shows ALL packages from items, even if they have no files.
+/// - This ensures packages that failed to resolve files (e.g., due to conflicts) are still visible.
 fn build_display_items(
+    items: &[PackageItem],
     file_info: &[PackageFileInfo],
     file_tree_expanded: &std::collections::HashSet<String>,
 ) -> Vec<FileDisplayItem> {
+    use std::collections::HashMap;
+    // Create a map for quick lookup of file info by package name
+    let file_info_map: HashMap<String, &PackageFileInfo> = file_info
+        .iter()
+        .map(|info| (info.name.clone(), info))
+        .collect();
+
     let mut display_items = Vec::new();
-    for pkg_info in file_info.iter() {
-        if !pkg_info.files.is_empty() {
-            let is_expanded = file_tree_expanded.contains(&pkg_info.name);
-            display_items.push((true, pkg_info.name.clone(), None)); // Package header
-            if is_expanded {
+    // Always show ALL packages from items, even if they have no file info
+    for item in items.iter() {
+        let pkg_name = &item.name;
+        let is_expanded = file_tree_expanded.contains(pkg_name);
+        display_items.push((true, pkg_name.clone(), None)); // Package header
+
+        if is_expanded {
+            // Show files if available
+            if let Some(pkg_info) = file_info_map.get(pkg_name) {
                 for file in pkg_info.files.iter() {
                     display_items.push((
                         false,
@@ -545,14 +562,32 @@ fn render_file_list(
         *file_selected = file_selected_clamped;
     }
 
+    // Calculate viewport: center the selected item, but ensure it's always visible
     let (start_idx, end_idx) = if total_items <= available_height {
+        // All items fit on screen
         (0, total_items)
     } else {
+        // Try to center the selected item
         let start = file_selected_clamped
             .saturating_sub(available_height / 2)
             .min(total_items.saturating_sub(available_height));
         let end = (start + available_height).min(total_items);
-        (start, end)
+
+        // Safety check: ensure selected item is always visible
+        let (final_start, final_end) = if file_selected_clamped < start {
+            // Selected is before start - adjust to include it
+            (
+                file_selected_clamped,
+                (file_selected_clamped + available_height).min(total_items),
+            )
+        } else if file_selected_clamped >= end {
+            // Selected is at or beyond end - position it at bottom
+            let new_end = (file_selected_clamped + 1).min(total_items);
+            (new_end.saturating_sub(available_height).max(0), new_end)
+        } else {
+            (start, end)
+        };
+        (final_start, final_end)
     };
 
     for (display_idx, (is_header, pkg_name, file_opt)) in display_items
@@ -563,15 +598,39 @@ fn render_file_list(
     {
         let is_selected = display_idx == *file_selected;
         if *is_header {
-            let pkg_info = file_info.iter().find(|p| p.name == *pkg_name).unwrap();
             let is_expanded = file_tree_expanded.contains(pkg_name);
-            lines.push(render_package_header(
-                app,
-                pkg_info,
-                pkg_name,
-                is_expanded,
-                is_selected,
-            ));
+            // Handle packages that may not have file info yet
+            if let Some(pkg_info) = file_info.iter().find(|p| p.name == *pkg_name) {
+                lines.push(render_package_header(
+                    app,
+                    pkg_info,
+                    pkg_name,
+                    is_expanded,
+                    is_selected,
+                ));
+            } else {
+                // Package has no file info - render simple header
+                let th = theme();
+                let arrow_symbol = if is_expanded { "▼" } else { "▶" };
+                let header_style = if is_selected {
+                    Style::default()
+                        .fg(th.crust)
+                        .bg(th.lavender)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD)
+                };
+                let spans = vec![
+                    Span::styled(format!("{} {} ", arrow_symbol, pkg_name), header_style),
+                    Span::styled(
+                        "(0 files)",
+                        Style::default().fg(th.subtext1),
+                    ),
+                ];
+                lines.push(Line::from(spans));
+            }
         } else if let Some((change_type, path, is_config, predicted_pacnew, predicted_pacsave)) =
             file_opt
         {
@@ -684,7 +743,7 @@ pub fn render_files_tab(
         );
     }
 
-    let display_items = build_display_items(file_info, file_tree_expanded);
+    let display_items = build_display_items(items, file_info, file_tree_expanded);
     let sync_info = crate::logic::files::get_file_db_sync_info();
     const STALE_THRESHOLD_DAYS: u64 = 7;
     let is_stale = crate::logic::files::is_file_db_stale(STALE_THRESHOLD_DAYS);

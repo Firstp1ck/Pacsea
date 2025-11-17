@@ -398,6 +398,7 @@ de-DE:
           summary_no_conflicts: "Zusammenfassung: Keine Konflikte oder Upgrades erforderlich."
           conflict_singular: "{} Konflikt(e)"
           upgrade_singular: "{} Upgrade(s)"
+          installed_singular: "{} installiert"
           and_more: "... und {} weitere"
           cascade_mode: "Kaskadenmodus: {} ({})"
           no_removal_targets: "Keine Entfernungsziele ausgewählt."

@@ -422,6 +422,7 @@ en-US:
           summary_no_conflicts: "Summary: No conflicts or upgrades required."
           conflict_singular: "{} conflict(s)"
           upgrade_singular: "{} upgrade(s)"
+          installed_singular: "{} installed"
           and_more: "... and {} more"
           cascade_mode: "Cascade mode: {} ({})"
           no_removal_targets: "No removal targets selected."

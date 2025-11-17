@@ -1156,7 +1156,7 @@ fn test_calculate_modal_layout_standard() {
 
     // Modal should be centered and within max size
     assert!(modal_rect.width <= 96);
-    assert!(modal_rect.height <= 22);
+    assert!(modal_rect.height <= 32);
     assert!(modal_rect.x > 0); // Centered
     assert!(modal_rect.y > 0); // Centered
 
@@ -1201,7 +1201,7 @@ fn test_calculate_modal_layout_small() {
 /// - `area`: Very large terminal area (200x100)
 ///
 /// Output:
-/// - Returns modal constrained to max 96x22
+/// - Returns modal constrained to max 96x32
 ///
 /// Details:
 /// - Verifies that maximum size constraints are enforced.
@@ -1219,7 +1219,7 @@ fn test_calculate_modal_layout_max_constraints() {
 
     // Modal should be constrained to max size
     assert_eq!(modal_rect.width, 96);
-    assert_eq!(modal_rect.height, 22);
+    assert_eq!(modal_rect.height, 32);
 }
 
 /// What: Test calculate_modal_layout with offset area.

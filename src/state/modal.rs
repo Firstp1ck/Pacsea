@@ -398,8 +398,8 @@ pub enum Modal {
         tab: PreflightTab,
         /// Aggregated summary information for versions, sizes, and risk cues.
         summary: Option<Box<PreflightSummaryData>>,
-        /// Selected index in the summary package list (for navigation).
-        summary_selected: usize,
+        /// Scroll offset (lines) for the Summary tab content (mouse scrolling only).
+        summary_scroll: u16,
         /// Header chip data shared across summary, execution, and post-summary screens.
         header_chips: PreflightHeaderChips,
         /// Resolved dependency information (populated when Deps tab is accessed).
@@ -584,7 +584,7 @@ mod tests {
             action: super::PreflightAction::Install,
             tab: super::PreflightTab::Summary,
             summary: None,
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: super::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,

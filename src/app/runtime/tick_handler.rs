@@ -631,7 +631,7 @@ mod tests {
             action: crate::state::modal::PreflightAction::Install,
             tab: crate::state::modal::PreflightTab::Summary,
             summary: None,
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: crate::state::modal::PreflightHeaderChips {
                 package_count: 0,
                 download_bytes: 0,

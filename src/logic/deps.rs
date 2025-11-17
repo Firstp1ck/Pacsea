@@ -92,6 +92,15 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             tracing::debug!("Package {} conflicts with: {:?}", item.name, conflicts);
 
             for conflict_name in conflicts {
+                // Skip self-conflicts (package conflicting with itself)
+                if conflict_name.eq_ignore_ascii_case(&item.name) {
+                    tracing::debug!(
+                        "Skipping self-conflict: {} conflicts with itself",
+                        item.name
+                    );
+                    continue;
+                }
+
                 // Check if conflict is installed or provided by any installed package
                 // This checks against the complete list of ~2000 installed packages
                 let is_installed = crate::logic::deps::query::is_package_installed_or_provided(

@@ -91,7 +91,7 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
             action: crate::state::PreflightAction::Install,
             tab: crate::state::PreflightTab::Deps,
             summary: Some(Box::new(summary)),
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: header,
             dependency_info,
             dep_selected: 0,
@@ -130,7 +130,7 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
             action: crate::state::PreflightAction::Install,
             tab: crate::state::PreflightTab::Summary,
             summary: None, // Will be populated when background computation completes
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: crate::state::modal::PreflightHeaderChips {
                 package_count: 1,
                 download_bytes: 0,

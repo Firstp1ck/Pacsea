@@ -9,10 +9,8 @@ use crate::state::modal::{
     CascadeMode, DependencyInfo, DependencySource, DependencyStatus, PreflightHeaderChips,
     PreflightSummaryData,
 };
-use crate::state::{AppState, PackageItem, PreflightAction, Source};
+use crate::state::{AppState, PackageItem, PreflightAction};
 use crate::theme::theme;
-
-use super::super::helpers::{format_bytes, format_signed_bytes};
 
 /// What: Get source badge text and color for a dependency source.
 ///
@@ -43,27 +41,22 @@ fn get_source_badge(source: &DependencySource) -> (String, ratatui::style::Color
     }
 }
 
-/// What: Render summary data section (risk factors, notes, per-package overview).
+/// What: Render summary data section (risk factors).
 ///
 /// Inputs:
 /// - `app`: Application state for i18n.
 /// - `summary_data`: Summary data to render.
 /// - `header_chips`: Header chip data for risk level.
-/// - `summary_selected`: Selected index in the package list (for navigation).
-/// - `content_rect`: Content area rectangle for viewport calculation.
 ///
 /// Output:
 /// - Returns a vector of lines to render.
 ///
 /// Details:
-/// - Shows risk factors, notes, and per-package details if available.
-/// - Supports viewport-based rendering for large package lists.
+/// - Shows risk factors if available.
 fn render_summary_data(
     app: &AppState,
     summary_data: &PreflightSummaryData,
     header_chips: &PreflightHeaderChips,
-    summary_selected: usize,
-    content_rect: Rect,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
@@ -83,122 +76,6 @@ fn render_summary_data(
             let bullet = format!("  • {}", reason);
             lines.push(Line::from(Span::styled(
                 bullet,
-                Style::default().fg(th.subtext1),
-            )));
-        }
-    }
-    if !summary_data.summary_notes.is_empty() {
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.summary.notes"),
-            Style::default()
-                .fg(th.overlay1)
-                .add_modifier(Modifier::BOLD),
-        )));
-        for note in &summary_data.summary_notes {
-            let bullet = format!("  • {}", note);
-            lines.push(Line::from(Span::styled(
-                bullet,
-                Style::default().fg(th.subtext1),
-            )));
-        }
-    }
-    if !summary_data.packages.is_empty() {
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.summary.per_package_overview"),
-            Style::default()
-                .fg(th.overlay1)
-                .add_modifier(Modifier::BOLD),
-        )));
-
-        // Calculate viewport for package list
-        let total_packages = summary_data.packages.len();
-        let available_height = (content_rect.height as usize).saturating_sub(6);
-        let summary_selected_clamped = summary_selected.min(total_packages.saturating_sub(1));
-        let start_idx = summary_selected_clamped
-            .saturating_sub(available_height / 2)
-            .min(total_packages.saturating_sub(available_height));
-        let end_idx = (start_idx + available_height).min(total_packages);
-
-        // Render visible packages
-        for (idx, pkg) in summary_data
-            .packages
-            .iter()
-            .enumerate()
-            .skip(start_idx)
-            .take(end_idx - start_idx)
-        {
-            let is_selected = idx == summary_selected_clamped;
-            let mut entry = format!("  • {}", pkg.name);
-            match &pkg.source {
-                Source::Aur => entry.push_str(" [AUR]"),
-                Source::Official { repo, .. } => entry.push_str(&format!(" [{}]", repo)),
-            }
-            if let Some(installed) = &pkg.installed_version {
-                entry.push_str(&format!(" {} → {}", installed, pkg.target_version));
-            } else {
-                entry.push_str(&format!(" {}", pkg.target_version));
-            }
-            if pkg.is_major_bump {
-                entry.push_str(&format!(
-                    " ({})",
-                    i18n::t(app, "app.modals.preflight.summary.major_bump")
-                ));
-            }
-            if pkg.is_downgrade {
-                entry.push_str(&format!(
-                    " ({})",
-                    i18n::t(app, "app.modals.preflight.summary.downgrade")
-                ));
-            }
-            if let Some(bytes) = pkg.download_bytes {
-                entry.push_str(&format!(
-                    " {}",
-                    i18n::t_fmt1(
-                        app,
-                        "app.modals.preflight.summary.download",
-                        format_bytes(bytes)
-                    )
-                ));
-            }
-            if let Some(delta) = pkg.install_delta_bytes {
-                entry.push_str(&format!(
-                    " {}",
-                    i18n::t_fmt1(
-                        app,
-                        "app.modals.preflight.summary.size",
-                        format_signed_bytes(delta)
-                    )
-                ));
-            }
-            if !pkg.notes.is_empty() {
-                entry.push_str(&format!(" • {}", pkg.notes.join("; ")));
-            }
-            let style = if is_selected {
-                Style::default()
-                    .fg(th.text)
-                    .bg(th.surface1)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(th.subtext0)
-            };
-            lines.push(Line::from(Span::styled(entry, style)));
-        }
-
-        // Show range indicator if needed
-        if total_packages > available_height {
-            lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                i18n::t_fmt(
-                    app,
-                    "app.modals.preflight.deps.showing_range",
-                    &[
-                        &(start_idx + 1).to_string(),
-                        &end_idx.to_string(),
-                        &total_packages.to_string(),
-                    ],
-                ),
                 Style::default().fg(th.subtext1),
             )));
         }
@@ -337,21 +214,29 @@ fn render_dependency_spans(dep: &DependencyInfo) -> Option<Vec<Span<'static>>> {
 /// - `app`: Application state for i18n.
 /// - `items`: Packages under review.
 /// - `dependency_info`: Dependency information.
+/// - `conflicts_selected`: Selected index in the conflicts list (for navigation).
 /// - `content_rect`: Content area rectangle.
+/// - `highlight_selection`: Whether to highlight the selected conflict (true when conflicts section is active).
 ///
 /// Output:
 /// - Returns a vector of lines to render.
 ///
 /// Details:
 /// - Shows conflicts and upgrades grouped by package.
+/// - Supports viewport-based rendering for large conflict lists.
 fn render_install_dependencies(
     app: &AppState,
     items: &[PackageItem],
     dependency_info: &[DependencyInfo],
-    content_rect: Rect,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
+
+    // Check which packages are already installed
+    let installed_packages: Vec<&PackageItem> = items
+        .iter()
+        .filter(|item| crate::index::is_installed(&item.name))
+        .collect();
 
     let important_deps: Vec<&DependencyInfo> = dependency_info
         .iter()
@@ -363,7 +248,8 @@ fn render_install_dependencies(
         })
         .collect();
 
-    if important_deps.is_empty() {
+    // If no conflicts/upgrades and no installed packages, show success message
+    if important_deps.is_empty() && installed_packages.is_empty() {
         lines.push(Line::from(Span::styled(
             i18n::t(app, "app.modals.preflight.summary.no_conflicts_or_upgrades"),
             Style::default().fg(th.green),
@@ -387,6 +273,7 @@ fn render_install_dependencies(
         .iter()
         .filter(|d| matches!(d.status, DependencyStatus::ToUpgrade { .. }))
         .count();
+    let installed_count = installed_packages.len();
 
     let mut summary_parts = Vec::new();
     if conflict_count > 0 {
@@ -403,8 +290,15 @@ fn render_install_dependencies(
             upgrade_count,
         ));
     }
+    if installed_count > 0 {
+        summary_parts.push(i18n::t_fmt1(
+            app,
+            "app.modals.preflight.summary.installed_singular",
+            installed_count,
+        ));
+    }
 
-    let header_text = if conflict_count > 0 {
+    let header_text = if conflict_count > 0 || installed_count > 0 {
         i18n::t_fmt1(
             app,
             "app.modals.preflight.summary.issues",
@@ -423,7 +317,7 @@ fn render_install_dependencies(
     lines.push(Line::from(Span::styled(
         header_text,
         Style::default()
-            .fg(if conflict_count > 0 {
+            .fg(if conflict_count > 0 || installed_count > 0 {
                 th.red
             } else {
                 th.yellow
@@ -432,44 +326,62 @@ fn render_install_dependencies(
     )));
     lines.push(Line::from(""));
 
-    let available_height = (content_rect.height as usize).saturating_sub(6);
-    let mut displayed = 0;
+    // Build display items list (package headers + their dependencies)
+    let mut display_items: Vec<(bool, String, Option<&DependencyInfo>)> = Vec::new();
+    
+    // First, show packages with conflicts/upgrades
     for pkg_name in items.iter().map(|p| &p.name) {
         if let Some(pkg_deps) = grouped.get(pkg_name) {
-            if displayed >= available_height {
-                break;
-            }
-            lines.push(Line::from(Span::styled(
-                format!("▶ {}", pkg_name),
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            )));
-            displayed += 1;
-
+            display_items.push((true, pkg_name.clone(), None));
             let mut seen_deps = HashSet::new();
             for dep in pkg_deps.iter() {
-                if seen_deps.insert(dep.name.as_str())
-                    && displayed < available_height
-                    && let Some(spans) = render_dependency_spans(dep)
-                {
-                    displayed += 1;
-                    lines.push(Line::from(spans));
+                if seen_deps.insert(dep.name.as_str()) {
+                    display_items.push((false, String::new(), Some(*dep)));
                 }
             }
         }
     }
+    
+    // Then, show installed packages (if not already shown)
+    for installed_pkg in installed_packages.iter() {
+        if !grouped.contains_key(&installed_pkg.name) {
+            display_items.push((true, installed_pkg.name.clone(), None));
+            // Add a placeholder entry to show "installed" status
+            // We'll handle this specially in the rendering loop
+            display_items.push((false, installed_pkg.name.clone(), None));
+        }
+    }
 
-    if displayed >= available_height && important_deps.len() > displayed {
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            i18n::t_fmt1(
-                app,
-                "app.modals.preflight.summary.and_more",
-                important_deps.len() - displayed,
-            ),
-            Style::default().fg(th.subtext1),
-        )));
+    // Render all items (no viewport - mouse scrolling handles it)
+    for (is_header, pkg_name, dep) in display_items.iter() {
+        if *is_header {
+            let style = Style::default()
+                .fg(th.overlay1)
+                .add_modifier(Modifier::BOLD);
+            lines.push(Line::from(Span::styled(format!("▶ {}", pkg_name), style)));
+        } else if let Some(dep) = dep {
+            if let Some(spans) = render_dependency_spans(dep) {
+                lines.push(Line::from(spans));
+            }
+        } else if !pkg_name.is_empty() && installed_packages.iter().any(|p| p.name == *pkg_name) {
+            // This is an installed package entry (not a real dependency)
+            // Show "installed" status
+            let mut spans = Vec::new();
+            spans.push(Span::styled("  ", Style::default()));
+            spans.push(Span::styled(
+                "✓ ",
+                Style::default().fg(th.green),
+            ));
+            spans.push(Span::styled(
+                pkg_name.clone(),
+                Style::default().fg(th.text),
+            ));
+            spans.push(Span::styled(
+                " (installed)",
+                Style::default().fg(th.subtext1),
+            ));
+            lines.push(Line::from(spans));
+        }
     }
     lines
 }
@@ -744,6 +656,7 @@ fn render_remove_action(
 /// - `action`: Whether install or remove.
 /// - `summary`: Summary data (optional).
 /// - `summary_selected`: Selected index in the package list (for navigation).
+/// - `conflicts_selected`: Selected index in the conflicts list (for navigation).
 /// - `header_chips`: Header chip data for risk level.
 /// - `dependency_info`: Dependency information.
 /// - `cascade_mode`: Removal cascade mode.
@@ -753,32 +666,26 @@ fn render_remove_action(
 /// - Returns a vector of lines to render.
 ///
 /// Details:
-/// - Shows risk factors, notes, per-package overview, and dependency conflicts/upgrades for install.
+/// - Shows risk factors and dependency conflicts/upgrades for install.
 /// - Shows removal plan and cascade impact for remove actions.
-/// - Supports scrolling through the package list with viewport-based rendering.
+/// - Supports scrolling through the conflicts list with viewport-based rendering.
+/// - Only highlights the active section (conflicts) to avoid dual cursors.
 #[allow(clippy::too_many_arguments)]
 pub fn render_summary_tab(
     app: &AppState,
     items: &[PackageItem],
     action: &PreflightAction,
     summary: &Option<Box<PreflightSummaryData>>,
-    summary_selected: usize,
     header_chips: &PreflightHeaderChips,
     dependency_info: &[DependencyInfo],
     cascade_mode: CascadeMode,
-    content_rect: Rect,
+    _content_rect: Rect,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
 
     if let Some(summary_data) = summary.as_ref() {
-        lines.extend(render_summary_data(
-            app,
-            summary_data,
-            header_chips,
-            summary_selected,
-            content_rect,
-        ));
+        lines.extend(render_summary_data(app, summary_data, header_chips));
     } else {
         lines.push(Line::from(Span::styled(
             "Computing summary...",
@@ -795,12 +702,7 @@ pub fn render_summary_tab(
 
     match *action {
         PreflightAction::Install if !dependency_info.is_empty() => {
-            lines.extend(render_install_dependencies(
-                app,
-                items,
-                dependency_info,
-                content_rect,
-            ));
+            lines.extend(render_install_dependencies(app, items, dependency_info));
         }
         PreflightAction::Remove => {
             lines.extend(render_remove_action(

@@ -94,6 +94,7 @@ pub(crate) fn compute_sandbox_display_items_len(
 /// What: Compute how many rows the Files tab list should expose given expansion state.
 ///
 /// Inputs:
+/// - `items`: All packages under review.
 /// - `file_info`: Resolved file change metadata grouped per package
 /// - `file_tree_expanded`: Set of package names currently expanded in the Files tab
 ///
@@ -101,20 +102,29 @@ pub(crate) fn compute_sandbox_display_items_len(
 /// - Total list length combining headers plus visible file entries.
 ///
 /// Details:
-/// - Skips packages with no file changes.
+/// - Always counts ALL packages from items, even if they have no files.
 /// - Adds one row per package header and additional rows for each file when expanded.
 pub(crate) fn compute_file_display_items_len(
+    items: &[PackageItem],
     file_info: &[crate::state::modal::PackageFileInfo],
     file_tree_expanded: &HashSet<String>,
 ) -> usize {
+    use std::collections::HashMap;
+    // Create a map for quick lookup of file info by package name
+    let file_info_map: HashMap<String, &crate::state::modal::PackageFileInfo> = file_info
+        .iter()
+        .map(|info| (info.name.clone(), info))
+        .collect();
+
     let mut count = 0;
-    for pkg_info in file_info.iter() {
-        if pkg_info.files.is_empty() {
-            continue;
-        }
+    // Always count ALL packages from items, even if they have no file info
+    for item in items.iter() {
         count += 1; // Package header
-        if file_tree_expanded.contains(&pkg_info.name) {
-            count += pkg_info.files.len();
+        if file_tree_expanded.contains(&item.name) {
+            // Count file rows if available
+            if let Some(pkg_info) = file_info_map.get(&item.name) {
+                count += pkg_info.files.len();
+            }
         }
     }
     count
@@ -123,6 +133,7 @@ pub(crate) fn compute_file_display_items_len(
 /// What: Build the flattened `(is_header, label)` list shown by the Files tab renderer.
 ///
 /// Inputs:
+/// - `items`: All packages under review.
 /// - `file_info`: Resolved file change metadata grouped by package
 /// - `file_tree_expanded`: Set of package names that should expand to show individual files
 ///
@@ -130,20 +141,31 @@ pub(crate) fn compute_file_display_items_len(
 /// - Vector of `(bool, String)` pairs distinguishing headers (`true`) from file rows (`false`).
 ///
 /// Details:
-/// - Omits packages with zero file changes completely.
+/// - Always shows ALL packages from items, even if they have no files.
+/// - This ensures packages that failed to resolve files (e.g., due to conflicts) are still visible.
 /// - Uses empty strings for file rows because UI draws file details from separate collections.
 pub(crate) fn build_file_display_items(
+    items: &[PackageItem],
     file_info: &[crate::state::modal::PackageFileInfo],
     file_tree_expanded: &HashSet<String>,
 ) -> Vec<(bool, String)> {
+    use std::collections::HashMap;
+    // Create a map for quick lookup of file info by package name
+    let file_info_map: HashMap<String, &crate::state::modal::PackageFileInfo> = file_info
+        .iter()
+        .map(|info| (info.name.clone(), info))
+        .collect();
+
     let mut display_items: Vec<(bool, String)> = Vec::new();
-    for pkg_info in file_info.iter() {
-        if pkg_info.files.is_empty() {
-            continue;
-        }
-        display_items.push((true, pkg_info.name.clone()));
-        if file_tree_expanded.contains(&pkg_info.name) {
-            display_items.extend(pkg_info.files.iter().map(|_| (false, String::new())));
+    // Always show ALL packages from items, even if they have no file info
+    for item in items.iter() {
+        let pkg_name = &item.name;
+        display_items.push((true, pkg_name.clone()));
+        if file_tree_expanded.contains(pkg_name) {
+            // Show file rows if available
+            if let Some(pkg_info) = file_info_map.get(pkg_name) {
+                display_items.extend(pkg_info.files.iter().map(|_| (false, String::new())));
+            }
         }
     }
     display_items
@@ -402,8 +424,8 @@ fn handle_enter_or_space(ctx: EnterOrSpaceContext<'_>) -> bool {
         return false;
     }
 
-    if *ctx.tab == crate::state::PreflightTab::Files && !ctx.file_info.is_empty() {
-        let display_items = build_file_display_items(ctx.file_info, ctx.file_tree_expanded);
+    if *ctx.tab == crate::state::PreflightTab::Files {
+        let display_items = build_file_display_items(ctx.items, ctx.file_info, ctx.file_tree_expanded);
         if let Some((is_header, pkg_name)) = display_items.get(ctx.file_selected)
             && *is_header
         {
@@ -524,7 +546,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         items,
         action,
         summary,
-        summary_selected,
+        summary_scroll: _,
         dependency_info,
         dep_selected,
         dep_tree_expanded,
@@ -631,13 +653,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 switch_preflight_tab(new_tab, app, &items_clone, &action_clone);
             }
             KeyCode::Up => {
-                if *tab == crate::state::PreflightTab::Summary
-                    && summary.is_some()
-                    && !summary.as_ref().unwrap().packages.is_empty()
-                    && *summary_selected > 0
-                {
-                    *summary_selected -= 1;
-                } else if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
+                if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
                     if *dep_selected > 0 {
                         *dep_selected -= 1;
                         tracing::debug!(
@@ -669,15 +685,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 }
             }
             KeyCode::Down => {
-                if *tab == crate::state::PreflightTab::Summary
-                    && summary.is_some()
-                    && !summary.as_ref().unwrap().packages.is_empty()
-                {
-                    let max_index = summary.as_ref().unwrap().packages.len().saturating_sub(1);
-                    if *summary_selected < max_index {
-                        *summary_selected += 1;
-                    }
-                } else if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
+                if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
                     let display_len =
                         compute_display_items_len(items, dependency_info, dep_tree_expanded);
                     tracing::debug!(
@@ -701,8 +709,8 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                             display_len
                         );
                     }
-                } else if *tab == crate::state::PreflightTab::Files && !file_info.is_empty() {
-                    let display_len = compute_file_display_items_len(file_info, file_tree_expanded);
+                } else if *tab == crate::state::PreflightTab::Files {
+                    let display_len = compute_file_display_items_len(items, file_info, file_tree_expanded);
                     if *file_selected < display_len.saturating_sub(1) {
                         *file_selected += 1;
                     }
@@ -866,11 +874,9 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                         // Collapse all
                         dep_tree_expanded.clear();
                     } else {
-                        // Expand all
+                        // Expand all packages (even if they have no dependencies)
                         for pkg_name in items.iter().map(|p| &p.name) {
-                            if grouped.contains_key(pkg_name) {
-                                dep_tree_expanded.insert(pkg_name.clone());
-                            }
+                            dep_tree_expanded.insert(pkg_name.clone());
                         }
                     }
                 } else if *tab == crate::state::PreflightTab::Files && !file_info.is_empty() {
@@ -1311,18 +1317,19 @@ mod tests {
     /// - File info for a package with two files and another with zero files.
     ///
     /// Output:
-    /// - Collapsed count returns one; expanded count increases to three.
+    /// - Collapsed count returns two (both packages shown); expanded count increases to four (2 headers + 2 files).
     ///
     /// Details:
     /// - Exercises the branch that toggles between header-only and expanded file listings.
     fn file_display_len_respects_expansion_state() {
+        let items = vec![pkg("pkg"), pkg("empty")];
         let info = vec![file_info("pkg", 2), file_info("empty", 0)];
         let mut expanded = HashSet::new();
-        let collapsed = compute_file_display_items_len(&info, &expanded);
-        assert_eq!(collapsed, 1);
+        let collapsed = compute_file_display_items_len(&items, &info, &expanded);
+        assert_eq!(collapsed, 2); // Both packages shown
         expanded.insert("pkg".to_string());
-        let expanded_len = compute_file_display_items_len(&info, &expanded);
-        assert_eq!(expanded_len, 3);
+        let expanded_len = compute_file_display_items_len(&items, &info, &expanded);
+        assert_eq!(expanded_len, 4); // 2 headers + 2 files from pkg
     }
 
     #[test]
@@ -1337,12 +1344,13 @@ mod tests {
     /// Details:
     /// - Helps guarantee alignment between item construction and length calculations.
     fn build_file_items_match_expansion() {
+        let items = vec![pkg("pkg")];
         let info = vec![file_info("pkg", 2)];
-        let collapsed = build_file_display_items(&info, &HashSet::new());
+        let collapsed = build_file_display_items(&items, &info, &HashSet::new());
         assert_eq!(collapsed, vec![(true, "pkg".into())]);
         let mut expanded = HashSet::new();
         expanded.insert("pkg".to_string());
-        let expanded_items = build_file_display_items(&info, &expanded);
+        let expanded_items = build_file_display_items(&items, &info, &expanded);
         assert_eq!(
             expanded_items,
             vec![
@@ -1379,7 +1387,7 @@ mod tests {
             action: PreflightAction::Install,
             tab,
             summary: None,
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info,
             dep_selected,
@@ -1428,7 +1436,7 @@ mod tests {
             action: PreflightAction::Install,
             tab,
             summary: None,
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
@@ -1668,7 +1676,7 @@ mod tests {
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             summary: None,
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
@@ -1733,7 +1741,7 @@ mod tests {
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             summary: None,
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
@@ -1818,16 +1826,17 @@ mod tests {
     /// Details:
     /// - Ensures files are not filtered out and are correctly counted for display.
     fn files_displayed_when_file_info_populated() {
+        let items = vec![pkg("pkg1"), pkg("pkg2")];
         let file_infos = vec![file_info("pkg1", 5), file_info("pkg2", 3)];
         let mut expanded = HashSet::new();
         expanded.insert("pkg1".to_string());
-        let len = compute_file_display_items_len(&file_infos, &expanded);
+        let len = compute_file_display_items_len(&items, &file_infos, &expanded);
         // Should count: 2 headers + 5 files from pkg1 = 7
         assert_eq!(len, 7);
 
         // Expand both packages
         expanded.insert("pkg2".to_string());
-        let len_expanded = compute_file_display_items_len(&file_infos, &expanded);
+        let len_expanded = compute_file_display_items_len(&items, &file_infos, &expanded);
         // Should count: 2 headers + 5 files + 3 files = 10
         assert_eq!(len_expanded, 10);
     }
@@ -1836,18 +1845,20 @@ mod tests {
     /// What: Verify that empty file_info shows correct empty state.
     ///
     /// Inputs:
-    /// - Preflight modal with empty file_info.
+    /// - Preflight modal with empty file_info but packages in items.
     ///
     /// Output:
-    /// - File display length returns 0 for empty file_info.
+    /// - File display length returns 2 (all packages shown even if no file info).
     ///
     /// Details:
     /// - Ensures empty states are handled correctly without panicking.
     fn empty_file_info_handled_correctly() {
+        let items = vec![pkg("pkg1"), pkg("pkg2")];
         let file_infos = Vec::<PackageFileInfo>::new();
         let expanded = HashSet::new();
-        let len = compute_file_display_items_len(&file_infos, &expanded);
-        assert_eq!(len, 0);
+        let len = compute_file_display_items_len(&items, &file_infos, &expanded);
+        // Should count: 2 headers (all packages shown even if no file info)
+        assert_eq!(len, 2);
     }
 
     #[test]
@@ -1874,7 +1885,7 @@ mod tests {
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             summary: None,
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
@@ -1944,7 +1955,7 @@ mod tests {
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             summary: None,
-            summary_selected: 0,
+            summary_scroll: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,

@@ -586,6 +586,8 @@ pub fn render_deps_tab(
             is_resolving,
             deps_error,
         ));
+        // Return early - empty state already shows packages, don't render them again
+        return lines;
     }
 
     // Build display items and render viewport

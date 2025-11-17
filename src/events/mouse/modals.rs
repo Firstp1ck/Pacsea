@@ -511,16 +511,13 @@ fn handle_deps_tab_click(mx: u16, my: u16, app: &mut AppState) -> bool {
 /// - Toggles package expansion state when clicking on a header.
 fn handle_files_tab_click(mx: u16, my: u16, app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight {
+        items,
         file_info,
         file_selected,
         file_tree_expanded,
         ..
     } = &mut app.modal
     {
-        if file_info.is_empty() {
-            return false;
-        }
-
         let Some((content_x, content_y, content_w, content_h)) = app.preflight_content_rect else {
             return false;
         };
@@ -537,8 +534,9 @@ fn handle_files_tab_click(mx: u16, my: u16, app: &mut AppState) -> bool {
         let clicked_row = (my - content_y) as usize;
 
         // Build display items list to find which package header was clicked
+        // Always show all packages, even if they have no files
         let display_items =
-            crate::events::preflight::build_file_display_items(file_info, file_tree_expanded);
+            crate::events::preflight::build_file_display_items(items, file_info, file_tree_expanded);
 
         // Calculate offset for summary lines before the list
         // Files tab has: summary line (1) + empty line (1) + optional sync timestamp (0-2) + empty line (0-1)
@@ -755,16 +753,13 @@ fn handle_deps_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
 /// - Handles scroll up/down to move selection.
 fn handle_files_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight {
+        items,
         file_info,
         file_selected,
         file_tree_expanded,
         ..
     } = &mut app.modal
     {
-        if file_info.is_empty() {
-            return false;
-        }
-
         match m.kind {
             MouseEventKind::ScrollUp => {
                 if *file_selected > 0 {
@@ -774,6 +769,7 @@ fn handle_files_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
             }
             MouseEventKind::ScrollDown => {
                 let display_len = crate::events::preflight::compute_file_display_items_len(
+                    items,
                     file_info,
                     file_tree_expanded,
                 );
@@ -813,31 +809,30 @@ fn handle_files_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
 /// Output:
 /// - `true` if the scroll was handled, `false` otherwise.
 ///
+/// Handle scroll events in the Summary tab of the Preflight modal.
+///
+/// What: Process mouse scroll to scroll the entire Summary tab content.
+///
+/// Inputs:
+/// - `m`: Mouse event including scroll direction
+/// - `app`: Mutable application state containing modal state
+///
+/// Output:
+/// - `true` if the scroll was handled, `false` otherwise.
+///
 /// Details:
-/// - Handles scroll up/down to move selection through the package list.
+/// - Increments/decrements scroll offset for the entire Summary tab content.
 fn handle_summary_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
-    if let crate::state::Modal::Preflight {
-        summary,
-        summary_selected,
-        ..
-    } = &mut app.modal
-    {
-        if summary.is_none() || summary.as_ref().unwrap().packages.is_empty() {
-            return false;
-        }
-
-        let packages = &summary.as_ref().unwrap().packages;
+    if let crate::state::Modal::Preflight { summary_scroll, .. } = &mut app.modal {
         match m.kind {
             MouseEventKind::ScrollUp => {
-                if *summary_selected > 0 {
-                    *summary_selected -= 1;
+                if *summary_scroll > 0 {
+                    *summary_scroll = summary_scroll.saturating_sub(1);
                 }
                 return true;
             }
             MouseEventKind::ScrollDown => {
-                if *summary_selected + 1 < packages.len() {
-                    *summary_selected += 1;
-                }
+                *summary_scroll = summary_scroll.saturating_add(1);
                 return true;
             }
             _ => {}
@@ -904,6 +899,7 @@ fn handle_services_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
 /// Details:
 /// - Groups dependencies by the packages that require them.
 /// - Only includes dependencies when their parent package is expanded.
+/// - Always includes all packages, even if they have no dependencies.
 /// - Deduplicates dependencies by name within each package group.
 fn build_deps_display_items(
     items: &[PackageItem],
@@ -919,16 +915,16 @@ fn build_deps_display_items(
     }
 
     let mut display_items: Vec<(bool, String)> = Vec::new();
+    // Always show ALL packages, even if they have no dependencies
+    // This ensures packages that failed to resolve dependencies (e.g., due to conflicts) are still visible
     for pkg_name in items.iter().map(|p| &p.name) {
-        if grouped.contains_key(pkg_name) {
-            display_items.push((true, pkg_name.clone()));
-            if dep_tree_expanded.contains(pkg_name) {
-                let mut seen_deps = HashSet::new();
-                if let Some(pkg_deps) = grouped.get(pkg_name) {
-                    for dep in pkg_deps.iter() {
-                        if seen_deps.insert(dep.name.as_str()) {
-                            display_items.push((false, String::new()));
-                        }
+        display_items.push((true, pkg_name.clone()));
+        if dep_tree_expanded.contains(pkg_name) {
+            let mut seen_deps = HashSet::new();
+            if let Some(pkg_deps) = grouped.get(pkg_name) {
+                for dep in pkg_deps.iter() {
+                    if seen_deps.insert(dep.name.as_str()) {
+                        display_items.push((false, String::new()));
                     }
                 }
             }

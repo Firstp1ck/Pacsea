@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::i18n;
-use crate::state::{AppState, PreflightAction, PreflightTab};
+use crate::state::{AppState, Modal, PreflightAction, PreflightTab};
 use crate::theme::theme;
 
 mod footer;
@@ -50,7 +50,7 @@ pub fn render_preflight(
         action,
         tab,
         summary,
-        summary_selected,
+        summary_scroll: _,
         header_chips,
         dependency_info,
         dep_selected,
@@ -143,7 +143,6 @@ pub fn render_preflight(
                 items,
                 action,
                 summary,
-                *summary_selected,
                 header_chips,
                 dependency_info,
                 *cascade_mode,
@@ -204,9 +203,20 @@ pub fn render_preflight(
     }
 
     // Render content area (no bottom border - keybinds pane will have top border)
+    // Apply scroll offset for Summary tab (mouse scrolling only)
+    let scroll_offset = if matches!(tab, PreflightTab::Summary) {
+        if let Modal::Preflight { summary_scroll, .. } = &app.modal {
+            (*summary_scroll, 0)
+        } else {
+            (0, 0)
+        }
+    } else {
+        (0, 0)
+    };
     let boxw = Paragraph::new(lines)
         .style(Style::default().fg(th.text).bg(bg_color))
         .wrap(Wrap { trim: true })
+        .scroll(scroll_offset)
         .block(
             Block::default()
                 .title(ratatui::text::Span::styled(

@@ -32,9 +32,15 @@ pub fn sync_dependencies(
         return;
     }
 
-    let should_load = dependency_info.is_empty() || matches!(*tab, PreflightTab::Deps);
+    // Sync dependencies when:
+    // 1. On Deps tab (to show dependency list)
+    // 2. On Summary tab (to show conflicts)
+    // 3. Or when dependency_info is empty (first load)
+    let should_sync = dependency_info.is_empty()
+        || matches!(*tab, PreflightTab::Deps)
+        || matches!(*tab, PreflightTab::Summary);
 
-    if !should_load || !matches!(*tab, PreflightTab::Deps) {
+    if !should_sync {
         return;
     }
 
@@ -57,7 +63,8 @@ pub fn sync_dependencies(
             .collect();
 
         tracing::debug!(
-            "[UI] Deps tab: cache={}, filtered={}, items={:?}, resolving={}, current={}",
+            "[UI] Deps sync: tab={:?}, cache={}, filtered={}, items={:?}, resolving={}, current={}",
+            tab,
             app.install_list_deps.len(),
             filtered.len(),
             item_names,
@@ -65,15 +72,14 @@ pub fn sync_dependencies(
             dependency_info.len()
         );
 
-        // Always update when on Deps tab, but only reset selection if dependencies were empty (first load)
-        // Don't reset on every render - that would break navigation
+        // Always update when cache has data and we're on a tab that needs it
+        // This ensures conflicts are shown in Summary tab and dependencies in Deps tab
+        // Only reset selection if dependencies were empty (first load) - don't reset on every render
         let was_empty = dependency_info.is_empty();
-        if !filtered.is_empty() || dependency_info.is_empty() {
-            *dependency_info = filtered;
-            // Only reset selection if this is the first load (was empty), not on every render
-            if was_empty {
-                *dep_selected = 0;
-            }
+        *dependency_info = filtered;
+        // Only reset selection if this is the first load (was empty), not on every render
+        if was_empty {
+            *dep_selected = 0;
         }
     } else if dependency_info.is_empty() {
         // Check if background resolution is in progress
