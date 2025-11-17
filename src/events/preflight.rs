@@ -524,6 +524,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
         items,
         action,
         summary,
+        summary_selected,
         dependency_info,
         dep_selected,
         dep_tree_expanded,
@@ -577,7 +578,7 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
             }
             KeyCode::Left => {
                 *tab = match tab {
-                    crate::state::PreflightTab::Summary => crate::state::PreflightTab::Services,
+                    crate::state::PreflightTab::Summary => crate::state::PreflightTab::Sandbox,
                     crate::state::PreflightTab::Deps => crate::state::PreflightTab::Summary,
                     crate::state::PreflightTab::Files => crate::state::PreflightTab::Deps,
                     crate::state::PreflightTab::Services => crate::state::PreflightTab::Files,
@@ -630,7 +631,13 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 switch_preflight_tab(new_tab, app, &items_clone, &action_clone);
             }
             KeyCode::Up => {
-                if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
+                if *tab == crate::state::PreflightTab::Summary
+                    && summary.is_some()
+                    && !summary.as_ref().unwrap().packages.is_empty()
+                    && *summary_selected > 0
+                {
+                    *summary_selected -= 1;
+                } else if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
                     if *dep_selected > 0 {
                         *dep_selected -= 1;
                         tracing::debug!(
@@ -662,7 +669,15 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                 }
             }
             KeyCode::Down => {
-                if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
+                if *tab == crate::state::PreflightTab::Summary
+                    && summary.is_some()
+                    && !summary.as_ref().unwrap().packages.is_empty()
+                {
+                    let max_index = summary.as_ref().unwrap().packages.len().saturating_sub(1);
+                    if *summary_selected < max_index {
+                        *summary_selected += 1;
+                    }
+                } else if *tab == crate::state::PreflightTab::Deps && !items.is_empty() {
                     let display_len =
                         compute_display_items_len(items, dependency_info, dep_tree_expanded);
                     tracing::debug!(
@@ -1364,6 +1379,7 @@ mod tests {
             action: PreflightAction::Install,
             tab,
             summary: None,
+            summary_selected: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info,
             dep_selected,
@@ -1412,6 +1428,7 @@ mod tests {
             action: PreflightAction::Install,
             tab,
             summary: None,
+            summary_selected: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
@@ -1651,6 +1668,7 @@ mod tests {
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             summary: None,
+            summary_selected: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
@@ -1715,6 +1733,7 @@ mod tests {
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             summary: None,
+            summary_selected: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
@@ -1855,6 +1874,7 @@ mod tests {
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             summary: None,
+            summary_selected: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,
@@ -1924,6 +1944,7 @@ mod tests {
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             summary: None,
+            summary_selected: 0,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
             dependency_info: Vec::new(),
             dep_selected: 0,

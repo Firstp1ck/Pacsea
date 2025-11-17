@@ -291,6 +291,11 @@ fn handle_preflight_modal(
 
     // Handle tab-specific scrolls
     match current_tab {
+        crate::state::PreflightTab::Summary => {
+            if handle_summary_tab_scroll(m, app) {
+                return Some(false);
+            }
+        }
         crate::state::PreflightTab::Deps => {
             if handle_deps_tab_scroll(m, app) {
                 return Some(false);
@@ -790,6 +795,64 @@ fn handle_files_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
 /// Inputs:
 /// - `m`: Mouse event including scroll direction
 /// - `app`: Mutable application state containing modal state
+///
+/// Output:
+/// - `true` if the scroll was handled, `false` otherwise.
+///
+/// Details:
+/// - Handles scroll up/down to move selection.
+///
+/// Handle scroll events in the Summary tab of the Preflight modal.
+///
+/// What: Process mouse scroll to navigate the package list.
+///
+/// Inputs:
+/// - `m`: Mouse event including position, button, and modifiers
+/// - `app`: Mutable application state containing modal state and UI rectangles
+///
+/// Output:
+/// - `true` if the scroll was handled, `false` otherwise.
+///
+/// Details:
+/// - Handles scroll up/down to move selection through the package list.
+fn handle_summary_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
+    if let crate::state::Modal::Preflight {
+        summary,
+        summary_selected,
+        ..
+    } = &mut app.modal
+    {
+        if summary.is_none() || summary.as_ref().unwrap().packages.is_empty() {
+            return false;
+        }
+
+        let packages = &summary.as_ref().unwrap().packages;
+        match m.kind {
+            MouseEventKind::ScrollUp => {
+                if *summary_selected > 0 {
+                    *summary_selected -= 1;
+                }
+                return true;
+            }
+            MouseEventKind::ScrollDown => {
+                if *summary_selected + 1 < packages.len() {
+                    *summary_selected += 1;
+                }
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Handle scroll events in the Services tab of the Preflight modal.
+///
+/// What: Process mouse scroll to navigate the file list.
+///
+/// Inputs:
+/// - `m`: Mouse event including position, button, and modifiers
+/// - `app`: Mutable application state containing modal state and UI rectangles
 ///
 /// Output:
 /// - `true` if the scroll was handled, `false` otherwise.

@@ -654,6 +654,7 @@ fn open_preflight_install_modal(app: &mut AppState) {
         action: crate::state::PreflightAction::Install,
         tab: crate::state::PreflightTab::Summary,
         summary: Some(Box::new(minimal_summary)), // Minimal summary shown initially, will be replaced by full summary
+        summary_selected: 0,
         header_chips: minimal_header, // Will be replaced by full header when summary completes
         dependency_info,
         dep_selected: 0,
@@ -715,6 +716,7 @@ fn open_preflight_remove_modal(app: &mut AppState) {
         action: crate::state::PreflightAction::Remove,
         tab: crate::state::PreflightTab::Summary,
         summary: None, // Will be populated when background computation completes
+        summary_selected: 0,
         header_chips: crate::state::modal::PreflightHeaderChips {
             package_count: item_count,
             download_bytes: 0,
@@ -1027,6 +1029,7 @@ mod tests {
                 action,
                 tab,
                 summary: _,
+                summary_selected: _,
                 header_chips: _,
                 dependency_info: _,
                 dep_selected: _,
@@ -1103,6 +1106,7 @@ mod tests {
         match app.modal {
             crate::state::Modal::Preflight {
                 summary: _,
+                summary_selected: _,
                 header_chips: _,
                 dependency_info: _,
                 dep_selected: _,

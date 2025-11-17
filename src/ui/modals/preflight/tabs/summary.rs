@@ -49,16 +49,21 @@ fn get_source_badge(source: &DependencySource) -> (String, ratatui::style::Color
 /// - `app`: Application state for i18n.
 /// - `summary_data`: Summary data to render.
 /// - `header_chips`: Header chip data for risk level.
+/// - `summary_selected`: Selected index in the package list (for navigation).
+/// - `content_rect`: Content area rectangle for viewport calculation.
 ///
 /// Output:
 /// - Returns a vector of lines to render.
 ///
 /// Details:
 /// - Shows risk factors, notes, and per-package details if available.
+/// - Supports viewport-based rendering for large package lists.
 fn render_summary_data(
     app: &AppState,
     summary_data: &PreflightSummaryData,
     header_chips: &PreflightHeaderChips,
+    summary_selected: usize,
+    content_rect: Rect,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
@@ -106,7 +111,25 @@ fn render_summary_data(
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )));
-        for pkg in &summary_data.packages {
+
+        // Calculate viewport for package list
+        let total_packages = summary_data.packages.len();
+        let available_height = (content_rect.height as usize).saturating_sub(6);
+        let summary_selected_clamped = summary_selected.min(total_packages.saturating_sub(1));
+        let start_idx = summary_selected_clamped
+            .saturating_sub(available_height / 2)
+            .min(total_packages.saturating_sub(available_height));
+        let end_idx = (start_idx + available_height).min(total_packages);
+
+        // Render visible packages
+        for (idx, pkg) in summary_data
+            .packages
+            .iter()
+            .enumerate()
+            .skip(start_idx)
+            .take(end_idx - start_idx)
+        {
+            let is_selected = idx == summary_selected_clamped;
             let mut entry = format!("  • {}", pkg.name);
             match &pkg.source {
                 Source::Aur => entry.push_str(" [AUR]"),
@@ -152,9 +175,31 @@ fn render_summary_data(
             if !pkg.notes.is_empty() {
                 entry.push_str(&format!(" • {}", pkg.notes.join("; ")));
             }
+            let style = if is_selected {
+                Style::default()
+                    .fg(th.text)
+                    .bg(th.surface1)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(th.subtext0)
+            };
+            lines.push(Line::from(Span::styled(entry, style)));
+        }
+
+        // Show range indicator if needed
+        if total_packages > available_height {
+            lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
-                entry,
-                Style::default().fg(th.subtext0),
+                i18n::t_fmt(
+                    app,
+                    "app.modals.preflight.deps.showing_range",
+                    &[
+                        &(start_idx + 1).to_string(),
+                        &end_idx.to_string(),
+                        &total_packages.to_string(),
+                    ],
+                ),
+                Style::default().fg(th.subtext1),
             )));
         }
     }
@@ -698,6 +743,7 @@ fn render_remove_action(
 /// - `items`: Packages under review.
 /// - `action`: Whether install or remove.
 /// - `summary`: Summary data (optional).
+/// - `summary_selected`: Selected index in the package list (for navigation).
 /// - `header_chips`: Header chip data for risk level.
 /// - `dependency_info`: Dependency information.
 /// - `cascade_mode`: Removal cascade mode.
@@ -709,12 +755,14 @@ fn render_remove_action(
 /// Details:
 /// - Shows risk factors, notes, per-package overview, and dependency conflicts/upgrades for install.
 /// - Shows removal plan and cascade impact for remove actions.
+/// - Supports scrolling through the package list with viewport-based rendering.
 #[allow(clippy::too_many_arguments)]
 pub fn render_summary_tab(
     app: &AppState,
     items: &[PackageItem],
     action: &PreflightAction,
     summary: &Option<Box<PreflightSummaryData>>,
+    summary_selected: usize,
     header_chips: &PreflightHeaderChips,
     dependency_info: &[DependencyInfo],
     cascade_mode: CascadeMode,
@@ -724,7 +772,13 @@ pub fn render_summary_tab(
     let mut lines = Vec::new();
 
     if let Some(summary_data) = summary.as_ref() {
-        lines.extend(render_summary_data(app, summary_data, header_chips));
+        lines.extend(render_summary_data(
+            app,
+            summary_data,
+            header_chips,
+            summary_selected,
+            content_rect,
+        ));
     } else {
         lines.push(Line::from(Span::styled(
             "Computing summary...",
