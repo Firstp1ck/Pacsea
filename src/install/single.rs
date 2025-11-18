@@ -21,13 +21,20 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 ///
 /// Details:
 /// - Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.), falling back to bash. Uses pacman for official packages and paru/yay for AUR; appends a hold tail to keep the window open; logs installed names when not in dry_run.
-pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
-    let (cmd_str, uses_sudo) = build_install_command(item, password, dry_run);
-    let src = match item.source {
+/// - During tests, this is a no-op to avoid opening real terminal windows.
+pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: bool) {
+    // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
+    #[cfg(test)]
+    if std::env::var("PACSEA_TEST_OUT").is_err() {
+        return;
+    }
+
+    let (cmd_str, uses_sudo) = build_install_command(_item, _password, _dry_run);
+    let src = match _item.source {
         Source::Official { .. } => "official",
         Source::Aur => "aur",
     };
-    tracing::info!(names = %item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run, uses_sudo, "spawning install");
+    tracing::info!(names = %_item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run = _dry_run, uses_sudo, "spawning install");
     // Prefer GNOME Terminal when running under GNOME desktop
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
@@ -81,10 +88,10 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
         let spawn_res = cmd.spawn();
         match spawn_res {
             Ok(_) => {
-                tracing::info!(terminal = %term, names = %item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run, "launched terminal for install");
+                tracing::info!(terminal = %term, names = %_item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run = _dry_run, "launched terminal for install");
             }
             Err(e) => {
-                tracing::warn!(terminal = %term, error = %e, names = %item.name, "failed to spawn terminal, trying next");
+                tracing::warn!(terminal = %term, error = %e, names = %_item.name, "failed to spawn terminal, trying next");
             }
         }
         launched = true;
@@ -107,10 +114,10 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
                 let spawn_res = cmd.spawn();
                 match spawn_res {
                     Ok(_) => {
-                        tracing::info!(terminal = %term, names = %item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run, "launched terminal for install");
+                        tracing::info!(terminal = %term, names = %_item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run = _dry_run, "launched terminal for install");
                     }
                     Err(e) => {
-                        tracing::warn!(terminal = %term, error = %e, names = %item.name, "failed to spawn terminal, trying next");
+                        tracing::warn!(terminal = %term, error = %e, names = %_item.name, "failed to spawn terminal, trying next");
                         continue;
                     }
                 }
@@ -122,13 +129,13 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
     if !launched {
         let res = Command::new("bash").args(["-lc", &cmd_str]).spawn();
         if let Err(e) = res {
-            tracing::error!(error = %e, names = %item.name, "failed to spawn bash to run install command");
+            tracing::error!(error = %e, names = %_item.name, "failed to spawn bash to run install command");
         } else {
-            tracing::info!(names = %item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run, "launched bash for install");
+            tracing::info!(names = %_item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run = _dry_run, "launched bash for install");
         }
     }
-    if !dry_run && let Err(e) = log_installed(std::slice::from_ref(&item.name)) {
-        tracing::warn!(error = %e, names = %item.name, "failed to write install audit log");
+    if !_dry_run && let Err(e) = log_installed(std::slice::from_ref(&_item.name)) {
+        tracing::warn!(error = %e, names = %_item.name, "failed to write install audit log");
     }
 }
 
@@ -222,14 +229,21 @@ mod tests {
 /// Details:
 /// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the install with Write-Host.
 /// - Logs the install attempt when not a dry run to keep audit behaviour consistent with Unix platforms.
-pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
-    let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
+/// - During tests, this is a no-op to avoid opening real terminal windows.
+pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: bool) {
+    // Skip actual spawning during tests
+    #[cfg(test)]
+    {
+        return;
+    }
 
-    if dry_run && super::utils::is_powershell_available() {
+    let (cmd_str, _uses_sudo) = build_install_command(_item, _password, _dry_run);
+
+    if _dry_run && super::utils::is_powershell_available() {
         // Use PowerShell to simulate the install operation
         let powershell_cmd = format!(
             "Write-Host 'DRY RUN: Simulating install of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
-            item.name,
+            _item.name,
             cmd_str.replace("'", "''")
         );
         let _ = Command::new("powershell.exe")
@@ -241,7 +255,7 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
             .spawn();
     }
 
-    if !dry_run {
-        let _ = super::logging::log_installed(std::slice::from_ref(&item.name));
+    if !_dry_run {
+        let _ = super::logging::log_installed(std::slice::from_ref(&_item.name));
     }
 }

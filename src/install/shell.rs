@@ -14,9 +14,129 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 ///
 /// Details:
 /// - Defers to `spawn_shell_commands_in_terminal_with_hold` to add the default hold tail.
-pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
+/// - During tests, this is a no-op to avoid opening real terminal windows, unless PACSEA_TEST_OUT is set.
+pub fn spawn_shell_commands_in_terminal(_cmds: &[String]) {
+    // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
+    #[cfg(test)]
+    if std::env::var("PACSEA_TEST_OUT").is_err() {
+        return;
+    }
     // Default wrapper keeps the terminal open after commands complete
-    spawn_shell_commands_in_terminal_with_hold(cmds, true);
+    spawn_shell_commands_in_terminal_with_hold(_cmds, true);
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Write a log message to terminal.log file.
+///
+/// Input:
+/// - `message`: The log message to write.
+///
+/// Output:
+/// - Writes the message to terminal.log, creating the log directory if needed.
+///
+/// Details:
+/// - Silently ignores errors if the log file cannot be opened or written.
+fn log_to_terminal_log(message: &str) {
+    let mut lp = crate::theme::logs_dir();
+    lp.push("terminal.log");
+    if let Some(parent) = lp.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&lp)
+    {
+        let _ = std::io::Write::write_all(&mut file, message.as_bytes());
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Configure environment variables for a terminal command based on terminal type and environment.
+///
+/// Input:
+/// - `cmd`: The Command to configure.
+/// - `term`: Terminal binary name.
+/// - `is_wayland`: Whether running under Wayland.
+///
+/// Output:
+/// - Modifies the command with appropriate environment variables.
+///
+/// Details:
+/// - Sets PACSEA_TEST_OUT if present in environment.
+/// - Suppresses Konsole Wayland warnings on Wayland.
+/// - Forces software rendering for GNOME Console and kgx.
+fn configure_terminal_env(cmd: &mut Command, term: &str, is_wayland: bool) {
+    if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
+        if let Some(parent) = std::path::Path::new(&p).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        cmd.env("PACSEA_TEST_OUT", p);
+    }
+    if term == "konsole" && is_wayland {
+        cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
+    }
+    if term == "gnome-console" || term == "kgx" {
+        cmd.env("GSK_RENDERER", "cairo");
+        cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Build and spawn a terminal command with logging.
+///
+/// Input:
+/// - `term`: Terminal binary name.
+/// - `args`: Terminal arguments.
+/// - `needs_xfce_command`: Whether to use xfce4-terminal special command format.
+/// - `script_exec`: The script execution command string.
+/// - `cmd_str`: The full command string for logging.
+/// - `is_wayland`: Whether running under Wayland.
+/// - `detach_stdio`: Whether to detach stdio streams.
+///
+/// Output:
+/// - Returns `Ok(true)` if spawn succeeded, `Ok(false)` if it failed, or `Err` on error.
+///
+/// Details:
+/// - Logs spawn attempt and result to terminal.log.
+/// - Configures terminal-specific environment variables.
+fn try_spawn_terminal(
+    term: &str,
+    args: &[&str],
+    needs_xfce_command: bool,
+    script_exec: &str,
+    cmd_str: &str,
+    is_wayland: bool,
+    detach_stdio: bool,
+) -> Result<bool, std::io::Error> {
+    let mut cmd = Command::new(term);
+    if needs_xfce_command && term == "xfce4-terminal" {
+        let quoted = shell_single_quote(script_exec);
+        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+    } else {
+        cmd.args(args.iter().copied()).arg(script_exec);
+    }
+    configure_terminal_env(&mut cmd, term, is_wayland);
+    let cmd_len = cmd_str.len();
+    log_to_terminal_log(&format!(
+        "spawn term={} args={:?} xfce_mode={} cmd_len={}\n",
+        term, args, needs_xfce_command, cmd_len
+    ));
+    if detach_stdio {
+        cmd.stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+    }
+    let res = cmd.spawn();
+    match &res {
+        Ok(child) => {
+            log_to_terminal_log(&format!("spawn result: ok pid={}\n", child.id()));
+        }
+        Err(e) => {
+            log_to_terminal_log(&format!("spawn result: err error={}\n", e));
+        }
+    }
+    res.map(|_| true)
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -32,13 +152,20 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
 /// Details:
 /// - Persists the command to a temp script to avoid argument-length issues.
 /// - Prefers user-configured terminals, applies desktop-specific environment tweaks, and logs spawn attempts.
-pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
-    if cmds.is_empty() {
+/// - During tests, this is a no-op to avoid opening real terminal windows.
+pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool) {
+    // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
+    #[cfg(test)]
+    if std::env::var("PACSEA_TEST_OUT").is_err() {
+        return;
+    }
+
+    if _cmds.is_empty() {
         return;
     }
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-    let joined = cmds.join(" && ");
-    let cmd_str = if hold {
+    let joined = _cmds.join(" && ");
+    let cmd_str = if _hold {
         format!("{joined}{hold}", hold = hold_tail)
     } else {
         joined.clone()
@@ -130,232 +257,59 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     }
 
     // Log environment context once per invocation
-    {
-        let mut lp = crate::theme::logs_dir();
-        lp.push("terminal.log");
-        if let Some(parent) = lp.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&lp)
-        {
-            let _ = std::io::Write::write_all(
-                &mut file,
-                format!(
-                    "env desktop={} wayland={} script={} cmd_len={}\n",
-                    desktop_env,
-                    is_wayland,
-                    script_path_str,
-                    cmd_str.len()
-                )
-                .as_bytes(),
-            );
-        }
-    }
+    log_to_terminal_log(&format!(
+        "env desktop={} wayland={} script={} cmd_len={}\n",
+        desktop_env,
+        is_wayland,
+        script_path_str,
+        cmd_str.len()
+    ));
 
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(&terms_owned) {
         let (term, args, needs_xfce_command) = terms_owned[idx];
-        let mut cmd = Command::new(term);
-        if needs_xfce_command && term == "xfce4-terminal" {
-            let quoted = shell_single_quote(&script_exec);
-            cmd.arg("--command").arg(format!("bash -lc {}", quoted));
-        } else {
-            cmd.args(args.iter().copied()).arg(&script_exec);
-        }
-        if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
-            if let Some(parent) = std::path::Path::new(&p).parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            cmd.env("PACSEA_TEST_OUT", p);
-        }
-        // Suppress Konsole Wayland textinput warnings on Wayland
-        if term == "konsole" && is_wayland {
-            cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
-        }
-        // Force software/cairo rendering for GNOME Console to avoid GPU/Vulkan errors
-        if term == "gnome-console" || term == "kgx" {
-            cmd.env("GSK_RENDERER", "cairo");
-            cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
-        }
-        let cmd_len = cmd_str.len();
-        {
-            let mut lp = crate::theme::logs_dir();
-            lp.push("terminal.log");
-            if let Some(parent) = lp.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Ok(mut file) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&lp)
-            {
-                let _ = std::io::Write::write_all(
-                    &mut file,
-                    format!(
-                        "spawn term={} args={:?} xfce_mode={} cmd_len={}\n",
-                        term, args, needs_xfce_command, cmd_len
-                    )
-                    .as_bytes(),
-                );
-            }
-        }
-        // Detach stdio to prevent terminal logs (e.g., Ghostty info/warnings) from overlapping the TUI
-        let res = cmd
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
-        {
-            let mut lp = crate::theme::logs_dir();
-            lp.push("terminal.log");
-            if let Ok(mut file) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&lp)
-            {
-                match res {
-                    Ok(ref child) => {
-                        let _ = std::io::Write::write_all(
-                            &mut file,
-                            format!("spawn result: ok pid={}\n", child.id()).as_bytes(),
-                        );
-                    }
-                    Err(ref e) => {
-                        let _ = std::io::Write::write_all(
-                            &mut file,
-                            format!("spawn result: err error={}\n", e).as_bytes(),
-                        );
-                    }
-                }
-            }
-        }
-        if res.is_ok() {
-            launched = true;
-        }
+        launched = try_spawn_terminal(
+            term,
+            args,
+            needs_xfce_command,
+            &script_exec,
+            &cmd_str,
+            is_wayland,
+            true,
+        )
+        .unwrap_or(false);
     } else {
         for (term, args, needs_xfce_command) in terms_owned.iter().copied() {
-            if command_on_path(term) {
-                let mut cmd = Command::new(term);
-                if needs_xfce_command && term == "xfce4-terminal" {
-                    let quoted = shell_single_quote(&script_exec);
-                    cmd.arg("--command").arg(format!("bash -lc {}", quoted));
-                } else {
-                    cmd.args(args.iter().copied()).arg(&script_exec);
-                }
-                if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
-                    if let Some(parent) = std::path::Path::new(&p).parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    cmd.env("PACSEA_TEST_OUT", p);
-                }
-                // Suppress Konsole Wayland textinput warnings on Wayland
-                if term == "konsole" && is_wayland {
-                    cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
-                }
-                // Force software/cairo rendering for GNOME Console to avoid GPU/Vulkan errors
-                if term == "gnome-console" || term == "kgx" {
-                    cmd.env("GSK_RENDERER", "cairo");
-                    cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
-                }
-                let cmd_len = cmd_str.len();
-                {
-                    let mut lp = crate::theme::logs_dir();
-                    lp.push("terminal.log");
-                    if let Some(parent) = lp.parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(&lp)
-                    {
-                        let _ = std::io::Write::write_all(
-                            &mut file,
-                            format!(
-                                "spawn term={} args={:?} xfce_mode={} cmd_len={}\n",
-                                term, args, needs_xfce_command, cmd_len
-                            )
-                            .as_bytes(),
-                        );
-                    }
-                }
-                let res = cmd.spawn();
-                {
-                    let mut lp = crate::theme::logs_dir();
-                    lp.push("terminal.log");
-                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(&lp)
-                    {
-                        match res {
-                            Ok(ref child) => {
-                                let _ = std::io::Write::write_all(
-                                    &mut file,
-                                    format!("spawn result: ok pid={}\n", child.id()).as_bytes(),
-                                );
-                            }
-                            Err(ref e) => {
-                                let _ = std::io::Write::write_all(
-                                    &mut file,
-                                    format!("spawn result: err error={}\n", e).as_bytes(),
-                                );
-                            }
-                        }
-                    }
-                }
-                if res.is_ok() {
-                    launched = true;
-                    break;
-                }
+            if command_on_path(term)
+                && try_spawn_terminal(
+                    term,
+                    args,
+                    needs_xfce_command,
+                    &script_exec,
+                    &cmd_str,
+                    is_wayland,
+                    false,
+                )
+                .unwrap_or(false)
+            {
+                launched = true;
+                break;
             }
         }
     }
     if !launched {
-        let cmd_len = cmd_str.len();
-        {
-            let mut lp = crate::theme::logs_dir();
-            lp.push("terminal.log");
-            if let Some(parent) = lp.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Ok(mut file) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&lp)
-            {
-                let _ = std::io::Write::write_all(
-                    &mut file,
-                    format!("spawn term=bash args={:?} cmd_len={}\n", ["-lc"], cmd_len).as_bytes(),
-                );
-            }
-        }
+        log_to_terminal_log(&format!(
+            "spawn term=bash args={:?} cmd_len={}\n",
+            ["-lc"],
+            cmd_str.len()
+        ));
         let res = Command::new("bash").args(["-lc", &script_exec]).spawn();
-        {
-            let mut lp = crate::theme::logs_dir();
-            lp.push("terminal.log");
-            if let Ok(mut file) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&lp)
-            {
-                match res {
-                    Ok(ref child) => {
-                        let _ = std::io::Write::write_all(
-                            &mut file,
-                            format!("spawn result: ok pid={}\n", child.id()).as_bytes(),
-                        );
-                    }
-                    Err(ref e) => {
-                        let _ = std::io::Write::write_all(
-                            &mut file,
-                            format!("spawn result: err error={}\n", e).as_bytes(),
-                        );
-                    }
-                }
+        match &res {
+            Ok(child) => {
+                log_to_terminal_log(&format!("spawn result: ok pid={}\n", child.id()));
+            }
+            Err(e) => {
+                log_to_terminal_log(&format!("spawn result: err error={}\n", e));
             }
         }
     }
@@ -389,7 +343,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let _ = fs::create_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create test directory");
         let mut out_path = dir.clone();
         out_path.push("args.txt");
         let mut term_path = dir.clone();
@@ -408,8 +362,12 @@ mod tests {
 
         let cmds = vec!["echo hi".to_string()];
         super::spawn_shell_commands_in_terminal(&cmds);
-        std::thread::sleep(std::time::Duration::from_millis(50));
-
+        // Wait for file to be created with retries
+        let mut attempts = 0;
+        while !out_path.exists() && attempts < 50 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            attempts += 1;
+        }
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
         assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);

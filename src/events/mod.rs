@@ -142,7 +142,7 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let _ = fs::create_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create test directory");
         let mut out_path = dir.clone();
         out_path.push("args.txt");
         let mut term_path = dir.clone();
@@ -197,7 +197,12 @@ mod tests {
         );
         let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
         let _ = super::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        // Wait for file to be created with retries
+        let mut attempts = 0;
+        while !out_path.exists() && attempts < 50 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            attempts += 1;
+        }
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
         assert!(lines.len() >= 2);

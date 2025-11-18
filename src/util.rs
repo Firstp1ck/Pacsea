@@ -312,10 +312,13 @@ pub fn open_file(path: &std::path::Path) {
 /// On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
 ///
 /// This function spawns the command in a background thread and ignores errors.
-pub fn open_url(url: &str) {
-    std::thread::spawn({
-        let url = url.to_string();
-        move || {
+/// During tests, this is a no-op to avoid opening real browser windows.
+pub fn open_url(_url: &str) {
+    // Skip actual spawning during tests
+    #[cfg(not(test))]
+    {
+        let url = _url.to_string();
+        std::thread::spawn(move || {
             #[cfg(target_os = "windows")]
             {
                 // Use cmd /c start with empty title to open URL in default browser
@@ -353,8 +356,8 @@ pub fn open_url(url: &str) {
                             .spawn()
                     });
             }
-        }
-    });
+        });
+    }
 }
 
 /// Build curl command arguments for fetching a URL.

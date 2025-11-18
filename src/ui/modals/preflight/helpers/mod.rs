@@ -178,4 +178,16 @@ pub fn render_header_chips(app: &AppState, chips: &PreflightHeaderChips) -> Line
 }
 
 #[cfg(test)]
-mod tests;
+mod format_tests;
+#[cfg(test)]
+mod layout_tests;
+#[cfg(test)]
+mod render_tests;
+#[cfg(test)]
+mod sync_dependencies_tests;
+#[cfg(test)]
+mod sync_files_tests;
+#[cfg(test)]
+mod sync_sandbox_tests;
+#[cfg(test)]
+mod sync_services_tests;

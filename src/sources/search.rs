@@ -94,9 +94,17 @@ fi
             std::env::set_var("PATH", &new_path);
             std::env::set_var("PACSEA_FAKE_STATE_DIR", bin.to_string_lossy().to_string());
         }
+        // Ensure PATH is set before executing commands
+        std::thread::sleep(std::time::Duration::from_millis(10));
 
         let (items, errs) = super::fetch_all_with_errors("yay".into()).await;
-        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items.len(),
+            1,
+            "Expected 1 item, got {} items. Errors: {:?}",
+            items.len(),
+            errs
+        );
         assert!(errs.is_empty());
 
         // Call again to exercise error path

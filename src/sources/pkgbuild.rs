@@ -128,6 +128,8 @@ mod tests {
         }
         let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
         unsafe { std::env::set_var("PATH", &new_path) };
+        // Ensure PATH is set before executing commands
+        std::thread::sleep(std::time::Duration::from_millis(10));
 
         let item = PackageItem {
             name: "ripgrep".into(),

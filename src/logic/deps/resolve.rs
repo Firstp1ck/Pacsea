@@ -750,11 +750,15 @@ mod tests {
     impl PathGuard {
         fn push(dir: &std::path::Path) -> Self {
             let original = std::env::var("PATH").ok();
+            // If PATH is missing or empty, use a default system PATH
+            let base_path = original
+                .as_ref()
+                .filter(|p| !p.is_empty())
+                .map(|s| s.as_str())
+                .unwrap_or("/usr/bin:/bin:/usr/local/bin");
             let mut new_path = dir.display().to_string();
-            if let Some(ref orig) = original {
-                new_path.push(':');
-                new_path.push_str(orig);
-            }
+            new_path.push(':');
+            new_path.push_str(base_path);
             unsafe {
                 std::env::set_var("PATH", &new_path);
             }
@@ -765,12 +769,21 @@ mod tests {
     impl Drop for PathGuard {
         fn drop(&mut self) {
             if let Some(ref orig) = self.original {
-                unsafe {
-                    std::env::set_var("PATH", orig);
+                // Only restore if the original PATH was valid (not empty)
+                if !orig.is_empty() {
+                    unsafe {
+                        std::env::set_var("PATH", orig);
+                    }
+                } else {
+                    // If original was empty, restore to a default system PATH
+                    unsafe {
+                        std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin");
+                    }
                 }
             } else {
+                // If PATH was missing, set a default system PATH
                 unsafe {
-                    std::env::remove_var("PATH");
+                    std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin");
                 }
             }
         }
@@ -799,6 +812,10 @@ mod tests {
     fn resolve_official_uses_pacman_si_stub() {
         let dir = tempdir().expect("tempdir");
         let _test_guard = crate::global_test_mutex_lock();
+        // Ensure PATH is in a clean state before modifying it
+        if std::env::var("PATH").is_err() {
+            unsafe { std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin") };
+        }
         let _guard = PathGuard::push(dir.path());
         write_executable(
             dir.path(),
@@ -857,6 +874,10 @@ exit 1
     fn resolve_aur_prefers_paru_stub_and_skips_self() {
         let dir = tempdir().expect("tempdir");
         let _test_guard = crate::global_test_mutex_lock();
+        // Ensure PATH is in a clean state before modifying it
+        if std::env::var("PATH").is_err() {
+            unsafe { std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin") };
+        }
         let _guard = PathGuard::push(dir.path());
         write_executable(
             dir.path(),

@@ -3332,23 +3332,15 @@ fn preflight_tab_switching_order_variations() {
     };
 
     let test_packages = vec![
-        crate_root::state::PackageItem {
-            name: "test-package-1".to_string(),
-            version: "1.0.0".to_string(),
-            description: String::new(),
-            source: crate_root::state::Source::Official {
+        create_test_package(
+            "test-package-1",
+            "1.0.0",
+            crate_root::state::Source::Official {
                 repo: "core".to_string(),
                 arch: "x86_64".to_string(),
             },
-            popularity: None,
-        },
-        crate_root::state::PackageItem {
-            name: "test-aur-package".to_string(),
-            version: "2.0.0".to_string(),
-            description: String::new(),
-            source: crate_root::state::Source::Aur,
-            popularity: None,
-        },
+        ),
+        create_test_package("test-aur-package", "2.0.0", crate_root::state::Source::Aur),
     ];
 
     // Pre-populate cache with all data
@@ -3407,367 +3399,101 @@ fn preflight_tab_switching_order_variations() {
         .store(false, std::sync::atomic::Ordering::Relaxed);
 
     // Open preflight modal
-    app.modal = crate_root::state::Modal::Preflight {
-        items: test_packages.clone(),
-        action: crate_root::state::PreflightAction::Install,
-        tab: crate_root::state::PreflightTab::Summary,
-        summary: None,
-        summary_scroll: 0,
-        header_chips: crate_root::state::modal::PreflightHeaderChips {
-            package_count: test_packages.len(),
-            download_bytes: 0,
-            install_delta_bytes: 0,
-            aur_count: 1,
-            risk_score: 0,
-            risk_level: crate_root::state::modal::RiskLevel::Low,
-        },
-        dependency_info: Vec::new(),
-        dep_selected: 0,
-        dep_tree_expanded: std::collections::HashSet::new(),
-        deps_error: None,
-        file_info: Vec::new(),
-        file_selected: 0,
-        file_tree_expanded: std::collections::HashSet::new(),
-        files_error: None,
-        service_info: Vec::new(),
-        service_selected: 0,
-        services_loaded: false,
-        services_error: None,
-        sandbox_info: Vec::new(),
-        sandbox_selected: 0,
-        sandbox_tree_expanded: std::collections::HashSet::new(),
-        sandbox_loaded: false,
-        sandbox_error: None,
-        selected_optdepends: std::collections::HashMap::new(),
-        cascade_mode: crate_root::state::modal::CascadeMode::Basic,
-    };
+    app.modal = create_preflight_modal(
+        test_packages.clone(),
+        crate_root::state::PreflightAction::Install,
+        crate_root::state::PreflightTab::Summary,
+    );
 
     // Test different tab switching orders
     // Order 1: Summary → Sandbox → Deps → Files → Services
-    // Order 2: Services → Files → Deps → Sandbox → Summary
-    // Order 3: Deps → Services → Files → Sandbox → Deps (back to first)
-
-    // Order 1: Summary → Sandbox
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        sandbox_info,
-        sandbox_loaded,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Sandbox;
-
-        // Simulate sync_sandbox logic
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let cached_sandbox: Vec<_> = app
-                .install_list_sandbox
-                .iter()
-                .filter(|s| item_names.contains(&s.package_name))
-                .cloned()
-                .collect();
-            if !cached_sandbox.is_empty() {
-                *sandbox_info = cached_sandbox;
-                *sandbox_loaded = true;
-            }
-        }
-    }
-
-    // Order 1: Sandbox → Deps
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        dependency_info,
-        dep_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Deps;
-
-        // Simulate sync_dependencies logic
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let filtered: Vec<_> = app
-                .install_list_deps
-                .iter()
-                .filter(|dep| {
-                    dep.required_by
-                        .iter()
-                        .any(|req_by| item_names.contains(req_by))
-                })
-                .cloned()
-                .collect();
-            if !filtered.is_empty() {
-                *dependency_info = filtered;
-                *dep_selected = 0;
-            }
-        }
-    }
-
-    // Order 1: Deps → Files
-    if let crate_root::state::Modal::Preflight {
-        items,
-        tab,
-        file_info,
-        file_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Files;
-
-        // Simulate sync_files logic
-        let item_names: std::collections::HashSet<String> =
-            items.iter().map(|i| i.name.clone()).collect();
-        let cached_files: Vec<_> = app
-            .install_list_files
-            .iter()
-            .filter(|file_info| item_names.contains(&file_info.name))
-            .cloned()
-            .collect();
-        if !cached_files.is_empty() {
-            *file_info = cached_files;
-            *file_selected = 0;
-        }
-    }
-
-    // Order 1: Files → Services
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        service_info,
-        service_selected,
-        services_loaded,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Services;
-
-        // Simulate sync_services logic
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let cached_services: Vec<_> = app
-                .install_list_services
-                .iter()
-                .filter(|s| s.providers.iter().any(|p| item_names.contains(p)))
-                .cloned()
-                .collect();
-            if !cached_services.is_empty() {
-                *service_info = cached_services;
-                *services_loaded = true;
-                *service_selected = 0;
-            }
-        }
-    }
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Sandbox);
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Files);
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Services);
 
     // Verify all tabs have data after Order 1
-    if let crate_root::state::Modal::Preflight {
+    let (
+        _,
+        _,
+        _,
         dependency_info,
         file_info,
         service_info,
         sandbox_info,
         services_loaded,
         sandbox_loaded,
-        ..
-    } = &app.modal
-    {
-        assert!(!dependency_info.is_empty(), "Deps should have data");
-        assert!(!file_info.is_empty(), "Files should have data");
-        assert!(!service_info.is_empty(), "Services should have data");
-        assert!(*services_loaded, "Services should be loaded");
-        assert!(!sandbox_info.is_empty(), "Sandbox should have data");
-        assert!(*sandbox_loaded, "Sandbox should be loaded");
-    } else {
-        panic!("Expected Preflight modal");
-    }
+    ) = assert_preflight_modal(&app);
+    assert!(!dependency_info.is_empty(), "Deps should have data");
+    assert!(!file_info.is_empty(), "Files should have data");
+    assert!(!service_info.is_empty(), "Services should have data");
+    assert!(*services_loaded, "Services should be loaded");
+    assert!(!sandbox_info.is_empty(), "Sandbox should have data");
+    assert!(*sandbox_loaded, "Sandbox should be loaded");
 
-    // Order 2: Services → Files (reverse order)
-    if let crate_root::state::Modal::Preflight {
-        items,
-        tab,
-        file_info,
-        file_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Files;
-
-        // Re-sync to ensure data persists
-        let item_names: std::collections::HashSet<String> =
-            items.iter().map(|i| i.name.clone()).collect();
-        let cached_files: Vec<_> = app
-            .install_list_files
-            .iter()
-            .filter(|file_info| item_names.contains(&file_info.name))
-            .cloned()
-            .collect();
-        if !cached_files.is_empty() {
-            *file_info = cached_files;
-            *file_selected = 0;
-        }
-    }
-
-    // Order 2: Files → Deps
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        dependency_info,
-        dep_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Deps;
-
-        // Re-sync to ensure data persists
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let filtered: Vec<_> = app
-                .install_list_deps
-                .iter()
-                .filter(|dep| {
-                    dep.required_by
-                        .iter()
-                        .any(|req_by| item_names.contains(req_by))
-                })
-                .cloned()
-                .collect();
-            if !filtered.is_empty() {
-                *dependency_info = filtered;
-                *dep_selected = 0;
-            }
-        }
-    }
-
-    // Order 2: Deps → Sandbox
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        sandbox_info,
-        sandbox_loaded,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Sandbox;
-
-        // Re-sync to ensure data persists
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let cached_sandbox: Vec<_> = app
-                .install_list_sandbox
-                .iter()
-                .filter(|s| item_names.contains(&s.package_name))
-                .cloned()
-                .collect();
-            if !cached_sandbox.is_empty() {
-                *sandbox_info = cached_sandbox;
-                *sandbox_loaded = true;
-            }
-        }
-    }
+    // Order 2: Services → Files → Deps → Sandbox → Summary
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Files);
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Sandbox);
 
     // Verify all tabs still have data after Order 2
-    if let crate_root::state::Modal::Preflight {
+    let (
+        _,
+        _,
+        _,
         dependency_info,
         file_info,
         service_info,
         sandbox_info,
         services_loaded,
         sandbox_loaded,
-        ..
-    } = &app.modal
-    {
-        assert!(!dependency_info.is_empty(), "Deps should still have data");
-        assert!(!file_info.is_empty(), "Files should still have data");
-        assert!(!service_info.is_empty(), "Services should still have data");
-        assert!(*services_loaded, "Services should still be loaded");
-        assert!(!sandbox_info.is_empty(), "Sandbox should still have data");
-        assert!(*sandbox_loaded, "Sandbox should still be loaded");
-    } else {
-        panic!("Expected Preflight modal");
-    }
+    ) = assert_preflight_modal(&app);
+    assert!(!dependency_info.is_empty(), "Deps should still have data");
+    assert!(!file_info.is_empty(), "Files should still have data");
+    assert!(!service_info.is_empty(), "Services should still have data");
+    assert!(*services_loaded, "Services should still be loaded");
+    assert!(!sandbox_info.is_empty(), "Sandbox should still have data");
+    assert!(*sandbox_loaded, "Sandbox should still be loaded");
 
     // Order 3: Sandbox → Deps (back to first tab)
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        dependency_info,
-        dep_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Deps;
-
-        // Re-sync to ensure data persists
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let filtered: Vec<_> = app
-                .install_list_deps
-                .iter()
-                .filter(|dep| {
-                    dep.required_by
-                        .iter()
-                        .any(|req_by| item_names.contains(req_by))
-                })
-                .cloned()
-                .collect();
-            if !filtered.is_empty() {
-                *dependency_info = filtered;
-                *dep_selected = 0;
-            }
-        }
-    }
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
 
     // Final verification: All data persists regardless of switching order
-    if let crate_root::state::Modal::Preflight {
+    let (
+        _,
+        _,
+        _,
         dependency_info,
         file_info,
         service_info,
         sandbox_info,
         services_loaded,
         sandbox_loaded,
-        ..
-    } = &app.modal
-    {
-        // Verify all tabs have correct data
-        assert_eq!(dependency_info.len(), 1, "Deps should have 1 dependency");
-        assert_eq!(file_info.len(), 1, "Files should have 1 file entry");
-        assert_eq!(service_info.len(), 1, "Services should have 1 service");
-        assert_eq!(sandbox_info.len(), 1, "Sandbox should have 1 entry");
-        assert!(*services_loaded, "Services should be loaded");
-        assert!(*sandbox_loaded, "Sandbox should be loaded");
+    ) = assert_preflight_modal(&app);
+    assert_eq!(dependency_info.len(), 1, "Deps should have 1 dependency");
+    assert_eq!(file_info.len(), 1, "Files should have 1 file entry");
+    assert_eq!(service_info.len(), 1, "Services should have 1 service");
+    assert_eq!(sandbox_info.len(), 1, "Sandbox should have 1 entry");
+    assert!(*services_loaded, "Services should be loaded");
+    assert!(*sandbox_loaded, "Sandbox should be loaded");
 
-        // Verify data integrity
-        assert_eq!(
-            dependency_info[0].name, "test-dep-1",
-            "Dependency name should match"
-        );
-        assert_eq!(
-            file_info[0].name, "test-package-1",
-            "File package name should match"
-        );
-        assert_eq!(
-            service_info[0].unit_name, "test-service.service",
-            "Service unit name should match"
-        );
-        assert_eq!(
-            sandbox_info[0].package_name, "test-aur-package",
-            "Sandbox package name should match"
-        );
-    } else {
-        panic!("Expected Preflight modal");
-    }
+    // Verify data integrity
+    assert_eq!(
+        dependency_info[0].name, "test-dep-1",
+        "Dependency name should match"
+    );
+    assert_eq!(
+        file_info[0].name, "test-package-1",
+        "File package name should match"
+    );
+    assert_eq!(
+        service_info[0].unit_name, "test-service.service",
+        "Service unit name should match"
+    );
+    assert_eq!(
+        sandbox_info[0].package_name, "test-aur-package",
+        "Sandbox package name should match"
+    );
 }
 
 #[test]
@@ -5145,246 +4871,70 @@ fn preflight_handles_large_datasets_correctly() {
         .store(false, std::sync::atomic::Ordering::Relaxed);
 
     // Open preflight modal
-    app.modal = crate_root::state::Modal::Preflight {
-        items: test_packages.clone(),
-        action: crate_root::state::PreflightAction::Install,
-        tab: crate_root::state::PreflightTab::Summary,
-        summary: None,
-        summary_scroll: 0,
-        header_chips: crate_root::state::modal::PreflightHeaderChips {
-            package_count: test_packages.len(),
-            download_bytes: 0,
-            install_delta_bytes: 0,
-            aur_count: 4,
-            risk_score: 0,
-            risk_level: crate_root::state::modal::RiskLevel::Low,
-        },
-        dependency_info: Vec::new(),
-        dep_selected: 0,
-        dep_tree_expanded: std::collections::HashSet::new(),
-        deps_error: None,
-        file_info: Vec::new(),
-        file_selected: 0,
-        file_tree_expanded: std::collections::HashSet::new(),
-        files_error: None,
-        service_info: Vec::new(),
-        service_selected: 0,
-        services_loaded: false,
-        services_error: None,
-        sandbox_info: Vec::new(),
-        sandbox_selected: 0,
-        sandbox_tree_expanded: std::collections::HashSet::new(),
-        sandbox_loaded: false,
-        sandbox_error: None,
-        selected_optdepends: std::collections::HashMap::new(),
-        cascade_mode: crate_root::state::modal::CascadeMode::Basic,
-    };
+    app.modal = create_preflight_modal(
+        test_packages.clone(),
+        crate_root::state::PreflightAction::Install,
+        crate_root::state::PreflightTab::Summary,
+    );
 
     // Test 1: Deps tab - should load all dependencies
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        dependency_info,
-        dep_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Deps;
-
-        // Simulate sync_dependencies logic
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let filtered: Vec<_> = app
-                .install_list_deps
-                .iter()
-                .filter(|dep| {
-                    dep.required_by
-                        .iter()
-                        .any(|req_by| item_names.contains(req_by))
-                })
-                .cloned()
-                .collect();
-            if !filtered.is_empty() {
-                *dependency_info = filtered;
-                *dep_selected = 0;
-            }
-        }
-    }
-
-    if let crate_root::state::Modal::Preflight {
-        dependency_info,
-        dep_selected,
-        ..
-    } = &app.modal
-    {
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
+    let (_, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
+    assert_eq!(
+        dependency_info.len(),
+        expected_dep_count,
+        "Should have all dependencies loaded"
+    );
+    // Verify all packages have their dependencies
+    for pkg in &test_packages {
+        let pkg_deps: Vec<_> = dependency_info
+            .iter()
+            .filter(|d| d.required_by.contains(&pkg.name))
+            .collect();
+        let expected = if pkg.name.contains("official") { 4 } else { 3 };
         assert_eq!(
-            dependency_info.len(),
-            expected_dep_count,
-            "Should have all dependencies loaded"
+            pkg_deps.len(),
+            expected,
+            "Package {} should have {} dependencies",
+            pkg.name,
+            expected
         );
-        assert_eq!(*dep_selected, 0, "Selection should be reset to 0");
-        // Verify all packages have their dependencies
-        for pkg in &test_packages {
-            let pkg_deps: Vec<_> = dependency_info
-                .iter()
-                .filter(|d| d.required_by.contains(&pkg.name))
-                .collect();
-            let expected = if pkg.name.contains("official") { 4 } else { 3 };
-            assert_eq!(
-                pkg_deps.len(),
-                expected,
-                "Package {} should have {} dependencies",
-                pkg.name,
-                expected
-            );
-        }
-    } else {
-        panic!("Expected Preflight modal");
     }
 
     // Test 2: Files tab - should load all files
-    if let crate_root::state::Modal::Preflight {
-        items,
-        tab,
-        file_info,
-        file_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Files;
-
-        // Simulate sync_files logic
-        let item_names: std::collections::HashSet<String> =
-            items.iter().map(|i| i.name.clone()).collect();
-        let cached_files: Vec<_> = app
-            .install_list_files
-            .iter()
-            .filter(|file_info| item_names.contains(&file_info.name))
-            .cloned()
-            .collect();
-        if !cached_files.is_empty() {
-            *file_info = cached_files;
-            *file_selected = 0;
-        }
-    }
-
-    if let crate_root::state::Modal::Preflight {
-        file_info,
-        file_selected,
-        ..
-    } = &app.modal
-    {
-        assert_eq!(
-            file_info.len(),
-            test_packages.len(),
-            "Should have file info for all packages"
-        );
-        assert_eq!(*file_selected, 0, "Selection should be reset to 0");
-        // Verify total file count
-        let total_files: usize = file_info.iter().map(|f| f.files.len()).sum();
-        assert_eq!(
-            total_files, expected_file_count,
-            "Should have all files loaded"
-        );
-    } else {
-        panic!("Expected Preflight modal");
-    }
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Files);
+    let (_, _, _, _, file_info, _, _, _, _) = assert_preflight_modal(&app);
+    assert_eq!(
+        file_info.len(),
+        test_packages.len(),
+        "Should have file info for all packages"
+    );
+    // Verify total file count
+    let total_files: usize = file_info.iter().map(|f| f.files.len()).sum();
+    assert_eq!(
+        total_files, expected_file_count,
+        "Should have all files loaded"
+    );
 
     // Test 3: Services tab - should load all services
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        service_info,
-        service_selected,
-        services_loaded,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Services;
-
-        // Simulate sync_services logic
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let cached_services: Vec<_> = app
-                .install_list_services
-                .iter()
-                .filter(|s| s.providers.iter().any(|p| item_names.contains(p)))
-                .cloned()
-                .collect();
-            if !cached_services.is_empty() {
-                *service_info = cached_services;
-                *services_loaded = true;
-                *service_selected = 0;
-            }
-        }
-    }
-
-    if let crate_root::state::Modal::Preflight {
-        service_info,
-        service_selected,
-        services_loaded,
-        ..
-    } = &app.modal
-    {
-        assert_eq!(
-            service_info.len(),
-            expected_service_count,
-            "Should have all services loaded"
-        );
-        assert!(*services_loaded, "Services should be marked as loaded");
-        assert_eq!(*service_selected, 0, "Selection should be reset to 0");
-    } else {
-        panic!("Expected Preflight modal");
-    }
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Services);
+    let (_, _, _, _, _, service_info, _, services_loaded, _) = assert_preflight_modal(&app);
+    assert_eq!(
+        service_info.len(),
+        expected_service_count,
+        "Should have all services loaded"
+    );
+    assert!(*services_loaded, "Services should be marked as loaded");
 
     // Test 4: Sandbox tab - should load sandbox info for AUR packages only
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        sandbox_info,
-        sandbox_loaded,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Sandbox;
-
-        // Simulate sync_sandbox logic
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let cached_sandbox: Vec<_> = app
-                .install_list_sandbox
-                .iter()
-                .filter(|s| item_names.contains(&s.package_name))
-                .cloned()
-                .collect();
-            if !cached_sandbox.is_empty() {
-                *sandbox_info = cached_sandbox;
-                *sandbox_loaded = true;
-            }
-        }
-    }
-
-    if let crate_root::state::Modal::Preflight {
-        sandbox_info,
-        sandbox_loaded,
-        ..
-    } = &app.modal
-    {
-        assert_eq!(
-            sandbox_info.len(),
-            expected_sandbox_count,
-            "Should have sandbox info for all AUR packages"
-        );
-        assert!(*sandbox_loaded, "Sandbox should be marked as loaded");
-    } else {
-        panic!("Expected Preflight modal");
-    }
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Sandbox);
+    let (_, _, _, _, _, _, sandbox_info, _, sandbox_loaded) = assert_preflight_modal(&app);
+    assert_eq!(
+        sandbox_info.len(),
+        expected_sandbox_count,
+        "Should have sandbox info for all AUR packages"
+    );
+    assert!(*sandbox_loaded, "Sandbox should be marked as loaded");
 
     // Test 5: Verify navigation works (selection indices)
     if let crate_root::state::Modal::Preflight {
@@ -5397,7 +4947,6 @@ fn preflight_handles_large_datasets_correctly() {
         ..
     } = &mut app.modal
     {
-        // Test that we can set selection indices to valid ranges
         if !dependency_info.is_empty() {
             *dep_selected = dependency_info.len().saturating_sub(1);
         }
@@ -5408,112 +4957,90 @@ fn preflight_handles_large_datasets_correctly() {
             *service_selected = service_info.len().saturating_sub(1);
         }
     }
-
-    if let crate_root::state::Modal::Preflight {
-        dependency_info,
-        file_info,
-        service_info,
-        dep_selected,
-        file_selected,
-        service_selected,
-        ..
-    } = &app.modal
+    let (_, _, _, dependency_info, file_info, service_info, _, _, _) = assert_preflight_modal(&app);
+    if !dependency_info.is_empty()
+        && let crate_root::state::Modal::Preflight { dep_selected, .. } = &app.modal
     {
-        if !dependency_info.is_empty() {
-            assert!(
-                *dep_selected < dependency_info.len(),
-                "Dependency selection should be within bounds"
-            );
-        }
-        if !file_info.is_empty() {
-            assert!(
-                *file_selected < file_info.len(),
-                "File selection should be within bounds"
-            );
-        }
-        if !service_info.is_empty() {
-            assert!(
-                *service_selected < service_info.len(),
-                "Service selection should be within bounds"
-            );
-        }
-    } else {
-        panic!("Expected Preflight modal");
+        assert!(
+            *dep_selected < dependency_info.len(),
+            "Dependency selection should be within bounds"
+        );
+    }
+    if !file_info.is_empty()
+        && let crate_root::state::Modal::Preflight { file_selected, .. } = &app.modal
+    {
+        assert!(
+            *file_selected < file_info.len(),
+            "File selection should be within bounds"
+        );
+    }
+    if !service_info.is_empty()
+        && let crate_root::state::Modal::Preflight {
+            service_selected, ..
+        } = &app.modal
+    {
+        assert!(
+            *service_selected < service_info.len(),
+            "Service selection should be within bounds"
+        );
     }
 
     // Final verification: All data is correct and no corruption
-    if let crate_root::state::Modal::Preflight {
-        dependency_info,
-        file_info,
-        service_info,
-        sandbox_info,
-        ..
-    } = &app.modal
-    {
-        // Verify counts match expected
-        assert_eq!(
-            dependency_info.len(),
-            expected_dep_count,
-            "Dependency count should match expected"
-        );
-        assert_eq!(
-            file_info.len(),
-            test_packages.len(),
-            "File info count should match package count"
-        );
-        assert_eq!(
-            service_info.len(),
-            expected_service_count,
-            "Service count should match expected"
-        );
-        assert_eq!(
-            sandbox_info.len(),
-            expected_sandbox_count,
-            "Sandbox count should match expected"
-        );
+    let (_, _, _, dependency_info, file_info, service_info, sandbox_info, _, _) =
+        assert_preflight_modal(&app);
+    assert_eq!(
+        dependency_info.len(),
+        expected_dep_count,
+        "Dependency count should match expected"
+    );
+    assert_eq!(
+        file_info.len(),
+        test_packages.len(),
+        "File info count should match package count"
+    );
+    assert_eq!(
+        service_info.len(),
+        expected_service_count,
+        "Service count should match expected"
+    );
+    assert_eq!(
+        sandbox_info.len(),
+        expected_sandbox_count,
+        "Sandbox count should match expected"
+    );
 
-        // Verify data integrity - all packages should have their data
-        for pkg in &test_packages {
-            // Check dependencies
-            let pkg_deps: Vec<_> = dependency_info
-                .iter()
-                .filter(|d| d.required_by.contains(&pkg.name))
-                .collect();
+    // Verify data integrity - all packages should have their data
+    for pkg in &test_packages {
+        let pkg_deps: Vec<_> = dependency_info
+            .iter()
+            .filter(|d| d.required_by.contains(&pkg.name))
+            .collect();
+        assert!(
+            !pkg_deps.is_empty(),
+            "Package {} should have dependencies",
+            pkg.name
+        );
+        assert!(
+            file_info.iter().any(|f| f.name == pkg.name),
+            "Package {} should have file info",
+            pkg.name
+        );
+        let pkg_services: Vec<_> = service_info
+            .iter()
+            .filter(|s| s.providers.contains(&pkg.name))
+            .collect();
+        assert!(
+            !pkg_services.is_empty(),
+            "Package {} should have services",
+            pkg.name
+        );
+        if matches!(pkg.source, crate_root::state::Source::Aur) {
             assert!(
-                !pkg_deps.is_empty(),
-                "Package {} should have dependencies",
+                sandbox_info.iter().any(|s| s.package_name == pkg.name),
+                "AUR package {} should have sandbox info",
                 pkg.name
             );
-
-            // Check files
-            assert!(
-                file_info.iter().any(|f| f.name == pkg.name),
-                "Package {} should have file info",
-                pkg.name
-            );
-
-            // Check services
-            let pkg_services: Vec<_> = service_info
-                .iter()
-                .filter(|s| s.providers.contains(&pkg.name))
-                .collect();
-            assert!(
-                !pkg_services.is_empty(),
-                "Package {} should have services",
-                pkg.name
-            );
-
-            // Check sandbox (only for AUR)
-            if matches!(pkg.source, crate_root::state::Source::Aur) {
-                assert!(
-                    sandbox_info.iter().any(|s| s.package_name == pkg.name),
-                    "AUR package {} should have sandbox info",
-                    pkg.name
-                );
-            }
         }
-    } else {
-        panic!("Expected Preflight modal");
     }
 }
 
@@ -7245,6 +6772,262 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         // Verify Sandbox tab has AUR package info
         assert_eq!(sandbox_info.len(), 1, "Should have 1 sandbox entry");
         assert!(sandbox_info.iter().any(|s| s.package_name == "aur-package"));
+    } else {
+        panic!("Expected Preflight modal");
+    }
+}
+
+// ============================================================================
+// Helper Functions for Test Setup and Operations
+// ============================================================================
+
+/// What: Create a simple test package with the given name and source.
+///
+/// Inputs:
+/// - `name`: Package name
+/// - `version`: Package version (defaults to "1.0.0")
+/// - `source`: Package source (Official or AUR)
+///
+/// Output:
+/// - A `PackageItem` with the specified properties
+///
+/// Details:
+/// - Creates a minimal package item suitable for testing
+fn create_test_package(
+    name: impl Into<String>,
+    version: impl Into<String>,
+    source: crate_root::state::Source,
+) -> crate_root::state::PackageItem {
+    crate_root::state::PackageItem {
+        name: name.into(),
+        version: version.into(),
+        description: String::new(),
+        source,
+        popularity: None,
+    }
+}
+
+/// What: Create a default preflight modal state for testing.
+///
+/// Inputs:
+/// - `packages`: Vector of packages to include
+/// - `action`: Preflight action (Install or Remove)
+/// - `initial_tab`: Initial tab to show
+///
+/// Output:
+/// - A `Modal::Preflight` variant with default values
+///
+/// Details:
+/// - Initializes all modal fields with sensible defaults
+/// - Sets up empty collections and default flags
+fn create_preflight_modal(
+    packages: Vec<crate_root::state::PackageItem>,
+    action: crate_root::state::PreflightAction,
+    initial_tab: crate_root::state::PreflightTab,
+) -> crate_root::state::Modal {
+    let package_count = packages.len();
+    let aur_count = packages
+        .iter()
+        .filter(|p| matches!(p.source, crate_root::state::Source::Aur))
+        .count();
+
+    crate_root::state::Modal::Preflight {
+        items: packages,
+        action,
+        tab: initial_tab,
+        summary: None,
+        summary_scroll: 0,
+        header_chips: crate_root::state::modal::PreflightHeaderChips {
+            package_count,
+            download_bytes: 0,
+            install_delta_bytes: 0,
+            aur_count,
+            risk_score: 0,
+            risk_level: crate_root::state::modal::RiskLevel::Low,
+        },
+        dependency_info: Vec::new(),
+        dep_selected: 0,
+        dep_tree_expanded: std::collections::HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: std::collections::HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: std::collections::HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+    }
+}
+
+/// What: Switch to a preflight tab and sync data from app cache.
+///
+/// Inputs:
+/// - `app`: Application state with cached data
+/// - `tab`: Tab to switch to
+///
+/// Output:
+/// - Updates modal state with synced data from cache
+///
+/// Details:
+/// - Mirrors the sync logic from `src/ui/modals/preflight/helpers/sync.rs`
+/// - Only syncs data relevant to the target tab
+fn switch_preflight_tab(
+    app: &mut crate_root::state::AppState,
+    tab: crate_root::state::PreflightTab,
+) {
+    if let crate_root::state::Modal::Preflight {
+        items,
+        action,
+        tab: current_tab,
+        dependency_info,
+        dep_selected,
+        file_info,
+        file_selected,
+        service_info,
+        service_selected,
+        services_loaded,
+        sandbox_info,
+        sandbox_loaded,
+        ..
+    } = &mut app.modal
+    {
+        *current_tab = tab;
+
+        let item_names: std::collections::HashSet<String> =
+            items.iter().map(|i| i.name.clone()).collect();
+
+        // Sync dependencies
+        if matches!(*action, crate_root::state::PreflightAction::Install)
+            && (matches!(tab, crate_root::state::PreflightTab::Deps)
+                || matches!(tab, crate_root::state::PreflightTab::Summary)
+                || dependency_info.is_empty())
+        {
+            let filtered: Vec<_> = app
+                .install_list_deps
+                .iter()
+                .filter(|dep| {
+                    dep.required_by
+                        .iter()
+                        .any(|req_by| item_names.contains(req_by))
+                })
+                .cloned()
+                .collect();
+            if !filtered.is_empty() {
+                let was_empty = dependency_info.is_empty();
+                *dependency_info = filtered;
+                if was_empty {
+                    *dep_selected = 0;
+                }
+            }
+        }
+
+        // Sync files
+        if matches!(tab, crate_root::state::PreflightTab::Files) {
+            let cached_files: Vec<_> = app
+                .install_list_files
+                .iter()
+                .filter(|file_info| item_names.contains(&file_info.name))
+                .cloned()
+                .collect();
+            if !cached_files.is_empty() {
+                *file_info = cached_files;
+                *file_selected = 0;
+            }
+        }
+
+        // Sync services
+        if matches!(*action, crate_root::state::PreflightAction::Install)
+            && matches!(tab, crate_root::state::PreflightTab::Services)
+        {
+            let cached_services: Vec<_> = app
+                .install_list_services
+                .iter()
+                .filter(|s| s.providers.iter().any(|p| item_names.contains(p)))
+                .cloned()
+                .collect();
+            if !cached_services.is_empty() {
+                *service_info = cached_services;
+                *services_loaded = true;
+                *service_selected = 0;
+            }
+        }
+
+        // Sync sandbox
+        if matches!(*action, crate_root::state::PreflightAction::Install)
+            && matches!(tab, crate_root::state::PreflightTab::Sandbox)
+        {
+            let cached_sandbox: Vec<_> = app
+                .install_list_sandbox
+                .iter()
+                .filter(|s| item_names.contains(&s.package_name))
+                .cloned()
+                .collect();
+            if !cached_sandbox.is_empty() {
+                *sandbox_info = cached_sandbox;
+                *sandbox_loaded = true;
+            }
+        }
+    }
+}
+
+/// What: Assert that the modal is a Preflight variant and return its fields.
+///
+/// Inputs:
+/// - `app`: Application state
+///
+/// Output:
+/// - Tuple of all Preflight modal fields for verification
+///
+/// Details:
+/// - Panics if modal is not Preflight variant
+/// - Useful for assertions and verification
+/// - Returns references to all fields for easy access
+#[allow(clippy::type_complexity)]
+fn assert_preflight_modal(
+    app: &crate_root::state::AppState,
+) -> (
+    &Vec<crate_root::state::PackageItem>,
+    &crate_root::state::PreflightAction,
+    &crate_root::state::PreflightTab,
+    &Vec<crate_root::state::modal::DependencyInfo>,
+    &Vec<crate_root::state::modal::PackageFileInfo>,
+    &Vec<crate_root::state::modal::ServiceImpact>,
+    &Vec<crate_root::logic::sandbox::SandboxInfo>,
+    &bool,
+    &bool,
+) {
+    if let crate_root::state::Modal::Preflight {
+        items,
+        action,
+        tab,
+        dependency_info,
+        file_info,
+        service_info,
+        sandbox_info,
+        services_loaded,
+        sandbox_loaded,
+        ..
+    } = &app.modal
+    {
+        (
+            items,
+            action,
+            tab,
+            dependency_info,
+            file_info,
+            service_info,
+            sandbox_info,
+            services_loaded,
+            sandbox_loaded,
+        )
     } else {
         panic!("Expected Preflight modal");
     }

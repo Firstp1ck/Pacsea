@@ -80,29 +80,36 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 /// - AUR packages are installed via `paru`/`yay` (prompts to install a helper if missing)
 /// - Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.); falls back to `bash`
 /// - Appends a "hold" tail so the terminal remains open after command completion
-pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
+/// - During tests, this is a no-op to avoid opening real terminal windows.
+pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
+    // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
+    #[cfg(test)]
+    if std::env::var("PACSEA_TEST_OUT").is_err() {
+        return;
+    }
+
     let mut official: Vec<String> = Vec::new();
     let mut aur: Vec<String> = Vec::new();
-    for it in items {
+    for it in _items {
         match it.source {
             Source::Official { .. } => official.push(it.name.clone()),
             Source::Aur => aur.push(it.name.clone()),
         }
     }
-    let names_vec: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+    let names_vec: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
     tracing::info!(
-        total = items.len(),
+        total = _items.len(),
         aur_count = aur.len(),
         official_count = official.len(),
-        dry_run,
+        dry_run = _dry_run,
         names = %names_vec.join(" "),
         "spawning install"
     );
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
 
-    let cmd_str = if dry_run {
+    let cmd_str = if _dry_run {
         if !aur.is_empty() {
-            let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            let all: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
             format!(
                 "echo DRY RUN: (paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n}){hold}",
                 n = all.join(" "),
@@ -118,7 +125,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
             format!("echo DRY RUN: nothing to install{hold}", hold = hold_tail)
         }
     } else if !aur.is_empty() {
-        let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+        let all: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
         let n = all.join(" ");
         format!(
             "{body}{hold}",
@@ -195,7 +202,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
         let spawn_res = cmd.spawn();
         match spawn_res {
             Ok(_) => {
-                tracing::info!(terminal = %term, total = items.len(), aur_count = aur.len(), official_count = official.len(), dry_run, names = %names_vec.join(" "), "launched terminal for install");
+                tracing::info!(terminal = %term, total = _items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = _dry_run, names = %names_vec.join(" "), "launched terminal for install");
             }
             Err(e) => {
                 tracing::warn!(terminal = %term, error = %e, names = %names_vec.join(" "), "failed to spawn terminal, trying next");
@@ -228,7 +235,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
                 let spawn_res = cmd.spawn();
                 match spawn_res {
                     Ok(_) => {
-                        tracing::info!(terminal = %term, total = items.len(), aur_count = aur.len(), official_count = official.len(), dry_run, names = %names_vec.join(" "), "launched terminal for install");
+                        tracing::info!(terminal = %term, total = _items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = _dry_run, names = %names_vec.join(" "), "launched terminal for install");
                     }
                     Err(e) => {
                         tracing::warn!(terminal = %term, error = %e, names = %names_vec.join(" "), "failed to spawn terminal, trying next");
@@ -245,12 +252,12 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
         if let Err(e) = res {
             tracing::error!(error = %e, names = %names_vec.join(" "), "failed to spawn bash to run install command");
         } else {
-            tracing::info!(total = items.len(), aur_count = aur.len(), official_count = official.len(), dry_run, names = %names_vec.join(" "), "launched bash for install");
+            tracing::info!(total = _items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = _dry_run, names = %names_vec.join(" "), "launched bash for install");
         }
     }
 
-    if !dry_run {
-        let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+    if !_dry_run {
+        let names: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
         if !names.is_empty()
             && let Err(e) = log_installed(&names)
         {
@@ -360,14 +367,21 @@ mod tests {
 /// Details:
 /// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the batch install with Write-Host.
 /// - Always logs install attempts when not in `dry_run` to remain consistent with Unix behaviour.
-pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
-    let mut names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+/// - During tests, this is a no-op to avoid opening real terminal windows.
+pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
+    // Skip actual spawning during tests
+    #[cfg(test)]
+    {
+        return;
+    }
+
+    let mut names: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
     if names.is_empty() {
         names.push("nothing".into());
     }
     let names_str = names.join(" ");
 
-    if dry_run && super::utils::is_powershell_available() {
+    if _dry_run && super::utils::is_powershell_available() {
         // Use PowerShell to simulate the batch install operation
         let powershell_cmd = format!(
             "Write-Host 'DRY RUN: Simulating batch install of {}' -ForegroundColor Yellow; Write-Host 'Packages: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
@@ -378,7 +392,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
             .args(["-NoProfile", "-Command", &powershell_cmd])
             .spawn();
     } else {
-        let msg = if dry_run {
+        let msg = if _dry_run {
             format!("DRY RUN: install {}", names_str)
         } else {
             format!("Install {} (not supported on Windows)", names_str)
@@ -395,7 +409,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
             .spawn();
     }
 
-    if !dry_run {
+    if !_dry_run {
         let _ = super::logging::log_installed(&names);
     }
 }

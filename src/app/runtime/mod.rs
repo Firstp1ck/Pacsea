@@ -13,9 +13,11 @@ use super::persist::{
 use super::terminal::{restore_terminal, setup_terminal};
 
 mod background;
+mod channels;
 mod handlers;
 mod init;
 mod tick_handler;
+mod workers;
 
 use background::{Channels, spawn_auxiliary_workers, spawn_event_thread};
 use handlers::*;
