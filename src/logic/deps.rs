@@ -124,7 +124,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
                         format!("conflicts with package {} in install list", conflict_name)
                     };
 
-                    // Add or update conflict entry
+                    // Add or update conflict entry for the conflicting package
                     let entry = deps.entry(conflict_name.clone()).or_insert_with(|| {
                         // Determine source for conflicting package
                         let (source, is_core) =
@@ -157,6 +157,48 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
                     // Add to required_by if not present
                     if !entry.required_by.contains(&item.name) {
                         entry.required_by.push(item.name.clone());
+                    }
+
+                    // If the conflict is with another package in the install list, also create
+                    // a conflict entry for the current package being checked, so it shows up
+                    // in the UI as having a conflict
+                    if is_in_install_list {
+                        let reverse_reason =
+                            format!("conflicts with package {} in install list", conflict_name);
+                        let current_entry = deps.entry(item.name.clone()).or_insert_with(|| {
+                            // Determine source for current package
+                            let (dep_source, is_core) =
+                                crate::logic::deps::source::determine_dependency_source(
+                                    &item.name, &installed,
+                                );
+                            let is_system = is_core
+                                || crate::logic::deps::source::is_system_package(&item.name);
+
+                            DependencyInfo {
+                                name: item.name.clone(),
+                                version: String::new(),
+                                status: DependencyStatus::Conflict {
+                                    reason: reverse_reason.clone(),
+                                },
+                                source: dep_source,
+                                required_by: vec![conflict_name.clone()],
+                                depends_on: Vec::new(),
+                                is_core,
+                                is_system,
+                            }
+                        });
+
+                        // Update status to Conflict if not already
+                        if !matches!(current_entry.status, DependencyStatus::Conflict { .. }) {
+                            current_entry.status = DependencyStatus::Conflict {
+                                reason: reverse_reason,
+                            };
+                        }
+
+                        // Add to required_by if not present
+                        if !current_entry.required_by.contains(&conflict_name) {
+                            current_entry.required_by.push(conflict_name.clone());
+                        }
                     }
                 }
             }
