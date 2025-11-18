@@ -5,7 +5,6 @@ use crate::state::PackageItem;
 #[cfg(not(target_os = "windows"))]
 use crate::state::Source;
 
-#[cfg(not(test))]
 use super::command::build_install_command;
 #[cfg(not(target_os = "windows"))]
 use super::logging::log_installed;
