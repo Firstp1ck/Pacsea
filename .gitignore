@@ -42,3 +42,4 @@ repository/
 
 complexity_report.txt
 dev/scripts/Modules/*
+clippy_cognitive_complexity_report.txt
