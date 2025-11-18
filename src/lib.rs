@@ -1,4 +1,30 @@
-//! Library entry for Pacsea exposing core logic for integration tests.
+//! # Pacsea Crate Overview
+//!
+//! Pacsea bundles the core event loop, data pipelines, and UI helpers that power the
+//! `pacsea` terminal application. Integration tests and downstream tooling can depend on this
+//! crate to drive the runtime without going through the binary entrypoint.
+//!
+//! ## Highlights
+//! - TUI runtime (`app::runtime`) orchestrating async tasks, caches, and rendering.
+//! - Modular subsystems for install flows, package index querying, and translation loading.
+//! - Reusable helpers for theme paths, serialization, and UI composition.
+//!
+//! ## Crate Layout
+//! - [`app`]: runtime, caches, and persistence glue for the interactive TUI.
+//! - [`events`], [`logic`], [`install`]: event handling and command execution pipelines.
+//! - [`index`], [`sources`]: Arch/AUR metadata fetchers plus enrichment.
+//! - [`state`], [`theme`], [`ui`], [`util`]: configuration, rendering, and misc helpers.
+//!
+//! ## Quick Start
+//! ```no_run
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     pacsea::app::runtime::run(false).await?;
+//!     Ok(())
+//! }
+//! ```
+//!
+//! The modules listed below link to detailed documentation for each subsystem.
 
 pub mod app;
 
@@ -14,6 +40,7 @@ pub mod ui;
 pub mod util;
 
 // Backwards-compat shim: keep `crate::ui_helpers::*` working
+#[doc(hidden)]
 pub use crate::ui::helpers as ui_helpers;
 
 #[cfg(test)]
