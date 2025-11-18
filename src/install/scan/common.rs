@@ -21,6 +21,7 @@ Details:
 ///
 /// Details:
 /// - Sets default pattern regexes for CRITICAL, HIGH, MEDIUM, and LOW severity levels if not already set.
+#[cfg(not(target_os = "windows"))]
 pub fn add_pattern_exports(cmds: &mut Vec<String>) {
     cmds.push("if [ -z \"${PACSEA_PATTERNS_CRIT:-}\" ]; then export PACSEA_PATTERNS_CRIT='/dev/(tcp|udp)/|bash -i *>& *[^ ]*/dev/(tcp|udp)/[0-9]+|exec [0-9]{2,}<>/dev/(tcp|udp)/|rm -rf[[:space:]]+/|dd if=/dev/zero of=/dev/sd[a-z]|[>]{1,2}[[:space:]]*/dev/sd[a-z]|: *\\(\\) *\\{ *: *\\| *: *& *\\};:|/etc/sudoers([[:space:]>]|$)|echo .*[>]{2}.*(/etc/sudoers|/root/.ssh/authorized_keys)|/etc/ld\\.so\\.preload|LD_PRELOAD=|authorized_keys.*[>]{2}|ssh-rsa [A-Za-z0-9+/=]+.*[>]{2}.*authorized_keys|curl .*(169\\.254\\.169\\.254)'; fi".to_string());
     cmds.push("if [ -z \"${PACSEA_PATTERNS_HIGH:-}\" ]; then export PACSEA_PATTERNS_HIGH='eval|base64 -d|wget .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|curl .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|sudo[[:space:]]|chattr[[:space:]]|useradd|adduser|groupadd|systemctl|service[[:space:]]|crontab|/etc/cron\\.|[>]{2}.*(\\.bashrc|\\.bash_profile|/etc/profile|\\.zshrc)|cat[[:space:]]+/etc/shadow|cat[[:space:]]+~/.ssh/id_rsa|cat[[:space:]]+~/.bash_history|systemctl stop (auditd|rsyslog)|service (auditd|rsyslog) stop|scp .*@|curl -F|nc[[:space:]].*<|tar -czv?f|zip -r'; fi".to_string());
@@ -39,6 +40,7 @@ pub fn add_pattern_exports(cmds: &mut Vec<String>) {
 /// Details:
 /// - Checks for ClamAV availability and signature database before running scan.
 /// - Respects PACSEA_SCAN_DO_CLAMAV environment variable.
+#[cfg(not(target_os = "windows"))]
 pub fn add_clamav_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- ClamAV scan (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🔍] ClamAV scan (optional)\\033[0m'".to_string());
@@ -56,6 +58,7 @@ pub fn add_clamav_scan(cmds: &mut Vec<String>) {
 /// Details:
 /// - Attempts JSON output first, falls back to text output.
 /// - Respects PACSEA_SCAN_DO_TRIVY environment variable.
+#[cfg(not(target_os = "windows"))]
 pub fn add_trivy_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Trivy filesystem scan (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧰] Trivy filesystem scan (optional)\\033[0m'".to_string());
@@ -73,6 +76,7 @@ pub fn add_trivy_scan(cmds: &mut Vec<String>) {
 /// Details:
 /// - Uses auto-config mode for Semgrep.
 /// - Respects PACSEA_SCAN_DO_SEMGREP environment variable.
+#[cfg(not(target_os = "windows"))]
 pub fn add_semgrep_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Semgrep static analysis (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧪] Semgrep static analysis (optional)\\033[0m'".to_string());
@@ -91,6 +95,7 @@ pub fn add_semgrep_scan(cmds: &mut Vec<String>) {
 /// - Searches for aur-sleuth in multiple locations.
 /// - Loads proxy settings from Pacsea config if available.
 /// - Respects PACSEA_SCAN_DO_SLEUTH environment variable.
+#[cfg(not(target_os = "windows"))]
 pub fn add_sleuth_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- aur-sleuth audit (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🔎] aur-sleuth audit (optional)\\033[0m'".to_string());
@@ -108,6 +113,7 @@ pub fn add_sleuth_scan(cmds: &mut Vec<String>) {
 /// Details:
 /// - Analyzes PKGBUILD and *.install files.
 /// - Respects PACSEA_SCAN_DO_SHELLCHECK environment variable.
+#[cfg(not(target_os = "windows"))]
 pub fn add_shellcheck_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- ShellCheck lint (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧹] ShellCheck lint (optional)\\033[0m'".to_string());
@@ -125,6 +131,7 @@ pub fn add_shellcheck_scan(cmds: &mut Vec<String>) {
 /// Details:
 /// - Calculates risk score based on ShellCheck errors/warnings and PKGBUILD heuristics.
 /// - Respects PACSEA_SCAN_DO_SHELLCHECK environment variable.
+#[cfg(not(target_os = "windows"))]
 pub fn add_shellcheck_risk_eval(cmds: &mut Vec<String>) {
     cmds.push("(if [ \"${PACSEA_SCAN_DO_SHELLCHECK:-1}\" = \"1\" ]; then echo -e '\\033[1;33m[⚠️ ] Risk evaluation (PKGBUILD/.install)\\033[0m'; ({ sc_err=0; sc_warn=0; sc_info=0; sc_err=$((sc_err + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '\"level\":\"error\"' | wc -l))); sc_warn=$((sc_warn + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '\"level\":\"warning\"' | wc -l))); sc_info=$((sc_info + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '\"level\":\"info\"' | wc -l))); sc_err=$((sc_err + $(cat ./.pacsea_shellcheck_pkgbuild.txt ./.pacsea_shellcheck_install.txt 2>/dev/null | grep -oi 'error:' | wc -l))); sc_warn=$((sc_warn + $(cat ./.pacsea_shellcheck_pkgbuild.txt ./.pacsea_shellcheck_install.txt 2>/dev/null | grep -oi 'warning:' | wc -l))); if [ -f PKGBUILD ]; then pkgrisk=$(grep -Eoi 'curl|wget|bash -c|sudo|chown|chmod|mktemp|systemctl|useradd|groupadd|nc\\s|socat|/tmp/' PKGBUILD | wc -l); else pkgrisk=0; fi; if ls ./*.install >/dev/null 2>&1; then inst_risk=$(grep -Eoi 'post_install|pre_install|post_upgrade|pre_upgrade|systemctl|useradd|groupadd|chown|chmod|sudo|service|adduser' ./*.install | wc -l); else inst_risk=0; fi; risk=$((sc_err*5 + sc_warn*2 + sc_info + pkgrisk*3 + inst_risk*4)); tier='LOW'; if [ \"$risk\" -ge 60 ]; then tier='CRITICAL'; elif [ \"$risk\" -ge 40 ]; then tier='HIGH'; elif [ \"$risk\" -ge 20 ]; then tier='MEDIUM'; fi; { echo \"SC_ERRORS=$sc_err\"; echo \"SC_WARNINGS=$sc_warn\"; echo \"SC_INFO=$sc_info\"; echo \"PKGBUILD_HEURISTICS=$pkgrisk\"; echo \"INSTALL_HEURISTICS=$inst_risk\"; echo \"RISK_SCORE=$risk\"; echo \"RISK_TIER=$tier\"; } > ./.pacsea_shellcheck_risk.txt; echo \"Risk score: $risk ($tier)\"; } || echo 'Risk evaluation encountered an error; skipping'); else echo 'Risk Evaluation: skipped (ShellCheck disabled)'; fi)".to_string());
 }
@@ -141,6 +148,7 @@ pub fn add_shellcheck_risk_eval(cmds: &mut Vec<String>) {
 /// - Scans PKGBUILD, *.install, and shell files in src/ for suspicious patterns.
 /// - Calculates risk score based on pattern matches.
 /// - Respects PACSEA_SCAN_DO_CUSTOM environment variable.
+#[cfg(not(target_os = "windows"))]
 pub fn add_custom_pattern_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Custom suspicious patterns scan (optional) ---'".to_string());
     cmds.push(
@@ -219,6 +227,7 @@ fi)"#.to_string());
 /// - Looks up SHA256 hashes of PKGBUILD and src files in VirusTotal.
 /// - Requires VT_API_KEY environment variable or config setting.
 /// - Respects PACSEA_SCAN_DO_VIRUSTOTAL environment variable.
+#[cfg(not(target_os = "windows"))]
 pub fn add_virustotal_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- VirusTotal hash lookups (requires VT_API_KEY env var) ---'".to_string());
     cmds.push(

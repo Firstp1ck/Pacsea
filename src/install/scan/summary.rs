@@ -22,6 +22,7 @@ Details:
 /// Details:
 /// - Aggregates scores from ShellCheck, ClamAV, Trivy, Semgrep, VirusTotal, and Custom scans.
 /// - Calculates overall percentage and tier (LOW/MEDIUM/HIGH/CRITICAL).
+#[cfg(not(target_os = "windows"))]
 pub fn add_overall_risk_calc(cmds: &mut Vec<String>) {
     cmds.push(
         r#"(
@@ -113,6 +114,7 @@ pub fn add_overall_risk_calc(cmds: &mut Vec<String>) {
 ///
 /// Output:
 /// - Appends ClamAV summary commands to the vector.
+#[cfg(not(target_os = "windows"))]
 pub fn add_clamav_summary(cmds: &mut Vec<String>) {
     cmds.push(
         r#"if [ -f ./.pacsea_scan_clamav.txt ]; then
@@ -137,6 +139,7 @@ fi"#
 ///
 /// Output:
 /// - Appends Trivy summary commands to the vector.
+#[cfg(not(target_os = "windows"))]
 pub fn add_trivy_summary(cmds: &mut Vec<String>) {
     cmds.push(
         r#"if [ -f ./.pacsea_scan_trivy.json ]; then
@@ -175,6 +178,7 @@ fi"#
 ///
 /// Output:
 /// - Appends Semgrep summary commands to the vector.
+#[cfg(not(target_os = "windows"))]
 pub fn add_semgrep_summary(cmds: &mut Vec<String>) {
     cmds.push(
         r#"if [ -f ./.pacsea_scan_semgrep.json ]; then
@@ -199,6 +203,7 @@ fi"#
 ///
 /// Output:
 /// - Appends ShellCheck summary commands to the vector.
+#[cfg(not(target_os = "windows"))]
 pub fn add_shellcheck_summary(cmds: &mut Vec<String>) {
     cmds.push(
         r#"if [ -f ./.pacsea_shellcheck_pkgbuild.json ] || [ -f ./.pacsea_shellcheck_pkgbuild.txt ] || [ -f ./.pacsea_shellcheck_install.json ] || [ -f ./.pacsea_shellcheck_install.txt ]; then
@@ -222,6 +227,7 @@ fi"#
 ///
 /// Output:
 /// - Appends ShellCheck risk evaluation summary commands to the vector.
+#[cfg(not(target_os = "windows"))]
 pub fn add_shellcheck_risk_summary(cmds: &mut Vec<String>) {
     cmds.push(
         r#"rf=./.pacsea_shellcheck_risk.txt; if [ -f "$rf" ] && { [ -f ./.pacsea_shellcheck_pkgbuild.json ] || [ -f ./.pacsea_shellcheck_pkgbuild.txt ] || [ -f ./.pacsea_shellcheck_install.json ] || [ -f ./.pacsea_shellcheck_install.txt ]; }; then
@@ -240,6 +246,7 @@ fi"#
 ///
 /// Output:
 /// - Appends custom scan and VirusTotal summary commands to the vector.
+#[cfg(not(target_os = "windows"))]
 pub fn add_custom_and_vt_summary(cmds: &mut Vec<String>) {
     cmds.push(
         r#"csf=./.pacsea_custom_score.txt; if [ -f "$csf" ]; then

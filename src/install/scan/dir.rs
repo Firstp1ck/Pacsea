@@ -11,8 +11,6 @@ Details:
 - Mirrors package scan but omits clone steps, operating on existing directory
 */
 
-use super::common;
-
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(not(target_os = "windows"))]
 /// What: Build the in-place scan pipeline for an existing directory.
@@ -36,14 +34,14 @@ pub fn build_scan_cmds_in_dir(target_dir: &str) -> Vec<String> {
     cmds.push("cd \"$target_dir\" && { export PACSEA_DEBUG_LOG=\"$(pwd)/.pacsea_debug.log\"; exec > >(tee -a \"$PACSEA_DEBUG_LOG\") 2>&1; exec 9>>\"$PACSEA_DEBUG_LOG\"; export BASH_XTRACEFD=9; set -x; echo \"Pacsea debug: $(date) start in-place scan for '$target_dir' in $PWD\"; trap 'code=$?; echo; echo \"Pacsea debug: exit code=$code\"; echo \"Log: $PACSEA_DEBUG_LOG\"; echo \"Press any key to close...\"; read -rn1 -s _' EXIT; }".to_string());
 
     // Add all scan stages
-    common::add_clamav_scan(&mut cmds);
-    common::add_trivy_scan(&mut cmds);
-    common::add_semgrep_scan(&mut cmds);
-    common::add_sleuth_scan(&mut cmds);
-    common::add_shellcheck_scan(&mut cmds);
-    common::add_shellcheck_risk_eval(&mut cmds);
-    common::add_custom_pattern_scan(&mut cmds);
-    common::add_virustotal_scan(&mut cmds);
+    super::common::add_clamav_scan(&mut cmds);
+    super::common::add_trivy_scan(&mut cmds);
+    super::common::add_semgrep_scan(&mut cmds);
+    super::common::add_sleuth_scan(&mut cmds);
+    super::common::add_shellcheck_scan(&mut cmds);
+    super::common::add_shellcheck_risk_eval(&mut cmds);
+    super::common::add_custom_pattern_scan(&mut cmds);
+    super::common::add_virustotal_scan(&mut cmds);
 
     // Summary and completion
     cmds.push("echo".to_string());

@@ -20,4 +20,5 @@ mod pkg;
 mod spawn;
 mod summary;
 
+#[cfg(not(target_os = "windows"))]
 pub use spawn::spawn_aur_scan_for_with_config;

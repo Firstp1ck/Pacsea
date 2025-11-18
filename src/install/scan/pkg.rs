@@ -11,6 +11,7 @@ Details:
 - Handles repository fetching, makepkg, and all scan stages
 */
 
+#[cfg(not(target_os = "windows"))]
 use super::{common, summary};
 
 #[cfg(not(target_os = "windows"))]
@@ -47,6 +48,7 @@ pub fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
 ///
 /// Output:
 /// - Appends setup commands to the vector.
+#[cfg(not(target_os = "windows"))]
 fn add_setup_commands(cmds: &mut Vec<String>, pkg: &str) {
     // 0) Create and enter working directory; remember it for later messages
     cmds.push(format!("pkg='{}'", pkg));
@@ -66,6 +68,7 @@ fn add_setup_commands(cmds: &mut Vec<String>, pkg: &str) {
 ///
 /// Output:
 /// - Appends fetch commands to the vector.
+#[cfg(not(target_os = "windows"))]
 fn add_fetch_commands(cmds: &mut Vec<String>, _pkg: &str) {
     // 1) Fetch PKGBUILD via AUR helper first; fallback to git clone
     cmds.push("echo 'Fetching PKGBUILD via AUR helper (-G)…'".to_string());
@@ -86,6 +89,7 @@ fn add_fetch_commands(cmds: &mut Vec<String>, _pkg: &str) {
 ///
 /// Details:
 /// - Handles PKGBUILD location fallbacks and helper cache population.
+#[cfg(not(target_os = "windows"))]
 fn add_makepkg_commands(cmds: &mut Vec<String>, _pkg: &str) {
     // 2) Download sources only
     cmds.push("echo 'Running makepkg -o (download sources only)…'".to_string());
@@ -152,6 +156,7 @@ fn add_makepkg_commands(cmds: &mut Vec<String>, _pkg: &str) {
 ///
 /// Output:
 /// - Appends all scan commands to the vector.
+#[cfg(not(target_os = "windows"))]
 fn add_all_scans(cmds: &mut Vec<String>) {
     common::add_pattern_exports(cmds);
     common::add_clamav_scan(cmds);
@@ -172,6 +177,7 @@ fn add_all_scans(cmds: &mut Vec<String>) {
 ///
 /// Output:
 /// - Appends summary commands to the vector.
+#[cfg(not(target_os = "windows"))]
 fn add_summary_commands(cmds: &mut Vec<String>, _pkg: &str) {
     // Final note with working directory for manual inspection
     cmds.push("echo".to_string());

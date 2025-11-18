@@ -1,9 +1,11 @@
+#[allow(unused_imports)]
 use std::process::Command;
 
 use crate::state::PackageItem;
 #[cfg(not(target_os = "windows"))]
 use crate::state::Source;
 
+#[cfg(not(test))]
 use super::command::build_install_command;
 #[cfg(not(target_os = "windows"))]
 use super::logging::log_installed;
@@ -231,31 +233,28 @@ mod tests {
 /// - Logs the install attempt when not a dry run to keep audit behaviour consistent with Unix platforms.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
 pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: bool) {
-    // Skip actual spawning during tests
-    #[cfg(test)]
+    #[cfg(not(test))]
     {
-        return;
-    }
+        let (cmd_str, _uses_sudo) = build_install_command(_item, _password, _dry_run);
 
-    let (cmd_str, _uses_sudo) = build_install_command(_item, _password, _dry_run);
+        if _dry_run && super::utils::is_powershell_available() {
+            // Use PowerShell to simulate the install operation
+            let powershell_cmd = format!(
+                "Write-Host 'DRY RUN: Simulating install of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
+                _item.name,
+                cmd_str.replace("'", "''")
+            );
+            let _ = Command::new("powershell.exe")
+                .args(["-NoProfile", "-Command", &powershell_cmd])
+                .spawn();
+        } else {
+            let _ = Command::new("cmd")
+                .args(["/C", "start", "Pacsea Install", "cmd", "/K", &cmd_str])
+                .spawn();
+        }
 
-    if _dry_run && super::utils::is_powershell_available() {
-        // Use PowerShell to simulate the install operation
-        let powershell_cmd = format!(
-            "Write-Host 'DRY RUN: Simulating install of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
-            _item.name,
-            cmd_str.replace("'", "''")
-        );
-        let _ = Command::new("powershell.exe")
-            .args(["-NoProfile", "-Command", &powershell_cmd])
-            .spawn();
-    } else {
-        let _ = Command::new("cmd")
-            .args(["/C", "start", "Pacsea Install", "cmd", "/K", &cmd_str])
-            .spawn();
-    }
-
-    if !_dry_run {
-        let _ = super::logging::log_installed(std::slice::from_ref(&_item.name));
+        if !_dry_run {
+            let _ = super::logging::log_installed(std::slice::from_ref(&_item.name));
+        }
     }
 }

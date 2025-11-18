@@ -32,7 +32,28 @@ fn new_app() -> AppState {
 ///
 /// Details:
 /// - Uses mock channels to satisfy handler requirements without observing downstream messages.
+/// - Sets up temporary config directory to ensure `skip_preflight = false` regardless of user config.
 fn install_enter_opens_confirm_install() {
+    let _guard = crate::theme::test_mutex().lock().unwrap();
+    let orig_home = std::env::var_os("HOME");
+    let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
+    let base = std::env::temp_dir().join(format!(
+        "pacsea_test_install_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let cfg = base.join(".config").join("pacsea");
+    let _ = std::fs::create_dir_all(&cfg);
+    unsafe { std::env::set_var("HOME", base.display().to_string()) };
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+
+    // Write settings.conf with skip_preflight = false
+    let settings_path = cfg.join("settings.conf");
+    std::fs::write(&settings_path, "skip_preflight = false\n").unwrap();
+
     let mut app = new_app();
     app.install_list = vec![PackageItem {
         name: "rg".into(),
@@ -85,6 +106,20 @@ fn install_enter_opens_confirm_install() {
         }
         _ => panic!("Preflight modal not opened"),
     }
+
+    unsafe {
+        if let Some(v) = orig_home {
+            std::env::set_var("HOME", v);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        if let Some(v) = orig_xdg {
+            std::env::set_var("XDG_CONFIG_HOME", v);
+        } else {
+            std::env::remove_var("XDG_CONFIG_HOME");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]
@@ -98,9 +133,34 @@ fn install_enter_opens_confirm_install() {
 ///
 /// Details:
 /// - Documents intent for future skip-preflight support while asserting existing flow stays intact.
+/// - Sets up temporary config directory to ensure `skip_preflight = false` regardless of user config.
 fn install_enter_bypasses_preflight_with_skip_flag() {
-    // Simulate settings skip flag by temporarily overriding global settings via environment
-    // (Direct mutation isn't available; we approximate by checking that modal stays None after handler when flag true)
+    let _guard = crate::theme::test_mutex().lock().unwrap();
+    let orig_home = std::env::var_os("HOME");
+    let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
+    let base = std::env::temp_dir().join(format!(
+        "pacsea_test_install_skip_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let cfg = base.join(".config").join("pacsea");
+    let _ = std::fs::create_dir_all(&cfg);
+    unsafe { std::env::set_var("HOME", base.display().to_string()) };
+    unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+
+    // Write settings.conf with skip_preflight = false
+    let settings_path = cfg.join("settings.conf");
+    std::fs::write(&settings_path, "skip_preflight = false\n").unwrap();
+
+    // Verify the setting is false
+    assert!(
+        !crate::theme::settings().skip_preflight,
+        "skip_preflight unexpectedly true by default"
+    );
+
     let mut app = new_app();
     app.install_list = vec![PackageItem {
         name: "ripgrep".into(),
@@ -112,14 +172,6 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
         },
         popularity: None,
     }];
-    // Force skip_preflight behavior by asserting settings default is false; we cannot change global easily here
-    // so only run if default is false to ensure test logic doesn't misrepresent actual behavior.
-    assert!(
-        !crate::theme::settings().skip_preflight,
-        "skip_preflight unexpectedly true by default"
-    );
-    // We cannot toggle the global setting in test environment without refactoring; mark this test as a placeholder.
-    // Ensure original behavior still opens preflight.
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
@@ -151,6 +203,20 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
         } => {}
         _ => panic!("Expected Preflight when skip_preflight=false"),
     }
+
+    unsafe {
+        if let Some(v) = orig_home {
+            std::env::set_var("HOME", v);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        if let Some(v) = orig_xdg {
+            std::env::set_var("XDG_CONFIG_HOME", v);
+        } else {
+            std::env::remove_var("XDG_CONFIG_HOME");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&base);
 }
 
 #[test]

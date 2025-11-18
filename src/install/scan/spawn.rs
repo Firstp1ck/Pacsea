@@ -11,8 +11,6 @@ Details:
 - Configures environment variables and launches the scan terminal
 */
 
-use super::pkg;
-
 /// What: Launch a terminal that performs an AUR package scan for a given package name
 ///
 /// Input:
@@ -75,6 +73,6 @@ pub fn spawn_aur_scan_for_with_config(
     cmds.push("export PACSEA_PATTERNS_MEDIUM='whoami|uname -a|hostname|id|groups|nmap|netstat -anp|ss -anp|ifconfig|ip addr|arp -a|grep -ri .*secret|find .*-name.*(password|\\.key)|env[[:space:]]*\\|[[:space:]]*grep -i pass|wget https?://|curl https?://'".to_string());
     cmds.push("export PACSEA_PATTERNS_LOW='http_proxy=|https_proxy=|ALL_PROXY=|yes[[:space:]]+> */dev/null *&|ulimit -n [0-9]{5,}'".to_string());
     // Append the scan pipeline commands
-    cmds.extend(pkg::build_scan_cmds_for_pkg(pkg));
+    cmds.extend(super::pkg::build_scan_cmds_for_pkg(pkg));
     super::super::shell::spawn_shell_commands_in_terminal_with_hold(&cmds, false);
 }
