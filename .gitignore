@@ -39,6 +39,7 @@ semgrep-bin/
 */logs/*
 
 repository/
-*.bat
 
 complexity_report.txt
+module_tree.txt
+module_graph.dot
