@@ -1,4 +1,41 @@
 #!/usr/bin/env bash
+#
+# Code Complexity Analysis Report Generator
+#
+# This script analyzes the complexity of Rust code in the Pacsea project by running
+# complexity tests and generating a summary report highlighting the most complex functions.
+#
+# What it does:
+#   1. Runs cargo test complexity to execute complexity analysis tests
+#   2. Filters out test framework noise and formatting artifacts
+#   3. Extracts and summarizes complexity metrics from the test output
+#   4. Identifies the top 3 most complex functions in two categories:
+#      - Cyclomatic Complexity: Measures control flow complexity (branches, loops, conditions)
+#      - Data Flow Complexity: Measures data dependency and state management complexity
+#   5. Generates a readable report saved to complexity_report.txt
+#
+# Output:
+#   - Report is displayed in the terminal (via tee)
+#   - Also saved to: complexity_report.txt
+#   - Shows full complexity analysis plus a summary of top 3 most complex functions
+#
+# Metrics explained:
+#   - Cyclomatic Complexity: Higher values indicate more decision points (if/else, loops, matches)
+#     * Lower is better (simpler control flow)
+#     * Values > 10-15 may indicate functions that need refactoring
+#   - Data Flow Complexity: Measures how data moves through the function
+#     * Higher values indicate complex state management or data dependencies
+#     * Helps identify functions with potential maintainability issues
+#
+# Usage:
+#   ./complexity_report.sh
+#   cat complexity_report.txt  # View the saved report
+#
+# Requirements:
+#   - Rust toolchain (cargo)
+#   - Complexity tests must be defined in tests/ directory
+#   - Project must compile and tests must run successfully
+#
 
 cargo test complexity -- --nocapture 2>&1 | grep -vE "(^running|^test result:|^test tests::|Finished.*test.*profile|Running unittests|Running tests/)" | sed '/^$/N;/^\n$/d' | awk '
   /^=== Cyclomatic Complexity Report ===/ { section="cyclomatic"; delete top3_cyclomatic; count_cyc=0 }

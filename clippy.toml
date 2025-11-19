@@ -1,0 +1,8 @@
+# Clippy configuration for Pacsea
+# See https://doc.rust-lang.org/nightly/clippy/lint_configuration.html
+
+# Cognitive complexity threshold
+# Functions exceeding this threshold will trigger a warning
+# Default: 25
+cognitive-complexity-threshold = 25
+
