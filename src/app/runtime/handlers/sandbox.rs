@@ -396,6 +396,93 @@ impl HandlerConfig for SandboxHandlerConfig {
             cancelled
         );
     }
+
+    fn is_resolution_complete(&self, app: &AppState, results: &[Self::Result]) -> bool {
+        // Check if preflight modal is open
+        if let crate::state::Modal::Preflight { items, .. } = &app.modal {
+            // Only AUR packages need sandbox data
+            let aur_items: std::collections::HashSet<String> = items
+                .iter()
+                .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                .map(|i| i.name.clone())
+                .collect();
+
+            if aur_items.is_empty() {
+                // No AUR packages, resolution is complete
+                return true;
+            }
+
+            let result_names: std::collections::HashSet<String> =
+                results.iter().map(|s| s.package_name.clone()).collect();
+            let cache_names: std::collections::HashSet<String> = app
+                .install_list_sandbox
+                .iter()
+                .map(|s| s.package_name.clone())
+                .collect();
+
+            let all_have_data = aur_items
+                .iter()
+                .all(|name| result_names.contains(name) || cache_names.contains(name));
+
+            if !all_have_data {
+                let missing: Vec<String> = aur_items
+                    .iter()
+                    .filter(|name| !result_names.contains(*name) && !cache_names.contains(*name))
+                    .cloned()
+                    .collect();
+                tracing::debug!(
+                    "[Runtime] handle_sandbox_result: Resolution incomplete - missing sandbox for: {:?}",
+                    missing
+                );
+            }
+
+            return all_have_data;
+        }
+
+        // If no preflight modal, check preflight_sandbox_items
+        if let Some(ref install_items) = app.preflight_sandbox_items {
+            // Only AUR packages need sandbox data
+            let aur_items: std::collections::HashSet<String> = install_items
+                .iter()
+                .filter(|p| matches!(p.source, crate::state::Source::Aur))
+                .map(|i| i.name.clone())
+                .collect();
+
+            if aur_items.is_empty() {
+                // No AUR packages, resolution is complete
+                return true;
+            }
+
+            let result_names: std::collections::HashSet<String> =
+                results.iter().map(|s| s.package_name.clone()).collect();
+            let cache_names: std::collections::HashSet<String> = app
+                .install_list_sandbox
+                .iter()
+                .map(|s| s.package_name.clone())
+                .collect();
+
+            let all_have_data = aur_items
+                .iter()
+                .all(|name| result_names.contains(name) || cache_names.contains(name));
+
+            if !all_have_data {
+                let missing: Vec<String> = aur_items
+                    .iter()
+                    .filter(|name| !result_names.contains(*name) && !cache_names.contains(*name))
+                    .cloned()
+                    .collect();
+                tracing::debug!(
+                    "[Runtime] handle_sandbox_result: Resolution incomplete - missing sandbox for: {:?}",
+                    missing
+                );
+            }
+
+            return all_have_data;
+        }
+
+        // No items to check, resolution is complete
+        true
+    }
 }
 
 /// What: Handle sandbox resolution result event.

@@ -98,6 +98,22 @@ pub trait HandlerConfig {
     ///
     /// Output: None (side effect: logging)
     fn log_flag_clear(&self, app: &AppState, was_preflight: bool, cancelled: bool);
+
+    /// What: Check if resolution is complete (all items have data).
+    ///
+    /// Inputs:
+    /// - `app` - Application state
+    /// - `results` - Latest resolution results
+    ///
+    /// Output: `true` if resolution is complete, `false` if more data is expected
+    ///
+    /// Details:
+    /// - Default implementation returns `true` (assumes complete)
+    /// - Can be overridden to check for incomplete data
+    fn is_resolution_complete(&self, app: &AppState, results: &[Self::Result]) -> bool {
+        let _ = (app, results);
+        true
+    }
 }
 
 /// What: Generic handler function that processes resolution results with common logic.
@@ -129,8 +145,13 @@ pub fn handle_result<C: HandlerConfig>(
 
     config.log_flag_clear(app, was_preflight, cancelled);
 
-    // Reset resolving flags
-    config.set_resolving(app, false);
+    // Check if resolution is complete before clearing flags
+    let is_complete = config.is_resolution_complete(app, &results);
+
+    // Only reset resolving flags if resolution is complete
+    if is_complete {
+        config.set_resolving(app, false);
+    }
     config.set_preflight_resolving(app, false);
 
     if cancelled {

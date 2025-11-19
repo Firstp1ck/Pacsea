@@ -133,6 +133,96 @@ impl HandlerConfig for DependencyHandlerConfig {
             cancelled
         );
     }
+
+    fn is_resolution_complete(&self, app: &AppState, results: &[Self::Result]) -> bool {
+        // Check if preflight modal is open
+        if let crate::state::Modal::Preflight { items, .. } = &app.modal {
+            let item_names: std::collections::HashSet<String> =
+                items.iter().map(|i| i.name.clone()).collect();
+
+            if item_names.is_empty() {
+                return true;
+            }
+
+            // Collect all packages that appear in required_by fields
+            let result_packages: std::collections::HashSet<String> = results
+                .iter()
+                .flat_map(|d| d.required_by.iter().cloned())
+                .collect();
+            let cache_packages: std::collections::HashSet<String> = app
+                .install_list_deps
+                .iter()
+                .flat_map(|d| d.required_by.iter().cloned())
+                .collect();
+
+            // Check if all items appear in required_by (meaning they've been processed)
+            // OR if they're in the cache from a previous resolution
+            let all_processed = item_names
+                .iter()
+                .all(|name| result_packages.contains(name) || cache_packages.contains(name));
+
+            if !all_processed {
+                let missing: Vec<String> = item_names
+                    .iter()
+                    .filter(|name| {
+                        !result_packages.contains(*name) && !cache_packages.contains(*name)
+                    })
+                    .cloned()
+                    .collect();
+                tracing::debug!(
+                    "[Runtime] handle_dependency_result: Resolution incomplete - missing deps for: {:?}",
+                    missing
+                );
+            }
+
+            return all_processed;
+        }
+
+        // If no preflight modal, check preflight_deps_items
+        if let Some(ref install_items) = app.preflight_deps_items {
+            let item_names: std::collections::HashSet<String> =
+                install_items.iter().map(|i| i.name.clone()).collect();
+
+            if item_names.is_empty() {
+                return true;
+            }
+
+            // Collect all packages that appear in required_by fields
+            let result_packages: std::collections::HashSet<String> = results
+                .iter()
+                .flat_map(|d| d.required_by.iter().cloned())
+                .collect();
+            let cache_packages: std::collections::HashSet<String> = app
+                .install_list_deps
+                .iter()
+                .flat_map(|d| d.required_by.iter().cloned())
+                .collect();
+
+            // Check if all items appear in required_by (meaning they've been processed)
+            let all_processed = item_names
+                .iter()
+                .all(|name| result_packages.contains(name) || cache_packages.contains(name));
+
+            if !all_processed {
+                let missing: Vec<String> = item_names
+                    .iter()
+                    .filter(|name| {
+                        !result_packages.contains(*name) && !cache_packages.contains(*name)
+                    })
+                    .cloned()
+                    .collect();
+                tracing::debug!(
+                    "[Runtime] handle_dependency_result: Resolution incomplete - missing deps for: {:?}",
+                    missing
+                );
+            }
+
+            return all_processed;
+        }
+
+        // No items to check, resolution is complete
+        true
+    }
 }
 
 /// What: Handle dependency resolution result event.

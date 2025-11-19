@@ -123,17 +123,23 @@ fn render_incomplete_data_indicator(
     // Check if we actually need to wait for data for the current items
     // Only show loading indicator if:
     // 1. Preflight-specific resolution is running (preflight_*_resolving), OR
-    // 2. We're missing data for current items (deps_incomplete heuristic)
-    // Don't show indicator just because install_list resolution is running - that data will sync when ready
-    let show_deps_indicator =
-        app.preflight_deps_resolving || (deps_incomplete && dependency_info.is_empty());
-    let show_files_indicator = app.preflight_files_resolving;
-    let show_sandbox_indicator = app.preflight_sandbox_resolving;
+    // 2. Global resolution is running (files_resolving, deps_resolving, etc.)
+    // 3. We're missing data for current items (deps_incomplete heuristic)
+    let files_resolving = app.preflight_files_resolving || app.files_resolving;
+    let sandbox_resolving = app.preflight_sandbox_resolving || app.sandbox_resolving;
+
+    // Show deps indicator when deps are resolving (matches render_deps_tab logic)
+    let show_deps_indicator = deps_resolving || (deps_incomplete && dependency_info.is_empty());
+    // Show files indicator when files are resolving (matches render_files_tab logic)
+    let show_files_indicator = files_resolving;
+    // Show sandbox indicator when sandbox is resolving
+    let show_sandbox_indicator = sandbox_resolving;
 
     tracing::debug!(
-        "[UI] render_incomplete_data_indicator: preflight_deps_resolving={}, deps_resolving={}, files_resolving={}/{}, sandbox_resolving={}/{}, deps_incomplete={}, items={}, packages_with_deps={}, dependency_info={}, show_deps_indicator={}, show_files_indicator={}, show_sandbox_indicator={}",
+        "[UI] render_incomplete_data_indicator: preflight_deps_resolving={}, deps_resolving={}, computed_deps_resolving={}, files_resolving={}/{}, sandbox_resolving={}/{}, deps_incomplete={}, items={}, packages_with_deps={}, dependency_info={}, show_deps_indicator={}, show_files_indicator={}, show_sandbox_indicator={}",
         app.preflight_deps_resolving,
         app.deps_resolving,
+        deps_resolving,
         app.preflight_files_resolving,
         app.files_resolving,
         app.preflight_sandbox_resolving,

@@ -162,6 +162,76 @@ impl HandlerConfig for FileHandlerConfig {
             cancelled
         );
     }
+
+    fn is_resolution_complete(&self, app: &AppState, results: &[Self::Result]) -> bool {
+        // Check if all items have file info
+        // If preflight modal is open, check modal items
+        if let crate::state::Modal::Preflight { items, .. } = &app.modal {
+            let item_names: std::collections::HashSet<String> =
+                items.iter().map(|i| i.name.clone()).collect();
+            let result_names: std::collections::HashSet<String> =
+                results.iter().map(|f| f.name.clone()).collect();
+            let cache_names: std::collections::HashSet<String> = app
+                .install_list_files
+                .iter()
+                .map(|f| f.name.clone())
+                .collect();
+
+            // Check if all items are in results or cache
+            let all_have_data = item_names
+                .iter()
+                .all(|name| result_names.contains(name) || cache_names.contains(name));
+
+            if !all_have_data {
+                let missing: Vec<String> = item_names
+                    .iter()
+                    .filter(|name| !result_names.contains(*name) && !cache_names.contains(*name))
+                    .cloned()
+                    .collect();
+                tracing::debug!(
+                    "[Runtime] handle_file_result: Resolution incomplete - missing files for: {:?}",
+                    missing
+                );
+            }
+
+            return all_have_data;
+        }
+
+        // If no preflight modal, check install list items
+        if let Some(ref install_items) = app.preflight_files_items {
+            let item_names: std::collections::HashSet<String> =
+                install_items.iter().map(|i| i.name.clone()).collect();
+            let result_names: std::collections::HashSet<String> =
+                results.iter().map(|f| f.name.clone()).collect();
+            let cache_names: std::collections::HashSet<String> = app
+                .install_list_files
+                .iter()
+                .map(|f| f.name.clone())
+                .collect();
+
+            // Check if all items are in results or cache
+            let all_have_data = item_names
+                .iter()
+                .all(|name| result_names.contains(name) || cache_names.contains(name));
+
+            if !all_have_data {
+                let missing: Vec<String> = item_names
+                    .iter()
+                    .filter(|name| !result_names.contains(*name) && !cache_names.contains(*name))
+                    .cloned()
+                    .collect();
+                tracing::debug!(
+                    "[Runtime] handle_file_result: Resolution incomplete - missing files for: {:?}",
+                    missing
+                );
+            }
+
+            return all_have_data;
+        }
+
+        // No items to check, resolution is complete
+        true
+    }
 }
 
 /// What: Handle file resolution result event.
