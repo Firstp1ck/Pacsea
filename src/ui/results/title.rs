@@ -479,67 +479,94 @@ pub fn build_title_spans_from_values(
     title_spans
 }
 
-/// What: Record clickable rectangles for title bar controls.
+/// What: Shared layout calculation information for title bar.
 ///
-/// This version takes a context struct to reduce data flow complexity.
+/// Inputs: Calculated values from title text, button labels, and area dimensions.
 ///
-/// Inputs:
-/// - `app`: Mutable application state (rects will be updated)
-/// - `ctx`: Render context containing all extracted values
-/// - `area`: Target rectangle for the results block
+/// Output: Struct containing all layout calculation results.
 ///
-/// Output:
-/// - Updates `app` with rectangles for filters, buttons, and optional repo chips.
-///
-/// Details:
-/// - Mirrors title layout calculations to align rects with rendered elements and clears entries when
-///   controls cannot fit in the available width.
-/// - Extracts values from context and delegates to `record_title_rects`.
-pub fn record_title_rects_from_context(app: &mut AppState, ctx: &RenderContext, area: Rect) {
-    record_title_rects(
-        app,
-        area,
-        ctx.optional_repos.has_eos,
-        ctx.optional_repos.has_cachyos,
-        ctx.optional_repos.has_artix,
-        ctx.optional_repos.has_artix_omniverse,
-        ctx.optional_repos.has_artix_universe,
-        ctx.optional_repos.has_artix_lib32,
-        ctx.optional_repos.has_artix_galaxy,
-        ctx.optional_repos.has_artix_world,
-        ctx.optional_repos.has_artix_system,
-        ctx.optional_repos.has_manjaro,
-    )
+/// Details: Used to share layout calculations between rendering and rect recording functions.
+struct TitleLayoutInfo {
+    results_title_text: String,
+    sort_button_label: String,
+    options_button_label: String,
+    panels_button_label: String,
+    config_button_label: String,
+    core_labels: CoreFilterLabels,
+    optional_labels: OptionalReposLabels,
+    inner_width: u16,
+    show_artix_specific_repos: bool,
+    pad: u16,
 }
 
-/// What: Record clickable rectangles for title bar controls.
+/// What: Layout state tracker for recording rectangles.
+///
+/// Inputs: Initial x position and y position.
+///
+/// Output: Struct that tracks current x cursor position and y position.
+///
+/// Details: Encapsulates layout state to avoid manual x_cursor tracking.
+struct LayoutState {
+    x: u16,
+    y: u16,
+}
+
+impl LayoutState {
+    /// What: Create a new layout state.
+    ///
+    /// Inputs:
+    /// - `x`: Initial x position
+    /// - `y`: Y position (constant)
+    ///
+    /// Output: New LayoutState instance.
+    ///
+    /// Details: Initializes layout state with starting position.
+    fn new(x: u16, y: u16) -> Self {
+        Self { x, y }
+    }
+
+    /// What: Advance x cursor by label width plus spacing.
+    ///
+    /// Inputs:
+    /// - `label_width`: Width of the label in characters
+    /// - `spacing`: Number of spaces after the label (default 1)
+    ///
+    /// Output: Updated x position.
+    ///
+    /// Details: Moves x cursor forward by label width plus spacing.
+    fn advance(&mut self, label_width: u16, spacing: u16) -> u16 {
+        self.x = self.x.saturating_add(label_width).saturating_add(spacing);
+        self.x
+    }
+
+    /// What: Record a rectangle at current position.
+    ///
+    /// Inputs:
+    /// - `label`: Label text to measure
+    ///
+    /// Output: Rectangle tuple (x, y, width, height).
+    ///
+    /// Details: Creates rectangle at current x position with label width.
+    fn record_rect(&self, label: &str) -> (u16, u16, u16, u16) {
+        (self.x, self.y, label.len() as u16, 1)
+    }
+}
+
+/// What: Calculate shared layout information for title bar.
 ///
 /// Inputs:
-/// - `app`: Mutable application state (rects will be updated)
+/// - `app`: Application state for i18n and results count
 /// - `area`: Target rectangle for the results block
-/// - `has_eos`, `has_cachyos`, `has_artix`, `has_manjaro`: Whether optional repos are available
+/// - `optional_repos`: Optional repository availability flags
 ///
-/// Output:
-/// - Updates `app` with rectangles for filters, buttons, and optional repo chips.
+/// Output: TitleLayoutInfo containing all calculated layout values.
 ///
-/// Details:
-/// - Mirrors title layout calculations to align rects with rendered elements and clears entries when
-///   controls cannot fit in the available width.
-#[allow(clippy::too_many_arguments)]
-pub fn record_title_rects(
-    app: &mut AppState,
+/// Details: Performs all layout calculations shared between rendering and rect recording.
+fn calculate_title_layout_info(
+    app: &AppState,
     area: Rect,
-    has_eos: bool,
-    has_cachyos: bool,
-    has_artix: bool,
-    has_artix_omniverse: bool,
-    has_artix_universe: bool,
-    has_artix_lib32: bool,
-    has_artix_galaxy: bool,
-    has_artix_world: bool,
-    has_artix_system: bool,
-    has_manjaro: bool,
-) {
+    optional_repos: &OptionalRepos,
+) -> TitleLayoutInfo {
     let results_title_text = format!(
         "{} ({})",
         i18n::t(app, "app.results.title"),
@@ -550,62 +577,6 @@ pub fn record_title_rects(
     let panels_button_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
     let config_button_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
 
-    // Estimate and record clickable rects for controls on the title line (top border row)
-    let mut x_cursor = area
-        .x
-        .saturating_add(1) // left border inset
-        .saturating_add(results_title_text.len() as u16)
-        .saturating_add(2); // two spaces before Sort
-    let btn_w = sort_button_label.len() as u16;
-    let btn_x = x_cursor;
-    let btn_y = area.y; // top border row
-    app.sort_button_rect = Some((btn_x, btn_y, btn_w, 1));
-    x_cursor = x_cursor.saturating_add(btn_w).saturating_add(2); // space after sort
-
-    // Filter rects in sequence, with single space between
-    let rec_rect = |start_x: u16, label: &str| -> (u16, u16, u16, u16) {
-        (start_x, btn_y, label.len() as u16, 1)
-    };
-    let aur_label = "[AUR]";
-    app.results_filter_aur_rect = Some(rec_rect(x_cursor, aur_label));
-    x_cursor = x_cursor
-        .saturating_add(aur_label.len() as u16)
-        .saturating_add(1);
-    let core_label = "[core]";
-    app.results_filter_core_rect = Some(rec_rect(x_cursor, core_label));
-    x_cursor = x_cursor
-        .saturating_add(core_label.len() as u16)
-        .saturating_add(1);
-    let extra_label = "[extra]";
-    app.results_filter_extra_rect = Some(rec_rect(x_cursor, extra_label));
-    x_cursor = x_cursor
-        .saturating_add(extra_label.len() as u16)
-        .saturating_add(1);
-    let multilib_label = "[multilib]";
-    app.results_filter_multilib_rect = Some(rec_rect(x_cursor, multilib_label));
-    x_cursor = x_cursor
-        .saturating_add(multilib_label.len() as u16)
-        .saturating_add(1);
-    let eos_label = "[EOS]";
-    if has_eos {
-        app.results_filter_eos_rect = Some(rec_rect(x_cursor, eos_label));
-        x_cursor = x_cursor
-            .saturating_add(eos_label.len() as u16)
-            .saturating_add(1);
-    } else {
-        app.results_filter_eos_rect = None;
-    }
-    let cachyos_label = "[CachyOS]";
-    if has_cachyos {
-        app.results_filter_cachyos_rect = Some(rec_rect(x_cursor, cachyos_label));
-        x_cursor = x_cursor
-            .saturating_add(cachyos_label.len() as u16)
-            .saturating_add(1);
-    } else {
-        app.results_filter_cachyos_rect = None;
-    }
-    // Right-aligned Config/Lists, Panels and Options buttons: compute remaining space first
-    // to determine if we should show Artix-specific repo filters
     let inner_width = area.width.saturating_sub(2); // exclude borders
     let core_labels = CoreFilterLabels {
         aur: "[AUR]".to_string(),
@@ -625,23 +596,11 @@ pub fn record_title_rects(
         artix_system: format!("[{}]", i18n::t(app, "app.results.filters.artix_system")),
         manjaro: format!("[{}]", i18n::t(app, "app.results.filters.manjaro")),
     };
-    let optional_repos = OptionalRepos {
-        has_eos,
-        has_cachyos,
-        has_artix,
-        has_artix_omniverse,
-        has_artix_universe,
-        has_artix_lib32,
-        has_artix_galaxy,
-        has_artix_world,
-        has_artix_system,
-        has_manjaro,
-    };
 
     // Calculate consumed space with all filters first
     let base_consumed =
         calculate_base_consumed_space(&results_title_text, &sort_button_label, &core_labels);
-    let optional_consumed = calculate_optional_repos_width(&optional_repos, &optional_labels);
+    let optional_consumed = calculate_optional_repos_width(optional_repos, &optional_labels);
     let consumed_left = base_consumed.saturating_add(optional_consumed);
 
     let options_w = options_button_label.len() as u16;
@@ -659,22 +618,22 @@ pub fn record_title_rects(
     if pad < 1 {
         // Recalculate without Artix-specific repo filters
         let repos_without_specific = OptionalRepos {
-            has_eos,
-            has_cachyos,
-            has_artix,
+            has_eos: optional_repos.has_eos,
+            has_cachyos: optional_repos.has_cachyos,
+            has_artix: optional_repos.has_artix,
             has_artix_omniverse: false,
             has_artix_universe: false,
             has_artix_lib32: false,
             has_artix_galaxy: false,
             has_artix_world: false,
             has_artix_system: false,
-            has_manjaro,
+            has_manjaro: optional_repos.has_manjaro,
         };
         let mut consumed_without_specific = base_consumed.saturating_add(
             calculate_optional_repos_width(&repos_without_specific, &optional_labels),
         );
         // Add 3 extra chars for " v" dropdown indicator if artix is present
-        if has_artix {
+        if optional_repos.has_artix {
             consumed_without_specific = consumed_without_specific.saturating_add(3);
         }
         pad = inner_width.saturating_sub(consumed_without_specific.saturating_add(right_w));
@@ -683,17 +642,92 @@ pub fn record_title_rects(
         }
     }
 
-    // Record Artix filter rect (accounting for dropdown indicator if needed)
-    if has_artix {
+    TitleLayoutInfo {
+        results_title_text,
+        sort_button_label,
+        options_button_label,
+        panels_button_label,
+        config_button_label,
+        core_labels,
+        optional_labels,
+        inner_width,
+        show_artix_specific_repos,
+        pad,
+    }
+}
+
+/// What: Record rectangles for core filter buttons (AUR, core, extra, multilib).
+///
+/// Inputs:
+/// - `app`: Mutable application state (rects will be updated)
+/// - `layout`: Layout state tracker
+/// - `core_labels`: Labels for core filters
+///
+/// Output: Updates app with core filter rectangles.
+///
+/// Details: Records rectangles for the four core filter buttons in sequence.
+fn record_core_filter_rects(
+    app: &mut AppState,
+    layout: &mut LayoutState,
+    core_labels: &CoreFilterLabels,
+) {
+    app.results_filter_aur_rect = Some(layout.record_rect(&core_labels.aur));
+    layout.advance(core_labels.aur.len() as u16, 1);
+
+    app.results_filter_core_rect = Some(layout.record_rect(&core_labels.core));
+    layout.advance(core_labels.core.len() as u16, 1);
+
+    app.results_filter_extra_rect = Some(layout.record_rect(&core_labels.extra));
+    layout.advance(core_labels.extra.len() as u16, 1);
+
+    app.results_filter_multilib_rect = Some(layout.record_rect(&core_labels.multilib));
+    layout.advance(core_labels.multilib.len() as u16, 1);
+}
+
+/// What: Record rectangles for optional repository filters.
+///
+/// Inputs:
+/// - `app`: Mutable application state (rects will be updated)
+/// - `layout`: Layout state tracker
+/// - `optional_repos`: Optional repository availability flags
+/// - `optional_labels`: Labels for optional repos
+/// - `show_artix_specific_repos`: Whether to show Artix-specific repo filters
+///
+/// Output: Updates app with optional repo filter rectangles.
+///
+/// Details: Records rectangles for EOS, CachyOS, Artix, Artix-specific repos, and Manjaro filters.
+fn record_optional_repo_rects(
+    app: &mut AppState,
+    layout: &mut LayoutState,
+    optional_repos: &OptionalRepos,
+    optional_labels: &OptionalReposLabels,
+    show_artix_specific_repos: bool,
+) {
+    // Record EOS filter
+    if optional_repos.has_eos {
+        app.results_filter_eos_rect = Some(layout.record_rect(&optional_labels.eos));
+        layout.advance(optional_labels.eos.len() as u16, 1);
+    } else {
+        app.results_filter_eos_rect = None;
+    }
+
+    // Record CachyOS filter
+    if optional_repos.has_cachyos {
+        app.results_filter_cachyos_rect = Some(layout.record_rect(&optional_labels.cachyos));
+        layout.advance(optional_labels.cachyos.len() as u16, 1);
+    } else {
+        app.results_filter_cachyos_rect = None;
+    }
+
+    // Record Artix filter (with dropdown indicator if specific filters are hidden)
+    if optional_repos.has_artix {
         let artix_label_with_indicator = if show_artix_specific_repos {
             optional_labels.artix.clone()
         } else {
             format!("{} v", optional_labels.artix)
         };
-        app.results_filter_artix_rect = Some(rec_rect(x_cursor, &artix_label_with_indicator));
-        x_cursor = x_cursor
-            .saturating_add(artix_label_with_indicator.len() as u16)
-            .saturating_add(1);
+        app.results_filter_artix_rect = Some(layout.record_rect(&artix_label_with_indicator));
+        layout.advance(artix_label_with_indicator.len() as u16, 1);
     } else {
         app.results_filter_artix_rect = None;
     }
@@ -701,29 +735,43 @@ pub fn record_title_rects(
     // Record Artix-specific repo filter rects only if there's space
     if show_artix_specific_repos {
         let artix_rects = [
-            (has_artix_omniverse, &optional_labels.artix_omniverse),
-            (has_artix_universe, &optional_labels.artix_universe),
-            (has_artix_lib32, &optional_labels.artix_lib32),
-            (has_artix_galaxy, &optional_labels.artix_galaxy),
-            (has_artix_world, &optional_labels.artix_world),
-            (has_artix_system, &optional_labels.artix_system),
+            (
+                optional_repos.has_artix_omniverse,
+                &optional_labels.artix_omniverse,
+                &mut app.results_filter_artix_omniverse_rect,
+            ),
+            (
+                optional_repos.has_artix_universe,
+                &optional_labels.artix_universe,
+                &mut app.results_filter_artix_universe_rect,
+            ),
+            (
+                optional_repos.has_artix_lib32,
+                &optional_labels.artix_lib32,
+                &mut app.results_filter_artix_lib32_rect,
+            ),
+            (
+                optional_repos.has_artix_galaxy,
+                &optional_labels.artix_galaxy,
+                &mut app.results_filter_artix_galaxy_rect,
+            ),
+            (
+                optional_repos.has_artix_world,
+                &optional_labels.artix_world,
+                &mut app.results_filter_artix_world_rect,
+            ),
+            (
+                optional_repos.has_artix_system,
+                &optional_labels.artix_system,
+                &mut app.results_filter_artix_system_rect,
+            ),
         ];
-        let mut rect_results = [
-            &mut app.results_filter_artix_omniverse_rect,
-            &mut app.results_filter_artix_universe_rect,
-            &mut app.results_filter_artix_lib32_rect,
-            &mut app.results_filter_artix_galaxy_rect,
-            &mut app.results_filter_artix_world_rect,
-            &mut app.results_filter_artix_system_rect,
-        ];
-        for ((has_repo, label), rect_field) in artix_rects.iter().zip(rect_results.iter_mut()) {
-            if *has_repo {
-                **rect_field = Some(rec_rect(x_cursor, label));
-                x_cursor = x_cursor
-                    .saturating_add(label.len() as u16)
-                    .saturating_add(1);
+        for (has_repo, label, rect_field) in artix_rects {
+            if has_repo {
+                *rect_field = Some(layout.record_rect(label));
+                layout.advance(label.len() as u16, 1);
             } else {
-                **rect_field = None;
+                *rect_field = None;
             }
         }
     } else {
@@ -736,18 +784,40 @@ pub fn record_title_rects(
         app.results_filter_artix_system_rect = None;
     }
 
-    if has_manjaro {
-        app.results_filter_manjaro_rect = Some(rec_rect(x_cursor, &optional_labels.manjaro));
+    // Record Manjaro filter
+    if optional_repos.has_manjaro {
+        app.results_filter_manjaro_rect = Some(layout.record_rect(&optional_labels.manjaro));
     } else {
         app.results_filter_manjaro_rect = None;
     }
+}
 
-    if pad >= 1 {
+/// What: Record rectangles for right-aligned buttons (Config/Lists, Panels, Options).
+///
+/// Inputs:
+/// - `app`: Mutable application state (rects will be updated)
+/// - `area`: Target rectangle for the results block
+/// - `layout_info`: Title layout information
+/// - `btn_y`: Y position for buttons
+///
+/// Output: Updates app with right-aligned button rectangles.
+///
+/// Details: Records rectangles for Config/Lists, Panels, and Options buttons at the right edge.
+fn record_right_aligned_button_rects(
+    app: &mut AppState,
+    area: Rect,
+    layout_info: &TitleLayoutInfo,
+    btn_y: u16,
+) {
+    if layout_info.pad >= 1 {
         // Record clickable rects at the computed right edge (Panels to the left of Options)
+        let options_w = layout_info.options_button_label.len() as u16;
+        let panels_w = layout_info.panels_button_label.len() as u16;
+        let config_w = layout_info.config_button_label.len() as u16;
         let opt_x = area
             .x
             .saturating_add(1) // left border inset
-            .saturating_add(inner_width.saturating_sub(options_w));
+            .saturating_add(layout_info.inner_width.saturating_sub(options_w));
         let pan_x = opt_x.saturating_sub(1).saturating_sub(panels_w);
         let cfg_x = pan_x.saturating_sub(1).saturating_sub(config_w);
         app.config_button_rect = Some((cfg_x, btn_y, config_w, 1));
@@ -758,4 +828,82 @@ pub fn record_title_rects(
         app.options_button_rect = None;
         app.panels_button_rect = None;
     }
+}
+
+/// What: Record clickable rectangles for title bar controls.
+///
+/// This version takes a context struct to reduce data flow complexity.
+///
+/// Inputs:
+/// - `app`: Mutable application state (rects will be updated)
+/// - `ctx`: Render context containing all extracted values
+/// - `area`: Target rectangle for the results block
+///
+/// Output:
+/// - Updates `app` with rectangles for filters, buttons, and optional repo chips.
+///
+/// Details:
+/// - Mirrors title layout calculations to align rects with rendered elements and clears entries when
+///   controls cannot fit in the available width.
+/// - Extracts values from context and delegates to `record_title_rects`.
+pub fn record_title_rects_from_context(app: &mut AppState, ctx: &RenderContext, area: Rect) {
+    record_title_rects(app, area, &ctx.optional_repos)
+}
+
+/// What: Record clickable rectangles for title bar controls.
+///
+/// Inputs:
+/// - `app`: Mutable application state (rects will be updated)
+/// - `area`: Target rectangle for the results block
+/// - `optional_repos`: Optional repository availability flags
+///
+/// Output:
+/// - Updates `app` with rectangles for filters, buttons, and optional repo chips.
+///
+/// Details:
+/// - Mirrors title layout calculations to align rects with rendered elements and clears entries when
+///   controls cannot fit in the available width.
+/// - Uses shared layout calculation logic and helper functions to reduce complexity.
+pub fn record_title_rects(app: &mut AppState, area: Rect, optional_repos: &OptionalRepos) {
+    // Calculate shared layout information
+    let layout_info = calculate_title_layout_info(app, area, optional_repos);
+
+    // Initialize layout state starting after title and sort button
+    let btn_y = area.y; // top border row
+    let initial_x = area
+        .x
+        .saturating_add(1) // left border inset
+        .saturating_add(layout_info.results_title_text.len() as u16)
+        .saturating_add(2) // two spaces before Sort
+        .saturating_add(layout_info.sort_button_label.len() as u16)
+        .saturating_add(2); // space after sort
+    let mut layout = LayoutState::new(initial_x, btn_y);
+
+    // Record sort button rect
+    let sort_btn_x = area
+        .x
+        .saturating_add(1)
+        .saturating_add(layout_info.results_title_text.len() as u16)
+        .saturating_add(2);
+    app.sort_button_rect = Some((
+        sort_btn_x,
+        btn_y,
+        layout_info.sort_button_label.len() as u16,
+        1,
+    ));
+
+    // Record core filter rects
+    record_core_filter_rects(app, &mut layout, &layout_info.core_labels);
+
+    // Record optional repo filter rects
+    record_optional_repo_rects(
+        app,
+        &mut layout,
+        optional_repos,
+        &layout_info.optional_labels,
+        layout_info.show_artix_specific_repos,
+    );
+
+    // Record right-aligned button rects
+    record_right_aligned_button_rects(app, area, &layout_info, btn_y);
 }

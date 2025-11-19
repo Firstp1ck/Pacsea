@@ -225,6 +225,337 @@ fn handle_panels_menu_selection(idx: usize, app: &mut AppState) {
     }
 }
 
+/// What: Normalize BackTab modifiers so that SHIFT modifier does not affect matching across terminals.
+///
+/// Inputs:
+/// - `ke`: Key event from crossterm
+///
+/// Output:
+/// - Normalized modifiers (empty for BackTab, original modifiers otherwise)
+///
+/// Details:
+/// - BackTab normalization ensures consistent keybind matching across different terminal emulators.
+fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
+    if matches!(ke.code, KeyCode::BackTab) {
+        KeyModifiers::empty()
+    } else {
+        ke.modifiers
+    }
+}
+
+/// What: Create a normalized key chord from a key event for keybind matching.
+///
+/// Inputs:
+/// - `ke`: Key event from crossterm
+///
+/// Output:
+/// - Tuple of (KeyCode, KeyModifiers) suitable for matching against KeyChord lists
+///
+/// Details:
+/// - Normalizes BackTab modifiers before creating the chord.
+fn create_key_chord(ke: &KeyEvent) -> (KeyCode, KeyModifiers) {
+    (ke.code, normalize_key_modifiers(ke))
+}
+
+/// What: Check if a key event matches any chord in a list of keybinds.
+///
+/// Inputs:
+/// - `ke`: Key event from crossterm
+/// - `chords`: List of configured key chords to match against
+///
+/// Output:
+/// - `true` if the key event matches any chord in the list, `false` otherwise
+///
+/// Details:
+/// - Normalizes BackTab modifiers before matching.
+fn matches_keybind(ke: &KeyEvent, chords: &[crate::theme::KeyChord]) -> bool {
+    let chord = create_key_chord(ke);
+    chords.iter().any(|c| (c.code, c.mods) == chord)
+}
+
+/// What: Handle escape key press - closes dropdown menus.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(false)` if menus were closed, `None` otherwise
+///
+/// Details:
+/// - Closes all open dropdown menus when ESC is pressed.
+fn handle_escape(app: &mut AppState) -> Option<bool> {
+    if close_all_dropdowns(app) {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// What: Handle help overlay keybind.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(false)` if help was opened, `None` otherwise
+///
+/// Details:
+/// - Opens the Help modal when the help overlay keybind is pressed.
+fn handle_help_overlay(app: &mut AppState) -> Option<bool> {
+    app.modal = crate::state::Modal::Help;
+    Some(false)
+}
+
+/// What: Handle theme reload keybind.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(false)` if theme was reloaded, `None` otherwise
+///
+/// Details:
+/// - Reloads the theme configuration and shows a toast message on success.
+fn handle_reload_theme(app: &mut AppState) -> Option<bool> {
+    match reload_theme() {
+        Ok(()) => {
+            app.toast_message = Some(crate::i18n::t(app, "app.toasts.theme_reloaded"));
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        }
+        Err(msg) => {
+            app.modal = crate::state::Modal::Alert { message: msg };
+        }
+    }
+    Some(false)
+}
+
+/// What: Handle exit keybind.
+///
+/// Inputs:
+/// - None (uses closure pattern)
+///
+/// Output:
+/// - `Some(true)` to signal exit
+///
+/// Details:
+/// - Returns exit signal when exit keybind is pressed.
+fn handle_exit() -> Option<bool> {
+    Some(true)
+}
+
+/// What: Handle PKGBUILD viewer toggle keybind.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `pkgb_tx`: Channel to request PKGBUILD content
+///
+/// Output:
+/// - `Some(false)` if PKGBUILD was toggled, `None` otherwise
+///
+/// Details:
+/// - Toggles PKGBUILD viewer visibility and requests content if opening.
+fn handle_toggle_pkgbuild(
+    app: &mut AppState,
+    pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> Option<bool> {
+    if app.pkgb_visible {
+        app.pkgb_visible = false;
+        app.pkgb_text = None;
+        app.pkgb_package_name = None;
+        app.pkgb_scroll = 0;
+        app.pkgb_rect = None;
+    } else {
+        app.pkgb_visible = true;
+        app.pkgb_text = None;
+        app.pkgb_package_name = None;
+        if let Some(item) = app.results.get(app.selected).cloned() {
+            let _ = pkgb_tx.send(item);
+        }
+    }
+    Some(false)
+}
+
+/// What: Handle sort mode change keybind.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request package details
+///
+/// Output:
+/// - `Some(false)` if sort mode was changed, `None` otherwise
+///
+/// Details:
+/// - Cycles through sort modes, persists preference, re-sorts results, and refreshes details.
+fn handle_change_sort(
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> Option<bool> {
+    // Cycle through sort modes in fixed order
+    app.sort_mode = match app.sort_mode {
+        crate::state::SortMode::RepoThenName => crate::state::SortMode::AurPopularityThenOfficial,
+        crate::state::SortMode::AurPopularityThenOfficial => crate::state::SortMode::BestMatches,
+        crate::state::SortMode::BestMatches => crate::state::SortMode::RepoThenName,
+    };
+    // Persist preference and apply immediately
+    crate::theme::save_sort_mode(app.sort_mode);
+    crate::logic::sort_results_preserve_selection(app);
+    // Jump selection to top and refresh details
+    if !app.results.is_empty() {
+        app.selected = 0;
+        app.list_state.select(Some(0));
+        utils::refresh_selected_details(app, details_tx);
+    } else {
+        app.list_state.select(None);
+    }
+    // Show the dropdown so the user sees the current option with a check mark
+    app.sort_menu_open = true;
+    app.sort_menu_auto_close_at =
+        Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+    Some(false)
+}
+
+/// What: Handle numeric menu selection for options menu.
+///
+/// Inputs:
+/// - `idx`: Selected menu index (0=installed-only, 1=update, 2=news, 3=optional deps)
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request package details
+///
+/// Output:
+/// - `Some(false)` if selection was handled, `None` otherwise
+///
+/// Details:
+/// - Routes numeric selection to appropriate options menu handler and closes menu.
+fn handle_options_menu_numeric(
+    idx: usize,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> Option<bool> {
+    match idx {
+        0 => handle_options_installed_only_toggle(app, details_tx),
+        1 => handle_options_system_update(app),
+        2 => handle_options_news(app),
+        3 => handle_options_optional_deps(app),
+        _ => return None,
+    }
+    app.options_menu_open = false;
+    Some(false)
+}
+
+/// What: Handle numeric menu selection for panels menu.
+///
+/// Inputs:
+/// - `idx`: Selected menu index (0=recent, 1=install, 2=keybinds)
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(false)` if selection was handled, `None` otherwise
+///
+/// Details:
+/// - Routes numeric selection to panels menu handler and keeps menu open.
+fn handle_panels_menu_numeric(idx: usize, app: &mut AppState) -> Option<bool> {
+    handle_panels_menu_selection(idx, app);
+    // Keep menu open after toggling panels
+    Some(false)
+}
+
+/// What: Handle numeric menu selection for config menu.
+///
+/// Inputs:
+/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds, 3=install, 4=installed, 5=recent)
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(false)` if selection was handled, `None` otherwise
+///
+/// Details:
+/// - Routes numeric selection to config menu handler.
+fn handle_config_menu_numeric(idx: usize, app: &mut AppState) -> Option<bool> {
+    handle_config_menu_selection(idx, app);
+    Some(false)
+}
+
+/// What: Handle numeric key press when dropdown menus are open.
+///
+/// Inputs:
+/// - `ch`: Character pressed (must be '1'-'9')
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request package details
+///
+/// Output:
+/// - `Some(false)` if a menu selection was handled, `None` otherwise
+///
+/// Details:
+/// - Routes numeric keys to the appropriate open menu handler.
+fn handle_menu_numeric_selection(
+    ch: char,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> Option<bool> {
+    let idx = (ch as u8 - b'1') as usize; // '1' -> 0
+    if app.options_menu_open {
+        handle_options_menu_numeric(idx, app, details_tx)
+    } else if app.panels_menu_open {
+        handle_panels_menu_numeric(idx, app)
+    } else if app.config_menu_open {
+        handle_config_menu_numeric(idx, app)
+    } else {
+        None
+    }
+}
+
+/// What: Handle global keybinds (help, theme reload, exit, PKGBUILD, sort).
+///
+/// Inputs:
+/// - `ke`: Key event from crossterm
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request package details
+/// - `pkgb_tx`: Channel to request PKGBUILD content
+///
+/// Output:
+/// - `Some(true)` for exit, `Some(false)` if handled, `None` if not matched
+///
+/// Details:
+/// - Checks key event against all global keybinds using a dispatch pattern.
+fn handle_global_keybinds(
+    ke: &KeyEvent,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> Option<bool> {
+    let km = &app.keymap;
+
+    // Help overlay (only if no modal is active, except Preflight which handles its own help)
+    if !matches!(app.modal, crate::state::Modal::Preflight { .. })
+        && matches_keybind(ke, &km.help_overlay)
+    {
+        return handle_help_overlay(app);
+    }
+
+    // Theme reload
+    if matches_keybind(ke, &km.reload_theme) {
+        return handle_reload_theme(app);
+    }
+
+    // Exit
+    if matches_keybind(ke, &km.exit) {
+        return handle_exit();
+    }
+
+    // PKGBUILD toggle
+    if matches_keybind(ke, &km.show_pkgbuild) {
+        return handle_toggle_pkgbuild(app, pkgb_tx);
+    }
+
+    // Sort change
+    if matches_keybind(ke, &km.change_sort) {
+        return handle_change_sort(app, details_tx);
+    }
+
+    None
+}
+
 /// What: Handle config menu numeric selection.
 ///
 /// Inputs:
@@ -310,133 +641,28 @@ pub(crate) fn handle_global_key(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> Option<bool> {
-    // Global keymap shortcuts (regardless of focus)
-    // First: allow ESC to close the PKGBUILD viewer if it is open
-    // Esc does not close the PKGBUILD viewer here
-    // If any dropdown is open, ESC closes it instead of changing modes
-    if ke.code == KeyCode::Esc && close_all_dropdowns(app) {
-        return Some(false); // Handled - don't process further
+    // First: handle ESC to close dropdown menus
+    if ke.code == KeyCode::Esc
+        && let Some(result) = handle_escape(app)
+    {
+        return Some(result);
     }
-    let km = &app.keymap;
-    // Global keybinds (only if no modal is active, except Preflight which handles its own help)
-    if !matches!(app.modal, crate::state::Modal::Preflight { .. }) {
-        // Normalize BackTab so that SHIFT modifier does not affect matching across terminals
-        let normalized_mods = if matches!(ke.code, KeyCode::BackTab) {
-            KeyModifiers::empty()
-        } else {
-            ke.modifiers
-        };
-        let chord = (ke.code, normalized_mods);
-        let matches_any =
-            |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
-        if matches_any(&km.help_overlay) {
-            app.modal = crate::state::Modal::Help;
-            return Some(false); // Handled - don't process further
-        }
+
+    // Second: handle global keybinds (help, theme reload, exit, PKGBUILD, sort)
+    if let Some(result) = handle_global_keybinds(&ke, app, details_tx, pkgb_tx) {
+        return Some(result);
     }
-    // Normalize BackTab so that SHIFT modifier does not affect matching across terminals
-    let normalized_mods = if matches!(ke.code, KeyCode::BackTab) {
-        KeyModifiers::empty()
-    } else {
-        ke.modifiers
-    };
-    let chord = (ke.code, normalized_mods);
-    let matches_any =
-        |list: &Vec<crate::theme::KeyChord>| list.iter().any(|c| (c.code, c.mods) == chord);
-    if matches_any(&km.reload_theme) {
-        match reload_theme() {
-            Ok(()) => {
-                app.toast_message = Some(crate::i18n::t(app, "app.toasts.theme_reloaded"));
-                app.toast_expires_at =
-                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
-            }
-            Err(msg) => {
-                app.modal = crate::state::Modal::Alert { message: msg };
-            }
-        }
-        return Some(false); // Handled - don't process further
-    }
-    if matches_any(&km.exit) {
-        return Some(true); // Exit requested
-    }
-    // Toggle PKGBUILD viewer globally
-    if matches_any(&km.show_pkgbuild) {
-        if app.pkgb_visible {
-            app.pkgb_visible = false;
-            app.pkgb_text = None;
-            app.pkgb_package_name = None;
-            app.pkgb_scroll = 0;
-            app.pkgb_rect = None;
-        } else {
-            app.pkgb_visible = true;
-            app.pkgb_text = None;
-            app.pkgb_package_name = None;
-            if let Some(item) = app.results.get(app.selected).cloned() {
-                let _ = pkgb_tx.send(item);
-            }
-        }
-        return Some(false); // Handled - don't process further
-    }
-    // Global: Change sorting via configured keybind
-    if matches_any(&km.change_sort) {
-        // Cycle through sort modes in fixed order
-        app.sort_mode = match app.sort_mode {
-            crate::state::SortMode::RepoThenName => {
-                crate::state::SortMode::AurPopularityThenOfficial
-            }
-            crate::state::SortMode::AurPopularityThenOfficial => {
-                crate::state::SortMode::BestMatches
-            }
-            crate::state::SortMode::BestMatches => crate::state::SortMode::RepoThenName,
-        };
-        // Persist preference and apply immediately
-        crate::theme::save_sort_mode(app.sort_mode);
-        crate::logic::sort_results_preserve_selection(app);
-        // Jump selection to top and refresh details
-        if !app.results.is_empty() {
-            app.selected = 0;
-            app.list_state.select(Some(0));
-            utils::refresh_selected_details(app, details_tx);
-        } else {
-            app.list_state.select(None);
-        }
-        // Show the dropdown so the user sees the current option with a check mark
-        app.sort_menu_open = true;
-        app.sort_menu_auto_close_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
-        return Some(false); // Handled - don't process further
-    }
+
+    // Third: handle numeric menu selection when dropdowns are open
     // Note: menu toggles (Shift+C/O/P) handled in Search Normal mode and not globally
-    // Global: When a dropdown is open, allow numeric selection 1..9 to activate rows
-    if let crossterm::event::KeyCode::Char(ch) = ke.code
+    if let KeyCode::Char(ch) = ke.code
         && ch.is_ascii_digit()
         && ch != '0'
+        && let Some(result) = handle_menu_numeric_selection(ch, app, details_tx)
     {
-        let idx = (ch as u8 - b'1') as usize; // '1' -> 0
-        // Options menu rows: 0 toggle installed-only, 1 update system, 2 news, 3 optional deps
-        if app.options_menu_open {
-            match idx {
-                0 => handle_options_installed_only_toggle(app, details_tx),
-                1 => handle_options_system_update(app),
-                2 => handle_options_news(app),
-                3 => handle_options_optional_deps(app),
-                _ => {}
-            }
-            app.options_menu_open = false;
-            return Some(false); // Handled - don't process further
-        }
-        // Panels menu rows: 0 recent, 1 install, 2 keybinds
-        if app.panels_menu_open {
-            handle_panels_menu_selection(idx, app);
-            // Keep menu open after toggling panels
-            return Some(false); // Handled - don't process further
-        }
-        // Config menu rows: 0 settings, 1 theme, 2 keybinds, 3 install list, 4 installed list, 5 recent
-        if app.config_menu_open {
-            handle_config_menu_selection(idx, app);
-            return Some(false); // Handled - don't process further
-        }
+        return Some(result);
     }
+
     None // Key not handled by global shortcuts
 }
 

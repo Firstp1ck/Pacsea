@@ -12,6 +12,7 @@ mod news;
 mod post_summary;
 mod preflight;
 mod preflight_exec;
+mod renderer;
 mod system_update;
 
 /// What: Render modal overlays (Alert, ConfirmInstall, ConfirmRemove, SystemUpdate, Help, News).
@@ -27,6 +28,7 @@ mod system_update;
 /// Details:
 /// - Clears the area behind the modal; draws a styled centered box; content varies by modal.
 /// - Help dynamically reflects keymap; News draws a selectable list and records list rect.
+/// - Uses trait-based rendering to reduce cognitive complexity.
 pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
     // Draw a full-screen scrim behind any active modal to avoid underlying text bleed/concatenation
@@ -38,185 +40,8 @@ pub fn render_modals(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Extract modal to avoid borrow conflicts
     let modal = std::mem::replace(&mut app.modal, crate::state::Modal::None);
 
-    // Handle Preflight separately since it needs mutable access to the whole modal
-    if let crate::state::Modal::Preflight { .. } = modal {
-        let mut preflight_modal = modal;
-        preflight::render_preflight(f, area, app, &mut preflight_modal);
-        app.modal = preflight_modal;
-        return;
-    }
-
-    let modal = modal;
-
-    match modal {
-        crate::state::Modal::Alert { message } => {
-            alert::render_alert(f, app, area, &message);
-            app.modal = crate::state::Modal::Alert { message };
-        }
-        crate::state::Modal::ConfirmInstall { items } => {
-            confirm::render_confirm_install(f, app, area, &items);
-            app.modal = crate::state::Modal::ConfirmInstall { items };
-        }
-        crate::state::Modal::Preflight { .. } => {
-            unreachable!("Preflight should have been handled above");
-        }
-        crate::state::Modal::PreflightExec {
-            items,
-            action,
-            tab,
-            verbose,
-            log_lines,
-            abortable,
-            header_chips,
-        } => {
-            preflight_exec::render_preflight_exec(
-                f,
-                area,
-                &items,
-                action,
-                tab,
-                verbose,
-                &log_lines,
-                abortable,
-                &header_chips,
-            );
-            app.modal = crate::state::Modal::PreflightExec {
-                items,
-                action,
-                tab,
-                verbose,
-                log_lines,
-                abortable,
-                header_chips,
-            };
-        }
-        crate::state::Modal::PostSummary {
-            success,
-            changed_files,
-            pacnew_count,
-            pacsave_count,
-            services_pending,
-            snapshot_label,
-        } => {
-            post_summary::render_post_summary(
-                f,
-                app,
-                area,
-                success,
-                changed_files,
-                pacnew_count,
-                pacsave_count,
-                &services_pending,
-                snapshot_label.as_ref(),
-            );
-            app.modal = crate::state::Modal::PostSummary {
-                success,
-                changed_files,
-                pacnew_count,
-                pacsave_count,
-                services_pending,
-                snapshot_label,
-            };
-        }
-        crate::state::Modal::ConfirmRemove { items } => {
-            confirm::render_confirm_remove(f, app, area, &items);
-            app.modal = crate::state::Modal::ConfirmRemove { items };
-        }
-        crate::state::Modal::SystemUpdate {
-            do_mirrors,
-            do_pacman,
-            do_aur,
-            do_cache,
-            country_idx,
-            countries,
-            mirror_count,
-            cursor,
-        } => {
-            system_update::render_system_update(
-                f,
-                app,
-                area,
-                do_mirrors,
-                do_pacman,
-                do_aur,
-                do_cache,
-                country_idx,
-                &countries,
-                mirror_count,
-                cursor,
-            );
-            app.modal = crate::state::Modal::SystemUpdate {
-                do_mirrors,
-                do_pacman,
-                do_aur,
-                do_cache,
-                country_idx,
-                countries,
-                mirror_count,
-                cursor,
-            };
-        }
-        crate::state::Modal::Help => {
-            help::render_help(f, app, area);
-            app.modal = crate::state::Modal::Help;
-        }
-        crate::state::Modal::News { items, selected } => {
-            news::render_news(f, app, area, &items, selected);
-            app.modal = crate::state::Modal::News { items, selected };
-        }
-        crate::state::Modal::OptionalDeps { rows, selected } => {
-            misc::render_optional_deps(f, area, &rows, selected, app);
-            app.modal = crate::state::Modal::OptionalDeps { rows, selected };
-        }
-        crate::state::Modal::ScanConfig {
-            do_clamav,
-            do_trivy,
-            do_semgrep,
-            do_shellcheck,
-            do_virustotal,
-            do_custom,
-            do_sleuth,
-            cursor,
-        } => {
-            misc::render_scan_config(
-                f,
-                area,
-                do_clamav,
-                do_trivy,
-                do_semgrep,
-                do_shellcheck,
-                do_virustotal,
-                do_custom,
-                do_sleuth,
-                cursor,
-            );
-            app.modal = crate::state::Modal::ScanConfig {
-                do_clamav,
-                do_trivy,
-                do_semgrep,
-                do_shellcheck,
-                do_virustotal,
-                do_custom,
-                do_sleuth,
-                cursor,
-            };
-        }
-        crate::state::Modal::GnomeTerminalPrompt => {
-            misc::render_gnome_terminal_prompt(f, area);
-            app.modal = crate::state::Modal::GnomeTerminalPrompt;
-        }
-        crate::state::Modal::VirusTotalSetup { input, cursor } => {
-            misc::render_virustotal_setup(f, app, area, &input);
-            app.modal = crate::state::Modal::VirusTotalSetup { input, cursor };
-        }
-        crate::state::Modal::ImportHelp => {
-            misc::render_import_help(f, area);
-            app.modal = crate::state::Modal::ImportHelp;
-        }
-        crate::state::Modal::None => {
-            app.modal = crate::state::Modal::None;
-        }
-    }
+    // Use trait-based renderer to handle all modal variants
+    app.modal = renderer::render_modal(modal, f, app, area);
 }
 
 #[cfg(test)]

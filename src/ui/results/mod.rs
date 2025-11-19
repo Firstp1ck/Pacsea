@@ -1,12 +1,12 @@
 use ratatui::{
     Frame,
     prelude::Rect,
-    style::{Modifier, Style},
-    text::{Line, Span},
+    style::Style,
+    text::Line,
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
 
-use crate::state::{AppState, Source};
+use crate::state::AppState;
 use crate::theme::theme;
 
 mod dropdowns;
@@ -174,9 +174,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Extract offset before building to avoid borrowing app.list_state
     let list_offset = app.list_state.offset();
 
-    // Build the list items inline to avoid borrow conflicts with app.list_state
-    // This must be done inline because Rust's borrow checker is too conservative
-    // when we try to mutate app.list_state after calling a function that borrows app
+    // Build the list items using helper functions to reduce complexity
     let items: Vec<ListItem> = {
         let prefs = crate::theme::settings();
         let viewport_rows = area.height.saturating_sub(2) as usize;
@@ -187,145 +185,8 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             .iter()
             .enumerate()
             .map(|(i, p)| {
-                // For rows outside the viewport, render a cheap empty item
-                if i < start || i >= end {
-                    return ListItem::new(Line::raw(""));
-                }
-
-                let (src, color) = match &p.source {
-                    Source::Official { repo, .. } => {
-                        let owner = app
-                            .details_cache
-                            .get(&p.name)
-                            .map(|d| d.owner.clone())
-                            .unwrap_or_default();
-                        let label = crate::logic::distro::label_for_official(repo, &p.name, &owner);
-                        let color = if label == "EOS"
-                            || label == "CachyOS"
-                            || label == "Artix"
-                            || label == "OMNI"
-                            || label == "UNI"
-                            || label == "LIB32"
-                            || label == "GALAXY"
-                            || label == "WORLD"
-                            || label == "SYSTEM"
-                            || label == "Manjaro"
-                        {
-                            th.sapphire
-                        } else {
-                            th.green
-                        };
-                        (label, color)
-                    }
-                    Source::Aur => ("AUR".to_string(), th.yellow),
-                };
-                let desc = if p.description.is_empty() {
-                    app.details_cache
-                        .get(&p.name)
-                        .map(|d| d.description.clone())
-                        .unwrap_or_default()
-                } else {
-                    p.description.clone()
-                };
-                let installed = crate::index::is_installed(&p.name);
-                let mut segs: Vec<Span> = Vec::new();
-                if let Some(pop) = p.popularity {
-                    segs.push(Span::styled(
-                        format!("Pop: {pop:.2} "),
-                        Style::default().fg(th.overlay1),
-                    ));
-                }
-                segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
-                segs.push(Span::styled(
-                    p.name.clone(),
-                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
-                ));
-                segs.push(Span::styled(
-                    format!("  {}", p.version),
-                    Style::default().fg(th.overlay1),
-                ));
-                if !desc.is_empty() {
-                    segs.push(Span::raw("  - "));
-                    segs.push(Span::styled(desc, Style::default().fg(th.overlay2)));
-                }
-                if installed {
-                    segs.push(Span::raw("  "));
-                    segs.push(Span::styled(
-                        "[Installed]",
-                        Style::default().fg(th.green).add_modifier(Modifier::BOLD),
-                    ));
-                }
-                {
-                    let in_install = app
-                        .install_list
-                        .iter()
-                        .any(|it| it.name.eq_ignore_ascii_case(&p.name));
-                    let in_remove = app
-                        .remove_list
-                        .iter()
-                        .any(|it| it.name.eq_ignore_ascii_case(&p.name));
-                    let in_downgrade = app
-                        .downgrade_list
-                        .iter()
-                        .any(|it| it.name.eq_ignore_ascii_case(&p.name));
-
-                    if in_install || in_remove || in_downgrade {
-                        let (label, color) = if in_remove {
-                            ("[-]", th.red)
-                        } else if in_downgrade {
-                            ("[↓]", th.yellow)
-                        } else {
-                            ("[+]", th.green)
-                        };
-                        match prefs.package_marker {
-                            crate::theme::PackageMarker::FullLine => {
-                                let mut item = ListItem::new(Line::from(segs));
-                                let bgc = if in_install {
-                                    if let ratatui::style::Color::Rgb(r, g, b) = color {
-                                        ratatui::style::Color::Rgb(
-                                            ((r as u16 * 85) / 100) as u8,
-                                            ((g as u16 * 85) / 100) as u8,
-                                            ((b as u16 * 85) / 100) as u8,
-                                        )
-                                    } else {
-                                        color
-                                    }
-                                } else {
-                                    color
-                                };
-                                item = item.style(Style::default().fg(th.crust).bg(bgc));
-                                item
-                            }
-                            crate::theme::PackageMarker::Front => {
-                                let mut new_segs: Vec<Span> = Vec::new();
-                                new_segs.push(Span::styled(
-                                    label.to_string(),
-                                    Style::default()
-                                        .fg(th.crust)
-                                        .bg(color)
-                                        .add_modifier(Modifier::BOLD),
-                                ));
-                                new_segs.push(Span::raw(" "));
-                                new_segs.extend(segs);
-                                ListItem::new(Line::from(new_segs))
-                            }
-                            crate::theme::PackageMarker::End => {
-                                let mut new_segs = segs;
-                                new_segs.push(Span::raw(" "));
-                                new_segs.push(Span::styled(
-                                    label.to_string(),
-                                    Style::default()
-                                        .fg(th.crust)
-                                        .bg(color)
-                                        .add_modifier(Modifier::BOLD),
-                                ));
-                                ListItem::new(Line::from(new_segs))
-                            }
-                        }
-                    } else {
-                        ListItem::new(Line::from(segs))
-                    }
-                }
+                let in_viewport = i >= start && i < end;
+                list::build_list_item(p, app, &th, &prefs, in_viewport)
             })
             .collect()
     };

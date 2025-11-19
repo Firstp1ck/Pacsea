@@ -384,6 +384,7 @@ fn create_tab_label_span(
 /// Output: Returns tuple of (spans for this tab, new tab_x position).
 ///
 /// Details: Builds status icon and label spans, stores rectangle for mouse clicks.
+#[allow(clippy::too_many_arguments)]
 fn render_single_tab(
     tab_idx: usize,
     label: &str,

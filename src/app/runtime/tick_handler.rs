@@ -86,6 +86,207 @@ pub fn handle_summary_result(
     let _ = tick_tx.send(());
 }
 
+/// What: Handle preflight resolution requests.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `deps_req_tx`: Channel sender for dependency resolution requests
+/// - `files_req_tx`: Channel sender for file resolution requests
+/// - `services_req_tx`: Channel sender for service resolution requests
+/// - `sandbox_req_tx`: Channel sender for sandbox resolution requests
+/// - `summary_req_tx`: Channel sender for summary computation requests
+///
+/// Output: None
+///
+/// Details:
+/// - Clears queues if preflight is cancelled
+/// - Otherwise triggers resolution requests for each preflight stage
+fn handle_preflight_resolution(
+    app: &mut AppState,
+    deps_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    summary_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
+) {
+    let cancelled = app
+        .preflight_cancelled
+        .load(std::sync::atomic::Ordering::Relaxed);
+    if cancelled {
+        // Clear all queues if cancelled
+        app.preflight_summary_items = None;
+        app.preflight_deps_items = None;
+        app.preflight_files_items = None;
+        app.preflight_services_items = None;
+        app.preflight_sandbox_items = None;
+        return;
+    }
+
+    // Check for preflight resolution requests - each stage has its own queue
+    if let Some((ref items, ref action)) = app.preflight_summary_items
+        && !app.preflight_summary_resolving
+    {
+        // Trigger summary computation
+        app.preflight_summary_resolving = true;
+        let _ = summary_req_tx.send((items.clone(), *action));
+    }
+    if let Some(ref items) = app.preflight_deps_items
+        && app.preflight_deps_resolving
+        && !app.deps_resolving
+    {
+        // Trigger dependency resolution for preflight items
+        app.deps_resolving = true;
+        let _ = deps_req_tx.send(items.clone());
+    }
+    if let Some(ref items) = app.preflight_files_items
+        && app.preflight_files_resolving
+        && !app.files_resolving
+    {
+        // Trigger file resolution for preflight items
+        app.files_resolving = true;
+        let _ = files_req_tx.send(items.clone());
+    }
+    if let Some(ref items) = app.preflight_services_items
+        && app.preflight_services_resolving
+        && !app.services_resolving
+    {
+        // Trigger service resolution for preflight items
+        app.services_resolving = true;
+        let _ = services_req_tx.send(items.clone());
+    }
+    if let Some(ref items) = app.preflight_sandbox_items
+        && app.preflight_sandbox_resolving
+        && !app.sandbox_resolving
+    {
+        // Trigger sandbox resolution for preflight items (already filtered to AUR)
+        app.sandbox_resolving = true;
+        let _ = sandbox_req_tx.send(items.clone());
+    }
+}
+
+/// What: Handle PKGBUILD reload debouncing.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `pkgb_req_tx`: Channel sender for PKGBUILD requests
+///
+/// Output: None
+///
+/// Details:
+/// - Checks if debounce delay has elapsed
+/// - Sends reload request if still on the same package
+/// - Clears pending request after processing
+fn handle_pkgbuild_reload_debounce(
+    app: &mut AppState,
+    pkgb_req_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
+    const PKGBUILD_DEBOUNCE_MS: u64 = 250;
+    let (Some(requested_at), Some(requested_for)) =
+        (app.pkgb_reload_requested_at, &app.pkgb_reload_requested_for)
+    else {
+        return;
+    };
+
+    let elapsed = requested_at.elapsed();
+    if elapsed.as_millis() < PKGBUILD_DEBOUNCE_MS as u128 {
+        return;
+    }
+
+    // Check if the requested package is still the currently selected one
+    if let Some(current_item) = app.results.get(app.selected)
+        && current_item.name == *requested_for
+    {
+        // Still on the same package, actually send the request
+        let _ = pkgb_req_tx.send(current_item.clone());
+    }
+    // Clear the pending request
+    app.pkgb_reload_requested_at = None;
+    app.pkgb_reload_requested_for = None;
+}
+
+/// What: Handle installed cache polling logic.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `query_tx`: Channel sender for query input
+///
+/// Output: None
+///
+/// Details:
+/// - Polls installed/explicit caches if within deadline
+/// - Checks if pending installs/removals are complete
+/// - Clears tracking when operations complete
+fn handle_installed_cache_polling(
+    app: &mut AppState,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
+) {
+    let Some(deadline) = app.refresh_installed_until else {
+        return;
+    };
+
+    let now = Instant::now();
+    if now >= deadline {
+        app.refresh_installed_until = None;
+        app.next_installed_refresh_at = None;
+        app.pending_install_names = None;
+        return;
+    }
+
+    let should_poll = app
+        .next_installed_refresh_at
+        .map(|t| now >= t)
+        .unwrap_or(true);
+    if !should_poll {
+        return;
+    }
+
+    let maybe_pending_installs = app.pending_install_names.clone();
+    let maybe_pending_removes = app.pending_remove_names.clone();
+    tokio::spawn(async move {
+        // Refresh caches in background; ignore errors
+        crate::index::refresh_installed_cache().await;
+        crate::index::refresh_explicit_cache().await;
+    });
+    // Schedule next poll ~1s later
+    app.next_installed_refresh_at = Some(now + Duration::from_millis(1000));
+    // If installed-only mode, results depend on explicit set; re-run query soon
+    send_query(app, query_tx);
+
+    // If we are tracking pending installs, check if all are installed now
+    if let Some(pending) = maybe_pending_installs {
+        let all_installed = pending.iter().all(|n| crate::index::is_installed(n));
+        if all_installed {
+            // Clear install list and stop tracking
+            app.install_list.clear();
+            app.install_dirty = true;
+            app.pending_install_names = None;
+            // Clear dependency cache when install list is cleared
+            app.install_list_deps.clear();
+            app.install_list_files.clear();
+            app.deps_resolving = false;
+            app.files_resolving = false;
+            // End polling soon to avoid extra work
+            app.refresh_installed_until = Some(now + Duration::from_secs(1));
+        }
+    }
+
+    // If tracking pending removals, log once all are uninstalled
+    if let Some(pending_rm) = maybe_pending_removes {
+        let all_removed = pending_rm.iter().all(|n| !crate::index::is_installed(n));
+        if all_removed {
+            if let Err(e) = crate::install::log_removed(&pending_rm) {
+                let _ = e; // ignore logging errors
+            }
+            app.pending_remove_names = None;
+            // End polling soon to avoid extra work
+            app.refresh_installed_until = Some(now + Duration::from_secs(1));
+        }
+    }
+}
+
 /// What: Handle tick event (periodic updates).
 ///
 /// Inputs:
@@ -130,136 +331,18 @@ pub fn handle_tick(
     maybe_flush_services_cache(app);
     maybe_flush_sandbox_cache(app);
 
-    // Check cancellation flag - if cancelled, clear queues and skip work
-    let cancelled = app
-        .preflight_cancelled
-        .load(std::sync::atomic::Ordering::Relaxed);
-    if cancelled {
-        // Clear all queues if cancelled
-        app.preflight_summary_items = None;
-        app.preflight_deps_items = None;
-        app.preflight_files_items = None;
-        app.preflight_services_items = None;
-        app.preflight_sandbox_items = None;
-    } else {
-        // Check for preflight resolution requests - each stage has its own queue
-        if let Some((ref items, ref action)) = app.preflight_summary_items
-            && !app.preflight_summary_resolving
-        {
-            // Trigger summary computation
-            app.preflight_summary_resolving = true;
-            let _ = summary_req_tx.send((items.clone(), *action));
-        }
-        if let Some(ref items) = app.preflight_deps_items
-            && app.preflight_deps_resolving
-            && !app.deps_resolving
-        {
-            // Trigger dependency resolution for preflight items
-            app.deps_resolving = true;
-            let _ = deps_req_tx.send(items.clone());
-        }
-        if let Some(ref items) = app.preflight_files_items
-            && app.preflight_files_resolving
-            && !app.files_resolving
-        {
-            // Trigger file resolution for preflight items
-            app.files_resolving = true;
-            let _ = files_req_tx.send(items.clone());
-        }
-        if let Some(ref items) = app.preflight_services_items
-            && app.preflight_services_resolving
-            && !app.services_resolving
-        {
-            // Trigger service resolution for preflight items
-            app.services_resolving = true;
-            let _ = services_req_tx.send(items.clone());
-        }
-        if let Some(ref items) = app.preflight_sandbox_items
-            && app.preflight_sandbox_resolving
-            && !app.sandbox_resolving
-        {
-            // Trigger sandbox resolution for preflight items (already filtered to AUR)
-            app.sandbox_resolving = true;
-            let _ = sandbox_req_tx.send(items.clone());
-        }
-    }
+    handle_preflight_resolution(
+        app,
+        deps_req_tx,
+        files_req_tx,
+        services_req_tx,
+        sandbox_req_tx,
+        summary_req_tx,
+    );
 
-    // Check for pending PKGBUILD reload request (debounce delay)
-    const PKGBUILD_DEBOUNCE_MS: u64 = 250;
-    if let (Some(requested_at), Some(requested_for)) =
-        (app.pkgb_reload_requested_at, &app.pkgb_reload_requested_for)
-    {
-        let elapsed = requested_at.elapsed();
-        if elapsed.as_millis() >= PKGBUILD_DEBOUNCE_MS as u128 {
-            // Check if the requested package is still the currently selected one
-            if let Some(current_item) = app.results.get(app.selected)
-                && current_item.name == *requested_for
-            {
-                // Still on the same package, actually send the request
-                let _ = pkgb_req_tx.send(current_item.clone());
-            }
-            // Clear the pending request
-            app.pkgb_reload_requested_at = None;
-            app.pkgb_reload_requested_for = None;
-        }
-    }
+    handle_pkgbuild_reload_debounce(app, pkgb_req_tx);
 
-    // If we recently triggered install/remove, poll installed/explicit caches briefly
-    if let Some(deadline) = app.refresh_installed_until {
-        let now = Instant::now();
-        if now >= deadline {
-            app.refresh_installed_until = None;
-            app.next_installed_refresh_at = None;
-            app.pending_install_names = None;
-        } else {
-            let should_poll = app
-                .next_installed_refresh_at
-                .map(|t| now >= t)
-                .unwrap_or(true);
-            if should_poll {
-                let maybe_pending_installs = app.pending_install_names.clone();
-                let maybe_pending_removes = app.pending_remove_names.clone();
-                tokio::spawn(async move {
-                    // Refresh caches in background; ignore errors
-                    crate::index::refresh_installed_cache().await;
-                    crate::index::refresh_explicit_cache().await;
-                });
-                // Schedule next poll ~1s later
-                app.next_installed_refresh_at = Some(now + Duration::from_millis(1000));
-                // If installed-only mode, results depend on explicit set; re-run query soon
-                send_query(app, query_tx);
-                // If we are tracking pending installs, check if all are installed now
-                if let Some(pending) = maybe_pending_installs {
-                    let all_installed = pending.iter().all(|n| crate::index::is_installed(n));
-                    if all_installed {
-                        // Clear install list and stop tracking
-                        app.install_list.clear();
-                        app.install_dirty = true;
-                        app.pending_install_names = None;
-                        // Clear dependency cache when install list is cleared
-                        app.install_list_deps.clear();
-                        app.install_list_files.clear();
-                        app.deps_resolving = false;
-                        app.files_resolving = false;
-                        // End polling soon to avoid extra work
-                        app.refresh_installed_until = Some(now + Duration::from_secs(1));
-                    }
-                }
-                // If tracking pending removals, log once all are uninstalled
-                if let Some(pending_rm) = maybe_pending_removes {
-                    let all_removed = pending_rm.iter().all(|n| !crate::index::is_installed(n));
-                    if all_removed {
-                        if let Err(e) = crate::install::log_removed(&pending_rm) {
-                            let _ = e; // ignore logging errors
-                        }
-                        app.pending_remove_names = None;
-                        // End polling soon to avoid extra work
-                        app.refresh_installed_until = Some(now + Duration::from_secs(1));
-                    }
-                }
-            }
-        }
-    }
+    handle_installed_cache_polling(app, query_tx);
 
     if app.need_ring_prefetch
         && app
