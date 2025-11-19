@@ -4,7 +4,7 @@ version = "0.5.0"
 edition = "2024"
 
 [dependencies]
-clap = { version = "4.5.52", features = ["derive"] }
+clap = { version = "4.5.53", features = ["derive"] }
 crossterm = "0.29.0"
 ratatui = "0.29.0"
 serde = { version = "1.0.228", features = ["derive"] }
