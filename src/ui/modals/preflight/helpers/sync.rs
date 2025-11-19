@@ -290,6 +290,197 @@ pub fn sync_services(
     }
 }
 
+/// What: Check if sandbox resolution is in progress.
+///
+/// Inputs:
+/// - `app`: Application state
+///
+/// Output:
+/// - Returns true if sandbox resolution is in progress
+fn is_sandbox_resolving(app: &AppState) -> bool {
+    app.preflight_sandbox_resolving || app.sandbox_resolving
+}
+
+/// What: Check if cached sandbox data needs to be updated.
+///
+/// Inputs:
+/// - `sandbox_info`: Current sandbox info in modal
+/// - `cached_sandbox`: Cached sandbox data from app state
+///
+/// Output:
+/// - Returns true if update is needed
+fn needs_sandbox_update(
+    sandbox_info: &[crate::logic::sandbox::SandboxInfo],
+    cached_sandbox: &[crate::logic::sandbox::SandboxInfo],
+) -> bool {
+    sandbox_info.is_empty()
+        || cached_sandbox.len() != sandbox_info.len()
+        || cached_sandbox.iter().any(|cached| {
+            !sandbox_info
+                .iter()
+                .any(|existing| existing.package_name == cached.package_name)
+        })
+}
+
+/// What: Log detailed dependency information for sandbox entries.
+///
+/// Inputs:
+/// - `cached_sandbox`: Cached sandbox data to log
+fn log_sandbox_dependencies(cached_sandbox: &[crate::logic::sandbox::SandboxInfo]) {
+    tracing::info!(
+        "[UI] sync_sandbox: Found {} cached sandbox entries matching current items",
+        cached_sandbox.len()
+    );
+    for cached in cached_sandbox {
+        let total_deps = cached.depends.len()
+            + cached.makedepends.len()
+            + cached.checkdepends.len()
+            + cached.optdepends.len();
+        let installed_deps = cached.depends.iter().filter(|d| d.is_installed).count()
+            + cached.makedepends.iter().filter(|d| d.is_installed).count()
+            + cached
+                .checkdepends
+                .iter()
+                .filter(|d| d.is_installed)
+                .count()
+            + cached.optdepends.iter().filter(|d| d.is_installed).count();
+        tracing::info!(
+            "[UI] sync_sandbox: Package '{}' - total_deps={}, installed_deps={}, depends={}, makedepends={}, checkdepends={}, optdepends={}",
+            cached.package_name,
+            total_deps,
+            installed_deps,
+            cached.depends.len(),
+            cached.makedepends.len(),
+            cached.checkdepends.len(),
+            cached.optdepends.len()
+        );
+    }
+}
+
+/// What: Sync cached sandbox data to modal if update is needed.
+///
+/// Inputs:
+/// - `sandbox_info`: Mutable reference to sandbox info in modal
+/// - `sandbox_loaded`: Mutable reference to loaded flag
+/// - `cached_sandbox`: Cached sandbox data from app state
+///
+/// Output:
+/// - Updates `sandbox_info` and `sandbox_loaded` if needed
+fn sync_cached_sandbox(
+    sandbox_info: &mut Vec<crate::logic::sandbox::SandboxInfo>,
+    sandbox_loaded: &mut bool,
+    cached_sandbox: Vec<crate::logic::sandbox::SandboxInfo>,
+) {
+    if !needs_sandbox_update(sandbox_info, &cached_sandbox) {
+        tracing::debug!("[UI] sync_sandbox: No update needed, sandbox_info already in sync");
+        return;
+    }
+
+    log_sandbox_dependencies(&cached_sandbox);
+    tracing::info!(
+        "[UI] sync_sandbox: Syncing {} sandbox info entries from background resolution to Preflight modal (was_empty={}, len_diff={})",
+        cached_sandbox.len(),
+        sandbox_info.is_empty(),
+        cached_sandbox.len() != sandbox_info.len()
+    );
+    *sandbox_info = cached_sandbox;
+    *sandbox_loaded = true;
+    tracing::debug!(
+        "[UI] sync_sandbox: Successfully synced sandbox info, loaded={}",
+        *sandbox_loaded
+    );
+}
+
+/// What: Check if sandbox cache file exists.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `items`: Packages to check cache for
+///
+/// Output:
+/// - Returns true if cache file exists
+fn check_sandbox_cache(app: &AppState, items: &[PackageItem]) -> bool {
+    let cache_start = std::time::Instant::now();
+    let signature = crate::app::sandbox_cache::compute_signature(items);
+    let cache_exists =
+        crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature).is_some();
+    let cache_duration = cache_start.elapsed();
+    if cache_duration.as_millis() > 10 {
+        tracing::warn!("[UI] Sandbox cache check took {:?} (slow!)", cache_duration);
+    }
+    cache_exists
+}
+
+/// What: Handle empty sandbox info case by checking cache or resolution state.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `items`: Packages currently in preflight review
+/// - `aur_items`: AUR packages only
+/// - `sandbox_loaded`: Mutable reference to loaded flag
+///
+/// Output:
+/// - Updates `sandbox_loaded` if appropriate
+fn handle_empty_sandbox_info(
+    app: &AppState,
+    items: &[PackageItem],
+    aur_items: &[&PackageItem],
+    sandbox_loaded: &mut bool,
+) {
+    tracing::debug!(
+        "[UI] sync_sandbox: Empty sandbox_info, checking cache for items={:?}",
+        items.iter().map(|i| &i.name).collect::<Vec<_>>()
+    );
+
+    let cache_exists = check_sandbox_cache(app, items);
+    if cache_exists {
+        if !is_sandbox_resolving(app) {
+            tracing::info!(
+                "[UI] sync_sandbox: Using cached sandbox info (empty - no sandbox info found)"
+            );
+            *sandbox_loaded = true;
+        }
+        return;
+    }
+
+    if aur_items.is_empty() {
+        tracing::debug!("[UI] sync_sandbox: No AUR packages, marking as loaded");
+        *sandbox_loaded = true;
+        return;
+    }
+
+    if is_sandbox_resolving(app) {
+        tracing::info!(
+            "[UI] sync_sandbox: Background resolution in progress, items={:?}, aur_items={:?}",
+            items.iter().map(|i| &i.name).collect::<Vec<_>>(),
+            aur_items.iter().map(|i| &i.name).collect::<Vec<_>>()
+        );
+    } else {
+        tracing::debug!(
+            "[UI] sync_sandbox: No cache and no resolution in progress, will trigger on tab switch"
+        );
+    }
+}
+
+/// What: Handle remove action case for sandbox sync.
+///
+/// Inputs:
+/// - `items`: Packages currently in preflight review
+/// - `sandbox_loaded`: Mutable reference to loaded flag
+///
+/// Output:
+/// - Updates `sandbox_loaded` if no AUR packages
+fn handle_remove_action(items: &[PackageItem], sandbox_loaded: &mut bool) {
+    let aur_items: Vec<_> = items
+        .iter()
+        .filter(|p| matches!(p.source, crate::state::Source::Aur))
+        .collect();
+    if aur_items.is_empty() {
+        tracing::debug!("[UI] sync_sandbox: Remove action, no AUR packages, marking as loaded");
+        *sandbox_loaded = true;
+    }
+}
+
 /// What: Synchronize sandbox information from app cache to preflight modal.
 ///
 /// Inputs:
@@ -317,175 +508,60 @@ pub fn sync_sandbox(
     sandbox_info: &mut Vec<crate::logic::sandbox::SandboxInfo>,
     sandbox_loaded: &mut bool,
 ) {
-    if matches!(*action, PreflightAction::Install) && matches!(*tab, PreflightTab::Sandbox) {
-        // Show all packages, but only analyze AUR packages
-        let aur_items: Vec<_> = items
-            .iter()
-            .filter(|p| matches!(p.source, crate::state::Source::Aur))
-            .collect();
+    if matches!(*action, PreflightAction::Remove) {
+        handle_remove_action(items, sandbox_loaded);
+        return;
+    }
 
-        tracing::debug!(
-            "[UI] sync_sandbox: items={}, aur_items={}, cache_size={}, modal_size={}, loaded={}, resolving={}/{}",
-            items.len(),
-            aur_items.len(),
-            app.install_list_sandbox.len(),
-            sandbox_info.len(),
-            *sandbox_loaded,
-            app.preflight_sandbox_resolving,
-            app.sandbox_resolving
+    if !matches!(*action, PreflightAction::Install) || !matches!(*tab, PreflightTab::Sandbox) {
+        return;
+    }
+
+    // Show all packages, but only analyze AUR packages
+    let aur_items: Vec<_> = items
+        .iter()
+        .filter(|p| matches!(p.source, crate::state::Source::Aur))
+        .collect();
+
+    tracing::debug!(
+        "[UI] sync_sandbox: items={}, aur_items={}, cache_size={}, modal_size={}, loaded={}, resolving={}/{}",
+        items.len(),
+        aur_items.len(),
+        app.install_list_sandbox.len(),
+        sandbox_info.len(),
+        *sandbox_loaded,
+        app.preflight_sandbox_resolving,
+        app.sandbox_resolving
+    );
+
+    // Check if we have cached sandbox info from app state that matches current items
+    let item_names: std::collections::HashSet<String> =
+        items.iter().map(|i| i.name.clone()).collect();
+    let cached_sandbox: Vec<_> = app
+        .install_list_sandbox
+        .iter()
+        .filter(|s| item_names.contains(&s.package_name))
+        .cloned()
+        .collect();
+
+    // Sync results from background resolution if available
+    if !cached_sandbox.is_empty() {
+        sync_cached_sandbox(sandbox_info, sandbox_loaded, cached_sandbox);
+    }
+
+    // If sandbox_info is empty and we haven't loaded yet, check cache or trigger resolution
+    if sandbox_info.is_empty() && !*sandbox_loaded && !is_sandbox_resolving(app) {
+        handle_empty_sandbox_info(app, items, &aur_items, sandbox_loaded);
+    }
+
+    // Also check if we have sandbox_info already populated (from previous sync or initial load)
+    // This ensures we show data even if cached_sandbox is empty but sandbox_info has data
+    // But don't mark as loaded if resolution is still in progress
+    if !sandbox_info.is_empty() && !*sandbox_loaded && !is_sandbox_resolving(app) {
+        tracing::info!(
+            "[UI] sync_sandbox: sandbox_info has {} entries, marking as loaded",
+            sandbox_info.len()
         );
-
-        // Check if we have cached sandbox info from app state that matches current items
-        let item_names: std::collections::HashSet<String> =
-            items.iter().map(|i| i.name.clone()).collect();
-        let cached_sandbox: Vec<_> = app
-            .install_list_sandbox
-            .iter()
-            .filter(|s| item_names.contains(&s.package_name))
-            .cloned()
-            .collect();
-
-        // Sync results from background resolution if available (always sync when on Sandbox tab)
-        // Always sync cached data to sandbox_info when available
-        if !cached_sandbox.is_empty() {
-            // Always update if sandbox_info is empty, or if content differs
-            let needs_update = sandbox_info.is_empty()
-                || cached_sandbox.len() != sandbox_info.len()
-                || cached_sandbox.iter().any(|cached| {
-                    !sandbox_info
-                        .iter()
-                        .any(|existing| existing.package_name == cached.package_name)
-                });
-
-            // Log detailed dependency information only when data changes or is first loaded
-            if needs_update {
-                tracing::info!(
-                    "[UI] sync_sandbox: Found {} cached sandbox entries matching current items",
-                    cached_sandbox.len()
-                );
-                for cached in &cached_sandbox {
-                    let total_deps = cached.depends.len()
-                        + cached.makedepends.len()
-                        + cached.checkdepends.len()
-                        + cached.optdepends.len();
-                    let installed_deps = cached.depends.iter().filter(|d| d.is_installed).count()
-                        + cached.makedepends.iter().filter(|d| d.is_installed).count()
-                        + cached
-                            .checkdepends
-                            .iter()
-                            .filter(|d| d.is_installed)
-                            .count()
-                        + cached.optdepends.iter().filter(|d| d.is_installed).count();
-                    tracing::info!(
-                        "[UI] sync_sandbox: Package '{}' - total_deps={}, installed_deps={}, depends={}, makedepends={}, checkdepends={}, optdepends={}",
-                        cached.package_name,
-                        total_deps,
-                        installed_deps,
-                        cached.depends.len(),
-                        cached.makedepends.len(),
-                        cached.checkdepends.len(),
-                        cached.optdepends.len()
-                    );
-                }
-                tracing::info!(
-                    "[UI] sync_sandbox: Syncing {} sandbox info entries from background resolution to Preflight modal (was_empty={}, len_diff={})",
-                    cached_sandbox.len(),
-                    sandbox_info.is_empty(),
-                    cached_sandbox.len() != sandbox_info.len()
-                );
-                *sandbox_info = cached_sandbox;
-                *sandbox_loaded = true;
-                tracing::debug!(
-                    "[UI] sync_sandbox: Successfully synced sandbox info, loaded={}",
-                    *sandbox_loaded
-                );
-            } else {
-                tracing::debug!(
-                    "[UI] sync_sandbox: No update needed, sandbox_info already in sync"
-                );
-            }
-        }
-
-        // If sandbox_info is empty and we haven't loaded yet, check cache or trigger resolution
-        if sandbox_info.is_empty()
-            && !*sandbox_loaded
-            && !app.preflight_sandbox_resolving
-            && !app.sandbox_resolving
-        {
-            tracing::debug!(
-                "[UI] sync_sandbox: Empty sandbox_info, checking cache for items={:?}",
-                items.iter().map(|i| &i.name).collect::<Vec<_>>()
-            );
-            // Check if cache file exists with matching signature (even if empty)
-            let sandbox_cache_start = std::time::Instant::now();
-            let signature = crate::app::sandbox_cache::compute_signature(items);
-            let sandbox_cache_exists =
-                crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature)
-                    .is_some();
-            let sandbox_cache_duration = sandbox_cache_start.elapsed();
-            if sandbox_cache_duration.as_millis() > 10 {
-                tracing::warn!(
-                    "[UI] Sandbox cache check took {:?} (slow!)",
-                    sandbox_cache_duration
-                );
-            }
-            if sandbox_cache_exists {
-                // Cache exists but is empty - this is valid, means no sandbox info found
-                // But don't mark as loaded if resolution is still in progress
-                if !app.preflight_sandbox_resolving && !app.sandbox_resolving {
-                    tracing::info!(
-                        "[UI] sync_sandbox: Using cached sandbox info (empty - no sandbox info found)"
-                    );
-                    *sandbox_loaded = true;
-                }
-            } else if aur_items.is_empty() {
-                // No AUR packages, mark as loaded
-                tracing::debug!("[UI] sync_sandbox: No AUR packages, marking as loaded");
-                *sandbox_loaded = true;
-            } else {
-                // Check if background resolution is in progress
-                if app.preflight_sandbox_resolving || app.sandbox_resolving {
-                    // Background resolution in progress - UI will show loading state
-                    tracing::info!(
-                        "[UI] sync_sandbox: Background resolution in progress, items={:?}, aur_items={:?}",
-                        items.iter().map(|i| &i.name).collect::<Vec<_>>(),
-                        aur_items.iter().map(|i| &i.name).collect::<Vec<_>>()
-                    );
-                    // Don't mark as loaded - keep showing loading state
-                } else {
-                    tracing::debug!(
-                        "[UI] sync_sandbox: No cache and no resolution in progress, will trigger on tab switch"
-                    );
-                }
-                // If no cached sandbox info available, resolution will be triggered by event handlers when user navigates to Sandbox tab
-                // Don't mark as loaded yet - wait for resolution to complete
-            }
-        }
-
-        // Also check if we have sandbox_info already populated (from previous sync or initial load)
-        // This ensures we show data even if cached_sandbox is empty but sandbox_info has data
-        // But don't mark as loaded if resolution is still in progress
-        if !sandbox_info.is_empty()
-            && !*sandbox_loaded
-            && !app.preflight_sandbox_resolving
-            && !app.sandbox_resolving
-        {
-            tracing::info!(
-                "[UI] sync_sandbox: sandbox_info has {} entries, marking as loaded",
-                sandbox_info.len()
-            );
-            *sandbox_loaded = true;
-        }
-    } else if matches!(*action, PreflightAction::Remove) {
-        // For remove actions, no sandbox analysis needed
-        let aur_items: Vec<_> = items
-            .iter()
-            .filter(|p| matches!(p.source, crate::state::Source::Aur))
-            .collect();
-        if aur_items.is_empty() {
-            // No AUR packages, mark as loaded
-            tracing::debug!("[UI] sync_sandbox: Remove action, no AUR packages, marking as loaded");
-            *sandbox_loaded = true;
-        }
+        *sandbox_loaded = true;
     }
 }

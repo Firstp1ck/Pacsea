@@ -265,4 +265,3 @@ mod tests {
         assert!(!buf.is_empty());
     }
 }
-

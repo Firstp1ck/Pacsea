@@ -11,6 +11,417 @@ use crate::theme::theme;
 
 use super::helpers::render_header_chips;
 
+/// What: Represents the completion and loading status of a tab.
+///
+/// Inputs: None (struct definition).
+///
+/// Output: None (struct definition).
+///
+/// Details: Used to track whether a tab is complete and/or loading.
+struct TabStatus {
+    complete: bool,
+    loading: bool,
+}
+
+/// What: Calculate completion status for the summary tab.
+///
+/// Inputs:
+/// - `summary`: Summary data option.
+/// - `summary_loading`: Whether summary is currently loading.
+///
+/// Output: Returns `TabStatus` with completion and loading flags.
+///
+/// Details: Summary is complete if data exists.
+fn calculate_summary_status(
+    summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
+    summary_loading: bool,
+) -> TabStatus {
+    TabStatus {
+        complete: summary.is_some(),
+        loading: summary_loading,
+    }
+}
+
+/// What: Calculate completion status for the dependencies tab.
+///
+/// Inputs:
+/// - `app`: Application state (for loading flags).
+/// - `item_names`: Set of all package names.
+/// - `dependency_info`: Dependency information array.
+///
+/// Output: Returns `TabStatus` with completion and loading flags.
+///
+/// Details: Dependencies are complete when not loading and all packages are represented
+/// (either all have deps or all have 0 deps).
+fn calculate_deps_status(
+    app: &AppState,
+    item_names: &std::collections::HashSet<String>,
+    dependency_info: &[crate::state::modal::DependencyInfo],
+) -> TabStatus {
+    let loading =
+        app.preflight_deps_resolving || app.deps_resolving || app.preflight_deps_items.is_some();
+
+    if loading {
+        return TabStatus {
+            complete: false,
+            loading: true,
+        };
+    }
+
+    let packages_with_deps: std::collections::HashSet<String> = dependency_info
+        .iter()
+        .flat_map(|d| d.required_by.iter())
+        .cloned()
+        .collect();
+
+    let all_packages_have_deps = packages_with_deps.len() == item_names.len();
+    let complete = item_names.is_empty()
+        || dependency_info.is_empty() // All have 0 deps
+        || all_packages_have_deps; // All have deps and all are represented
+
+    TabStatus {
+        complete,
+        loading: false,
+    }
+}
+
+/// What: Calculate completion status for the files tab.
+///
+/// Inputs:
+/// - `app`: Application state (for loading flags).
+/// - `item_names`: Set of all package names.
+/// - `file_info`: File information array.
+///
+/// Output: Returns `TabStatus` with completion and loading flags.
+///
+/// Details: Files are complete when not loading and all packages have file info.
+fn calculate_files_status(
+    app: &AppState,
+    item_names: &std::collections::HashSet<String>,
+    file_info: &[crate::state::modal::PackageFileInfo],
+) -> TabStatus {
+    let loading =
+        app.preflight_files_resolving || app.files_resolving || app.preflight_files_items.is_some();
+
+    if loading {
+        return TabStatus {
+            complete: false,
+            loading: true,
+        };
+    }
+
+    let file_info_names: std::collections::HashSet<String> =
+        file_info.iter().map(|f| f.name.clone()).collect();
+
+    let complete = (!item_names.is_empty() && file_info_names.len() == item_names.len())
+        || (item_names.is_empty() && !app.install_list_files.is_empty());
+
+    TabStatus {
+        complete,
+        loading: false,
+    }
+}
+
+/// What: Calculate completion status for the services tab.
+///
+/// Inputs:
+/// - `app`: Application state (for loading flags).
+/// - `services_loaded`: Whether services are loaded.
+///
+/// Output: Returns `TabStatus` with completion and loading flags.
+///
+/// Details: Services are complete if marked as loaded or if install list has services.
+fn calculate_services_status(app: &AppState, services_loaded: bool) -> TabStatus {
+    let loading = app.preflight_services_resolving || app.services_resolving;
+    let complete = services_loaded || (!loading && !app.install_list_services.is_empty());
+
+    TabStatus { complete, loading }
+}
+
+/// What: Calculate completion status for the sandbox tab.
+///
+/// Inputs:
+/// - `app`: Application state (for loading flags).
+/// - `aur_items`: Set of AUR package names.
+/// - `sandbox_info`: Sandbox information array.
+/// - `sandbox_loaded`: Whether sandbox is loaded.
+///
+/// Output: Returns `TabStatus` with completion and loading flags.
+///
+/// Details: Sandbox is complete when not loading and all AUR packages have sandbox info.
+fn calculate_sandbox_status(
+    app: &AppState,
+    aur_items: &std::collections::HashSet<String>,
+    sandbox_info: &[crate::logic::sandbox::SandboxInfo],
+    sandbox_loaded: bool,
+) -> TabStatus {
+    let loading = app.preflight_sandbox_resolving || app.sandbox_resolving;
+
+    if loading {
+        return TabStatus {
+            complete: false,
+            loading: true,
+        };
+    }
+
+    let sandbox_info_names: std::collections::HashSet<String> = sandbox_info
+        .iter()
+        .map(|s| s.package_name.clone())
+        .collect();
+
+    let complete = sandbox_loaded
+        || (aur_items.is_empty() || sandbox_info_names.len() == aur_items.len())
+        || (aur_items.is_empty() && !app.install_list_sandbox.is_empty());
+
+    TabStatus {
+        complete,
+        loading: false,
+    }
+}
+
+/// What: Get status icon and color for a tab based on its status.
+///
+/// Inputs:
+/// - `status`: Tab status (complete/loading).
+/// - `th`: Theme reference.
+///
+/// Output: Returns tuple of (icon string, color).
+///
+/// Details: Returns loading icon if loading, checkmark if complete, empty otherwise.
+fn get_status_icon(
+    status: &TabStatus,
+    th: &crate::theme::Theme,
+) -> (&'static str, ratatui::style::Color) {
+    if status.loading {
+        ("⟳ ", th.sapphire)
+    } else if status.complete {
+        ("✓ ", th.green)
+    } else {
+        ("", th.overlay1)
+    }
+}
+
+/// What: Build completion order vector from tab statuses.
+///
+/// Inputs:
+/// - `statuses`: Array of tab statuses.
+///
+/// Output: Returns vector of tab indices in completion order.
+///
+/// Details: Only includes tabs that are complete and not loading.
+fn build_completion_order(statuses: &[TabStatus]) -> Vec<usize> {
+    statuses
+        .iter()
+        .enumerate()
+        .filter_map(|(i, status)| {
+            if status.complete && !status.loading {
+                Some(i)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// What: Get completion highlight color based on position in completion order.
+///
+/// Inputs:
+/// - `order_idx`: Position in completion order (0 = first, 1 = second, etc.).
+/// - `th`: Theme reference.
+///
+/// Output: Returns color for the highlight.
+///
+/// Details: Uses different colors for different completion positions.
+fn get_completion_highlight_color(
+    order_idx: usize,
+    th: &crate::theme::Theme,
+) -> ratatui::style::Color {
+    match order_idx {
+        0 => th.green,    // First completed
+        1 => th.sapphire, // Second completed
+        2 => th.mauve,    // Third completed
+        _ => th.overlay1, // Others
+    }
+}
+
+/// What: Check if a tab index matches the current active tab.
+///
+/// Inputs:
+/// - `tab_idx`: Index of the tab (0-4).
+/// - `current_tab`: Currently active tab enum.
+///
+/// Output: Returns true if the tab is active.
+///
+/// Details: Maps tab indices to PreflightTab enum variants.
+fn is_tab_active(tab_idx: usize, current_tab: PreflightTab) -> bool {
+    matches!(
+        (tab_idx, current_tab),
+        (0, PreflightTab::Summary)
+            | (1, PreflightTab::Deps)
+            | (2, PreflightTab::Files)
+            | (3, PreflightTab::Services)
+            | (4, PreflightTab::Sandbox)
+    )
+}
+
+/// What: Calculate the color for a tab based on its state.
+///
+/// Inputs:
+/// - `is_active`: Whether the tab is currently active.
+/// - `tab_idx`: Index of the tab.
+/// - `completion_order`: Vector of completed tab indices in order.
+/// - `th`: Theme reference.
+///
+/// Output: Returns the color for the tab.
+///
+/// Details: Active tabs use mauve, completed tabs use highlight colors, others use overlay1.
+fn calculate_tab_color(
+    is_active: bool,
+    tab_idx: usize,
+    completion_order: &[usize],
+    th: &crate::theme::Theme,
+) -> ratatui::style::Color {
+    if is_active {
+        return th.mauve;
+    }
+
+    if let Some(order_idx) = completion_order.iter().position(|&x| x == tab_idx) {
+        get_completion_highlight_color(order_idx, th)
+    } else {
+        th.overlay1
+    }
+}
+
+/// What: Calculate the width of a tab for rectangle storage.
+///
+/// Inputs:
+/// - `label`: Tab label text.
+/// - `status_icon`: Status icon string.
+/// - `is_active`: Whether the tab is active.
+///
+/// Output: Returns the width in characters as u16.
+///
+/// Details: Active tabs include brackets, adding 2 characters to the width.
+fn calculate_tab_width(label: &str, status_icon: &str, is_active: bool) -> u16 {
+    let base_width = label.len() + status_icon.len();
+    if is_active {
+        (base_width + 2) as u16 // +2 for brackets
+    } else {
+        base_width as u16
+    }
+}
+
+/// What: Create status icon span if icon exists.
+///
+/// Inputs:
+/// - `status_icon`: Status icon string (must be static).
+/// - `status_color`: Color for the icon.
+///
+/// Output: Returns optional span for the status icon.
+///
+/// Details: Returns None if icon is empty, otherwise returns styled span.
+fn create_status_icon_span(
+    status_icon: &'static str,
+    status_color: ratatui::style::Color,
+) -> Option<Span<'static>> {
+    if status_icon.is_empty() {
+        return None;
+    }
+
+    Some(Span::styled(
+        status_icon,
+        Style::default()
+            .fg(status_color)
+            .add_modifier(Modifier::BOLD),
+    ))
+}
+
+/// What: Create tab label span based on active state.
+///
+/// Inputs:
+/// - `label`: Tab label text.
+/// - `is_active`: Whether the tab is active.
+/// - `is_completed`: Whether the tab is completed.
+/// - `tab_color`: Color for the label.
+///
+/// Output: Returns styled span for the tab label.
+///
+/// Details: Active tabs have brackets and bold, completed tabs have bold modifier.
+fn create_tab_label_span(
+    label: &str,
+    is_active: bool,
+    is_completed: bool,
+    tab_color: ratatui::style::Color,
+) -> Span<'static> {
+    let text = if is_active {
+        format!("[{}]", label)
+    } else {
+        label.to_string()
+    };
+
+    let modifier = if is_active || is_completed {
+        Modifier::BOLD
+    } else {
+        Modifier::empty()
+    };
+
+    Span::styled(text, Style::default().fg(tab_color).add_modifier(modifier))
+}
+
+/// What: Render spans for a single tab and store its rectangle.
+///
+/// Inputs:
+/// - `tab_idx`: Index of the tab.
+/// - `label`: Tab label text.
+/// - `status`: Tab status (complete/loading).
+/// - `is_active`: Whether the tab is active.
+/// - `completion_order`: Vector of completed tab indices in order.
+/// - `tab_x`: Current X position for the tab.
+/// - `tab_y`: Y position for the tab.
+/// - `th`: Theme reference.
+/// - `tab_rects`: Mutable reference to tab rectangles array.
+///
+/// Output: Returns tuple of (spans for this tab, new tab_x position).
+///
+/// Details: Builds status icon and label spans, stores rectangle for mouse clicks.
+fn render_single_tab(
+    tab_idx: usize,
+    label: &str,
+    status: &TabStatus,
+    is_active: bool,
+    completion_order: &[usize],
+    tab_x: u16,
+    tab_y: u16,
+    th: &crate::theme::Theme,
+    tab_rects: &mut [Option<(u16, u16, u16, u16)>; 5],
+) -> (Vec<Span<'static>>, u16) {
+    let (status_icon, status_color) = get_status_icon(status, th);
+    let tab_color = calculate_tab_color(is_active, tab_idx, completion_order, th);
+    let tab_width = calculate_tab_width(label, status_icon, is_active);
+
+    // Store rectangle for this tab
+    tab_rects[tab_idx] = Some((tab_x, tab_y, tab_width, 1));
+    let new_tab_x = tab_x + tab_width;
+
+    let mut spans = Vec::new();
+
+    // Add status icon if present
+    if let Some(icon_span) = create_status_icon_span(status_icon, status_color) {
+        spans.push(icon_span);
+    }
+
+    // Add tab label
+    let is_completed = completion_order.contains(&tab_idx);
+    spans.push(create_tab_label_span(
+        label,
+        is_active,
+        is_completed,
+        tab_color,
+    ));
+
+    (spans, new_tab_x)
+}
+
 /// What: Render tab header with progress indicators and calculate tab rectangles.
 ///
 /// Inputs:
@@ -62,104 +473,34 @@ pub fn render_tab_header(
         i18n::t(app, "app.modals.preflight.tabs.sandbox"),
     ];
 
-    // Determine completion status for each stage
-    // A stage is complete if it has data for ALL packages OR if resolution has finished (even if empty)
-    let summary_complete = summary.is_some();
-    let summary_loading = app.preflight_summary_resolving;
-
-    // Get item names for file completion check
+    // Get item names for completion checks
     let item_names: std::collections::HashSet<String> =
         items.iter().map(|i| i.name.clone()).collect();
 
-    // Deps is complete if:
-    // 1. We're not resolving (resolution has finished)
-    // 2. AND we can verify all packages are represented:
-    //    - All packages have dependencies (packages_with_deps.len() == item_names.len())
-    //    - OR all packages have 0 deps (dependency_info is empty)
-    // Note: Packages with 0 dependencies won't appear in required_by, so we can't
-    // easily verify all packages are represented when using cached data with mixed deps.
-    // We only mark complete if we can definitively verify all packages are represented:
-    // - All packages appear in required_by (all have deps), OR
-    // - dependency_info is empty (all have 0 deps)
-    // This is conservative but correct - when resolution finishes, if all packages have deps,
-    // they'll all appear in required_by, so it will be marked complete.
-    // Show loading if resolution is in progress OR if items are queued (waiting to start)
-    let deps_loading =
-        app.preflight_deps_resolving || app.deps_resolving || app.preflight_deps_items.is_some();
-    let packages_with_deps: std::collections::HashSet<String> = dependency_info
-        .iter()
-        .flat_map(|d| d.required_by.iter())
-        .cloned()
-        .collect();
-    // Check if all packages are represented in dependency data
-    let all_packages_have_deps = packages_with_deps.len() == item_names.len();
-    // Only mark as complete if:
-    // - Not loading AND
-    // - (All packages have deps AND all are represented, OR all have 0 deps)
-    // Note: We don't check preflight_deps_items because it's None both when using cached data
-    // and when resolution finishes, so we can't distinguish. Instead, we only mark complete
-    // when we can verify all packages are represented.
-    let deps_complete = !deps_loading
-        && (item_names.is_empty()
-            || dependency_info.is_empty() // All have 0 deps
-            || all_packages_have_deps); // All have deps and all are represented
-
-    // Check if all packages have file data
-    let file_info_names: std::collections::HashSet<String> =
-        file_info.iter().map(|f| f.name.clone()).collect();
-    // Files is complete if:
-    // 1. We're not resolving
-    // 2. AND all packages have file info (file_info.len() == items.len())
-    // Show loading if resolution is in progress OR if items are queued (waiting to start)
-    let files_loading =
-        app.preflight_files_resolving || app.files_resolving || app.preflight_files_items.is_some();
-    let files_complete = !files_loading
-        && ((!item_names.is_empty() && file_info_names.len() == item_names.len())
-            || (item_names.is_empty() && !app.install_list_files.is_empty()));
-
-    // Services is complete if marked as loaded OR if install list has services and we're not resolving
-    let services_complete = services_loaded
-        || (!app.preflight_services_resolving
-            && !app.services_resolving
-            && !app.install_list_services.is_empty());
-    let services_loading = app.preflight_services_resolving || app.services_resolving;
-
-    // Check if all AUR packages have sandbox data
+    // Get AUR items for sandbox check
     let aur_items: std::collections::HashSet<String> = items
         .iter()
         .filter(|p| matches!(p.source, crate::state::Source::Aur))
         .map(|i| i.name.clone())
         .collect();
-    let sandbox_info_names: std::collections::HashSet<String> = _sandbox_info
-        .iter()
-        .map(|s| s.package_name.clone())
-        .collect();
-    // Sandbox is complete if:
-    // 1. We're not resolving
-    // 2. AND (sandbox_loaded flag is set OR all AUR packages have sandbox info)
-    let sandbox_loading = app.preflight_sandbox_resolving || app.sandbox_resolving;
-    let sandbox_complete = !sandbox_loading
-        && ((sandbox_loaded
-            || (aur_items.is_empty() || sandbox_info_names.len() == aur_items.len()))
-            || (aur_items.is_empty() && !app.install_list_sandbox.is_empty()));
+
+    // Calculate completion status for each tab
+    let summary_status = calculate_summary_status(summary, app.preflight_summary_resolving);
+    let deps_status = calculate_deps_status(app, &item_names, dependency_info);
+    let files_status = calculate_files_status(app, &item_names, file_info);
+    let services_status = calculate_services_status(app, services_loaded);
+    let sandbox_status = calculate_sandbox_status(app, &aur_items, _sandbox_info, sandbox_loaded);
+
+    let statuses = [
+        summary_status,
+        deps_status,
+        files_status,
+        services_status,
+        sandbox_status,
+    ];
 
     // Track completion order (for highlighting)
-    let mut completion_order = Vec::new();
-    if summary_complete && !summary_loading {
-        completion_order.push(0);
-    }
-    if deps_complete && !deps_loading {
-        completion_order.push(1);
-    }
-    if files_complete && !files_loading {
-        completion_order.push(2);
-    }
-    if services_complete && !services_loading {
-        completion_order.push(3);
-    }
-    if sandbox_complete && !sandbox_loading {
-        completion_order.push(4);
-    }
+    let completion_order = build_completion_order(&statuses);
 
     // Calculate tab rectangles for mouse click detection
     // Tab header is on the second line of content_rect (after border + chips line)
@@ -171,131 +512,27 @@ pub fn render_tab_header(
     let mut tab_spans: Vec<Span> = Vec::new();
 
     for (i, lbl) in tab_labels.iter().enumerate() {
-        let is_active = matches!(
-            (i, current_tab),
-            (0, PreflightTab::Summary)
-                | (1, PreflightTab::Deps)
-                | (2, PreflightTab::Files)
-                | (3, PreflightTab::Services)
-                | (4, PreflightTab::Sandbox)
-        );
-
         if i > 0 {
             tab_spans.push(Span::raw("  "));
             tab_x += 2; // Account for spacing
         }
 
-        // Determine status indicator
-        let (status_icon, status_color) = match i {
-            0 => {
-                if summary_loading {
-                    ("⟳ ", th.sapphire)
-                } else if summary_complete {
-                    ("✓ ", th.green)
-                } else {
-                    ("", th.overlay1)
-                }
-            }
-            1 => {
-                if deps_loading {
-                    ("⟳ ", th.sapphire)
-                } else if deps_complete {
-                    ("✓ ", th.green)
-                } else {
-                    ("", th.overlay1)
-                }
-            }
-            2 => {
-                if files_loading {
-                    ("⟳ ", th.sapphire)
-                } else if files_complete {
-                    ("✓ ", th.green)
-                } else {
-                    ("", th.overlay1)
-                }
-            }
-            3 => {
-                if services_loading {
-                    ("⟳ ", th.sapphire)
-                } else if services_complete {
-                    ("✓ ", th.green)
-                } else {
-                    ("", th.overlay1)
-                }
-            }
-            4 => {
-                if sandbox_loading {
-                    ("⟳ ", th.sapphire)
-                } else if sandbox_complete {
-                    ("✓ ", th.green)
-                } else {
-                    ("", th.overlay1)
-                }
-            }
-            _ => ("", th.overlay1),
-        };
+        let is_active = is_tab_active(i, current_tab);
+        let status = &statuses[i];
+        let (spans, new_tab_x) = render_single_tab(
+            i,
+            lbl,
+            status,
+            is_active,
+            &completion_order,
+            tab_x,
+            tab_y,
+            &th,
+            &mut app.preflight_tab_rects,
+        );
 
-        // Highlight completed stages (show completion order)
-        let completion_highlight = if completion_order.contains(&i) {
-            let order_idx = completion_order.iter().position(|&x| x == i).unwrap_or(0);
-            // Use different colors for different completion positions
-            match order_idx {
-                0 => th.green,    // First completed
-                1 => th.sapphire, // Second completed
-                2 => th.mauve,    // Third completed
-                _ => th.overlay1, // Others
-            }
-        } else {
-            th.overlay1
-        };
-
-        let tab_color = if is_active {
-            th.mauve
-        } else if completion_order.contains(&i) {
-            completion_highlight
-        } else {
-            th.overlay1
-        };
-
-        // Calculate tab width (with brackets if active, plus status icon)
-        let tab_width = if is_active {
-            lbl.len() + status_icon.len() + 2 // [icon label]
-        } else {
-            lbl.len() + status_icon.len()
-        } as u16;
-
-        // Store rectangle for this tab
-        app.preflight_tab_rects[i] = Some((tab_x, tab_y, tab_width, 1));
-        tab_x += tab_width;
-
-        // Add status icon
-        if !status_icon.is_empty() {
-            tab_spans.push(Span::styled(
-                status_icon,
-                Style::default()
-                    .fg(status_color)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        }
-
-        // Add tab label
-        if is_active {
-            tab_spans.push(Span::styled(
-                format!("[{}]", lbl),
-                Style::default().fg(tab_color).add_modifier(Modifier::BOLD),
-            ));
-        } else {
-            tab_spans.push(Span::styled(
-                lbl.to_string(),
-                Style::default()
-                    .fg(tab_color)
-                    .add_modifier(if completion_order.contains(&i) {
-                        Modifier::BOLD
-                    } else {
-                        Modifier::empty()
-                    }),
-            ));
-        }
+        tab_spans.extend(spans);
+        tab_x = new_tab_x;
     }
 
     // Store content area rectangle for package group click detection

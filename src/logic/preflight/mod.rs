@@ -75,6 +75,334 @@ pub fn compute_preflight_summary(
     compute_preflight_summary_with_runner(items, action, &runner)
 }
 
+/// What: Intermediate state accumulated during package processing.
+///
+/// Inputs: Built incrementally while iterating packages.
+///
+/// Output: Used to construct the final summary and risk calculations.
+///
+/// Details: Groups related mutable state to reduce parameter passing.
+struct ProcessingState {
+    packages: Vec<PreflightPackageSummary>,
+    aur_count: usize,
+    total_download_bytes: u64,
+    total_install_delta_bytes: i64,
+    major_bump_packages: Vec<String>,
+    core_system_updates: Vec<String>,
+    any_major_bump: bool,
+    any_core_update: bool,
+    any_aur: bool,
+}
+
+impl ProcessingState {
+    fn new(capacity: usize) -> Self {
+        Self {
+            packages: Vec::with_capacity(capacity),
+            aur_count: 0,
+            total_download_bytes: 0,
+            total_install_delta_bytes: 0,
+            major_bump_packages: Vec::new(),
+            core_system_updates: Vec::new(),
+            any_major_bump: false,
+            any_core_update: false,
+            any_aur: false,
+        }
+    }
+}
+
+/// What: Process a single package item and update processing state.
+///
+/// Inputs:
+/// - `item`: Package to process.
+/// - `action`: Install vs. remove context.
+/// - `runner`: Command execution abstraction.
+/// - `installed_version`: Previously fetched installed version (if any).
+/// - `installed_size`: Previously fetched installed size (if any).
+/// - `state`: Mutable state accumulator.
+///
+/// Output: Updates `state` in place.
+///
+/// Details:
+/// - Fetches metadata for official packages.
+/// - Computes version comparisons and notes.
+/// - Detects core packages and major version bumps.
+fn process_package_item<R: CommandRunner>(
+    item: &PackageItem,
+    action: PreflightAction,
+    runner: &R,
+    installed_version: Option<String>,
+    installed_size: Option<u64>,
+    state: &mut ProcessingState,
+) {
+    if matches!(item.source, Source::Aur) {
+        state.aur_count += 1;
+        state.any_aur = true;
+    }
+
+    if installed_version.is_none() {
+        tracing::debug!(
+            "Preflight summary: failed to fetch installed version for {}",
+            item.name
+        );
+    }
+    if installed_size.is_none() {
+        tracing::debug!(
+            "Preflight summary: failed to fetch installed size for {}",
+            item.name
+        );
+    }
+
+    let (download_bytes, install_size_target) = fetch_package_metadata(runner, item);
+
+    let install_delta_bytes = calculate_install_delta(action, install_size_target, installed_size);
+
+    if let Some(bytes) = download_bytes {
+        state.total_download_bytes = state.total_download_bytes.saturating_add(bytes);
+    }
+    if let Some(delta) = install_delta_bytes {
+        state.total_install_delta_bytes = state.total_install_delta_bytes.saturating_add(delta);
+    }
+
+    let (notes, is_major_bump, is_downgrade) = analyze_version_changes(
+        &installed_version,
+        &item.version,
+        action,
+        item.name.clone(),
+        &mut state.major_bump_packages,
+        &mut state.any_major_bump,
+    );
+
+    let core_note = check_core_package(
+        item,
+        action,
+        &mut state.core_system_updates,
+        &mut state.any_core_update,
+    );
+    let mut all_notes = notes;
+    if let Some(note) = core_note {
+        all_notes.push(note);
+    }
+
+    state.packages.push(PreflightPackageSummary {
+        name: item.name.clone(),
+        source: item.source.clone(),
+        installed_version,
+        target_version: item.version.clone(),
+        is_downgrade,
+        is_major_bump,
+        download_bytes,
+        install_delta_bytes,
+        notes: all_notes,
+    });
+}
+
+/// What: Fetch metadata for official packages.
+///
+/// Inputs:
+/// - `runner`: Command execution abstraction.
+/// - `item`: Package item to fetch metadata for.
+///
+/// Output: Tuple of (download_bytes, install_size_target), both Option.
+///
+/// Details: Only fetches for official packages; returns None for AUR.
+fn fetch_package_metadata<R: CommandRunner>(
+    runner: &R,
+    item: &PackageItem,
+) -> (Option<u64>, Option<u64>) {
+    if let Source::Official { repo, .. } = &item.source {
+        match fetch_official_metadata(runner, repo, &item.name, item.version.as_str()) {
+            Ok(meta) => (meta.download_size, meta.install_size),
+            Err(err) => {
+                tracing::debug!(
+                    "Preflight summary: failed to fetch metadata for {repo}/{pkg}: {err}",
+                    pkg = item.name
+                );
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    }
+}
+
+/// What: Calculate install size delta based on action type.
+///
+/// Inputs:
+/// - `action`: Install vs. remove context.
+/// - `install_size_target`: Target install size (for installs).
+/// - `installed_size`: Current installed size.
+///
+/// Output: Delta in bytes (positive for installs, negative for removes).
+///
+/// Details: Returns None if metadata is unavailable.
+fn calculate_install_delta(
+    action: PreflightAction,
+    install_size_target: Option<u64>,
+    installed_size: Option<u64>,
+) -> Option<i64> {
+    match action {
+        PreflightAction::Install => install_size_target.map(|target| {
+            let current = installed_size.unwrap_or(0);
+            target as i64 - current as i64
+        }),
+        PreflightAction::Remove => installed_size.map(|size| -(size as i64)),
+    }
+}
+
+/// What: Analyze version changes and generate notes.
+///
+/// Inputs:
+/// - `installed_version`: Current installed version (if any).
+/// - `target_version`: Target version.
+/// - `action`: Install vs. remove context.
+/// - `package_name`: Name of the package.
+/// - `major_bump_packages`: Mutable list to append to if major bump detected.
+/// - `any_major_bump`: Mutable flag to set if major bump detected.
+///
+/// Output: Tuple of (notes, is_major_bump, is_downgrade).
+///
+/// Details: Detects downgrades, major version bumps, and new installations.
+fn analyze_version_changes(
+    installed_version: &Option<String>,
+    target_version: &str,
+    action: PreflightAction,
+    package_name: String,
+    major_bump_packages: &mut Vec<String>,
+    any_major_bump: &mut bool,
+) -> (Vec<String>, bool, bool) {
+    let mut notes = Vec::new();
+    let mut is_major_bump = false;
+    let mut is_downgrade = false;
+
+    if let Some(current) = installed_version {
+        match compare_versions(current, target_version) {
+            Ordering::Greater => {
+                if matches!(action, PreflightAction::Install) {
+                    is_downgrade = true;
+                    notes.push(format!("Downgrade detected: {current} → {target_version}"));
+                }
+            }
+            Ordering::Less => {
+                if is_major_version_bump(current, target_version) {
+                    is_major_bump = true;
+                    *any_major_bump = true;
+                    major_bump_packages.push(package_name);
+                    notes.push(format!("Major version bump: {current} → {target_version}"));
+                }
+            }
+            Ordering::Equal => {}
+        }
+    } else if matches!(action, PreflightAction::Install) {
+        notes.push("New installation".to_string());
+    }
+
+    (notes, is_major_bump, is_downgrade)
+}
+
+/// What: Check if package is a core/system package and generate note.
+///
+/// Inputs:
+/// - `item`: Package item to check.
+/// - `action`: Install vs. remove context.
+/// - `core_system_updates`: Mutable list to append to if core package.
+/// - `any_core_update`: Mutable flag to set if core package.
+///
+/// Output: Optional note string if core package detected.
+///
+/// Details: Normalizes package name for comparison against critical packages list.
+fn check_core_package(
+    item: &PackageItem,
+    action: PreflightAction,
+    core_system_updates: &mut Vec<String>,
+    any_core_update: &mut bool,
+) -> Option<String> {
+    let normalized_name = item.name.to_ascii_lowercase();
+    if CORE_CRITICAL_PACKAGES
+        .iter()
+        .any(|candidate| normalized_name == *candidate)
+    {
+        *any_core_update = true;
+        core_system_updates.push(item.name.clone());
+        Some(if matches!(action, PreflightAction::Remove) {
+            "Removing core/system package".to_string()
+        } else {
+            "Core/system package update".to_string()
+        })
+    } else {
+        None
+    }
+}
+
+/// What: Calculate risk reasons and score from processing state.
+///
+/// Inputs:
+/// - `state`: Processing state with accumulated flags.
+/// - `pacnew_candidates`: Count of packages that may produce .pacnew files.
+/// - `service_restart_units`: List of services that need restart.
+///
+/// Output: Tuple of (risk_reasons, risk_score, risk_level).
+///
+/// Details: Applies the risk heuristic scoring system.
+fn calculate_risk_metrics(
+    state: &ProcessingState,
+    pacnew_candidates: usize,
+    service_restart_units: &[String],
+) -> (Vec<String>, u8, RiskLevel) {
+    let mut risk_reasons = Vec::new();
+    let mut risk_score: u8 = 0;
+
+    if state.any_core_update {
+        risk_reasons.push("Core/system packages involved (+3)".to_string());
+        risk_score = risk_score.saturating_add(3);
+    }
+    if state.any_major_bump {
+        risk_reasons.push("Major version bump detected (+2)".to_string());
+        risk_score = risk_score.saturating_add(2);
+    }
+    if state.any_aur {
+        risk_reasons.push("AUR packages included (+2)".to_string());
+        risk_score = risk_score.saturating_add(2);
+    }
+    if pacnew_candidates > 0 {
+        risk_reasons.push("Configuration files may produce .pacnew (+1)".to_string());
+        risk_score = risk_score.saturating_add(1);
+    }
+    if !service_restart_units.is_empty() {
+        risk_reasons.push("Services likely require restart (+1)".to_string());
+        risk_score = risk_score.saturating_add(1);
+    }
+
+    let risk_level = match risk_score {
+        0 => RiskLevel::Low,
+        1..=4 => RiskLevel::Medium,
+        _ => RiskLevel::High,
+    };
+
+    (risk_reasons, risk_score, risk_level)
+}
+
+/// What: Build summary notes from processing state.
+///
+/// Inputs:
+/// - `state`: Processing state with accumulated flags.
+///
+/// Output: Vector of summary note strings.
+///
+/// Details: Generates informational notes for the summary tab.
+fn build_summary_notes(state: &ProcessingState) -> Vec<String> {
+    let mut notes = Vec::new();
+    if state.any_core_update {
+        notes.push("Core/system packages will be modified.".to_string());
+    }
+    if state.any_major_bump {
+        notes.push("Major version changes detected; review changelogs.".to_string());
+    }
+    if state.any_aur {
+        notes.push("AUR packages present; build steps may vary.".to_string());
+    }
+    notes
+}
+
 /// What: Compute preflight summary data using a custom command runner.
 ///
 /// Inputs:
@@ -102,37 +430,19 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
     )
     .entered();
     let start_time = std::time::Instant::now();
-    let mut packages = Vec::with_capacity(items.len());
-    let mut aur_count = 0usize;
-    let mut total_download_bytes = 0u64;
-    let mut total_install_delta_bytes = 0i64;
 
-    let mut major_bump_packages = Vec::new();
-    let mut core_system_updates = Vec::new();
-    let mut summary_notes = Vec::new();
-    let mut summary_warnings = Vec::new();
-    let mut risk_reasons = Vec::new();
+    let mut state = ProcessingState::new(items.len());
 
     let pacnew_candidates = 0usize;
     let pacsave_candidates = 0usize;
     let config_warning_packages = Vec::new();
     let service_restart_units = Vec::new();
 
-    let mut any_major_bump = false;
-    let mut any_core_update = false;
-    let mut any_aur = false;
-
     // Batch fetch installed versions and sizes for all packages
     let installed_versions = batch_fetch_installed_versions(runner, items);
     let installed_sizes = batch_fetch_installed_sizes(runner, items);
 
     for (idx, item) in items.iter().enumerate() {
-        if matches!(item.source, Source::Aur) {
-            aur_count += 1;
-            any_aur = true;
-        }
-
-        // Use batched results
         let installed_version = installed_versions
             .get(idx)
             .and_then(|v| v.as_ref().ok())
@@ -142,172 +452,36 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
             .and_then(|s| s.as_ref().ok())
             .copied();
 
-        if installed_version.is_none() {
-            tracing::debug!(
-                "Preflight summary: failed to fetch installed version for {}",
-                item.name
-            );
-        }
-        if installed_size.is_none() {
-            tracing::debug!(
-                "Preflight summary: failed to fetch installed size for {}",
-                item.name
-            );
-        }
-
-        let mut download_bytes = None;
-        let mut install_size_target = None;
-
-        if let Source::Official { repo, .. } = &item.source {
-            match fetch_official_metadata(runner, repo, &item.name, item.version.as_str()) {
-                Ok(meta) => {
-                    download_bytes = meta.download_size;
-                    install_size_target = meta.install_size;
-                }
-                Err(err) => tracing::debug!(
-                    "Preflight summary: failed to fetch metadata for {repo}/{pkg}: {err}",
-                    pkg = item.name
-                ),
-            }
-        }
-
-        let install_delta_bytes = match action {
-            PreflightAction::Install => {
-                if let Some(target) = install_size_target {
-                    let current = installed_size.unwrap_or(0);
-                    Some(target as i64 - current as i64)
-                } else {
-                    None
-                }
-            }
-            PreflightAction::Remove => installed_size.map(|size| -(size as i64)),
-        };
-
-        if let Some(bytes) = download_bytes {
-            total_download_bytes = total_download_bytes.saturating_add(bytes);
-        }
-        if let Some(delta) = install_delta_bytes {
-            total_install_delta_bytes = total_install_delta_bytes.saturating_add(delta);
-        }
-
-        let target_version = item.version.clone();
-        let mut notes = Vec::new();
-        let mut is_major_bump = false;
-        let mut is_downgrade = false;
-
-        if let Some(ref current) = installed_version {
-            match compare_versions(current, &target_version) {
-                Ordering::Greater => {
-                    if matches!(action, PreflightAction::Install) {
-                        is_downgrade = true;
-                        notes.push(format!("Downgrade detected: {current} → {target_version}"));
-                    }
-                }
-                Ordering::Less => {
-                    if is_major_version_bump(current, &target_version) {
-                        is_major_bump = true;
-                        any_major_bump = true;
-                        major_bump_packages.push(item.name.clone());
-                        notes.push(format!("Major version bump: {current} → {target_version}"));
-                    }
-                }
-                Ordering::Equal => {}
-            }
-        } else if matches!(action, PreflightAction::Install) {
-            notes.push("New installation".to_string());
-        }
-
-        let normalized_name = item.name.to_ascii_lowercase();
-        if CORE_CRITICAL_PACKAGES
-            .iter()
-            .any(|candidate| normalized_name == *candidate)
-        {
-            any_core_update = true;
-            core_system_updates.push(item.name.clone());
-            if matches!(action, PreflightAction::Remove) {
-                notes.push("Removing core/system package".to_string());
-            } else {
-                notes.push("Core/system package update".to_string());
-            }
-        }
-
-        packages.push(PreflightPackageSummary {
-            name: item.name.clone(),
-            source: item.source.clone(),
+        process_package_item(
+            item,
+            action,
+            runner,
             installed_version,
-            target_version,
-            is_downgrade,
-            is_major_bump,
-            download_bytes,
-            install_delta_bytes,
-            notes,
-        });
+            installed_size,
+            &mut state,
+        );
     }
 
-    if any_core_update {
-        risk_reasons.push("Core/system packages involved (+3)".to_string());
-    }
-    if any_major_bump {
-        risk_reasons.push("Major version bump detected (+2)".to_string());
-    }
-    if any_aur {
-        risk_reasons.push("AUR packages included (+2)".to_string());
-    }
-    if pacnew_candidates > 0 {
-        risk_reasons.push("Configuration files may produce .pacnew (+1)".to_string());
-    }
-    if !service_restart_units.is_empty() {
-        risk_reasons.push("Services likely require restart (+1)".to_string());
-    }
+    let (risk_reasons, risk_score, risk_level) =
+        calculate_risk_metrics(&state, pacnew_candidates, &service_restart_units);
 
-    let mut risk_score: u8 = 0;
-    if any_core_update {
-        risk_score = risk_score.saturating_add(3);
-    }
-    if any_major_bump {
-        risk_score = risk_score.saturating_add(2);
-    }
-    if any_aur {
-        risk_score = risk_score.saturating_add(2);
-    }
-    if pacnew_candidates > 0 {
-        risk_score = risk_score.saturating_add(1);
-    }
-    if !service_restart_units.is_empty() {
-        risk_score = risk_score.saturating_add(1);
-    }
-
-    let risk_level = match risk_score {
-        0 => RiskLevel::Low,
-        1..=4 => RiskLevel::Medium,
-        _ => RiskLevel::High,
-    };
-
-    if any_core_update {
-        summary_notes.push("Core/system packages will be modified.".to_string());
-    }
-    if any_major_bump {
-        summary_notes.push("Major version changes detected; review changelogs.".to_string());
-    }
-    if any_aur {
-        summary_notes.push("AUR packages present; build steps may vary.".to_string());
-    }
-
+    let summary_notes = build_summary_notes(&state);
+    let mut summary_warnings = Vec::new();
     if summary_warnings.is_empty() {
         summary_warnings.extend(risk_reasons.iter().cloned());
     }
 
     let summary = PreflightSummaryData {
-        packages,
+        packages: state.packages,
         package_count: items.len(),
-        aur_count,
-        download_bytes: total_download_bytes,
-        install_delta_bytes: total_install_delta_bytes,
+        aur_count: state.aur_count,
+        download_bytes: state.total_download_bytes,
+        install_delta_bytes: state.total_install_delta_bytes,
         risk_score,
         risk_level,
         risk_reasons: risk_reasons.clone(),
-        major_bump_packages,
-        core_system_updates,
+        major_bump_packages: state.major_bump_packages,
+        core_system_updates: state.core_system_updates,
         pacnew_candidates,
         pacsave_candidates,
         config_warning_packages,
@@ -318,9 +492,9 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
 
     let header = PreflightHeaderChips {
         package_count: items.len(),
-        download_bytes: total_download_bytes,
-        install_delta_bytes: total_install_delta_bytes,
-        aur_count,
+        download_bytes: state.total_download_bytes,
+        install_delta_bytes: state.total_install_delta_bytes,
+        aur_count: state.aur_count,
         risk_score,
         risk_level,
     };

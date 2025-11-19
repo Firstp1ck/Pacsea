@@ -42,5 +42,5 @@ repository/
 
 complexity_report.txt
 dev/scripts/Modules/*
-clippy_cognitive_complexity_report.txt
+clippy_cognitive_complexity_report*.txt
 ControlFlow_Diagram.md

@@ -186,44 +186,19 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    /// What: Validate settings configuration scaffolding, persistence, and regeneration paths.
+    /// What: Extract keys from config file content.
     ///
     /// Inputs:
-    /// - Skeleton config content, temporary config directory, and helper functions for ensuring/saving settings.
+    /// - Config file content as string.
     ///
     /// Output:
-    /// - Confirms skeleton covers all expected keys, missing files regenerate, settings persist, and defaults apply when keys are absent.
+    /// - HashSet of normalized key names extracted from the config.
     ///
     /// Details:
-    /// - Manipulates `HOME`/`XDG_CONFIG_HOME` to isolate test data and cleans up generated files on completion.
-    fn config_settings_comprehensive_parameter_check() {
-        use std::collections::HashSet;
-        use std::fs;
-
-        let _guard = crate::theme::test_mutex().lock().unwrap();
-        let orig_home = std::env::var_os("HOME");
-        let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
-
-        // Create temporary test directory
-        let base = std::env::temp_dir().join(format!(
-            "pacsea_test_config_params_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let cfg_dir = base.join(".config").join("pacsea");
-        let _ = fs::create_dir_all(&cfg_dir);
-        unsafe {
-            std::env::set_var("HOME", base.display().to_string());
-            std::env::remove_var("XDG_CONFIG_HOME");
-        }
-
-        // Test 1: Verify all Settings fields are present in skeleton config
-        let skeleton_content = SETTINGS_SKELETON_CONTENT;
-        let skeleton_keys: HashSet<String> = skeleton_content
+    /// - Skips empty lines, comments, and lines without '='.
+    /// - Normalizes keys by lowercasing and replacing special characters with underscores.
+    fn extract_config_keys(content: &str) -> std::collections::HashSet<String> {
+        content
             .lines()
             .filter_map(|line| {
                 let trimmed = line.trim();
@@ -240,10 +215,20 @@ mod tests {
                     None
                 }
             })
-            .collect();
+            .collect()
+    }
 
-        // All expected Settings keys (excluding keymap which is in keybinds.conf)
-        let expected_keys: HashSet<&str> = [
+    /// What: Get all expected Settings keys.
+    ///
+    /// Inputs: None
+    ///
+    /// Output:
+    /// - HashSet of expected Settings key names.
+    ///
+    /// Details:
+    /// - Returns the list of all expected Settings keys (excluding keymap which is in keybinds.conf).
+    fn get_expected_settings_keys() -> std::collections::HashSet<&'static str> {
+        [
             "layout_left_pct",
             "layout_center_pct",
             "layout_right_pct",
@@ -268,214 +253,321 @@ mod tests {
             "preferred_terminal",
         ]
         .into_iter()
-        .collect();
+        .collect()
+    }
 
-        for key in &expected_keys {
+    /// What: Verify that all expected keys are present in the extracted keys.
+    ///
+    /// Inputs:
+    /// - Extracted keys from config and expected keys set.
+    ///
+    /// Output: None (panics on failure)
+    ///
+    /// Details:
+    /// - Asserts that all expected keys are present in the extracted keys.
+    fn assert_all_keys_present(
+        extracted_keys: &std::collections::HashSet<String>,
+        expected_keys: &std::collections::HashSet<&str>,
+        context: &str,
+    ) {
+        for key in expected_keys {
             assert!(
-                skeleton_keys.contains(*key),
-                "Missing key '{}' in skeleton config",
-                key
+                extracted_keys.contains(*key),
+                "Missing key '{}' in {}",
+                key,
+                context
             );
         }
+    }
 
-        // Test 2: Missing config file is correctly generated with skeleton
-        let settings_path = cfg_dir.join("settings.conf");
+    /// What: Verify that loaded settings match default settings.
+    ///
+    /// Inputs:
+    /// - Loaded settings and default settings.
+    ///
+    /// Output: None (panics on failure)
+    ///
+    /// Details:
+    /// - Compares all fields of loaded settings against defaults.
+    fn assert_settings_match_defaults(
+        loaded: &crate::theme::types::Settings,
+        defaults: &crate::theme::types::Settings,
+    ) {
+        assert_eq!(
+            loaded.layout_left_pct, defaults.layout_left_pct,
+            "layout_left_pct should match default"
+        );
+        assert_eq!(
+            loaded.layout_center_pct, defaults.layout_center_pct,
+            "layout_center_pct should match default"
+        );
+        assert_eq!(
+            loaded.layout_right_pct, defaults.layout_right_pct,
+            "layout_right_pct should match default"
+        );
+        assert_eq!(
+            loaded.app_dry_run_default, defaults.app_dry_run_default,
+            "app_dry_run_default should match default"
+        );
+        assert_eq!(
+            loaded.sort_mode.as_config_key(),
+            defaults.sort_mode.as_config_key(),
+            "sort_mode should match default"
+        );
+        assert_eq!(
+            loaded.clipboard_suffix, defaults.clipboard_suffix,
+            "clipboard_suffix should match default"
+        );
+        assert_eq!(
+            loaded.show_recent_pane, defaults.show_recent_pane,
+            "show_recent_pane should match default"
+        );
+        assert_eq!(
+            loaded.show_install_pane, defaults.show_install_pane,
+            "show_install_pane should match default"
+        );
+        assert_eq!(
+            loaded.show_keybinds_footer, defaults.show_keybinds_footer,
+            "show_keybinds_footer should match default"
+        );
+        assert_eq!(
+            loaded.selected_countries, defaults.selected_countries,
+            "selected_countries should match default"
+        );
+        assert_eq!(
+            loaded.mirror_count, defaults.mirror_count,
+            "mirror_count should match default"
+        );
+        assert_eq!(
+            loaded.virustotal_api_key, defaults.virustotal_api_key,
+            "virustotal_api_key should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_clamav, defaults.scan_do_clamav,
+            "scan_do_clamav should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_trivy, defaults.scan_do_trivy,
+            "scan_do_trivy should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_semgrep, defaults.scan_do_semgrep,
+            "scan_do_semgrep should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_shellcheck, defaults.scan_do_shellcheck,
+            "scan_do_shellcheck should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_virustotal, defaults.scan_do_virustotal,
+            "scan_do_virustotal should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_custom, defaults.scan_do_custom,
+            "scan_do_custom should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_sleuth, defaults.scan_do_sleuth,
+            "scan_do_sleuth should match default"
+        );
+        assert_eq!(
+            loaded.news_read_symbol, defaults.news_read_symbol,
+            "news_read_symbol should match default"
+        );
+        assert_eq!(
+            loaded.news_unread_symbol, defaults.news_unread_symbol,
+            "news_unread_symbol should match default"
+        );
+        assert_eq!(
+            loaded.preferred_terminal, defaults.preferred_terminal,
+            "preferred_terminal should match default"
+        );
+    }
+
+    /// What: Verify that config content contains a key-value pair (with flexible spacing).
+    ///
+    /// Inputs:
+    /// - Config content and key-value pair to check.
+    ///
+    /// Output: None (panics on failure)
+    ///
+    /// Details:
+    /// - Checks for both "key = value" and "key=value" formats.
+    fn assert_config_contains(content: &str, key: &str, value: &str, context: &str) {
+        assert!(
+            content.contains(&format!("{} = {}", key, value))
+                || content.contains(&format!("{}={}", key, value)),
+            "{} should persist {}",
+            context,
+            key
+        );
+    }
+
+    /// What: Restore original environment variables.
+    ///
+    /// Inputs:
+    /// - Original HOME and XDG_CONFIG_HOME values.
+    ///
+    /// Output: None
+    ///
+    /// Details:
+    /// - Restores environment variables to their original values or removes them if they were unset.
+    fn restore_env_vars(
+        orig_home: Option<std::ffi::OsString>,
+        orig_xdg: Option<std::ffi::OsString>,
+    ) {
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+            if let Some(v) = orig_xdg {
+                std::env::set_var("XDG_CONFIG_HOME", v);
+            } else {
+                std::env::remove_var("XDG_CONFIG_HOME");
+            }
+        }
+    }
+
+    /// What: Setup temporary test environment for settings tests.
+    ///
+    /// Inputs: None
+    ///
+    /// Output:
+    /// - Tuple of (base directory, config directory, original HOME, original XDG_CONFIG_HOME)
+    ///
+    /// Details:
+    /// - Creates temporary directory structure and sets environment variables for isolated testing.
+    fn setup_test_environment() -> (
+        std::path::PathBuf,
+        std::path::PathBuf,
+        Option<std::ffi::OsString>,
+        Option<std::ffi::OsString>,
+    ) {
+        use std::fs;
+        let orig_home = std::env::var_os("HOME");
+        let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
+
+        let base = std::env::temp_dir().join(format!(
+            "pacsea_test_config_params_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let cfg_dir = base.join(".config").join("pacsea");
+        let _ = fs::create_dir_all(&cfg_dir);
+        unsafe {
+            std::env::set_var("HOME", base.display().to_string());
+            std::env::remove_var("XDG_CONFIG_HOME");
+        }
+
+        (base, cfg_dir, orig_home, orig_xdg)
+    }
+
+    /// What: Test that skeleton config contains all expected keys.
+    ///
+    /// Inputs:
+    /// - Expected keys set.
+    ///
+    /// Output: None (panics on failure)
+    ///
+    /// Details:
+    /// - Verifies that the skeleton configuration contains all required settings keys.
+    fn test_skeleton_contains_all_keys(expected_keys: &std::collections::HashSet<&str>) {
+        let skeleton_keys = extract_config_keys(SETTINGS_SKELETON_CONTENT);
+        assert_all_keys_present(&skeleton_keys, expected_keys, "skeleton config");
+    }
+
+    /// What: Test that missing config file is generated with skeleton.
+    ///
+    /// Inputs:
+    /// - Settings path and expected keys.
+    ///
+    /// Output: None (panics on failure)
+    ///
+    /// Details:
+    /// - Verifies that calling ensure_settings_keys_present creates a config file with all required keys.
+    fn test_missing_config_generation(
+        settings_path: &std::path::Path,
+        expected_keys: &std::collections::HashSet<&str>,
+    ) {
+        use std::fs;
         assert!(
             !settings_path.exists(),
             "Settings file should not exist initially"
         );
 
-        // Call ensure_settings_keys_present - should create file with skeleton
         let default_prefs = crate::theme::types::Settings::default();
         ensure_settings_keys_present(&default_prefs);
 
         assert!(settings_path.exists(), "Settings file should be created");
-        let generated_content = fs::read_to_string(&settings_path).unwrap();
+        let generated_content = fs::read_to_string(settings_path).unwrap();
         assert!(
             !generated_content.is_empty(),
             "Generated config file should not be empty"
         );
 
-        // Verify skeleton content matches generated file (ignoring whitespace differences)
-        let generated_keys: HashSet<String> = generated_content
-            .lines()
-            .filter_map(|line| {
-                let trimmed = line.trim();
-                if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
-                    return None;
-                }
-                if let Some(eq_pos) = trimmed.find('=') {
-                    let key = trimmed[..eq_pos]
-                        .trim()
-                        .to_lowercase()
-                        .replace(['.', '-', ' '], "_");
-                    Some(key)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let generated_keys = extract_config_keys(&generated_content);
+        assert_all_keys_present(&generated_keys, expected_keys, "generated config file");
+    }
 
-        for key in &expected_keys {
-            assert!(
-                generated_keys.contains(*key),
-                "Missing key '{}' in generated config file",
-                key
-            );
-        }
-
-        // Test 3: All parameters are loaded with defaults when missing
-        // Delete the config file and test loading
-        fs::remove_file(&settings_path).unwrap();
-        let loaded_settings = crate::theme::settings::settings();
-        let default_settings = crate::theme::types::Settings::default();
-
-        // Verify all fields match defaults
-        assert_eq!(
-            loaded_settings.layout_left_pct, default_settings.layout_left_pct,
-            "layout_left_pct should match default"
-        );
-        assert_eq!(
-            loaded_settings.layout_center_pct, default_settings.layout_center_pct,
-            "layout_center_pct should match default"
-        );
-        assert_eq!(
-            loaded_settings.layout_right_pct, default_settings.layout_right_pct,
-            "layout_right_pct should match default"
-        );
-        assert_eq!(
-            loaded_settings.app_dry_run_default, default_settings.app_dry_run_default,
-            "app_dry_run_default should match default"
-        );
-        assert_eq!(
-            loaded_settings.sort_mode.as_config_key(),
-            default_settings.sort_mode.as_config_key(),
-            "sort_mode should match default"
-        );
-        assert_eq!(
-            loaded_settings.clipboard_suffix, default_settings.clipboard_suffix,
-            "clipboard_suffix should match default"
-        );
-        assert_eq!(
-            loaded_settings.show_recent_pane, default_settings.show_recent_pane,
-            "show_recent_pane should match default"
-        );
-        assert_eq!(
-            loaded_settings.show_install_pane, default_settings.show_install_pane,
-            "show_install_pane should match default"
-        );
-        assert_eq!(
-            loaded_settings.show_keybinds_footer, default_settings.show_keybinds_footer,
-            "show_keybinds_footer should match default"
-        );
-        assert_eq!(
-            loaded_settings.selected_countries, default_settings.selected_countries,
-            "selected_countries should match default"
-        );
-        assert_eq!(
-            loaded_settings.mirror_count, default_settings.mirror_count,
-            "mirror_count should match default"
-        );
-        assert_eq!(
-            loaded_settings.virustotal_api_key, default_settings.virustotal_api_key,
-            "virustotal_api_key should match default"
-        );
-        assert_eq!(
-            loaded_settings.scan_do_clamav, default_settings.scan_do_clamav,
-            "scan_do_clamav should match default"
-        );
-        assert_eq!(
-            loaded_settings.scan_do_trivy, default_settings.scan_do_trivy,
-            "scan_do_trivy should match default"
-        );
-        assert_eq!(
-            loaded_settings.scan_do_semgrep, default_settings.scan_do_semgrep,
-            "scan_do_semgrep should match default"
-        );
-        assert_eq!(
-            loaded_settings.scan_do_shellcheck, default_settings.scan_do_shellcheck,
-            "scan_do_shellcheck should match default"
-        );
-        assert_eq!(
-            loaded_settings.scan_do_virustotal, default_settings.scan_do_virustotal,
-            "scan_do_virustotal should match default"
-        );
-        assert_eq!(
-            loaded_settings.scan_do_custom, default_settings.scan_do_custom,
-            "scan_do_custom should match default"
-        );
-        assert_eq!(
-            loaded_settings.scan_do_sleuth, default_settings.scan_do_sleuth,
-            "scan_do_sleuth should match default"
-        );
-        assert_eq!(
-            loaded_settings.news_read_symbol, default_settings.news_read_symbol,
-            "news_read_symbol should match default"
-        );
-        assert_eq!(
-            loaded_settings.news_unread_symbol, default_settings.news_unread_symbol,
-            "news_unread_symbol should match default"
-        );
-        assert_eq!(
-            loaded_settings.preferred_terminal, default_settings.preferred_terminal,
-            "preferred_terminal should match default"
-        );
-
-        // Test 4: Missing keys are added to config with defaults
-        // Create a minimal config file with only one key
+    /// What: Test that missing keys are added to config with defaults.
+    ///
+    /// Inputs:
+    /// - Settings path and expected keys.
+    ///
+    /// Output: None (panics on failure)
+    ///
+    /// Details:
+    /// - Creates a minimal config and verifies that ensure_settings_keys_present adds missing keys while preserving existing ones.
+    fn test_missing_keys_added(
+        settings_path: &std::path::Path,
+        expected_keys: &std::collections::HashSet<&str>,
+    ) {
+        use std::fs;
         fs::write(
-            &settings_path,
+            settings_path,
             "# Minimal config\nsort_mode = aur_popularity\n",
         )
         .unwrap();
 
-        // Call ensure_settings_keys_present - should add missing keys
         let modified_prefs = crate::theme::types::Settings {
             sort_mode: crate::state::SortMode::AurPopularityThenOfficial,
             ..crate::theme::types::Settings::default()
         };
         ensure_settings_keys_present(&modified_prefs);
 
-        // Verify file now contains all keys
-        let updated_content = fs::read_to_string(&settings_path).unwrap();
-        let updated_keys: HashSet<String> = updated_content
-            .lines()
-            .filter_map(|line| {
-                let trimmed = line.trim();
-                if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
-                    return None;
-                }
-                if let Some(eq_pos) = trimmed.find('=') {
-                    let key = trimmed[..eq_pos]
-                        .trim()
-                        .to_lowercase()
-                        .replace(['.', '-', ' '], "_");
-                    Some(key)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let updated_content = fs::read_to_string(settings_path).unwrap();
+        let updated_keys = extract_config_keys(&updated_content);
+        assert_all_keys_present(
+            &updated_keys,
+            expected_keys,
+            "after ensure_settings_keys_present",
+        );
 
-        for key in &expected_keys {
-            assert!(
-                updated_keys.contains(*key),
-                "Missing key '{}' after ensure_settings_keys_present",
-                key
-            );
-        }
-
-        // Verify sort_mode was preserved
         assert!(
             updated_content.contains("sort_mode = aur_popularity")
                 || updated_content.contains("sort_mode=aur_popularity"),
             "sort_mode should be preserved in config"
         );
+    }
 
-        // Test 5: Parameters can be loaded from config file
-        // Write a config file with custom values
+    /// What: Test that custom parameters can be loaded from config file.
+    ///
+    /// Inputs:
+    /// - Settings path.
+    ///
+    /// Output: None (panics on failure)
+    ///
+    /// Details:
+    /// - Writes a config file with custom values and verifies all values are loaded correctly.
+    fn test_load_custom_parameters(settings_path: &std::path::Path) {
+        use std::fs;
         fs::write(
-            &settings_path,
+            settings_path,
             "layout_left_pct = 25\n\
              layout_center_pct = 50\n\
              layout_right_pct = 25\n\
@@ -524,54 +616,95 @@ mod tests {
         assert_eq!(loaded_custom.news_read_symbol, "READ");
         assert_eq!(loaded_custom.news_unread_symbol, "UNREAD");
         assert_eq!(loaded_custom.preferred_terminal, "alacritty");
+    }
 
-        // Test 6: Save functions persist values correctly
-        // Test save_sort_mode
+    /// What: Test that save functions persist values correctly.
+    ///
+    /// Inputs:
+    /// - Settings path.
+    ///
+    /// Output: None (panics on failure)
+    ///
+    /// Details:
+    /// - Tests that save functions correctly persist values to the config file and can be reloaded.
+    fn test_save_functions_persist(settings_path: &std::path::Path) {
+        use std::fs;
         save_sort_mode(crate::state::SortMode::BestMatches);
-        let saved_content = fs::read_to_string(&settings_path).unwrap();
-        assert!(
-            saved_content.contains("sort_mode = best_matches")
-                || saved_content.contains("sort_mode=best_matches"),
-            "save_sort_mode should persist sort_mode"
+        let saved_content = fs::read_to_string(settings_path).unwrap();
+        assert_config_contains(
+            &saved_content,
+            "sort_mode",
+            "best_matches",
+            "save_sort_mode",
         );
 
-        // Test save_boolean_key via save_show_recent_pane
         save_show_recent_pane(true);
-        let saved_content2 = fs::read_to_string(&settings_path).unwrap();
-        assert!(
-            saved_content2.contains("show_recent_pane = true")
-                || saved_content2.contains("show_recent_pane=true"),
-            "save_show_recent_pane should persist value"
+        let saved_content2 = fs::read_to_string(settings_path).unwrap();
+        assert_config_contains(
+            &saved_content2,
+            "show_recent_pane",
+            "true",
+            "save_show_recent_pane",
         );
 
-        // Test save_string_key via save_selected_countries
         save_selected_countries("Switzerland, Austria");
-        let saved_content3 = fs::read_to_string(&settings_path).unwrap();
-        assert!(
-            saved_content3.contains("selected_countries = Switzerland, Austria")
-                || saved_content3.contains("selected_countries=Switzerland, Austria"),
-            "save_selected_countries should persist value"
+        let saved_content3 = fs::read_to_string(settings_path).unwrap();
+        assert_config_contains(
+            &saved_content3,
+            "selected_countries",
+            "Switzerland, Austria",
+            "save_selected_countries",
         );
 
-        // Verify saved values are loaded back
         let reloaded = crate::theme::settings::settings();
         assert_eq!(reloaded.sort_mode.as_config_key(), "best_matches");
         assert!(reloaded.show_recent_pane);
         assert_eq!(reloaded.selected_countries, "Switzerland, Austria");
+    }
+
+    #[test]
+    /// What: Validate settings configuration scaffolding, persistence, and regeneration paths.
+    ///
+    /// Inputs:
+    /// - Skeleton config content, temporary config directory, and helper functions for ensuring/saving settings.
+    ///
+    /// Output:
+    /// - Confirms skeleton covers all expected keys, missing files regenerate, settings persist, and defaults apply when keys are absent.
+    ///
+    /// Details:
+    /// - Manipulates `HOME`/`XDG_CONFIG_HOME` to isolate test data and cleans up generated files on completion.
+    fn config_settings_comprehensive_parameter_check() {
+        use std::fs;
+
+        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let (base, cfg_dir, orig_home, orig_xdg) = setup_test_environment();
+
+        let expected_keys = get_expected_settings_keys();
+        let settings_path = cfg_dir.join("settings.conf");
+
+        // Test 1: Verify all Settings fields are present in skeleton config
+        test_skeleton_contains_all_keys(&expected_keys);
+
+        // Test 2: Missing config file is correctly generated with skeleton
+        test_missing_config_generation(&settings_path, &expected_keys);
+
+        // Test 3: All parameters are loaded with defaults when missing
+        fs::remove_file(&settings_path).unwrap();
+        let loaded_settings = crate::theme::settings::settings();
+        let default_settings = crate::theme::types::Settings::default();
+        assert_settings_match_defaults(&loaded_settings, &default_settings);
+
+        // Test 4: Missing keys are added to config with defaults
+        test_missing_keys_added(&settings_path, &expected_keys);
+
+        // Test 5: Parameters can be loaded from config file
+        test_load_custom_parameters(&settings_path);
+
+        // Test 6: Save functions persist values correctly
+        test_save_functions_persist(&settings_path);
 
         // Cleanup
-        unsafe {
-            if let Some(v) = orig_home {
-                std::env::set_var("HOME", v);
-            } else {
-                std::env::remove_var("HOME");
-            }
-            if let Some(v) = orig_xdg {
-                std::env::set_var("XDG_CONFIG_HOME", v);
-            } else {
-                std::env::remove_var("XDG_CONFIG_HOME");
-            }
-        }
+        restore_env_vars(orig_home, orig_xdg);
         let _ = fs::remove_dir_all(&base);
     }
 }

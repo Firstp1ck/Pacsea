@@ -146,6 +146,193 @@ pub struct InitFlags {
     pub needs_sandbox_resolution: bool,
 }
 
+/// What: Load a cache with signature validation, returning whether resolution is needed.
+///
+/// Inputs:
+/// - `install_list`: Current install list to compute signature from
+/// - `cache_path`: Path to the cache file
+/// - `compute_signature`: Function to compute signature from install list
+/// - `load_cache`: Function to load cache from path and signature
+/// - `cache_name`: Name of the cache for logging
+///
+/// Output:
+/// - `(Option<T>, bool)` where first is the loaded cache (if valid) and second indicates if resolution is needed
+///
+/// Details:
+/// - Returns `(None, true)` if install list is empty or cache is missing/invalid
+/// - Returns `(Some(cache), false)` if cache is valid
+fn load_cache_with_signature<T>(
+    install_list: &[crate::state::PackageItem],
+    cache_path: &std::path::PathBuf,
+    compute_signature: impl Fn(&[crate::state::PackageItem]) -> Vec<String>,
+    load_cache: impl Fn(&std::path::PathBuf, &[String]) -> Option<T>,
+    cache_name: &str,
+) -> (Option<T>, bool) {
+    if install_list.is_empty() {
+        return (None, false);
+    }
+
+    let signature = compute_signature(install_list);
+    match load_cache(cache_path, &signature) {
+        Some(cached) => (Some(cached), false),
+        None => {
+            tracing::info!(
+                "{} cache missing or invalid, will trigger background resolution",
+                cache_name
+            );
+            (None, true)
+        }
+    }
+}
+
+/// What: Apply settings from configuration to application state.
+///
+/// Inputs:
+/// - `app`: Application state to update
+/// - `prefs`: Settings to apply
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Applies layout percentages, keymap, sort mode, package marker, and pane visibility
+fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Settings) {
+    app.layout_left_pct = prefs.layout_left_pct;
+    app.layout_center_pct = prefs.layout_center_pct;
+    app.layout_right_pct = prefs.layout_right_pct;
+    app.keymap = prefs.keymap.clone();
+    app.sort_mode = prefs.sort_mode;
+    app.package_marker = prefs.package_marker;
+    app.show_recent_pane = prefs.show_recent_pane;
+    app.show_install_pane = prefs.show_install_pane;
+    app.show_keybinds_footer = prefs.show_keybinds_footer;
+}
+
+/// What: Check if GNOME terminal is needed and set modal if required.
+///
+/// Inputs:
+/// - `app`: Application state to update
+/// - `headless`: When `true`, skip the check
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Checks if running on GNOME desktop without gnome-terminal or gnome-console/kgx
+/// - Sets modal to GnomeTerminalPrompt if terminal is missing
+fn check_gnome_terminal(app: &mut AppState, headless: bool) {
+    if headless {
+        return;
+    }
+
+    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+        .ok()
+        .map(|v| v.to_uppercase().contains("GNOME"))
+        .unwrap_or(false);
+
+    if !is_gnome {
+        return;
+    }
+
+    let has_gterm = crate::install::command_on_path("gnome-terminal");
+    let has_gconsole =
+        crate::install::command_on_path("gnome-console") || crate::install::command_on_path("kgx");
+
+    if !(has_gterm || has_gconsole) {
+        app.modal = crate::state::Modal::GnomeTerminalPrompt;
+    }
+}
+
+/// What: Load details cache from disk.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Attempts to deserialize details cache from JSON file
+fn load_details_cache(app: &mut AppState) {
+    if let Ok(s) = std::fs::read_to_string(&app.cache_path)
+        && let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s)
+    {
+        app.details_cache = map;
+        tracing::info!(path = %app.cache_path.display(), "loaded details cache");
+    }
+}
+
+/// What: Load recent searches from disk.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Attempts to deserialize recent searches list from JSON file
+/// - Selects first item if list is not empty
+fn load_recent_searches(app: &mut AppState) {
+    if let Ok(s) = std::fs::read_to_string(&app.recent_path)
+        && let Ok(list) = serde_json::from_str::<Vec<String>>(&s)
+    {
+        app.recent = list;
+        if !app.recent.is_empty() {
+            app.history_state.select(Some(0));
+        }
+        tracing::info!(
+            path = %app.recent_path.display(),
+            count = app.recent.len(),
+            "loaded recent searches"
+        );
+    }
+}
+
+/// What: Load install list from disk.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Attempts to deserialize install list from JSON file
+/// - Selects first item if list is not empty
+fn load_install_list(app: &mut AppState) {
+    if let Ok(s) = std::fs::read_to_string(&app.install_path)
+        && let Ok(list) = serde_json::from_str::<Vec<PackageItem>>(&s)
+    {
+        app.install_list = list;
+        if !app.install_list.is_empty() {
+            app.install_state.select(Some(0));
+        }
+        tracing::info!(
+            path = %app.install_path.display(),
+            count = app.install_list.len(),
+            "loaded install list"
+        );
+    }
+}
+
+/// What: Load news read URLs from disk.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Attempts to deserialize news read URLs set from JSON file
+fn load_news_read_urls(app: &mut AppState) {
+    if let Ok(s) = std::fs::read_to_string(&app.news_read_path)
+        && let Ok(set) = serde_json::from_str::<std::collections::HashSet<String>>(&s)
+    {
+        app.news_read_urls = set;
+        tracing::info!(
+            path = %app.news_read_path.display(),
+            count = app.news_read_urls.len(),
+            "loaded read news urls"
+        );
+    }
+}
+
 pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bool) -> InitFlags {
     app.dry_run = if dry_run_flag {
         true
@@ -169,132 +356,93 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     let prefs = crate::theme::settings();
     // Ensure config has all known settings keys (non-destructive append)
     crate::theme::ensure_settings_keys_present(&prefs);
-    app.layout_left_pct = prefs.layout_left_pct;
-    app.layout_center_pct = prefs.layout_center_pct;
-    app.layout_right_pct = prefs.layout_right_pct;
-    app.keymap = prefs.keymap.clone();
-    app.sort_mode = prefs.sort_mode;
-    app.package_marker = prefs.package_marker;
-    // Apply initial visibility for middle row panes from settings
-    app.show_recent_pane = prefs.show_recent_pane;
-    app.show_install_pane = prefs.show_install_pane;
-    // Apply initial keybind footer visibility (default true if not present)
-    app.show_keybinds_footer = prefs.show_keybinds_footer;
+    apply_settings_to_app_state(app, &prefs);
 
     // Initialize locale system (clone locale string to avoid borrow issues)
     let locale_pref = prefs.locale.clone();
     initialize_locale_system(app, &locale_pref, &prefs);
 
-    // GNOME desktop: prompt to install a GNOME terminal if none present (gnome-terminal or gnome-console/kgx)
-    // Skip this check in headless mode to avoid slow PATH scanning
-    if !headless {
-        let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
-            .ok()
-            .map(|v| v.to_uppercase().contains("GNOME"))
-            .unwrap_or(false);
-        let has_gterm = crate::install::command_on_path("gnome-terminal");
-        let has_gconsole = crate::install::command_on_path("gnome-console")
-            || crate::install::command_on_path("kgx");
-        if is_gnome && !(has_gterm || has_gconsole) {
-            app.modal = crate::state::Modal::GnomeTerminalPrompt;
-        }
-    }
+    check_gnome_terminal(app, headless);
 
-    if let Ok(s) = std::fs::read_to_string(&app.cache_path)
-        && let Ok(map) = serde_json::from_str::<HashMap<String, PackageDetails>>(&s)
-    {
-        app.details_cache = map;
-        tracing::info!(path = %app.cache_path.display(), "loaded details cache");
-    }
-    if let Ok(s) = std::fs::read_to_string(&app.recent_path)
-        && let Ok(list) = serde_json::from_str::<Vec<String>>(&s)
-    {
-        app.recent = list;
-        if !app.recent.is_empty() {
-            app.history_state.select(Some(0));
-        }
-        tracing::info!(path = %app.recent_path.display(), count = app.recent.len(), "loaded recent searches");
-    }
-    if let Ok(s) = std::fs::read_to_string(&app.install_path)
-        && let Ok(list) = serde_json::from_str::<Vec<PackageItem>>(&s)
-    {
-        app.install_list = list;
-        if !app.install_list.is_empty() {
-            app.install_state.select(Some(0));
-        }
-        tracing::info!(path = %app.install_path.display(), count = app.install_list.len(), "loaded install list");
-    }
+    load_details_cache(app);
+    load_recent_searches(app);
+    load_install_list(app);
 
     // Load dependency cache after install list is loaded (but before channels are created)
-    let mut needs_deps_resolution = false;
-    if !app.install_list.is_empty() {
-        let signature = deps_cache::compute_signature(&app.install_list);
-        if let Some(cached_deps) = deps_cache::load_cache(&app.deps_cache_path, &signature) {
-            app.install_list_deps = cached_deps;
-            tracing::info!(path = %app.deps_cache_path.display(), count = app.install_list_deps.len(), "loaded dependency cache");
-        } else {
-            // Cache missing or invalid - will trigger background resolution after channels are set up
-            needs_deps_resolution = true;
-            tracing::info!(
-                "Dependency cache missing or invalid, will trigger background resolution"
-            );
-        }
+    let (deps_cache, needs_deps_resolution) = load_cache_with_signature(
+        &app.install_list,
+        &app.deps_cache_path,
+        deps_cache::compute_signature,
+        deps_cache::load_cache,
+        "dependency",
+    );
+    if let Some(cached_deps) = deps_cache {
+        app.install_list_deps = cached_deps;
+        tracing::info!(
+            path = %app.deps_cache_path.display(),
+            count = app.install_list_deps.len(),
+            "loaded dependency cache"
+        );
     }
 
     // Load file cache after install list is loaded (but before channels are created)
-    let mut needs_files_resolution = false;
-    if !app.install_list.is_empty() {
-        let signature = files_cache::compute_signature(&app.install_list);
-        if let Some(cached_files) = files_cache::load_cache(&app.files_cache_path, &signature) {
-            app.install_list_files = cached_files;
-            tracing::info!(path = %app.files_cache_path.display(), count = app.install_list_files.len(), "loaded file cache");
-        } else {
-            // Cache missing or invalid - will trigger background resolution after channels are set up
-            needs_files_resolution = true;
-            tracing::info!("File cache missing or invalid, will trigger background resolution");
-        }
+    let (files_cache, needs_files_resolution) = load_cache_with_signature(
+        &app.install_list,
+        &app.files_cache_path,
+        files_cache::compute_signature,
+        files_cache::load_cache,
+        "file",
+    );
+    if let Some(cached_files) = files_cache {
+        app.install_list_files = cached_files;
+        tracing::info!(
+            path = %app.files_cache_path.display(),
+            count = app.install_list_files.len(),
+            "loaded file cache"
+        );
     }
 
     // Load service cache after install list is loaded (but before channels are created)
-    let mut needs_services_resolution = false;
-    if !app.install_list.is_empty() {
-        let signature = services_cache::compute_signature(&app.install_list);
-        if let Some(cached_services) =
-            services_cache::load_cache(&app.services_cache_path, &signature)
-        {
-            app.install_list_services = cached_services;
-            tracing::info!(path = %app.services_cache_path.display(), count = app.install_list_services.len(), "loaded service cache");
-        } else {
-            // Cache missing or invalid - will trigger background resolution after channels are set up
-            needs_services_resolution = true;
-            tracing::info!("Service cache missing or invalid, will trigger background resolution");
-        }
+    let (services_cache, needs_services_resolution) = load_cache_with_signature(
+        &app.install_list,
+        &app.services_cache_path,
+        services_cache::compute_signature,
+        services_cache::load_cache,
+        "service",
+    );
+    if let Some(cached_services) = services_cache {
+        app.install_list_services = cached_services;
+        tracing::info!(
+            path = %app.services_cache_path.display(),
+            count = app.install_list_services.len(),
+            "loaded service cache"
+        );
     }
 
     // Load sandbox cache after install list is loaded (but before channels are created)
-    let mut needs_sandbox_resolution = false;
-    if !app.install_list.is_empty() {
-        let signature = sandbox_cache::compute_signature(&app.install_list);
-        if let Some(cached_sandbox) = sandbox_cache::load_cache(&app.sandbox_cache_path, &signature)
-        {
-            app.install_list_sandbox = cached_sandbox;
-            tracing::info!(path = %app.sandbox_cache_path.display(), count = app.install_list_sandbox.len(), "loaded sandbox cache");
-        } else {
-            // Cache missing or invalid - will trigger background resolution after channels are set up
-            needs_sandbox_resolution = true;
-            tracing::info!("Sandbox cache missing or invalid, will trigger background resolution");
-        }
+    let (sandbox_cache, needs_sandbox_resolution) = load_cache_with_signature(
+        &app.install_list,
+        &app.sandbox_cache_path,
+        sandbox_cache::compute_signature,
+        sandbox_cache::load_cache,
+        "sandbox",
+    );
+    if let Some(cached_sandbox) = sandbox_cache {
+        app.install_list_sandbox = cached_sandbox;
+        tracing::info!(
+            path = %app.sandbox_cache_path.display(),
+            count = app.install_list_sandbox.len(),
+            "loaded sandbox cache"
+        );
     }
 
-    if let Ok(s) = std::fs::read_to_string(&app.news_read_path)
-        && let Ok(set) = serde_json::from_str::<std::collections::HashSet<String>>(&s)
-    {
-        app.news_read_urls = set;
-        tracing::info!(path = %app.news_read_path.display(), count = app.news_read_urls.len(), "loaded read news urls");
-    }
+    load_news_read_urls(app);
 
     pkgindex::load_from_disk(&app.official_index_path);
-    tracing::info!(path = %app.official_index_path.display(), "attempted to load official index from disk");
+    tracing::info!(
+        path = %app.official_index_path.display(),
+        "attempted to load official index from disk"
+    );
 
     InitFlags {
         needs_deps_resolution,

@@ -9,94 +9,102 @@ use std::time::{Duration, Instant};
 static PKGBUILD_RATE_LIMITER: Mutex<Option<Instant>> = Mutex::new(None);
 const PKGBUILD_MIN_INTERVAL_MS: u64 = 500; // Minimum 500ms between requests
 
-/// What: Get PKGBUILD from yay/paru cache (offline method).
+/// What: Try to find PKGBUILD in a directory structure.
 ///
 /// Inputs:
+/// - `base_dir`: Base directory to search in.
+/// - `name`: Package name for logging.
+/// - `helper_name`: Helper name for logging (e.g., "paru" or "yay").
+///
+/// Output:
+/// - Returns PKGBUILD content if found, or None.
+///
+/// Details:
+/// - First checks base_dir/PKGBUILD, then searches subdirectories.
+fn find_pkgbuild_in_dir(
+    base_dir: &std::path::Path,
+    name: &str,
+    helper_name: &str,
+) -> Option<String> {
+    // Try direct path first
+    let pkgbuild_path = base_dir.join("PKGBUILD");
+    if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
+        && text.contains("pkgname")
+    {
+        tracing::debug!("Found PKGBUILD for {} via {} -G", name, helper_name);
+        return Some(text);
+    }
+
+    // Search in subdirectories
+    let Ok(entries) = std::fs::read_dir(base_dir) else {
+        return None;
+    };
+
+    for entry in entries.flatten() {
+        if !entry.path().is_dir() {
+            continue;
+        }
+
+        let pkgbuild_path = entry.path().join("PKGBUILD");
+        if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
+            && text.contains("pkgname")
+        {
+            tracing::debug!(
+                "Found PKGBUILD for {} via {} -G (in subdir)",
+                name,
+                helper_name
+            );
+            return Some(text);
+        }
+    }
+
+    None
+}
+
+/// What: Try to get PKGBUILD using a helper command (paru -G or yay -G).
+///
+/// Inputs:
+/// - `helper`: Helper command name ("paru" or "yay").
 /// - `name`: Package name.
 ///
 /// Output:
-/// - Returns PKGBUILD content if found in cache, or None.
+/// - Returns PKGBUILD content if found, or None.
 ///
 /// Details:
-/// - Checks yay cache (~/.cache/yay) and paru cache (~/.cache/paru).
-/// - Also tries using `yay -G` or `paru -G` commands.
-pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
-    // Try yay -G or paru -G first (fastest, uses helper's cache)
-    // These commands clone to current working directory, so we use a temp dir
+/// - Executes helper -G command in a temp directory and searches for PKGBUILD.
+fn try_helper_command(helper: &str, name: &str) -> Option<String> {
     let temp_dir = std::env::temp_dir().join(format!("pacsea_pkgbuild_{}", name));
     let _ = std::fs::create_dir_all(&temp_dir);
 
-    if let Ok(output) = Command::new("paru")
+    let output = Command::new(helper)
         .args(["-G", name])
         .current_dir(&temp_dir)
         .output()
-    {
-        if output.status.success() {
-            // paru -G clones to current directory, find PKGBUILD
-            let pkgbuild_path = temp_dir.join(name).join("PKGBUILD");
-            if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
-                && text.contains("pkgname")
-            {
-                tracing::debug!("Found PKGBUILD for {} via paru -G", name);
-                let _ = std::fs::remove_dir_all(&temp_dir); // Clean up
-                return Some(text);
-            }
-            // Try to find PKGBUILD in subdirectories
-            if let Ok(entries) = std::fs::read_dir(temp_dir.join(name)) {
-                for entry in entries.flatten() {
-                    if entry.path().is_dir() {
-                        let pkgbuild_path = entry.path().join("PKGBUILD");
-                        if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
-                            && text.contains("pkgname")
-                        {
-                            tracing::debug!("Found PKGBUILD for {} via paru -G (in subdir)", name);
-                            let _ = std::fs::remove_dir_all(&temp_dir); // Clean up
-                            return Some(text);
-                        }
-                    }
-                }
-            }
-        }
-        let _ = std::fs::remove_dir_all(&temp_dir); // Clean up
+        .ok()?;
+
+    if !output.status.success() {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        return None;
     }
 
-    if let Ok(output) = Command::new("yay")
-        .args(["-G", name])
-        .current_dir(&temp_dir)
-        .output()
-    {
-        if output.status.success() {
-            // yay -G clones to current directory, find PKGBUILD
-            let pkgbuild_path = temp_dir.join(name).join("PKGBUILD");
-            if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
-                && text.contains("pkgname")
-            {
-                tracing::debug!("Found PKGBUILD for {} via yay -G", name);
-                let _ = std::fs::remove_dir_all(&temp_dir); // Clean up
-                return Some(text);
-            }
-            // Try to find PKGBUILD in subdirectories
-            if let Ok(entries) = std::fs::read_dir(temp_dir.join(name)) {
-                for entry in entries.flatten() {
-                    if entry.path().is_dir() {
-                        let pkgbuild_path = entry.path().join("PKGBUILD");
-                        if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
-                            && text.contains("pkgname")
-                        {
-                            tracing::debug!("Found PKGBUILD for {} via yay -G (in subdir)", name);
-                            let _ = std::fs::remove_dir_all(&temp_dir); // Clean up
-                            return Some(text);
-                        }
-                    }
-                }
-            }
-        }
-        let _ = std::fs::remove_dir_all(&temp_dir); // Clean up
-    }
+    let result = find_pkgbuild_in_dir(&temp_dir.join(name), name, helper);
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    result
+}
 
-    // Try reading directly from cache directories
-    let home = std::env::var("HOME").ok()?;
-    let cache_paths = vec![
+/// What: Try to read PKGBUILD directly from known cache paths.
+///
+/// Inputs:
+/// - `name`: Package name.
+/// - `home`: Home directory path.
+///
+/// Output:
+/// - Returns PKGBUILD content if found, or None.
+///
+/// Details:
+/// - Checks standard cache locations for paru and yay.
+fn try_direct_cache_paths(name: &str, home: &str) -> Option<String> {
+    let cache_paths = [
         format!("{}/.cache/paru/clone/{}/PKGBUILD", home, name),
         format!("{}/.cache/yay/{}/PKGBUILD", home, name),
     ];
@@ -110,56 +118,116 @@ pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
         }
     }
 
-    // Try finding PKGBUILD in cache directories (package might be in subdirectory)
-    for cache_base in &[
+    None
+}
+
+/// What: Try to find PKGBUILD in cache subdirectories.
+///
+/// Inputs:
+/// - `name`: Package name.
+/// - `home`: Home directory path.
+///
+/// Output:
+/// - Returns PKGBUILD content if found, or None.
+///
+/// Details:
+/// - Searches cache directories for packages that might be in subdirectories.
+fn try_cache_subdirectories(name: &str, home: &str) -> Option<String> {
+    let cache_bases = [
         format!("{}/.cache/paru/clone", home),
         format!("{}/.cache/yay", home),
-    ] {
-        if let Ok(entries) = std::fs::read_dir(cache_base) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir()
-                    && path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .map(|n| n.contains(name))
-                        .unwrap_or(false)
+    ];
+
+    for cache_base in cache_bases {
+        let Ok(entries) = std::fs::read_dir(&cache_base) else {
+            continue;
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            let matches_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.contains(name))
+                .unwrap_or(false);
+
+            if !matches_name {
+                continue;
+            }
+
+            // Check direct PKGBUILD
+            let pkgbuild_path = path.join("PKGBUILD");
+            if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
+                && text.contains("pkgname")
+            {
+                tracing::debug!(
+                    "Found PKGBUILD for {} in cache subdirectory: {:?}",
+                    name,
+                    pkgbuild_path
+                );
+                return Some(text);
+            }
+
+            // Check subdirectories
+            let Ok(sub_entries) = std::fs::read_dir(&path) else {
+                continue;
+            };
+
+            for sub_entry in sub_entries.flatten() {
+                if !sub_entry.path().is_dir() {
+                    continue;
+                }
+
+                let pkgbuild_path = sub_entry.path().join("PKGBUILD");
+                if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
+                    && text.contains("pkgname")
                 {
-                    let pkgbuild_path = path.join("PKGBUILD");
-                    if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
-                        && text.contains("pkgname")
-                    {
-                        tracing::debug!(
-                            "Found PKGBUILD for {} in cache subdirectory: {:?}",
-                            name,
-                            pkgbuild_path
-                        );
-                        return Some(text);
-                    }
-                    // Also check subdirectories
-                    if let Ok(sub_entries) = std::fs::read_dir(&path) {
-                        for sub_entry in sub_entries.flatten() {
-                            if sub_entry.path().is_dir() {
-                                let pkgbuild_path = sub_entry.path().join("PKGBUILD");
-                                if let Ok(text) = std::fs::read_to_string(&pkgbuild_path)
-                                    && text.contains("pkgname")
-                                {
-                                    tracing::debug!(
-                                        "Found PKGBUILD for {} in cache subdirectory: {:?}",
-                                        name,
-                                        pkgbuild_path
-                                    );
-                                    return Some(text);
-                                }
-                            }
-                        }
-                    }
+                    tracing::debug!(
+                        "Found PKGBUILD for {} in cache subdirectory: {:?}",
+                        name,
+                        pkgbuild_path
+                    );
+                    return Some(text);
                 }
             }
         }
     }
 
     None
+}
+
+/// What: Get PKGBUILD from yay/paru cache (offline method).
+///
+/// Inputs:
+/// - `name`: Package name.
+///
+/// Output:
+/// - Returns PKGBUILD content if found in cache, or None.
+///
+/// Details:
+/// - Checks yay cache (~/.cache/yay) and paru cache (~/.cache/paru).
+/// - Also tries using `yay -G` or `paru -G` commands.
+pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
+    // Try helper commands first (fastest, uses helper's cache)
+    if let Some(text) = try_helper_command("paru", name) {
+        return Some(text);
+    }
+    if let Some(text) = try_helper_command("yay", name) {
+        return Some(text);
+    }
+
+    // Try reading directly from cache directories
+    let home = std::env::var("HOME").ok()?;
+    if let Some(text) = try_direct_cache_paths(name, &home) {
+        return Some(text);
+    }
+
+    // Try finding PKGBUILD in cache subdirectories
+    try_cache_subdirectories(name, &home)
 }
 
 /// What: Fetch PKGBUILD content synchronously (blocking).

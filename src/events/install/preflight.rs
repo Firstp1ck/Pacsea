@@ -1,91 +1,114 @@
 use crate::state::AppState;
 
-/// What: Open Preflight modal for install action with cached data.
+/// What: Load cached dependencies filtered by item names.
 ///
 /// Inputs:
-/// - `app`: Mutable application state
+/// - `app`: Application state reference
+/// - `item_names`: Set of package names to filter dependencies by
 ///
 /// Output:
-/// - No return value; sets app.modal to Preflight with Install action
+/// - Vector of filtered dependency info, or empty if cache unavailable
 ///
 /// Details:
-/// - Loads cached dependencies, files, services, and sandbox info
-/// - Creates minimal summary for immediate display
-/// - Triggers background resolution for missing data
-pub fn open_preflight_install_modal(app: &mut AppState) {
-    tracing::info!(
-        "[Install] Opening preflight modal for {} packages",
-        app.install_list.len()
-    );
-    let start_time = std::time::Instant::now();
-    let item_count = app.install_list.len();
-    // Open Preflight modal listing all items to be installed
-    let items = app.install_list.clone();
-    let cache_start = std::time::Instant::now();
-    // Filter cached dependencies to only those required by current items
-    let item_names: std::collections::HashSet<String> =
-        items.iter().map(|i| i.name.clone()).collect();
-    let cached_deps = if !app.deps_resolving && !app.install_list_deps.is_empty() {
-        let filtered: Vec<crate::state::modal::DependencyInfo> = app
-            .install_list_deps
-            .iter()
-            .filter(|dep| {
-                dep.required_by
-                    .iter()
-                    .any(|req_by| item_names.contains(req_by))
-            })
-            .cloned()
-            .collect();
-        if !filtered.is_empty() {
-            tracing::debug!(
-                "[Install] Using {} cached dependencies (filtered from {} total)",
-                filtered.len(),
-                app.install_list_deps.len()
-            );
-            filtered
-        } else {
-            tracing::debug!("[Install] Cached dependencies exist but none match current items");
-            Vec::new()
-        }
-    } else {
+/// - Filters cached dependencies to only those required by current items
+/// - Returns empty vector if cache is resolving or empty
+fn load_cached_dependencies(
+    app: &AppState,
+    item_names: &std::collections::HashSet<String>,
+) -> Vec<crate::state::modal::DependencyInfo> {
+    if app.deps_resolving || app.install_list_deps.is_empty() {
         tracing::debug!("[Install] No cached dependencies available");
+        return Vec::new();
+    }
+
+    let filtered: Vec<crate::state::modal::DependencyInfo> = app
+        .install_list_deps
+        .iter()
+        .filter(|dep| {
+            dep.required_by
+                .iter()
+                .any(|req_by| item_names.contains(req_by))
+        })
+        .cloned()
+        .collect();
+
+    if filtered.is_empty() {
+        tracing::debug!("[Install] Cached dependencies exist but none match current items");
         Vec::new()
-    };
+    } else {
+        tracing::debug!(
+            "[Install] Using {} cached dependencies (filtered from {} total)",
+            filtered.len(),
+            app.install_list_deps.len()
+        );
+        filtered
+    }
+}
+
+/// What: Load cached file information.
+///
+/// Inputs:
+/// - `app`: Application state reference
+/// - `items`: Package items for logging
+///
+/// Output:
+/// - Vector of cached file info, or empty if cache unavailable
+///
+/// Details:
+/// - Returns cached files if available and not currently resolving
+fn load_cached_files(
+    app: &AppState,
+    items: &[crate::state::types::PackageItem],
+) -> Vec<crate::state::modal::PackageFileInfo> {
     tracing::debug!(
         "[Install] Checking file cache: resolving={}, install_list_files={}, items={:?}",
         app.files_resolving,
         app.install_list_files.len(),
         items.iter().map(|i| &i.name).collect::<Vec<_>>()
     );
-    let cached_files = if !app.files_resolving && !app.install_list_files.is_empty() {
-        tracing::debug!(
-            "[Install] Using {} cached file entries: {:?}",
-            app.install_list_files.len(),
-            app.install_list_files
-                .iter()
-                .map(|f| &f.name)
-                .collect::<Vec<_>>()
-        );
-        for file_info in &app.install_list_files {
-            tracing::debug!(
-                "[Install] Cached file entry: Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
-                file_info.name,
-                file_info.total_count,
-                file_info.new_count,
-                file_info.changed_count,
-                file_info.removed_count,
-                file_info.config_count
-            );
-        }
-        app.install_list_files.clone()
-    } else {
+
+    if app.files_resolving || app.install_list_files.is_empty() {
         tracing::debug!(
             "[Install] No cached files available (resolving={}, empty={})",
             app.files_resolving,
             app.install_list_files.is_empty()
         );
-        Vec::new()
-    };
+        return Vec::new();
+    }
+
+    tracing::debug!(
+        "[Install] Using {} cached file entries: {:?}",
+        app.install_list_files.len(),
+        app.install_list_files
+            .iter()
+            .map(|f| &f.name)
+            .collect::<Vec<_>>()
+    );
+    for file_info in &app.install_list_files {
+        tracing::debug!(
+            "[Install] Cached file entry: Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
+            file_info.name,
+            file_info.total_count,
+            file_info.new_count,
+            file_info.changed_count,
+            file_info.removed_count,
+            file_info.config_count
+        );
+    }
+    app.install_list_files.clone()
+}
+
+/// What: Load cached services and check if services are loaded.
+///
+/// Inputs:
+/// - `app`: Application state reference
+///
+/// Output:
+/// - Tuple of (cached services, whether services are loaded)
+///
+/// Details:
+/// - Checks both in-memory cache and cache file to determine loaded state
+fn load_cached_services(app: &AppState) -> (Vec<crate::state::modal::ServiceImpact>, bool) {
     let cached_services = if !app.services_resolving && !app.install_list_services.is_empty() {
         tracing::debug!(
             "[Install] Using {} cached services",
@@ -96,8 +119,7 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
         tracing::debug!("[Install] No cached services available");
         Vec::new()
     };
-    // Check if cache file exists with matching signature to determine if services are loaded
-    // (even if empty - empty cache means "no services found", which is valid)
+
     let services_cache_loaded = if !app.install_list.is_empty() {
         let signature = crate::app::services_cache::compute_signature(&app.install_list);
         let loaded =
@@ -111,37 +133,65 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
     } else {
         false
     };
+
     let services_loaded = services_cache_loaded || !cached_services.is_empty();
-    tracing::debug!("[Install] Cache loading took {:?}", cache_start.elapsed());
+    (cached_services, services_loaded)
+}
 
-    // Restore user restart decisions from pending_service_plan if available
-    let mut final_services = cached_services;
-    if !app.pending_service_plan.is_empty() && !final_services.is_empty() {
-        // Create a map of unit_name -> restart_decision from pending plan
-        let decision_map: std::collections::HashMap<
-            String,
-            crate::state::modal::ServiceRestartDecision,
-        > = app
-            .pending_service_plan
-            .iter()
-            .map(|s| (s.unit_name.clone(), s.restart_decision))
-            .collect();
-
-        // Apply saved decisions to cached services
-        for service in final_services.iter_mut() {
-            if let Some(&saved_decision) = decision_map.get(&service.unit_name) {
-                service.restart_decision = saved_decision;
-            }
-        }
+/// What: Restore user restart decisions from pending service plan.
+///
+/// Inputs:
+/// - `app`: Application state reference
+/// - `services`: Mutable vector of service impacts to update
+///
+/// Output:
+/// - No return value; modifies services in place
+///
+/// Details:
+/// - Applies saved restart decisions from pending_service_plan to services
+fn restore_service_decisions(app: &AppState, services: &mut [crate::state::modal::ServiceImpact]) {
+    if app.pending_service_plan.is_empty() || services.is_empty() {
+        return;
     }
 
-    // Load cached sandbox info
+    let decision_map: std::collections::HashMap<
+        String,
+        crate::state::modal::ServiceRestartDecision,
+    > = app
+        .pending_service_plan
+        .iter()
+        .map(|s| (s.unit_name.clone(), s.restart_decision))
+        .collect();
+
+    for service in services.iter_mut() {
+        if let Some(&saved_decision) = decision_map.get(&service.unit_name) {
+            service.restart_decision = saved_decision;
+        }
+    }
+}
+
+/// What: Load cached sandbox info and check if sandbox is loaded.
+///
+/// Inputs:
+/// - `app`: Application state reference
+/// - `items`: Package items for cache signature computation
+///
+/// Output:
+/// - Tuple of (cached sandbox info, whether sandbox is loaded)
+///
+/// Details:
+/// - Checks both in-memory cache and cache file to determine loaded state
+fn load_cached_sandbox(
+    app: &AppState,
+    items: &[crate::state::types::PackageItem],
+) -> (Vec<crate::logic::sandbox::SandboxInfo>, bool) {
     tracing::debug!(
         "[Install] Checking sandbox cache: resolving={}, install_list_sandbox={}, items={:?}",
         app.sandbox_resolving,
         app.install_list_sandbox.len(),
         items.iter().map(|i| &i.name).collect::<Vec<_>>()
     );
+
     let cached_sandbox = if !app.sandbox_resolving && !app.install_list_sandbox.is_empty() {
         tracing::debug!(
             "[Install] Using {} cached sandbox entries: {:?}",
@@ -161,9 +211,8 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
         Vec::new()
     };
 
-    // Check if sandbox cache file exists with matching signature (even if empty)
     let sandbox_cache_loaded = if !items.is_empty() {
-        let signature = crate::app::sandbox_cache::compute_signature(&items);
+        let signature = crate::app::sandbox_cache::compute_signature(items);
         let cache_result =
             crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature);
         tracing::debug!(
@@ -182,6 +231,7 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
     } else {
         false
     };
+
     let sandbox_loaded = sandbox_cache_loaded || !cached_sandbox.is_empty();
     tracing::debug!(
         "[Install] Final sandbox state: cached_sandbox={}, sandbox_cache_loaded={}, sandbox_loaded={}",
@@ -189,19 +239,63 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
         sandbox_cache_loaded,
         sandbox_loaded
     );
+    (cached_sandbox, sandbox_loaded)
+}
 
-    // Compute a minimal summary without blocking pacman calls to avoid freezing the UI
-    // The full summary will be computed asynchronously after the modal opens
-    let summary_start = std::time::Instant::now();
+/// What: Create minimal summary data for immediate display.
+///
+/// Inputs:
+/// - `app`: Application state reference
+/// - `items`: Package items to create summary for
+///
+/// Output:
+/// - Tuple of (summary data, header chips)
+///
+/// Details:
+/// - Creates minimal summary without blocking pacman calls
+/// - Full summary computed asynchronously after modal opens
+fn create_minimal_summary(
+    app: &AppState,
+    items: &[crate::state::types::PackageItem],
+) -> (
+    crate::state::modal::PreflightSummaryData,
+    crate::state::modal::PreflightHeaderChips,
+) {
     let aur_count = items
         .iter()
         .filter(|p| matches!(p.source, crate::state::Source::Aur))
         .count();
+
     tracing::debug!(
         "[Install] Creating minimal summary for {} packages ({} AUR)",
         items.len(),
         aur_count
     );
+
+    let has_aur = aur_count > 0;
+    let risk_score = if has_aur { 2 } else { 0 };
+    let risk_level = if has_aur {
+        crate::state::modal::RiskLevel::Medium
+    } else {
+        crate::state::modal::RiskLevel::Low
+    };
+    let aur_warning = if has_aur {
+        vec![crate::i18n::t(
+            app,
+            "app.modals.preflight.summary.aur_packages_included",
+        )]
+    } else {
+        vec![]
+    };
+    let aur_note = if has_aur {
+        vec![crate::i18n::t(
+            app,
+            "app.modals.preflight.summary.aur_packages_present",
+        )]
+    } else {
+        vec![]
+    };
+
     let minimal_summary = crate::state::modal::PreflightSummaryData {
         packages: items
             .iter()
@@ -221,93 +315,65 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
         aur_count,
         download_bytes: 0,
         install_delta_bytes: 0,
-        risk_score: if aur_count > 0 { 2 } else { 0 },
-        risk_level: if aur_count > 0 {
-            crate::state::modal::RiskLevel::Medium
-        } else {
-            crate::state::modal::RiskLevel::Low
-        },
-        risk_reasons: if aur_count > 0 {
-            vec![crate::i18n::t(
-                app,
-                "app.modals.preflight.summary.aur_packages_included",
-            )]
-        } else {
-            vec![]
-        },
+        risk_score,
+        risk_level,
+        risk_reasons: aur_warning.clone(),
         major_bump_packages: vec![],
         core_system_updates: vec![],
         pacnew_candidates: 0,
         pacsave_candidates: 0,
         config_warning_packages: vec![],
         service_restart_units: vec![],
-        summary_warnings: if aur_count > 0 {
-            vec![crate::i18n::t(
-                app,
-                "app.modals.preflight.summary.aur_packages_included",
-            )]
-        } else {
-            vec![]
-        },
-        summary_notes: if aur_count > 0 {
-            vec![crate::i18n::t(
-                app,
-                "app.modals.preflight.summary.aur_packages_present",
-            )]
-        } else {
-            vec![]
-        },
+        summary_warnings: aur_warning,
+        summary_notes: aur_note,
     };
+
     let minimal_header = crate::state::modal::PreflightHeaderChips {
         package_count: items.len(),
         download_bytes: 0,
         install_delta_bytes: 0,
         aur_count,
-        risk_score: if aur_count > 0 { 2 } else { 0 },
-        risk_level: if aur_count > 0 {
-            crate::state::modal::RiskLevel::Medium
-        } else {
-            crate::state::modal::RiskLevel::Low
-        },
-    };
-    tracing::debug!(
-        "[Install] Minimal summary creation took {:?}",
-        summary_start.elapsed()
-    );
-    // Don't clear pending_service_plan here - it will be updated when modal closes
-    let modal_set_start = std::time::Instant::now();
-
-    // Use cached dependencies, or trigger background resolution if cache is empty
-    let dependency_info = if cached_deps.is_empty() {
-        tracing::debug!(
-            "[Preflight] Cache empty, will trigger background dependency resolution for {} packages",
-            items.len()
-        );
-        // Trigger background resolution - results will be synced when they arrive
-        Vec::new()
-    } else {
-        cached_deps
+        risk_score,
+        risk_level,
     };
 
-    // Reset cancellation flag when opening modal
-    app.preflight_cancelled
-        .store(false, std::sync::atomic::Ordering::Relaxed);
-    // Queue full summary computation in background (minimal summary shown initially)
-    app.preflight_summary_items = Some((items.clone(), crate::state::PreflightAction::Install));
-    app.preflight_summary_resolving = true;
+    (minimal_summary, minimal_header)
+}
 
-    // Trigger background resolution for all stages in parallel if cache is empty
+/// What: Trigger background resolution for missing data.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `items`: Package items to resolve
+/// - `dependency_info`: Current dependency info (empty triggers resolution)
+/// - `cached_files`: Current file info (empty triggers resolution)
+/// - `services_loaded`: Whether services are already loaded
+/// - `cached_sandbox`: Current sandbox info (empty triggers resolution)
+///
+/// Output:
+/// - No return value; sets resolution flags in app state
+///
+/// Details:
+/// - Triggers background resolution for dependencies, files, services, and sandbox
+/// - Only triggers if cache is empty or not loaded
+fn trigger_background_resolution(
+    app: &mut AppState,
+    items: &[crate::state::types::PackageItem],
+    dependency_info: &[crate::state::modal::DependencyInfo],
+    cached_files: &[crate::state::modal::PackageFileInfo],
+    services_loaded: bool,
+    cached_sandbox: &[crate::logic::sandbox::SandboxInfo],
+) {
     if dependency_info.is_empty() {
-        app.preflight_deps_items = Some(items.clone());
+        app.preflight_deps_items = Some(items.to_vec());
         app.preflight_deps_resolving = true;
     }
     if cached_files.is_empty() {
-        app.preflight_files_items = Some(items.clone());
+        app.preflight_files_items = Some(items.to_vec());
         app.preflight_files_resolving = true;
     }
-    // Services resolution (only trigger if not already loaded)
     if !services_loaded {
-        app.preflight_services_items = Some(items.clone());
+        app.preflight_services_items = Some(items.to_vec());
         app.preflight_services_resolving = true;
     }
     if cached_sandbox.is_empty() {
@@ -321,14 +387,82 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
             app.preflight_sandbox_resolving = true;
         }
     }
+}
+
+/// What: Open Preflight modal for install action with cached data.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - No return value; sets app.modal to Preflight with Install action
+///
+/// Details:
+/// - Loads cached dependencies, files, services, and sandbox info
+/// - Creates minimal summary for immediate display
+/// - Triggers background resolution for missing data
+pub fn open_preflight_install_modal(app: &mut AppState) {
+    tracing::info!(
+        "[Install] Opening preflight modal for {} packages",
+        app.install_list.len()
+    );
+    let start_time = std::time::Instant::now();
+    let item_count = app.install_list.len();
+    let items = app.install_list.clone();
+
+    let cache_start = std::time::Instant::now();
+    let item_names: std::collections::HashSet<String> =
+        items.iter().map(|i| i.name.clone()).collect();
+
+    let cached_deps = load_cached_dependencies(app, &item_names);
+    let cached_files = load_cached_files(app, &items);
+    let (cached_services, services_loaded) = load_cached_services(app);
+    let (cached_sandbox, sandbox_loaded) = load_cached_sandbox(app, &items);
+
+    tracing::debug!("[Install] Cache loading took {:?}", cache_start.elapsed());
+
+    let mut final_services = cached_services;
+    restore_service_decisions(app, &mut final_services);
+
+    let summary_start = std::time::Instant::now();
+    let (minimal_summary, minimal_header) = create_minimal_summary(app, &items);
+    tracing::debug!(
+        "[Install] Minimal summary creation took {:?}",
+        summary_start.elapsed()
+    );
+
+    let modal_set_start = std::time::Instant::now();
+    let dependency_info = if cached_deps.is_empty() {
+        tracing::debug!(
+            "[Preflight] Cache empty, will trigger background dependency resolution for {} packages",
+            items.len()
+        );
+        Vec::new()
+    } else {
+        cached_deps
+    };
+
+    app.preflight_cancelled
+        .store(false, std::sync::atomic::Ordering::Relaxed);
+    app.preflight_summary_items = Some((items.clone(), crate::state::PreflightAction::Install));
+    app.preflight_summary_resolving = true;
+
+    trigger_background_resolution(
+        app,
+        &items,
+        &dependency_info,
+        &cached_files,
+        services_loaded,
+        &cached_sandbox,
+    );
 
     app.modal = crate::state::Modal::Preflight {
         items,
         action: crate::state::PreflightAction::Install,
         tab: crate::state::PreflightTab::Summary,
-        summary: Some(Box::new(minimal_summary)), // Minimal summary shown initially, will be replaced by full summary
+        summary: Some(Box::new(minimal_summary)),
         summary_scroll: 0,
-        header_chips: minimal_header, // Will be replaced by full header when summary completes
+        header_chips: minimal_header,
         dependency_info,
         dep_selected: 0,
         dep_tree_expanded: std::collections::HashSet::new(),
