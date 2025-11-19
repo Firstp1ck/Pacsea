@@ -515,9 +515,12 @@ hu-HU:
           more_services: "… {} további"
         sandbox:
           error: "Hiba: {}"
-          retry_hint: "Nyomja meg az „r” billentyűt az újrapróbálkozáshoz"
+          retry_hint: "Nyomja meg az 'r' billentyűt az újrapróbálkozáshoz"
           updating: "Homokozó-elemzés frissítése…"
           analyzing: "Összeállítási függőségek elemzése…"
+          # TODO: Translate these keys to Hungarian
+          no_aur_packages: "No AUR packages in install list"
+          sandbox_only_for_aur: "Sandbox analysis is only available for AUR packages. Official packages are pre-built."
           official_packages_prebuilt: "A hivatalos csomagok előre össze vannak állítva, nem igényelnek homokozó-elemzést."
           dependencies_expand_hint: "{} függőség (Szóköz/Enter a kibontáshoz)"
           no_build_dependencies: "Nem található összeállítási függőség."

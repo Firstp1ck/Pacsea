@@ -515,6 +515,8 @@ en-US:
           retry_hint: "Press 'r' to retry"
           updating: "Updating sandbox analysis…"
           analyzing: "Analyzing build dependencies…"
+          no_aur_packages: "No AUR packages in install list"
+          sandbox_only_for_aur: "Sandbox analysis is only available for AUR packages. Official packages are pre-built."
           official_packages_prebuilt: "Official packages are pre-built and don't require sandbox analysis."
           dependencies_expand_hint: "{} dependencies (press Space/Enter to expand)"
           no_build_dependencies: "No build dependencies found."

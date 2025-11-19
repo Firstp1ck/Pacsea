@@ -365,16 +365,58 @@ fn trigger_background_resolution(
     cached_sandbox: &[crate::logic::sandbox::SandboxInfo],
 ) {
     if dependency_info.is_empty() {
-        app.preflight_deps_items = Some(items.to_vec());
-        app.preflight_deps_resolving = true;
+        if app.deps_resolving {
+            tracing::debug!(
+                "[Preflight] NOT setting preflight_deps_resolving (global deps_resolving already in progress, will reuse result)"
+            );
+        } else {
+            tracing::debug!(
+                "[Preflight] Setting preflight_deps_resolving=true for {} items (cache empty)",
+                items.len()
+            );
+            app.preflight_deps_items = Some(items.to_vec());
+            app.preflight_deps_resolving = true;
+        }
+    } else {
+        tracing::debug!(
+            "[Preflight] NOT setting preflight_deps_resolving (cache has {} deps)",
+            dependency_info.len()
+        );
     }
     if cached_files.is_empty() {
-        app.preflight_files_items = Some(items.to_vec());
-        app.preflight_files_resolving = true;
+        if app.files_resolving {
+            tracing::debug!(
+                "[Preflight] NOT setting preflight_files_resolving (global files_resolving already in progress, will reuse result)"
+            );
+        } else {
+            tracing::debug!(
+                "[Preflight] Setting preflight_files_resolving=true for {} items (cache empty)",
+                items.len()
+            );
+            app.preflight_files_items = Some(items.to_vec());
+            app.preflight_files_resolving = true;
+        }
+    } else {
+        tracing::debug!(
+            "[Preflight] NOT setting preflight_files_resolving (cache has {} files)",
+            cached_files.len()
+        );
     }
     if !services_loaded {
-        app.preflight_services_items = Some(items.to_vec());
-        app.preflight_services_resolving = true;
+        if app.services_resolving {
+            tracing::debug!(
+                "[Preflight] NOT setting preflight_services_resolving (global services_resolving already in progress, will reuse result)"
+            );
+        } else {
+            tracing::debug!(
+                "[Preflight] Setting preflight_services_resolving=true for {} items (not loaded)",
+                items.len()
+            );
+            app.preflight_services_items = Some(items.to_vec());
+            app.preflight_services_resolving = true;
+        }
+    } else {
+        tracing::debug!("[Preflight] NOT setting preflight_services_resolving (already loaded)");
     }
     if cached_sandbox.is_empty() {
         let aur_items: Vec<_> = items
@@ -383,9 +425,26 @@ fn trigger_background_resolution(
             .cloned()
             .collect();
         if !aur_items.is_empty() {
-            app.preflight_sandbox_items = Some(aur_items);
-            app.preflight_sandbox_resolving = true;
+            if app.sandbox_resolving {
+                tracing::debug!(
+                    "[Preflight] NOT setting preflight_sandbox_resolving (global sandbox_resolving already in progress, will reuse result)"
+                );
+            } else {
+                tracing::debug!(
+                    "[Preflight] Setting preflight_sandbox_resolving=true for {} AUR items (cache empty)",
+                    aur_items.len()
+                );
+                app.preflight_sandbox_items = Some(aur_items);
+                app.preflight_sandbox_resolving = true;
+            }
+        } else {
+            tracing::debug!("[Preflight] NOT setting preflight_sandbox_resolving (no AUR items)");
         }
+    } else {
+        tracing::debug!(
+            "[Preflight] NOT setting preflight_sandbox_resolving (cache has {} sandbox entries)",
+            cached_sandbox.len()
+        );
     }
 }
 
@@ -445,7 +504,12 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
     app.preflight_cancelled
         .store(false, std::sync::atomic::Ordering::Relaxed);
     app.preflight_summary_items = Some((items.clone(), crate::state::PreflightAction::Install));
-    app.preflight_summary_resolving = true;
+    // Don't set preflight_summary_resolving=true here - let the tick handler trigger it
+    // This prevents the tick handler from being blocked by the flag already being set
+    tracing::debug!(
+        "[Preflight] Queued summary computation for {} items",
+        items.len()
+    );
 
     trigger_background_resolution(
         app,
@@ -516,7 +580,12 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
         .store(false, std::sync::atomic::Ordering::Relaxed);
     // Queue summary computation in background - modal will render with None initially
     app.preflight_summary_items = Some((items.clone(), crate::state::PreflightAction::Remove));
-    app.preflight_summary_resolving = true;
+    // Don't set preflight_summary_resolving=true here - let the tick handler trigger it
+    // This prevents the tick handler from being blocked by the flag already being set
+    tracing::debug!(
+        "[Preflight] Queued summary computation for {} items (remove)",
+        items.len()
+    );
     app.pending_service_plan.clear();
 
     // Open modal immediately with empty dependency_info to avoid blocking UI

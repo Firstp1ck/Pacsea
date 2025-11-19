@@ -340,6 +340,13 @@ pub fn handle_sandbox_result(
         .preflight_cancelled
         .load(std::sync::atomic::Ordering::Relaxed);
     let was_preflight = app.preflight_sandbox_resolving;
+    tracing::debug!(
+        "[Runtime] handle_sandbox_result: Clearing flags - was_preflight={}, sandbox_resolving={}, preflight_sandbox_resolving={}, cancelled={}",
+        was_preflight,
+        app.sandbox_resolving,
+        app.preflight_sandbox_resolving,
+        cancelled
+    );
     app.sandbox_resolving = false;
     app.preflight_sandbox_resolving = false;
 

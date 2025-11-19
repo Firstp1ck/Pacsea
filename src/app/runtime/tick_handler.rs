@@ -130,24 +130,70 @@ fn handle_preflight_resolution(
         && !app.preflight_summary_resolving
     {
         // Trigger summary computation
+        tracing::debug!(
+            "[Runtime] Tick: Triggering summary computation for {} items, action={:?}",
+            items.len(),
+            action
+        );
         app.preflight_summary_resolving = true;
         let _ = summary_req_tx.send((items.clone(), *action));
+    } else if app.preflight_summary_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering summary - items={}, preflight_summary_resolving={}",
+            app.preflight_summary_items
+                .as_ref()
+                .map(|(items, _)| items.len())
+                .unwrap_or(0),
+            app.preflight_summary_resolving
+        );
     }
     if let Some(ref items) = app.preflight_deps_items
         && app.preflight_deps_resolving
         && !app.deps_resolving
     {
         // Trigger dependency resolution for preflight items
+        tracing::debug!(
+            "[Runtime] Tick: Triggering dependency resolution for {} preflight items (preflight_deps_resolving={}, deps_resolving={})",
+            items.len(),
+            app.preflight_deps_resolving,
+            app.deps_resolving
+        );
         app.deps_resolving = true;
         let _ = deps_req_tx.send(items.clone());
+    } else if app.preflight_deps_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
+            app.preflight_deps_items
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(0),
+            app.preflight_deps_resolving,
+            app.deps_resolving
+        );
     }
     if let Some(ref items) = app.preflight_files_items
         && app.preflight_files_resolving
         && !app.files_resolving
     {
         // Trigger file resolution for preflight items
+        tracing::debug!(
+            "[Runtime] Tick: Triggering file resolution for {} preflight items (preflight_files_resolving={}, files_resolving={})",
+            items.len(),
+            app.preflight_files_resolving,
+            app.files_resolving
+        );
         app.files_resolving = true;
         let _ = files_req_tx.send(items.clone());
+    } else if app.preflight_files_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
+            app.preflight_files_items
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(0),
+            app.preflight_files_resolving,
+            app.files_resolving
+        );
     }
     if let Some(ref items) = app.preflight_services_items
         && app.preflight_services_resolving
@@ -162,8 +208,24 @@ fn handle_preflight_resolution(
         && !app.sandbox_resolving
     {
         // Trigger sandbox resolution for preflight items (already filtered to AUR)
+        tracing::debug!(
+            "[Runtime] Tick: Triggering sandbox resolution for {} preflight items (preflight_sandbox_resolving={}, sandbox_resolving={})",
+            items.len(),
+            app.preflight_sandbox_resolving,
+            app.sandbox_resolving
+        );
         app.sandbox_resolving = true;
         let _ = sandbox_req_tx.send(items.clone());
+    } else if app.preflight_sandbox_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering sandbox - items={}, preflight_sandbox_resolving={}, sandbox_resolving={}",
+            app.preflight_sandbox_items
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(0),
+            app.preflight_sandbox_resolving,
+            app.sandbox_resolving
+        );
     }
 }
 

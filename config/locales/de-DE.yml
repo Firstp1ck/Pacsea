@@ -492,6 +492,8 @@ de-DE:
           retry_hint: "Taste 'r' drücken, um erneut zu versuchen"
           updating: "Aktualisiere Sandbox-Analyse…"
           analyzing: "Analysiere Build-Abhängigkeiten…"
+          no_aur_packages: "Keine AUR-Pakete in der Installationsliste"
+          sandbox_only_for_aur: "Sandbox-Analyse ist nur für AUR-Pakete verfügbar. Offizielle Pakete sind vorgebaut."
           official_packages_prebuilt: "Offizielle Pakete sind vorgebaut und benötigen keine Sandbox-Analyse."
           dependencies_expand_hint: "{} Abhängigkeiten (Leertaste/Enter zum Ausklappen)"
           no_build_dependencies: "Keine Build-Abhängigkeiten gefunden."

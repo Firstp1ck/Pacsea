@@ -62,6 +62,13 @@ pub fn handle_dependency_result(
         .preflight_cancelled
         .load(std::sync::atomic::Ordering::Relaxed);
     let was_preflight = app.preflight_deps_resolving;
+    tracing::debug!(
+        "[Runtime] handle_dependency_result: Clearing flags - was_preflight={}, deps_resolving={}, preflight_deps_resolving={}, cancelled={}",
+        was_preflight,
+        app.deps_resolving,
+        app.preflight_deps_resolving,
+        cancelled
+    );
     app.deps_resolving = false; // CRITICAL: Always reset this flag when we receive ANY result
     app.preflight_deps_resolving = false; // Also reset preflight flag
 

@@ -126,6 +126,31 @@ fn render_analyzing_state(app: &AppState, items: &[PackageItem]) -> Vec<Line<'st
     lines
 }
 
+/// What: Render message when all packages are official (no sandbox needed).
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+///
+/// Output:
+/// - Returns vector of lines for no AUR packages display.
+///
+/// Details:
+/// - Shows informational message that sandbox is only for AUR packages.
+fn render_no_aur_packages_state(app: &AppState) -> Vec<Line<'static>> {
+    let th = theme();
+    vec![
+        Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.sandbox.no_aur_packages"),
+            Style::default().fg(th.subtext1),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.sandbox.sandbox_only_for_aur"),
+            Style::default().fg(th.subtext0),
+        )),
+    ]
+}
+
 /// What: Build flat list of display items from packages and sandbox info.
 ///
 /// Inputs:
@@ -613,22 +638,29 @@ pub fn render_sandbox_tab(
         );
     }
 
+    // Check if there are any AUR packages at all
+    let aur_items: Vec<_> = items
+        .iter()
+        .filter(|i| matches!(i.source, crate::state::Source::Aur))
+        .collect();
+
+    if aur_items.is_empty() {
+        tracing::debug!(
+            "[UI] render_sandbox_tab: No AUR packages in list (all {} packages are official), showing info message",
+            items.len()
+        );
+        return render_no_aur_packages_state(app);
+    }
+
     // Handle error/loading/analyzing states
     if let Some(err) = sandbox_error.as_ref() {
         return render_error_state(app, err);
     } else if app.preflight_sandbox_resolving || app.sandbox_resolving {
         tracing::debug!(
-            "[UI] render_sandbox_tab: Showing loading state (resolving={}/{})",
+            "[UI] render_sandbox_tab: Showing loading state (resolving={}/{}, {} AUR packages)",
             app.preflight_sandbox_resolving,
-            app.sandbox_resolving
-        );
-        let aur_count = items
-            .iter()
-            .filter(|i| matches!(i.source, crate::state::Source::Aur))
-            .count();
-        tracing::debug!(
-            "[UI] render_sandbox_tab: Showing {} AUR package headers",
-            aur_count
+            app.sandbox_resolving,
+            aur_items.len()
         );
         return render_loading_state(app, items);
     } else if !sandbox_loaded || sandbox_info.is_empty() {

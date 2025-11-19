@@ -23,6 +23,13 @@ pub fn handle_file_result(
         .preflight_cancelled
         .load(std::sync::atomic::Ordering::Relaxed);
     let was_preflight = app.preflight_files_resolving;
+    tracing::debug!(
+        "[Runtime] handle_file_result: Clearing flags - was_preflight={}, files_resolving={}, preflight_files_resolving={}, cancelled={}",
+        was_preflight,
+        app.files_resolving,
+        app.preflight_files_resolving,
+        cancelled
+    );
     app.files_resolving = false;
     app.preflight_files_resolving = false; // Also reset preflight flag
 

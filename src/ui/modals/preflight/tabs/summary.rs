@@ -104,10 +104,6 @@ fn render_incomplete_data_indicator(
     let th = theme();
     let mut lines = Vec::new();
 
-    let deps_resolving = app.preflight_deps_resolving || app.deps_resolving;
-    let files_resolving = app.preflight_files_resolving || app.files_resolving;
-    let sandbox_resolving = app.preflight_sandbox_resolving || app.sandbox_resolving;
-
     let item_names: std::collections::HashSet<String> =
         items.iter().map(|i| i.name.clone()).collect();
     let packages_with_deps: std::collections::HashSet<String> = dependency_info
@@ -116,23 +112,53 @@ fn render_incomplete_data_indicator(
         .cloned()
         .collect();
     let packages_with_deps_count = packages_with_deps.len();
+
+    // Check if deps data is incomplete for current items (when not resolving)
+    let deps_resolving = app.preflight_deps_resolving || app.deps_resolving;
     let deps_incomplete = !deps_resolving
         && !item_names.is_empty()
         && packages_with_deps_count < items.len()
         && dependency_info.len() < items.len();
 
+    // Check if we actually need to wait for data for the current items
+    // Only show loading indicator if:
+    // 1. Preflight-specific resolution is running (preflight_*_resolving), OR
+    // 2. We're missing data for current items (deps_incomplete heuristic)
+    // Don't show indicator just because install_list resolution is running - that data will sync when ready
+    let show_deps_indicator =
+        app.preflight_deps_resolving || (deps_incomplete && dependency_info.is_empty());
+    let show_files_indicator = app.preflight_files_resolving;
+    let show_sandbox_indicator = app.preflight_sandbox_resolving;
+
+    tracing::debug!(
+        "[UI] render_incomplete_data_indicator: preflight_deps_resolving={}, deps_resolving={}, files_resolving={}/{}, sandbox_resolving={}/{}, deps_incomplete={}, items={}, packages_with_deps={}, dependency_info={}, show_deps_indicator={}, show_files_indicator={}, show_sandbox_indicator={}",
+        app.preflight_deps_resolving,
+        app.deps_resolving,
+        app.preflight_files_resolving,
+        app.files_resolving,
+        app.preflight_sandbox_resolving,
+        app.sandbox_resolving,
+        deps_incomplete,
+        items.len(),
+        packages_with_deps_count,
+        dependency_info.len(),
+        show_deps_indicator,
+        show_files_indicator,
+        show_sandbox_indicator
+    );
+
     let has_incomplete_data =
-        deps_resolving || files_resolving || sandbox_resolving || deps_incomplete;
+        show_deps_indicator || show_files_indicator || show_sandbox_indicator || deps_incomplete;
 
     if has_incomplete_data {
         let mut resolving_parts = Vec::new();
-        if deps_resolving {
+        if show_deps_indicator {
             resolving_parts.push(i18n::t(app, "app.modals.preflight.summary.resolving_deps"));
         }
-        if files_resolving {
+        if show_files_indicator {
             resolving_parts.push(i18n::t(app, "app.modals.preflight.summary.resolving_files"));
         }
-        if sandbox_resolving {
+        if show_sandbox_indicator {
             resolving_parts.push(i18n::t(
                 app,
                 "app.modals.preflight.summary.resolving_sandbox",

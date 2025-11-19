@@ -83,6 +83,15 @@ fn has_incomplete_data(
     deps: &[DependencyInfo],
 ) -> bool {
     let is_resolving = app.preflight_deps_resolving || app.deps_resolving;
+    tracing::debug!(
+        "[UI] compute_is_resolving: preflight_deps_resolving={}, deps_resolving={}, is_resolving={}, total_deps={}, items={}, deps={}",
+        app.preflight_deps_resolving,
+        app.deps_resolving,
+        is_resolving,
+        total_deps,
+        items.len(),
+        deps.len()
+    );
     if is_resolving && total_deps > 0 {
         return true;
     }
