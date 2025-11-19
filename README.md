@@ -180,7 +180,7 @@ cargo run
 - **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)**
 - **Ability to resolve dependency conflicts**
 - **Add accessability themes for visual impairments**
-- **Add PKGBUILD Preview shellcheck (Syntax highlighting implemented)**
+- **Add PKGBUILD Preview shellcheck and namcap (Syntax highlighting implemented)**
 - **Add custom upgrade commands**
 - **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro, Garuda and  CachyOS**
 - **Add possibility to view News based on installed Packages (Including AUR comments)**
