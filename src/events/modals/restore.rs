@@ -209,7 +209,7 @@ mod tests {
         let result = restore_if_not_closed_with_option_result(&mut app, &ke, Some(false), modal);
 
         assert!(matches!(app.modal, Modal::None));
-        assert!(!result);
+        assert!(result); // Esc returns true to stop propagation
     }
 
     #[test]

@@ -182,7 +182,7 @@ pub(crate) fn parse_pacman_key_values(output: &str) -> HashMap<String, String> {
 /// - Supports B, KiB, MiB, GiB, and TiB units.
 pub(crate) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
     let mut parts = raw.split_whitespace();
-    let number = parts.next()?.replace(',', ".");
+    let number = parts.next()?.replace(',', "");
     let value = number.parse::<f64>().ok()?;
     let unit = parts.next().unwrap_or("B");
     let multiplier = match unit {
@@ -443,25 +443,23 @@ mod tests {
     /// Details:
     /// - Tests size extraction from package metadata via `pacman -Qp`.
     fn test_extract_aur_package_sizes() {
-        let mut responses = HashMap::new();
-        responses.insert(
-            (
-                "pacman".into(),
-                vec![
-                    "-Qp".into(),
-                    "/var/cache/pacman/pkg/test-1.0.0-1-x86_64.pkg.tar.zst".into(),
-                ],
-            ),
-            Ok("Name            : test\nInstalled Size  : 5.00 MiB\n".to_string()),
-        );
-
-        let runner = MockRunner::with(responses);
-
         // Create a temporary file for testing
         let temp_dir = std::env::temp_dir().join(format!("pacsea_test_{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
         let pkg_path = temp_dir.join("test-1.0.0-1-x86_64.pkg.tar.zst");
         std::fs::write(&pkg_path, b"fake package data").unwrap();
+
+        // Set up mock response using the actual temp file path
+        let mut responses = HashMap::new();
+        responses.insert(
+            (
+                "pacman".into(),
+                vec!["-Qp".into(), pkg_path.to_string_lossy().to_string()],
+            ),
+            Ok("Name            : test\nInstalled Size  : 5.00 MiB\n".to_string()),
+        );
+
+        let runner = MockRunner::with(responses);
 
         let result = extract_aur_package_sizes(&runner, &pkg_path);
         assert!(result.is_ok());

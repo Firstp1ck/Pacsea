@@ -15,13 +15,6 @@ use crate::events::preflight::modal::close_preflight_modal;
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `true` if modal should close, `false` otherwise.
-/// What: Handle Esc key - close preflight modal.
-///
-/// Inputs:
-/// - `app`: Mutable application state
-///
-/// Output:
 /// - Always returns `false` to continue event processing.
 ///
 /// Details:
