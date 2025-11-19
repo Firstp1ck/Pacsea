@@ -185,7 +185,6 @@ cargo run
 - **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro, Garuda and  CachyOS**
 - **Add possibility to view News based on installed Packages (Including AUR comments)**
 - **Show available package Updates as number right beside the filters. Clickable opens a Preview with old and new version. grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)**
-- **Add Artix Support**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
