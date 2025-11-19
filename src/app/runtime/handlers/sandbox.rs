@@ -1,6 +1,6 @@
 use tokio::sync::mpsc;
 
-use crate::state::*;
+use crate::state::AppState;
 
 /// What: Log detailed dependency information for sandbox info entries.
 ///
@@ -318,6 +318,86 @@ fn handle_empty_sandbox_result(
     ));
 }
 
+use crate::app::runtime::handlers::common::{HandlerConfig, handle_result};
+
+/// What: Handler configuration for sandbox results.
+struct SandboxHandlerConfig;
+
+impl HandlerConfig for SandboxHandlerConfig {
+    type Result = crate::logic::sandbox::SandboxInfo;
+
+    fn get_resolving(&self, app: &AppState) -> bool {
+        app.sandbox_resolving
+    }
+
+    fn set_resolving(&self, app: &mut AppState, value: bool) {
+        app.sandbox_resolving = value;
+    }
+
+    fn get_preflight_resolving(&self, app: &AppState) -> bool {
+        app.preflight_sandbox_resolving
+    }
+
+    fn set_preflight_resolving(&self, app: &mut AppState, value: bool) {
+        app.preflight_sandbox_resolving = value;
+    }
+
+    fn stage_name(&self) -> &'static str {
+        "sandbox"
+    }
+
+    fn update_cache(&self, app: &mut AppState, results: &[Self::Result]) {
+        log_sandbox_info_details(results);
+
+        tracing::debug!(
+            "[Runtime] handle_sandbox_result: Updating install_list_sandbox with {} entries (current cache has {})",
+            results.len(),
+            app.install_list_sandbox.len()
+        );
+
+        app.install_list_sandbox = merge_sandbox_cache(&app.install_list_sandbox, results);
+
+        tracing::debug!(
+            "[Runtime] handle_sandbox_result: install_list_sandbox now has {} entries: {:?}",
+            app.install_list_sandbox.len(),
+            app.install_list_sandbox
+                .iter()
+                .map(|s| &s.package_name)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    fn set_cache_dirty(&self, app: &mut AppState) {
+        app.sandbox_cache_dirty = true;
+        tracing::debug!(
+            "[Runtime] handle_sandbox_result: Marked sandbox_cache_dirty=true, install_list_sandbox has {} entries: {:?}",
+            app.install_list_sandbox.len(),
+            app.install_list_sandbox
+                .iter()
+                .map(|s| &s.package_name)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    fn clear_preflight_items(&self, app: &mut AppState) {
+        app.preflight_sandbox_items = None;
+    }
+
+    fn sync_to_modal(&self, app: &mut AppState, results: &[Self::Result], _was_preflight: bool) {
+        sync_sandbox_to_modal(&mut app.modal, results);
+    }
+
+    fn log_flag_clear(&self, app: &AppState, was_preflight: bool, cancelled: bool) {
+        tracing::debug!(
+            "[Runtime] handle_sandbox_result: Clearing flags - was_preflight={}, sandbox_resolving={}, preflight_sandbox_resolving={}, cancelled={}",
+            was_preflight,
+            self.get_resolving(app),
+            app.preflight_sandbox_resolving,
+            cancelled
+        );
+    }
+}
+
 /// What: Handle sandbox resolution result event.
 ///
 /// Inputs:
@@ -335,73 +415,7 @@ pub fn handle_sandbox_result(
     sandbox_info: Vec<crate::logic::sandbox::SandboxInfo>,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    // Check if cancelled before updating
-    let cancelled = app
-        .preflight_cancelled
-        .load(std::sync::atomic::Ordering::Relaxed);
-    let was_preflight = app.preflight_sandbox_resolving;
-    tracing::debug!(
-        "[Runtime] handle_sandbox_result: Clearing flags - was_preflight={}, sandbox_resolving={}, preflight_sandbox_resolving={}, cancelled={}",
-        was_preflight,
-        app.sandbox_resolving,
-        app.preflight_sandbox_resolving,
-        cancelled
-    );
-    app.sandbox_resolving = false;
-    app.preflight_sandbox_resolving = false;
-
-    if cancelled {
-        if was_preflight {
-            tracing::debug!("[Runtime] Ignoring sandbox result (preflight cancelled)");
-            app.preflight_sandbox_items = None;
-        }
-        let _ = tick_tx.send(());
-        return;
-    }
-
-    // Update cached sandbox info
-    tracing::info!(
-        stage = "sandbox",
-        result_count = sandbox_info.len(),
-        was_preflight = was_preflight,
-        "[Runtime] Sandbox resolution worker completed"
-    );
-
-    log_sandbox_info_details(&sandbox_info);
-
-    tracing::debug!(
-        "[Runtime] handle_sandbox_result: Updating install_list_sandbox with {} entries (current cache has {})",
-        sandbox_info.len(),
-        app.install_list_sandbox.len()
-    );
-
-    app.install_list_sandbox = merge_sandbox_cache(&app.install_list_sandbox, &sandbox_info);
-
-    tracing::debug!(
-        "[Runtime] handle_sandbox_result: install_list_sandbox now has {} entries: {:?}",
-        app.install_list_sandbox.len(),
-        app.install_list_sandbox
-            .iter()
-            .map(|s| &s.package_name)
-            .collect::<Vec<_>>()
-    );
-
-    sync_sandbox_to_modal(&mut app.modal, &sandbox_info);
-
-    if was_preflight {
-        app.preflight_sandbox_items = None;
-    }
-    app.sandbox_cache_dirty = true;
-    tracing::debug!(
-        "[Runtime] handle_sandbox_result: Marked sandbox_cache_dirty=true, install_list_sandbox has {} entries: {:?}",
-        app.install_list_sandbox.len(),
-        app.install_list_sandbox
-            .iter()
-            .map(|s| &s.package_name)
-            .collect::<Vec<_>>()
-    );
-
-    let _ = tick_tx.send(());
+    handle_result(app, sandbox_info, tick_tx, SandboxHandlerConfig);
 }
 
 #[cfg(test)]

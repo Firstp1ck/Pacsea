@@ -1,46 +1,7 @@
 //! Parser for AUR .SRCINFO files.
 
-use crate::util::{curl_args, percent_encode};
-use std::process::Command;
-
-/// What: Fetch .SRCINFO content for an AUR package.
-///
-/// Inputs:
-/// - `name`: AUR package name.
-///
-/// Output:
-/// - Returns .SRCINFO content as a string, or an error if fetch fails.
-///
-/// Details:
-/// - Downloads .SRCINFO from AUR cgit repository.
-pub(crate) fn fetch_srcinfo(name: &str) -> Result<String, String> {
-    let url = format!(
-        "https://aur.archlinux.org/cgit/aur.git/plain/.SRCINFO?h={}",
-        percent_encode(name)
-    );
-    tracing::debug!("Fetching .SRCINFO from: {}", url);
-
-    // Add timeout to prevent hanging (10 seconds)
-    let args = curl_args(&url, &["--max-time", "10"]);
-    let output = Command::new("curl")
-        .args(&args)
-        .output()
-        .map_err(|e| format!("curl failed: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "curl failed with status: {:?}",
-            output.status.code()
-        ));
-    }
-
-    let text = String::from_utf8_lossy(&output.stdout).to_string();
-    if text.trim().is_empty() {
-        return Err("Empty .SRCINFO content".to_string());
-    }
-
-    Ok(text)
-}
+// Re-export for backward compatibility
+pub(crate) use crate::util::srcinfo::fetch_srcinfo;
 
 /// What: Parse dependencies from .SRCINFO content.
 ///

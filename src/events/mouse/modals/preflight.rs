@@ -146,14 +146,31 @@ fn handle_preflight_tab_click(mx: u16, my: u16, app: &mut AppState) -> bool {
                     4 => crate::state::PreflightTab::Sandbox,
                     _ => continue,
                 };
+                let old_tab = *tab;
                 *tab = new_tab;
+                tracing::info!(
+                    "[Preflight] Mouse tab click: Switching from {:?} to {:?}, items={}, dependency_info.len()={}, file_info.len()={}",
+                    old_tab,
+                    new_tab,
+                    items.len(),
+                    dependency_info.len(),
+                    file_info.len()
+                );
 
                 // Check for cached dependencies when switching to Deps tab
                 if *tab == crate::state::PreflightTab::Deps
                     && dependency_info.is_empty()
                     && matches!(*action, crate::state::PreflightAction::Install)
                 {
+                    tracing::debug!(
+                        "[Preflight] Mouse tab click: Deps tab - loading cache, cache.len()={}",
+                        app.install_list_deps.len()
+                    );
                     let cached_deps = load_cached_dependencies(items, &app.install_list_deps);
+                    tracing::info!(
+                        "[Preflight] Mouse tab click: Deps tab - loaded {} cached deps",
+                        cached_deps.len()
+                    );
                     if !cached_deps.is_empty() {
                         *dependency_info = cached_deps;
                         *dep_selected = 0;
@@ -162,7 +179,15 @@ fn handle_preflight_tab_click(mx: u16, my: u16, app: &mut AppState) -> bool {
                 }
                 // Check for cached files when switching to Files tab
                 if *tab == crate::state::PreflightTab::Files && file_info.is_empty() {
+                    tracing::debug!(
+                        "[Preflight] Mouse tab click: Files tab - loading cache, cache.len()={}",
+                        app.install_list_files.len()
+                    );
                     let cached_files = load_cached_files(items, &app.install_list_files);
+                    tracing::info!(
+                        "[Preflight] Mouse tab click: Files tab - loaded {} cached files",
+                        cached_files.len()
+                    );
                     if !cached_files.is_empty() {
                         *file_info = cached_files;
                         *file_selected = 0;

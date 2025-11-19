@@ -11,26 +11,9 @@ use super::installed_lock;
 /// Details:
 /// - Parses command stdout into a `HashSet` and swaps it into the shared cache under a write lock.
 pub async fn refresh_installed_cache() {
-    /// What: Execute `pacman -Qq` and return the list of installed package names.
-    ///
-    /// Inputs:
-    /// - None (command line is fixed to `-Qq`).
-    ///
-    /// Output:
-    /// - `Ok(String)` with UTF-8 stdout on success; boxed error otherwise.
-    ///
-    /// Details:
-    /// - Treats non-zero exit codes and UTF-8 decoding failures as errors to propagate.
-    fn run_pacman_q() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        let out = std::process::Command::new("pacman")
-            .args(["-Qq"])
-            .output()?;
-        if !out.status.success() {
-            return Err(format!("pacman -Qq exited with {:?}", out.status).into());
-        }
-        Ok(String::from_utf8(out.stdout)?)
-    }
-    if let Ok(Ok(body)) = tokio::task::spawn_blocking(run_pacman_q).await {
+    if let Ok(Ok(body)) =
+        tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Qq"])).await
+    {
         let set: std::collections::HashSet<String> =
             body.lines().map(|s| s.trim().to_string()).collect();
         if let Ok(mut g) = installed_lock().write() {

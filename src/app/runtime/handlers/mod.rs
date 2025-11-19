@@ -1,3 +1,5 @@
+mod common;
+
 pub mod files;
 pub mod install;
 pub mod sandbox;

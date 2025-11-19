@@ -17,7 +17,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
 
     let mut items: Vec<PackageItem> = Vec::new();
 
-    let ret = tokio::task::spawn_blocking(move || super::curl_json(&aur_url)).await;
+    let ret = tokio::task::spawn_blocking(move || crate::util::curl::curl_json(&aur_url)).await;
     let mut errors = Vec::new();
     match ret {
         Ok(Ok(resp)) => {

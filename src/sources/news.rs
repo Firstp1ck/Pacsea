@@ -12,7 +12,7 @@ type Result<T> = super::Result<T>;
 /// date-only form via `strip_time_and_tz`.
 pub async fn fetch_arch_news(limit: usize) -> Result<Vec<NewsItem>> {
     let url = "https://archlinux.org/feeds/news/";
-    let body = tokio::task::spawn_blocking(move || super::curl_text(url)).await??;
+    let body = tokio::task::spawn_blocking(move || crate::util::curl::curl_text(url)).await??;
     let mut items: Vec<NewsItem> = Vec::new();
     let mut pos = 0;
     while items.len() < limit {

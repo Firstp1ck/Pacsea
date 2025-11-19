@@ -1,5 +1,6 @@
 use tokio::sync::mpsc;
 
+use crate::app::runtime::handlers::common::{HandlerConfig, handle_result};
 use crate::logic::add_to_install_list;
 use crate::state::*;
 
@@ -41,6 +42,99 @@ pub fn handle_add_to_install_list(
     }
 }
 
+/// What: Handler configuration for dependency results.
+struct DependencyHandlerConfig;
+
+impl HandlerConfig for DependencyHandlerConfig {
+    type Result = crate::state::modal::DependencyInfo;
+
+    fn get_resolving(&self, app: &AppState) -> bool {
+        app.deps_resolving
+    }
+
+    fn set_resolving(&self, app: &mut AppState, value: bool) {
+        app.deps_resolving = value; // CRITICAL: Always reset this flag when we receive ANY result
+    }
+
+    fn get_preflight_resolving(&self, app: &AppState) -> bool {
+        app.preflight_deps_resolving
+    }
+
+    fn set_preflight_resolving(&self, app: &mut AppState, value: bool) {
+        app.preflight_deps_resolving = value;
+    }
+
+    fn stage_name(&self) -> &'static str {
+        "dependencies"
+    }
+
+    fn update_cache(&self, app: &mut AppState, results: &[Self::Result]) {
+        app.install_list_deps = results.to_vec();
+    }
+
+    fn set_cache_dirty(&self, app: &mut AppState) {
+        app.deps_cache_dirty = true;
+    }
+
+    fn clear_preflight_items(&self, app: &mut AppState) {
+        app.preflight_deps_items = None;
+    }
+
+    fn sync_to_modal(&self, app: &mut AppState, results: &[Self::Result], was_preflight: bool) {
+        // Sync dependencies to preflight modal if it's open (whether preflight or install list resolution)
+        if let crate::state::Modal::Preflight {
+            items,
+            dependency_info,
+            ..
+        } = &mut app.modal
+        {
+            // Filter dependencies to only those required by current modal items
+            let item_names: std::collections::HashSet<String> =
+                items.iter().map(|i| i.name.clone()).collect();
+            let filtered_deps: Vec<_> = results
+                .iter()
+                .filter(|dep| {
+                    dep.required_by
+                        .iter()
+                        .any(|req_by| item_names.contains(req_by))
+                })
+                .cloned()
+                .collect();
+            let old_deps_len = dependency_info.len();
+            if !filtered_deps.is_empty() {
+                tracing::info!(
+                    "[Runtime] Syncing {} dependencies to preflight modal (was_preflight={}, modal had {} before)",
+                    filtered_deps.len(),
+                    was_preflight,
+                    old_deps_len
+                );
+                *dependency_info = filtered_deps;
+                tracing::info!(
+                    "[Runtime] Modal dependency_info now has {} entries (was {})",
+                    dependency_info.len(),
+                    old_deps_len
+                );
+            } else {
+                tracing::debug!(
+                    "[Runtime] No matching dependencies to sync (results={}, items={:?})",
+                    results.len(),
+                    item_names
+                );
+            }
+        }
+    }
+
+    fn log_flag_clear(&self, app: &AppState, was_preflight: bool, cancelled: bool) {
+        tracing::debug!(
+            "[Runtime] handle_dependency_result: Clearing flags - was_preflight={}, deps_resolving={}, preflight_deps_resolving={}, cancelled={}",
+            was_preflight,
+            self.get_resolving(app),
+            app.preflight_deps_resolving,
+            cancelled
+        );
+    }
+}
+
 /// What: Handle dependency resolution result event.
 ///
 /// Inputs:
@@ -57,66 +151,7 @@ pub fn handle_dependency_result(
     deps: Vec<crate::state::modal::DependencyInfo>,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    // Check if cancelled before updating
-    let cancelled = app
-        .preflight_cancelled
-        .load(std::sync::atomic::Ordering::Relaxed);
-    let was_preflight = app.preflight_deps_resolving;
-    tracing::debug!(
-        "[Runtime] handle_dependency_result: Clearing flags - was_preflight={}, deps_resolving={}, preflight_deps_resolving={}, cancelled={}",
-        was_preflight,
-        app.deps_resolving,
-        app.preflight_deps_resolving,
-        cancelled
-    );
-    app.deps_resolving = false; // CRITICAL: Always reset this flag when we receive ANY result
-    app.preflight_deps_resolving = false; // Also reset preflight flag
-
-    if !cancelled {
-        // Update cached dependencies
-        tracing::info!(
-            stage = "dependencies",
-            result_count = deps.len(),
-            "[Runtime] Dependency resolution worker completed"
-        );
-        app.install_list_deps = deps.clone();
-        // Sync dependencies to preflight modal if it's open (whether preflight or install list resolution)
-        if let crate::state::Modal::Preflight {
-            items,
-            dependency_info,
-            ..
-        } = &mut app.modal
-        {
-            // Filter dependencies to only those required by current modal items
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let filtered_deps: Vec<_> = deps
-                .iter()
-                .filter(|dep| {
-                    dep.required_by
-                        .iter()
-                        .any(|req_by| item_names.contains(req_by))
-                })
-                .cloned()
-                .collect();
-            if !filtered_deps.is_empty() {
-                tracing::debug!(
-                    "[Runtime] Synced {} dependencies to preflight modal (was_preflight={})",
-                    filtered_deps.len(),
-                    was_preflight
-                );
-                *dependency_info = filtered_deps;
-            }
-        }
-        if was_preflight {
-            app.preflight_deps_items = None;
-        }
-        app.deps_cache_dirty = true; // Mark cache as dirty for persistence
-    } else if was_preflight {
-        tracing::debug!("[Runtime] Ignoring dependency result (preflight cancelled)");
-        app.preflight_deps_items = None;
-    }
-    let _ = tick_tx.send(());
+    handle_result(app, deps, tick_tx, DependencyHandlerConfig);
 }
 
 #[cfg(test)]

@@ -3,6 +3,12 @@
 //! The functions in this module are intentionally lightweight and dependency-free
 //! to keep hot paths fast and reduce compile times. They are used by networking,
 //! indexing, and UI code.
+
+pub mod config;
+pub mod curl;
+pub mod pacman;
+pub mod srcinfo;
+
 use serde_json::Value;
 
 /// Ensure mouse capture is enabled for the TUI.

@@ -1,8 +1,5 @@
 //! Network and system data retrieval module split into submodules.
 
-use crate::util::curl_args;
-use serde_json::Value;
-
 mod details;
 mod news;
 mod pkgbuild;
@@ -10,111 +7,6 @@ mod search;
 pub mod status;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-
-/// What: Fetch JSON from a URL using curl and parse into `serde_json::Value`
-///
-/// Input: `url` HTTP(S) to request
-/// Output: `Ok(Value)` on success; `Err` if curl fails or the response is not valid JSON
-///
-/// Details: Executes curl with appropriate flags and parses the UTF-8 body with `serde_json`.
-/// On Windows, uses `-k` flag to skip SSL certificate verification.
-fn curl_json(url: &str) -> Result<Value> {
-    let args = curl_args(url, &[]);
-    let out = std::process::Command::new("curl").args(&args).output()?;
-    if !out.status.success() {
-        let error_msg = if let Some(code) = out.status.code() {
-            match code {
-                22 => {
-                    "HTTP error from server (likely 502/503/504 - server temporarily unavailable)"
-                        .to_string()
-                }
-                6 => "Could not resolve host (DNS/network issue)".to_string(),
-                7 => "Failed to connect to host (network unreachable)".to_string(),
-                28 => "Operation timeout".to_string(),
-                _ => format!("curl failed with exit code {}", code),
-            }
-        } else {
-            format!("curl failed: {:?}", out.status)
-        };
-        return Err(error_msg.into());
-    }
-    let body = String::from_utf8(out.stdout)?;
-    let v: Value = serde_json::from_str(&body)?;
-    Ok(v)
-}
-
-/// What: Fetch plain text from a URL using curl
-///
-/// Input:
-/// - `url` to request
-///
-/// Output:
-/// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
-///
-/// Details:
-/// - Executes curl with appropriate flags and returns the raw body as a `String`.
-/// - On Windows, uses `-k` flag to skip SSL certificate verification.
-/// - Provides user-friendly error messages for common curl failure cases.
-fn curl_text(url: &str) -> Result<String> {
-    curl_text_with_args(url, &[])
-}
-
-/// What: Fetch plain text from a URL using curl with custom arguments.
-///
-/// Input:
-/// - `url` to request
-/// - `extra_args` additional curl arguments (e.g., `["--max-time", "10"]`)
-///
-/// Output:
-/// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
-///
-/// Details:
-/// - Executes curl with appropriate flags plus extra arguments.
-/// - On Windows, uses `-k` flag to skip SSL certificate verification.
-/// - Provides user-friendly error messages for common curl failure cases.
-fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
-    let args = curl_args(url, extra_args);
-    let out = std::process::Command::new("curl")
-        .args(&args)
-        .output()
-        .map_err(|e| {
-            format!(
-                "curl command failed to execute: {} (is curl installed and in PATH?)",
-                e
-            )
-        })?;
-    if !out.status.success() {
-        let error_msg = if let Some(code) = out.status.code() {
-            match code {
-                22 => {
-                    "HTTP error from server (likely 502/503/504 - server temporarily unavailable)"
-                        .to_string()
-                }
-                6 => "Could not resolve host (DNS/network issue)".to_string(),
-                7 => "Failed to connect to host (network unreachable)".to_string(),
-                28 => "Operation timeout".to_string(),
-                _ => format!("curl failed with exit code {}", code),
-            }
-        } else {
-            // Process was terminated by a signal or other reason
-            #[cfg(unix)]
-            {
-                use std::os::unix::process::ExitStatusExt;
-                if let Some(signal) = out.status.signal() {
-                    format!("curl process terminated by signal {}", signal)
-                } else {
-                    format!("curl process failed: {:?}", out.status)
-                }
-            }
-            #[cfg(not(unix))]
-            {
-                format!("curl process failed: {:?}", out.status)
-            }
-        };
-        return Err(error_msg.into());
-    }
-    Ok(String::from_utf8(out.stdout)?)
-}
 
 pub use details::fetch_details;
 pub use news::fetch_arch_news;

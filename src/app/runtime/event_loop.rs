@@ -10,6 +10,70 @@ use super::tick_handler::{
     handle_news, handle_pkgbuild_result, handle_status, handle_summary_result, handle_tick,
 };
 
+/// What: Handle batch of items added to install list.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `channels`: Communication channels
+/// - `first`: First item in the batch
+///
+/// Output: None (side effect: processes items)
+///
+/// Details:
+/// - Batch-drains imported items arriving close together to avoid repeated redraws
+fn handle_add_batch(app: &mut AppState, channels: &mut Channels, first: PackageItem) {
+    let mut batch = vec![first];
+    loop {
+        match channels.add_rx.try_recv() {
+            Ok(it) => batch.push(it),
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+        }
+    }
+    for it in batch.into_iter() {
+        handle_add_to_install_list(
+            app,
+            it,
+            &channels.deps_req_tx,
+            &channels.files_req_tx,
+            &channels.services_req_tx,
+            &channels.sandbox_req_tx,
+        );
+    }
+}
+
+/// What: Handle file result with logging.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `channels`: Communication channels
+/// - `files`: File resolution results
+///
+/// Output: None (side effect: processes files)
+fn handle_file_result_with_logging(
+    app: &mut AppState,
+    channels: &mut Channels,
+    files: Vec<crate::state::modal::PackageFileInfo>,
+) {
+    tracing::debug!(
+        "[Runtime] Received file result: {} entries for packages: {:?}",
+        files.len(),
+        files.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+    for file_info in &files {
+        tracing::debug!(
+            "[Runtime] Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
+            file_info.name,
+            file_info.total_count,
+            file_info.new_count,
+            file_info.changed_count,
+            file_info.removed_count,
+            file_info.config_count
+        );
+    }
+    handle_file_result(app, files, &channels.tick_tx);
+}
+
 /// What: Process one iteration of channel message handling.
 ///
 /// Inputs:
@@ -57,26 +121,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(first) = channels.add_rx.recv() => {
-            // Batch-drain imported items arriving close together to avoid
-            // repeated redraws and disk writes. Limit batch window to ~50ms.
-            let mut batch = vec![first];
-            loop {
-                match channels.add_rx.try_recv() {
-                    Ok(it) => batch.push(it),
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
-                }
-            }
-            for it in batch.into_iter() {
-                handle_add_to_install_list(
-                    app,
-                    it,
-                    &channels.deps_req_tx,
-                    &channels.files_req_tx,
-                    &channels.services_req_tx,
-                    &channels.sandbox_req_tx,
-                );
-            }
+            handle_add_batch(app, channels, first);
             false
         }
         Some(deps) = channels.deps_res_rx.recv() => {
@@ -84,26 +129,14 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(files) = channels.files_res_rx.recv() => {
-            tracing::debug!(
-                "[Runtime] Received file result: {} entries for packages: {:?}",
-                files.len(),
-                files.iter().map(|f| &f.name).collect::<Vec<_>>()
-            );
-            for file_info in &files {
-                tracing::debug!(
-                    "[Runtime] Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
-                    file_info.name,
-                    file_info.total_count,
-                    file_info.new_count,
-                    file_info.changed_count,
-                    file_info.removed_count,
-                    file_info.config_count
-                );
-            }
-            handle_file_result(app, files, &channels.tick_tx);
+            handle_file_result_with_logging(app, channels, files);
             false
         }
         Some(services) = channels.services_res_rx.recv() => {
+            tracing::debug!(
+                "[Runtime] Received service result: {} entries",
+                services.len()
+            );
             handle_service_result(app, services, &channels.tick_tx);
             false
         }

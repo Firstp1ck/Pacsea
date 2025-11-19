@@ -13,26 +13,11 @@ use super::explicit_lock;
 /// Details:
 /// - Converts command stdout into a `HashSet` and replaces the shared cache atomically.
 pub async fn refresh_explicit_cache() {
-    /// What: Execute `pacman -Qetq` and capture the list of explicit leaf packages.
-    ///
-    /// Inputs:
-    /// - None (arguments fixed to `-Qetq`).
-    ///
-    /// Output:
-    /// - `Ok(String)` containing UTF-8 stdout of package names; error otherwise.
-    ///
-    /// Details:
-    /// - Propagates non-zero exit codes and UTF-8 decoding failures as boxed errors.
-    fn run_pacman_qe() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        let out = std::process::Command::new("pacman")
-            .args(["-Qetq"]) // explicitly installed AND not required (leaf), names only
-            .output()?;
-        if !out.status.success() {
-            return Err(format!("pacman -Qetq exited with {:?}", out.status).into());
-        }
-        Ok(String::from_utf8(out.stdout)?)
-    }
-    if let Ok(Ok(body)) = tokio::task::spawn_blocking(run_pacman_qe).await {
+    if let Ok(Ok(body)) = tokio::task::spawn_blocking(|| {
+        crate::util::pacman::run_pacman(&["-Qetq"]) // explicitly installed AND not required (leaf), names only
+    })
+    .await
+    {
         let set: HashSet<String> = body.lines().map(|s| s.trim().to_string()).collect();
         if let Ok(mut g) = explicit_lock().write() {
             *g = set;

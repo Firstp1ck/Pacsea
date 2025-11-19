@@ -180,6 +180,53 @@ pub(crate) fn join(list: &[String]) -> String {
     }
 }
 
+/// What: Format bytes into human-readable string with appropriate unit.
+///
+/// Inputs:
+/// - `value`: Number of bytes to format.
+///
+/// Output:
+/// - Returns a formatted string like "1.5 MiB" or "1024 B".
+///
+/// Details:
+/// - Uses binary units (KiB, MiB, GiB, etc.) and shows integer for bytes < 1024, otherwise 1 decimal place.
+pub fn format_bytes(value: u64) -> String {
+    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+    let mut size = value as f64;
+    let mut unit_index = 0usize;
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
+    }
+    if unit_index == 0 {
+        format!("{} {}", value, UNITS[unit_index])
+    } else {
+        format!("{:.1} {}", size, UNITS[unit_index])
+    }
+}
+
+/// What: Format signed bytes into human-readable string with +/- prefix.
+///
+/// Inputs:
+/// - `value`: Signed number of bytes to format.
+///
+/// Output:
+/// - Returns a formatted string like "+1.5 MiB" or "-512 KiB" or "0 B".
+///
+/// Details:
+/// - Uses format_bytes for magnitude and adds +/- prefix based on sign.
+pub fn format_signed_bytes(value: i64) -> String {
+    if value == 0 {
+        return "0 B".to_string();
+    }
+    let magnitude = value.unsigned_abs();
+    if value > 0 {
+        format!("+{}", format_bytes(magnitude))
+    } else {
+        format!("-{}", format_bytes(magnitude))
+    }
+}
+
 /// What: Format a byte count using binary units with one decimal place.
 ///
 /// Inputs:
@@ -190,6 +237,7 @@ pub(crate) fn join(list: &[String]) -> String {
 ///
 /// Details:
 /// - Iteratively divides by 1024 up to PiB, retaining one decimal place for readability.
+/// - Always shows decimal place (unlike format_bytes which shows integer for bytes < 1024).
 pub fn human_bytes(n: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
     let mut v = n as f64;

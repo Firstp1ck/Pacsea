@@ -14,7 +14,7 @@ pub mod preflight;
 pub mod query;
 
 pub use filter::{filtered_install_indices, filtered_recent_indices};
-pub use format::{format_details_lines, human_bytes};
+pub use format::{format_bytes, format_details_lines, format_signed_bytes, human_bytes};
 pub use preflight::is_package_loading_preflight;
 pub use query::{fetch_first_match_for_query, trigger_recent_preview};
 

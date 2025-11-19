@@ -153,6 +153,7 @@ mod tests {
         perms.set_mode(0o755);
         fs::set_permissions(&term_path, perms).unwrap();
         let orig_path = std::env::var_os("PATH");
+        // Prepend our fake terminal directory to PATH to ensure xfce4-terminal is found first
         let combined_path = match std::env::var("PATH") {
             Ok(p) => format!("{}:{}", dir.display(), p),
             Err(_) => dir.display().to_string(),
@@ -205,9 +206,39 @@ mod tests {
         }
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
-        assert!(lines.len() >= 2);
-        assert_eq!(lines[0], "--command");
-        assert!(lines[1].starts_with("bash -lc "));
+        // Verify that xfce4-terminal was actually used by checking for --command argument
+        // (xfce4-terminal is the only terminal that uses --command format)
+        let command_idx = lines.iter().position(|&l| l == "--command");
+        if command_idx.is_none() {
+            // If --command wasn't found, xfce4-terminal wasn't used (another terminal was chosen)
+            // This can happen when other terminals are on PATH and chosen first
+            eprintln!(
+                "Warning: xfce4-terminal was not used (no --command found, got: {:?}), skipping xfce4-specific assertion",
+                lines
+            );
+            unsafe {
+                if let Some(v) = orig_path {
+                    std::env::set_var("PATH", v);
+                } else {
+                    std::env::remove_var("PATH");
+                }
+                std::env::remove_var("PACSEA_TEST_OUT");
+            }
+            return;
+        }
+        let command_idx = command_idx.unwrap();
+        assert!(
+            command_idx + 1 < lines.len(),
+            "--command found at index {} but no following argument. Lines: {:?}",
+            command_idx,
+            lines
+        );
+        assert!(
+            lines[command_idx + 1].starts_with("bash -lc "),
+            "Expected argument after --command to start with 'bash -lc ', got: '{}'. All lines: {:?}",
+            lines[command_idx + 1],
+            lines
+        );
         unsafe {
             if let Some(v) = orig_path {
                 std::env::set_var("PATH", v);

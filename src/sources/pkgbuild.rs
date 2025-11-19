@@ -74,7 +74,7 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
             // Use curl with timeout to prevent hanging
             let res = tokio::task::spawn_blocking({
                 let url = url.clone();
-                move || super::curl_text_with_args(&url, &["--max-time", "10"])
+                move || crate::util::curl::curl_text_with_args(&url, &["--max-time", "10"])
             })
             .await??;
             Ok(res)
@@ -86,7 +86,7 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
             );
             if let Ok(Ok(txt)) = tokio::task::spawn_blocking({
                 let u = url_main.clone();
-                move || super::curl_text_with_args(&u, &["--max-time", "10"])
+                move || crate::util::curl::curl_text_with_args(&u, &["--max-time", "10"])
             })
             .await
             {
@@ -98,7 +98,7 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
             );
             let txt = tokio::task::spawn_blocking({
                 let u = url_master;
-                move || super::curl_text_with_args(&u, &["--max-time", "10"])
+                move || crate::util::curl::curl_text_with_args(&u, &["--max-time", "10"])
             })
             .await??;
             Ok(txt)

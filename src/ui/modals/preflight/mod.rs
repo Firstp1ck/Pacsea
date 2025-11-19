@@ -45,13 +45,15 @@ pub fn render_preflight(
 
     let th = theme();
     tracing::debug!(
-        "[UI] render_preflight START: tab={:?}, items={}, deps={}, files={}, services={}, sandbox={}",
+        "[UI] render_preflight START: tab={:?}, items={}, deps={}, files={}, services={}, sandbox={}, cache_deps={}, cache_files={}",
         fields.tab,
         fields.items.len(),
         fields.dependency_info.len(),
         fields.file_info.len(),
         fields.service_info.len(),
-        fields.sandbox_info.len()
+        fields.sandbox_info.len(),
+        app.install_list_deps.len(),
+        app.install_list_files.len()
     );
 
     // Sync data from app cache to modal state
@@ -85,6 +87,17 @@ pub fn render_preflight(
         fields.tab,
         fields.sandbox_info,
         fields.sandbox_loaded,
+    );
+
+    tracing::debug!(
+        "[UI] render_preflight AFTER SYNC: tab={:?}, deps={}, files={}, cache_deps={}, cache_files={}, resolving_deps={}, resolving_files={}",
+        fields.tab,
+        fields.dependency_info.len(),
+        fields.file_info.len(),
+        app.install_list_deps.len(),
+        app.install_list_files.len(),
+        app.preflight_deps_resolving || app.deps_resolving,
+        app.preflight_files_resolving || app.files_resolving
     );
 
     // Calculate layout

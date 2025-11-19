@@ -112,7 +112,15 @@ pub fn spawn_service_worker(
                     &items_clone,
                     crate::state::modal::PreflightAction::Install,
                 );
-                let _ = res_tx.send(services);
+                tracing::debug!(
+                    "[Background] Sending service result: {} entries",
+                    services.len()
+                );
+                if let Err(e) = res_tx.send(services) {
+                    tracing::error!("[Background] Failed to send service result: {}", e);
+                } else {
+                    tracing::debug!("[Background] Successfully sent service result");
+                }
             });
         }
     });

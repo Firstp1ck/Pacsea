@@ -20,24 +20,6 @@ pub struct PostSummaryData {
     pub snapshot_label: Option<String>,
 }
 
-/// What: Execute `pacman` with the provided arguments and capture stdout.
-///
-/// Inputs:
-/// - `args`: Slice of CLI arguments passed directly to the pacman binary.
-///
-/// Output:
-/// - Returns the command's stdout as a UTF-8 string or propagates execution/parsing errors.
-///
-/// Details:
-/// - Used internally by summary helpers to keep command invocation boilerplate centralized.
-fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let out = std::process::Command::new("pacman").args(args).output()?;
-    if !out.status.success() {
-        return Err(format!("pacman {:?} exited with {:?}", args, out.status).into());
-    }
-    Ok(String::from_utf8(out.stdout)?)
-}
-
 /// What: Count changed files and collect affected systemd services for given packages.
 ///
 /// Inputs:
@@ -52,7 +34,7 @@ fn count_changed_files_and_services(names: &[String]) -> (usize, Vec<String>) {
     let mut total_files: usize = 0;
     let mut services: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     for name in names {
-        if let Ok(body) = run_pacman(&["-Fl", name]) {
+        if let Ok(body) = crate::util::pacman::run_pacman(&["-Fl", name]) {
             for line in body.lines() {
                 // pacman -Fl format: "<pkg> <path>"
                 if let Some((_pkg, path)) = line.split_once(' ') {

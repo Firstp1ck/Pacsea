@@ -397,7 +397,7 @@ fn enhance_with_srcinfo(
     provided: &HashSet<String>,
     upgradable: &HashSet<String>,
 ) -> Vec<DependencyInfo> {
-    let srcinfo_text = match fetch_srcinfo(name) {
+    let srcinfo_text = match fetch_srcinfo(name, Some(10)) {
         Ok(text) => text,
         Err(e) => {
             tracing::warn!(
@@ -694,7 +694,7 @@ pub(crate) fn fetch_package_conflicts(name: &str, source: &Source) -> Vec<String
             }
 
             // Fall back to .SRCINFO
-            if let Ok(srcinfo_text) = fetch_srcinfo(name) {
+            if let Ok(srcinfo_text) = fetch_srcinfo(name, Some(10)) {
                 tracing::debug!("Using .SRCINFO for conflicts of {}", name);
                 return parse_srcinfo_conflicts(&srcinfo_text);
             }

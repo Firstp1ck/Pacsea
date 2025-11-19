@@ -46,7 +46,13 @@ pub(crate) fn handle_tab_switch(app: &mut AppState, direction: bool) -> bool {
         };
 
     if let crate::state::Modal::Preflight { tab, .. } = &mut app.modal {
+        let old_tab = *tab;
         *tab = new_tab;
+        tracing::info!(
+            "[Preflight] Keyboard tab switch: Updated tab field from {:?} to {:?}",
+            old_tab,
+            new_tab
+        );
     }
 
     switch_preflight_tab(new_tab, app, &items, &action);

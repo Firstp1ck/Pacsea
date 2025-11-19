@@ -394,29 +394,5 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
 /// Details:
 /// - Downloads .SRCINFO from AUR cgit repository.
 pub fn fetch_srcinfo_sync(name: &str) -> Result<String, String> {
-    let url = format!(
-        "https://aur.archlinux.org/cgit/aur.git/plain/.SRCINFO?h={}",
-        percent_encode(name)
-    );
-    tracing::debug!("Fetching .SRCINFO from: {}", url);
-
-    let args = curl_args(&url, &[]);
-    let output = Command::new("curl")
-        .args(&args)
-        .output()
-        .map_err(|e| format!("curl failed: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "curl failed with status: {:?}",
-            output.status.code()
-        ));
-    }
-
-    let text = String::from_utf8_lossy(&output.stdout).to_string();
-    if text.trim().is_empty() {
-        return Err("Empty .SRCINFO content".to_string());
-    }
-
-    Ok(text)
+    crate::util::srcinfo::fetch_srcinfo(name, None)
 }

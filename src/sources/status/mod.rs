@@ -20,14 +20,17 @@ type Result<T> = super::Result<T>;
 pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     // 1) Prefer the official Statuspage API (reliable for active incidents and component states)
     let api_url = "https://status.archlinux.org/api/v2/summary.json";
-    let api_result = tokio::task::spawn_blocking(move || super::curl_json(api_url)).await;
+    let api_result =
+        tokio::task::spawn_blocking(move || crate::util::curl::curl_json(api_url)).await;
 
     if let Ok(Ok(v)) = api_result {
         let (mut text, mut color, suffix) = parse_status_api_summary(&v);
 
         // Always fetch HTML to check the visual indicator (rect color/beam) which may differ from API status
-        if let Ok(Ok(html)) =
-            tokio::task::spawn_blocking(|| super::curl_text("https://status.archlinux.org")).await
+        if let Ok(Ok(html)) = tokio::task::spawn_blocking(|| {
+            crate::util::curl::curl_text("https://status.archlinux.org")
+        })
+        .await
         {
             // FIRST PRIORITY: Check if AUR specifically shows "Down" status in monitors section
             // This must be checked before anything else as it's the most specific indicator
@@ -115,15 +118,18 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     // 2) Try the UptimeRobot API endpoint (the actual API the status page uses)
     let uptimerobot_api_url = "https://status.archlinux.org/api/getMonitorList/vmM5ruWEAB";
     let uptimerobot_result =
-        tokio::task::spawn_blocking(move || super::curl_json(uptimerobot_api_url)).await;
+        tokio::task::spawn_blocking(move || crate::util::curl::curl_json(uptimerobot_api_url))
+            .await;
 
     if let Ok(Ok(v)) = uptimerobot_result
         && let Some((mut text, mut color)) = parse_uptimerobot_api(&v)
     {
         // Also fetch HTML to check if AUR specifically shows "Down" status
         // This takes priority over API response
-        if let Ok(Ok(html)) =
-            tokio::task::spawn_blocking(|| super::curl_text("https://status.archlinux.org")).await
+        if let Ok(Ok(html)) = tokio::task::spawn_blocking(|| {
+            crate::util::curl::curl_text("https://status.archlinux.org")
+        })
+        .await
             && is_aur_down_in_monitors(&html)
         {
             let aur_pct_opt = extract_aur_today_percent(&html);
@@ -138,7 +144,7 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
 
     // 3) Fallback: use the existing HTML parser + banner heuristic if APIs are unavailable
     let url = "https://status.archlinux.org";
-    let body = tokio::task::spawn_blocking(move || super::curl_text(url)).await??;
+    let body = tokio::task::spawn_blocking(move || crate::util::curl::curl_text(url)).await??;
 
     // Skip AUR homepage keyword heuristic to avoid false outage flags
 

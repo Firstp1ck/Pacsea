@@ -360,7 +360,11 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     let backtrace = std::backtrace::Backtrace::force_capture();
     let backtrace_str = format!("{:?}", backtrace);
     // Only warn if NOT in a blocking task (i.e., called from UI thread/event handlers)
-    if !backtrace_str.contains("blocking::task") && !backtrace_str.contains("spawn_blocking") {
+    // Check for various indicators that we're in a blocking thread pool
+    let is_blocking_task = backtrace_str.contains("blocking::task")
+        || backtrace_str.contains("blocking::pool")
+        || backtrace_str.contains("spawn_blocking");
+    if !is_blocking_task {
         tracing::warn!(
             "[Deps] resolve_dependencies called synchronously from UI thread! This will block! Backtrace:\n{}",
             backtrace_str

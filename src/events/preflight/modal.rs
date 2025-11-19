@@ -45,13 +45,22 @@ pub(crate) fn close_preflight_modal(
 ///
 /// Details:
 /// - Handles cache loading and background resolution for each tab type.
+#[allow(clippy::cognitive_complexity)]
 pub(crate) fn switch_preflight_tab(
     new_tab: crate::state::PreflightTab,
     app: &mut AppState,
     items: &[PackageItem],
     action: &crate::state::PreflightAction,
 ) {
+    tracing::info!(
+        "[Preflight] switch_preflight_tab: Switching to {:?}, items={}, action={:?}",
+        new_tab,
+        items.len(),
+        action
+    );
+
     if let crate::state::Modal::Preflight {
+        tab,
         dependency_info,
         dep_selected,
         file_info,
@@ -65,61 +74,117 @@ pub(crate) fn switch_preflight_tab(
         ..
     } = &mut app.modal
     {
+        let old_tab = *tab;
+        *tab = new_tab;
+        tracing::debug!(
+            "[Preflight] switch_preflight_tab: Tab field updated from {:?} to {:?}",
+            old_tab,
+            new_tab
+        );
+
         // Check for cached dependencies when switching to Deps tab
-        if new_tab == crate::state::PreflightTab::Deps && dependency_info.is_empty() {
-            match action {
-                crate::state::PreflightAction::Install => {
-                    let item_names: std::collections::HashSet<String> =
-                        items.iter().map(|i| i.name.clone()).collect();
-                    let cached_deps: Vec<crate::state::modal::DependencyInfo> = app
-                        .install_list_deps
-                        .iter()
-                        .filter(|dep| {
-                            dep.required_by
-                                .iter()
-                                .any(|req_by| item_names.contains(req_by))
-                        })
-                        .cloned()
-                        .collect();
-                    if !cached_deps.is_empty() {
-                        *dependency_info = cached_deps;
-                        *dep_selected = 0;
-                    } else {
-                        tracing::debug!(
-                            "[Preflight] Triggering background dependency resolution for {} packages",
-                            items.len()
+        if new_tab == crate::state::PreflightTab::Deps {
+            tracing::debug!(
+                "[Preflight] switch_preflight_tab: Deps tab - dependency_info.len()={}, cache.len()={}, resolving={}",
+                dependency_info.len(),
+                app.install_list_deps.len(),
+                app.preflight_deps_resolving
+            );
+
+            if dependency_info.is_empty() {
+                match action {
+                    crate::state::PreflightAction::Install => {
+                        let item_names: std::collections::HashSet<String> =
+                            items.iter().map(|i| i.name.clone()).collect();
+                        let cached_deps: Vec<crate::state::modal::DependencyInfo> = app
+                            .install_list_deps
+                            .iter()
+                            .filter(|dep| {
+                                dep.required_by
+                                    .iter()
+                                    .any(|req_by| item_names.contains(req_by))
+                            })
+                            .cloned()
+                            .collect();
+                        tracing::info!(
+                            "[Preflight] switch_preflight_tab: Deps - Found {} cached deps (filtered from {} total), items={:?}",
+                            cached_deps.len(),
+                            app.install_list_deps.len(),
+                            item_names
                         );
-                        app.preflight_deps_items = Some(items.to_vec());
-                        app.preflight_deps_resolving = true;
+                        if !cached_deps.is_empty() {
+                            *dependency_info = cached_deps;
+                            *dep_selected = 0;
+                            tracing::info!(
+                                "[Preflight] switch_preflight_tab: Deps - Loaded {} deps into modal, dep_selected=0",
+                                dependency_info.len()
+                            );
+                        } else {
+                            tracing::debug!(
+                                "[Preflight] Triggering background dependency resolution for {} packages",
+                                items.len()
+                            );
+                            app.preflight_deps_items = Some(items.to_vec());
+                            app.preflight_deps_resolving = true;
+                        }
+                        app.remove_preflight_summary.clear();
                     }
-                    app.remove_preflight_summary.clear();
+                    crate::state::PreflightAction::Remove => {
+                        // For remove action, reverse deps are computed on-demand
+                    }
                 }
-                crate::state::PreflightAction::Remove => {
-                    // For remove action, reverse deps are computed on-demand
-                }
+            } else {
+                tracing::debug!(
+                    "[Preflight] switch_preflight_tab: Deps tab - dependency_info not empty ({} entries), skipping cache load",
+                    dependency_info.len()
+                );
             }
         }
 
         // Check for cached files when switching to Files tab
-        if new_tab == crate::state::PreflightTab::Files && file_info.is_empty() {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let cached_files: Vec<crate::state::modal::PackageFileInfo> = app
-                .install_list_files
-                .iter()
-                .filter(|file_info| item_names.contains(&file_info.name))
-                .cloned()
-                .collect();
-            if !cached_files.is_empty() {
-                *file_info = cached_files;
-                *file_selected = 0;
+        if new_tab == crate::state::PreflightTab::Files {
+            tracing::debug!(
+                "[Preflight] switch_preflight_tab: Files tab - file_info.len()={}, cache.len()={}, resolving={}",
+                file_info.len(),
+                app.install_list_files.len(),
+                app.preflight_files_resolving
+            );
+
+            if file_info.is_empty() {
+                let item_names: std::collections::HashSet<String> =
+                    items.iter().map(|i| i.name.clone()).collect();
+                let cached_files: Vec<crate::state::modal::PackageFileInfo> = app
+                    .install_list_files
+                    .iter()
+                    .filter(|file_info| item_names.contains(&file_info.name))
+                    .cloned()
+                    .collect();
+                tracing::info!(
+                    "[Preflight] switch_preflight_tab: Files - Found {} cached files (filtered from {} total), items={:?}",
+                    cached_files.len(),
+                    app.install_list_files.len(),
+                    item_names
+                );
+                if !cached_files.is_empty() {
+                    *file_info = cached_files;
+                    *file_selected = 0;
+                    tracing::info!(
+                        "[Preflight] switch_preflight_tab: Files - Loaded {} files into modal, file_selected=0",
+                        file_info.len()
+                    );
+                } else {
+                    tracing::debug!(
+                        "[Preflight] Triggering background file resolution for {} packages",
+                        items.len()
+                    );
+                    app.preflight_files_items = Some(items.to_vec());
+                    app.preflight_files_resolving = true;
+                }
             } else {
                 tracing::debug!(
-                    "[Preflight] Triggering background file resolution for {} packages",
-                    items.len()
+                    "[Preflight] switch_preflight_tab: Files tab - file_info not empty ({} entries), skipping cache load",
+                    file_info.len()
                 );
-                app.preflight_files_items = Some(items.to_vec());
-                app.preflight_files_resolving = true;
             }
         }
 
