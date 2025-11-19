@@ -884,3 +884,461 @@ fn files_filtered_by_package_name_on_cache_load() {
         panic!("expected Preflight modal");
     }
 }
+
+// Key Handler Safety Tests
+// These tests prevent the TUI from closing unexpectedly when using preflight key handlers
+
+#[test]
+/// What: Verify that pressing 'f' for file sync doesn't close the TUI.
+///
+/// Inputs:
+///   - Preflight modal open on Files tab
+///   - 'f' key pressed
+///
+/// Output:
+///   - Handler returns `false` (TUI stays open)
+///
+/// Details:
+///   - Verifies the fix for issue where 'f' key closed the TUI
+fn test_f_key_file_sync_doesnt_close_tui() {
+    let mut app = AppState::default();
+    app.modal = Modal::Preflight {
+        items: vec![pkg("test-package")],
+        action: PreflightAction::Install,
+        tab: PreflightTab::Files,
+        summary: None,
+        summary_scroll: 0,
+        header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        dependency_info: Vec::new(),
+        dep_selected: 0,
+        dep_tree_expanded: HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: CascadeMode::Basic,
+    };
+
+    let key_event = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::empty());
+    let should_exit = handle_preflight_key(key_event, &mut app);
+
+    assert!(
+        !should_exit,
+        "Pressing 'f' for file sync should not close the TUI"
+    );
+}
+
+#[test]
+/// What: Verify that pressing 'p' to proceed with install doesn't close the TUI.
+///
+/// Inputs:
+///   - Preflight modal open with Install action
+///   - 'p' key pressed
+///
+/// Output:
+///   - Handler returns `false` (TUI stays open)
+///
+/// Details:
+///   - Verifies the fix for issue where 'p' key closed the TUI
+fn test_p_key_proceed_install_doesnt_close_tui() {
+    let mut app = AppState::default();
+    app.modal = Modal::Preflight {
+        items: vec![pkg("test-package")],
+        action: PreflightAction::Install,
+        tab: PreflightTab::Summary,
+        summary: None,
+        summary_scroll: 0,
+        header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        dependency_info: Vec::new(),
+        dep_selected: 0,
+        dep_tree_expanded: HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: CascadeMode::Basic,
+    };
+
+    let key_event = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::empty());
+    let should_exit = handle_preflight_key(key_event, &mut app);
+
+    assert!(
+        !should_exit,
+        "Pressing 'p' to proceed should not close the TUI"
+    );
+}
+
+#[test]
+/// What: Verify that pressing 'p' to proceed with remove doesn't close the TUI.
+///
+/// Inputs:
+///   - Preflight modal open with Remove action
+///   - 'p' key pressed
+///
+/// Output:
+///   - Handler returns `false` (TUI stays open)
+///
+/// Details:
+///   - Verifies the fix for issue where 'p' key closed the TUI for remove action
+fn test_p_key_proceed_remove_doesnt_close_tui() {
+    let mut app = AppState::default();
+    app.modal = Modal::Preflight {
+        items: vec![pkg("test-package")],
+        action: PreflightAction::Remove,
+        tab: PreflightTab::Summary,
+        summary: None,
+        summary_scroll: 0,
+        header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        dependency_info: Vec::new(),
+        dep_selected: 0,
+        dep_tree_expanded: HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: CascadeMode::Cascade, // Allow proceeding without dependency info
+    };
+
+    let key_event = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::empty());
+    let should_exit = handle_preflight_key(key_event, &mut app);
+
+    assert!(
+        !should_exit,
+        "Pressing 'p' to proceed with remove should not close the TUI"
+    );
+}
+
+#[test]
+/// What: Verify that pressing 'q' to quit modal doesn't close the TUI.
+///
+/// Inputs:
+///   - Preflight modal open
+///   - 'q' key pressed
+///
+/// Output:
+///   - Handler returns `false` (TUI stays open)
+///   - Modal is closed but TUI continues
+///
+/// Details:
+///   - Verifies the fix for issue where 'q' key closed the TUI
+fn test_q_key_quit_modal_doesnt_close_tui() {
+    let mut app = AppState::default();
+    app.modal = Modal::Preflight {
+        items: vec![pkg("test-package")],
+        action: PreflightAction::Install,
+        tab: PreflightTab::Summary,
+        summary: None,
+        summary_scroll: 0,
+        header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        dependency_info: Vec::new(),
+        dep_selected: 0,
+        dep_tree_expanded: HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: CascadeMode::Basic,
+    };
+
+    let key_event = KeyEvent::new(KeyCode::Char('q'), KeyModifiers::empty());
+    let should_exit = handle_preflight_key(key_event, &mut app);
+
+    assert!(
+        !should_exit,
+        "Pressing 'q' to quit modal should not close the TUI"
+    );
+    assert!(
+        matches!(app.modal, Modal::None),
+        "Modal should be closed after pressing 'q'"
+    );
+}
+
+#[test]
+/// What: Verify that pressing Esc to close modal doesn't close the TUI.
+///
+/// Inputs:
+///   - Preflight modal open
+///   - Esc key pressed
+///
+/// Output:
+///   - Handler returns `false` (TUI stays open)
+///   - Modal is closed but TUI continues
+///
+/// Details:
+///   - Verifies the fix for issue where Esc key closed the TUI
+fn test_esc_key_close_modal_doesnt_close_tui() {
+    let mut app = AppState::default();
+    app.modal = Modal::Preflight {
+        items: vec![pkg("test-package")],
+        action: PreflightAction::Install,
+        tab: PreflightTab::Summary,
+        summary: None,
+        summary_scroll: 0,
+        header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        dependency_info: Vec::new(),
+        dep_selected: 0,
+        dep_tree_expanded: HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: CascadeMode::Basic,
+    };
+
+    let key_event = KeyEvent::new(KeyCode::Esc, KeyModifiers::empty());
+    let should_exit = handle_preflight_key(key_event, &mut app);
+
+    assert!(
+        !should_exit,
+        "Pressing Esc to close modal should not close the TUI"
+    );
+    assert!(
+        matches!(app.modal, Modal::None),
+        "Modal should be closed after pressing Esc"
+    );
+}
+
+#[test]
+/// What: Verify that pressing Enter doesn't close the TUI.
+///
+/// Inputs:
+///   - Preflight modal open
+///   - Enter key pressed
+///
+/// Output:
+///   - Handler returns `false` (TUI stays open)
+///
+/// Details:
+///   - Verifies the fix for issue where Enter key closed the TUI
+fn test_enter_key_doesnt_close_tui() {
+    let mut app = AppState::default();
+    app.modal = Modal::Preflight {
+        items: vec![pkg("test-package")],
+        action: PreflightAction::Install,
+        tab: PreflightTab::Summary,
+        summary: None,
+        summary_scroll: 0,
+        header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        dependency_info: Vec::new(),
+        dep_selected: 0,
+        dep_tree_expanded: HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: CascadeMode::Basic,
+    };
+
+    let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    let should_exit = handle_preflight_key(key_event, &mut app);
+
+    assert!(!should_exit, "Pressing Enter should not close the TUI");
+}
+
+#[test]
+/// What: Verify that all preflight key handlers return false when modal is open.
+///
+/// Inputs:
+///   - Preflight modal open
+///   - Various key handlers called
+///
+/// Output:
+///   - All handlers return `false` (TUI stays open)
+///
+/// Details:
+///   - Comprehensive test to catch any future regressions
+///   - Tests multiple key combinations
+fn test_all_preflight_keys_return_false() {
+    let keys_to_test = vec![
+        (KeyCode::Char('f'), "f key"),
+        (KeyCode::Char('F'), "F key"),
+        (KeyCode::Char('p'), "p key"),
+        (KeyCode::Char('P'), "P key"),
+        (KeyCode::Char('q'), "q key"),
+        (KeyCode::Char('Q'), "Q key"),
+        (KeyCode::Char('s'), "s key"),
+        (KeyCode::Char('S'), "S key"),
+        (KeyCode::Char('c'), "c key"),
+        (KeyCode::Char('m'), "m key"),
+        (KeyCode::Char('d'), "d key"),
+        (KeyCode::Char('?'), "? key"),
+        (KeyCode::Esc, "Esc key"),
+        (KeyCode::Enter, "Enter key"),
+    ];
+
+    for (key_code, key_name) in keys_to_test {
+        let mut app = AppState::default();
+        let mut tab = PreflightTab::Summary;
+
+        // Switch to Files tab for 'f' key test
+        if matches!(key_code, KeyCode::Char('f') | KeyCode::Char('F')) {
+            tab = PreflightTab::Files;
+        }
+
+        app.modal = Modal::Preflight {
+            items: vec![pkg("test-package")],
+            action: PreflightAction::Install,
+            tab,
+            summary: None,
+            summary_scroll: 0,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            dependency_info: Vec::new(),
+            dep_selected: 0,
+            dep_tree_expanded: HashSet::new(),
+            deps_error: None,
+            file_info: Vec::new(),
+            file_selected: 0,
+            file_tree_expanded: HashSet::new(),
+            files_error: None,
+            service_info: Vec::new(),
+            service_selected: 0,
+            services_loaded: false,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
+            cascade_mode: CascadeMode::Basic,
+        };
+
+        let key_event = KeyEvent::new(key_code, KeyModifiers::empty());
+        let should_exit = handle_preflight_key(key_event, &mut app);
+
+        assert!(
+            !should_exit,
+            "{} should not close the TUI (returned true, expected false)",
+            key_name
+        );
+    }
+}
+
+#[test]
+/// What: Verify that key handlers work correctly when modal is on different tabs.
+///
+/// Inputs:
+///   - Preflight modal open on different tabs
+///   - Keys pressed that are tab-specific
+///
+/// Output:
+///   - Handlers return `false` regardless of tab
+///
+/// Details:
+///   - Ensures tab-specific keys don't cause TUI to close
+fn test_keys_return_false_on_all_tabs() {
+    let tabs = vec![
+        PreflightTab::Summary,
+        PreflightTab::Deps,
+        PreflightTab::Files,
+        PreflightTab::Services,
+        PreflightTab::Sandbox,
+    ];
+
+    for tab in tabs {
+        let mut app = AppState::default();
+        app.modal = Modal::Preflight {
+            items: vec![pkg("test-package")],
+            action: PreflightAction::Install,
+            tab,
+            summary: None,
+            summary_scroll: 0,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            dependency_info: Vec::new(),
+            dep_selected: 0,
+            dep_tree_expanded: HashSet::new(),
+            deps_error: None,
+            file_info: Vec::new(),
+            file_selected: 0,
+            file_tree_expanded: HashSet::new(),
+            files_error: None,
+            service_info: Vec::new(),
+            service_selected: 0,
+            services_loaded: false,
+            services_error: None,
+            sandbox_info: Vec::new(),
+            sandbox_selected: 0,
+            sandbox_tree_expanded: HashSet::new(),
+            sandbox_loaded: false,
+            sandbox_error: None,
+            selected_optdepends: std::collections::HashMap::new(),
+            cascade_mode: CascadeMode::Basic,
+        };
+
+        // Test 'p' key on each tab
+        let key_event = KeyEvent::new(KeyCode::Char('p'), KeyModifiers::empty());
+        let should_exit = handle_preflight_key(key_event, &mut app);
+
+        assert!(
+            !should_exit,
+            "Pressing 'p' on {:?} tab should not close the TUI",
+            tab
+        );
+    }
+}

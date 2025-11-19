@@ -1,7 +1,14 @@
+use crate::logic::files::get_pkgbuild_from_cache;
 use crate::state::{PackageItem, Source};
 use crate::util::percent_encode;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 type Result<T> = super::Result<T>;
+
+// Rate limiter for PKGBUILD requests to avoid overwhelming AUR servers
+static PKGBUILD_RATE_LIMITER: Mutex<Option<Instant>> = Mutex::new(None);
+const PKGBUILD_MIN_INTERVAL_MS: u64 = 200; // Minimum 200ms between requests (reduced from 500ms for faster preview)
 
 /// What: Fetch PKGBUILD content for a package from AUR or official Git packaging repos.
 ///
@@ -10,25 +17,76 @@ type Result<T> = super::Result<T>;
 ///
 /// Output:
 /// - `Ok(String)` with PKGBUILD text when available; `Err` on network or lookup failure.
+///
+/// Details:
+/// - First tries offline methods (yay/paru cache) for fast loading.
+/// - Then tries network with rate limiting and timeout (10s).
+/// - Uses curl with timeout to prevent hanging on slow servers.
 pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
+    let name = item.name.clone();
+
+    // 1. Try offline methods first (yay/paru cache) - this is fast!
+    if let Some(cached) = tokio::task::spawn_blocking({
+        let name = name.clone();
+        move || get_pkgbuild_from_cache(&name)
+    })
+    .await?
+    {
+        tracing::debug!("Using cached PKGBUILD for {} (offline)", name);
+        return Ok(cached);
+    }
+
+    // 2. Rate limiting: ensure minimum interval between requests
+    let delay = {
+        let mut last_request = PKGBUILD_RATE_LIMITER.lock().unwrap();
+        if let Some(last) = *last_request {
+            let elapsed = last.elapsed();
+            if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
+                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) - elapsed;
+                tracing::debug!(
+                    "Rate limiting PKGBUILD request for {}: waiting {:?}",
+                    name,
+                    delay
+                );
+                // Drop the guard before await
+                *last_request = Some(Instant::now());
+                Some(delay)
+            } else {
+                *last_request = Some(Instant::now());
+                None
+            }
+        } else {
+            *last_request = Some(Instant::now());
+            None
+        }
+    };
+    if let Some(delay) = delay {
+        tokio::time::sleep(delay).await;
+    }
+
+    // 3. Fetch from network with timeout
     match &item.source {
         Source::Aur => {
             let url = format!(
                 "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h={}",
-                percent_encode(&item.name)
+                percent_encode(&name)
             );
-            let res = tokio::task::spawn_blocking(move || super::curl_text(&url)).await??;
+            // Use curl with timeout to prevent hanging
+            let res = tokio::task::spawn_blocking({
+                let url = url.clone();
+                move || super::curl_text_with_args(&url, &["--max-time", "10"])
+            })
+            .await??;
             Ok(res)
         }
         Source::Official { .. } => {
-            let name = item.name.clone();
             let url_main = format!(
                 "https://gitlab.archlinux.org/archlinux/packaging/packages/{}/-/raw/main/PKGBUILD",
                 percent_encode(&name)
             );
             if let Ok(Ok(txt)) = tokio::task::spawn_blocking({
                 let u = url_main.clone();
-                move || super::curl_text(&u)
+                move || super::curl_text_with_args(&u, &["--max-time", "10"])
             })
             .await
             {
@@ -38,7 +96,11 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
                 "https://gitlab.archlinux.org/archlinux/packaging/packages/{}/-/raw/master/PKGBUILD",
                 percent_encode(&name)
             );
-            let txt = tokio::task::spawn_blocking(move || super::curl_text(&url_master)).await??;
+            let txt = tokio::task::spawn_blocking({
+                let u = url_master;
+                move || super::curl_text_with_args(&u, &["--max-time", "10"])
+            })
+            .await??;
             Ok(txt)
         }
     }

@@ -16,6 +16,16 @@ use crate::events::preflight::modal::close_preflight_modal;
 ///
 /// Output:
 /// - `true` if modal should close, `false` otherwise.
+/// What: Handle Esc key - close preflight modal.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - Always returns `false` to continue event processing.
+///
+/// Details:
+/// - Closes the preflight modal but keeps the TUI open.
 pub(crate) fn handle_esc_key(app: &mut AppState) -> bool {
     let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
         service_info.clone()
@@ -23,7 +33,8 @@ pub(crate) fn handle_esc_key(app: &mut AppState) -> bool {
         Vec::new()
     };
     close_preflight_modal(app, &service_info);
-    true
+    // Return false to keep TUI open - modal is closed but app continues
+    false
 }
 
 /// What: Handle Enter key - execute Enter/Space action.
@@ -32,7 +43,10 @@ pub(crate) fn handle_esc_key(app: &mut AppState) -> bool {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `true` if modal should close, `false` otherwise.
+/// - Always returns `false` to continue event processing.
+///
+/// Details:
+/// - May close the modal if action requires it, but TUI remains open.
 pub(crate) fn handle_enter_key(app: &mut AppState) -> bool {
     let should_close = if let crate::state::Modal::Preflight {
         tab,
@@ -79,7 +93,8 @@ pub(crate) fn handle_enter_key(app: &mut AppState) -> bool {
             Vec::new()
         };
         close_preflight_modal(app, &service_info);
-        return true;
+        // Return false to keep TUI open - modal is closed but app continues
+        return false;
     }
     false
 }

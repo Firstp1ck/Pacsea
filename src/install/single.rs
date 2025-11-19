@@ -5,12 +5,123 @@ use crate::state::PackageItem;
 #[cfg(not(target_os = "windows"))]
 use crate::state::Source;
 
-#[cfg(not(test))]
+#[cfg(not(target_os = "windows"))]
+use super::command::build_install_command;
+#[cfg(all(target_os = "windows", not(test)))]
 use super::command::build_install_command;
 #[cfg(not(target_os = "windows"))]
 use super::logging::log_installed;
 #[cfg(not(target_os = "windows"))]
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
+
+#[cfg(not(target_os = "windows"))]
+/// What: Attempt to spawn a terminal with the given command.
+///
+/// Input:
+/// - `term`: Terminal binary name
+/// - `args`: Arguments to pass to the terminal
+/// - `needs_xfce_command`: Whether this terminal needs special xfce4-terminal command handling
+/// - `cmd_str`: The install command to execute
+/// - `item_name`: Package name for logging
+/// - `src`: Source type ("official" or "aur") for logging
+/// - `dry_run`: Whether this is a dry run
+///
+/// Output:
+/// - `true` if the terminal was successfully spawned, `false` otherwise
+///
+/// Details:
+/// - Handles xfce4-terminal special command format and sets up PACSEA_TEST_OUT environment variable if needed.
+fn try_spawn_terminal(
+    term: &str,
+    args: &[&str],
+    needs_xfce_command: bool,
+    cmd_str: &str,
+    item_name: &str,
+    src: &str,
+    dry_run: bool,
+) -> bool {
+    let mut cmd = Command::new(term);
+    if needs_xfce_command && term == "xfce4-terminal" {
+        let quoted = shell_single_quote(cmd_str);
+        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+    } else {
+        cmd.args(args.iter().copied()).arg(cmd_str);
+    }
+    if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
+        if let Some(parent) = std::path::Path::new(&p).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        cmd.env("PACSEA_TEST_OUT", p);
+    }
+    match cmd.spawn() {
+        Ok(_) => {
+            tracing::info!(
+                terminal = %term,
+                names = %item_name,
+                total = 1,
+                aur_count = (src == "aur") as usize,
+                official_count = (src == "official") as usize,
+                dry_run,
+                "launched terminal for install"
+            );
+            true
+        }
+        Err(e) => {
+            tracing::warn!(
+                terminal = %term,
+                error = %e,
+                names = %item_name,
+                "failed to spawn terminal, trying next"
+            );
+            false
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Get the terminal preference list based on desktop environment.
+///
+/// Input:
+/// - None (reads XDG_CURRENT_DESKTOP environment variable)
+///
+/// Output:
+/// - Slice of terminal tuples `(name, args, needs_xfce_command)` ordered by preference
+///
+/// Details:
+/// - Prefers GNOME terminals when running under GNOME desktop, otherwise uses default ordering.
+fn get_terminal_preferences() -> &'static [(&'static str, &'static [&'static str], bool)] {
+    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+        .ok()
+        .map(|v| v.to_uppercase().contains("GNOME"))
+        .unwrap_or(false);
+    if is_gnome {
+        &[
+            ("gnome-terminal", &["--", "bash", "-lc"], false),
+            ("gnome-console", &["--", "bash", "-lc"], false),
+            ("kgx", &["--", "bash", "-lc"], false),
+            ("alacritty", &["-e", "bash", "-lc"], false),
+            ("kitty", &["bash", "-lc"], false),
+            ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+            ("konsole", &["-e", "bash", "-lc"], false),
+            ("xfce4-terminal", &[], true),
+            ("tilix", &["--", "bash", "-lc"], false),
+            ("mate-terminal", &["--", "bash", "-lc"], false),
+        ]
+    } else {
+        &[
+            ("alacritty", &["-e", "bash", "-lc"], false),
+            ("kitty", &["bash", "-lc"], false),
+            ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+            ("gnome-terminal", &["--", "bash", "-lc"], false),
+            ("gnome-console", &["--", "bash", "-lc"], false),
+            ("kgx", &["--", "bash", "-lc"], false),
+            ("konsole", &["-e", "bash", "-lc"], false),
+            ("xfce4-terminal", &[], true),
+            ("tilix", &["--", "bash", "-lc"], false),
+            ("mate-terminal", &["--", "bash", "-lc"], false),
+        ]
+    }
+}
 
 #[cfg(not(target_os = "windows"))]
 /// What: Spawn a terminal to install a single package.
@@ -36,106 +147,70 @@ pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: boo
         Source::Official { .. } => "official",
         Source::Aur => "aur",
     };
-    tracing::info!(names = %_item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run = _dry_run, uses_sudo, "spawning install");
-    // Prefer GNOME Terminal when running under GNOME desktop
-    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
-        .ok()
-        .map(|v| v.to_uppercase().contains("GNOME"))
-        .unwrap_or(false);
-    let terms_gnome_first: &[(&str, &[&str], bool)] = &[
-        ("gnome-terminal", &["--", "bash", "-lc"], false),
-        ("gnome-console", &["--", "bash", "-lc"], false),
-        ("kgx", &["--", "bash", "-lc"], false),
-        ("alacritty", &["-e", "bash", "-lc"], false),
-        ("kitty", &["bash", "-lc"], false),
-        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
-        ("konsole", &["-e", "bash", "-lc"], false),
-        ("xfce4-terminal", &[], true),
-        ("tilix", &["--", "bash", "-lc"], false),
-        ("mate-terminal", &["--", "bash", "-lc"], false),
-    ];
-    let terms_default: &[(&str, &[&str], bool)] = &[
-        ("alacritty", &["-e", "bash", "-lc"], false),
-        ("kitty", &["bash", "-lc"], false),
-        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
-        ("gnome-terminal", &["--", "bash", "-lc"], false),
-        ("gnome-console", &["--", "bash", "-lc"], false),
-        ("kgx", &["--", "bash", "-lc"], false),
-        ("konsole", &["-e", "bash", "-lc"], false),
-        ("xfce4-terminal", &[], true),
-        ("tilix", &["--", "bash", "-lc"], false),
-        ("mate-terminal", &["--", "bash", "-lc"], false),
-    ];
-    let terms = if is_gnome {
-        terms_gnome_first
-    } else {
-        terms_default
-    };
+    tracing::info!(
+        names = %_item.name,
+        total = 1,
+        aur_count = (src == "aur") as usize,
+        official_count = (src == "official") as usize,
+        dry_run = _dry_run,
+        uses_sudo,
+        "spawning install"
+    );
+
+    let terms = get_terminal_preferences();
     let mut launched = false;
+
+    // Try preferred path-based selection first
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
-        let mut cmd = Command::new(term);
-        if needs_xfce_command && term == "xfce4-terminal" {
-            let quoted = shell_single_quote(&cmd_str);
-            cmd.arg("--command").arg(format!("bash -lc {}", quoted));
-        } else {
-            cmd.args(args.iter().copied()).arg(&cmd_str);
-        }
-        if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
-            if let Some(parent) = std::path::Path::new(&p).parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            cmd.env("PACSEA_TEST_OUT", p);
-        }
-        let spawn_res = cmd.spawn();
-        match spawn_res {
-            Ok(_) => {
-                tracing::info!(terminal = %term, names = %_item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run = _dry_run, "launched terminal for install");
-            }
-            Err(e) => {
-                tracing::warn!(terminal = %term, error = %e, names = %_item.name, "failed to spawn terminal, trying next");
-            }
-        }
-        launched = true;
-    } else {
+        launched = try_spawn_terminal(
+            term,
+            args,
+            needs_xfce_command,
+            &cmd_str,
+            &_item.name,
+            src,
+            _dry_run,
+        );
+    }
+
+    // Fallback: try each terminal in order
+    if !launched {
         for (term, args, needs_xfce_command) in terms {
             if command_on_path(term) {
-                let mut cmd = Command::new(term);
-                if *needs_xfce_command && *term == "xfce4-terminal" {
-                    let quoted = shell_single_quote(&cmd_str);
-                    cmd.arg("--command").arg(format!("bash -lc {}", quoted));
-                } else {
-                    cmd.args(args.iter().copied()).arg(&cmd_str);
+                launched = try_spawn_terminal(
+                    term,
+                    args,
+                    *needs_xfce_command,
+                    &cmd_str,
+                    &_item.name,
+                    src,
+                    _dry_run,
+                );
+                if launched {
+                    break;
                 }
-                if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
-                    if let Some(parent) = std::path::Path::new(&p).parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    cmd.env("PACSEA_TEST_OUT", p);
-                }
-                let spawn_res = cmd.spawn();
-                match spawn_res {
-                    Ok(_) => {
-                        tracing::info!(terminal = %term, names = %_item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run = _dry_run, "launched terminal for install");
-                    }
-                    Err(e) => {
-                        tracing::warn!(terminal = %term, error = %e, names = %_item.name, "failed to spawn terminal, trying next");
-                        continue;
-                    }
-                }
-                launched = true;
-                break;
             }
         }
     }
+
+    // Final fallback: use bash directly
     if !launched {
         let res = Command::new("bash").args(["-lc", &cmd_str]).spawn();
         if let Err(e) = res {
             tracing::error!(error = %e, names = %_item.name, "failed to spawn bash to run install command");
         } else {
-            tracing::info!(names = %_item.name, total = 1, aur_count = (src == "aur") as usize, official_count = (src == "official") as usize, dry_run = _dry_run, "launched bash for install");
+            tracing::info!(
+                names = %_item.name,
+                total = 1,
+                aur_count = (src == "aur") as usize,
+                official_count = (src == "official") as usize,
+                dry_run = _dry_run,
+                "launched bash for install"
+            );
         }
     }
+
     if !_dry_run && let Err(e) = log_installed(std::slice::from_ref(&_item.name)) {
         tracing::warn!(error = %e, names = %_item.name, "failed to write install audit log");
     }

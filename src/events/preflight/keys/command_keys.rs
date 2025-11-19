@@ -10,7 +10,11 @@ use crate::events::preflight::modal::close_preflight_modal;
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `true` if handled (should return early), `false` otherwise.
+/// - Always returns `false` to continue event processing.
+///
+/// Details:
+/// - Runs the sync operation in a background thread to avoid blocking the UI.
+/// - If sync requires root privileges, launches a terminal with sudo command.
 pub(crate) fn handle_f_key(app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight { tab, .. } = &app.modal {
         if *tab != crate::state::PreflightTab::Files {
@@ -20,56 +24,55 @@ pub(crate) fn handle_f_key(app: &mut AppState) -> bool {
         return false;
     }
 
-    // Use the new ensure_file_db_synced function with force=true
-    // This will attempt to sync regardless of timestamp
-    let sync_result = crate::logic::files::ensure_file_db_synced(true, 7);
-    match sync_result {
-        Ok(synced) => {
-            if synced {
-                app.toast_message =
-                    Some("File database sync completed. Files tab will refresh.".to_string());
-            } else {
-                app.toast_message = Some("File database is already fresh.".to_string());
+    // Show initial message that sync is starting
+    app.toast_message = Some("File database sync starting...".to_string());
+    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+
+    // Run sync in background thread to avoid blocking the UI
+    // Use catch_unwind to prevent panics from crashing the TUI
+    std::thread::spawn(move || {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Use the new ensure_file_db_synced function with force=true
+            // This will attempt to sync regardless of timestamp
+            let sync_result = crate::logic::files::ensure_file_db_synced(true, 7);
+            match sync_result {
+                Ok(synced) => {
+                    if synced {
+                        tracing::info!("File database sync completed successfully");
+                    } else {
+                        tracing::info!("File database is already fresh");
+                    }
+                }
+                Err(e) => {
+                    // Sync failed (likely requires root), launch terminal with sudo
+                    tracing::warn!(
+                        "File database sync failed: {}, launching terminal with sudo",
+                        e
+                    );
+                    let sync_cmd = "sudo pacman -Fy".to_string();
+                    let cmds = vec![sync_cmd];
+                    crate::install::spawn_shell_commands_in_terminal(&cmds);
+                }
             }
-            app.toast_expires_at =
-                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
-            // Clear file_info to trigger re-resolution after sync completes
-            if let crate::state::Modal::Preflight {
-                file_info,
-                file_selected,
-                ..
-            } = &mut app.modal
-            {
-                *file_info = Vec::new();
-                *file_selected = 0;
-            }
+        }));
+
+        if let Err(panic_info) = result {
+            tracing::error!("File database sync thread panicked: {:?}", panic_info);
         }
-        Err(e) => {
-            // Sync failed (likely requires root), launch terminal with sudo
-            let sync_cmd = "sudo pacman -Fy".to_string();
-            let cmds = vec![sync_cmd];
-            std::thread::spawn(move || {
-                crate::install::spawn_shell_commands_in_terminal(&cmds);
-            });
-            app.toast_message = Some(format!(
-                "File database sync started in terminal (requires root). Error: {}",
-                e
-            ));
-            app.toast_expires_at =
-                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
-            // Clear file_info to trigger re-resolution after sync completes
-            if let crate::state::Modal::Preflight {
-                file_info,
-                file_selected,
-                ..
-            } = &mut app.modal
-            {
-                *file_info = Vec::new();
-                *file_selected = 0;
-            }
-        }
+    });
+
+    // Clear file_info to trigger re-resolution after sync completes
+    if let crate::state::Modal::Preflight {
+        file_info,
+        file_selected,
+        ..
+    } = &mut app.modal
+    {
+        *file_info = Vec::new();
+        *file_selected = 0;
     }
-    true
+
+    false
 }
 
 /// What: Handle S key - open scan configuration modal.
@@ -172,15 +175,19 @@ pub(crate) fn handle_m_key(app: &mut AppState) -> bool {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `true` if modal should close, `false` otherwise.
+/// - Always returns `false` to continue event processing.
+///
+/// Details:
+/// - Closes the modal if install/remove is triggered, but TUI remains open.
 pub(crate) fn handle_p_key(app: &mut AppState) -> bool {
     let mut close_modal = false;
-    let mut new_summary: Option<Vec<crate::state::modal::ReverseRootSummary>> = None;
+    let new_summary: Option<Vec<crate::state::modal::ReverseRootSummary>> = None;
     let mut blocked_dep_count: Option<usize> = None;
     let mut removal_names: Option<Vec<String>> = None;
     let mut removal_mode: Option<crate::state::modal::CascadeMode> = None;
     let mut install_targets: Option<Vec<PackageItem>> = None;
     let mut service_info_for_plan: Option<Vec<crate::state::modal::ServiceImpact>> = None;
+    let mut deps_not_resolved_message: Option<String> = None;
 
     // Scope for borrowing app.modal
     {
@@ -219,13 +226,22 @@ pub(crate) fn handle_p_key(app: &mut AppState) -> bool {
                     install_targets = Some(packages);
                 }
                 crate::state::PreflightAction::Remove => {
+                    // Don't block on dependency resolution - if dependency_info is empty,
+                    // proceed if cascade mode allows dependents, otherwise show blocking message
                     if dependency_info.is_empty() {
-                        let report = crate::logic::deps::resolve_reverse_dependencies(items);
-                        new_summary = Some(report.summaries);
-                        *dependency_info = report.dependencies;
-                    }
-
-                    if dependency_info.is_empty() || cascade_mode.allows_dependents() {
+                        // If cascade mode allows dependents, proceed without blocking
+                        if cascade_mode.allows_dependents() {
+                            removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
+                            removal_mode = Some(*cascade_mode);
+                        } else {
+                            // Can't proceed without dependency info and cascade doesn't allow dependents
+                            // Show message that dependencies need to be resolved first
+                            deps_not_resolved_message = Some(
+                                "Dependencies not resolved yet. Please wait or switch to Dependencies tab."
+                                    .to_string(),
+                            );
+                        }
+                    } else if cascade_mode.allows_dependents() {
                         removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
                         removal_mode = Some(*cascade_mode);
                     } else {
@@ -238,6 +254,12 @@ pub(crate) fn handle_p_key(app: &mut AppState) -> bool {
                 service_info_for_plan = Some(service_info.clone());
             }
         }
+    }
+
+    // Set toast message if dependencies not resolved
+    if let Some(msg) = deps_not_resolved_message {
+        app.toast_message = Some(msg);
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
     }
 
     if let Some(summary) = new_summary {
@@ -283,7 +305,8 @@ pub(crate) fn handle_p_key(app: &mut AppState) -> bool {
                 Vec::new()
             };
         close_preflight_modal(app, &service_info_clone);
-        return true;
+        // Return false to keep TUI open - modal is closed but app continues
+        return false;
     }
     false
 }
@@ -306,7 +329,10 @@ pub(crate) fn handle_c_key(app: &mut AppState) -> bool {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `true` if modal should close, `false` otherwise.
+/// - Always returns `false` to continue event processing.
+///
+/// Details:
+/// - Closes the modal but keeps the TUI open.
 pub(crate) fn handle_q_key(app: &mut AppState) -> bool {
     let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
         service_info.clone()
@@ -314,7 +340,8 @@ pub(crate) fn handle_q_key(app: &mut AppState) -> bool {
         Vec::new()
     };
     close_preflight_modal(app, &service_info);
-    true
+    // Return false to keep TUI open - modal is closed but app continues
+    false
 }
 
 /// What: Handle ? key - show help.

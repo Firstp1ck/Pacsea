@@ -272,7 +272,7 @@ de-DE:
           update_aur: "AUR aktualisieren (paru/yay)"
           remove_cache: "Cache entfernen (pacman/yay)"
         country_label: "Land (Mirrors): "
-        count_label: "Anzahl:"
+        count_label: "Anzahl: {}"
         worldwide: "Weltweit"
         footer_hint: "Leertaste: umschalten  •  Links/Rechts: Land ändern  •  -/+ Anzahl ändern  •  Enter: ausführen  •  Esc: abbrechen"
       help:

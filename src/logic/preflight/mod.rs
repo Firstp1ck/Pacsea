@@ -19,7 +19,6 @@ use std::cmp::Ordering;
 pub use command::{CommandError, CommandRunner, SystemCommandRunner};
 
 use batch::{batch_fetch_installed_sizes, batch_fetch_installed_versions};
-use metadata::fetch_official_metadata;
 use version::{compare_versions, is_major_version_bump};
 
 /// Packages that contribute additional risk when present in a transaction.
@@ -196,7 +195,7 @@ fn process_package_item<R: CommandRunner>(
     });
 }
 
-/// What: Fetch metadata for official packages.
+/// What: Fetch metadata for official and AUR packages.
 ///
 /// Inputs:
 /// - `runner`: Command execution abstraction.
@@ -204,24 +203,50 @@ fn process_package_item<R: CommandRunner>(
 ///
 /// Output: Tuple of (download_bytes, install_size_target), both Option.
 ///
-/// Details: Only fetches for official packages; returns None for AUR.
+/// Details:
+/// - For official packages: uses `pacman -Si`.
+/// - For AUR packages: checks local caches (pacman cache, AUR helper caches) for built package files.
 fn fetch_package_metadata<R: CommandRunner>(
     runner: &R,
     item: &PackageItem,
 ) -> (Option<u64>, Option<u64>) {
-    if let Source::Official { repo, .. } = &item.source {
-        match fetch_official_metadata(runner, repo, &item.name, item.version.as_str()) {
-            Ok(meta) => (meta.download_size, meta.install_size),
-            Err(err) => {
-                tracing::debug!(
-                    "Preflight summary: failed to fetch metadata for {repo}/{pkg}: {err}",
-                    pkg = item.name
-                );
-                (None, None)
+    match &item.source {
+        Source::Official { repo, .. } => {
+            match metadata::fetch_official_metadata(runner, repo, &item.name, item.version.as_str())
+            {
+                Ok(meta) => (meta.download_size, meta.install_size),
+                Err(err) => {
+                    tracing::debug!(
+                        "Preflight summary: failed to fetch metadata for {repo}/{pkg}: {err}",
+                        pkg = item.name
+                    );
+                    (None, None)
+                }
             }
         }
-    } else {
-        (None, None)
+        Source::Aur => {
+            match metadata::fetch_aur_metadata(runner, &item.name, Some(item.version.as_str())) {
+                Ok(meta) => {
+                    if meta.download_size.is_some() || meta.install_size.is_some() {
+                        tracing::debug!(
+                            "Preflight summary: found AUR package sizes for {}: DL={:?}, Install={:?}",
+                            item.name,
+                            meta.download_size,
+                            meta.install_size
+                        );
+                    }
+                    (meta.download_size, meta.install_size)
+                }
+                Err(err) => {
+                    tracing::debug!(
+                        "Preflight summary: failed to fetch AUR metadata for {}: {}",
+                        item.name,
+                        err
+                    );
+                    (None, None)
+                }
+            }
+        }
     }
 }
 

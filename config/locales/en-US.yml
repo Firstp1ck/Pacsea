@@ -296,7 +296,7 @@ en-US:
           update_aur: "Update AUR (paru/yay)"
           remove_cache: "Remove Cache (pacman/yay)"
         country_label: "Country (Mirrors): "
-        count_label: "Count:"
+        count_label: "Count: {}"
         worldwide: "Worldwide"
         footer_hint: "Space: toggle  •  Left/Right: change country  •  -/+ change count  •  Enter: run  •  Esc: cancel"
       help:

@@ -504,13 +504,13 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
 /// - No return value; sets app.modal to Preflight with Remove action
 ///
 /// Details:
-/// - Resolves reverse dependencies and opens modal with Remove action
+/// - Opens modal immediately without blocking. Reverse dependency resolution can be triggered
+///   manually via the Dependencies tab or will be computed when user tries to proceed.
+///   This avoids blocking the UI when opening the modal.
 pub fn open_preflight_remove_modal(app: &mut AppState) {
     let items = app.remove_list.clone();
     let item_count = items.len();
-    let report = crate::logic::deps::resolve_reverse_dependencies(&items);
-    let summaries = report.summaries;
-    let dependencies = report.dependencies;
+
     // Reset cancellation flag when opening modal
     app.preflight_cancelled
         .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -518,6 +518,9 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
     app.preflight_summary_items = Some((items.clone(), crate::state::PreflightAction::Remove));
     app.preflight_summary_resolving = true;
     app.pending_service_plan.clear();
+
+    // Open modal immediately with empty dependency_info to avoid blocking UI
+    // Dependency info can be resolved later via Dependencies tab or when proceeding
     app.modal = crate::state::Modal::Preflight {
         items,
         action: crate::state::PreflightAction::Remove,
@@ -532,7 +535,7 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
             risk_score: 0,
             risk_level: crate::state::modal::RiskLevel::Low,
         },
-        dependency_info: dependencies,
+        dependency_info: Vec::new(), // Will be populated when user switches to Deps tab or proceeds
         dep_selected: 0,
         dep_tree_expanded: std::collections::HashSet::new(),
         deps_error: None,
@@ -552,6 +555,6 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: app.remove_cascade_mode,
     };
-    app.remove_preflight_summary = summaries;
+    app.remove_preflight_summary = Vec::new(); // Will be populated when dependencies are resolved
     app.toast_message = Some(crate::i18n::t(app, "app.toasts.preflight_remove_list"));
 }

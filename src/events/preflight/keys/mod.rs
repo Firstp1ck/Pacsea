@@ -31,8 +31,14 @@ use navigation::{handle_down_key, handle_tab_switch, handle_up_key};
 /// - Always returns `false`.
 fn handle_keys_needing_app(ke: KeyEvent, app: &mut AppState) -> bool {
     match ke.code {
-        KeyCode::Esc => handle_esc_key(app),
-        KeyCode::Enter => handle_enter_key(app),
+        KeyCode::Esc => {
+            handle_esc_key(app);
+            false
+        }
+        KeyCode::Enter => {
+            handle_enter_key(app);
+            false
+        }
         KeyCode::Left => handle_tab_switch(app, false),
         KeyCode::Right => handle_tab_switch(app, true),
         KeyCode::Tab => handle_tab_switch(app, true),

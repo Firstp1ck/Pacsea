@@ -131,16 +131,23 @@ pub(crate) fn handle_post_summary(
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` if Esc was pressed (to stop propagation), otherwise `false`
 ///
 /// Details:
 /// - Handles Esc/Enter to close
+/// - Returns `true` for Esc to prevent mode toggling in search handler
 pub(crate) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
     match ke.code {
-        KeyCode::Esc | KeyCode::Enter => app.modal = crate::state::Modal::None,
-        _ => {}
+        KeyCode::Esc => {
+            app.modal = crate::state::Modal::None;
+            true // Stop propagation to prevent mode toggle
+        }
+        KeyCode::Enter => {
+            app.modal = crate::state::Modal::None;
+            false
+        }
+        _ => false,
     }
-    false
 }
 
 /// What: Handle key events for News modal.

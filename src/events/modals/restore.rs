@@ -41,11 +41,13 @@ pub(crate) fn restore_if_not_closed_with_excluded_keys(
 ///
 /// Output:
 /// - The boolean value from `should_stop`, or `false` if `None`
+/// - Returns `true` if Esc was pressed and modal was closed (to stop propagation)
 ///
 /// Details:
 /// - Used for modals like SystemUpdate and OptionalDeps that return `Option<bool>`
 /// - Restores modal if handler didn't close it and Esc wasn't pressed
 /// - Esc key closes modal even if `should_stop` is `Some(false)`
+/// - When Esc closes the modal, returns `true` to stop event propagation
 pub(crate) fn restore_if_not_closed_with_option_result(
     app: &mut AppState,
     ke: &KeyEvent,
@@ -53,10 +55,13 @@ pub(crate) fn restore_if_not_closed_with_option_result(
     modal: Modal,
 ) -> bool {
     if matches!(app.modal, Modal::None) {
+        // If Esc was pressed and modal was closed, stop propagation
+        if matches!(ke.code, KeyCode::Esc) {
+            return true;
+        }
         // Only restore if handler didn't intentionally close (Esc returns Some(false) but closes modal)
         // For navigation/toggle keys, handler returns Some(false) but doesn't close, so we restore
-        if should_stop.is_none() || (should_stop == Some(false) && !matches!(ke.code, KeyCode::Esc))
-        {
+        if should_stop.is_none() || should_stop == Some(false) {
             app.modal = modal;
         }
     }

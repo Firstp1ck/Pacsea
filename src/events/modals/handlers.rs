@@ -216,13 +216,12 @@ pub(crate) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, moda
 /// - `modal`: Help modal variant (unit type)
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` if Esc was pressed (to stop propagation), otherwise `false`
 ///
 /// Details:
 /// - Delegates to common handler
 pub(crate) fn handle_help_modal(ke: KeyEvent, app: &mut AppState, _modal: Modal) -> bool {
-    super::common::handle_help(ke, app);
-    false
+    super::common::handle_help(ke, app)
 }
 
 /// What: Handle key events for News modal, including restoration logic.

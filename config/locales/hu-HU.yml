@@ -299,7 +299,7 @@ hu-HU:
           update_aur: "AUR frissítése (paru/yay)"
           remove_cache: "Gyorsítótár törlése (pacman/yay)"
         country_label: "Ország (Tükrök): "
-        count_label: "Darabszám:"
+        count_label: "Darabszám: {}"
         worldwide: "Világszerte"
         footer_hint: "Szóköz: be-/kikapcsolás • Balra/Jobbra: országváltás • -/+ darabszám • Enter: futtatás • Esc: mégse"
       help:

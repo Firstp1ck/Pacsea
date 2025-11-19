@@ -83,7 +83,7 @@ pub(crate) fn handle_system_update(
         }
         KeyCode::Char('-') => {
             // Decrease mirror count when focused on the country/count row
-            if *mirror_count > 1 {
+            if *cursor == 4 && *mirror_count > 1 {
                 *mirror_count -= 1;
                 crate::theme::save_mirror_count(*mirror_count);
             }
@@ -91,7 +91,7 @@ pub(crate) fn handle_system_update(
         }
         KeyCode::Char('+') => {
             // Increase mirror count when focused on the country/count row
-            if *mirror_count < 200 {
+            if *cursor == 4 && *mirror_count < 200 {
                 *mirror_count += 1;
                 crate::theme::save_mirror_count(*mirror_count);
             }

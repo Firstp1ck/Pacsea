@@ -6,65 +6,115 @@ use std::process::Command;
 use crate::state::PackageItem;
 
 #[cfg(not(target_os = "windows"))]
-/// What: Compose the shell snippet that installs AUR packages through an available helper.
-///
-/// Input:
-/// - `flags`: CLI flags forwarded to the chosen AUR helper.
-/// - `n`: Space-separated package names to install.
-///
-/// Output:
-/// - Shell snippet that prefers `paru`, falls back to `yay`, and guides the user through helper bootstrap.
-///
-/// Details:
-/// - Retries with `-Syy` when installation fails and the user agrees.
-/// - Prompts to install an AUR helper if neither `paru` nor `yay` exists.
-fn aur_install_body(flags: &str, n: &str) -> String {
-    format!(
-        "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
-            paru {flags} {n} || (echo; echo 'Install failed.'; \
-                read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
-                if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
-                    paru -Syy && paru {flags} {n}; \
-                fi); \
-          elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
-            yay {flags} {n} || (echo; echo 'Install failed.'; \
-                read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
-                if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
-                    yay -Syy && yay {flags} {n}; \
-                fi); \
-          else \
-            echo 'No AUR helper (paru/yay) found.'; echo; \
-            echo 'Choose AUR helper to install:'; \
-            echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; \
-            read -rp 'Enter 1/2/3: ' choice; \
-            case \"$choice\" in \
-              1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; \
-              2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; \
-              *) echo 'Cancelled.'; exit 1 ;; \
-            esac; \
-            if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
-              paru {flags} {n} || (echo; echo 'Install failed.'; \
-                  read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
-                  if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
-                      paru -Syy && paru {flags} {n}; \
-                  fi); \
-            elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
-              yay {flags} {n} || (echo; echo 'Install failed.'; \
-                  read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
-                  if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
-                      yay -Syy && yay {flags} {n}; \
-                  fi); \
-            else \
-              echo 'AUR helper installation failed or was cancelled.'; exit 1; \
-            fi; \
-          fi)"
-    )
-}
-
+use super::command::aur_install_body;
 #[cfg(not(target_os = "windows"))]
 use super::logging::log_installed;
 #[cfg(not(target_os = "windows"))]
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
+
+#[cfg(not(target_os = "windows"))]
+/// What: Build the shell command string for batch package installation.
+///
+/// Input:
+/// - `items`: Packages to install
+/// - `official`: Names of official packages
+/// - `aur`: Names of AUR packages
+/// - `dry_run`: When `true`, prints commands instead of executing
+///
+/// Output:
+/// - Shell command string with hold tail appended
+///
+/// Details:
+/// - Official packages are grouped into a single `pacman` invocation
+/// - AUR packages are installed via `paru`/`yay` (prompts to install a helper if missing)
+/// - Appends a "hold" tail so the terminal remains open after command completion
+fn build_batch_install_command(
+    items: &[PackageItem],
+    official: &[String],
+    aur: &[String],
+    dry_run: bool,
+) -> String {
+    let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
+
+    if dry_run {
+        if !aur.is_empty() {
+            let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            format!(
+                "echo DRY RUN: (paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n}){hold}",
+                n = all.join(" "),
+                hold = hold_tail
+            )
+        } else if !official.is_empty() {
+            format!(
+                "echo DRY RUN: sudo pacman -S --needed --noconfirm {n}{hold}",
+                n = official.join(" "),
+                hold = hold_tail
+            )
+        } else {
+            format!("echo DRY RUN: nothing to install{hold}", hold = hold_tail)
+        }
+    } else if !aur.is_empty() {
+        let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+        let n = all.join(" ");
+        format!(
+            "{body}{hold}",
+            body = aur_install_body("-S --needed --noconfirm", &n),
+            hold = hold_tail
+        )
+    } else if !official.is_empty() {
+        format!(
+            "(sudo pacman -S --needed --noconfirm {n} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo pacman -S --needed --noconfirm {n}; fi)){hold}",
+            n = official.join(" "),
+            hold = hold_tail
+        )
+    } else {
+        format!("echo nothing to install{hold}", hold = hold_tail)
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Attempt to spawn a terminal with the given command string.
+///
+/// Input:
+/// - `term`: Terminal executable name
+/// - `args`: Arguments for the terminal
+/// - `needs_xfce_command`: Whether this terminal needs special xfce4-terminal command handling
+/// - `cmd_str`: Command string to execute in the terminal
+///
+/// Output:
+/// - `Ok(())` if the terminal was successfully spawned, `Err(())` otherwise
+///
+/// Details:
+/// - Handles special cases for konsole (Wayland), gnome-console/kgx (rendering), and xfce4-terminal (command format)
+/// - Sets up PACSEA_TEST_OUT environment variable if present
+fn try_spawn_terminal(
+    term: &str,
+    args: &[&str],
+    needs_xfce_command: bool,
+    cmd_str: &str,
+) -> Result<(), ()> {
+    let mut cmd = Command::new(term);
+    if needs_xfce_command && term == "xfce4-terminal" {
+        let quoted = shell_single_quote(cmd_str);
+        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+    } else {
+        cmd.args(args.iter().copied()).arg(cmd_str);
+    }
+    if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
+        if let Some(parent) = std::path::Path::new(&p).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        cmd.env("PACSEA_TEST_OUT", p);
+    }
+    if term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
+    }
+    if term == "gnome-console" || term == "kgx" {
+        cmd.env("GSK_RENDERER", "cairo");
+        cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
+    }
+    cmd.spawn().map(|_| ()).map_err(|_| ())
+}
 
 #[cfg(not(target_os = "windows"))]
 /// What: Spawn a terminal to install a batch of packages.
@@ -106,42 +156,8 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
         names = %names_vec.join(" "),
         "spawning install"
     );
-    let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
 
-    let cmd_str = if _dry_run {
-        if !aur.is_empty() {
-            let all: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
-            format!(
-                "echo DRY RUN: (paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n}){hold}",
-                n = all.join(" "),
-                hold = hold_tail
-            )
-        } else if !official.is_empty() {
-            format!(
-                "echo DRY RUN: sudo pacman -S --needed --noconfirm {n}{hold}",
-                n = official.join(" "),
-                hold = hold_tail
-            )
-        } else {
-            format!("echo DRY RUN: nothing to install{hold}", hold = hold_tail)
-        }
-    } else if !aur.is_empty() {
-        let all: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
-        let n = all.join(" ");
-        format!(
-            "{body}{hold}",
-            body = aur_install_body("-S --needed --noconfirm", &n),
-            hold = hold_tail
-        )
-    } else if !official.is_empty() {
-        format!(
-            "(sudo pacman -S --needed --noconfirm {n} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo pacman -S --needed --noconfirm {n}; fi)){hold}",
-            n = official.join(" "),
-            hold = hold_tail
-        )
-    } else {
-        format!("echo nothing to install{hold}", hold = hold_tail)
-    };
+    let cmd_str = build_batch_install_command(_items, &official, &aur, _dry_run);
 
     // Prefer GNOME Terminal when running under GNOME desktop
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
@@ -180,71 +196,31 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
-        let mut cmd = Command::new(term);
-        if needs_xfce_command && term == "xfce4-terminal" {
-            let quoted = shell_single_quote(&cmd_str);
-            cmd.arg("--command").arg(format!("bash -lc {}", quoted));
-        } else {
-            cmd.args(args.iter().copied()).arg(&cmd_str);
-        }
-        if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
-            if let Some(parent) = std::path::Path::new(&p).parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            cmd.env("PACSEA_TEST_OUT", p);
-        }
-        if term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
-            cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
-        }
-        if term == "gnome-console" || term == "kgx" {
-            cmd.env("GSK_RENDERER", "cairo");
-            cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
-        }
-        let spawn_res = cmd.spawn();
-        match spawn_res {
-            Ok(_) => {
+        match try_spawn_terminal(term, args, needs_xfce_command, &cmd_str) {
+            Ok(()) => {
                 tracing::info!(terminal = %term, total = _items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = _dry_run, names = %names_vec.join(" "), "launched terminal for install");
+                launched = true;
             }
-            Err(e) => {
-                tracing::warn!(terminal = %term, error = %e, names = %names_vec.join(" "), "failed to spawn terminal, trying next");
+            Err(()) => {
+                tracing::warn!(terminal = %term, names = %names_vec.join(" "), "failed to spawn terminal, trying next");
             }
         }
-        launched = true;
-    } else {
+    }
+
+    if !launched {
         for (term, args, needs_xfce_command) in terms {
             if command_on_path(term) {
-                let mut cmd = Command::new(term);
-                if *needs_xfce_command && *term == "xfce4-terminal" {
-                    let quoted = shell_single_quote(&cmd_str);
-                    cmd.arg("--command").arg(format!("bash -lc {}", quoted));
-                } else {
-                    cmd.args(args.iter().copied()).arg(&cmd_str);
-                }
-                if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
-                    if let Some(parent) = std::path::Path::new(&p).parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    cmd.env("PACSEA_TEST_OUT", p);
-                }
-                if *term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
-                    cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
-                }
-                if *term == "gnome-console" || *term == "kgx" {
-                    cmd.env("GSK_RENDERER", "cairo");
-                    cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
-                }
-                let spawn_res = cmd.spawn();
-                match spawn_res {
-                    Ok(_) => {
+                match try_spawn_terminal(term, args, *needs_xfce_command, &cmd_str) {
+                    Ok(()) => {
                         tracing::info!(terminal = %term, total = _items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = _dry_run, names = %names_vec.join(" "), "launched terminal for install");
+                        launched = true;
+                        break;
                     }
-                    Err(e) => {
-                        tracing::warn!(terminal = %term, error = %e, names = %names_vec.join(" "), "failed to spawn terminal, trying next");
+                    Err(()) => {
+                        tracing::warn!(terminal = %term, names = %names_vec.join(" "), "failed to spawn terminal, trying next");
                         continue;
                     }
                 }
-                launched = true;
-                break;
             }
         }
     }

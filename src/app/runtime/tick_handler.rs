@@ -183,7 +183,7 @@ fn handle_pkgbuild_reload_debounce(
     app: &mut AppState,
     pkgb_req_tx: &mpsc::UnboundedSender<PackageItem>,
 ) {
-    const PKGBUILD_DEBOUNCE_MS: u64 = 250;
+    const PKGBUILD_DEBOUNCE_MS: u64 = 100; // Reduced from 250ms for faster preview loading
     let (Some(requested_at), Some(requested_for)) =
         (app.pkgb_reload_requested_at, &app.pkgb_reload_requested_for)
     else {

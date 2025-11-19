@@ -7,6 +7,119 @@ use crate::state::modal::CascadeMode;
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
+/// What: Configure terminal-specific environment variables for a command.
+///
+/// Input:
+/// - `cmd`: Command builder to configure.
+/// - `term`: Terminal name to check for special handling.
+///
+/// Output:
+/// - Modifies `cmd` with environment variables for konsole, gnome-console, or kgx if needed.
+///
+/// Details:
+/// - Sets Wayland-specific environment for konsole when running under Wayland.
+/// - Sets rendering environment for gnome-console and kgx to ensure compatibility.
+fn configure_terminal_env(cmd: &mut Command, term: &str) {
+    if term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
+    }
+    if term == "gnome-console" || term == "kgx" {
+        cmd.env("GSK_RENDERER", "cairo");
+        cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Configure test output environment variable for a command.
+///
+/// Input:
+/// - `cmd`: Command builder to configure.
+///
+/// Output:
+/// - Sets `PACSEA_TEST_OUT` environment variable if present, creating parent directory if needed.
+///
+/// Details:
+/// - Only applies when `PACSEA_TEST_OUT` is set in the environment.
+fn configure_test_env(cmd: &mut Command) {
+    if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
+        if let Some(parent) = std::path::Path::new(&p).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        cmd.env("PACSEA_TEST_OUT", p);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Logging context for terminal spawning operations.
+///
+/// Details:
+/// - Groups related logging parameters to reduce function argument count.
+struct SpawnContext<'a> {
+    names_str: &'a str,
+    names_len: usize,
+    dry_run: bool,
+    cascade_mode: CascadeMode,
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Attempt to spawn a terminal with the given configuration.
+///
+/// Input:
+/// - `term`: Terminal executable name.
+/// - `args`: Arguments to pass before the command string.
+/// - `needs_xfce_command`: Whether this terminal needs special xfce4-terminal command format.
+/// - `cmd_str`: The command string to execute.
+/// - `ctx`: Logging context for the operation.
+///
+/// Output:
+/// - `true` if the terminal was successfully spawned, `false` otherwise.
+///
+/// Details:
+/// - Configures command arguments based on terminal type.
+/// - Sets up environment variables and test output handling.
+/// - Logs success or failure appropriately.
+fn try_spawn_terminal(
+    term: &str,
+    args: &[&str],
+    needs_xfce_command: bool,
+    cmd_str: &str,
+    ctx: &SpawnContext<'_>,
+) -> bool {
+    let mut cmd = Command::new(term);
+    if needs_xfce_command && term == "xfce4-terminal" {
+        let quoted = shell_single_quote(cmd_str);
+        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+    } else {
+        cmd.args(args.iter().copied()).arg(cmd_str);
+    }
+    configure_test_env(&mut cmd);
+    configure_terminal_env(&mut cmd, term);
+
+    match cmd.spawn() {
+        Ok(_) => {
+            tracing::info!(
+                terminal = %term,
+                names = %ctx.names_str,
+                total = ctx.names_len,
+                dry_run = ctx.dry_run,
+                mode = ?ctx.cascade_mode,
+                "launched terminal for removal"
+            );
+            true
+        }
+        Err(e) => {
+            tracing::warn!(
+                terminal = %term,
+                error = %e,
+                names = %ctx.names_str,
+                "failed to spawn terminal, trying next"
+            );
+            false
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
 /// What: Spawn a terminal to remove all given packages with pacman.
 ///
 /// Input:
@@ -50,11 +163,7 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
             hold = hold_tail
         )
     };
-    // Prefer GNOME Terminal when running under GNOME desktop
-    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
-        .ok()
-        .map(|v| v.to_uppercase().contains("GNOME"))
-        .unwrap_or(false);
+
     let terms_gnome_first: &[(&str, &[&str], bool)] = &[
         ("gnome-terminal", &["--", "bash", "-lc"], false),
         ("gnome-console", &["--", "bash", "-lc"], false),
@@ -81,96 +190,41 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
+
+    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
+        .ok()
+        .map(|v| v.to_uppercase().contains("GNOME"))
+        .unwrap_or(false);
     let terms = if is_gnome {
         terms_gnome_first
     } else {
         terms_default
     };
+
+    let ctx = SpawnContext {
+        names_str: &names_str,
+        names_len: _names.len(),
+        dry_run: _dry_run,
+        cascade_mode: _cascade_mode,
+    };
+
     let mut launched = false;
     if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
-        let mut cmd = Command::new(term);
-        if needs_xfce_command && term == "xfce4-terminal" {
-            let quoted = shell_single_quote(&cmd_str);
-            cmd.arg("--command").arg(format!("bash -lc {}", quoted));
-        } else {
-            cmd.args(args.iter().copied()).arg(&cmd_str);
-        }
-        if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
-            if let Some(parent) = std::path::Path::new(&p).parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            cmd.env("PACSEA_TEST_OUT", p);
-        }
-        if term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
-            cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
-        }
-        if term == "gnome-console" || term == "kgx" {
-            cmd.env("GSK_RENDERER", "cairo");
-            cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
-        }
-        let spawn_res = cmd.spawn();
-        match spawn_res {
-            Ok(_) => {
-                tracing::info!(
-                    terminal = %term,
-                    names = %names_str,
-                    total = _names.len(),
-                    dry_run = _dry_run,
-                    mode = ?_cascade_mode,
-                    "launched terminal for removal"
-                )
-            }
-            Err(e) => {
-                tracing::warn!(terminal = %term, error = %e, names = %names_str, "failed to spawn terminal, trying next");
-            }
-        }
-        launched = true;
-    } else {
+        launched = try_spawn_terminal(term, args, needs_xfce_command, &cmd_str, &ctx);
+    }
+
+    if !launched {
         for (term, args, needs_xfce_command) in terms {
             if command_on_path(term) {
-                let mut cmd = Command::new(term);
-                if *needs_xfce_command && *term == "xfce4-terminal" {
-                    let quoted = shell_single_quote(&cmd_str);
-                    cmd.arg("--command").arg(format!("bash -lc {}", quoted));
-                } else {
-                    cmd.args(args.iter().copied()).arg(&cmd_str);
+                launched = try_spawn_terminal(term, args, *needs_xfce_command, &cmd_str, &ctx);
+                if launched {
+                    break;
                 }
-                if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
-                    if let Some(parent) = std::path::Path::new(&p).parent() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
-                    cmd.env("PACSEA_TEST_OUT", p);
-                }
-                if *term == "konsole" && std::env::var_os("WAYLAND_DISPLAY").is_some() {
-                    cmd.env("QT_LOGGING_RULES", "qt.qpa.wayland.textinput=false");
-                }
-                if *term == "gnome-console" || *term == "kgx" {
-                    cmd.env("GSK_RENDERER", "cairo");
-                    cmd.env("LIBGL_ALWAYS_SOFTWARE", "1");
-                }
-                let spawn_res = cmd.spawn();
-                match spawn_res {
-                    Ok(_) => {
-                        tracing::info!(
-                            terminal = %term,
-                            names = %names_str,
-                            total = _names.len(),
-                            dry_run = _dry_run,
-                            mode = ?_cascade_mode,
-                            "launched terminal for removal"
-                        )
-                    }
-                    Err(e) => {
-                        tracing::warn!(terminal = %term, error = %e, names = %names_str, "failed to spawn terminal, trying next");
-                        continue;
-                    }
-                }
-                launched = true;
-                break;
             }
         }
     }
+
     if !launched {
         let res = Command::new("bash").args(["-lc", &cmd_str]).spawn();
         if let Err(e) = res {
