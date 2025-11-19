@@ -5,7 +5,7 @@ use super::utils::{severity_max, today_ymd_utc};
 /// Parse the UptimeRobot API response to extract the worst status among all monitors (AUR, Forum, Website, Wiki).
 ///
 /// Inputs:
-/// - `v`: JSON value from https://status.archlinux.org/api/getMonitorList/vmM5ruWEAB
+/// - `v`: JSON value from <https://status.archlinux.org/api/getMonitorList/vmM5ruWEAB>
 ///
 /// Output:
 /// - `Some((text, color))` if monitor data is found, `None` otherwise.
