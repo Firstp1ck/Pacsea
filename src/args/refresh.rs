@@ -51,6 +51,20 @@ pub fn handle_refresh() {
     println!("{}", i18n::t("app.cli.refresh.starting"));
     write_log("Starting package database refresh: pacman -Sy");
 
+    // Skip actual command execution during tests to avoid requiring sudo
+    #[cfg(test)]
+    let pacman_output = if std::env::var("PACSEA_TEST_SKIP_COMMANDS").is_ok() {
+        // Return a mock success response during tests
+        use std::os::unix::process::ExitStatusExt;
+        Ok(std::process::Output {
+            status: std::process::ExitStatus::from_raw(0),
+            stdout: b"test output".to_vec(),
+            stderr: Vec::new(),
+        })
+    } else {
+        Command::new("sudo").arg("pacman").args(["-Sy"]).output()
+    };
+    #[cfg(not(test))]
     let pacman_output = Command::new("sudo").arg("pacman").args(["-Sy"]).output();
 
     match pacman_output {
@@ -101,6 +115,20 @@ pub fn handle_refresh() {
         println!("\n{}", i18n::t_fmt1("app.cli.refresh.aur_starting", helper));
         write_log(&format!("Starting AUR database refresh: {} -Sy", helper));
 
+        // Skip actual command execution during tests to avoid requiring sudo
+        #[cfg(test)]
+        let aur_output = if std::env::var("PACSEA_TEST_SKIP_COMMANDS").is_ok() {
+            // Return a mock success response during tests
+            use std::os::unix::process::ExitStatusExt;
+            Ok(std::process::Output {
+                status: std::process::ExitStatus::from_raw(0),
+                stdout: b"test output".to_vec(),
+                stderr: Vec::new(),
+            })
+        } else {
+            Command::new(helper).args(["-Sy"]).output()
+        };
+        #[cfg(not(test))]
         let aur_output = Command::new(helper).args(["-Sy"]).output();
 
         match aur_output {
@@ -195,11 +223,18 @@ mod tests {
     ///
     /// Details:
     /// - This is a smoke test to ensure the function can be called.
-    /// - Actual execution will attempt to run system commands, which may fail in test environment.
+    /// - Sets PACSEA_TEST_SKIP_COMMANDS to skip actual command execution during tests.
     #[test]
     fn handle_refresh_does_not_panic() {
+        // Set environment variable to skip actual command execution
+        unsafe {
+            std::env::set_var("PACSEA_TEST_SKIP_COMMANDS", "1");
+        }
         // This test just ensures the function can be called without panicking
-        // In a real test environment, we might want to mock the Command calls
         handle_refresh();
+        // Clean up
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_SKIP_COMMANDS");
+        }
     }
 }
