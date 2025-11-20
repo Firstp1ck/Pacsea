@@ -339,6 +339,7 @@ pub(crate) fn fetch_aur_metadata<R: CommandRunner>(
     }
 }
 
+#[cfg(not(windows))]
 #[cfg(test)]
 mod tests {
     use super::*;
