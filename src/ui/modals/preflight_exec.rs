@@ -9,33 +9,7 @@ use ratatui::{
 use crate::state::modal::PreflightHeaderChips;
 use crate::state::{PackageItem, PreflightAction, PreflightTab};
 use crate::theme::theme;
-
-fn format_bytes(value: u64) -> String {
-    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
-    let mut size = value as f64;
-    let mut unit_index = 0usize;
-    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
-        size /= 1024.0;
-        unit_index += 1;
-    }
-    if unit_index == 0 {
-        format!("{} {}", value, UNITS[unit_index])
-    } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
-    }
-}
-
-fn format_signed_bytes(value: i64) -> String {
-    if value == 0 {
-        return "0 B".to_string();
-    }
-    let magnitude = value.unsigned_abs();
-    if value > 0 {
-        format!("+{}", format_bytes(magnitude))
-    } else {
-        format!("-{}", format_bytes(magnitude))
-    }
-}
+use crate::ui::helpers::{format_bytes, format_signed_bytes};
 
 /// What: Render header chips as a compact horizontal line of metrics.
 ///

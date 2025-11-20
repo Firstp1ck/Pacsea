@@ -66,12 +66,13 @@ BEGIN {
 }
 
 # Match file path and line number
-in_error && /^  --> / {
+in_error && /^[ ]+--> / {
     # Extract file path and line number
-    # Format: "  --> src/path/to/file.rs:123:8"
-    match($0, /^  --> (.+):([0-9]+):/, arr)
-    file_path = arr[1]
-    line_num = arr[2]
+    # Format: "   --> src/path/to/file.rs:123:8" or "   --> src\path\to\file.rs:123:8" (Windows)
+    if (match($0, /--> (.+):([0-9]+):/, arr)) {
+        file_path = arr[1]
+        line_num = arr[2]
+    }
     next
 }
 
@@ -79,8 +80,10 @@ in_error && /^  --> / {
 in_error && /\|.*fn / {
     # Extract function name
     # Format: " 17 | pub fn function_name(" or "149 | pub fn initialize_app_state("
-    if (match($0, /\|.*(pub\(crate\) |pub |async )?fn ([a-zA-Z0-9_]+)/, arr)) {
-        function_name = arr[2]
+    # Also handles: "149 | pub(crate) fn function_name("
+    # Simple pattern: find "fn " followed by function name
+    if (match($0, /fn ([a-zA-Z0-9_]+)/, fn_arr)) {
+        function_name = fn_arr[1]
     }
     next
 }
@@ -91,8 +94,8 @@ in_error && /^\^/ && function_name == "" {
     next
 }
 
-# When we hit a blank line or new error, save the previous one
-(in_error && /^$/) || (in_error && /^error:|^warning:/ && !/cognitive complexity/) {
+# Helper function to save current issue
+function save_issue() {
     if (complexity > 0 && file_path != "") {
         issues[++issue_count] = complexity "|" threshold "|" file_path "|" line_num "|" function_name
         complexity = 0
@@ -102,6 +105,18 @@ in_error && /^\^/ && function_name == "" {
         function_name = ""
     }
     in_error = 0
+}
+
+# When we hit a blank line, save the previous one
+in_error && /^$/ {
+    save_issue()
+    next
+}
+
+# Also save when we see "error: could not compile" as that indicates end of errors
+in_error && /^error: could not compile/ {
+    save_issue()
+    next
 }
 
 END {

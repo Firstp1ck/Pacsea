@@ -54,7 +54,7 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
         || message.contains("Duplicate key")
         || message.contains("Invalid color")
         || message.to_lowercase().contains("theme configuration");
-    let clippy_block = {
+    let is_clipboard = {
         let ml = message.to_lowercase();
         ml.contains("clipboard")
             || ml.contains("wl-copy")
@@ -65,17 +65,10 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
         i18n::t(app, "app.modals.help.heading")
     } else if is_config {
         i18n::t(app, "app.modals.alert.header_configuration_error")
-    } else if clippy_block {
+    } else if is_clipboard {
         i18n::t(app, "app.modals.alert.header_clipboard_copy")
     } else {
         i18n::t(app, "app.modals.alert.header_connection_issue")
-    };
-    let is_clipboard = {
-        let ml = message.to_lowercase();
-        ml.contains("clipboard")
-            || ml.contains("wl-copy")
-            || ml.contains("xclip")
-            || ml.contains("wl-clipboard")
     };
     let box_title = if is_help {
         format!(" {} ", i18n::t(app, "app.modals.help.title"))

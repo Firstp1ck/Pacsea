@@ -17,67 +17,54 @@ use super::distro::{artix_repo_names, cachyos_repo_names, eos_repo_names};
 #[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
-    /// What: Execute `pacman` with provided arguments and return its stdout.
-    ///
-    /// Inputs:
-    /// - `args`: Slice of command arguments (excluding program name).
-    ///
-    /// Output:
-    /// - `Ok(String)` containing UTF-8 stdout when `pacman` succeeds; boxed error otherwise.
-    ///
-    /// Details:
-    /// - Treats non-zero exit statuses and UTF-8 decoding failures as errors to be bubbled up.
-    fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        let out = std::process::Command::new("pacman").args(args).output()?;
-        if !out.status.success() {
-            return Err(format!("pacman {:?} exited with {:?}", args, out.status).into());
-        }
-        Ok(String::from_utf8(out.stdout)?)
-    }
     // 1) Get repo/name/version quickly via -Sl
-    let core = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "core"]))
+    let core = tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "core"]))
         .await
         .ok()
         .and_then(|r| r.ok())
         .unwrap_or_default();
-    let extra = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "extra"]))
+    let extra = tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "extra"]))
         .await
         .ok()
         .and_then(|r| r.ok())
         .unwrap_or_default();
-    let multilib = tokio::task::spawn_blocking(|| run_pacman(&["-Sl", "multilib"]))
-        .await
-        .ok()
-        .and_then(|r| r.ok())
-        .unwrap_or_default();
-    // EOS/EndeavourOS: attempt both known names
-    let mut eos_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in eos_repo_names().iter() {
-        let body = tokio::task::spawn_blocking(move || run_pacman(&["-Sl", repo]))
+    let multilib =
+        tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "multilib"]))
             .await
             .ok()
             .and_then(|r| r.ok())
             .unwrap_or_default();
+    // EOS/EndeavourOS: attempt both known names
+    let mut eos_pairs: Vec<(&str, String)> = Vec::new();
+    for &repo in eos_repo_names().iter() {
+        let body =
+            tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
+                .await
+                .ok()
+                .and_then(|r| r.ok())
+                .unwrap_or_default();
         eos_pairs.push((repo, body));
     }
     // CachyOS: attempt multiple potential repo names; missing ones yield empty output
     let mut cach_pairs: Vec<(&str, String)> = Vec::new();
     for &repo in cachyos_repo_names().iter() {
-        let body = tokio::task::spawn_blocking(move || run_pacman(&["-Sl", repo]))
-            .await
-            .ok()
-            .and_then(|r| r.ok())
-            .unwrap_or_default();
+        let body =
+            tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
+                .await
+                .ok()
+                .and_then(|r| r.ok())
+                .unwrap_or_default();
         cach_pairs.push((repo, body));
     }
     // Artix Linux: attempt all known Artix repo names; missing ones yield empty output
     let mut artix_pairs: Vec<(&str, String)> = Vec::new();
     for &repo in artix_repo_names().iter() {
-        let body = tokio::task::spawn_blocking(move || run_pacman(&["-Sl", repo]))
-            .await
-            .ok()
-            .and_then(|r| r.ok())
-            .unwrap_or_default();
+        let body =
+            tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
+                .await
+                .ok()
+                .and_then(|r| r.ok())
+                .unwrap_or_default();
         artix_pairs.push((repo, body));
     }
     let mut pkgs: Vec<OfficialPkg> = Vec::new();

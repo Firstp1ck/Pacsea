@@ -10,6 +10,556 @@ use crate::i18n;
 use crate::state::AppState;
 use crate::theme::{KeyChord, theme};
 
+/// What: Parse YAML array lines from i18n strings into help lines.
+///
+/// Inputs:
+/// - `yaml_text`: YAML array string from i18n
+///
+/// Output:
+/// - Vector of Lines extracted from YAML format
+///
+/// Details:
+/// - Handles quoted and unquoted YAML list items, stripping prefixes and quotes.
+fn parse_yaml_lines(yaml_text: &str) -> Vec<Line<'static>> {
+    let mut result = Vec::new();
+    for line in yaml_text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("- \"") || trimmed.starts_with("- '") {
+            let content = trimmed
+                .strip_prefix("- \"")
+                .or_else(|| trimmed.strip_prefix("- '"))
+                .and_then(|s| s.strip_suffix('"').or_else(|| s.strip_suffix('\'')))
+                .unwrap_or(trimmed);
+            result.push(Line::from(Span::raw(content.to_string())));
+        } else if trimmed.starts_with("- ") {
+            result.push(Line::from(Span::raw(
+                trimmed.strip_prefix("- ").unwrap_or(trimmed).to_string(),
+            )));
+        }
+    }
+    result
+}
+
+/// What: Add a section header to the lines vector.
+///
+/// Inputs:
+/// - `lines`: Mutable reference to lines vector
+/// - `app`: Application state for i18n
+/// - `th`: Theme reference
+/// - `key`: i18n key for section title
+///
+/// Output:
+/// - Adds empty line and styled section header to lines
+///
+/// Details:
+/// - Formats section headers with consistent styling.
+fn add_section_header(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    key: &str,
+) {
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        i18n::t(app, key),
+        Style::default()
+            .fg(th.overlay1)
+            .add_modifier(Modifier::BOLD),
+    )));
+}
+
+/// What: Conditionally add a binding line if the key exists.
+///
+/// Inputs:
+/// - `lines`: Mutable reference to lines vector
+/// - `app`: Application state for i18n
+/// - `th`: Theme reference
+/// - `key_opt`: Optional keybinding
+/// - `label_key`: i18n key for label
+///
+/// Output:
+/// - Adds formatted binding line if key exists
+///
+/// Details:
+/// - Uses fmt closure to format binding consistently.
+fn add_binding_if_some(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    key_opt: Option<KeyChord>,
+    label_key: &str,
+) {
+    if let Some(k) = key_opt {
+        let fmt = |label: &str, chord: KeyChord| -> Line<'static> {
+            Line::from(vec![
+                Span::styled(
+                    format!("{label:18}"),
+                    Style::default()
+                        .fg(th.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw("  "),
+                Span::styled(
+                    format!("[{}]", chord.label()),
+                    Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+                ),
+            ])
+        };
+        lines.push(fmt(&i18n::t(app, label_key), k));
+    }
+}
+
+/// What: Build global keybindings section.
+///
+/// Inputs:
+/// - `lines`: Mutable reference to lines vector
+/// - `app`: Application state
+/// - `th`: Theme reference
+/// - `km`: Keymap reference
+///
+/// Output:
+/// - Adds global bindings to lines
+///
+/// Details:
+/// - Formats all global application keybindings.
+fn build_global_bindings(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    km: &crate::theme::KeyMap,
+) {
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.help_overlay.first().copied(),
+        "app.modals.help.key_labels.help_overlay",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.exit.first().copied(),
+        "app.modals.help.key_labels.exit",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.reload_theme.first().copied(),
+        "app.modals.help.key_labels.reload_theme",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.pane_next.first().copied(),
+        "app.modals.help.key_labels.next_pane",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.pane_left.first().copied(),
+        "app.modals.help.key_labels.focus_left",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.pane_right.first().copied(),
+        "app.modals.help.key_labels.focus_right",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.show_pkgbuild.first().copied(),
+        "app.modals.help.key_labels.show_pkgbuild",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.change_sort.first().copied(),
+        "app.modals.help.key_labels.change_sorting",
+    );
+}
+
+/// What: Build search pane keybindings section.
+///
+/// Inputs:
+/// - `lines`: Mutable reference to lines vector
+/// - `app`: Application state
+/// - `th`: Theme reference
+/// - `km`: Keymap reference
+///
+/// Output:
+/// - Adds search bindings to lines
+///
+/// Details:
+/// - Formats search pane navigation and action keybindings.
+fn build_search_bindings(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    km: &crate::theme::KeyMap,
+) {
+    let fmt = |label: &str, chord: KeyChord| -> Line<'static> {
+        Line::from(vec![
+            Span::styled(
+                format!("{label:18}"),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                format!("[{}]", chord.label()),
+                Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+            ),
+        ])
+    };
+
+    if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.move"),
+            KeyChord {
+                code: up.code,
+                mods: up.mods,
+            },
+        ));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.move"),
+            KeyChord {
+                code: dn.code,
+                mods: dn.mods,
+            },
+        ));
+    }
+    if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.page"),
+            KeyChord {
+                code: pu.code,
+                mods: pu.mods,
+            },
+        ));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.page"),
+            KeyChord {
+                code: pd.code,
+                mods: pd.mods,
+            },
+        ));
+    }
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_add.first().copied(),
+        "app.modals.help.key_labels.add",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_install.first().copied(),
+        "app.modals.help.key_labels.install",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_backspace.first().copied(),
+        "app.modals.help.key_labels.delete",
+    );
+}
+
+/// What: Build search normal mode keybindings section.
+///
+/// Inputs:
+/// - `lines`: Mutable reference to lines vector
+/// - `app`: Application state
+/// - `th`: Theme reference
+/// - `km`: Keymap reference
+///
+/// Output:
+/// - Adds search normal mode bindings to lines if any exist
+///
+/// Details:
+/// - Only renders section if at least one normal mode binding is configured.
+fn build_search_normal_bindings(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    km: &crate::theme::KeyMap,
+) {
+    let has_normal_bindings = !km.search_normal_toggle.is_empty()
+        || !km.search_normal_insert.is_empty()
+        || !km.search_normal_select_left.is_empty()
+        || !km.search_normal_select_right.is_empty()
+        || !km.search_normal_delete.is_empty()
+        || !km.search_normal_open_status.is_empty()
+        || !km.config_menu_toggle.is_empty()
+        || !km.options_menu_toggle.is_empty()
+        || !km.panels_menu_toggle.is_empty();
+
+    if !has_normal_bindings {
+        return;
+    }
+
+    add_section_header(lines, app, th, "app.modals.help.sections.search_normal");
+
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_toggle.first().copied(),
+        "app.modals.help.key_labels.toggle_normal",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_insert.first().copied(),
+        "app.modals.help.key_labels.insert_mode",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_select_left.first().copied(),
+        "app.modals.help.key_labels.select_left",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_select_right.first().copied(),
+        "app.modals.help.key_labels.select_right",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_delete.first().copied(),
+        "app.modals.help.key_labels.delete",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_open_status.first().copied(),
+        "app.modals.help.key_labels.open_arch_status",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.config_menu_toggle.first().copied(),
+        "app.modals.help.key_labels.config_lists_menu",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.options_menu_toggle.first().copied(),
+        "app.modals.help.key_labels.options_menu",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.panels_menu_toggle.first().copied(),
+        "app.modals.help.key_labels.panels_menu",
+    );
+}
+
+/// What: Build install pane keybindings section.
+///
+/// Inputs:
+/// - `lines`: Mutable reference to lines vector
+/// - `app`: Application state
+/// - `th`: Theme reference
+/// - `km`: Keymap reference
+///
+/// Output:
+/// - Adds install bindings to lines
+///
+/// Details:
+/// - Formats install pane navigation and action keybindings.
+fn build_install_bindings(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    km: &crate::theme::KeyMap,
+) {
+    let fmt = |label: &str, chord: KeyChord| -> Line<'static> {
+        Line::from(vec![
+            Span::styled(
+                format!("{label:18}"),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                format!("[{}]", chord.label()),
+                Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+            ),
+        ])
+    };
+
+    if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first()) {
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.move"),
+            KeyChord {
+                code: up.code,
+                mods: up.mods,
+            },
+        ));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.move"),
+            KeyChord {
+                code: dn.code,
+                mods: dn.mods,
+            },
+        ));
+    }
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.install_confirm.first().copied(),
+        "app.modals.help.key_labels.confirm",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.install_remove.first().copied(),
+        "app.modals.help.key_labels.remove",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.install_clear.first().copied(),
+        "app.modals.help.key_labels.clear",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.install_find.first().copied(),
+        "app.modals.help.key_labels.find",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.install_to_search.first().copied(),
+        "app.modals.help.key_labels.to_search",
+    );
+}
+
+/// What: Build recent pane keybindings section.
+///
+/// Inputs:
+/// - `lines`: Mutable reference to lines vector
+/// - `app`: Application state
+/// - `th`: Theme reference
+/// - `km`: Keymap reference
+///
+/// Output:
+/// - Adds recent bindings to lines
+///
+/// Details:
+/// - Formats recent pane navigation and action keybindings, including explicit Shift+Del.
+fn build_recent_bindings(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    km: &crate::theme::KeyMap,
+) {
+    let fmt = |label: &str, chord: KeyChord| -> Line<'static> {
+        Line::from(vec![
+            Span::styled(
+                format!("{label:18}"),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                format!("[{}]", chord.label()),
+                Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+            ),
+        ])
+    };
+
+    if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.move"),
+            KeyChord {
+                code: up.code,
+                mods: up.mods,
+            },
+        ));
+        lines.push(fmt(
+            &i18n::t(app, "app.modals.help.key_labels.move"),
+            KeyChord {
+                code: dn.code,
+                mods: dn.mods,
+            },
+        ));
+    }
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.recent_use.first().copied(),
+        "app.modals.help.key_labels.use",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.recent_add.first().copied(),
+        "app.modals.help.key_labels.add",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.recent_find.first().copied(),
+        "app.modals.help.key_labels.find",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.recent_to_search.first().copied(),
+        "app.modals.help.key_labels.to_search",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.recent_remove.first().copied(),
+        "app.modals.help.key_labels.remove",
+    );
+    // Explicit: Shift+Del clears Recent (display only)
+    lines.push(fmt(
+        &i18n::t(app, "app.modals.help.key_labels.clear"),
+        KeyChord {
+            code: crossterm::event::KeyCode::Delete,
+            mods: crossterm::event::KeyModifiers::SHIFT,
+        },
+    ));
+}
+
 /// What: Render the interactive help overlay summarizing keybindings and mouse tips.
 ///
 /// Inputs:
@@ -53,361 +603,45 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     )));
     lines.push(Line::from(""));
 
-    // Utility to format a binding line
-    let fmt = |label: &str, chord: KeyChord| -> Line<'static> {
-        Line::from(vec![
-            Span::styled(
-                format!("{label:18}"),
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw("  "),
-            Span::styled(
-                format!("[{}]", chord.label()),
-                Style::default().fg(th.text).add_modifier(Modifier::BOLD),
-            ),
-        ])
-    };
-
-    if let Some(k) = km.help_overlay.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.help_overlay"),
-            k,
-        ));
-    }
-    if let Some(k) = km.exit.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.exit"), k));
-    }
-    if let Some(k) = km.reload_theme.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.reload_theme"),
-            k,
-        ));
-    }
-    // Move menu toggles into Normal Mode section; omit here
-    if let Some(k) = km.pane_next.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.next_pane"),
-            k,
-        ));
-    }
-    if let Some(k) = km.pane_left.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.focus_left"),
-            k,
-        ));
-    }
-    if let Some(k) = km.pane_right.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.focus_right"),
-            k,
-        ));
-    }
-    if let Some(k) = km.show_pkgbuild.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.show_pkgbuild"),
-            k,
-        ));
-    }
-    // Show configured key for change sorting
-    if let Some(k) = km.change_sort.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.change_sorting"),
-            k,
-        ));
-    }
+    // Build all sections using helper functions
+    build_global_bindings(&mut lines, app, &th, km);
     lines.push(Line::from(""));
 
-    // Dynamic section for per-pane actions based on keymap
-    lines.push(Line::from(Span::styled(
-        i18n::t(app, "app.modals.help.sections.search"),
-        Style::default()
-            .fg(th.overlay1)
-            .add_modifier(Modifier::BOLD),
-    )));
-    if let (Some(up), Some(dn)) = (km.search_move_up.first(), km.search_move_down.first()) {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.move"),
-            KeyChord {
-                code: up.code,
-                mods: up.mods,
-            },
-        ));
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.move"),
-            KeyChord {
-                code: dn.code,
-                mods: dn.mods,
-            },
-        ));
-    }
-    if let (Some(pu), Some(pd)) = (km.search_page_up.first(), km.search_page_down.first()) {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.page"),
-            KeyChord {
-                code: pu.code,
-                mods: pu.mods,
-            },
-        ));
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.page"),
-            KeyChord {
-                code: pd.code,
-                mods: pd.mods,
-            },
-        ));
-    }
-    if let Some(k) = km.search_add.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.add"), k));
-    }
-    if let Some(k) = km.search_install.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.install"), k));
-    }
-    if let Some(k) = km.search_backspace.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.delete"), k));
-    }
+    add_section_header(&mut lines, app, &th, "app.modals.help.sections.search");
+    build_search_bindings(&mut lines, app, &th, km);
+    build_search_normal_bindings(&mut lines, app, &th, km);
 
-    // Search normal mode
-    if km
-        .search_normal_toggle
-        .first()
-        .or(km.search_normal_insert.first())
-        .or(km.search_normal_select_left.first())
-        .or(km.search_normal_select_right.first())
-        .or(km.search_normal_delete.first())
-        .or(km.search_normal_open_status.first())
-        .or(km.config_menu_toggle.first())
-        .or(km.options_menu_toggle.first())
-        .or(km.panels_menu_toggle.first())
-        .is_some()
-    {
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.help.sections.search_normal"),
-            Style::default()
-                .fg(th.overlay1)
-                .add_modifier(Modifier::BOLD),
-        )));
-        if let Some(k) = km.search_normal_toggle.first().copied() {
-            lines.push(fmt(
-                &i18n::t(app, "app.modals.help.key_labels.toggle_normal"),
-                k,
-            ));
-        }
-        if let Some(k) = km.search_normal_insert.first().copied() {
-            lines.push(fmt(
-                &i18n::t(app, "app.modals.help.key_labels.insert_mode"),
-                k,
-            ));
-        }
-        if let Some(k) = km.search_normal_select_left.first().copied() {
-            lines.push(fmt(
-                &i18n::t(app, "app.modals.help.key_labels.select_left"),
-                k,
-            ));
-        }
-        if let Some(k) = km.search_normal_select_right.first().copied() {
-            lines.push(fmt(
-                &i18n::t(app, "app.modals.help.key_labels.select_right"),
-                k,
-            ));
-        }
-        if let Some(k) = km.search_normal_delete.first().copied() {
-            lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.delete"), k));
-        }
-        if let Some(k) = km.search_normal_open_status.first().copied() {
-            lines.push(fmt(
-                &i18n::t(app, "app.modals.help.key_labels.open_arch_status"),
-                k,
-            ));
-        }
-        if let Some(k) = km.config_menu_toggle.first().copied() {
-            lines.push(fmt(
-                &i18n::t(app, "app.modals.help.key_labels.config_lists_menu"),
-                k,
-            ));
-        }
-        if let Some(k) = km.options_menu_toggle.first().copied() {
-            lines.push(fmt(
-                &i18n::t(app, "app.modals.help.key_labels.options_menu"),
-                k,
-            ));
-        }
-        if let Some(k) = km.panels_menu_toggle.first().copied() {
-            lines.push(fmt(
-                &i18n::t(app, "app.modals.help.key_labels.panels_menu"),
-                k,
-            ));
-        }
-    }
+    add_section_header(&mut lines, app, &th, "app.modals.help.sections.install");
+    build_install_bindings(&mut lines, app, &th, km);
 
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        i18n::t(app, "app.modals.help.sections.install"),
-        Style::default()
-            .fg(th.overlay1)
-            .add_modifier(Modifier::BOLD),
-    )));
-    if let (Some(up), Some(dn)) = (km.install_move_up.first(), km.install_move_down.first()) {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.move"),
-            KeyChord {
-                code: up.code,
-                mods: up.mods,
-            },
-        ));
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.move"),
-            KeyChord {
-                code: dn.code,
-                mods: dn.mods,
-            },
-        ));
-    }
-    if let Some(k) = km.install_confirm.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.confirm"), k));
-    }
-    if let Some(k) = km.install_remove.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.remove"), k));
-    }
-    if let Some(k) = km.install_clear.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.clear"), k));
-    }
-    if let Some(k) = km.install_find.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.find"), k));
-    }
-    if let Some(k) = km.install_to_search.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.to_search"),
-            k,
-        ));
-    }
-
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        i18n::t(app, "app.modals.help.sections.recent"),
-        Style::default()
-            .fg(th.overlay1)
-            .add_modifier(Modifier::BOLD),
-    )));
-    if let (Some(up), Some(dn)) = (km.recent_move_up.first(), km.recent_move_down.first()) {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.move"),
-            KeyChord {
-                code: up.code,
-                mods: up.mods,
-            },
-        ));
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.move"),
-            KeyChord {
-                code: dn.code,
-                mods: dn.mods,
-            },
-        ));
-    }
-    if let Some(k) = km.recent_use.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.use"), k));
-    }
-    if let Some(k) = km.recent_add.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.add"), k));
-    }
-    if let Some(k) = km.recent_find.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.find"), k));
-    }
-    if let Some(k) = km.recent_to_search.first().copied() {
-        lines.push(fmt(
-            &i18n::t(app, "app.modals.help.key_labels.to_search"),
-            k,
-        ));
-    }
-    if let Some(k) = km.recent_remove.first().copied() {
-        lines.push(fmt(&i18n::t(app, "app.modals.help.key_labels.remove"), k));
-    }
-    // Explicit: Shift+Del clears Recent (display only)
-    lines.push(fmt(
-        &i18n::t(app, "app.modals.help.key_labels.clear"),
-        KeyChord {
-            code: crossterm::event::KeyCode::Delete,
-            mods: crossterm::event::KeyModifiers::SHIFT,
-        },
-    ));
+    add_section_header(&mut lines, app, &th, "app.modals.help.sections.recent");
+    build_recent_bindings(&mut lines, app, &th, km);
 
     // Mouse and UI controls
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        i18n::t(app, "app.modals.help.sections.mouse"),
-        Style::default()
-            .fg(th.overlay1)
-            .add_modifier(Modifier::BOLD),
+    add_section_header(&mut lines, app, &th, "app.modals.help.sections.mouse");
+    lines.extend(parse_yaml_lines(&i18n::t(
+        app,
+        "app.modals.help.mouse_lines",
     )));
-    // Arrays are stored as YAML strings, so we need to parse them
-    let mouse_lines_yaml = i18n::t(app, "app.modals.help.mouse_lines");
-    for line in mouse_lines_yaml.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("- \"") || trimmed.starts_with("- '") {
-            let content = trimmed
-                .strip_prefix("- \"")
-                .or_else(|| trimmed.strip_prefix("- '"))
-                .and_then(|s| s.strip_suffix('"').or_else(|| s.strip_suffix('\'')))
-                .unwrap_or(trimmed);
-            lines.push(Line::from(Span::raw(content.to_string())));
-        } else if trimmed.starts_with("- ") {
-            lines.push(Line::from(Span::raw(
-                trimmed.strip_prefix("- ").unwrap_or(trimmed).to_string(),
-            )));
-        }
-    }
 
     // Dialogs
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        i18n::t(app, "app.modals.help.sections.system_update_dialog"),
-        Style::default()
-            .fg(th.overlay1)
-            .add_modifier(Modifier::BOLD),
+    add_section_header(
+        &mut lines,
+        app,
+        &th,
+        "app.modals.help.sections.system_update_dialog",
+    );
+    lines.extend(parse_yaml_lines(&i18n::t(
+        app,
+        "app.modals.help.system_update_lines",
     )));
-    let system_update_yaml = i18n::t(app, "app.modals.help.system_update_lines");
-    for line in system_update_yaml.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("- \"") || trimmed.starts_with("- '") {
-            let content = trimmed
-                .strip_prefix("- \"")
-                .or_else(|| trimmed.strip_prefix("- '"))
-                .and_then(|s| s.strip_suffix('"').or_else(|| s.strip_suffix('\'')))
-                .unwrap_or(trimmed);
-            lines.push(Line::from(Span::raw(content.to_string())));
-        } else if trimmed.starts_with("- ") {
-            lines.push(Line::from(Span::raw(
-                trimmed.strip_prefix("- ").unwrap_or(trimmed).to_string(),
-            )));
-        }
-    }
 
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        i18n::t(app, "app.modals.help.sections.news_dialog"),
-        Style::default()
-            .fg(th.overlay1)
-            .add_modifier(Modifier::BOLD),
+    add_section_header(&mut lines, app, &th, "app.modals.help.sections.news_dialog");
+    lines.extend(parse_yaml_lines(&i18n::t(
+        app,
+        "app.modals.help.news_lines",
     )));
-    let news_yaml = i18n::t(app, "app.modals.help.news_lines");
-    for line in news_yaml.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("- \"") || trimmed.starts_with("- '") {
-            let content = trimmed
-                .strip_prefix("- \"")
-                .or_else(|| trimmed.strip_prefix("- '"))
-                .and_then(|s| s.strip_suffix('"').or_else(|| s.strip_suffix('\'')))
-                .unwrap_or(trimmed);
-            lines.push(Line::from(Span::raw(content.to_string())));
-        } else if trimmed.starts_with("- ") {
-            lines.push(Line::from(Span::raw(
-                trimmed.strip_prefix("- ").unwrap_or(trimmed).to_string(),
-            )));
-        }
-    }
+
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         i18n::t(app, "app.modals.help.close_hint"),

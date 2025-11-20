@@ -424,6 +424,7 @@ fn test_modal_preflight_renders() {
         action: pacsea::state::modal::PreflightAction::Install,
         tab: pacsea::state::modal::PreflightTab::Summary,
         summary: None,
+        summary_scroll: 0,
         header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
         dependency_info: vec![],
         dep_selected: 0,

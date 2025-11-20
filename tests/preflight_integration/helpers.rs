@@ -1,0 +1,256 @@
+//! Helper functions for preflight integration tests.
+
+use pacsea as crate_root;
+
+/// What: Create a test package item with specified properties.
+///
+/// Inputs:
+/// - `name`: Package name
+/// - `version`: Package version
+/// - `source`: Package source (Official or AUR)
+///
+/// Output:
+/// - A `PackageItem` with the specified properties
+///
+/// Details:
+/// - Creates a minimal package item suitable for testing
+pub fn create_test_package(
+    name: impl Into<String>,
+    version: impl Into<String>,
+    source: crate_root::state::Source,
+) -> crate_root::state::PackageItem {
+    crate_root::state::PackageItem {
+        name: name.into(),
+        version: version.into(),
+        description: String::new(),
+        source,
+        popularity: None,
+    }
+}
+
+/// What: Create a default preflight modal state for testing.
+///
+/// Inputs:
+/// - `packages`: Vector of packages to include
+/// - `action`: Preflight action (Install or Remove)
+/// - `initial_tab`: Initial tab to show
+///
+/// Output:
+/// - A `Modal::Preflight` variant with default values
+///
+/// Details:
+/// - Initializes all modal fields with sensible defaults
+/// - Sets up empty collections and default flags
+pub fn create_preflight_modal(
+    packages: Vec<crate_root::state::PackageItem>,
+    action: crate_root::state::PreflightAction,
+    initial_tab: crate_root::state::PreflightTab,
+) -> crate_root::state::Modal {
+    let package_count = packages.len();
+    let aur_count = packages
+        .iter()
+        .filter(|p| matches!(p.source, crate_root::state::Source::Aur))
+        .count();
+
+    crate_root::state::Modal::Preflight {
+        items: packages,
+        action,
+        tab: initial_tab,
+        summary: None,
+        summary_scroll: 0,
+        header_chips: crate_root::state::modal::PreflightHeaderChips {
+            package_count,
+            download_bytes: 0,
+            install_delta_bytes: 0,
+            aur_count,
+            risk_score: 0,
+            risk_level: crate_root::state::modal::RiskLevel::Low,
+        },
+        dependency_info: Vec::new(),
+        dep_selected: 0,
+        dep_tree_expanded: std::collections::HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: std::collections::HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: std::collections::HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+    }
+}
+
+/// What: Switch to a preflight tab and sync data from app cache.
+///
+/// Inputs:
+/// - `app`: Application state with cached data
+/// - `tab`: Tab to switch to
+///
+/// Output:
+/// - Updates modal state with synced data from cache
+///
+/// Details:
+/// - Mirrors the sync logic from `src/ui/modals/preflight/helpers/sync.rs`
+/// - Only syncs data relevant to the target tab
+pub fn switch_preflight_tab(
+    app: &mut crate_root::state::AppState,
+    tab: crate_root::state::PreflightTab,
+) {
+    if let crate_root::state::Modal::Preflight {
+        items,
+        action,
+        tab: current_tab,
+        dependency_info,
+        dep_selected,
+        file_info,
+        file_selected,
+        service_info,
+        service_selected,
+        services_loaded,
+        sandbox_info,
+        sandbox_loaded,
+        ..
+    } = &mut app.modal
+    {
+        *current_tab = tab;
+
+        let item_names: std::collections::HashSet<String> =
+            items.iter().map(|i| i.name.clone()).collect();
+
+        // Sync dependencies
+        if matches!(*action, crate_root::state::PreflightAction::Install)
+            && (matches!(tab, crate_root::state::PreflightTab::Deps)
+                || matches!(tab, crate_root::state::PreflightTab::Summary)
+                || dependency_info.is_empty())
+        {
+            let filtered: Vec<_> = app
+                .install_list_deps
+                .iter()
+                .filter(|dep| {
+                    dep.required_by
+                        .iter()
+                        .any(|req_by| item_names.contains(req_by))
+                })
+                .cloned()
+                .collect();
+            if !filtered.is_empty() {
+                let was_empty = dependency_info.is_empty();
+                *dependency_info = filtered;
+                if was_empty {
+                    *dep_selected = 0;
+                }
+            }
+        }
+
+        // Sync files
+        if matches!(tab, crate_root::state::PreflightTab::Files) {
+            let cached_files: Vec<_> = app
+                .install_list_files
+                .iter()
+                .filter(|file_info| item_names.contains(&file_info.name))
+                .cloned()
+                .collect();
+            if !cached_files.is_empty() {
+                *file_info = cached_files;
+                *file_selected = 0;
+            }
+        }
+
+        // Sync services
+        if matches!(*action, crate_root::state::PreflightAction::Install)
+            && matches!(tab, crate_root::state::PreflightTab::Services)
+        {
+            let cached_services: Vec<_> = app
+                .install_list_services
+                .iter()
+                .filter(|s| s.providers.iter().any(|p| item_names.contains(p)))
+                .cloned()
+                .collect();
+            if !cached_services.is_empty() {
+                *service_info = cached_services;
+                *services_loaded = true;
+                *service_selected = 0;
+            }
+        }
+
+        // Sync sandbox
+        if matches!(*action, crate_root::state::PreflightAction::Install)
+            && matches!(tab, crate_root::state::PreflightTab::Sandbox)
+        {
+            let cached_sandbox: Vec<_> = app
+                .install_list_sandbox
+                .iter()
+                .filter(|s| item_names.contains(&s.package_name))
+                .cloned()
+                .collect();
+            if !cached_sandbox.is_empty() {
+                *sandbox_info = cached_sandbox;
+                *sandbox_loaded = true;
+            }
+        }
+    }
+}
+
+/// What: Assert that the modal is a Preflight variant and return its fields.
+///
+/// Inputs:
+/// - `app`: Application state
+///
+/// Output:
+/// - Tuple of all Preflight modal fields for verification
+///
+/// Details:
+/// - Panics if modal is not Preflight variant
+/// - Useful for assertions and verification
+/// - Returns references to all fields for easy access
+#[allow(clippy::type_complexity)]
+pub fn assert_preflight_modal(
+    app: &crate_root::state::AppState,
+) -> (
+    &Vec<crate_root::state::PackageItem>,
+    &crate_root::state::PreflightAction,
+    &crate_root::state::PreflightTab,
+    &Vec<crate_root::state::modal::DependencyInfo>,
+    &Vec<crate_root::state::modal::PackageFileInfo>,
+    &Vec<crate_root::state::modal::ServiceImpact>,
+    &Vec<crate_root::logic::sandbox::SandboxInfo>,
+    &bool,
+    &bool,
+) {
+    if let crate_root::state::Modal::Preflight {
+        items,
+        action,
+        tab,
+        dependency_info,
+        file_info,
+        service_info,
+        sandbox_info,
+        services_loaded,
+        sandbox_loaded,
+        ..
+    } = &app.modal
+    {
+        (
+            items,
+            action,
+            tab,
+            dependency_info,
+            file_info,
+            service_info,
+            sandbox_info,
+            services_loaded,
+            sandbox_loaded,
+        )
+    } else {
+        panic!("Expected Preflight modal");
+    }
+}
+

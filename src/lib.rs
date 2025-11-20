@@ -128,6 +128,9 @@ pub mod theme;
 pub mod ui;
 pub mod util;
 
+#[cfg(test)]
+mod test_utils;
+
 // Backwards-compat shim: keep `crate::ui_helpers::*` working
 #[doc(hidden)]
 pub use crate::ui::helpers as ui_helpers;

@@ -65,6 +65,8 @@ de-DE:
       pop_prefix: "Pop:"
       worldwide: "Weltweit"
     toasts:
+      title_news: " Neuigkeiten "
+      title_clipboard: " Zwischenablage "
       copying_pkgbuild: "PKGBUILD wird in Zwischenablage kopiert…"
       pkgbuild_not_loaded: "PKGBUILD noch nicht geladen"
       install_list_empty: "Installationsliste ist leer"
@@ -87,6 +89,7 @@ de-DE:
       dry_run_disabled: "Trockenlaufmodus deaktiviert"
       cascade_mode_enabled: "Kaskadenmodus aktiviert"
       cascade_mode_disabled: "Kaskadenmodus deaktiviert"
+      gnome_terminal_warning: "Fortsetzen ohne gnome-terminal kann zu unerwartetem Verhalten führen"
 
     actions:
       exit: "Beenden"
@@ -178,6 +181,7 @@ de-DE:
     results:
       title: "Ergebnisse"
       status_label: "Status:"
+      status_with_key: "Status: {} [{}]"
       buttons:
         sort: "Sortieren"
         options: "Optionen"
@@ -257,8 +261,9 @@ de-DE:
         title: " Entfernung bestätigen "
         heading: "Entfernung bestätigen"
         warning_core: "WARNUNG: Core-Pakete ausgewählt. Das Entfernen von Core-Paketen kann Ihr System beschädigen."
+        warning_removal: "Warnung: Pakete und Abhängigkeiten (falls nicht von anderen Paketen benötigt) werden entfernt und es wird keine Systemkonfigurationssicherung erstellt."
         none: "Nichts zu entfernen"
-        confirm_hint: "Enter zum Bestätigen oder Esc zum Abbrechen drücken"
+        confirm_hint: "Drücken Sie 'y' zum Bestätigen der Entfernung, oder Enter/Esc zum Abbrechen [y/N]"
       system_update:
         title: " System aktualisieren "
         heading: "System-Update"
@@ -268,7 +273,7 @@ de-DE:
           update_aur: "AUR aktualisieren (paru/yay)"
           remove_cache: "Cache entfernen (pacman/yay)"
         country_label: "Land (Mirrors): "
-        count_label: "Anzahl:"
+        count_label: "Anzahl: {}"
         worldwide: "Weltweit"
         footer_hint: "Leertaste: umschalten  •  Links/Rechts: Land ändern  •  -/+ Anzahl ändern  •  Enter: ausführen  •  Esc: abbrechen"
       help:
@@ -342,7 +347,7 @@ de-DE:
         title: " Neuigkeiten "
         heading: "Arch Linux Neuigkeiten"
         none: "Keine Neuigkeiten verfügbar."
-        footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  •  Esc: schließen"
+        footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc: schließen"
       optional_deps:
         title: " Optionale Abhängigkeiten "
         heading: "TUI Optionale Abhängigkeiten"
@@ -394,6 +399,7 @@ de-DE:
           summary_no_conflicts: "Zusammenfassung: Keine Konflikte oder Upgrades erforderlich."
           conflict_singular: "{} Konflikt(e)"
           upgrade_singular: "{} Upgrade(s)"
+          installed_singular: "{} installiert"
           and_more: "... und {} weitere"
           cascade_mode: "Kaskadenmodus: {} ({})"
           no_removal_targets: "Keine Entfernungsziele ausgewählt."
@@ -422,6 +428,10 @@ de-DE:
           packages_selected: "{} Paket(e) ausgewählt"
           aur_packages_included: "AUR-Pakete enthalten (+2)"
           aur_packages_present: "AUR-Pakete vorhanden; Build-Schritte können variieren."
+          resolving_deps: "Abhängigkeiten"
+          resolving_files: "Dateien"
+          resolving_sandbox: "Sandbox"
+          data_will_update: "Daten werden noch aufgelöst. Zählungen werden automatisch aktualisiert."
         deps:
           dependents_rely_on: "Abhängige: {} Paket(e) hängen von der Entfernungsliste ab"
           dependencies_label: "Abhängigkeiten: {}"
@@ -483,6 +493,8 @@ de-DE:
           retry_hint: "Taste 'r' drücken, um erneut zu versuchen"
           updating: "Aktualisiere Sandbox-Analyse…"
           analyzing: "Analysiere Build-Abhängigkeiten…"
+          no_aur_packages: "Keine AUR-Pakete in der Installationsliste"
+          sandbox_only_for_aur: "Sandbox-Analyse ist nur für AUR-Pakete verfügbar. Offizielle Pakete sind vorgebaut."
           official_packages_prebuilt: "Offizielle Pakete sind vorgebaut und benötigen keine Sandbox-Analyse."
           dependencies_expand_hint: "{} Abhängigkeiten (Leertaste/Enter zum Ausklappen)"
           no_build_dependencies: "Keine Build-Abhängigkeiten gefunden."
@@ -555,10 +567,11 @@ de-DE:
                         • Dienste - Systemd-Dienstauswirkung und Neustartplanung\n\
                         • Sandbox - AUR-Build-Prüfungen (Platzhalter)"
       post_summary:
+        title: " Post-Transaktions-Zusammenfassung "
         success: "Erfolg"
         failed: "Fehlgeschlagen"
         changed_files: "Geänderte Dateien: {} (pacnew: {}, pacsave: {})"
         snapshot: "Schnappschuss: {}"
-        services_pending_restart: "Dienste mit ausstehendem Neustart:"
+        services_pending: "Dienste mit ausstehendem Neustart:"
         footer_hint: "r: zurücksetzen  •  s: Dienste neu starten  •  Enter/Esc: schließen"
 

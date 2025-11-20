@@ -217,7 +217,7 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
         "https://aur.archlinux.org/rpc/v5/info?arg={}",
         crate::util::percent_encode(&item.name)
     );
-    let v = tokio::task::spawn_blocking(move || super::curl_json(&url)).await??;
+    let v = tokio::task::spawn_blocking(move || crate::util::curl::curl_json(&url)).await??;
     let arr = v
         .get("results")
         .and_then(|x| x.as_array())
@@ -314,7 +314,7 @@ pub async fn fetch_official_details(
             );
             if let Ok(Ok(val)) = tokio::task::spawn_blocking({
                 let url = url.clone();
-                move || super::curl_json(&url)
+                move || crate::util::curl::curl_json(&url)
             })
             .await
             {

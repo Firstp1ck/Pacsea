@@ -15,7 +15,7 @@ mod utils;
 pub use batch::spawn_install_all;
 pub use logging::log_removed;
 mod patterns;
-pub use remove::spawn_remove_all;
+pub use remove::{check_config_directories, spawn_remove_all};
 
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::too_many_arguments)]

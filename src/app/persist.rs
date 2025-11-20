@@ -99,8 +99,21 @@ pub fn maybe_flush_files_cache(app: &mut AppState) {
         return;
     }
     let signature = files_cache::compute_signature(&app.install_list);
+    tracing::debug!(
+        "[Persist] Saving file cache: {} entries for packages: {:?}, signature: {:?}",
+        app.install_list_files.len(),
+        app.install_list_files
+            .iter()
+            .map(|f| &f.name)
+            .collect::<Vec<_>>(),
+        signature
+    );
     files_cache::save_cache(&app.files_cache_path, &signature, &app.install_list_files);
     app.files_cache_dirty = false;
+    tracing::debug!(
+        "[Persist] File cache saved successfully, install_list_files still has {} entries",
+        app.install_list_files.len()
+    );
 }
 
 /// What: Persist the service cache to disk if marked dirty.
@@ -149,12 +162,25 @@ pub fn maybe_flush_sandbox_cache(app: &mut AppState) {
         return;
     }
     let signature = sandbox_cache::compute_signature(&app.install_list);
+    tracing::debug!(
+        "[Persist] Saving sandbox cache: {} entries for packages: {:?}, signature: {:?}",
+        app.install_list_sandbox.len(),
+        app.install_list_sandbox
+            .iter()
+            .map(|s| &s.package_name)
+            .collect::<Vec<_>>(),
+        signature
+    );
     sandbox_cache::save_cache(
         &app.sandbox_cache_path,
         &signature,
         &app.install_list_sandbox,
     );
     app.sandbox_cache_dirty = false;
+    tracing::debug!(
+        "[Persist] Sandbox cache saved successfully, install_list_sandbox still has {} entries",
+        app.install_list_sandbox.len()
+    );
 }
 
 /// What: Persist the install list to disk if marked dirty, throttled to ~1s.

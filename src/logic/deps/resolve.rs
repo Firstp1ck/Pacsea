@@ -4,6 +4,8 @@ use super::parse::{parse_dep_spec, parse_pacman_si_conflicts, parse_pacman_si_de
 use super::source::{determine_dependency_source, is_system_package};
 use super::srcinfo::{fetch_srcinfo, parse_srcinfo_conflicts, parse_srcinfo_deps};
 use super::status::determine_status;
+use crate::logic::files::get_pkgbuild_from_cache;
+use crate::logic::sandbox::parse_pkgbuild_deps;
 use crate::state::modal::DependencyInfo;
 use crate::state::types::Source;
 use std::collections::{HashMap, HashSet};
@@ -79,6 +81,473 @@ pub(crate) fn batch_fetch_official_deps(names: &[&str]) -> HashMap<String, Vec<S
     result_map
 }
 
+/// What: Check if a command is available in PATH.
+///
+/// Inputs:
+/// - `cmd`: Command name to check.
+///
+/// Output:
+/// - Returns true if the command exists and can be executed.
+///
+/// Details:
+/// - Uses a simple version check to verify command availability.
+fn is_command_available(cmd: &str) -> bool {
+    Command::new(cmd)
+        .args(["--version"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .is_ok()
+}
+
+/// What: Check if a package name should be filtered out (virtual package or self-reference).
+///
+/// Inputs:
+/// - `pkg_name`: Package name to check.
+/// - `parent_name`: Name of the parent package (to detect self-references).
+///
+/// Output:
+/// - Returns true if the package should be filtered out.
+///
+/// Details:
+/// - Filters out .so files (virtual packages) and self-references.
+fn should_filter_dependency(pkg_name: &str, parent_name: &str) -> bool {
+    pkg_name == parent_name
+        || pkg_name.ends_with(".so")
+        || pkg_name.contains(".so.")
+        || pkg_name.contains(".so=")
+}
+
+/// What: Convert a dependency spec into a DependencyInfo record.
+///
+/// Inputs:
+/// - `dep_spec`: Dependency specification string (may include version requirements).
+/// - `parent_name`: Name of the package that requires this dependency.
+/// - `installed`: Set of locally installed packages.
+/// - `provided`: Set of package names provided by installed packages.
+/// - `upgradable`: Set of packages flagged for upgrades.
+///
+/// Output:
+/// - Returns Some(DependencyInfo) if the dependency should be included, None if filtered.
+///
+/// Details:
+/// - Parses the dependency spec, filters out virtual packages and self-references,
+///   and determines status, source, and system package flags.
+fn process_dependency_spec(
+    dep_spec: &str,
+    parent_name: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+    upgradable: &HashSet<String>,
+) -> Option<DependencyInfo> {
+    let (pkg_name, version_req) = parse_dep_spec(dep_spec);
+
+    if should_filter_dependency(&pkg_name, parent_name) {
+        if pkg_name == parent_name {
+            tracing::debug!("Skipping self-reference: {} == {}", pkg_name, parent_name);
+        } else {
+            tracing::debug!("Filtering out virtual package: {}", pkg_name);
+        }
+        return None;
+    }
+
+    let status = determine_status(&pkg_name, &version_req, installed, provided, upgradable);
+    let (source, is_core) = determine_dependency_source(&pkg_name, installed);
+    let is_system = is_core || is_system_package(&pkg_name);
+
+    Some(DependencyInfo {
+        name: pkg_name,
+        version: version_req,
+        status,
+        source,
+        required_by: vec![parent_name.to_string()],
+        depends_on: Vec::new(),
+        is_core,
+        is_system,
+    })
+}
+
+/// What: Process a list of dependency specs into DependencyInfo records.
+///
+/// Inputs:
+/// - `dep_specs`: Vector of dependency specification strings.
+/// - `parent_name`: Name of the package that requires these dependencies.
+/// - `installed`: Set of locally installed packages.
+/// - `provided`: Set of package names provided by installed packages.
+/// - `upgradable`: Set of packages flagged for upgrades.
+///
+/// Output:
+/// - Returns a vector of DependencyInfo records (filtered).
+///
+/// Details:
+/// - Processes each dependency spec and collects valid dependencies.
+fn process_dependency_specs(
+    dep_specs: Vec<String>,
+    parent_name: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+    upgradable: &HashSet<String>,
+) -> Vec<DependencyInfo> {
+    dep_specs
+        .into_iter()
+        .filter_map(|dep_spec| {
+            process_dependency_spec(&dep_spec, parent_name, installed, provided, upgradable)
+        })
+        .collect()
+}
+
+/// What: Resolve dependencies for a local package using pacman -Qi.
+///
+/// Inputs:
+/// - `name`: Package name.
+/// - `installed`: Set of locally installed packages.
+/// - `provided`: Set of package names provided by installed packages.
+/// - `upgradable`: Set of packages flagged for upgrades.
+///
+/// Output:
+/// - Returns a vector of DependencyInfo records or an error string.
+///
+/// Details:
+/// - Uses pacman -Qi to get dependency information for locally installed packages.
+fn resolve_local_package_deps(
+    name: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+    upgradable: &HashSet<String>,
+) -> Result<Vec<DependencyInfo>, String> {
+    tracing::debug!("Running: pacman -Qi {} (local package)", name);
+    let output = Command::new("pacman")
+        .args(["-Qi", name])
+        .env("LC_ALL", "C")
+        .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| {
+            tracing::error!("Failed to execute pacman -Qi {}: {}", name, e);
+            format!("pacman -Qi failed: {}", e)
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::warn!(
+            "pacman -Qi {} failed with status {:?}: {}",
+            name,
+            output.status.code(),
+            stderr
+        );
+        return Ok(Vec::new());
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    tracing::debug!("pacman -Qi {} output ({} bytes)", name, text.len());
+
+    let dep_names = parse_pacman_si_deps(&text);
+    tracing::debug!(
+        "Parsed {} dependency names from pacman -Qi output",
+        dep_names.len()
+    );
+
+    Ok(process_dependency_specs(
+        dep_names, name, installed, provided, upgradable,
+    ))
+}
+
+/// What: Resolve dependencies for an official package using pacman -Si.
+///
+/// Inputs:
+/// - `name`: Package name.
+/// - `repo`: Repository name (for logging).
+/// - `installed`: Set of locally installed packages.
+/// - `provided`: Set of package names provided by installed packages.
+/// - `upgradable`: Set of packages flagged for upgrades.
+///
+/// Output:
+/// - Returns a vector of DependencyInfo records or an error string.
+///
+/// Details:
+/// - Uses pacman -Si to get dependency information for official packages.
+fn resolve_official_package_deps(
+    name: &str,
+    repo: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+    upgradable: &HashSet<String>,
+) -> Result<Vec<DependencyInfo>, String> {
+    tracing::debug!("Running: pacman -Si {} (repo: {})", name, repo);
+    let output = Command::new("pacman")
+        .args(["-Si", name])
+        .env("LC_ALL", "C")
+        .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| {
+            tracing::error!("Failed to execute pacman -Si {}: {}", name, e);
+            format!("pacman -Si failed: {}", e)
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::error!(
+            "pacman -Si {} failed with status {:?}: {}",
+            name,
+            output.status.code(),
+            stderr
+        );
+        return Err(format!("pacman -Si failed for {}: {}", name, stderr));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    tracing::debug!("pacman -Si {} output ({} bytes)", name, text.len());
+
+    let dep_names = parse_pacman_si_deps(&text);
+    tracing::debug!(
+        "Parsed {} dependency names from pacman -Si output",
+        dep_names.len()
+    );
+
+    Ok(process_dependency_specs(
+        dep_names, name, installed, provided, upgradable,
+    ))
+}
+
+/// What: Try to resolve dependencies using an AUR helper (paru or yay).
+///
+/// Inputs:
+/// - `helper`: Helper command name ("paru" or "yay").
+/// - `name`: Package name.
+/// - `installed`: Set of locally installed packages.
+/// - `provided`: Set of package names provided by installed packages.
+/// - `upgradable`: Set of packages flagged for upgrades.
+///
+/// Output:
+/// - Returns Some(Vec<DependencyInfo>) if successful, None otherwise.
+///
+/// Details:
+/// - Executes helper -Si command and parses the output for dependencies.
+fn try_helper_resolution(
+    helper: &str,
+    name: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+    upgradable: &HashSet<String>,
+) -> Option<Vec<DependencyInfo>> {
+    tracing::debug!("Trying {} -Si {} for dependency resolution", helper, name);
+    let output = Command::new(helper)
+        .args(["-Si", name])
+        .env("LC_ALL", "C")
+        .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        tracing::debug!(
+            "{} -Si {} failed (will try other methods): {}",
+            helper,
+            name,
+            stderr.trim()
+        );
+        return None;
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    tracing::debug!("{} -Si {} output ({} bytes)", helper, name, text.len());
+    let dep_names = parse_pacman_si_deps(&text);
+
+    if dep_names.is_empty() {
+        return None;
+    }
+
+    tracing::info!(
+        "Using {} to resolve runtime dependencies for {} (will fetch .SRCINFO for build-time deps)",
+        helper,
+        name
+    );
+
+    let deps = process_dependency_specs(dep_names, name, installed, provided, upgradable);
+    Some(deps)
+}
+
+/// What: Enhance dependency list with .SRCINFO data.
+///
+/// Inputs:
+/// - `name`: Package name.
+/// - `deps`: Existing dependency list to enhance.
+/// - `installed`: Set of locally installed packages.
+/// - `provided`: Set of package names provided by installed packages.
+/// - `upgradable`: Set of packages flagged for upgrades.
+///
+/// Output:
+/// - Returns the enhanced dependency list.
+///
+/// Details:
+/// - Fetches and parses .SRCINFO to add missing depends entries.
+fn enhance_with_srcinfo(
+    name: &str,
+    mut deps: Vec<DependencyInfo>,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+    upgradable: &HashSet<String>,
+) -> Vec<DependencyInfo> {
+    let srcinfo_text = match fetch_srcinfo(name, Some(10)) {
+        Ok(text) => text,
+        Err(e) => {
+            tracing::warn!(
+                "Could not fetch .SRCINFO for {}: {} (build-time dependencies will be missing)",
+                name,
+                e
+            );
+            return deps;
+        }
+    };
+
+    tracing::debug!("Successfully fetched .SRCINFO for {}", name);
+    let (srcinfo_depends, srcinfo_makedepends, srcinfo_checkdepends, srcinfo_optdepends) =
+        parse_srcinfo_deps(&srcinfo_text);
+
+    tracing::debug!(
+        "Parsed .SRCINFO: {} depends, {} makedepends, {} checkdepends, {} optdepends",
+        srcinfo_depends.len(),
+        srcinfo_makedepends.len(),
+        srcinfo_checkdepends.len(),
+        srcinfo_optdepends.len()
+    );
+
+    let existing_dep_names: HashSet<String> = deps.iter().map(|d| d.name.clone()).collect();
+
+    deps.extend(
+        srcinfo_depends
+            .into_iter()
+            .filter_map(|dep_spec| {
+                process_dependency_spec(&dep_spec, name, installed, provided, upgradable)
+            })
+            .filter(|dep_info| !existing_dep_names.contains(&dep_info.name)),
+    );
+
+    tracing::info!(
+        "Enhanced dependency list with .SRCINFO data: total {} dependencies",
+        deps.len()
+    );
+    deps
+}
+
+/// What: Fallback to cached PKGBUILD for dependency resolution.
+///
+/// Inputs:
+/// - `name`: Package name.
+/// - `installed`: Set of locally installed packages.
+/// - `provided`: Set of package names provided by installed packages.
+/// - `upgradable`: Set of packages flagged for upgrades.
+///
+/// Output:
+/// - Returns a vector of DependencyInfo records if PKGBUILD is found, empty vector otherwise.
+///
+/// Details:
+/// - Attempts to use cached PKGBUILD when .SRCINFO is unavailable (offline fallback).
+fn fallback_to_pkgbuild(
+    name: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+    upgradable: &HashSet<String>,
+) -> Vec<DependencyInfo> {
+    let pkgbuild_text = match get_pkgbuild_from_cache(name) {
+        Some(text) => text,
+        None => {
+            tracing::debug!(
+                "No cached PKGBUILD available for {} (offline, no dependencies resolved)",
+                name
+            );
+            return Vec::new();
+        }
+    };
+
+    tracing::info!(
+        "Using cached PKGBUILD for {} to resolve dependencies (offline fallback)",
+        name
+    );
+    let (pkgbuild_depends, _, _, _) = parse_pkgbuild_deps(&pkgbuild_text);
+
+    let deps = process_dependency_specs(pkgbuild_depends, name, installed, provided, upgradable);
+    tracing::info!(
+        "Resolved {} dependencies from cached PKGBUILD for {}",
+        deps.len(),
+        name
+    );
+    deps
+}
+
+/// What: Resolve dependencies for an AUR package.
+///
+/// Inputs:
+/// - `name`: Package name.
+/// - `installed`: Set of locally installed packages.
+/// - `provided`: Set of package names provided by installed packages.
+/// - `upgradable`: Set of packages flagged for upgrades.
+///
+/// Output:
+/// - Returns a vector of DependencyInfo records.
+///
+/// Details:
+/// - Tries paru/yay first, then falls back to .SRCINFO and cached PKGBUILD.
+fn resolve_aur_package_deps(
+    name: &str,
+    installed: &HashSet<String>,
+    provided: &HashSet<String>,
+    upgradable: &HashSet<String>,
+) -> Vec<DependencyInfo> {
+    tracing::debug!(
+        "Attempting to resolve AUR package: {} (will skip if not found)",
+        name
+    );
+
+    let mut deps = Vec::new();
+    let mut used_helper = false;
+
+    // Try paru first
+    if is_command_available("paru")
+        && let Some(helper_deps) =
+            try_helper_resolution("paru", name, installed, provided, upgradable)
+    {
+        deps = helper_deps;
+        used_helper = true;
+    }
+
+    // Try yay if paru didn't work
+    if !used_helper
+        && is_command_available("yay")
+        && let Some(helper_deps) =
+            try_helper_resolution("yay", name, installed, provided, upgradable)
+    {
+        deps = helper_deps;
+        used_helper = true;
+    }
+
+    if !used_helper {
+        tracing::debug!(
+            "Skipping AUR API for {} - paru/yay failed or not available (likely not a real package)",
+            name
+        );
+    }
+
+    // Always try to enhance with .SRCINFO
+    deps = enhance_with_srcinfo(name, deps, installed, provided, upgradable);
+
+    // Fallback to PKGBUILD if no dependencies were found
+    if !used_helper && deps.is_empty() {
+        deps = fallback_to_pkgbuild(name, installed, provided, upgradable);
+    }
+
+    deps
+}
+
 /// What: Resolve direct dependency metadata for a single package.
 ///
 /// Inputs:
@@ -100,455 +569,16 @@ pub(crate) fn resolve_package_deps(
     provided: &HashSet<String>,
     upgradable: &HashSet<String>,
 ) -> Result<Vec<DependencyInfo>, String> {
-    let mut deps = Vec::new();
-
-    match source {
+    let deps = match source {
         Source::Official { repo, .. } => {
-            // Handle local packages specially - use pacman -Qi instead of -Si
             if repo == "local" {
-                tracing::debug!("Running: pacman -Qi {} (local package)", name);
-                let output = Command::new("pacman")
-                    .args(["-Qi", name])
-                    .env("LC_ALL", "C")
-                    .env("LANG", "C")
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .output()
-                    .map_err(|e| {
-                        tracing::error!("Failed to execute pacman -Qi {}: {}", name, e);
-                        format!("pacman -Qi failed: {}", e)
-                    })?;
-
-                if !output.status.success() {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    tracing::warn!(
-                        "pacman -Qi {} failed with status {:?}: {}",
-                        name,
-                        output.status.code(),
-                        stderr
-                    );
-                    // Local package might not exist anymore, return empty deps
-                    return Ok(Vec::new());
-                }
-
-                let text = String::from_utf8_lossy(&output.stdout);
-                tracing::debug!("pacman -Qi {} output ({} bytes)", name, text.len());
-
-                // Parse "Depends On" field from pacman -Qi output (same format as -Si)
-                let dep_names = parse_pacman_si_deps(&text);
-                tracing::debug!(
-                    "Parsed {} dependency names from pacman -Qi output",
-                    dep_names.len()
-                );
-
-                // Process runtime dependencies only
-                for dep_spec in dep_names {
-                    let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                    if pkg_name == name {
-                        tracing::debug!("Skipping self-reference: {} == {}", pkg_name, name);
-                        continue;
-                    }
-                    if pkg_name.ends_with(".so")
-                        || pkg_name.contains(".so.")
-                        || pkg_name.contains(".so=")
-                    {
-                        tracing::debug!("Filtering out virtual package: {}", pkg_name);
-                        continue;
-                    }
-
-                    let status =
-                        determine_status(&pkg_name, &version_req, installed, provided, upgradable);
-                    let (source, is_core) = determine_dependency_source(&pkg_name, installed);
-                    let is_system = is_core || is_system_package(&pkg_name);
-
-                    deps.push(DependencyInfo {
-                        name: pkg_name,
-                        version: version_req,
-                        status,
-                        source,
-                        required_by: vec![name.to_string()],
-                        depends_on: Vec::new(),
-                        is_core,
-                        is_system,
-                    });
-                }
-
-                // Skip optional dependencies - only show runtime dependencies
-                return Ok(deps);
-            }
-
-            // Use pacman -Si to get dependency list (shows all deps, not just ones to download)
-            // Note: pacman -Si doesn't need repo prefix - it will find the package in any repo
-            // Using repo prefix can cause failures if repo is incorrect (e.g., core package marked as extra)
-            tracing::debug!("Running: pacman -Si {} (repo: {})", name, repo);
-            let output = Command::new("pacman")
-                .args(["-Si", name])
-                .env("LC_ALL", "C")
-                .env("LANG", "C")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output()
-                .map_err(|e| {
-                    tracing::error!("Failed to execute pacman -Si {}: {}", name, e);
-                    format!("pacman -Si failed: {}", e)
-                })?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                tracing::error!(
-                    "pacman -Si {} failed with status {:?}: {}",
-                    name,
-                    output.status.code(),
-                    stderr
-                );
-                return Err(format!("pacman -Si failed for {}: {}", name, stderr));
-            }
-
-            let text = String::from_utf8_lossy(&output.stdout);
-            tracing::debug!("pacman -Si {} output ({} bytes)", name, text.len());
-
-            // Parse "Depends On" field from pacman -Si output
-            let dep_names = parse_pacman_si_deps(&text);
-            tracing::debug!(
-                "Parsed {} dependency names from pacman -Si output",
-                dep_names.len()
-            );
-
-            // Process runtime dependencies (depends)
-            for dep_spec in dep_names {
-                let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                // Skip if this dependency is the package itself (shouldn't happen, but be safe)
-                if pkg_name == name {
-                    tracing::debug!("Skipping self-reference: {} == {}", pkg_name, name);
-                    continue;
-                }
-                // Filter out .so files (virtual packages) - safety check in case filtering in parse_pacman_si_deps missed something
-                if pkg_name.ends_with(".so")
-                    || pkg_name.contains(".so.")
-                    || pkg_name.contains(".so=")
-                {
-                    tracing::debug!("Filtering out virtual package: {}", pkg_name);
-                    continue;
-                }
-
-                let status =
-                    determine_status(&pkg_name, &version_req, installed, provided, upgradable);
-                let (source, is_core) = determine_dependency_source(&pkg_name, installed);
-                let is_system = is_core || is_system_package(&pkg_name);
-
-                deps.push(DependencyInfo {
-                    name: pkg_name,
-                    version: version_req,
-                    status,
-                    source,
-                    required_by: vec![name.to_string()],
-                    depends_on: Vec::new(),
-                    is_core,
-                    is_system,
-                });
-            }
-
-            // Skip optional dependencies - only show runtime dependencies (depends)
-        }
-        Source::Aur => {
-            // For AUR packages, first verify it actually exists in AUR before trying to resolve
-            // This prevents unnecessary API calls for binaries/scripts that aren't packages
-            // Quick check: if pacman -Si failed, it's likely not a real package
-            // We'll still try AUR but only if paru/yay is available (faster than API)
-            tracing::debug!(
-                "Attempting to resolve AUR package: {} (will skip if not found)",
-                name
-            );
-
-            // Check if paru exists
-            let has_paru = Command::new("paru")
-                .args(["--version"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .output()
-                .is_ok();
-
-            // Check if yay exists
-            let has_yay = Command::new("yay")
-                .args(["--version"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .output()
-                .is_ok();
-
-            // Try paru/yay first, but fall back to API if they fail
-            // Use -Si to get all dependencies (similar to pacman -Si)
-            let mut used_helper = false;
-
-            if has_paru {
-                tracing::debug!("Trying paru -Si {} for dependency resolution", name);
-                match Command::new("paru")
-                    .args(["-Si", name])
-                    .env("LC_ALL", "C")
-                    .env("LANG", "C")
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .output()
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            let text = String::from_utf8_lossy(&output.stdout);
-                            tracing::debug!("paru -Si {} output ({} bytes)", name, text.len());
-                            let dep_names = parse_pacman_si_deps(&text);
-                            // Note: paru -Si only returns runtime dependencies (depends), not makedepends/checkdepends
-                            // We'll still fetch .SRCINFO later to get build-time dependencies
-                            if !dep_names.is_empty() {
-                                tracing::info!(
-                                    "Using paru to resolve runtime dependencies for {} (will fetch .SRCINFO for build-time deps)",
-                                    name
-                                );
-                                used_helper = true;
-                                for dep_spec in dep_names {
-                                    let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                                    // Skip if this dependency is the package itself
-                                    if pkg_name == name {
-                                        tracing::debug!(
-                                            "Skipping self-reference: {} == {}",
-                                            pkg_name,
-                                            name
-                                        );
-                                        continue;
-                                    }
-                                    // Filter out .so files (virtual packages)
-                                    if pkg_name.ends_with(".so")
-                                        || pkg_name.contains(".so.")
-                                        || pkg_name.contains(".so=")
-                                    {
-                                        tracing::debug!(
-                                            "Filtering out virtual package: {}",
-                                            pkg_name
-                                        );
-                                        continue;
-                                    }
-
-                                    let status = determine_status(
-                                        &pkg_name,
-                                        &version_req,
-                                        installed,
-                                        provided,
-                                        upgradable,
-                                    );
-                                    let (source, is_core) =
-                                        determine_dependency_source(&pkg_name, installed);
-                                    let is_system = is_core || is_system_package(&pkg_name);
-
-                                    deps.push(DependencyInfo {
-                                        name: pkg_name,
-                                        version: version_req,
-                                        status,
-                                        source,
-                                        required_by: vec![name.to_string()],
-                                        depends_on: Vec::new(),
-                                        is_core,
-                                        is_system,
-                                    });
-                                }
-                            }
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            tracing::debug!(
-                                "paru -Si {} failed (will try yay or API): {}",
-                                name,
-                                stderr.trim()
-                            );
-                        }
-                    }
-                    Err(_) => {
-                        // paru not available, continue to try yay or API
-                    }
-                }
-            }
-
-            if !used_helper && has_yay {
-                tracing::debug!("Trying yay -Si {} for dependency resolution", name);
-                match Command::new("yay")
-                    .args(["-Si", name])
-                    .env("LC_ALL", "C")
-                    .env("LANG", "C")
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .output()
-                {
-                    Ok(output) => {
-                        if output.status.success() {
-                            let text = String::from_utf8_lossy(&output.stdout);
-                            tracing::debug!("yay -Si {} output ({} bytes)", name, text.len());
-                            let dep_names = parse_pacman_si_deps(&text);
-                            // Note: yay -Si only returns runtime dependencies (depends), not makedepends/checkdepends
-                            // We'll still fetch .SRCINFO later to get build-time dependencies
-                            if !dep_names.is_empty() {
-                                tracing::info!(
-                                    "Using yay to resolve runtime dependencies for {} (will fetch .SRCINFO for build-time deps)",
-                                    name
-                                );
-                                used_helper = true;
-                                for dep_spec in dep_names {
-                                    let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                                    // Skip if this dependency is the package itself
-                                    if pkg_name == name {
-                                        tracing::debug!(
-                                            "Skipping self-reference: {} == {}",
-                                            pkg_name,
-                                            name
-                                        );
-                                        continue;
-                                    }
-                                    // Filter out .so files (virtual packages)
-                                    if pkg_name.ends_with(".so")
-                                        || pkg_name.contains(".so.")
-                                        || pkg_name.contains(".so=")
-                                    {
-                                        tracing::debug!(
-                                            "Filtering out virtual package: {}",
-                                            pkg_name
-                                        );
-                                        continue;
-                                    }
-
-                                    let status = determine_status(
-                                        &pkg_name,
-                                        &version_req,
-                                        installed,
-                                        provided,
-                                        upgradable,
-                                    );
-                                    let (source, is_core) =
-                                        determine_dependency_source(&pkg_name, installed);
-                                    let is_system = is_core || is_system_package(&pkg_name);
-
-                                    deps.push(DependencyInfo {
-                                        name: pkg_name,
-                                        version: version_req,
-                                        status,
-                                        source,
-                                        required_by: vec![name.to_string()],
-                                        depends_on: Vec::new(),
-                                        is_core,
-                                        is_system,
-                                    });
-                                }
-                            }
-                        } else {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            tracing::debug!(
-                                "yay -Si {} failed (will use API): {}",
-                                name,
-                                stderr.trim()
-                            );
-                        }
-                    }
-                    Err(_) => {
-                        // yay not available, continue to API fallback
-                    }
-                }
-            }
-
-            // Skip AUR API fallback - if paru/yay failed, the package likely doesn't exist
-            // This prevents unnecessary API calls for binaries/scripts that aren't packages
-            // The dependency will be marked as Missing by the status determination logic
-            if !used_helper {
-                tracing::debug!(
-                    "Skipping AUR API for {} - paru/yay failed or not available (likely not a real package)",
-                    name
-                );
-                // Return empty deps - the dependency will be marked as Missing
-                // This is better than making unnecessary API calls
-            }
-
-            // Always try to fetch and parse .SRCINFO to get makedepends/checkdepends and enhance dependency list
-            // This is critical because paru/yay -Si only returns runtime dependencies (depends),
-            // not build-time dependencies (makedepends/checkdepends)
-            // Even if paru/yay succeeded, we still need .SRCINFO for complete dependency information
-            match fetch_srcinfo(name) {
-                Ok(srcinfo_text) => {
-                    tracing::debug!("Successfully fetched .SRCINFO for {}", name);
-                    let (
-                        srcinfo_depends,
-                        srcinfo_makedepends,
-                        srcinfo_checkdepends,
-                        srcinfo_optdepends,
-                    ) = parse_srcinfo_deps(&srcinfo_text);
-
-                    tracing::debug!(
-                        "Parsed .SRCINFO: {} depends, {} makedepends, {} checkdepends, {} optdepends",
-                        srcinfo_depends.len(),
-                        srcinfo_makedepends.len(),
-                        srcinfo_checkdepends.len(),
-                        srcinfo_optdepends.len()
-                    );
-
-                    // Merge depends from .SRCINFO (may have additional entries not in helper/API)
-                    let existing_dep_names: HashSet<String> =
-                        deps.iter().map(|d| d.name.clone()).collect();
-
-                    // Add missing depends from .SRCINFO
-                    for dep_spec in srcinfo_depends {
-                        let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-                        if pkg_name == name {
-                            continue;
-                        }
-                        if pkg_name.ends_with(".so")
-                            || pkg_name.contains(".so.")
-                            || pkg_name.contains(".so=")
-                        {
-                            continue;
-                        }
-
-                        if !existing_dep_names.contains(&pkg_name) {
-                            let status = determine_status(
-                                &pkg_name,
-                                &version_req,
-                                installed,
-                                provided,
-                                upgradable,
-                            );
-                            let (source, is_core) =
-                                determine_dependency_source(&pkg_name, installed);
-                            let is_system = is_core || is_system_package(&pkg_name);
-
-                            deps.push(DependencyInfo {
-                                name: pkg_name.clone(),
-                                version: version_req,
-                                status,
-                                source,
-                                required_by: vec![name.to_string()],
-                                depends_on: Vec::new(),
-                                is_core,
-                                is_system,
-                            });
-                        }
-                    }
-
-                    // Skip makedepends, checkdepends, and optdepends - only show runtime dependencies (depends)
-
-                    tracing::info!(
-                        "Enhanced dependency list with .SRCINFO data: total {} dependencies",
-                        deps.len()
-                    );
-                }
-                Err(e) => {
-                    // Log as warning since missing .SRCINFO means we won't have makedepends/checkdepends
-                    // This is important for AUR packages as build-time dependencies won't be shown
-                    tracing::warn!(
-                        "Could not fetch .SRCINFO for {}: {} (build-time dependencies will be missing)",
-                        name,
-                        e
-                    );
-                }
+                resolve_local_package_deps(name, installed, provided, upgradable)?
+            } else {
+                resolve_official_package_deps(name, repo, installed, provided, upgradable)?
             }
         }
-    }
+        Source::Aur => resolve_aur_package_deps(name, installed, provided, upgradable),
+    };
 
     tracing::debug!("Resolved {} dependencies for package {}", deps.len(), name);
     Ok(deps)
@@ -664,7 +694,7 @@ pub(crate) fn fetch_package_conflicts(name: &str, source: &Source) -> Vec<String
             }
 
             // Fall back to .SRCINFO
-            if let Ok(srcinfo_text) = fetch_srcinfo(name) {
+            if let Ok(srcinfo_text) = fetch_srcinfo(name, Some(10)) {
                 tracing::debug!("Using .SRCINFO for conflicts of {}", name);
                 return parse_srcinfo_conflicts(&srcinfo_text);
             }
@@ -689,11 +719,15 @@ mod tests {
     impl PathGuard {
         fn push(dir: &std::path::Path) -> Self {
             let original = std::env::var("PATH").ok();
+            // If PATH is missing or empty, use a default system PATH
+            let base_path = original
+                .as_ref()
+                .filter(|p| !p.is_empty())
+                .map(|s| s.as_str())
+                .unwrap_or("/usr/bin:/bin:/usr/local/bin");
             let mut new_path = dir.display().to_string();
-            if let Some(ref orig) = original {
-                new_path.push(':');
-                new_path.push_str(orig);
-            }
+            new_path.push(':');
+            new_path.push_str(base_path);
             unsafe {
                 std::env::set_var("PATH", &new_path);
             }
@@ -704,12 +738,21 @@ mod tests {
     impl Drop for PathGuard {
         fn drop(&mut self) {
             if let Some(ref orig) = self.original {
-                unsafe {
-                    std::env::set_var("PATH", orig);
+                // Only restore if the original PATH was valid (not empty)
+                if !orig.is_empty() {
+                    unsafe {
+                        std::env::set_var("PATH", orig);
+                    }
+                } else {
+                    // If original was empty, restore to a default system PATH
+                    unsafe {
+                        std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin");
+                    }
                 }
             } else {
+                // If PATH was missing, set a default system PATH
                 unsafe {
-                    std::env::remove_var("PATH");
+                    std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin");
                 }
             }
         }
@@ -738,6 +781,10 @@ mod tests {
     fn resolve_official_uses_pacman_si_stub() {
         let dir = tempdir().expect("tempdir");
         let _test_guard = crate::global_test_mutex_lock();
+        // Ensure PATH is in a clean state before modifying it
+        if std::env::var("PATH").is_err() {
+            unsafe { std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin") };
+        }
         let _guard = PathGuard::push(dir.path());
         write_executable(
             dir.path(),
@@ -796,6 +843,10 @@ exit 1
     fn resolve_aur_prefers_paru_stub_and_skips_self() {
         let dir = tempdir().expect("tempdir");
         let _test_guard = crate::global_test_mutex_lock();
+        // Ensure PATH is in a clean state before modifying it
+        if std::env::var("PATH").is_err() {
+            unsafe { std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin") };
+        }
         let _guard = PathGuard::push(dir.path());
         write_executable(
             dir.path(),

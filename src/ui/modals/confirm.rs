@@ -153,6 +153,12 @@ pub fn render_confirm_remove(f: &mut Frame, app: &AppState, area: Rect, items: &
         }
     }
     lines.push(Line::from(""));
+    // Add warning about removal and no backup
+    lines.push(Line::from(Span::styled(
+        i18n::t(app, "app.modals.confirm_remove.warning_removal"),
+        Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         i18n::t(app, "app.modals.confirm_remove.confirm_hint"),
         Style::default().fg(th.subtext1),

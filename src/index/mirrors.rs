@@ -1,3 +1,4 @@
+#[cfg(not(windows))]
 use serde_json::Value;
 use std::fs;
 use std::io::Write;
@@ -17,52 +18,9 @@ use tokio::task;
 /// - `refresh_official_index_from_arch_api(persist_path, net_err_tx, notify_tx)`
 /// - `refresh_windows_mirrors_and_index(persist_path, repo_dir, net_err_tx, notify_tx)`
 use super::{OfficialPkg, idx, save_to_disk};
-use crate::util::curl_args;
+use crate::util::curl;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-
-/// What: Fetch a JSON payload via `curl` and deserialize it.
-///
-/// Inputs:
-/// - `url`: HTTP(S) endpoint expected to return JSON.
-///
-/// Output:
-/// - `Ok(serde_json::Value)` containing the parsed document; boxed error on failure.
-///
-/// Details:
-/// - Treats non-success exit codes and JSON/UTF-8 parsing failures as errors to propagate.
-/// - On Windows, uses `-k` flag to skip SSL certificate verification.
-fn curl_json(url: &str) -> Result<Value> {
-    let args = curl_args(url, &[]);
-    let out = std::process::Command::new("curl").args(&args).output()?;
-    if !out.status.success() {
-        return Err(format!("curl failed for {url}: {:?}", out.status).into());
-    }
-    let body = String::from_utf8(out.stdout)?;
-    let v: Value = serde_json::from_str(&body)?;
-    Ok(v)
-}
-
-/// What: Fetch a text payload via `curl`.
-///
-/// Inputs:
-/// - `url`: HTTP(S) endpoint expected to return text data.
-///
-/// Output:
-/// - `Ok(String)` containing UTF-8 text on success; boxed error otherwise.
-///
-/// Details:
-/// - Treats non-success exit codes and UTF-8 decoding failures as errors to propagate.
-/// - On Windows, uses `-k` flag to skip SSL certificate verification.
-#[allow(dead_code)]
-fn curl_text(url: &str) -> Result<String> {
-    let args = curl_args(url, &[]);
-    let out = std::process::Command::new("curl").args(&args).output()?;
-    if !out.status.success() {
-        return Err(format!("curl failed for {url}: {:?}", out.status).into());
-    }
-    Ok(String::from_utf8(out.stdout)?)
-}
 
 /// What: Download Arch mirror metadata and render a concise `mirrorlist.txt`.
 ///
@@ -79,7 +37,7 @@ pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
     task::spawn_blocking(move || {
         fs::create_dir_all(&repo_dir)?;
         let status_url = "https://archlinux.org/mirrors/status/json/";
-        let json = curl_json(status_url)?;
+        let json = curl::curl_json(status_url)?;
 
         // Persist the raw JSON for debugging/inspection
         let mirrors_json_path = repo_dir.join("mirrors.json");
@@ -158,7 +116,7 @@ pub async fn refresh_official_index_from_arch_api(
             let limit: usize = 250;
             loop {
                 let url = format!("https://archlinux.org/packages/search/json/?repo={repo}&arch={arch}&limit={limit}&page={page}");
-                let v = match curl_json(&url) {
+                let v = match curl::curl_json(&url) {
                     Ok(v) => v,
                     Err(e) => {
                         // If a page fails, bubble the error up; no partial repo result
@@ -510,7 +468,7 @@ pub async fn download_sync_db(repo_dir: &Path, repo: &str, arch: &str) -> Result
     let url = format!("{base}/{repo}/os/{arch}/{repo}.db");
     let out_path = repo_dir.join(format!("{repo}-{arch}.db"));
     let out_path_clone = out_path.clone();
-    let body = task::spawn_blocking(move || curl_text(&url)).await??;
+    let body = task::spawn_blocking(move || curl::curl_text(&url)).await??;
     task::spawn_blocking(move || -> Result<()> {
         fs::create_dir_all(out_path_clone.parent().unwrap_or_else(|| Path::new(".")))?;
         let mut f = fs::File::create(&out_path_clone)?;

@@ -26,23 +26,6 @@ pub fn request_enrich_for(
         if set.is_empty() {
             return;
         }
-        /// What: Execute `pacman` with the given arguments and return stdout.
-        ///
-        /// Inputs:
-        /// - `args`: Slice of argument strings to apply to the `pacman` command.
-        ///
-        /// Output:
-        /// - `Ok(String)` containing UTF-8 stdout when the command succeeds; error otherwise.
-        ///
-        /// Details:
-        /// - Propagates non-zero exit codes and UTF-8 decoding failures as boxed errors.
-        fn run_pacman(args: &[&str]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-            let out = std::process::Command::new("pacman").args(args).output()?;
-            if !out.status.success() {
-                return Err(format!("pacman {:?} exited with {:?}", args, out.status).into());
-            }
-            Ok(String::from_utf8(out.stdout)?)
-        }
         // Batch -Si queries
         let mut desc_map: std::collections::HashMap<String, (String, String, String, String)> =
             std::collections::HashMap::new(); // name -> (desc, arch, repo, version)
@@ -54,7 +37,7 @@ pub fn request_enrich_for(
                 .collect();
             let block = tokio::task::spawn_blocking(move || {
                 let args_ref: Vec<&str> = args_owned.iter().map(|s| s.as_str()).collect();
-                run_pacman(&args_ref)
+                crate::util::pacman::run_pacman(&args_ref)
             })
             .await;
             let Ok(Ok(out)) = block else { continue };
