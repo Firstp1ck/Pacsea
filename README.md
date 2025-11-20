@@ -30,6 +30,7 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 - [Features](#features)
 - [Usage](#usage)
   - [Handy shortcuts](#handy-shortcuts)
+- [CLI Commands](#cli-commands)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
@@ -117,6 +118,26 @@ Future implementation will include: Enhanced AI Security Scan (optional)
 
 ### PKGBUILD preview
 ![PKGBUILD preview (v0.4.1)](Images/PKGBUILD_v0.4.5.png "PKGBUILD preview (v0.4.1)")
+
+## CLI Commands
+
+Pacsea supports powerful command-line operations, allowing you to manage packages without launching the TUI:
+
+```bash
+pacsea -s <query>              # Search packages
+pacsea -i <package1> <package2>  # Install packages
+pacsea -u                       # System update
+pacsea -l                       # List installed packages
+pacsea -n                       # Show Arch news
+```
+
+For a complete list of all CLI commands and options, see the [CLI Commands wiki page](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea#cli-commands) or run:
+
+```bash
+pacsea --help
+```
+
+> **Note**: All CLI commands exit after completion and don't launch the TUI interface.
 
 ## Configuration
 - Config lives in `~/.config/pacsea/` as three files:
