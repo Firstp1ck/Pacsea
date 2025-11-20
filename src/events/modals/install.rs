@@ -55,7 +55,8 @@ pub(crate) fn handle_confirm_install(
 /// - `false` (never stops propagation)
 ///
 /// Details:
-/// - Handles Esc/Enter to close/execute removal
+/// - Handles Esc/Enter to cancel (defaults to No)
+/// - Only proceeds with removal if user explicitly presses 'y' or 'Y'
 pub(crate) fn handle_confirm_remove(
     ke: KeyEvent,
     app: &mut AppState,
@@ -63,18 +64,21 @@ pub(crate) fn handle_confirm_remove(
 ) -> bool {
     match ke.code {
         KeyCode::Esc | KeyCode::Enter => {
-            if ke.code == KeyCode::Enter {
-                handle_confirm_remove_execute(
-                    &mut app.remove_list,
-                    &mut app.remove_state,
-                    &mut app.refresh_installed_until,
-                    &mut app.next_installed_refresh_at,
-                    &mut app.pending_remove_names,
-                    app.dry_run,
-                    app.remove_cascade_mode,
-                    items,
-                );
-            }
+            // Cancel removal (defaults to No)
+            app.modal = crate::state::Modal::None;
+        }
+        KeyCode::Char('y') | KeyCode::Char('Y') => {
+            // Explicit confirmation required - proceed with removal
+            handle_confirm_remove_execute(
+                &mut app.remove_list,
+                &mut app.remove_state,
+                &mut app.refresh_installed_until,
+                &mut app.next_installed_refresh_at,
+                &mut app.pending_remove_names,
+                app.dry_run,
+                app.remove_cascade_mode,
+                items,
+            );
             app.modal = crate::state::Modal::None;
         }
         _ => {}

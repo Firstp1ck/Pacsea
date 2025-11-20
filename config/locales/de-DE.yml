@@ -261,8 +261,9 @@ de-DE:
         title: " Entfernung bestätigen "
         heading: "Entfernung bestätigen"
         warning_core: "WARNUNG: Core-Pakete ausgewählt. Das Entfernen von Core-Paketen kann Ihr System beschädigen."
+        warning_removal: "Warnung: Pakete und Abhängigkeiten (falls nicht von anderen Paketen benötigt) werden entfernt und es wird keine Systemkonfigurationssicherung erstellt."
         none: "Nichts zu entfernen"
-        confirm_hint: "Enter zum Bestätigen oder Esc zum Abbrechen drücken"
+        confirm_hint: "Drücken Sie 'y' zum Bestätigen der Entfernung, oder Enter/Esc zum Abbrechen [y/N]"
       system_update:
         title: " System aktualisieren "
         heading: "System-Update"

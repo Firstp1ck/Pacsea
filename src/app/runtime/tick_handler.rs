@@ -342,6 +342,29 @@ fn handle_installed_cache_polling(
             if let Err(e) = crate::install::log_removed(&pending_rm) {
                 let _ = e; // ignore logging errors
             }
+
+            // Check for config directories after successful removal
+            if let Ok(home) = std::env::var("HOME") {
+                let mut found_configs = Vec::new();
+                for pkg in &pending_rm {
+                    let config_dirs = crate::install::check_config_directories(pkg, &home);
+                    for dir in config_dirs {
+                        found_configs.push((pkg.clone(), dir));
+                    }
+                }
+
+                if !found_configs.is_empty() {
+                    let mut message = String::from(
+                        "Configuration directories were found in your home directory:\n\n",
+                    );
+                    for (pkg, dir) in &found_configs {
+                        message.push_str(&format!("  {}: {}\n", pkg, dir.display()));
+                    }
+                    message.push_str("\nYou may want to manually remove these directories if they are no longer needed.");
+                    app.modal = crate::state::Modal::Alert { message };
+                }
+            }
+
             app.pending_remove_names = None;
             // End polling soon to avoid extra work
             app.refresh_installed_until = Some(now + Duration::from_secs(1));

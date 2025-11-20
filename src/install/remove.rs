@@ -3,6 +3,37 @@ use std::process::Command;
 
 use crate::state::modal::CascadeMode;
 
+/// What: Check for configuration directories in $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+///
+/// Inputs:
+/// - `package_name`: Name of the package to check for config directories.
+/// - `home`: Home directory path.
+///
+/// Output:
+/// - Vector of found config directory paths.
+///
+/// Details:
+/// - Checks both $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+/// - Only returns directories that actually exist.
+pub fn check_config_directories(package_name: &str, home: &str) -> Vec<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let mut found_dirs = Vec::new();
+
+    // Check $HOME/PACKAGE_NAME
+    let home_pkg_dir = PathBuf::from(home).join(package_name);
+    if home_pkg_dir.exists() && home_pkg_dir.is_dir() {
+        found_dirs.push(home_pkg_dir);
+    }
+
+    // Check $HOME/.config/PACKAGE_NAME
+    let config_pkg_dir = PathBuf::from(home).join(".config").join(package_name);
+    if config_pkg_dir.exists() && config_pkg_dir.is_dir() {
+        found_dirs.push(config_pkg_dir);
+    }
+
+    found_dirs
+}
+
 #[cfg(not(target_os = "windows"))]
 use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
