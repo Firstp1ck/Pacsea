@@ -174,7 +174,7 @@ cargo run
 - **Possibiltiy to switch between Normal search and Fuzzy search modes**
 - **Add Chaotic AUR setup and add Garuda Repository Support**
 - **Adjustable Width of the Middle Panes directly in "Panels" dropdown with instant sync**
-- **Adjustable Height of the Results and Package Info Panes**
+- **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add Multiple CLI Commands like: `pacsea -S FILENAME.txt` (Installing via File), `pacsea -R FILENAME.txt` (Removing via File), `pacsea --news/-n`, `pacsea --update/-u` (Updating with the set System update Settings from the TUI) and more**
 - **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
 - **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)**
@@ -185,7 +185,8 @@ cargo run
 - **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro, Garuda and  CachyOS**
 - **Add possibility to view News based on installed Packages (Including AUR comments)**
 - **Show available package Updates as number right beside the filters. Clickable opens a Preview with old and new version. grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)**
-- **Add possibility to switch locations of Top/Middle/Bottom panes**
+- **Add possibility to switch locations of Top/Center/Bottom panes**
+- **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
