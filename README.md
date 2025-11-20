@@ -23,7 +23,7 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 
 
 ### Main app view
-![Main app view (v0.4.1)](Images/AppView_v0.4.5_PKGBUILD_AUR.png "Main app view (v0.4.1)")
+![Main app view (v0.4.1)](Images/AppView_v0.5.0.png "Main app view (v0.4.1)")
 
 ## Table of Contents
 - [Quick start](#quick-start)
