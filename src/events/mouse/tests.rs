@@ -16,7 +16,11 @@ use crate::state::{AppState, PackageItem};
 ///
 /// Details:
 /// - Keeps mouse tests concise by centralizing the default setup in a single helper.
+/// - Sets `PACSEA_TEST_HEADLESS` to prevent mouse escape sequences in test output.
 fn new_app() -> AppState {
+    unsafe {
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    }
     AppState {
         ..Default::default()
     }

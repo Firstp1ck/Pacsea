@@ -45,6 +45,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     unsafe {
         std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
     let mut app = crate_root::state::AppState {
@@ -125,6 +126,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     unsafe {
         std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
     let mut app = crate_root::state::AppState {
@@ -201,6 +203,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
     unsafe {
         std::env::set_var("PATH", dir.display().to_string());
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
     let mut app = crate_root::state::AppState {
@@ -277,6 +280,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
     unsafe {
         std::env::set_var("PATH", dir.display().to_string());
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
     let mut app = crate_root::state::AppState {
@@ -353,6 +357,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
     unsafe {
         std::env::set_var("PATH", dir.display().to_string());
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
     let mut app = crate_root::state::AppState {
@@ -429,6 +434,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
     unsafe {
         std::env::set_var("PATH", dir.display().to_string());
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
     let mut app = crate_root::state::AppState {
@@ -504,6 +510,7 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
     unsafe {
         std::env::set_var("PATH", dir.display().to_string());
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
     let mut app = crate_root::state::AppState {

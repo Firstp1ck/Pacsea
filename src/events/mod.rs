@@ -161,6 +161,7 @@ mod tests {
         unsafe {
             std::env::set_var("PATH", combined_path);
             std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+            std::env::set_var("PACSEA_TEST_HEADLESS", "1");
         }
 
         let mut app = AppState {
@@ -204,6 +205,8 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
             attempts += 1;
         }
+        // Give the process time to complete writing to avoid race conditions with other tests
+        std::thread::sleep(std::time::Duration::from_millis(100));
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
         // Verify that xfce4-terminal was actually used by checking for --command argument
@@ -294,7 +297,10 @@ mod tests {
 
         // Save and override PATH for deterministic detection; ensure X11 by clearing WAYLAND_DISPLAY
         let orig_path = std::env::var_os("PATH");
-        unsafe { std::env::set_var("PATH", dir.display().to_string()) };
+        unsafe {
+            std::env::set_var("PATH", dir.display().to_string());
+            std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+        };
         let orig_wl = std::env::var_os("WAYLAND_DISPLAY");
         unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
 
@@ -441,7 +447,10 @@ mod tests {
         let _ = fs::create_dir_all(&dir);
 
         let orig_path = std::env::var_os("PATH");
-        unsafe { std::env::set_var("PATH", dir.display().to_string()) };
+        unsafe {
+            std::env::set_var("PATH", dir.display().to_string());
+            std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+        };
         let orig_wl = std::env::var_os("WAYLAND_DISPLAY");
         unsafe { std::env::set_var("WAYLAND_DISPLAY", "1") };
 

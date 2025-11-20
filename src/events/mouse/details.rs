@@ -268,7 +268,10 @@ fn handle_text_selection_block(mx: u16, my: u16, app: &mut AppState) -> bool {
 
     // Ensure terminal mouse capture stays enabled globally, while app ignores clicks here
     if !app.mouse_capture_enabled {
-        let _ = execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+        // Skip mouse capture in headless/test mode to prevent escape sequences in test output
+        if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() != Some("1") {
+            let _ = execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+        }
         app.mouse_capture_enabled = true;
     }
     true

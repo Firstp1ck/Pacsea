@@ -15,7 +15,14 @@ use serde_json::Value;
 ///
 /// This function should be called after spawning external processes (like terminals)
 /// that might disable mouse capture. It's safe to call multiple times.
+///
+/// In headless/test mode (`PACSEA_TEST_HEADLESS=1`), this is a no-op to prevent mouse
+/// escape sequences from appearing in test output.
 pub fn ensure_mouse_capture() {
+    // Skip mouse capture in headless/test mode to prevent escape sequences in test output
+    if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {
+        return;
+    }
     #[cfg(not(target_os = "windows"))]
     {
         use crossterm::execute;
