@@ -1,8 +1,8 @@
 //! Internationalization helpers for CLI commands.
 
-use std::collections::HashMap;
+use pacsea::i18n::translations::{TranslationMap, translate_with_fallback};
 use pacsea::i18n::{self, find_locales_dir, load_locale_file, resolve_locale};
-use pacsea::i18n::translations::{translate_with_fallback, TranslationMap};
+use std::collections::HashMap;
 
 /// What: Load translations for CLI usage.
 ///
@@ -125,4 +125,3 @@ pub fn t_fmt2<T1: std::fmt::Display, T2: std::fmt::Display>(
 ) -> String {
     t_fmt(key, &[&arg1, &arg2])
 }
-

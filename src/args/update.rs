@@ -66,7 +66,10 @@ pub fn handle_update() -> ! {
             } else {
                 let error_msg = String::from_utf8_lossy(&output.stderr);
                 println!("{}", i18n::t("app.cli.update.pacman_failed"));
-                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &error_msg));
+                eprintln!(
+                    "{}",
+                    i18n::t_fmt1("app.cli.update.error_prefix", &error_msg)
+                );
                 write_log(&format!(
                     "FAILED: pacman -Syyu failed with exit code {:?}",
                     output.status.code()
@@ -113,7 +116,10 @@ pub fn handle_update() -> ! {
                 } else {
                     let error_msg = String::from_utf8_lossy(&output.stderr);
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
-                    eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &error_msg));
+                    eprintln!(
+                        "{}",
+                        i18n::t_fmt1("app.cli.update.error_prefix", &error_msg)
+                    );
                     write_log(&format!(
                         "FAILED: {} -Syyu failed with exit code {:?}",
                         helper,
@@ -158,7 +164,10 @@ pub fn handle_update() -> ! {
             failed_commands
         ));
     }
-    println!("{}", i18n::t_fmt1("app.cli.update.log_file", log_file_path.display()));
+    println!(
+        "{}",
+        i18n::t_fmt1("app.cli.update.log_file", log_file_path.display())
+    );
     write_log(&format!(
         "Update process finished. Log file: {}",
         log_file_path.display()

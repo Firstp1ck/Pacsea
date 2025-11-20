@@ -90,7 +90,10 @@ fn read_packages_from_file(file_path: &str) -> Vec<String> {
     if !warnings.is_empty() {
         eprintln!("\n{}", i18n::t("app.cli.install.lines_with_spaces"));
         for (line_num, content) in &warnings {
-            eprintln!("{}", i18n::t_fmt2("app.cli.install.line_item", line_num, content));
+            eprintln!(
+                "{}",
+                i18n::t_fmt2("app.cli.install.line_item", line_num, content)
+            );
         }
         eprintln!();
     }
@@ -178,7 +181,10 @@ fn install_aur_packages(packages: &[String], helper: &str) {
             std::process::exit(exit_status.code().unwrap_or(1));
         }
         Err(e) => {
-            eprintln!("{}", i18n::t_fmt2("app.cli.install.aur_helper_exec_failed", helper, &e));
+            eprintln!(
+                "{}",
+                i18n::t_fmt2("app.cli.install.aur_helper_exec_failed", helper, &e)
+            );
             tracing::error!(error = %e, helper = %helper, "Failed to execute AUR helper");
             std::process::exit(1);
         }
@@ -209,7 +215,10 @@ pub fn handle_install_from_file(file_path: &str) -> ! {
     // Read packages from file
     let package_names = read_packages_from_file(file_path);
     if package_names.is_empty() {
-        eprintln!("{}", i18n::t_fmt1("app.cli.install.no_packages_in_file", file_path));
+        eprintln!(
+            "{}",
+            i18n::t_fmt1("app.cli.install.no_packages_in_file", file_path)
+        );
         tracing::error!(file = %file_path, "No packages found in file");
         std::process::exit(1);
     }

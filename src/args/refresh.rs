@@ -67,7 +67,10 @@ pub fn handle_refresh() {
             } else {
                 let error_msg = String::from_utf8_lossy(&output.stderr);
                 println!("{}", i18n::t("app.cli.refresh.pacman_failed"));
-                eprintln!("{}", i18n::t_fmt1("app.cli.refresh.error_prefix", &error_msg));
+                eprintln!(
+                    "{}",
+                    i18n::t_fmt1("app.cli.refresh.error_prefix", &error_msg)
+                );
                 write_log(&format!(
                     "FAILED: pacman -Sy failed with exit code {:?}",
                     output.status.code()
@@ -114,7 +117,10 @@ pub fn handle_refresh() {
                 } else {
                     let error_msg = String::from_utf8_lossy(&output.stderr);
                     println!("{}", i18n::t_fmt1("app.cli.refresh.aur_failed", helper));
-                    eprintln!("{}", i18n::t_fmt1("app.cli.refresh.error_prefix", &error_msg));
+                    eprintln!(
+                        "{}",
+                        i18n::t_fmt1("app.cli.refresh.error_prefix", &error_msg)
+                    );
                     write_log(&format!(
                         "FAILED: {} -Sy failed with exit code {:?}",
                         helper,
@@ -132,7 +138,10 @@ pub fn handle_refresh() {
                 }
             }
             Err(e) => {
-                println!("{}", i18n::t_fmt1("app.cli.refresh.aur_exec_failed", helper));
+                println!(
+                    "{}",
+                    i18n::t_fmt1("app.cli.refresh.aur_exec_failed", helper)
+                );
                 eprintln!("{}", i18n::t_fmt1("app.cli.refresh.error_prefix", &e));
                 write_log(&format!("FAILED: Could not execute {} -Sy: {}", helper, e));
                 all_succeeded = false;
@@ -156,7 +165,10 @@ pub fn handle_refresh() {
             failed_commands
         ));
     }
-    println!("{}", i18n::t_fmt1("app.cli.refresh.log_file", log_file_path.display()));
+    println!(
+        "{}",
+        i18n::t_fmt1("app.cli.refresh.log_file", log_file_path.display())
+    );
     write_log(&format!(
         "Refresh process finished. Log file: {}",
         log_file_path.display()
