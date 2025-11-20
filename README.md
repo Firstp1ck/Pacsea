@@ -69,7 +69,7 @@ pacsea
 ## Security-first approach for AUR Packages
 
 - **Security-first approach for installing AUR Packages**.
-- **Security Coverage** via automatic **Scans** and **Optional Measures** (e.g., converting AUR packages to **Flatpak**), and more
+- **Security Coverage** via automatic **Scans** and **Optional Measures** (e.g., converting AUR packages to **Flatpak** (in Planning)), and more
 
 ![Scan configuration (v0.4.5)](Images/AUR_Scan_v0.4.5.png "Scan configuration (v0.4.5)")
 
