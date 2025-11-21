@@ -325,7 +325,7 @@ package_marker = front
 # Language / Locale
 # Locale code for translations (e.g., \"en-US\", \"de-DE\").
 # Leave empty to auto-detect from system locale (LANG/LC_ALL environment variables).
-# Available locales: en-US, de-DE (more coming soon)
+# Available locales: en-US, de-DE, hu-HU (more coming soon)
 locale = \n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
