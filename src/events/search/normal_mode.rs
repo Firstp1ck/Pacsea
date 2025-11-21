@@ -487,6 +487,11 @@ pub fn handle_normal_mode(
         return false;
     }
 
+    if matches_any(&ke, &app.keymap.search_normal_updates) {
+        crate::events::mouse::handle_updates_button(app);
+        return false;
+    }
+
     if matches_any(&ke, &app.keymap.search_normal_insert) {
         app.search_normal_mode = false;
         app.search_select_anchor = None;

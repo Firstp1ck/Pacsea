@@ -116,3 +116,6 @@ pub fn handle_mouse_event(
 
     false
 }
+
+// Re-export for use in keyboard handlers
+pub(crate) use menus::handle_updates_button;

@@ -56,7 +56,7 @@ fn handle_import_button(app: &mut AppState) -> Option<bool> {
 /// Details:
 /// - Loads updates from `~/.config/pacsea/lists/available_updates.txt`
 /// - Opens Updates modal with scroll support
-fn handle_updates_button(app: &mut AppState) -> Option<bool> {
+pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
     let updates_file = crate::theme::lists_dir().join("available_updates.txt");
 
     // Load updates from file and parse into structured format

@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::path::Path;
 
 use crate::theme::parsing::strip_inline_comment;
@@ -16,11 +15,9 @@ use crate::theme::types::{PackageMarker, Settings};
 ///
 /// Details:
 /// - Parses layout percentages, app settings, scan settings, and other configuration.
-/// - Appends `skip_preflight = false` to the file if the setting wasn't present.
+/// - Missing settings are handled by `ensure_settings_keys_present` with proper comments.
 /// - Intentionally ignores keybind_* entries (handled separately).
-pub fn parse_settings(content: &str, settings_path: &Path, settings: &mut Settings) {
-    let mut saw_skip_preflight = false;
-
+pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Settings) {
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
@@ -140,7 +137,6 @@ pub fn parse_settings(content: &str, settings_path: &Path, settings: &mut Settin
                 };
             }
             "skip_preflight" | "preflight_skip" | "bypass_preflight" => {
-                saw_skip_preflight = true;
                 let lv = val.to_ascii_lowercase();
                 settings.skip_preflight = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
             }
@@ -149,13 +145,6 @@ pub fn parse_settings(content: &str, settings_path: &Path, settings: &mut Settin
             }
             // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
             _ => {}
-        }
-    }
-    // If the setting wasn't present, append a documented default for discoverability
-    if !saw_skip_preflight {
-        // Append a single line for discoverability; keep it minimal
-        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open(settings_path) {
-            let _ = f.write_all(b"\nskip_preflight = false\n");
         }
     }
 }

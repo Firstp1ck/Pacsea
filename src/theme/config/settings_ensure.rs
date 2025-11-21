@@ -8,6 +8,132 @@ use crate::theme::config::skeletons::{
 use crate::theme::paths::{config_dir, resolve_settings_config_path};
 use crate::theme::types::Settings;
 
+/// What: Get the value for a setting key, preferring prefs over skeleton default.
+///
+/// Inputs:
+/// - `key`: Normalized key name
+/// - `skeleton_value`: Default value from skeleton
+/// - `prefs`: Current in-memory settings
+///
+/// Output:
+/// - String value to use for the setting
+fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> String {
+    match key {
+        "layout_left_pct" => prefs.layout_left_pct.to_string(),
+        "layout_center_pct" => prefs.layout_center_pct.to_string(),
+        "layout_right_pct" => prefs.layout_right_pct.to_string(),
+        "app_dry_run_default" => if prefs.app_dry_run_default {
+            "true"
+        } else {
+            "false"
+        }
+        .to_string(),
+        "sort_mode" => prefs.sort_mode.as_config_key().to_string(),
+        "clipboard_suffix" => prefs.clipboard_suffix.clone(),
+        "show_recent_pane" => if prefs.show_recent_pane {
+            "true"
+        } else {
+            "false"
+        }
+        .to_string(),
+        "show_install_pane" => if prefs.show_install_pane {
+            "true"
+        } else {
+            "false"
+        }
+        .to_string(),
+        "show_keybinds_footer" => if prefs.show_keybinds_footer {
+            "true"
+        } else {
+            "false"
+        }
+        .to_string(),
+        "selected_countries" => prefs.selected_countries.clone(),
+        "mirror_count" => prefs.mirror_count.to_string(),
+        "virustotal_api_key" => prefs.virustotal_api_key.clone(),
+        "news_read_symbol" => prefs.news_read_symbol.clone(),
+        "news_unread_symbol" => prefs.news_unread_symbol.clone(),
+        "preferred_terminal" => prefs.preferred_terminal.clone(),
+        "package_marker" => match prefs.package_marker {
+            crate::theme::types::PackageMarker::FullLine => "full_line",
+            crate::theme::types::PackageMarker::Front => "front",
+            crate::theme::types::PackageMarker::End => "end",
+        }
+        .to_string(),
+        "locale" => prefs.locale.clone(),
+        "skip_preflight" => if prefs.skip_preflight {
+            "true"
+        } else {
+            "false"
+        }
+        .to_string(),
+        "scan_do_clamav" | "scan_do_trivy" | "scan_do_semgrep" | "scan_do_shellcheck"
+        | "scan_do_virustotal" | "scan_do_custom" | "scan_do_sleuth" => {
+            // Scan keys default to true
+            "true".to_string()
+        }
+        _ => skeleton_value,
+    }
+}
+
+/// What: Parse skeleton and extract missing settings with comments.
+///
+/// Inputs:
+/// - `skeleton_lines`: Lines from the settings skeleton
+/// - `have`: Set of existing keys
+/// - `prefs`: Current settings to get values from
+///
+/// Output:
+/// - Vector of (setting_line, optional_comment) tuples
+fn parse_missing_settings(
+    skeleton_lines: &[&str],
+    have: &HashSet<String>,
+    prefs: &Settings,
+) -> Vec<(String, Option<String>)> {
+    let mut missing_settings: Vec<(String, Option<String>)> = Vec::new();
+    let mut current_comment: Option<String> = None;
+
+    for line in skeleton_lines.iter() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            current_comment = None;
+            continue;
+        }
+        if trimmed.starts_with('#') {
+            // Check if this is a comment for a setting (not a section header or empty comment)
+            if !trimmed.contains("—")
+                && !trimmed.starts_with("# Pacsea")
+                && trimmed.len() > 1
+                && !trimmed.starts_with("# Available countries")
+            {
+                current_comment = Some(trimmed.to_string());
+            } else {
+                current_comment = None;
+            }
+            continue;
+        }
+        if trimmed.starts_with("//") {
+            current_comment = None;
+            continue;
+        }
+        if trimmed.contains('=') {
+            let mut parts = trimmed.splitn(2, '=');
+            let raw_key = parts.next().unwrap_or("");
+            let skeleton_value = parts.next().unwrap_or("").trim().to_string();
+            let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
+            if !have.contains(&key) {
+                // Use value from prefs if available, otherwise use skeleton value
+                let value = get_setting_value(&key, skeleton_value, prefs);
+                let setting_line = format!("{} = {}", raw_key.trim(), value);
+                missing_settings.push((setting_line, current_comment.take()));
+            } else {
+                current_comment = None;
+            }
+        }
+    }
+    missing_settings
+}
+
 /// What: Ensure all expected settings keys exist in `settings.conf`, appending defaults as needed.
 ///
 /// Inputs:
@@ -67,6 +193,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
             .map(|s| s.to_string())
             .collect();
     }
+    // Parse existing settings keys (normalize keys like the parser does)
     let mut have: HashSet<String> = HashSet::new();
     for line in &lines {
         let trimmed = line.trim();
@@ -79,93 +206,35 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
             have.insert(key);
         }
     }
-    // Desired keys and their values from prefs
-    let pairs: [(&str, String); 17] = [
-        ("layout_left_pct", prefs.layout_left_pct.to_string()),
-        ("layout_center_pct", prefs.layout_center_pct.to_string()),
-        ("layout_right_pct", prefs.layout_right_pct.to_string()),
-        (
-            "app_dry_run_default",
-            if prefs.app_dry_run_default {
-                "true"
-            } else {
-                "false"
-            }
-            .to_string(),
-        ),
-        ("sort_mode", prefs.sort_mode.as_config_key().to_string()),
-        ("clipboard_suffix", prefs.clipboard_suffix.clone()),
-        (
-            "show_recent_pane",
-            if prefs.show_recent_pane {
-                "true"
-            } else {
-                "false"
-            }
-            .to_string(),
-        ),
-        (
-            "show_install_pane",
-            if prefs.show_install_pane {
-                "true"
-            } else {
-                "false"
-            }
-            .to_string(),
-        ),
-        (
-            "show_keybinds_footer",
-            if prefs.show_keybinds_footer {
-                "true"
-            } else {
-                "false"
-            }
-            .to_string(),
-        ),
-        ("selected_countries", prefs.selected_countries.clone()),
-        ("mirror_count", prefs.mirror_count.to_string()),
-        ("virustotal_api_key", prefs.virustotal_api_key.clone()),
-        ("news_read_symbol", prefs.news_read_symbol.clone()),
-        ("news_unread_symbol", prefs.news_unread_symbol.clone()),
-        ("preferred_terminal", prefs.preferred_terminal.clone()),
-        (
-            "package_marker",
-            match prefs.package_marker {
-                crate::theme::types::PackageMarker::FullLine => "full_line",
-                crate::theme::types::PackageMarker::Front => "front",
-                crate::theme::types::PackageMarker::End => "end",
-            }
-            .to_string(),
-        ),
-        ("locale", prefs.locale.clone()),
-    ];
-    let mut appended_any = false;
-    // Ensure scan toggles exist; default to true when missing
-    let scan_keys: [(&str, &str); 7] = [
-        ("scan_do_clamav", "true"),
-        ("scan_do_trivy", "true"),
-        ("scan_do_semgrep", "true"),
-        ("scan_do_shellcheck", "true"),
-        ("scan_do_virustotal", "true"),
-        ("scan_do_custom", "true"),
-        ("scan_do_sleuth", "true"),
-    ];
-    for (k, v) in scan_keys.iter() {
-        if !have.contains(*k) {
-            lines.push(format!("{k} = {v}"));
-            appended_any = true;
+
+    // Parse skeleton to extract settings entries with their comments
+    let skeleton_lines: Vec<&str> = SETTINGS_SKELETON_CONTENT.lines().collect();
+    let missing_settings = parse_missing_settings(&skeleton_lines, &have, prefs);
+
+    // If no missing settings, nothing to do (unless file was just created)
+    if !created_new && missing_settings.is_empty() {
+        return;
+    }
+
+    // Append missing settings to the file
+    // Add separator and header comment for auto-added settings
+    if !created_new && !lines.is_empty() && !lines.last().unwrap().trim().is_empty() {
+        lines.push(String::new());
+    }
+    if !missing_settings.is_empty() {
+        lines.push("# Missing settings added automatically".to_string());
+        lines.push(String::new());
+    }
+
+    for (setting_line, comment) in missing_settings.iter() {
+        if let Some(comment) = comment {
+            lines.push(comment.clone());
         }
+        lines.push(setting_line.clone());
     }
-    for (k, v) in pairs.iter() {
-        if !have.contains(*k) {
-            lines.push(format!("{k} = {v}"));
-            appended_any = true;
-        }
-    }
-    if created_new || appended_any {
-        let new_content = lines.join("\n");
-        let _ = fs::write(p, new_content);
-    }
+
+    let new_content = lines.join("\n");
+    let _ = fs::write(p, new_content);
 
     // Ensure keybinds file exists with skeleton if missing (best-effort)
     let kb = config_dir().join("keybinds.conf");
@@ -174,7 +243,112 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
             let _ = fs::create_dir_all(dir);
         }
         let _ = fs::write(kb, KEYBINDS_SKELETON_CONTENT);
+    } else {
+        // Append missing keybinds to existing file
+        ensure_keybinds_present(&kb);
     }
+}
+
+/// What: Ensure all expected keybind entries exist in `keybinds.conf`, appending defaults as needed.
+///
+/// Inputs:
+/// - `keybinds_path`: Path to the keybinds.conf file.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Preserves existing lines and comments while adding only absent keybinds.
+/// - Parses the skeleton to extract all keybind entries with their associated comments.
+/// - Appends missing keybinds with their comments in the correct sections.
+fn ensure_keybinds_present(keybinds_path: &Path) {
+    // Read existing file
+    let existing_content = match fs::read_to_string(keybinds_path) {
+        Ok(content) => content,
+        Err(_) => return, // Can't read, skip
+    };
+
+    // Parse existing keybinds (normalize keys like the parser does)
+    let mut have: HashSet<String> = HashSet::new();
+    for line in existing_content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if !trimmed.contains('=') {
+            continue;
+        }
+        let mut parts = trimmed.splitn(2, '=');
+        let raw_key = parts.next().unwrap_or("");
+        let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
+        have.insert(key);
+    }
+
+    // Parse skeleton to extract keybind entries with their comments
+    let skeleton_lines: Vec<&str> = KEYBINDS_SKELETON_CONTENT.lines().collect();
+    let mut missing_keybinds: Vec<(String, Option<String>)> = Vec::new();
+    let mut current_comment: Option<String> = None;
+
+    for line in skeleton_lines.iter() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            current_comment = None;
+            continue;
+        }
+        if trimmed.starts_with('#') {
+            // Check if this is a comment for a keybind (not a section header)
+            if !trimmed.contains("—")
+                && !trimmed.starts_with("# Pacsea")
+                && !trimmed.starts_with("# Modifiers")
+            {
+                current_comment = Some(trimmed.to_string());
+            } else {
+                current_comment = None;
+            }
+            continue;
+        }
+        if trimmed.starts_with("//") {
+            current_comment = None;
+            continue;
+        }
+        if trimmed.contains('=') {
+            let mut parts = trimmed.splitn(2, '=');
+            let raw_key = parts.next().unwrap_or("");
+            let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
+            if !have.contains(&key) {
+                missing_keybinds.push((trimmed.to_string(), current_comment.take()));
+            } else {
+                current_comment = None;
+            }
+        }
+    }
+
+    // If no missing keybinds, nothing to do
+    if missing_keybinds.is_empty() {
+        return;
+    }
+
+    // Append missing keybinds to the file
+    let mut new_lines: Vec<String> = existing_content.lines().map(|s| s.to_string()).collect();
+
+    // Add separator and header comment for auto-added keybinds
+    if !new_lines.is_empty() && !new_lines.last().unwrap().trim().is_empty() {
+        new_lines.push(String::new());
+    }
+    if !missing_keybinds.is_empty() {
+        new_lines.push("# Missing keybinds added automatically".to_string());
+        new_lines.push(String::new());
+    }
+
+    for (keybind_line, comment) in missing_keybinds.iter() {
+        if let Some(comment) = comment {
+            new_lines.push(comment.clone());
+        }
+        new_lines.push(keybind_line.clone());
+    }
+
+    let new_content = new_lines.join("\n");
+    let _ = fs::write(keybinds_path, new_content);
 }
 
 /// What: Migrate legacy `pacsea.conf` into the split `theme.conf` and `settings.conf` files.

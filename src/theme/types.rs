@@ -314,6 +314,8 @@ pub struct KeyMap {
     pub search_normal_import: Vec<KeyChord>,
     /// Normal mode: trigger Export Install list
     pub search_normal_export: Vec<KeyChord>,
+    /// Normal mode: open Available Updates window
+    pub search_normal_updates: Vec<KeyChord>,
 
     // Recent
     pub recent_move_up: Vec<KeyChord>,
@@ -488,6 +490,10 @@ impl Default for KeyMap {
             }],
             search_normal_export: vec![KeyChord {
                 code: Char('e'),
+                mods: shift,
+            }],
+            search_normal_updates: vec![KeyChord {
+                code: Char('u'),
                 mods: shift,
             }],
 

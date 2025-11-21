@@ -70,6 +70,10 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Render the button
     f.render_widget(paragraph, area);
 
-    // Record clickable rectangle (entire area)
-    app.updates_button_rect = Some((area.x, area.y, area.width, area.height));
+    // Calculate clickable rectangle: only the button text width, centered
+    let button_width = button_text.len() as u16;
+    let button_x = area
+        .x
+        .saturating_add(area.width.saturating_sub(button_width) / 2);
+    app.updates_button_rect = Some((button_x, area.y, button_width, area.height));
 }

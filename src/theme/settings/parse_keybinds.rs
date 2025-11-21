@@ -193,6 +193,10 @@ fn apply_search_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setti
             assign_keybind(chord, &mut settings.keymap.search_normal_export);
             true
         }
+        "keybind_search_normal_updates" => {
+            assign_keybind(chord, &mut settings.keymap.search_normal_updates);
+            true
+        }
         _ => false,
     }
 }
