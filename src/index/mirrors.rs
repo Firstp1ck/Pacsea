@@ -87,6 +87,324 @@ pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
     .await?
 }
 
+/// What: Parse a package object from JSON into an OfficialPkg.
+///
+/// Inputs:
+/// - `obj`: JSON value representing a package.
+/// - `repo`: Default repository name if not found in JSON.
+/// - `arch`: Default architecture if not found in JSON.
+///
+/// Output:
+/// - `Some(OfficialPkg)` if the package has a valid name, `None` otherwise.
+///
+/// Details:
+/// - Extracts pkgname, pkgver, pkgdesc, arch, and repo fields from the JSON object.
+fn parse_package_from_json(obj: &serde_json::Value, repo: &str, arch: &str) -> Option<OfficialPkg> {
+    let name = obj
+        .get("pkgname")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    if name.is_empty() {
+        return None;
+    }
+    let version = obj
+        .get("pkgver")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let description = obj
+        .get("pkgdesc")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let arch_val = obj
+        .get("arch")
+        .and_then(|v| v.as_str())
+        .unwrap_or(arch)
+        .to_string();
+    let repo_val = obj
+        .get("repo")
+        .and_then(|v| v.as_str())
+        .unwrap_or(repo)
+        .to_string();
+
+    Some(OfficialPkg {
+        name,
+        repo: repo_val,
+        arch: arch_val,
+        version,
+        description,
+    })
+}
+
+/// What: Try alternative URL formats when the primary API call fails.
+///
+/// Inputs:
+/// - `repo`: Repository name.
+/// - `arch`: Architecture.
+/// - `page`: Page number.
+/// - `limit`: Results per page.
+///
+/// Output:
+/// - `Ok((json, results))` if an alternative format worked, `Err` otherwise.
+///
+/// Details:
+/// - Attempts multiple alternative query parameter formats to work around API changes.
+fn try_alternative_url_formats(
+    repo: &str,
+    arch: &str,
+    page: usize,
+    limit: usize,
+) -> Result<(serde_json::Value, Vec<serde_json::Value>)> {
+    let alternatives = vec![
+        (
+            "q=*",
+            format!(
+                "https://archlinux.org/packages/search/json/?q=*&repo={repo}&arch={arch}&limit={limit}&page={page}"
+            ),
+        ),
+        (
+            "q=%2A",
+            format!(
+                "https://archlinux.org/packages/search/json/?q=%2A&repo={repo}&arch={arch}&limit={limit}&page={page}"
+            ),
+        ),
+        (
+            "q=a",
+            format!(
+                "https://archlinux.org/packages/search/json/?q=a&repo={repo}&arch={arch}&limit={limit}&page={page}"
+            ),
+        ),
+        (
+            "q=",
+            format!(
+                "https://archlinux.org/packages/search/json/?q=&repo={repo}&arch={arch}&limit={limit}&page={page}"
+            ),
+        ),
+    ];
+
+    for (format_name, alt_url) in alternatives {
+        tracing::debug!(
+            repo = repo,
+            page = page,
+            format = format_name,
+            url = %alt_url,
+            "Trying alternative API URL format"
+        );
+        match curl::curl_json(&alt_url) {
+            Ok(alt_v) => {
+                let alt_results = alt_v
+                    .get("results")
+                    .and_then(|x| x.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                let alt_valid = alt_v.get("valid").and_then(|x| x.as_bool()).unwrap_or(true);
+                if alt_valid && !alt_results.is_empty() {
+                    tracing::info!(
+                        repo = repo,
+                        page = page,
+                        format = format_name,
+                        "Alternative URL format worked"
+                    );
+                    return Ok((alt_v, alt_results));
+                } else if !alt_results.is_empty() {
+                    tracing::warn!(
+                        repo = repo,
+                        page = page,
+                        format = format_name,
+                        "Alternative URL returned results despite valid=false"
+                    );
+                    return Ok((alt_v, alt_results));
+                }
+                tracing::debug!(
+                    repo = repo,
+                    page = page,
+                    format = format_name,
+                    valid = alt_valid,
+                    result_count = alt_results.len(),
+                    "Alternative format returned no results"
+                );
+            }
+            Err(alt_e) => {
+                tracing::debug!(
+                    repo = repo,
+                    page = page,
+                    format = format_name,
+                    error = %alt_e,
+                    "Alternative URL format failed"
+                );
+            }
+        }
+    }
+
+    Err(format!(
+        "Arch Linux Packages API returned invalid query response for {repo} (page {page}). All URL formats failed with valid=false and no results. The API may have changed or requires different parameters."
+    ).into())
+}
+
+/// What: Log debug information when API returns empty results.
+///
+/// Inputs:
+/// - `v`: JSON response value.
+/// - `repo`: Repository name.
+/// - `page`: Page number.
+/// - `url`: Original URL that was queried.
+///
+/// Output:
+/// - None (side effect: logging).
+///
+/// Details:
+/// - Logs detailed information about empty API responses for debugging purposes.
+fn log_empty_results_debug(v: &serde_json::Value, repo: &str, page: usize, url: &str) {
+    if page == 1 {
+        let response_str = serde_json::to_string_pretty(v)
+            .unwrap_or_else(|_| "Failed to serialize response".to_string());
+        let response_preview = if response_str.len() > 500 {
+            format!("{}...", &response_str[..500])
+        } else {
+            response_str.clone()
+        };
+        tracing::warn!(
+            repo = repo,
+            url = %url,
+            response_preview = %response_preview,
+            "First page returned empty results - checking API response structure"
+        );
+        if let Some(count) = v.get("count").and_then(|x| x.as_u64()) {
+            tracing::warn!(
+                repo = repo,
+                total_count = count,
+                "API reports total count but results array is empty"
+            );
+        }
+        if let Some(limit_val) = v.get("limit").and_then(|x| x.as_u64()) {
+            tracing::debug!(repo = repo, api_limit = limit_val, "API limit value");
+        }
+    }
+}
+
+/// What: Fetch a single page of packages from the Arch API.
+///
+/// Inputs:
+/// - `repo`: Repository name.
+/// - `arch`: Architecture.
+/// - `page`: Page number.
+/// - `limit`: Results per page.
+///
+/// Output:
+/// - `Ok((results, has_more))` with the results array and whether more pages exist.
+///
+/// Details:
+/// - Handles API response validation and tries alternative URL formats if needed.
+fn fetch_package_page(
+    repo: &str,
+    arch: &str,
+    page: usize,
+    limit: usize,
+) -> Result<(Vec<serde_json::Value>, bool)> {
+    let url = format!(
+        "https://archlinux.org/packages/search/json/?repo={repo}&arch={arch}&limit={limit}&page={page}"
+    );
+    tracing::debug!(repo = repo, page = page, url = %url, "Fetching package page from API");
+    let mut v = curl::curl_json(&url).map_err(|e| {
+        tracing::error!(repo = repo, page = page, error = %e, "Failed to fetch package page");
+        Box::<dyn std::error::Error + Send + Sync>::from(format!(
+            "Failed to fetch package list for {repo} (page {page}): {e}"
+        ))
+    })?;
+
+    let mut results = v
+        .get("results")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    if let Some(valid) = v.get("valid").and_then(|x| x.as_bool()) {
+        if !valid && results.is_empty() {
+            let response_str = serde_json::to_string_pretty(&v)
+                .unwrap_or_else(|_| "Failed to serialize response".to_string());
+            tracing::warn!(
+                repo = repo,
+                page = page,
+                url = %url,
+                response = %response_str,
+                "API query returned valid=false with no results, trying with q parameter"
+            );
+            let (alt_v, alt_results) = try_alternative_url_formats(repo, arch, page, limit)?;
+            v = alt_v;
+            results = alt_results;
+        } else if !valid && !results.is_empty() {
+            tracing::warn!(
+                repo = repo,
+                page = page,
+                result_count = results.len(),
+                "API returned valid=false but has results, processing anyway"
+            );
+        }
+    }
+
+    if page == 1 {
+        tracing::debug!(
+            repo = repo,
+            response_keys = ?v.as_object().map(|o| o.keys().collect::<Vec<_>>()),
+            "API response structure"
+        );
+    }
+
+    if results.is_empty() {
+        tracing::debug!(repo = repo, page = page, "No more results for repository");
+        log_empty_results_debug(&v, repo, page, &url);
+        return Ok((results, false));
+    }
+
+    tracing::debug!(
+        repo = repo,
+        page = page,
+        count = results.len(),
+        "Fetched package page"
+    );
+    Ok((results, true))
+}
+
+/// What: Fetch all packages for a single repository.
+///
+/// Inputs:
+/// - `repo`: Repository name.
+/// - `arch`: Architecture.
+///
+/// Output:
+/// - `Ok(Vec<OfficialPkg>)` with all packages from the repository.
+///
+/// Details:
+/// - Pages through all results and parses packages from JSON.
+fn fetch_repo_packages(repo: &str, arch: &str) -> Result<Vec<OfficialPkg>> {
+    tracing::info!(repo = repo, "Fetching packages from repository");
+    let mut pkgs: Vec<OfficialPkg> = Vec::new();
+    let mut page: usize = 1;
+    let limit: usize = 250;
+
+    loop {
+        let (results, has_more) = fetch_package_page(repo, arch, page, limit)?;
+        for obj in results {
+            if let Some(pkg) = parse_package_from_json(&obj, repo, arch) {
+                pkgs.push(pkg);
+            }
+        }
+        if !has_more {
+            break;
+        }
+        page += 1;
+    }
+
+    tracing::info!(
+        repo = repo,
+        package_count = pkgs.len(),
+        "Completed fetching repository"
+    );
+    Ok(pkgs)
+}
+
 /// What: Build the official index via the Arch Packages JSON API and persist it.
 ///
 /// Inputs:
@@ -111,182 +429,8 @@ pub async fn refresh_official_index_from_arch_api(
     let res = task::spawn_blocking(move || -> Result<Vec<OfficialPkg>> {
         let mut pkgs: Vec<OfficialPkg> = Vec::new();
         for repo in repos {
-            tracing::info!(repo = repo, "Fetching packages from repository");
-            let mut page: usize = 1;
-            let limit: usize = 250;
-            let mut repo_pkg_count = 0;
-            loop {
-                // Try URL without q parameter first (original format)
-                let url = format!("https://archlinux.org/packages/search/json/?repo={repo}&arch={arch}&limit={limit}&page={page}");
-                tracing::debug!(repo = repo, page = page, url = %url, "Fetching package page from API");
-                let mut v = match curl::curl_json(&url) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        // If a page fails, bubble the error up; no partial repo result
-                        tracing::error!(repo = repo, page = page, error = %e, "Failed to fetch package page");
-                        return Err(format!("Failed to fetch package list for {repo} (page {page}): {e}").into());
-                    }
-                };
-                // Check if the API response is valid
-                // Note: Even if valid=false, we may still get results, so check results first
-                let mut results = v
-                    .get("results")
-                    .and_then(|x| x.as_array())
-                    .cloned()
-                    .unwrap_or_default();
-
-                if let Some(valid) = v.get("valid").and_then(|x| x.as_bool()) {
-                    if !valid && results.is_empty() {
-                        // Only fail if valid=false AND no results
-                        // Log the full response for debugging
-                        let response_str = serde_json::to_string_pretty(&v).unwrap_or_else(|_| "Failed to serialize response".to_string());
-                tracing::warn!(
-                    repo = repo,
-                    page = page,
-                    url = %url,
-                    response = %response_str,
-                    "API query returned valid=false with no results, trying with q parameter"
-                );
-                        // Try multiple alternative query formats
-                        let alternatives = vec![
-                            ("q=*", format!("https://archlinux.org/packages/search/json/?q=*&repo={repo}&arch={arch}&limit={limit}&page={page}")),
-                            ("q=%2A", format!("https://archlinux.org/packages/search/json/?q=%2A&repo={repo}&arch={arch}&limit={limit}&page={page}")),
-                            ("q=a", format!("https://archlinux.org/packages/search/json/?q=a&repo={repo}&arch={arch}&limit={limit}&page={page}")),
-                            ("q=", format!("https://archlinux.org/packages/search/json/?q=&repo={repo}&arch={arch}&limit={limit}&page={page}")),
-                        ];
-
-                        let mut found_working = false;
-                        for (format_name, alt_url) in alternatives {
-                            tracing::debug!(repo = repo, page = page, format = format_name, url = %alt_url, "Trying alternative API URL format");
-                            match curl::curl_json(&alt_url) {
-                                Ok(alt_v) => {
-                                    let alt_results = alt_v
-                                        .get("results")
-                                        .and_then(|x| x.as_array())
-                                        .cloned()
-                                        .unwrap_or_default();
-                                    let alt_valid = alt_v.get("valid").and_then(|x| x.as_bool()).unwrap_or(true);
-                                    if alt_valid && !alt_results.is_empty() {
-                                        // This format worked!
-                                        v = alt_v;
-                                        results = alt_results;
-                                        tracing::info!(repo = repo, page = page, format = format_name, "Alternative URL format worked");
-                                        found_working = true;
-                                        break;
-                                    } else if !alt_results.is_empty() {
-                                        // Got results even if valid=false, use them
-                                        v = alt_v;
-                                        results = alt_results;
-                                        tracing::warn!(repo = repo, page = page, format = format_name, "Alternative URL returned results despite valid=false");
-                                        found_working = true;
-                                        break;
-                                    }
-                                    tracing::debug!(repo = repo, page = page, format = format_name, valid = alt_valid, result_count = alt_results.len(), "Alternative format returned no results");
-                                }
-                                Err(alt_e) => {
-                                    tracing::debug!(repo = repo, page = page, format = format_name, error = %alt_e, "Alternative URL format failed");
-                                }
-                            }
-                        }
-
-                        if !found_working {
-                            let error_msg = format!(
-                                "Arch Linux Packages API returned invalid query response for {repo} (page {page}). All URL formats failed with valid=false and no results. The API may have changed or requires different parameters."
-                            );
-                            return Err(error_msg.into());
-                        }
-                    } else if !valid && !results.is_empty() {
-                        // valid=false but we have results - log warning but continue
-                        tracing::warn!(
-                            repo = repo,
-                            page = page,
-                            result_count = results.len(),
-                            "API returned valid=false but has results, processing anyway"
-                        );
-                    }
-                }
-                // Log the response structure for debugging
-                if page == 1 {
-                    tracing::debug!(
-                        repo = repo,
-                        response_keys = ?v.as_object().map(|o| o.keys().collect::<Vec<_>>()),
-                        "API response structure"
-                    );
-                }
-                if results.is_empty() {
-                    tracing::debug!(repo = repo, page = page, "No more results for repository");
-                    // On first page with empty results, log more details for debugging
-                    if page == 1 {
-                        // Log the full response structure to understand what the API returned
-                        let response_str = serde_json::to_string_pretty(&v).unwrap_or_else(|_| "Failed to serialize response".to_string());
-                        let response_preview = if response_str.len() > 500 {
-                            format!("{}...", &response_str[..500])
-                        } else {
-                            response_str.clone()
-                        };
-                        tracing::warn!(
-                            repo = repo,
-                            url = %url,
-                            response_preview = %response_preview,
-                            "First page returned empty results - checking API response structure"
-                        );
-                        // Check if the response has a different structure
-                        if let Some(count) = v.get("count").and_then(|x| x.as_u64()) {
-                            tracing::warn!(
-                                repo = repo,
-                                total_count = count,
-                                "API reports total count but results array is empty"
-                            );
-                        }
-                        if let Some(limit_val) = v.get("limit").and_then(|x| x.as_u64()) {
-                            tracing::debug!(repo = repo, api_limit = limit_val, "API limit value");
-                        }
-                    }
-                    break;
-                }
-                tracing::debug!(repo = repo, page = page, count = results.len(), "Fetched package page");
-                for obj in results {
-                    let name = obj
-                        .get("pkgname")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    if name.is_empty() {
-                        continue;
-                    }
-                    let version = obj
-                        .get("pkgver")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    let description = obj
-                        .get("pkgdesc")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    let arch_val = obj
-                        .get("arch")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(arch)
-                        .to_string();
-                    let repo_val = obj
-                        .get("repo")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(repo)
-                        .to_string();
-
-                    pkgs.push(OfficialPkg {
-                        name,
-                        repo: repo_val,
-                        arch: arch_val,
-                        version,
-                        description,
-                    });
-                    repo_pkg_count += 1;
-                }
-                page += 1;
-            }
-            tracing::info!(repo = repo, package_count = repo_pkg_count, "Completed fetching repository");
+            let repo_pkgs = fetch_repo_packages(repo, arch)?;
+            pkgs.extend(repo_pkgs);
         }
         // Sort and dedup by (repo, name)
         pkgs.sort_by(|a, b| a.repo.cmp(&b.repo).then(a.name.cmp(&b.name)));
@@ -301,7 +445,10 @@ pub async fn refresh_official_index_from_arch_api(
                 "Deduplicated packages"
             );
         }
-        tracing::info!(total_packages = pkgs.len(), "Completed fetching all repositories");
+        tracing::info!(
+            total_packages = pkgs.len(),
+            "Completed fetching all repositories"
+        );
         Ok(pkgs)
     })
     .await;
