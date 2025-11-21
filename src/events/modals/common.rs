@@ -12,14 +12,15 @@ use crate::state::AppState;
 /// - `message`: Alert message content
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` if Esc was pressed (to stop propagation), `false` otherwise
 ///
 /// Details:
 /// - Handles Enter/Esc to close, Up/Down for help scrolling
+/// - Returns `true` for Esc to prevent mode toggling in search handler
 pub(crate) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> bool {
     let is_help = message.contains("Help") || message.contains("Tab Help");
     match ke.code {
-        KeyCode::Enter | KeyCode::Esc => {
+        KeyCode::Esc => {
             if is_help {
                 app.help_scroll = 0; // Reset scroll when closing
             }
@@ -29,16 +30,30 @@ pub(crate) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
             } else {
                 app.modal = crate::state::Modal::None;
             }
+            true // Stop propagation to prevent mode toggle
+        }
+        KeyCode::Enter => {
+            if is_help {
+                app.help_scroll = 0; // Reset scroll when closing
+            }
+            // Restore previous modal if it was Preflight, otherwise close
+            if let Some(prev_modal) = app.previous_modal.take() {
+                app.modal = prev_modal;
+            } else {
+                app.modal = crate::state::Modal::None;
+            }
+            false
         }
         KeyCode::Up if is_help => {
             app.help_scroll = app.help_scroll.saturating_sub(1);
+            false
         }
         KeyCode::Down if is_help => {
             app.help_scroll = app.help_scroll.saturating_add(1);
+            false
         }
-        _ => {}
+        _ => false,
     }
-    false
 }
 
 /// What: Handle key events for PreflightExec modal.

@@ -278,6 +278,11 @@ de-DE:
         title_configuration_error: " Konfigurationsfehler "
         title_clipboard_copy: " Zwischenablage kopieren "
         title_connection_issue: " Verbindungsproblem "
+      refresh:
+        header: "Paketdatenbank-Aktualisierung"
+        title: " Paketdatenbank-Aktualisierung "
+        success: "✓ Paketdatenbank-Aktualisierung erfolgreich abgeschlossen"
+        failure: "✗ Paketdatenbank-Aktualisierung mit Fehlern abgeschlossen"
       confirm_install:
         title: " Installation bestätigen "
         heading: "Installation bestätigen"

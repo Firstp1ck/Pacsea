@@ -14,15 +14,17 @@ use crate::state::{AppState, Modal, PackageItem};
 /// - `modal`: Alert modal variant with message
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` if Esc was pressed (to stop propagation), otherwise `false`
 ///
 /// Details:
 /// - Delegates to common handler and handles restoration
+/// - Returns the result from common handler to prevent event propagation when Esc is pressed
 pub(crate) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
     if let Modal::Alert { ref message } = modal {
-        super::common::handle_alert(ke, app, message);
+        super::common::handle_alert(ke, app, message)
+    } else {
+        false
     }
-    false
 }
 
 /// What: Handle key events for PreflightExec modal, including restoration logic.

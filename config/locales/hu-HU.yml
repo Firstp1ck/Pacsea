@@ -281,6 +281,12 @@ hu-HU:
         title_configuration_error: " Konfigurációs hiba "
         title_clipboard_copy: " Másolás a vágólapra "
         title_connection_issue: " Kapcsolati probléma "
+      refresh:
+        # TODO: Translate to Hungarian
+        header: "Package Database Refresh"
+        title: " Package Database Refresh "
+        success: "✓ Package database refresh completed successfully"
+        failure: "✗ Package database refresh completed with errors"
       confirm_install:
         title: " Telepítés megerősítése "
         heading: "Telepítés megerősítése"

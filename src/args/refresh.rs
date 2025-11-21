@@ -10,7 +10,7 @@ use pacsea::theme;
 /// - None.
 ///
 /// Output:
-/// - None (does not exit, allows program to continue to TUI).
+/// - `Some(true)` if refresh completed successfully, `Some(false)` if it failed, `None` if not run.
 ///
 /// Details:
 /// - Runs `sudo pacman -Sy` first to sync official package database.
@@ -18,8 +18,9 @@ use pacsea::theme;
 /// - Logs success/failure of each step to `refresh.log` in the config logs directory.
 /// - Informs user of final status and log file path.
 /// - Unlike `handle_update`, this does not exit - it allows the program to continue to TUI.
+/// - Returns the success status so the TUI can display a popup notification.
 #[cfg(not(target_os = "windows"))]
-pub fn handle_refresh() {
+pub fn handle_refresh() -> Option<bool> {
     use std::fs::OpenOptions;
     use std::io::Write;
     use std::process::Command;
@@ -209,6 +210,8 @@ pub fn handle_refresh() {
     } else {
         tracing::error!("Package database refresh completed with errors");
     }
+
+    Some(all_succeeded)
 }
 
 #[cfg(test)]
@@ -234,7 +237,7 @@ mod tests {
             std::env::set_var("PACSEA_TEST_SKIP_COMMANDS", "1");
         }
         // This test just ensures the function can be called without panicking
-        handle_refresh();
+        let _ = handle_refresh();
         // Clean up
         unsafe {
             std::env::remove_var("PACSEA_TEST_SKIP_COMMANDS");

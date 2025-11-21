@@ -61,12 +61,20 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
             || ml.contains("xclip")
             || ml.contains("wl-clipboard")
     };
+    let is_refresh = {
+        let ml = message.to_lowercase();
+        ml.contains("package database refresh")
+    };
+    let is_refresh_success = is_refresh && message.contains("✓");
+    let is_refresh_failure = is_refresh && message.contains("✗");
     let header_text = if is_help {
         i18n::t(app, "app.modals.help.heading")
     } else if is_config {
         i18n::t(app, "app.modals.alert.header_configuration_error")
     } else if is_clipboard {
         i18n::t(app, "app.modals.alert.header_clipboard_copy")
+    } else if is_refresh {
+        i18n::t(app, "app.modals.refresh.header")
     } else {
         i18n::t(app, "app.modals.alert.header_connection_issue")
     };
@@ -76,11 +84,17 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
         i18n::t(app, "app.modals.alert.title_configuration_error")
     } else if is_clipboard {
         i18n::t(app, "app.modals.alert.title_clipboard_copy")
+    } else if is_refresh {
+        i18n::t(app, "app.modals.refresh.title")
     } else {
         i18n::t(app, "app.modals.alert.title_connection_issue")
     };
     let header_color = if is_help || is_config {
         th.mauve
+    } else if is_refresh_success {
+        th.green
+    } else if is_refresh_failure {
+        th.red
     } else {
         th.red
     };

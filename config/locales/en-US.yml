@@ -278,6 +278,11 @@ en-US:
         title_configuration_error: " Configuration Error "
         title_clipboard_copy: " Clipboard Copy "
         title_connection_issue: " Connection issue "
+      refresh:
+        header: "Package Database Refresh"
+        title: " Package Database Refresh "
+        success: "✓ Package database refresh completed successfully"
+        failure: "✗ Package database refresh completed with errors"
       confirm_install:
         title: " Confirm Install "
         heading: "Confirm installation"
