@@ -4,8 +4,9 @@ use tokio::sync::mpsc;
 use crate::state::{AppState, PackageItem, QueryInput};
 use crate::theme::KeyChord;
 
+use super::super::utils::matches_any;
 use super::handle_search_key;
-use super::helpers::{matches_any, navigate_pane};
+use super::helpers::navigate_pane;
 
 /// What: Provide a baseline `AppState` tailored for search-pane tests without repeating setup boilerplate.
 ///

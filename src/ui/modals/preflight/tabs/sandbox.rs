@@ -28,6 +28,128 @@ type SandboxDisplayItem = (
     )>,
 );
 
+/// What: Context struct grouping Sandbox tab fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from parameters).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+pub struct SandboxTabContext<'a> {
+    pub items: &'a [PackageItem],
+    pub sandbox_info: &'a [crate::logic::sandbox::SandboxInfo],
+    pub sandbox_tree_expanded: &'a HashSet<String>,
+    pub sandbox_loaded: bool,
+    pub sandbox_error: &'a Option<String>,
+    pub selected_optdepends: &'a HashMap<String, HashSet<String>>,
+    pub content_rect: Rect,
+}
+
+/// What: Enum representing the current render state of the sandbox tab.
+///
+/// Inputs: None
+///
+/// Output: None
+///
+/// Details:
+/// - Used to determine what should be rendered (error, loading, analyzing, etc.).
+/// - Reduces data flow complexity by centralizing state checking logic.
+enum SandboxRenderState {
+    Error(String),
+    Loading,
+    Analyzing,
+    NoAurPackages,
+    Ready,
+}
+
+/// What: Pre-computed render data to reduce data flow complexity.
+///
+/// Inputs: None
+///
+/// Output: None
+///
+/// Details:
+/// - Groups derived values that are computed once and reused.
+/// - Reduces intermediate variable assignments in the main function.
+struct SandboxRenderData {
+    display_items: Vec<SandboxDisplayItem>,
+    viewport: (usize, usize),
+    available_height: usize,
+    total_items: usize,
+}
+
+/// What: Determine the current render state of the sandbox tab.
+///
+/// Inputs:
+/// - `app`: Application state for checking resolving flags.
+/// - `ctx`: Sandbox tab context.
+///
+/// Output:
+/// - Returns SandboxRenderState enum indicating what should be rendered.
+///
+/// Details:
+/// - Centralizes state checking logic to reduce data flow complexity.
+/// - Checks error, loading, analyzing, and no-AUR-packages states.
+fn determine_sandbox_state(app: &AppState, ctx: &SandboxTabContext) -> SandboxRenderState {
+    // Check if there are any AUR packages at all
+    let has_aur = ctx
+        .items
+        .iter()
+        .any(|i| matches!(i.source, crate::state::Source::Aur));
+
+    if !has_aur {
+        return SandboxRenderState::NoAurPackages;
+    }
+
+    // Handle error/loading/analyzing states
+    if let Some(err) = ctx.sandbox_error.as_ref() {
+        return SandboxRenderState::Error(err.clone());
+    } else if app.preflight_sandbox_resolving || app.sandbox_resolving {
+        return SandboxRenderState::Loading;
+    } else if !ctx.sandbox_loaded || ctx.sandbox_info.is_empty() {
+        return SandboxRenderState::Analyzing;
+    }
+
+    SandboxRenderState::Ready
+}
+
+/// What: Pre-compute render data to reduce data flow complexity.
+///
+/// Inputs:
+/// - `ctx`: Sandbox tab context.
+/// - `sandbox_selected`: Mutable reference to selected index (for viewport calculation).
+///
+/// Output:
+/// - Returns SandboxRenderData with pre-computed values.
+///
+/// Details:
+/// - Computes display items, viewport, and other derived values once.
+/// - Reduces intermediate variable assignments in the main function.
+fn compute_render_data(ctx: &SandboxTabContext, sandbox_selected: &mut usize) -> SandboxRenderData {
+    // Build flat list of display items: package headers + dependencies (only if expanded)
+    let display_items = build_display_items(ctx.items, ctx.sandbox_info, ctx.sandbox_tree_expanded);
+
+    // Calculate viewport based on selected index (like Deps/Files tabs)
+    // Performance optimization: Only render visible items (viewport-based rendering)
+    // This prevents performance issues with large dependency lists
+    let available_height = (ctx.content_rect.height as usize).saturating_sub(6);
+    let total_items = display_items.len();
+
+    let viewport = calculate_viewport(
+        total_items,
+        *sandbox_selected,
+        available_height,
+        sandbox_selected,
+    );
+
+    SandboxRenderData {
+        display_items,
+        viewport,
+        available_height,
+        total_items,
+    }
+}
+
 /// What: Render error state for sandbox tab.
 ///
 /// Inputs:
@@ -583,135 +705,46 @@ fn render_dependency_line(
     Line::from(Span::styled(dep_line, dep_style))
 }
 
-/// What: Render the Sandbox tab content for the preflight modal.
+/// What: Render visible display items in the viewport.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n and data access.
-/// - `items`: Packages under review.
-/// - `sandbox_info`: Sandbox information.
-/// - `sandbox_selected`: Currently selected sandbox item index (mutable).
-/// - `sandbox_tree_expanded`: Set of expanded package names.
-/// - `sandbox_loaded`: Whether sandbox is loaded.
-/// - `sandbox_error`: Optional error message.
-/// - `selected_optdepends`: Map of selected optional dependencies.
-/// - `content_rect`: Content area rectangle.
+/// - `app`: Application state for i18n.
+/// - `ctx`: Sandbox tab context.
+/// - `render_data`: Pre-computed render data.
+/// - `selected_idx`: Currently selected item index.
 ///
 /// Output:
-/// - Returns a vector of lines to render.
+/// - Returns vector of lines for visible items.
 ///
 /// Details:
-/// - Shows sandbox dependency analysis for AUR packages.
-/// - Supports viewport-based rendering for large dependency lists.
-#[allow(clippy::too_many_arguments)]
-pub fn render_sandbox_tab(
+/// - Renders only items within the viewport range.
+/// - Handles package headers and dependency items.
+/// - Tracks dependency section headers.
+fn render_display_items(
     app: &AppState,
-    items: &[PackageItem],
-    sandbox_info: &[crate::logic::sandbox::SandboxInfo],
-    sandbox_selected: &mut usize,
-    sandbox_tree_expanded: &HashSet<String>,
-    sandbox_loaded: bool,
-    sandbox_error: &Option<String>,
-    selected_optdepends: &HashMap<String, HashSet<String>>,
-    content_rect: Rect,
+    ctx: &SandboxTabContext,
+    render_data: &SandboxRenderData,
+    selected_idx: usize,
 ) -> Vec<Line<'static>> {
-    let th = theme();
     let mut lines = Vec::new();
-
-    // Log render state for debugging
-    tracing::debug!(
-        "[UI] render_sandbox_tab: items={}, sandbox_info={}, sandbox_loaded={}, sandbox_selected={}, expanded={}, resolving={}/{}",
-        items.len(),
-        sandbox_info.len(),
-        sandbox_loaded,
-        sandbox_selected,
-        sandbox_tree_expanded.len(),
-        app.preflight_sandbox_resolving,
-        app.sandbox_resolving
-    );
-
-    // Log detailed dependency information only at DEBUG level (called on every render)
-    // Detailed package info is already logged in sync_sandbox when data changes
-    if !sandbox_info.is_empty() {
-        tracing::debug!(
-            "[UI] render_sandbox_tab: Rendering {} sandbox info entries",
-            sandbox_info.len()
-        );
-    }
-
-    // Check if there are any AUR packages at all
-    let aur_items: Vec<_> = items
-        .iter()
-        .filter(|i| matches!(i.source, crate::state::Source::Aur))
-        .collect();
-
-    if aur_items.is_empty() {
-        tracing::debug!(
-            "[UI] render_sandbox_tab: No AUR packages in list (all {} packages are official), showing info message",
-            items.len()
-        );
-        return render_no_aur_packages_state(app);
-    }
-
-    // Handle error/loading/analyzing states
-    if let Some(err) = sandbox_error.as_ref() {
-        return render_error_state(app, err);
-    } else if app.preflight_sandbox_resolving || app.sandbox_resolving {
-        tracing::debug!(
-            "[UI] render_sandbox_tab: Showing loading state (resolving={}/{}, {} AUR packages)",
-            app.preflight_sandbox_resolving,
-            app.sandbox_resolving,
-            aur_items.len()
-        );
-        return render_loading_state(app, items);
-    } else if !sandbox_loaded || sandbox_info.is_empty() {
-        tracing::debug!(
-            "[UI] render_sandbox_tab: Not loaded or empty (loaded={}, info_len={}), showing analyzing message",
-            sandbox_loaded,
-            sandbox_info.len()
-        );
-        return render_analyzing_state(app, items);
-    }
-
-    // Build flat list of display items: package headers + dependencies (only if expanded)
-    let display_items = build_display_items(items, sandbox_info, sandbox_tree_expanded);
-
-    // Calculate viewport based on selected index (like Deps/Files tabs)
-    // Performance optimization: Only render visible items (viewport-based rendering)
-    // This prevents performance issues with large dependency lists
-    let available_height = (content_rect.height as usize).saturating_sub(6);
-    let total_items = display_items.len();
-    tracing::debug!(
-        "[UI] render_sandbox_tab: Rendering data - total_items={}, sandbox_selected={}, items={}, sandbox_info={}, expanded_count={}, available_height={}",
-        total_items,
-        *sandbox_selected,
-        items.len(),
-        sandbox_info.len(),
-        sandbox_tree_expanded.len(),
-        available_height
-    );
-
-    let (start_idx, end_idx) = calculate_viewport(
-        total_items,
-        *sandbox_selected,
-        available_height,
-        sandbox_selected,
-    );
+    let (start_idx, end_idx) = render_data.viewport;
 
     // Track which packages we've seen to group dependencies properly
     let mut last_dep_type: Option<&str> = None;
 
     // Render visible items
-    for (idx, (is_header, pkg_name, dep_opt)) in display_items
+    for (idx, (is_header, pkg_name, dep_opt)) in render_data
+        .display_items
         .iter()
         .enumerate()
         .skip(start_idx)
         .take(end_idx - start_idx)
     {
-        let is_selected = idx == *sandbox_selected;
+        let is_selected = idx == selected_idx;
 
         if *is_header {
             // Package header
-            let Some(item) = items.iter().find(|p| p.name == *pkg_name) else {
+            let Some(item) = ctx.items.iter().find(|p| p.name == *pkg_name) else {
                 tracing::warn!(
                     "[UI] render_sandbox_tab: Package '{}' not found in items list, skipping",
                     pkg_name
@@ -719,7 +752,7 @@ pub fn render_sandbox_tab(
                 continue;
             };
             let is_aur = matches!(item.source, crate::state::Source::Aur);
-            let is_expanded = sandbox_tree_expanded.contains(pkg_name);
+            let is_expanded = ctx.sandbox_tree_expanded.contains(pkg_name);
 
             lines.push(render_package_header(app, item, is_expanded, is_selected));
             last_dep_type = None;
@@ -730,7 +763,7 @@ pub fn render_sandbox_tab(
                 pkg_name,
                 is_aur,
                 is_expanded,
-                sandbox_info,
+                ctx.sandbox_info,
             ));
         } else if let Some((dep_type, dep_name, dep)) = dep_opt {
             // Dependency item (indented)
@@ -744,7 +777,7 @@ pub fn render_sandbox_tab(
 
             // Check if this is a selected optional dependency
             let is_optdep_selected = if *dep_type == "optdepends" {
-                selected_optdepends
+                ctx.selected_optdepends
                     .get(pkg_name)
                     .map(|set| {
                         // Extract package name from dependency spec (may include version or description)
@@ -767,20 +800,128 @@ pub fn render_sandbox_tab(
         }
     }
 
+    lines
+}
+
+/// What: Render the Sandbox tab content for the preflight modal.
+///
+/// Inputs:
+/// - `app`: Application state for i18n and data access.
+/// - `ctx`: Sandbox tab context containing all render parameters.
+/// - `sandbox_selected`: Currently selected sandbox item index (mutable).
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Shows sandbox dependency analysis for AUR packages.
+/// - Supports viewport-based rendering for large dependency lists.
+/// - Uses context struct to reduce data flow complexity.
+pub fn render_sandbox_tab(
+    app: &AppState,
+    ctx: &SandboxTabContext,
+    sandbox_selected: &mut usize,
+) -> Vec<Line<'static>> {
+    let th = theme();
+
+    // Log render state for debugging
+    tracing::debug!(
+        "[UI] render_sandbox_tab: items={}, sandbox_info={}, sandbox_loaded={}, sandbox_selected={}, expanded={}, resolving={}/{}",
+        ctx.items.len(),
+        ctx.sandbox_info.len(),
+        ctx.sandbox_loaded,
+        sandbox_selected,
+        ctx.sandbox_tree_expanded.len(),
+        app.preflight_sandbox_resolving,
+        app.sandbox_resolving
+    );
+
+    // Log detailed dependency information only at DEBUG level (called on every render)
+    // Detailed package info is already logged in sync_sandbox when data changes
+    if !ctx.sandbox_info.is_empty() {
+        tracing::debug!(
+            "[UI] render_sandbox_tab: Rendering {} sandbox info entries",
+            ctx.sandbox_info.len()
+        );
+    }
+
+    // Determine render state (reduces data flow complexity by centralizing state checks)
+    let render_state = determine_sandbox_state(app, ctx);
+
+    // Handle early return states
+    match render_state {
+        SandboxRenderState::NoAurPackages => {
+            tracing::debug!(
+                "[UI] render_sandbox_tab: No AUR packages in list (all {} packages are official), showing info message",
+                ctx.items.len()
+            );
+            return render_no_aur_packages_state(app);
+        }
+        SandboxRenderState::Error(err) => {
+            return render_error_state(app, &err);
+        }
+        SandboxRenderState::Loading => {
+            let aur_count = ctx
+                .items
+                .iter()
+                .filter(|i| matches!(i.source, crate::state::Source::Aur))
+                .count();
+            tracing::debug!(
+                "[UI] render_sandbox_tab: Showing loading state (resolving={}/{}, {} AUR packages)",
+                app.preflight_sandbox_resolving,
+                app.sandbox_resolving,
+                aur_count
+            );
+            return render_loading_state(app, ctx.items);
+        }
+        SandboxRenderState::Analyzing => {
+            tracing::debug!(
+                "[UI] render_sandbox_tab: Not loaded or empty (loaded={}, info_len={}), showing analyzing message",
+                ctx.sandbox_loaded,
+                ctx.sandbox_info.len()
+            );
+            return render_analyzing_state(app, ctx.items);
+        }
+        SandboxRenderState::Ready => {
+            // Continue with normal rendering
+        }
+    }
+
+    // Pre-compute render data (reduces data flow complexity)
+    let render_data = compute_render_data(ctx, sandbox_selected);
+
+    tracing::debug!(
+        "[UI] render_sandbox_tab: Rendering data - total_items={}, sandbox_selected={}, items={}, sandbox_info={}, expanded_count={}, available_height={}",
+        render_data.total_items,
+        *sandbox_selected,
+        ctx.items.len(),
+        ctx.sandbox_info.len(),
+        ctx.sandbox_tree_expanded.len(),
+        render_data.available_height
+    );
+
+    // Render visible items (extracted to reduce complexity)
+    let mut lines = render_display_items(app, ctx, &render_data, *sandbox_selected);
+
     // Show indicator if there are more items below
-    if end_idx < total_items {
+    let (_, end_idx) = render_data.viewport;
+    if end_idx < render_data.total_items {
         lines.push(Line::from(Span::styled(
             format!(
                 "… {} more item{}",
-                total_items - end_idx,
-                if total_items - end_idx == 1 { "" } else { "s" }
+                render_data.total_items - end_idx,
+                if render_data.total_items - end_idx == 1 {
+                    ""
+                } else {
+                    "s"
+                }
             ),
             Style::default().fg(th.subtext1),
         )));
     }
 
     // If no packages at all
-    if items.is_empty() {
+    if ctx.items.is_empty() {
         lines.push(Line::from(Span::styled(
             i18n::t(app, "app.modals.preflight.sandbox.no_packages"),
             Style::default().fg(th.subtext0),

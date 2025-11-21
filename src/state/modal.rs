@@ -494,6 +494,13 @@ pub enum Modal {
         /// Selected row index.
         selected: usize,
     },
+    /// Available package updates: list of update entries with scroll support.
+    Updates {
+        /// Update entries with package name, old version, and new version.
+        entries: Vec<(String, String, String)>, // (name, old_version, new_version)
+        /// Scroll offset (lines) for the updates list.
+        scroll: u16,
+    },
     /// TUI Optional Dependencies chooser: selectable rows with install status.
     OptionalDeps {
         /// Rows to display (pre-filtered by environment/distro).

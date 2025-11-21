@@ -117,7 +117,7 @@ hu-HU:
       cascade_mode_enabled: "Lépcsőzetes mód engedélyezve"
       cascade_mode_disabled: "Lépcsőzetes mód letiltva"
       gnome_terminal_warning: "Gnome Terminál nélkül a program váratlanul viselkedhet"
-    updates:
+    updates_button:
       available: "{} frissítés érhető el"
       none: "Nincsenek elérhető frissítések"
       loading: "Frissítések ellenőrzése…"
@@ -203,11 +203,11 @@ hu-HU:
       loading_pkgb: "PKGBUILD betöltése…"
       copy_pkgbuild: "PKGBUILD másolása"
       reload_pkgbuild: "PKGBUILD újratöltése"
-    footer:
-      search_hint: "Keresés (Enter: következő, Esc: mégse)"
-      confirm_installation: "Csomagtelepítés megerősítése"
-      confirm_downgrade: "Csomag-visszafejlesztés megerősítése"
-      confirm_removal: "Csomageltávolítás megerősítése"
+      footer:
+        search_hint: "Keresés (Enter: következő, Esc: mégse)"
+        confirm_installation: "Csomagtelepítés megerősítése"
+        confirm_downgrade: "Csomag-visszafejlesztés megerősítése"
+        confirm_removal: "Csomageltávolítás megerősítése"
       
     results:
       title: "Találatok"
@@ -379,11 +379,10 @@ hu-HU:
         heading: "Arch Linux hírek"
         none: "Nincsenek elérhető hírek."
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: olvasottnak jelölés • {}: összes olvasottnak jelölése • Esc: bezárás"
-      updates:
+      updates_window:
         title: " Elérhető frissítések "
         heading: "Elérhető csomagfrissítések"
         none: "Nincsenek elérhető frissítések."
-        close_hint: "bezárás"
       optional_deps:
         title: " Nem kötelező függőségek "
         heading: "A TUI nem kötelező függőségei"

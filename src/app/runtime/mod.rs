@@ -70,6 +70,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         app.official_index_path.clone(),
         channels.net_err_tx.clone(),
         channels.index_notify_tx.clone(),
+        channels.updates_tx.clone(),
     );
 
     // Spawn event reading thread

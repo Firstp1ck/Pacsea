@@ -389,6 +389,7 @@ pub fn open_url(_url: &str) {
 /// Details:
 /// - Base arguments: `-sSLf` (silent, show errors, follow redirects, fail on HTTP errors)
 /// - Windows: Adds `-k` to skip SSL verification
+/// - Adds User-Agent header to avoid being blocked by APIs
 /// - Appends `extra_args` and `url` at the end
 pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
     let mut args = vec!["-sSLf".to_string()];
@@ -398,6 +399,10 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
         // Skip SSL certificate verification on Windows to avoid exit code 77
         args.push("-k".to_string());
     }
+
+    // Add User-Agent header to avoid being blocked by APIs
+    args.push("-H".to_string());
+    args.push("User-Agent: Pacsea/1.0".to_string());
 
     // Add any extra arguments
     for arg in extra_args {

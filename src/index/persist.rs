@@ -28,15 +28,49 @@ pub fn load_from_disk(path: &Path) {
 /// - `path`: File path to write JSON to
 ///
 /// Output:
-/// - Writes JSON to disk; errors are ignored to avoid interrupting the UI.
+/// - Writes JSON to disk; errors are logged but not propagated to avoid interrupting the UI.
 ///
 /// Details:
-/// - Serializes under a read lock and drops any write failures to avoid crashing background tasks.
+/// - Serializes under a read lock and ensures parent directory exists before writing.
+/// - Creates parent directory if it doesn't exist (Windows-compatible).
+/// - Logs write failures for debugging but doesn't crash background tasks.
+/// - Warns if the index is empty when saving.
 pub fn save_to_disk(path: &Path) {
     if let Ok(guard) = idx().read()
         && let Ok(s) = serde_json::to_string(&*guard)
     {
-        let _ = fs::write(path, s);
+        // Warn if index is empty
+        if guard.pkgs.is_empty() {
+            tracing::warn!(
+                path = %path.display(),
+                "Attempting to save empty index to disk"
+            );
+        }
+        // Ensure parent directory exists before writing
+        if let Some(parent) = path.parent()
+            && let Err(e) = fs::create_dir_all(parent)
+        {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "Failed to create parent directory for index file"
+            );
+            return;
+        }
+        // Write the file and log errors
+        if let Err(e) = fs::write(path, s) {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "Failed to write index file to disk"
+            );
+        } else {
+            tracing::debug!(
+                path = %path.display(),
+                package_count = guard.pkgs.len(),
+                "Successfully saved index to disk"
+            );
+        }
     }
 }
 

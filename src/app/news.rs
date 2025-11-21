@@ -68,6 +68,35 @@ fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
+/// What: Parse month name string into month number (1-12).
+///
+/// Inputs:
+/// - `m_s`: Month name string (e.g., "Jan", "January", "Oct", "October").
+///
+/// Output:
+/// - `Some(1..=12)` for recognized month names; `None` otherwise.
+///
+/// Details:
+/// - Supports both abbreviated and full month names.
+#[cfg_attr(not(test), allow(dead_code))]
+fn parse_month_name(m_s: &str) -> Option<u32> {
+    match m_s {
+        "Jan" | "January" => Some(1),
+        "Feb" | "February" => Some(2),
+        "Mar" | "March" => Some(3),
+        "Apr" | "April" => Some(4),
+        "May" => Some(5),
+        "Jun" | "June" => Some(6),
+        "Jul" | "July" => Some(7),
+        "Aug" | "August" => Some(8),
+        "Sep" | "Sept" | "September" => Some(9),
+        "Oct" | "October" => Some(10),
+        "Nov" | "November" => Some(11),
+        "Dec" | "December" => Some(12),
+        _ => None,
+    }
+}
+
 /// What: Parse various short Arch news date formats into `(year, month, day)`.
 ///
 /// Inputs:
@@ -106,21 +135,7 @@ pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
         return None;
     }
     let y = y_s.parse::<i32>().ok()?;
-    let m = match m_s {
-        "Jan" | "January" => 1,
-        "Feb" | "February" => 2,
-        "Mar" | "March" => 3,
-        "Apr" | "April" => 4,
-        "May" => 5,
-        "Jun" | "June" => 6,
-        "Jul" | "July" => 7,
-        "Aug" | "August" => 8,
-        "Sep" | "Sept" | "September" => 9,
-        "Oct" | "October" => 10,
-        "Nov" | "November" => 11,
-        "Dec" | "December" => 12,
-        _ => return None,
-    };
+    let m = parse_month_name(m_s)?;
     Some((y, m, d))
 }
 

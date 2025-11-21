@@ -56,7 +56,7 @@ pub fn handle_search_key(
     let km = &app.keymap;
 
     // Toggle Normal mode (configurable)
-    if helpers::matches_any(&ke, &km.search_normal_toggle) {
+    if super::utils::matches_any(&ke, &km.search_normal_toggle) {
         app.search_normal_mode = !app.search_normal_mode;
         return false;
     }

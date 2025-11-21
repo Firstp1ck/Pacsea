@@ -114,7 +114,7 @@ de-DE:
       cascade_mode_enabled: "Kaskadenmodus aktiviert"
       cascade_mode_disabled: "Kaskadenmodus deaktiviert"
       gnome_terminal_warning: "Fortsetzen ohne gnome-terminal kann zu unerwartetem Verhalten führen"
-    updates:
+    updates_button:
       available: "Updates verfügbar ({})"
       none: "Keine Updates verfügbar"
       loading: "Prüfe Updates..."
@@ -376,6 +376,10 @@ de-DE:
         heading: "Arch Linux Neuigkeiten"
         none: "Keine Neuigkeiten verfügbar."
         footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc: schließen"
+      updates_window:
+        title: " Verfügbare Updates "
+        heading: "Verfügbare Paket-Updates"
+        none: "Keine Updates verfügbar."
       optional_deps:
         title: " Optionale Abhängigkeiten "
         heading: "TUI Optionale Abhängigkeiten"
@@ -396,9 +400,10 @@ de-DE:
         input_hint: "API-Schlüssel unten eingeben/einfügen und Enter zum Speichern drücken (Esc zum Abbrechen):"
         api_key_label: "API-Schlüssel:"
         tip: "Tipp: Nach dem Speichern werden Scans automatisch VirusTotal per Datei-Hash abfragen."
+      preflight_exec:
+        title_install: " Ausführen: Installieren "
+        title_remove: " Ausführen: Entfernen "
       preflight:
-        title_install: " Preflight: Installieren "
-        title_remove: " Preflight: Entfernen "
         tabs:
           summary: "Zusammenfassung"
           deps: "Abhängigkeiten"

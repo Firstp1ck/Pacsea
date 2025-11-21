@@ -43,6 +43,72 @@ fn handle_import_button(app: &mut AppState) -> Option<bool> {
     Some(false)
 }
 
+/// Handle click on Updates button.
+///
+/// What: Opens the available updates modal with scrollable list.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(false)` if handled, `None` otherwise
+///
+/// Details:
+/// - Loads updates from `~/.config/pacsea/lists/available_updates.txt`
+/// - Opens Updates modal with scroll support
+fn handle_updates_button(app: &mut AppState) -> Option<bool> {
+    let updates_file = crate::theme::lists_dir().join("available_updates.txt");
+
+    // Load updates from file and parse into structured format
+    let entries = if updates_file.exists() {
+        std::fs::read_to_string(&updates_file)
+            .ok()
+            .map(|content| {
+                content
+                    .lines()
+                    .filter_map(|line| {
+                        let trimmed = line.trim();
+                        if trimmed.is_empty() {
+                            None
+                        } else {
+                            // Parse format: "name - old_version -> name - new_version"
+                            if let Some(arrow_pos) = trimmed.find(" -> ") {
+                                let before_arrow = trimmed[..arrow_pos].trim();
+                                let after_arrow = trimmed[arrow_pos + 4..].trim();
+
+                                // Parse "name - old_version" from before_arrow
+                                if let Some(dash_pos) = before_arrow.rfind(" - ") {
+                                    let name = before_arrow[..dash_pos].trim().to_string();
+                                    let old_version =
+                                        before_arrow[dash_pos + 3..].trim().to_string();
+
+                                    // Parse "name - new_version" from after_arrow
+                                    if let Some(dash_pos) = after_arrow.rfind(" - ") {
+                                        let new_version =
+                                            after_arrow[dash_pos + 3..].trim().to_string();
+                                        Some((name, old_version, new_version))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                    })
+                    .collect::<Vec<(String, String, String)>>()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    app.modal = crate::state::Modal::Updates { entries, scroll: 0 };
+    Some(false)
+}
+
 /// Handle click on Export button.
 ///
 /// What: Exports install list to timestamped file in export directory.
@@ -603,6 +669,9 @@ pub(super) fn handle_menus_mouse(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> Option<bool> {
     // Check button clicks first
+    if point_in_rect(mx, my, app.updates_button_rect) {
+        return handle_updates_button(app);
+    }
     if point_in_rect(mx, my, app.install_import_rect) {
         return handle_import_button(app);
     }

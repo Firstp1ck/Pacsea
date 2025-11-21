@@ -38,6 +38,8 @@ pub struct Channels {
     pub status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
     pub news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
     pub news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
+    pub updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
+    pub updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
     pub deps_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
     pub deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
     pub deps_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::DependencyInfo>>,
@@ -125,6 +127,8 @@ struct UtilityChannels {
     status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
     news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
     news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
+    updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
+    updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
 }
 
 /// What: Create event channels.
@@ -226,6 +230,7 @@ fn create_utility_channels() -> UtilityChannels {
     let (pkgb_res_tx, pkgb_res_rx) = mpsc::unbounded_channel::<(String, String)>();
     let (status_tx, status_rx) = mpsc::unbounded_channel::<(String, ArchStatusColor)>();
     let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
+    let (updates_tx, updates_rx) = mpsc::unbounded_channel::<(usize, Vec<String>)>();
     UtilityChannels {
         tick_tx,
         tick_rx,
@@ -245,6 +250,8 @@ fn create_utility_channels() -> UtilityChannels {
         status_rx,
         news_tx,
         news_rx,
+        updates_tx,
+        updates_rx,
     }
 }
 
@@ -326,6 +333,8 @@ impl Channels {
             status_rx: utility_channels.status_rx,
             news_tx: utility_channels.news_tx,
             news_rx: utility_channels.news_rx,
+            updates_tx: utility_channels.updates_tx,
+            updates_rx: utility_channels.updates_rx,
             deps_req_tx: preflight_channels.deps_req_tx,
             deps_res_tx: preflight_channels.deps_res_tx,
             deps_res_rx: preflight_channels.deps_res_rx,

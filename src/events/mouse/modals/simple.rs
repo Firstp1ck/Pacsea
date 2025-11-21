@@ -184,3 +184,68 @@ pub(super) fn handle_news_modal(
     }
     None
 }
+
+/// Handle mouse events for Updates modal.
+///
+/// What: Process mouse interactions within the Updates modal (scroll, close).
+///
+/// Inputs:
+/// - `m`: Mouse event
+/// - `mx`: Mouse X coordinate
+/// - `my`: Mouse Y coordinate
+/// - `is_left_down`: Whether left button is pressed
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(false)` if handled, `None` otherwise
+///
+/// Details:
+/// - Handles scroll navigation.
+/// - Closes modal on outside click.
+pub(super) fn handle_updates_modal(
+    m: MouseEvent,
+    _mx: u16,
+    _my: u16,
+    is_left_down: bool,
+    app: &mut AppState,
+) -> Option<bool> {
+    if let crate::state::Modal::Updates {
+        ref mut scroll,
+        ref entries,
+    } = app.modal
+    {
+        // Handle scroll within modal
+        match m.kind {
+            crossterm::event::MouseEventKind::ScrollUp => {
+                *scroll = scroll.saturating_sub(1);
+                return Some(false);
+            }
+            crossterm::event::MouseEventKind::ScrollDown => {
+                // Calculate max scroll based on content height
+                // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
+                let content_lines = entries.len() as u16 + 4;
+                // Estimate visible lines (modal height minus borders and title/footer)
+                let max_scroll = content_lines.saturating_sub(10);
+                if *scroll < max_scroll {
+                    *scroll = scroll.saturating_add(1);
+                }
+                return Some(false);
+            }
+            _ => {}
+        }
+
+        // Left click outside modal closes it
+        if is_left_down && let Some((x, y, w, h)) = app.updates_modal_rect {
+            let mx = m.column;
+            let my = m.row;
+            if mx < x || mx >= x + w || my < y || my >= y + h {
+                app.modal = crate::state::Modal::None;
+                return Some(false);
+            }
+        }
+
+        // Consume all mouse events while Updates modal is open
+        return Some(false);
+    }
+    None
+}

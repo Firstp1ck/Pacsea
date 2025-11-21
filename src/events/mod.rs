@@ -211,7 +211,8 @@ mod tests {
         let lines: Vec<&str> = body.lines().collect();
         // Verify that xfce4-terminal was actually used by checking for --command argument
         // (xfce4-terminal is the only terminal that uses --command format)
-        let command_idx = lines.iter().position(|&l| l == "--command");
+        // Find the last --command to handle cases where multiple spawns might have occurred
+        let command_idx = lines.iter().rposition(|&l| l == "--command");
         if command_idx.is_none() {
             // If --command wasn't found, xfce4-terminal wasn't used (another terminal was chosen)
             // This can happen when other terminals are on PATH and chosen first

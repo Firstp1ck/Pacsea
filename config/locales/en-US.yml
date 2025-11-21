@@ -114,7 +114,7 @@ en-US:
       cascade_mode_enabled: "Cascade mode enabled"
       cascade_mode_disabled: "Cascade mode disabled"
       gnome_terminal_warning: "Continuing without gnome-terminal may cause unexpected behavior"
-    updates:
+    updates_button:
       available: "Updates available ({})"
       none: "No updates available"
       loading: "Checking updates..."
@@ -200,11 +200,11 @@ en-US:
       loading_pkgb: "Loading PKGBUILD…"
       copy_pkgbuild: "Copy PKGBUILD"
       reload_pkgbuild: "Reload PKGBUILD"
-    footer:
-      search_hint: "Search (Enter next, Esc cancel)"
-      confirm_installation: "Confirm package Installation"
-      confirm_downgrade: "Confirm package Downgrade"
-      confirm_removal: "Confirm package Removal"
+      footer:
+        search_hint: "Search (Enter next, Esc cancel)"
+        confirm_installation: "Confirm package Installation"
+        confirm_downgrade: "Confirm package Downgrade"
+        confirm_removal: "Confirm package Removal"
 
     results:
       title: "Results"
@@ -376,6 +376,10 @@ en-US:
         heading: "Arch Linux News"
         none: "No news items available."
         footer_hint: "Up/Down: select  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc: close"
+      updates_window:
+        title: " Available Updates "
+        heading: "Available Package Updates"
+        none: "No updates available."
       optional_deps:
         title: " Optional Deps "
         heading: "TUI Optional Deps"

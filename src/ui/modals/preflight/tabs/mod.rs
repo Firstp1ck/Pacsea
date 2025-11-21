@@ -6,6 +6,6 @@ pub mod summary;
 
 pub use deps::render_deps_tab;
 pub use files::render_files_tab;
-pub use sandbox::render_sandbox_tab;
+pub use sandbox::{SandboxTabContext, render_sandbox_tab};
 pub use services::render_services_tab;
 pub use summary::render_summary_tab;

@@ -716,7 +716,7 @@ mod tests {
 
         // OPTION 1: AVERAGE COMPLEXITY - Ensure overall codebase stays maintainable
         // Recommended: Average should stay below 20-30 for data flow complexity
-        const MAX_AVERAGE_COMPLEXITY: f64 = 25.0;
+        const MAX_AVERAGE_COMPLEXITY: f64 = 8.0;
         let avg_complexity = if total_functions > 0 {
             total_project_complexity as f64 / total_functions as f64
         } else {

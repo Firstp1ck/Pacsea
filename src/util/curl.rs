@@ -62,12 +62,53 @@ fn map_curl_error(code: Option<i32>, status: &std::process::ExitStatus) -> Strin
 /// - Provides user-friendly error messages for common curl failure cases.
 pub fn curl_json(url: &str) -> Result<Value> {
     let args = curl_args(url, &[]);
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, log the actual curl command being executed for debugging
+        tracing::debug!(
+            curl_args = ?args,
+            url = %url,
+            "Executing curl command on Windows"
+        );
+    }
     let out = std::process::Command::new("curl").args(&args).output()?;
     if !out.status.success() {
         let error_msg = map_curl_error(out.status.code(), &out.status);
+        #[cfg(target_os = "windows")]
+        {
+            // On Windows, also log stderr for debugging
+            if !out.stderr.is_empty() {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                tracing::warn!(stderr = %stderr, url = %url, "curl stderr output on Windows");
+            }
+            // Also log stdout in case there's useful info there
+            if !out.stdout.is_empty() {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                tracing::debug!(stdout = %stdout, url = %url, "curl stdout on Windows (non-success)");
+            }
+        }
         return Err(error_msg.into());
     }
     let body = String::from_utf8(out.stdout)?;
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, log response details for debugging API issues
+        if body.len() < 500 {
+            tracing::debug!(
+                url = %url,
+                response_length = body.len(),
+                response_body = %body,
+                "curl response received on Windows"
+            );
+        } else {
+            tracing::debug!(
+                url = %url,
+                response_length = body.len(),
+                response_preview = %format!("{}...", &body[..500]),
+                "curl response received on Windows (truncated)"
+            );
+        }
+    }
     let v: Value = serde_json::from_str(&body)?;
     Ok(v)
 }
