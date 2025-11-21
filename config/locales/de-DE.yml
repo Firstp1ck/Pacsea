@@ -114,7 +114,7 @@ de-DE:
       cascade_mode_enabled: "Kaskadenmodus aktiviert"
       cascade_mode_disabled: "Kaskadenmodus deaktiviert"
       gnome_terminal_warning: "Fortsetzen ohne gnome-terminal kann zu unerwartetem Verhalten führen"
-    updates:
+    updates_button:
       available: "Updates verfügbar ({})"
       none: "Keine Updates verfügbar"
       loading: "Prüfe Updates..."
@@ -376,11 +376,10 @@ de-DE:
         heading: "Arch Linux Neuigkeiten"
         none: "Keine Neuigkeiten verfügbar."
         footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc: schließen"
-      updates:
+      updates_window:
         title: " Verfügbare Updates "
         heading: "Verfügbare Paket-Updates"
         none: "Keine Updates verfügbar."
-        close_hint: "schließen"
       optional_deps:
         title: " Optionale Abhängigkeiten "
         heading: "TUI Optionale Abhängigkeiten"

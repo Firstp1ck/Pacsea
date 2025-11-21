@@ -198,7 +198,7 @@ pub fn render_updates(
 
     // Render heading
     let heading_line = Line::from(Span::styled(
-        i18n::t(app, "app.modals.updates.heading"),
+        i18n::t(app, "app.modals.updates_window.heading"),
         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
     ));
     let heading_para =
@@ -207,7 +207,7 @@ pub fn render_updates(
 
     if entries.is_empty() {
         let none_line = Line::from(Span::styled(
-            i18n::t(app, "app.modals.updates.none"),
+            i18n::t(app, "app.modals.updates_window.none"),
             Style::default().fg(th.subtext1),
         ));
         let none_para = Paragraph::new(none_line).style(Style::default().fg(th.text).bg(th.mantle));
@@ -255,7 +255,7 @@ pub fn render_updates(
     // Render modal border
     let border_block = Block::default()
         .title(Span::styled(
-            i18n::t(app, "app.modals.updates.title"),
+            i18n::t(app, "app.modals.updates_window.title"),
             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
         ))
         .borders(Borders::ALL)

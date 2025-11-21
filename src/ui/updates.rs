@@ -30,15 +30,15 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     // Determine button text based on state
     let button_text = if app.updates_loading {
-        i18n::t(app, "app.updates.loading")
+        i18n::t(app, "app.updates_button.loading")
     } else if let Some(count) = app.updates_count {
         if count > 0 {
-            i18n::t_fmt1(app, "app.updates.available", count)
+            i18n::t_fmt1(app, "app.updates_button.available", count)
         } else {
-            i18n::t(app, "app.updates.none")
+            i18n::t(app, "app.updates_button.none")
         }
     } else {
-        i18n::t(app, "app.updates.none")
+        i18n::t(app, "app.updates_button.none")
     };
 
     // Style the button (similar to other buttons)
