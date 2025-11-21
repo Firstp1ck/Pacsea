@@ -1,5 +1,4 @@
-#[cfg(not(windows))]
-use serde_json::Value;
+// Windows-only module - conditionally compiled in mod.rs
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -112,25 +111,140 @@ pub async fn refresh_official_index_from_arch_api(
     let res = task::spawn_blocking(move || -> Result<Vec<OfficialPkg>> {
         let mut pkgs: Vec<OfficialPkg> = Vec::new();
         for repo in repos {
+            tracing::info!(repo = repo, "Fetching packages from repository");
             let mut page: usize = 1;
             let limit: usize = 250;
+            let mut repo_pkg_count = 0;
             loop {
+                // Try URL without q parameter first (original format)
                 let url = format!("https://archlinux.org/packages/search/json/?repo={repo}&arch={arch}&limit={limit}&page={page}");
-                let v = match curl::curl_json(&url) {
+                tracing::debug!(repo = repo, page = page, url = %url, "Fetching package page from API");
+                let mut v = match curl::curl_json(&url) {
                     Ok(v) => v,
                     Err(e) => {
                         // If a page fails, bubble the error up; no partial repo result
-                        return Err(format!("Failed to fetch package list for {repo}: {e}").into());
+                        tracing::error!(repo = repo, page = page, error = %e, "Failed to fetch package page");
+                        return Err(format!("Failed to fetch package list for {repo} (page {page}): {e}").into());
                     }
                 };
-                let results = v
+                // Check if the API response is valid
+                // Note: Even if valid=false, we may still get results, so check results first
+                let mut results = v
                     .get("results")
                     .and_then(|x| x.as_array())
                     .cloned()
                     .unwrap_or_default();
+
+                if let Some(valid) = v.get("valid").and_then(|x| x.as_bool()) {
+                    if !valid && results.is_empty() {
+                        // Only fail if valid=false AND no results
+                        // Log the full response for debugging
+                        let response_str = serde_json::to_string_pretty(&v).unwrap_or_else(|_| "Failed to serialize response".to_string());
+                tracing::warn!(
+                    repo = repo,
+                    page = page,
+                    url = %url,
+                    response = %response_str,
+                    "API query returned valid=false with no results, trying with q parameter"
+                );
+                        // Try multiple alternative query formats
+                        let alternatives = vec![
+                            ("q=*", format!("https://archlinux.org/packages/search/json/?q=*&repo={repo}&arch={arch}&limit={limit}&page={page}")),
+                            ("q=%2A", format!("https://archlinux.org/packages/search/json/?q=%2A&repo={repo}&arch={arch}&limit={limit}&page={page}")),
+                            ("q=a", format!("https://archlinux.org/packages/search/json/?q=a&repo={repo}&arch={arch}&limit={limit}&page={page}")),
+                            ("q=", format!("https://archlinux.org/packages/search/json/?q=&repo={repo}&arch={arch}&limit={limit}&page={page}")),
+                        ];
+
+                        let mut found_working = false;
+                        for (format_name, alt_url) in alternatives {
+                            tracing::debug!(repo = repo, page = page, format = format_name, url = %alt_url, "Trying alternative API URL format");
+                            match curl::curl_json(&alt_url) {
+                                Ok(alt_v) => {
+                                    let alt_results = alt_v
+                                        .get("results")
+                                        .and_then(|x| x.as_array())
+                                        .cloned()
+                                        .unwrap_or_default();
+                                    let alt_valid = alt_v.get("valid").and_then(|x| x.as_bool()).unwrap_or(true);
+                                    if alt_valid && !alt_results.is_empty() {
+                                        // This format worked!
+                                        v = alt_v;
+                                        results = alt_results;
+                                        tracing::info!(repo = repo, page = page, format = format_name, "Alternative URL format worked");
+                                        found_working = true;
+                                        break;
+                                    } else if !alt_results.is_empty() {
+                                        // Got results even if valid=false, use them
+                                        v = alt_v;
+                                        results = alt_results;
+                                        tracing::warn!(repo = repo, page = page, format = format_name, "Alternative URL returned results despite valid=false");
+                                        found_working = true;
+                                        break;
+                                    }
+                                    tracing::debug!(repo = repo, page = page, format = format_name, valid = alt_valid, result_count = alt_results.len(), "Alternative format returned no results");
+                                }
+                                Err(alt_e) => {
+                                    tracing::debug!(repo = repo, page = page, format = format_name, error = %alt_e, "Alternative URL format failed");
+                                }
+                            }
+                        }
+
+                        if !found_working {
+                            let error_msg = format!(
+                                "Arch Linux Packages API returned invalid query response for {repo} (page {page}). All URL formats failed with valid=false and no results. The API may have changed or requires different parameters."
+                            );
+                            return Err(error_msg.into());
+                        }
+                    } else if !valid && !results.is_empty() {
+                        // valid=false but we have results - log warning but continue
+                        tracing::warn!(
+                            repo = repo,
+                            page = page,
+                            result_count = results.len(),
+                            "API returned valid=false but has results, processing anyway"
+                        );
+                    }
+                }
+                // Log the response structure for debugging
+                if page == 1 {
+                    tracing::debug!(
+                        repo = repo,
+                        response_keys = ?v.as_object().map(|o| o.keys().collect::<Vec<_>>()),
+                        "API response structure"
+                    );
+                }
                 if results.is_empty() {
+                    tracing::debug!(repo = repo, page = page, "No more results for repository");
+                    // On first page with empty results, log more details for debugging
+                    if page == 1 {
+                        // Log the full response structure to understand what the API returned
+                        let response_str = serde_json::to_string_pretty(&v).unwrap_or_else(|_| "Failed to serialize response".to_string());
+                        let response_preview = if response_str.len() > 500 {
+                            format!("{}...", &response_str[..500])
+                        } else {
+                            response_str.clone()
+                        };
+                        tracing::warn!(
+                            repo = repo,
+                            url = %url,
+                            response_preview = %response_preview,
+                            "First page returned empty results - checking API response structure"
+                        );
+                        // Check if the response has a different structure
+                        if let Some(count) = v.get("count").and_then(|x| x.as_u64()) {
+                            tracing::warn!(
+                                repo = repo,
+                                total_count = count,
+                                "API reports total count but results array is empty"
+                            );
+                        }
+                        if let Some(limit_val) = v.get("limit").and_then(|x| x.as_u64()) {
+                            tracing::debug!(repo = repo, api_limit = limit_val, "API limit value");
+                        }
+                    }
                     break;
                 }
+                tracing::debug!(repo = repo, page = page, count = results.len(), "Fetched package page");
                 for obj in results {
                     let name = obj
                         .get("pkgname")
@@ -168,33 +282,115 @@ pub async fn refresh_official_index_from_arch_api(
                         version,
                         description,
                     });
+                    repo_pkg_count += 1;
                 }
                 page += 1;
             }
+            tracing::info!(repo = repo, package_count = repo_pkg_count, "Completed fetching repository");
         }
         // Sort and dedup by (repo, name)
         pkgs.sort_by(|a, b| a.repo.cmp(&b.repo).then(a.name.cmp(&b.name)));
+        let before_dedup = pkgs.len();
         pkgs.dedup_by(|a, b| a.repo == b.repo && a.name == b.name);
+        let after_dedup = pkgs.len();
+        if before_dedup != after_dedup {
+            tracing::debug!(
+                before = before_dedup,
+                after = after_dedup,
+                removed = before_dedup - after_dedup,
+                "Deduplicated packages"
+            );
+        }
+        tracing::info!(total_packages = pkgs.len(), "Completed fetching all repositories");
         Ok(pkgs)
     })
     .await;
 
     match res {
         Ok(Ok(new_list)) => {
+            tracing::info!(
+                package_count = new_list.len(),
+                path = %persist_path.display(),
+                "Successfully fetched official package index"
+            );
             // Replace in-memory index and persist to disk
             if let Ok(mut guard) = idx().write() {
-                guard.pkgs = new_list;
+                guard.pkgs = new_list.clone();
+                tracing::debug!("Updated in-memory index");
+            } else {
+                tracing::warn!("Failed to acquire write lock for index update");
             }
             save_to_disk(&persist_path);
+            tracing::info!(path = %persist_path.display(), "Persisted index to disk");
             let _ = notify_tx.send(());
         }
         Ok(Err(e)) => {
-            let _ = net_err_tx.send(format!("Failed to fetch official index via API: {e}"));
+            let msg = format!("Failed to fetch official index via API: {e}");
+            let _ = net_err_tx.send(msg.clone());
+            tracing::error!(error = %e, "Failed to fetch official index");
         }
         Err(join_err) => {
-            let _ = net_err_tx.send(format!("Task join error: {join_err}"));
+            let msg = format!("Task join error during index fetch: {join_err}");
+            let _ = net_err_tx.send(msg.clone());
+            tracing::error!(error = %join_err, "Task join error");
         }
     }
+}
+
+/// What: Check if curl is available and working.
+///
+/// Inputs:
+/// - None
+///
+/// Output:
+/// - `Ok(())` if curl is available and working; `Err` with error message otherwise.
+///
+/// Details:
+/// - Attempts to run `curl --version` to verify curl is in PATH and executable.
+pub fn check_curl_availability() -> Result<()> {
+    let output = std::process::Command::new("curl")
+        .arg("--version")
+        .output()
+        .map_err(|e| format!("curl not found in PATH: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "curl command failed with exit code: {:?}",
+            output.status.code()
+        )
+        .into());
+    }
+    Ok(())
+}
+
+/// What: Verify the index file exists and contains packages.
+///
+/// Inputs:
+/// - `index_path`: Path to the index JSON file.
+///
+/// Output:
+/// - `Ok((count, size))` with package count and file size in bytes; `Err` with error message otherwise.
+///
+/// Details:
+/// - Checks file existence, reads and parses JSON, and returns package count and file size.
+pub fn verify_index_file(index_path: &Path) -> Result<(usize, u64)> {
+    if !index_path.exists() {
+        return Err(format!("Index file does not exist: {}", index_path.display()).into());
+    }
+    let metadata =
+        fs::metadata(index_path).map_err(|e| format!("Failed to read index file metadata: {e}"))?;
+    let size = metadata.len();
+    if size == 0 {
+        return Err("Index file is empty".into());
+    }
+    let content =
+        fs::read_to_string(index_path).map_err(|e| format!("Failed to read index file: {e}"))?;
+    let index: super::OfficialIndex =
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse index JSON: {e}"))?;
+    let count = index.pkgs.len();
+    if count == 0 {
+        return Err("Index file contains no packages".into());
+    }
+    Ok((count, size))
 }
 
 /// What: Refresh both the Windows mirror metadata and official package index via the API.
@@ -210,12 +406,54 @@ pub async fn refresh_official_index_from_arch_api(
 ///
 /// Details:
 /// - Attempts mirrors first (best-effort) and then always runs the API-based index refresh.
+/// - Checks curl availability before attempting network operations and logs diagnostic information.
 pub async fn refresh_windows_mirrors_and_index(
     persist_path: PathBuf,
     repo_dir: PathBuf,
     net_err_tx: tokio::sync::mpsc::UnboundedSender<String>,
     notify_tx: tokio::sync::mpsc::UnboundedSender<()>,
 ) {
+    // Check curl availability first
+    match check_curl_availability() {
+        Ok(()) => {
+            tracing::info!("curl is available for Windows index refresh");
+        }
+        Err(e) => {
+            let msg = format!(
+                "curl is not available: {e}. Windows index refresh requires curl to be installed and in PATH."
+            );
+            let _ = net_err_tx.send(msg.clone());
+            tracing::error!(error = %e, "curl availability check failed");
+            return;
+        }
+    }
+
+    // Check existing index file status
+    if persist_path.exists() {
+        match verify_index_file(&persist_path) {
+            Ok((count, size)) => {
+                tracing::info!(
+                    path = %persist_path.display(),
+                    package_count = count,
+                    file_size_bytes = size,
+                    "Existing index file found and verified"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %persist_path.display(),
+                    error = %e,
+                    "Existing index file is invalid or empty, will refresh"
+                );
+            }
+        }
+    } else {
+        tracing::info!(
+            path = %persist_path.display(),
+            "Index file does not exist, will create new index"
+        );
+    }
+
     // 1) Fetch mirrors into repository directory (best-effort)
     match fetch_mirrors_to_repo_dir(&repo_dir).await {
         Ok(path) => {
@@ -229,7 +467,35 @@ pub async fn refresh_windows_mirrors_and_index(
     }
 
     // 2) Build the official package index from the Arch Packages API
-    refresh_official_index_from_arch_api(persist_path, net_err_tx, notify_tx).await;
+    tracing::info!("Starting official package index refresh from Arch API");
+    refresh_official_index_from_arch_api(
+        persist_path.clone(),
+        net_err_tx.clone(),
+        notify_tx.clone(),
+    )
+    .await;
+
+    // Verify the index was successfully created/updated
+    match verify_index_file(&persist_path) {
+        Ok((count, size)) => {
+            tracing::info!(
+                path = %persist_path.display(),
+                package_count = count,
+                file_size_bytes = size,
+                "Index refresh completed successfully"
+            );
+            let _ = notify_tx.send(());
+        }
+        Err(e) => {
+            let msg = format!("Index refresh completed but verification failed: {e}");
+            let _ = net_err_tx.send(msg.clone());
+            tracing::error!(
+                path = %persist_path.display(),
+                error = %e,
+                "Index verification failed after refresh"
+            );
+        }
+    }
 }
 
 #[cfg(test)]

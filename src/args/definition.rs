@@ -107,6 +107,7 @@ pub struct Args {
 /// - Handles refresh flag (updates package database, then continues to TUI).
 /// - Logs warnings for unimplemented flags (install, remove, update, news).
 /// - Returns `true` if no early-exit flags were triggered.
+#[allow(unused_imports)]
 pub fn process_args(args: &Args) -> bool {
     use crate::args::{cache, install, list, news, refresh, remove, search, update};
 
@@ -153,6 +154,7 @@ pub fn process_args(args: &Args) -> bool {
     }
 
     // Handle refresh flag
+    #[cfg(not(target_os = "windows"))]
     if args.refresh {
         refresh::handle_refresh();
     }

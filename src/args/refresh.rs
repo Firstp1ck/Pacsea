@@ -1,6 +1,7 @@
 //! Command-line refresh functionality.
-
+#[cfg(not(target_os = "windows"))]
 use crate::args::{i18n, utils};
+#[cfg(not(target_os = "windows"))]
 use pacsea::theme;
 
 /// What: Refresh package database by running pacman and AUR helper sync, logging results.
@@ -17,6 +18,7 @@ use pacsea::theme;
 /// - Logs success/failure of each step to `refresh.log` in the config logs directory.
 /// - Informs user of final status and log file path.
 /// - Unlike `handle_update`, this does not exit - it allows the program to continue to TUI.
+#[cfg(not(target_os = "windows"))]
 pub fn handle_refresh() {
     use std::fs::OpenOptions;
     use std::io::Write;
@@ -210,6 +212,7 @@ pub fn handle_refresh() {
 }
 
 #[cfg(test)]
+#[cfg(not(target_os = "windows"))]
 mod tests {
     use super::*;
 
