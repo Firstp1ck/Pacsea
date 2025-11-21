@@ -206,11 +206,11 @@ hu-HU:
       loading_pkgb: "PKGBUILD betöltése…"
       copy_pkgbuild: "PKGBUILD másolása"
       reload_pkgbuild: "PKGBUILD újratöltése"
-    footer:
-      search_hint: "Keresés (Enter: következő, Esc: mégse)"
-      confirm_installation: "Csomagtelepítés megerősítése"
-      confirm_downgrade: "Csomag-visszafejlesztés megerősítése"
-      confirm_removal: "Csomageltávolítás megerősítése"
+      footer:
+        search_hint: "Keresés (Enter: következő, Esc: mégse)"
+        confirm_installation: "Csomagtelepítés megerősítése"
+        confirm_downgrade: "Csomag-visszafejlesztés megerősítése"
+        confirm_removal: "Csomageltávolítás megerősítése"
       
     results:
       title: "Találatok"

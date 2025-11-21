@@ -200,11 +200,11 @@ en-US:
       loading_pkgb: "Loading PKGBUILD…"
       copy_pkgbuild: "Copy PKGBUILD"
       reload_pkgbuild: "Reload PKGBUILD"
-    footer:
-      search_hint: "Search (Enter next, Esc cancel)"
-      confirm_installation: "Confirm package Installation"
-      confirm_downgrade: "Confirm package Downgrade"
-      confirm_removal: "Confirm package Removal"
+      footer:
+        search_hint: "Search (Enter next, Esc cancel)"
+        confirm_installation: "Confirm package Installation"
+        confirm_downgrade: "Confirm package Downgrade"
+        confirm_removal: "Confirm package Removal"
 
     results:
       title: "Results"
