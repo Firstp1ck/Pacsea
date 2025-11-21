@@ -1,6 +1,47 @@
+use crossterm::event::KeyEvent;
 use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
+
+/// What: Check if a key event matches any chord in a list, handling Shift+char edge cases.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `list`: List of configured key chords to match against
+///
+/// Output:
+/// - `true` if the key event matches any chord in the list, `false` otherwise
+///
+/// Details:
+/// - Treats Shift+<char> from config as equivalent to uppercase char without Shift from terminal.
+/// - Handles cases where terminals report Shift inconsistently.
+pub fn matches_any(ke: &KeyEvent, list: &[crate::theme::KeyChord]) -> bool {
+    list.iter().any(|c| {
+        if (c.code, c.mods) == (ke.code, ke.modifiers) {
+            return true;
+        }
+        match (c.code, ke.code) {
+            (crossterm::event::KeyCode::Char(cfg_ch), crossterm::event::KeyCode::Char(ev_ch)) => {
+                let cfg_has_shift = c.mods.contains(crossterm::event::KeyModifiers::SHIFT);
+                if !cfg_has_shift {
+                    return false;
+                }
+                // Accept uppercase event regardless of SHIFT flag
+                if ev_ch == cfg_ch.to_ascii_uppercase() {
+                    return true;
+                }
+                // Accept lowercase char if terminal reports SHIFT in modifiers
+                if ke.modifiers.contains(crossterm::event::KeyModifiers::SHIFT)
+                    && ev_ch.to_ascii_lowercase() == cfg_ch
+                {
+                    return true;
+                }
+                false
+            }
+            _ => false,
+        }
+    })
+}
 
 /// What: Return the number of Unicode scalar values (characters) in the input.
 ///

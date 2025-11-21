@@ -4,7 +4,8 @@ use tokio::sync::mpsc;
 use crate::logic::move_sel_cached;
 use crate::state::{AppState, PackageItem, QueryInput};
 
-use super::helpers::{matches_any, navigate_pane};
+use super::super::utils::matches_any;
+use super::helpers::navigate_pane;
 use super::preflight_helpers::open_preflight_modal;
 use crate::events::utils::{char_count, refresh_install_details};
 use crate::logic::send_query;
