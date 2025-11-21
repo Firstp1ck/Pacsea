@@ -319,6 +319,7 @@ pub(crate) fn handle_p_key(app: &mut AppState) -> bool {
 /// Output:
 /// - Always returns `false`.
 pub(crate) fn handle_c_key(app: &mut AppState) -> bool {
+    // TODO: implement Logic for creating a snapshot
     app.toast_message = Some(crate::i18n::t(app, "app.toasts.snapshot_placeholder"));
     false
 }

@@ -107,20 +107,23 @@ hu-HU:
       preflight_opened: "Előzetes ellenőrzés megnyitva"
       no_new_news: "Ma nincsenek új hírek"
       copied_to_clipboard: "Másolva a vágólapra"
-      abort_requested: "Megszakítás kérve (helyőrző)"
-      rollback: "Visszaállítás (helyőrző)"
+      # TODO: Translate these keys to Hungarian
+      abort_requested: "Abort requested (placeholder)"
+      rollback: "Rollback (placeholder)"
       no_services_to_restart: "Nincsenek újraindítandó szolgáltatások"
-      restart_services: "Szolgáltatások újraindítása (helyőrző)"
-      snapshot_placeholder: "Pillanatkép (helyőrző)"
+      # TODO: Translate these keys to Hungarian
+      restart_services: "Restart services (placeholder)"
+      snapshot_placeholder: "Snapshot (placeholder)"
       dry_run_enabled: "Próbafuttatás engedélyezve"
       dry_run_disabled: "Próbafuttatás letiltva"
       cascade_mode_enabled: "Lépcsőzetes mód engedélyezve"
       cascade_mode_disabled: "Lépcsőzetes mód letiltva"
       gnome_terminal_warning: "GNOME Terminál nélkül a program váratlanul viselkedhet"
     updates:
-      available: "Frissítések elérhető ({})"
-      none: "Nincs elérhető frissítés"
-      loading: "Frissítések ellenőrzése..."
+      # TODO: Translate these keys to Hungarian
+      available: "Updates available ({})"
+      none: "No updates available"
+      loading: "Checking updates..."
       
     actions:
       exit: "Kilépés"
@@ -382,10 +385,11 @@ hu-HU:
         none: "Nincsenek elérhető hírek."
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: olvasottnak jelölés • {}: összes olvasottnak jelölése • Esc: bezárás"
       updates:
-        title: " Elérhető frissítések "
-        heading: "Elérhető csomagfrissítések"
-        none: "Nincsenek frissítések elérhető."
-        close_hint: "bezárás"
+        # TODO: Translate these keys to Hungarian
+        title: " Available Updates "
+        heading: "Available Package Updates"
+        none: "No updates available."
+        close_hint: "close"
       optional_deps:
         title: " Nem kötelező függőségek "
         heading: "A TUI nem kötelező függőségei"
@@ -437,6 +441,8 @@ hu-HU:
           summary_no_conflicts: "Összegzés: Nincsenek ütközések, és nincs szükség frissítésre."
           conflict_singular: "{} ütközés"
           upgrade_singular: "{} frissítés"
+          # TODO: Translate this key to Hungarian
+          installed_singular: "{} installed"
           and_more: "… és {} további"
           cascade_mode: "Lépcsőzetes mód: {} ({})"
           no_removal_targets: "Nincsenek eltávolítandó célok kiválasztva."
