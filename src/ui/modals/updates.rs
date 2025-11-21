@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout},
     prelude::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
@@ -9,7 +9,147 @@ use ratatui::{
 
 use crate::i18n;
 use crate::state::AppState;
-use crate::theme::theme;
+use crate::theme::{Theme, theme};
+
+/// What: Collection of line vectors for the three panes in the updates modal.
+///
+/// Inputs:
+/// - None (constructed by `build_update_lines`)
+///
+/// Output:
+/// - Holds left, center, and right pane lines
+///
+/// Details:
+/// - Used to group related line collections and reduce data flow complexity.
+struct UpdateLines {
+    /// Left pane lines showing old versions (right-aligned).
+    left: Vec<Line<'static>>,
+    /// Center pane lines showing arrows (centered).
+    center: Vec<Line<'static>>,
+    /// Right pane lines showing new versions (left-aligned).
+    right: Vec<Line<'static>>,
+}
+
+/// What: Calculate the modal rectangle centered within the available area.
+///
+/// Inputs:
+/// - `area`: Full screen area used to center the modal
+///
+/// Output:
+/// - Returns a `Rect` representing the modal's position and size
+///
+/// Details:
+/// - Calculates desired dimensions (half width, constrained height)
+/// - Clamps dimensions to fit within available area with margins
+/// - Centers the modal and ensures it fits within bounds
+fn calculate_modal_rect(area: Rect) -> Rect {
+    // Calculate desired dimensions
+    let desired_w = area.width / 2;
+    let desired_h = (area.height.saturating_sub(8).min(20)) * 2;
+
+    // Clamp dimensions to fit within available area (with 2px margins on each side)
+    let w = desired_w.min(area.width.saturating_sub(4)).max(20);
+    let h = desired_h.min(area.height.saturating_sub(4)).max(10);
+
+    // Center the modal within the area
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+
+    // Final clamp: ensure the entire rect fits within the area
+    let x = x.max(area.x);
+    let y = y.max(area.y);
+    let max_w = (area.x + area.width).saturating_sub(x);
+    let max_h = (area.y + area.height).saturating_sub(y);
+    let w = w.min(max_w);
+    let h = h.min(max_h);
+
+    Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    }
+}
+
+/// What: Build all three line vectors for update entries in a single pass.
+///
+/// Inputs:
+/// - `entries`: Update entries to display (name, old_version, new_version)
+/// - `th`: Theme for styling
+///
+/// Output:
+/// - Returns `UpdateLines` containing left, center, and right pane lines
+///
+/// Details:
+/// - Iterates over entries once to build all three line vectors simultaneously
+/// - Left pane: old versions with right padding (right-aligned)
+/// - Center pane: arrows with spacing (centered)
+/// - Right pane: new versions with left padding (left-aligned)
+fn build_update_lines(entries: &[(String, String, String)], th: &Theme) -> UpdateLines {
+    let mut left_lines = Vec::new();
+    let mut center_lines = Vec::new();
+    let mut right_lines = Vec::new();
+
+    for (name, old_version, new_version) in entries.iter() {
+        // Build left pane line (old versions) - right-aligned with padding
+        let left_text = format!("{} - {}     ", name, old_version);
+        left_lines.push(Line::from(Span::styled(
+            left_text,
+            Style::default().fg(th.text),
+        )));
+
+        // Build center arrow line with spacing (5 spaces on each side)
+        center_lines.push(Line::from(Span::styled(
+            "     →     ",
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        )));
+
+        // Build right pane line (new versions) with padding
+        let right_text = format!("     {} - {}", name, new_version);
+        right_lines.push(Line::from(Span::styled(
+            right_text,
+            Style::default().fg(th.text),
+        )));
+    }
+
+    UpdateLines {
+        left: left_lines,
+        center: center_lines,
+        right: right_lines,
+    }
+}
+
+/// What: Render a scrollable pane with common styling.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `lines`: Lines to render in the pane
+/// - `chunk`: Rect area for the pane
+/// - `alignment`: Text alignment (Left, Right, or Center)
+/// - `scroll`: Scroll offset (lines) for the pane
+/// - `th`: Theme for styling
+///
+/// Output:
+/// - Renders the paragraph widget to the frame
+///
+/// Details:
+/// - Creates a paragraph with common styling (text color, background, wrap, scroll)
+/// - Applies the specified alignment
+fn render_pane(
+    f: &mut Frame,
+    lines: Vec<Line<'static>>,
+    chunk: Rect,
+    alignment: Alignment,
+    scroll: u16,
+    th: &Theme,
+) {
+    let para = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .alignment(alignment)
+        .wrap(Wrap { trim: true })
+        .scroll((scroll, 0));
+    f.render_widget(para, chunk);
+}
 
 /// What: Render the available updates modal with scrollable list.
 ///
@@ -34,32 +174,7 @@ pub fn render_updates(
     scroll: u16,
 ) {
     let th = theme();
-    // Calculate desired dimensions
-    let desired_w = area.width / 2;
-    let desired_h = (area.height.saturating_sub(8).min(20)) * 2;
-
-    // Clamp dimensions to fit within available area (with 2px margins on each side)
-    let w = desired_w.min(area.width.saturating_sub(4)).max(20);
-    let h = desired_h.min(area.height.saturating_sub(4)).max(10);
-
-    // Center the modal within the area
-    let x = area.x + (area.width.saturating_sub(w)) / 2;
-    let y = area.y + (area.height.saturating_sub(h)) / 2;
-
-    // Final clamp: ensure the entire rect fits within the area
-    let x = x.max(area.x);
-    let y = y.max(area.y);
-    let max_w = (area.x + area.width).saturating_sub(x);
-    let max_h = (area.y + area.height).saturating_sub(y);
-    let w = w.min(max_w);
-    let h = h.min(max_h);
-
-    let rect = ratatui::prelude::Rect {
-        x,
-        y,
-        width: w,
-        height: h,
-    };
+    let rect = calculate_modal_rect(area);
     f.render_widget(Clear, rect);
 
     // Record outer rect for mouse hit-testing
@@ -108,53 +223,33 @@ pub fn render_updates(
             ])
             .split(chunks[1]);
 
-        // Build left pane lines (old versions) - right-aligned with padding
-        let mut left_lines = Vec::new();
-        for (name, old_version, _new_version) in entries.iter() {
-            // Add 5 spaces padding on the right to match center spacing
-            let text = format!("{} - {}     ", name, old_version);
-            left_lines.push(Line::from(Span::styled(text, Style::default().fg(th.text))));
-        }
+        let update_lines = build_update_lines(entries, &th);
 
-        // Build right pane lines (new versions) with padding
-        let mut right_lines = Vec::new();
-        for (name, _old_version, new_version) in entries.iter() {
-            // Add 5 spaces padding on the left to match center spacing
-            let text = format!("     {} - {}", name, new_version);
-            right_lines.push(Line::from(Span::styled(text, Style::default().fg(th.text))));
-        }
-
-        // Build center arrow lines with spacing (5 spaces on each side)
-        let mut center_lines = Vec::new();
-        for _ in entries.iter() {
-            center_lines.push(Line::from(Span::styled(
-                "     →     ",
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-            )));
-        }
-
-        // Render left pane (right-aligned)
-        let left_para = Paragraph::new(left_lines)
-            .style(Style::default().fg(th.text).bg(th.mantle))
-            .alignment(ratatui::layout::Alignment::Right)
-            .wrap(Wrap { trim: true })
-            .scroll((scroll, 0));
-        f.render_widget(left_para, pane_chunks[0]);
-
-        // Render center arrow (centered)
-        let center_para = Paragraph::new(center_lines)
-            .style(Style::default().fg(th.text).bg(th.mantle))
-            .alignment(ratatui::layout::Alignment::Center)
-            .wrap(Wrap { trim: true })
-            .scroll((scroll, 0));
-        f.render_widget(center_para, pane_chunks[1]);
-
-        // Render right pane (left-aligned)
-        let right_para = Paragraph::new(right_lines)
-            .style(Style::default().fg(th.text).bg(th.mantle))
-            .wrap(Wrap { trim: true })
-            .scroll((scroll, 0));
-        f.render_widget(right_para, pane_chunks[2]);
+        // Render panes using helper function
+        render_pane(
+            f,
+            update_lines.left,
+            pane_chunks[0],
+            Alignment::Right,
+            scroll,
+            &th,
+        );
+        render_pane(
+            f,
+            update_lines.center,
+            pane_chunks[1],
+            Alignment::Center,
+            scroll,
+            &th,
+        );
+        render_pane(
+            f,
+            update_lines.right,
+            pane_chunks[2],
+            Alignment::Left,
+            scroll,
+            &th,
+        );
     }
 
     // Render modal border
@@ -169,15 +264,11 @@ pub fn render_updates(
         .style(Style::default().bg(th.mantle));
     f.render_widget(border_block, rect);
 
-    // Record inner content rect for scroll handling
-    let content_inner_x = rect.x + 1;
-    let content_inner_y = rect.y + 1;
-    let content_inner_w = rect.width.saturating_sub(2);
-    let content_inner_h = rect.height.saturating_sub(2);
+    // Record inner content rect for scroll handling (reuse inner_rect)
     app.updates_modal_content_rect = Some((
-        content_inner_x,
-        content_inner_y,
-        content_inner_w,
-        content_inner_h,
+        inner_rect.x,
+        inner_rect.y,
+        inner_rect.width,
+        inner_rect.height,
     ));
 }
