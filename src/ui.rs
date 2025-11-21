@@ -30,6 +30,265 @@ mod modals;
 mod results;
 mod updates;
 
+/// What: Layout height constraints for UI panes.
+///
+/// Inputs: None (struct definition)
+///
+/// Output: None (struct definition)
+///
+/// Details:
+/// - Groups minimum and maximum height constraints to reduce data flow complexity.
+struct LayoutConstraints {
+    min_results: u16,
+    min_middle: u16,
+    min_package_info: u16,
+    max_results: u16,
+    max_middle: u16,
+}
+
+impl LayoutConstraints {
+    /// What: Create default layout constraints.
+    ///
+    /// Inputs: None
+    ///
+    /// Output: `LayoutConstraints` with default values
+    ///
+    /// Details:
+    /// - Returns constraints with standard minimum and maximum heights for all panes.
+    fn new() -> Self {
+        Self {
+            min_results: 3,
+            min_middle: 3,
+            min_package_info: 3,
+            max_results: 17,
+            max_middle: 5,
+        }
+    }
+}
+
+/// What: Calculated layout heights for UI panes.
+///
+/// Inputs: None (struct definition)
+///
+/// Output: None (struct definition)
+///
+/// Details:
+/// - Groups related layout parameters to reduce data flow complexity by grouping related fields.
+struct LayoutHeights {
+    results: u16,
+    middle: u16,
+    details: u16,
+}
+
+/// What: Calculate middle pane height based on available space and constraints.
+///
+/// Inputs:
+/// - `available_h`: Available height for middle pane
+/// - `min_results_h`: Minimum height required for results pane
+/// - `constraints`: Layout constraints
+///
+/// Output:
+/// - Returns calculated middle pane height
+///
+/// Details:
+/// - Uses match expression to determine height based on available space thresholds.
+fn calculate_middle_height(
+    available_h: u16,
+    min_results_h: u16,
+    constraints: &LayoutConstraints,
+) -> u16 {
+    match available_h {
+        h if h >= constraints.max_middle + min_results_h => constraints.max_middle,
+        h if h >= constraints.min_middle + min_results_h => h.saturating_sub(min_results_h),
+        _ => constraints.min_middle,
+    }
+}
+
+/// What: Calculate results pane height based on available space and middle height.
+///
+/// Inputs:
+/// - `available_h`: Available height for results pane
+/// - `middle_h`: Height allocated to middle pane
+/// - `constraints`: Layout constraints
+///
+/// Output:
+/// - Returns calculated results pane height
+///
+/// Details:
+/// - Clamps results height between minimum and maximum constraints.
+fn calculate_results_height(
+    available_h: u16,
+    middle_h: u16,
+    constraints: &LayoutConstraints,
+) -> u16 {
+    available_h
+        .saturating_sub(middle_h)
+        .clamp(constraints.min_results, constraints.max_results)
+}
+
+/// What: Allocate layout heights when package info pane can be shown.
+///
+/// Inputs:
+/// - `available_h`: Total available height
+/// - `constraints`: Layout constraints
+///
+/// Output:
+/// - Returns `LayoutHeights` with allocated heights
+///
+/// Details:
+/// - Allocates 75% of space to Results and Middle, remainder to Package Info.
+/// - Redistributes if Package Info doesn't have minimum space.
+fn allocate_with_package_info(available_h: u16, constraints: &LayoutConstraints) -> LayoutHeights {
+    let top_middle_share = (available_h * 3) / 4;
+
+    let search_h_initial =
+        calculate_middle_height(top_middle_share, constraints.min_results, constraints);
+    let remaining_for_results = top_middle_share.saturating_sub(search_h_initial);
+    let top_h = remaining_for_results.clamp(constraints.min_results, constraints.max_results);
+
+    let unused_results_space = remaining_for_results.saturating_sub(top_h);
+    let search_h = (search_h_initial + unused_results_space).min(constraints.max_middle);
+
+    let remaining_for_package = available_h.saturating_sub(top_h).saturating_sub(search_h);
+
+    match remaining_for_package {
+        h if h >= constraints.min_package_info => LayoutHeights {
+            results: top_h,
+            middle: search_h,
+            details: remaining_for_package,
+        },
+        _ => {
+            // Redistribute: Middle gets max first, then Results gets the rest
+            let search_h_final =
+                calculate_middle_height(available_h, constraints.min_results, constraints);
+            let top_h_final = calculate_results_height(available_h, search_h_final, constraints);
+
+            LayoutHeights {
+                results: top_h_final,
+                middle: search_h_final,
+                details: 0,
+            }
+        }
+    }
+}
+
+/// What: Allocate layout heights when package info pane cannot be shown.
+///
+/// Inputs:
+/// - `available_h`: Total available height
+/// - `constraints`: Layout constraints
+///
+/// Output:
+/// - Returns `LayoutHeights` with allocated heights (details = 0)
+///
+/// Details:
+/// - Allocates all space between Results and Middle panes.
+/// - Adjusts if minimum constraints exceed available space.
+fn allocate_without_package_info(
+    available_h: u16,
+    constraints: &LayoutConstraints,
+) -> LayoutHeights {
+    let search_h = calculate_middle_height(available_h, constraints.min_results, constraints);
+    let mut top_h = calculate_results_height(available_h, search_h, constraints);
+
+    match (top_h + search_h).cmp(&available_h) {
+        std::cmp::Ordering::Greater => {
+            top_h = available_h
+                .saturating_sub(constraints.min_middle)
+                .clamp(constraints.min_results, constraints.max_results);
+            let search_h_adjusted = available_h
+                .saturating_sub(top_h)
+                .clamp(constraints.min_middle, constraints.max_middle);
+
+            LayoutHeights {
+                results: top_h,
+                middle: search_h_adjusted,
+                details: 0,
+            }
+        }
+        _ => LayoutHeights {
+            results: top_h,
+            middle: search_h,
+            details: 0,
+        },
+    }
+}
+
+/// What: Calculate layout heights for Results, Middle, and Details panes.
+///
+/// Inputs:
+/// - `available_h`: Available height after reserving space for updates button
+///
+/// Output:
+/// - Returns `LayoutHeights` with calculated heights for all panes
+///
+/// Details:
+/// - Implements priority-based layout allocation with min/max constraints.
+/// - Uses match expression to choose allocation strategy based on available space.
+fn calculate_layout_heights(available_h: u16) -> LayoutHeights {
+    let constraints = LayoutConstraints::new();
+    let min_top_middle_total = constraints.min_results + constraints.min_middle;
+    let space_after_min = available_h.saturating_sub(min_top_middle_total);
+
+    match space_after_min {
+        s if s >= constraints.min_package_info => {
+            allocate_with_package_info(available_h, &constraints)
+        }
+        _ => allocate_without_package_info(available_h, &constraints),
+    }
+}
+
+/// What: Render toast message overlay in bottom-right corner.
+///
+/// Inputs:
+/// - `f`: `ratatui` frame to render into
+/// - `app`: Application state containing toast message
+/// - `area`: Full terminal area for positioning
+///
+/// Output:
+/// - Renders toast widget if message is present
+///
+/// Details:
+/// - Positions toast in bottom-right corner with appropriate sizing.
+/// - Uses match expression to determine toast title based on message content.
+fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
+    let Some(msg) = &app.toast_message else {
+        return;
+    };
+
+    let th = theme();
+    let inner_w = (msg.len() as u16).min(area.width.saturating_sub(4));
+    let w = inner_w.saturating_add(2 + 2);
+    let h: u16 = 3;
+    let x = area.x + area.width.saturating_sub(w).saturating_sub(1);
+    let y = area.y + area.height.saturating_sub(h).saturating_sub(1);
+
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+
+    let title_text = match msg.to_lowercase().contains("news") {
+        true => i18n::t(app, "app.toasts.title_news"),
+        false => i18n::t(app, "app.toasts.title_clipboard"),
+    };
+
+    let content = Span::styled(msg.clone(), Style::default().fg(th.text));
+    let p = Paragraph::new(content)
+        .block(
+            ratatui::widgets::Block::default()
+                .title(Span::styled(title_text, Style::default().fg(th.overlay1)))
+                .borders(ratatui::widgets::Borders::ALL)
+                .border_style(Style::default().fg(th.overlay1))
+                .style(Style::default().bg(th.mantle)),
+        )
+        .style(Style::default().bg(th.mantle));
+
+    f.render_widget(p, rect);
+}
+
 /// What: Render a full frame of the Pacsea TUI.
 ///
 /// Inputs:
@@ -53,111 +312,16 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     let bg = Block::default().style(Style::default().bg(th.base));
     f.render_widget(bg, area);
 
-    let total_h = area.height;
-
-    // Updates button row (1 line at the top)
     const UPDATES_H: u16 = 1;
-
-    // Minimum heights required (including borders: 2 lines for top/bottom borders)
-    const MIN_RESULTS_H: u16 = 3; // 1 visible line + 2 borders
-    const MIN_MIDDLE_H: u16 = 3; // 1 visible line + 2 borders
-    const MIN_PACKAGE_INFO_H: u16 = 3; // 1 visible line + 2 borders
-
-    // Maximum heights (including borders)
-    const MAX_RESULTS_H: u16 = 17; // Maximum height for Results pane
-    const MAX_MIDDLE_H: u16 = 5; // Maximum height for Middle (three-pane) section
-
-    // Allocate space in priority order:
-    // 1. Updates button row (1 line at top)
-    // 2. Keybinds vanish first (handled by details.rs)
-    // 3. Results and Middle shrink proportionally together (they can grow when space is available)
-    // 4. Package Info pane gets remaining space, vanishes if not enough
-
-    // Reserve space for updates button
-    let available_h = total_h.saturating_sub(UPDATES_H);
-
-    // Allocate space to Results and Middle first (they can grow beyond minimum)
-    // Reserve some space for Package Info if there's enough
-    let min_top_middle_total = MIN_RESULTS_H + MIN_MIDDLE_H;
-    let space_after_min = available_h.saturating_sub(min_top_middle_total);
-
-    // If there's space beyond minimums, allocate it to Results and Middle
-    // Package Info only gets space if there's enough left after Results and Middle grow
-    let (top_h, search_h, bottom_h) = if space_after_min >= MIN_PACKAGE_INFO_H {
-        // Enough space for all three: Results and Middle get most of the space (75%), Package Info gets remainder (25%)
-        let top_middle_share = (available_h * 3) / 4; // 75% for Results + Middle
-
-        // First, ensure Middle gets its maximum (5 lines) if possible
-        // Need at least MAX_MIDDLE_H + MIN_RESULTS_H = 5 + 3 = 8 lines to give Middle its max
-        let search_h_initial = if top_middle_share >= MAX_MIDDLE_H + MIN_RESULTS_H {
-            MAX_MIDDLE_H
-        } else if top_middle_share >= MIN_MIDDLE_H + MIN_RESULTS_H {
-            // Enough for both minimums, but not enough for Middle's max
-            top_middle_share.saturating_sub(MIN_RESULTS_H)
-        } else {
-            MIN_MIDDLE_H
-        };
-
-        // Results gets the remaining space within top_middle_share, up to its maximum
-        let remaining_for_results = top_middle_share.saturating_sub(search_h_initial);
-        let top_h = remaining_for_results.clamp(MIN_RESULTS_H, MAX_RESULTS_H);
-
-        // If Results didn't use all its allocated space, give the extra back to Middle (up to its max)
-        let unused_results_space = remaining_for_results.saturating_sub(top_h);
-        let search_h = (search_h_initial + unused_results_space).min(MAX_MIDDLE_H);
-
-        // Package Info gets what's left, but at least minimum if possible
-        let remaining_for_package = available_h.saturating_sub(top_h).saturating_sub(search_h);
-        if remaining_for_package >= MIN_PACKAGE_INFO_H {
-            (top_h, search_h, remaining_for_package)
-        } else {
-            // Not enough space for Package Info: redistribute to Results and Middle
-            // Ensure Middle gets its maximum first, then Results gets the rest
-            let remaining = available_h;
-            let search_h_final = if remaining >= MAX_MIDDLE_H + MIN_RESULTS_H {
-                MAX_MIDDLE_H
-            } else if remaining >= MIN_MIDDLE_H + MIN_RESULTS_H {
-                remaining.saturating_sub(MIN_RESULTS_H)
-            } else {
-                MIN_MIDDLE_H
-            };
-            let remaining_for_results = remaining.saturating_sub(search_h_final);
-            let top_h_final = remaining_for_results.clamp(MIN_RESULTS_H, MAX_RESULTS_H);
-            (top_h_final, search_h_final, 0)
-        }
-    } else {
-        // Not enough space for Package Info: Results and Middle share all space
-        // Ensure Middle gets its maximum first, then Results gets the rest
-        let search_h = if available_h >= MAX_MIDDLE_H + MIN_RESULTS_H {
-            MAX_MIDDLE_H
-        } else if available_h >= MIN_MIDDLE_H + MIN_RESULTS_H {
-            available_h.saturating_sub(MIN_RESULTS_H)
-        } else {
-            MIN_MIDDLE_H
-        };
-        let remaining_for_results = available_h.saturating_sub(search_h);
-        let mut top_h = remaining_for_results.clamp(MIN_RESULTS_H, MAX_RESULTS_H);
-
-        // If enforcing minimums exceeded space, adjust
-        if top_h + search_h > available_h {
-            top_h = available_h
-                .saturating_sub(MIN_MIDDLE_H)
-                .clamp(MIN_RESULTS_H, MAX_RESULTS_H);
-            let search_h_adjusted = available_h
-                .saturating_sub(top_h)
-                .clamp(MIN_MIDDLE_H, MAX_MIDDLE_H);
-            (top_h, search_h_adjusted, 0)
-        } else {
-            (top_h, search_h, 0)
-        }
-    };
+    let available_h = area.height.saturating_sub(UPDATES_H);
+    let layout = calculate_layout_heights(available_h);
 
     // Split area into updates row and main content
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(UPDATES_H),
-            Constraint::Length(top_h + search_h + bottom_h),
+            Constraint::Length(layout.results + layout.middle + layout.details),
         ])
         .split(area);
 
@@ -168,9 +332,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(top_h),
-            Constraint::Length(search_h),
-            Constraint::Length(bottom_h),
+            Constraint::Length(layout.results),
+            Constraint::Length(layout.middle),
+            Constraint::Length(layout.details),
         ])
         .split(main_chunks[1]);
 
@@ -182,37 +346,8 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     // Render dropdowns last to ensure they appear on top layer
     results::render_dropdowns(f, app, chunks[0]);
 
-    // Render transient toast (bottom-right) if present (framed)
-    if let Some(msg) = &app.toast_message {
-        let th = theme();
-        let inner_w = (msg.len() as u16).min(area.width.saturating_sub(4)); // leave room for borders
-        let w = inner_w.saturating_add(2 + 2); // borders + small padding
-        let h: u16 = 3; // single-line message with top/bottom padding
-        let x = area.x + area.width.saturating_sub(w).saturating_sub(1);
-        let y = area.y + area.height.saturating_sub(h).saturating_sub(1);
-        let rect = ratatui::prelude::Rect {
-            x,
-            y,
-            width: w,
-            height: h,
-        };
-        let title_text = if msg.to_lowercase().contains("news") {
-            i18n::t(app, "app.toasts.title_news")
-        } else {
-            i18n::t(app, "app.toasts.title_clipboard")
-        };
-        let content = Span::styled(msg.clone(), Style::default().fg(th.text));
-        let p = Paragraph::new(content)
-            .block(
-                ratatui::widgets::Block::default()
-                    .title(Span::styled(title_text, Style::default().fg(th.overlay1)))
-                    .borders(ratatui::widgets::Borders::ALL)
-                    .border_style(Style::default().fg(th.overlay1))
-                    .style(Style::default().bg(th.mantle)),
-            )
-            .style(Style::default().bg(th.mantle));
-        f.render_widget(p, rect);
-    }
+    // Render transient toast (bottom-right) if present
+    render_toast(f, app, area);
 }
 
 #[cfg(test)]
@@ -305,6 +440,11 @@ mod tests {
         translations.insert(
             "app.toasts.copied_to_clipboard".to_string(),
             "Copied to clipboard".to_string(),
+        );
+        translations.insert("app.toasts.title_news".to_string(), "News".to_string());
+        translations.insert(
+            "app.toasts.title_clipboard".to_string(),
+            "Clipboard".to_string(),
         );
         app.translations = translations.clone();
         app.translations_fallback = translations;
