@@ -4,8 +4,6 @@ use ratatui::prelude::Rect;
 use crate::state::{AppState, Modal, modal::PreflightHeaderChips, types::OptionalDepRow};
 use crate::ui::modals::{
     alert, confirm, help, misc, news, post_summary, preflight, preflight_exec, system_update, updates,
-    alert, confirm, help, misc, news, post_summary, preflight, preflight_exec, system_update,
-    updates,
 };
 
 /// What: Context struct grouping PreflightExec modal fields to reduce data flow complexity.
