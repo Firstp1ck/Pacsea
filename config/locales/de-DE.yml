@@ -200,10 +200,6 @@ de-DE:
       loading_pkgb: "PKGBUILD wird geladen…"
       copy_pkgbuild: "PKGBUILD kopieren"
       reload_pkgbuild: "PKGBUILD neu laden"
-    updates:
-      available: "Updates verfügbar ({})"
-      none: "Keine Updates verfügbar"
-      loading: "Prüfe Updates..."
       footer:
         search_hint: "Suchen (Enter nächster, Esc abbrechen)"
         confirm_installation: "Paket-Installation bestätigen"
