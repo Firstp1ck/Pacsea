@@ -20,7 +20,9 @@ use serde_json::Value;
 /// escape sequences from appearing in test output.
 pub fn ensure_mouse_capture() {
     // Skip mouse capture in headless/test mode to prevent escape sequences in test output
-    if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {}
+    if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {
+        return;
+    }
     #[cfg(not(target_os = "windows"))]
     {
         use crossterm::execute;
