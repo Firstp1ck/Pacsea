@@ -410,56 +410,277 @@ fn render_install_dependencies(
     lines
 }
 
-/// What: Render remove action content (removal plan and cascade impact).
+// Constants for removal action rendering
+const CASCADE_PREVIEW_MAX: usize = 8;
+
+/// What: Context data for cascade rendering operations.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n and data access.
-/// - `items`: Packages to remove.
-/// - `dependency_info`: Dependency information.
+/// - `removal_targets`: Set of package names to be removed (lowercase).
+/// - `allows_dependents`: Cached value of cascade_mode.allows_dependents().
+///
+/// Output:
+/// - Returns a CascadeRenderingContext struct.
+///
+/// Details:
+/// - Groups related data to reduce parameter passing and variable scope.
+struct CascadeRenderingContext {
+    removal_targets: std::collections::HashSet<String>,
+    allows_dependents: bool,
+}
+
+impl CascadeRenderingContext {
+    /// What: Create a new cascade rendering context.
+    ///
+    /// Inputs:
+    /// - `items`: Packages to remove.
+    /// - `cascade_mode`: Removal cascade mode.
+    ///
+    /// Output:
+    /// - Returns a CascadeRenderingContext.
+    ///
+    /// Details:
+    /// - Pre-computes removal targets and allows_dependents flag.
+    fn new(items: &[PackageItem], cascade_mode: CascadeMode) -> Self {
+        let removal_targets: std::collections::HashSet<String> = items
+            .iter()
+            .map(|pkg| pkg.name.to_ascii_lowercase())
+            .collect();
+        let allows_dependents = cascade_mode.allows_dependents();
+        Self {
+            removal_targets,
+            allows_dependents,
+        }
+    }
+
+    /// What: Check if a dependency is directly dependent on removal targets.
+    ///
+    /// Inputs:
+    /// - `dep`: Dependency information.
+    ///
+    /// Output:
+    /// - Returns true if dependency is directly dependent.
+    ///
+    /// Details:
+    /// - Checks if any parent in depends_on is in removal_targets.
+    fn is_direct_dependent(&self, dep: &DependencyInfo) -> bool {
+        dep.depends_on
+            .iter()
+            .any(|parent| self.removal_targets.contains(&parent.to_ascii_lowercase()))
+    }
+}
+
+/// What: Display information for a cascade candidate dependency.
+///
+/// Inputs:
+/// - `bullet`: Bullet character to display.
+/// - `name_color`: Color for the dependency name.
+/// - `detail`: Detail text about the dependency status.
+/// - `roots`: Formatted string of packages that require this dependency.
+///
+/// Output:
+/// - Returns a DependencyDisplayInfo struct.
+///
+/// Details:
+/// - Groups all display-related data for a dependency.
+struct DependencyDisplayInfo {
+    bullet: &'static str,
+    name_color: ratatui::style::Color,
+    detail: String,
+    roots: String,
+}
+
+/// What: Get bullet character and name color for a dependency based on cascade mode.
+///
+/// Inputs:
+/// - `allows_dependents`: Whether cascade mode allows dependents.
+/// - `is_direct`: Whether dependency is directly dependent.
+/// - `th`: Theme colors.
+///
+/// Output:
+/// - Returns a tuple of (bullet, name_color).
+///
+/// Details:
+/// - Simplifies conditional logic for bullet and color selection.
+fn get_bullet_and_color(
+    allows_dependents: bool,
+    is_direct: bool,
+    th: &crate::theme::Theme,
+) -> (&'static str, ratatui::style::Color) {
+    if allows_dependents {
+        if is_direct {
+            ("● ", th.red)
+        } else {
+            ("○ ", th.yellow)
+        }
+    } else if is_direct {
+        ("⛔ ", th.red)
+    } else {
+        ("⚠ ", th.yellow)
+    }
+}
+
+/// What: Get detail text for a dependency status.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `status`: Dependency status.
+///
+/// Output:
+/// - Returns detail text string.
+///
+/// Details:
+/// - Extracts status-to-text conversion logic.
+fn get_dependency_detail(app: &AppState, status: &DependencyStatus) -> String {
+    match status {
+        DependencyStatus::Conflict { reason } => reason.clone(),
+        DependencyStatus::ToUpgrade { .. } => {
+            i18n::t(app, "app.modals.preflight.summary.requires_version_change")
+        }
+        DependencyStatus::Installed { .. } => {
+            i18n::t(app, "app.modals.preflight.summary.already_satisfied")
+        }
+        DependencyStatus::ToInstall => {
+            i18n::t(app, "app.modals.preflight.summary.not_currently_installed")
+        }
+        DependencyStatus::Missing => i18n::t(app, "app.modals.preflight.summary.missing"),
+    }
+}
+
+/// What: Build dependency display information.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `dep`: Dependency information.
+/// - `ctx`: Cascade rendering context.
+/// - `th`: Theme colors.
+/// - `is_direct`: Pre-computed flag indicating if dependency is directly dependent.
+///
+/// Output:
+/// - Returns DependencyDisplayInfo.
+///
+/// Details:
+/// - Prepares all display data for a dependency in one place.
+/// - Uses pre-computed is_direct to avoid recalculation.
+fn build_dependency_display_info(
+    app: &AppState,
+    dep: &DependencyInfo,
+    ctx: &CascadeRenderingContext,
+    th: &crate::theme::Theme,
+    is_direct: bool,
+) -> DependencyDisplayInfo {
+    let (bullet, name_color) = get_bullet_and_color(ctx.allows_dependents, is_direct, th);
+    let detail = get_dependency_detail(app, &dep.status);
+    let roots = if dep.required_by.is_empty() {
+        String::new()
+    } else {
+        i18n::t_fmt1(
+            app,
+            "app.modals.preflight.summary.targets_label",
+            dep.required_by.join(", "),
+        )
+    };
+    DependencyDisplayInfo {
+        bullet,
+        name_color,
+        detail,
+        roots,
+    }
+}
+
+/// What: Build spans for a cascade candidate dependency.
+///
+/// Inputs:
+/// - `dep`: Dependency information.
+/// - `display_info`: Display information for the dependency.
+/// - `th`: Theme colors.
+///
+/// Output:
+/// - Returns a vector of spans.
+///
+/// Details:
+/// - Uses builder pattern to construct dependency spans.
+fn build_cascade_dependency_spans(
+    dep: &DependencyInfo,
+    display_info: &DependencyDisplayInfo,
+    th: &crate::theme::Theme,
+) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    spans.push(Span::styled(
+        display_info.bullet,
+        Style::default().fg(th.subtext0),
+    ));
+    spans.push(Span::styled(
+        dep.name.clone(),
+        Style::default()
+            .fg(display_info.name_color)
+            .add_modifier(Modifier::BOLD),
+    ));
+    if !display_info.detail.is_empty() {
+        spans.push(Span::styled(" — ", Style::default().fg(th.subtext1)));
+        spans.push(Span::styled(
+            display_info.detail.clone(),
+            Style::default().fg(th.subtext1),
+        ));
+    }
+    if !display_info.roots.is_empty() {
+        spans.push(Span::styled(
+            display_info.roots.clone(),
+            Style::default().fg(th.overlay1),
+        ));
+    }
+    spans
+}
+
+/// What: Render cascade mode header.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
 /// - `cascade_mode`: Removal cascade mode.
 ///
 /// Output:
 /// - Returns a vector of lines to render.
 ///
 /// Details:
-/// - Shows removal plan, dependent count, and cascade impact preview.
-fn render_remove_action(
-    app: &AppState,
-    items: &[PackageItem],
-    dependency_info: &[DependencyInfo],
-    cascade_mode: CascadeMode,
-) -> Vec<Line<'static>> {
+/// - Renders the cascade mode information header.
+fn render_cascade_mode_header(app: &AppState, cascade_mode: CascadeMode) -> Vec<Line<'static>> {
     let th = theme();
-    let mut lines = Vec::new();
-
     let mode_line = i18n::t_fmt(
         app,
         "app.modals.preflight.summary.cascade_mode",
         &[&cascade_mode.flag(), &cascade_mode.description()],
     );
-    lines.push(Line::from(Span::styled(
-        mode_line,
-        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-    )));
-    lines.push(Line::from(""));
+    vec![
+        Line::from(Span::styled(
+            mode_line,
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+    ]
+}
 
-    if items.is_empty() {
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.summary.no_removal_targets"),
-            Style::default().fg(th.subtext1),
-        )));
-        return lines;
-    }
-
+/// What: Render removal plan command.
+///
+/// Inputs:
+/// - `app`: Application state for i18n and dry_run flag.
+/// - `items`: Packages to remove.
+/// - `cascade_mode`: Removal cascade mode.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Renders the removal plan preview with command.
+fn render_removal_plan(
+    app: &AppState,
+    items: &[PackageItem],
+    cascade_mode: CascadeMode,
+) -> Vec<Line<'static>> {
+    let th = theme();
     let removal_names: Vec<&str> = items.iter().map(|pkg| pkg.name.as_str()).collect();
     let plan_header_style = Style::default()
         .fg(th.overlay1)
         .add_modifier(Modifier::BOLD);
-    lines.push(Line::from(Span::styled(
-        i18n::t(app, "app.modals.preflight.summary.removal_plan_preview"),
-        plan_header_style,
-    )));
-
     let mut plan_command = format!(
         "sudo pacman {} --noconfirm {}",
         cascade_mode.flag(),
@@ -472,18 +693,39 @@ fn render_remove_action(
             plan_command,
         );
     }
-    lines.push(Line::from(Span::styled(
-        plan_command,
-        Style::default().fg(th.text),
-    )));
+    vec![
+        Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.summary.removal_plan_preview"),
+            plan_header_style,
+        )),
+        Line::from(Span::styled(plan_command, Style::default().fg(th.text))),
+    ]
+}
 
-    let dependent_count = dependency_info.len();
-    let (summary_text, summary_style) = if dependent_count == 0 {
+/// What: Get dependent summary text and style.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `dependent_count`: Number of dependent packages.
+/// - `allows_dependents`: Whether cascade mode allows dependents.
+///
+/// Output:
+/// - Returns a tuple of (text, style).
+///
+/// Details:
+/// - Determines summary message based on dependent count and cascade mode.
+fn get_dependent_summary(
+    app: &AppState,
+    dependent_count: usize,
+    allows_dependents: bool,
+) -> (String, Style) {
+    let th = theme();
+    if dependent_count == 0 {
         (
             i18n::t(app, "app.modals.preflight.summary.no_dependents"),
             Style::default().fg(th.green),
         )
-    } else if cascade_mode.allows_dependents() {
+    } else if allows_dependents {
         (
             i18n::t_fmt1(
                 app,
@@ -501,173 +743,274 @@ fn render_remove_action(
             ),
             Style::default().fg(th.red),
         )
-    };
-    lines.push(Line::from(Span::styled(summary_text, summary_style)));
-    lines.push(Line::from(""));
+    }
+}
 
-    if dependent_count > 0 {
-        if app.remove_preflight_summary.is_empty() {
-            lines.push(Line::from(Span::styled(
-                i18n::t(app, "app.modals.preflight.summary.calculating_reverse_deps"),
-                Style::default().fg(th.subtext1),
-            )));
-        } else {
-            lines.push(Line::from(Span::styled(
-                i18n::t(app, "app.modals.preflight.summary.removal_impact_overview"),
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            )));
-            lines.push(Line::from(""));
+/// What: Render dependent summary section.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `dependent_count`: Number of dependent packages.
+/// - `allows_dependents`: Whether cascade mode allows dependents.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Renders the summary of dependent packages.
+fn render_dependent_summary(
+    app: &AppState,
+    dependent_count: usize,
+    allows_dependents: bool,
+) -> Vec<Line<'static>> {
+    let (summary_text, summary_style) =
+        get_dependent_summary(app, dependent_count, allows_dependents);
+    vec![
+        Line::from(Span::styled(summary_text, summary_style)),
+        Line::from(""),
+    ]
+}
 
-            for summary in &app.remove_preflight_summary {
-                let mut message = i18n::t_fmt(
-                    app,
-                    "app.modals.preflight.summary.dependent_singular",
-                    &[&summary.package, &summary.total_dependents],
-                );
-                if summary.direct_dependents > 0 {
-                    message.push_str(&format!(
-                        " {}",
-                        i18n::t_fmt1(
-                            app,
-                            "app.modals.preflight.summary.direct_singular",
-                            summary.direct_dependents
-                        )
-                    ));
-                }
-                if summary.transitive_dependents > 0 {
-                    message.push_str(&format!(
-                        " {}",
-                        i18n::t_fmt1(
-                            app,
-                            "app.modals.preflight.summary.transitive_singular",
-                            summary.transitive_dependents
-                        )
-                    ));
-                }
-                lines.push(Line::from(Span::styled(
-                    message,
-                    Style::default().fg(th.text),
-                )));
-            }
-            lines.push(Line::from(""));
-        }
-
-        let (impact_header, impact_style) = if cascade_mode.allows_dependents() {
-            (
-                i18n::t(app, "app.modals.preflight.summary.cascade_will_remove"),
-                Style::default().fg(th.red).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            (
-                i18n::t(app, "app.modals.preflight.summary.dependents_not_removed"),
-                Style::default().fg(th.red).add_modifier(Modifier::BOLD),
-            )
-        };
-        lines.push(Line::from(Span::styled(impact_header, impact_style)));
-
-        let removal_targets: std::collections::HashSet<String> = items
-            .iter()
-            .map(|pkg| pkg.name.to_ascii_lowercase())
-            .collect();
-        let mut cascade_candidates: Vec<&DependencyInfo> = dependency_info.iter().collect();
-        cascade_candidates.sort_by(|a, b| {
-            let a_direct = a
-                .depends_on
-                .iter()
-                .any(|parent| removal_targets.contains(&parent.to_ascii_lowercase()));
-            let b_direct = b
-                .depends_on
-                .iter()
-                .any(|parent| removal_targets.contains(&parent.to_ascii_lowercase()));
-            b_direct.cmp(&a_direct).then_with(|| a.name.cmp(&b.name))
-        });
-
-        const CASCADE_PREVIEW_MAX: usize = 8;
-        for dep in cascade_candidates.iter().take(CASCADE_PREVIEW_MAX) {
-            let is_direct = dep
-                .depends_on
-                .iter()
-                .any(|parent| removal_targets.contains(&parent.to_ascii_lowercase()));
-            let bullet = if cascade_mode.allows_dependents() {
-                if is_direct { "● " } else { "○ " }
-            } else if is_direct {
-                "⛔ "
-            } else {
-                "⚠ "
-            };
-            let name_color = if cascade_mode.allows_dependents() {
-                if is_direct { th.red } else { th.yellow }
-            } else if is_direct {
-                th.red
-            } else {
-                th.yellow
-            };
-            let name_style = Style::default().fg(name_color).add_modifier(Modifier::BOLD);
-            let detail = match &dep.status {
-                DependencyStatus::Conflict { reason } => reason.clone(),
-                DependencyStatus::ToUpgrade { .. } => {
-                    i18n::t(app, "app.modals.preflight.summary.requires_version_change")
-                }
-                DependencyStatus::Installed { .. } => {
-                    i18n::t(app, "app.modals.preflight.summary.already_satisfied")
-                }
-                DependencyStatus::ToInstall => {
-                    i18n::t(app, "app.modals.preflight.summary.not_currently_installed")
-                }
-                DependencyStatus::Missing => i18n::t(app, "app.modals.preflight.summary.missing"),
-            };
-            let roots = if dep.required_by.is_empty() {
-                String::new()
-            } else {
-                i18n::t_fmt1(
-                    app,
-                    "app.modals.preflight.summary.targets_label",
-                    dep.required_by.join(", "),
-                )
-            };
-
-            let mut spans = Vec::new();
-            spans.push(Span::styled(bullet, Style::default().fg(th.subtext0)));
-            spans.push(Span::styled(dep.name.clone(), name_style));
-            if !detail.is_empty() {
-                spans.push(Span::styled(" — ", Style::default().fg(th.subtext1)));
-                spans.push(Span::styled(detail, Style::default().fg(th.subtext1)));
-            }
-            if !roots.is_empty() {
-                spans.push(Span::styled(roots, Style::default().fg(th.overlay1)));
-            }
-            lines.push(Line::from(spans));
-        }
-
-        if cascade_candidates.len() > CASCADE_PREVIEW_MAX {
-            lines.push(Line::from(Span::styled(
-                i18n::t_fmt1(
-                    app,
-                    "app.modals.preflight.summary.and_more_impacted",
-                    cascade_candidates.len() - CASCADE_PREVIEW_MAX,
-                ),
-                Style::default().fg(th.subtext1),
-            )));
-        }
-
-        lines.push(Line::from(""));
-        if cascade_mode.allows_dependents() {
-            lines.push(Line::from(Span::styled(
-                i18n::t(app, "app.modals.preflight.summary.will_be_removed_auto"),
-                Style::default().fg(th.subtext1),
-            )));
-        } else {
-            lines.push(Line::from(Span::styled(
-                i18n::t(app, "app.modals.preflight.summary.enable_cascade_mode"),
-                Style::default().fg(th.subtext1),
-            )));
-        }
+/// What: Render removal impact overview.
+///
+/// Inputs:
+/// - `app`: Application state for i18n and remove_preflight_summary.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Renders the impact overview or calculating message.
+fn render_impact_overview(app: &AppState) -> Vec<Line<'static>> {
+    let th = theme();
+    let mut lines = Vec::new();
+    if app.remove_preflight_summary.is_empty() {
         lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.summary.use_deps_tab"),
+            i18n::t(app, "app.modals.preflight.summary.calculating_reverse_deps"),
             Style::default().fg(th.subtext1),
         )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.summary.removal_impact_overview"),
+            Style::default()
+                .fg(th.overlay1)
+                .add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(""));
+        for summary in &app.remove_preflight_summary {
+            let mut message = i18n::t_fmt(
+                app,
+                "app.modals.preflight.summary.dependent_singular",
+                &[&summary.package, &summary.total_dependents],
+            );
+            if summary.direct_dependents > 0 {
+                message.push_str(&format!(
+                    " {}",
+                    i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.summary.direct_singular",
+                        summary.direct_dependents
+                    )
+                ));
+            }
+            if summary.transitive_dependents > 0 {
+                message.push_str(&format!(
+                    " {}",
+                    i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.summary.transitive_singular",
+                        summary.transitive_dependents
+                    )
+                ));
+            }
+            lines.push(Line::from(Span::styled(
+                message,
+                Style::default().fg(th.text),
+            )));
+        }
+        lines.push(Line::from(""));
+    }
+    lines
+}
+
+/// What: Get impact header text and style.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `allows_dependents`: Whether cascade mode allows dependents.
+///
+/// Output:
+/// - Returns a tuple of (text, style).
+///
+/// Details:
+/// - Determines impact header based on cascade mode.
+fn get_impact_header(app: &AppState, allows_dependents: bool) -> (String, Style) {
+    let th = theme();
+    let text = if allows_dependents {
+        i18n::t(app, "app.modals.preflight.summary.cascade_will_remove")
+    } else {
+        i18n::t(app, "app.modals.preflight.summary.dependents_not_removed")
+    };
+    (
+        text,
+        Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+    )
+}
+
+/// What: Prepare and sort cascade candidates.
+///
+/// Inputs:
+/// - `dependency_info`: Dependency information.
+/// - `ctx`: Cascade rendering context.
+///
+/// Output:
+/// - Returns sorted vector of cascade candidates with is_direct flag.
+///
+/// Details:
+/// - Prepares cascade candidates with pre-computed is_direct flag to avoid recomputation.
+fn prepare_cascade_candidates<'a>(
+    dependency_info: &'a [DependencyInfo],
+    ctx: &CascadeRenderingContext,
+) -> Vec<(&'a DependencyInfo, bool)> {
+    let mut candidates: Vec<(&'a DependencyInfo, bool)> = dependency_info
+        .iter()
+        .map(|dep| (dep, ctx.is_direct_dependent(dep)))
+        .collect();
+    candidates.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.name.cmp(&b.0.name)));
+    candidates
+}
+
+/// What: Render cascade candidates preview.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `candidates`: Prepared cascade candidates with is_direct flags.
+/// - `ctx`: Cascade rendering context.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Renders the cascade candidates list with preview limit.
+/// - Uses pre-computed is_direct flags to avoid recalculation.
+fn render_cascade_candidates(
+    app: &AppState,
+    candidates: &[(&DependencyInfo, bool)],
+    ctx: &CascadeRenderingContext,
+) -> Vec<Line<'static>> {
+    let th = theme();
+    let mut lines = Vec::new();
+    for (dep, is_direct) in candidates.iter().take(CASCADE_PREVIEW_MAX) {
+        let display_info = build_dependency_display_info(app, dep, ctx, &th, *is_direct);
+        let spans = build_cascade_dependency_spans(dep, &display_info, &th);
+        lines.push(Line::from(spans));
+    }
+    if candidates.len() > CASCADE_PREVIEW_MAX {
+        lines.push(Line::from(Span::styled(
+            i18n::t_fmt1(
+                app,
+                "app.modals.preflight.summary.and_more_impacted",
+                candidates.len() - CASCADE_PREVIEW_MAX,
+            ),
+            Style::default().fg(th.subtext1),
+        )));
+    }
+    lines
+}
+
+/// What: Render cascade footer messages.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `allows_dependents`: Whether cascade mode allows dependents.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Renders footer messages based on cascade mode.
+fn render_cascade_footer(app: &AppState, allows_dependents: bool) -> Vec<Line<'static>> {
+    let th = theme();
+    let mut lines = vec![Line::from("")];
+    let footer_text = if allows_dependents {
+        i18n::t(app, "app.modals.preflight.summary.will_be_removed_auto")
+    } else {
+        i18n::t(app, "app.modals.preflight.summary.enable_cascade_mode")
+    };
+    lines.push(Line::from(Span::styled(
+        footer_text,
+        Style::default().fg(th.subtext1),
+    )));
+    lines.push(Line::from(Span::styled(
+        i18n::t(app, "app.modals.preflight.summary.use_deps_tab"),
+        Style::default().fg(th.subtext1),
+    )));
+    lines
+}
+
+/// What: Render remove action content (removal plan and cascade impact).
+///
+/// Inputs:
+/// - `app`: Application state for i18n and data access.
+/// - `items`: Packages to remove.
+/// - `dependency_info`: Dependency information.
+/// - `cascade_mode`: Removal cascade mode.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Shows removal plan, dependent count, and cascade impact preview.
+/// - Uses helper functions and data structures to reduce complexity.
+fn render_remove_action(
+    app: &AppState,
+    items: &[PackageItem],
+    dependency_info: &[DependencyInfo],
+    cascade_mode: CascadeMode,
+) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    let th = theme();
+
+    // Render cascade mode header
+    lines.extend(render_cascade_mode_header(app, cascade_mode));
+
+    // Early return for empty items
+    if items.is_empty() {
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.summary.no_removal_targets"),
+            Style::default().fg(th.subtext1),
+        )));
+        return lines;
+    }
+
+    // Render removal plan
+    lines.extend(render_removal_plan(app, items, cascade_mode));
+
+    // Prepare context (caches repeated computations)
+    let ctx = CascadeRenderingContext::new(items, cascade_mode);
+    let dependent_count = dependency_info.len();
+
+    // Render dependent summary
+    lines.extend(render_dependent_summary(
+        app,
+        dependent_count,
+        ctx.allows_dependents,
+    ));
+
+    // Render dependent impact section if there are dependents
+    if dependent_count > 0 {
+        lines.extend(render_impact_overview(app));
+
+        // Render impact header
+        let (impact_header, impact_style) = get_impact_header(app, ctx.allows_dependents);
+        lines.push(Line::from(Span::styled(impact_header, impact_style)));
+
+        // Prepare and render cascade candidates
+        let candidates = prepare_cascade_candidates(dependency_info, &ctx);
+        lines.extend(render_cascade_candidates(app, &candidates, &ctx));
+
+        // Render footer
+        lines.extend(render_cascade_footer(app, ctx.allows_dependents));
     }
     lines
 }
