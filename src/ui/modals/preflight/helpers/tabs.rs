@@ -10,7 +10,8 @@ use crate::state::{AppState, PackageItem};
 use std::collections::{HashMap, HashSet};
 
 use super::super::tabs::{
-    render_deps_tab, render_files_tab, render_sandbox_tab, render_services_tab, render_summary_tab,
+    SandboxTabContext, render_deps_tab, render_files_tab, render_sandbox_tab, render_services_tab,
+    render_summary_tab,
 };
 
 /// What: Render content lines for the currently active tab.
@@ -116,16 +117,17 @@ pub fn render_tab_content(
             services_error,
             content_rect,
         ),
-        PreflightTab::Sandbox => render_sandbox_tab(
-            app,
-            items,
-            sandbox_info,
-            sandbox_selected,
-            sandbox_tree_expanded,
-            sandbox_loaded,
-            sandbox_error,
-            selected_optdepends,
-            content_rect,
-        ),
+        PreflightTab::Sandbox => {
+            let ctx = SandboxTabContext {
+                items,
+                sandbox_info,
+                sandbox_tree_expanded,
+                sandbox_loaded,
+                sandbox_error,
+                selected_optdepends,
+                content_rect,
+            };
+            render_sandbox_tab(app, &ctx, sandbox_selected)
+        }
     }
 }

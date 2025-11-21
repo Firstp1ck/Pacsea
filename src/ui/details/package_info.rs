@@ -198,11 +198,16 @@ fn calculate_button_rects(
         if original_line.spans.len() >= 2 {
             let key_txt = original_line.spans[0].content.to_string();
             if key_txt.starts_with(ctx.url_label)
-                && let Some(rect) =
-                    calculate_url_button_rect(&key_txt, ctx.url_text, ctx.content_x, cur_y, ctx.inner_w)
-                {
-                    app.url_button_rect = Some(rect);
-                }
+                && let Some(rect) = calculate_url_button_rect(
+                    &key_txt,
+                    ctx.url_text,
+                    ctx.content_x,
+                    cur_y,
+                    ctx.inner_w,
+                )
+            {
+                app.url_button_rect = Some(rect);
+            }
         }
 
         // Check for PKGBUILD button
@@ -210,10 +215,11 @@ fn calculate_button_rects(
             let txt = original_line.spans[0].content.to_string();
             let lowered = txt.to_lowercase();
             if (lowered.contains(&show_pkgb) || lowered.contains(&hide_pkgb))
-                && let Some(rect) = calculate_pkgbuild_button_rect(&txt, ctx.content_x, cur_y, ctx.inner_w)
-                {
-                    app.pkgb_button_rect = Some(rect);
-                }
+                && let Some(rect) =
+                    calculate_pkgbuild_button_rect(&txt, ctx.content_x, cur_y, ctx.inner_w)
+            {
+                app.pkgb_button_rect = Some(rect);
+            }
         }
 
         // Advance y accounting for wrapping
