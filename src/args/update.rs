@@ -42,6 +42,131 @@ fn format_clickable_path(path: &Path) -> String {
     format!("\x1b]8;;{}\x1b\\{}\x1b]8;;\x1b\\", file_url, path_str)
 }
 
+/// What: Extract failed package names from pacman error output.
+///
+/// Inputs:
+/// - `output`: The pacman command output text to parse.
+///
+/// Output:
+/// - Vector of failed package names.
+///
+/// Details:
+/// - Parses various pacman error patterns including "target not found", transaction failures, etc.
+/// - Handles both English and German error messages.
+fn extract_failed_packages_from_pacman(output: &str) -> Vec<String> {
+    let mut failed = Vec::new();
+    let lines: Vec<&str> = output.lines().collect();
+    let mut in_error_section = false;
+    let mut in_conflict_section = false;
+
+    // Get locale-specific error patterns from i18n
+    let target_not_found = i18n::t("app.cli.update.pacman_errors.target_not_found").to_lowercase();
+    let failed_to_commit = i18n::t("app.cli.update.pacman_errors.failed_to_commit").to_lowercase();
+    let failed_to_prepare =
+        i18n::t("app.cli.update.pacman_errors.failed_to_prepare").to_lowercase();
+    let error_prefix = i18n::t("app.cli.update.pacman_errors.error_prefix").to_lowercase();
+    let resolving = i18n::t("app.cli.update.pacman_errors.resolving").to_lowercase();
+    let looking_for = i18n::t("app.cli.update.pacman_errors.looking_for").to_lowercase();
+    let package_word = i18n::t("app.cli.update.pacman_errors.package").to_lowercase();
+    let packages_word = i18n::t("app.cli.update.pacman_errors.packages").to_lowercase();
+    let error_word = i18n::t("app.cli.update.pacman_errors.error").to_lowercase();
+    let failed_word = i18n::t("app.cli.update.pacman_errors.failed").to_lowercase();
+    let transaction_word = i18n::t("app.cli.update.pacman_errors.transaction").to_lowercase();
+    let conflicting_word = i18n::t("app.cli.update.pacman_errors.conflicting").to_lowercase();
+    let files_word = i18n::t("app.cli.update.pacman_errors.files").to_lowercase();
+
+    for line in &lines {
+        let trimmed = line.trim();
+        let lower = trimmed.to_lowercase();
+
+        // Pattern 1: "error: target not found: package-name"
+        if lower.contains(&target_not_found) {
+            // Extract package name after "not found:" or similar
+            if let Some(colon_pos) = trimmed.rfind(':') {
+                let after_colon = &trimmed[colon_pos + 1..].trim();
+                // Package name should be alphanumeric with dashes/underscores
+                if after_colon
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '/')
+                {
+                    // Remove any trailing punctuation
+                    let pkg = after_colon.trim_end_matches(|c: char| {
+                        !c.is_alphanumeric() && c != '-' && c != '_' && c != '/'
+                    });
+                    if !pkg.is_empty() && pkg.len() > 1 {
+                        failed.push(pkg.to_string());
+                    }
+                }
+            }
+            in_error_section = true;
+        }
+        // Pattern 2: "error: failed to commit transaction" or similar
+        else if lower.contains(&failed_to_commit) || lower.contains(&failed_to_prepare) {
+            in_error_section = true;
+            in_conflict_section = true;
+        }
+        // Pattern 3: Look for package names in error context
+        else if in_error_section || in_conflict_section {
+            // Look for lines that might contain package names
+            // Skip common error message text
+            if !trimmed.is_empty()
+                && !lower.starts_with(&format!("{}:", error_prefix))
+                && !lower.contains(&resolving)
+                && !lower.contains(&looking_for)
+                && !lower.contains("::")
+            {
+                // Check if line looks like it contains package names
+                // Package names are typically: alphanumeric, dashes, underscores, slashes
+                let words: Vec<&str> = trimmed.split_whitespace().collect();
+                for word in words {
+                    let clean_word = word.trim_matches(|c: char| {
+                        !c.is_alphanumeric() && c != '-' && c != '_' && c != '/' && c != ':'
+                    });
+                    // Valid package name: 2+ chars, alphanumeric with dashes/underscores/slashes
+                    if clean_word.len() >= 2
+                        && clean_word.chars().all(|c| {
+                            c.is_alphanumeric() || c == '-' || c == '_' || c == '/' || c == ':'
+                        })
+                        && clean_word.contains(|c: char| c.is_alphanumeric())
+                    {
+                        // Avoid common false positives using locale-specific words
+                        if !clean_word.eq_ignore_ascii_case(&package_word)
+                            && !clean_word.eq_ignore_ascii_case(&packages_word)
+                            && !clean_word.eq_ignore_ascii_case(&error_word)
+                            && !clean_word.eq_ignore_ascii_case(&failed_word)
+                            && !clean_word.eq_ignore_ascii_case(&transaction_word)
+                            && !clean_word.eq_ignore_ascii_case(&conflicting_word)
+                            && !clean_word.eq_ignore_ascii_case(&files_word)
+                        {
+                            failed.push(clean_word.to_string());
+                        }
+                    }
+                }
+            }
+            // Reset error section on empty lines or new error messages
+            if trimmed.is_empty() || lower.starts_with(&format!("{}:", error_prefix)) {
+                in_error_section = false;
+                in_conflict_section = false;
+            }
+        }
+        // Pattern 4: Look for package names after "::" separator (pacman format: repo::package)
+        else if trimmed.contains("::") {
+            let parts: Vec<&str> = trimmed.split("::").collect();
+            if parts.len() == 2 {
+                let pkg_part = parts[1].split_whitespace().next().unwrap_or("");
+                if pkg_part
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+                    && pkg_part.len() >= 2
+                {
+                    failed.push(pkg_part.to_string());
+                }
+            }
+        }
+    }
+    failed
+}
+
 /// What: Extract failed package names from command output.
 ///
 /// Inputs:
@@ -56,15 +181,12 @@ fn format_clickable_path(path: &Path) -> String {
 /// - Uses locale-independent pattern matching (exit status pattern is universal).
 /// - Does not rely on locale-specific error messages.
 fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
-    let mut failed = Vec::new();
-
-    if helper == "pacman" {
-        // For pacman, look for package names in error messages
-        // This is less common but we can try to extract them
-        // Pacman errors are usually less structured
+    let mut failed = if helper == "pacman" {
+        extract_failed_packages_from_pacman(output)
     } else {
         // For yay/paru, primarily rely on the universal " - exit status" pattern
         // This pattern appears to be locale-independent
+        let mut failed_aur = Vec::new();
         let lines: Vec<&str> = output.lines().collect();
 
         // Look for lines with "exit status" pattern - this is the most reliable indicator
@@ -77,14 +199,14 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
                 // Remove common prefixes like "->" that yay/paru use
                 let pkg = pkg.strip_prefix("->").unwrap_or(pkg).trim();
                 if !pkg.is_empty() {
-                    failed.push(pkg.to_string());
+                    failed_aur.push(pkg.to_string());
                 }
             }
         }
 
         // If we didn't find any via exit status pattern, try to find packages
         // in a section that follows common structural markers
-        if failed.is_empty() {
+        if failed_aur.is_empty() {
             // Look for sections that typically contain failed packages
             // These sections usually have markers like "->" followed by package lists
             let mut in_package_list = false;
@@ -103,7 +225,7 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
                             .chars()
                             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
                         {
-                            failed.push(after_arrow.to_string());
+                            failed_aur.push(after_arrow.to_string());
                             in_package_list = true;
                         }
                     } else {
@@ -118,7 +240,7 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
                             .chars()
                             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
                     {
-                        failed.push(trimmed.to_string());
+                        failed_aur.push(trimmed.to_string());
                     } else if trimmed.is_empty() || trimmed.starts_with("==>") {
                         // Empty line or new section marker ends the list
                         in_package_list = false;
@@ -126,11 +248,22 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
                 }
             }
         }
-    }
+        failed_aur
+    };
 
     // Deduplicate and return
     failed.sort();
     failed.dedup();
+
+    // Additional cleanup: remove very short strings and common false positives
+    failed.retain(|pkg| {
+        pkg.len() >= 2
+            && !pkg.eq_ignore_ascii_case("package")
+            && !pkg.eq_ignore_ascii_case("packages")
+            && !pkg.eq_ignore_ascii_case("error")
+            && !pkg.eq_ignore_ascii_case("failed")
+    });
+
     failed
 }
 
@@ -148,6 +281,7 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
 /// - Uses a shell wrapper with `tee` to duplicate output to both terminal and log file.
 /// - Preserves real-time output display while logging everything.
 /// - Returns the command output for parsing failed packages.
+/// - Output is parsed using locale-aware i18n patterns.
 fn run_command_with_logging(
     program: &str,
     args: &[&str],
@@ -237,6 +371,10 @@ pub fn handle_update() -> ! {
     let mut all_succeeded = true;
     let mut failed_commands = Vec::new();
     let mut failed_packages = Vec::new();
+    #[allow(unused_assignments)]
+    let mut pacman_succeeded = Option::<bool>::None;
+    let mut aur_succeeded = Option::<bool>::None;
+    let mut aur_helper_name = Option::<&str>::None;
 
     // Step 1: Update pacman (sudo pacman -Syyu --noconfirm)
     println!("{}", i18n::t("app.cli.update.starting"));
@@ -250,6 +388,7 @@ pub fn handle_update() -> ! {
             if status.success() {
                 println!("{}", i18n::t("app.cli.update.pacman_success"));
                 write_log("SUCCESS: pacman -Syyu --noconfirm completed successfully");
+                pacman_succeeded = Some(true);
             } else {
                 println!("{}", i18n::t("app.cli.update.pacman_failed"));
                 write_log(&format!(
@@ -260,6 +399,7 @@ pub fn handle_update() -> ! {
                 failed_packages.extend(packages);
                 all_succeeded = false;
                 failed_commands.push("pacman -Syyu".to_string());
+                pacman_succeeded = Some(false);
             }
         }
         Err(e) => {
@@ -271,12 +411,14 @@ pub fn handle_update() -> ! {
             ));
             all_succeeded = false;
             failed_commands.push("pacman -Syyu --noconfirm".to_string());
+            pacman_succeeded = Some(false);
         }
     }
 
     // Step 2: Update AUR packages (yay/paru -Syyu --noconfirm)
     let aur_helper = utils::get_aur_helper();
     if let Some(helper) = aur_helper {
+        aur_helper_name = Some(helper);
         println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
         write_log(&format!(
             "Starting AUR update: {} -Syyu --noconfirm",
@@ -294,6 +436,7 @@ pub fn handle_update() -> ! {
                         "SUCCESS: {} -Syyu --noconfirm completed successfully",
                         helper
                     ));
+                    aur_succeeded = Some(true);
                 } else {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
                     write_log(&format!(
@@ -305,6 +448,7 @@ pub fn handle_update() -> ! {
                     failed_packages.extend(packages);
                     all_succeeded = false;
                     failed_commands.push(format!("{} -Syyu --noconfirm", helper));
+                    aur_succeeded = Some(false);
                 }
             }
             Err(e) => {
@@ -316,6 +460,7 @@ pub fn handle_update() -> ! {
                 ));
                 all_succeeded = false;
                 failed_commands.push(format!("{} -Syyu --noconfirm", helper));
+                aur_succeeded = Some(false);
             }
         }
     } else {
@@ -325,11 +470,28 @@ pub fn handle_update() -> ! {
 
     // Final summary
     println!("\n{}", i18n::t("app.cli.update.separator"));
+
+    // Show individual status for pacman and AUR helper
+    if pacman_succeeded == Some(true) {
+        println!("{}", i18n::t("app.cli.update.pacman_success"));
+    } else if pacman_succeeded == Some(false) {
+        println!("{}", i18n::t("app.cli.update.pacman_failed"));
+    }
+
+    if let Some(helper) = aur_helper_name {
+        if aur_succeeded == Some(true) {
+            println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
+        } else if aur_succeeded == Some(false) {
+            println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
+        }
+    }
+
+    // Show overall summary
     if all_succeeded {
-        println!("{}", i18n::t("app.cli.update.all_success"));
+        println!("\n{}", i18n::t("app.cli.update.all_success"));
         write_log("SUMMARY: All updates completed successfully");
     } else {
-        println!("{}", i18n::t("app.cli.update.completed_with_errors"));
+        println!("\n{}", i18n::t("app.cli.update.completed_with_errors"));
         write_log(&format!(
             "SUMMARY: Update failed. Failed commands: {:?}",
             failed_commands

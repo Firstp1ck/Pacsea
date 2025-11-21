@@ -640,6 +640,21 @@ hu-HU:
         failed_packages_log: "Failed packages: {}"
         log_file: "Naplófájl: {}"
         error_prefix: "Hiba: {}"
+        pacman_errors:
+          # TODO: Please translate these to Hungarian
+          target_not_found: "target not found"
+          failed_to_commit: "failed to commit transaction"
+          failed_to_prepare: "failed to prepare transaction"
+          error_prefix: "error:"
+          resolving: "resolving"
+          looking_for: "looking for"
+          package: "package"
+          packages: "packages"
+          error: "error"
+          failed: "failed"
+          transaction: "transaction"
+          conflicting: "conflicting"
+          files: "files"
       remove:
         no_packages: "Hiba: Nincs megadva eltávolítandó csomag."
         warning: "Figyelem: A csomagok és a függőségek (ha más csomagok nem függenek tőlük) el lesznek távolítva, és a rendszer-konfiguráció biztonsági mentése nem lesz létrehozva."
