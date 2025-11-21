@@ -107,11 +107,13 @@ hu-HU:
       preflight_opened: "Előzetes ellenőrzés megnyitva"
       no_new_news: "Ma nincsenek új hírek"
       copied_to_clipboard: "Másolva a vágólapra"
-      abort_requested: "Megszakítás kérve (helyőrző)"
-      rollback: "Visszaállítás (helyőrző)"
+      # TODO: Translate these keys to Hungarian
+      abort_requested: "Abort requested (placeholder)"
+      rollback: "Rollback (placeholder)"
       no_services_to_restart: "Nincsenek újraindítandó szolgáltatások"
-      restart_services: "Szolgáltatások újraindítása (helyőrző)"
-      snapshot_placeholder: "Pillanatkép (helyőrző)"
+      # TODO: Translate these keys to Hungarian
+      restart_services: "Restart services (placeholder)"
+      snapshot_placeholder: "Snapshot (placeholder)"
       dry_run_enabled: "Próbafuttatás engedélyezve"
       dry_run_disabled: "Próbafuttatás letiltva"
       cascade_mode_enabled: "Lépcsőzetes mód engedélyezve"
