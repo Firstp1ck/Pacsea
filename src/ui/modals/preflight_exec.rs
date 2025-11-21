@@ -188,7 +188,7 @@ fn render_log_panel(
     log_lines: &[String],
     verbose: bool,
     abortable: bool,
-    title: &'static str,
+    title: String,
     border_color: ratatui::style::Color,
     log_area_height: u16,
 ) -> Paragraph<'static> {
@@ -303,6 +303,7 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
 ///
 /// Inputs:
 /// - `f`: Frame to render into
+/// - `app`: Mutable application state
 /// - `area`: Full screen area used to center the modal
 /// - `items`: Packages involved in the action
 /// - `action`: Install or remove action being executed
@@ -320,6 +321,7 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
 ///   footer instructions with dynamic state indicators.
 pub fn render_preflight_exec(
     f: &mut Frame,
+    app: &mut crate::state::AppState,
     area: Rect,
     items: &[PackageItem],
     action: PreflightAction,
@@ -335,8 +337,8 @@ pub fn render_preflight_exec(
     let border_color = th.lavender;
     let bg_color = th.crust;
     let title = match action {
-        PreflightAction::Install => " Execute: Install ",
-        PreflightAction::Remove => " Execute: Remove ",
+        PreflightAction::Install => crate::i18n::t(app, "app.modals.preflight_exec.title_install"),
+        PreflightAction::Remove => crate::i18n::t(app, "app.modals.preflight_exec.title_remove"),
     };
 
     let sidebar = render_sidebar(items, tab, header_chips, border_color, bg_color);

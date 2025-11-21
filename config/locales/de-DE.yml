@@ -200,10 +200,6 @@ de-DE:
       loading_pkgb: "PKGBUILD wird geladen…"
       copy_pkgbuild: "PKGBUILD kopieren"
       reload_pkgbuild: "PKGBUILD neu laden"
-    updates:
-      available: "Updates verfügbar ({})"
-      none: "Keine Updates verfügbar"
-      loading: "Prüfe Updates..."
       footer:
         search_hint: "Suchen (Enter nächster, Esc abbrechen)"
         confirm_installation: "Paket-Installation bestätigen"
@@ -405,9 +401,10 @@ de-DE:
         input_hint: "API-Schlüssel unten eingeben/einfügen und Enter zum Speichern drücken (Esc zum Abbrechen):"
         api_key_label: "API-Schlüssel:"
         tip: "Tipp: Nach dem Speichern werden Scans automatisch VirusTotal per Datei-Hash abfragen."
+      preflight_exec:
+        title_install: " Ausführen: Installieren "
+        title_remove: " Ausführen: Entfernen "
       preflight:
-        title_install: " Preflight: Installieren "
-        title_remove: " Preflight: Entfernen "
         tabs:
           summary: "Zusammenfassung"
           deps: "Abhängigkeiten"

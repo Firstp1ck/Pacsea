@@ -3,7 +3,8 @@ use ratatui::prelude::Rect;
 
 use crate::state::{AppState, Modal, modal::PreflightHeaderChips, types::OptionalDepRow};
 use crate::ui::modals::{
-    alert, confirm, help, misc, news, post_summary, preflight, preflight_exec, system_update, updates,
+    alert, confirm, help, misc, news, post_summary, preflight, preflight_exec, system_update,
+    updates,
 };
 
 /// What: Context struct grouping PreflightExec modal fields to reduce data flow complexity.
@@ -206,7 +207,7 @@ impl ModalRenderer for Modal {
                     abortable,
                     header_chips,
                 };
-                render_preflight_exec_modal(f, area, ctx)
+                render_preflight_exec_modal(f, app, area, ctx)
             }
             Modal::PostSummary {
                 success,
@@ -347,6 +348,7 @@ fn render_confirm_install_modal(
 ///
 /// Inputs:
 /// - `f`: Frame to render into
+/// - `app`: Mutable application state
 /// - `area`: Full available area
 /// - `ctx`: Context struct containing all PreflightExec fields (taken by value)
 ///
@@ -356,9 +358,15 @@ fn render_confirm_install_modal(
 /// Details:
 /// - Uses context struct to reduce data flow complexity by grouping related fields.
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
-fn render_preflight_exec_modal(f: &mut Frame, area: Rect, ctx: PreflightExecContext) -> Modal {
+fn render_preflight_exec_modal(
+    f: &mut Frame,
+    app: &mut AppState,
+    area: Rect,
+    ctx: PreflightExecContext,
+) -> Modal {
     preflight_exec::render_preflight_exec(
         f,
+        app,
         area,
         &ctx.items,
         ctx.action,
