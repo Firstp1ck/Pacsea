@@ -352,6 +352,313 @@ fn render_package_header(
     Line::from(spans)
 }
 
+/// What: Aggregated file totals across all packages.
+///
+/// Details:
+/// - Contains sums of all file counts from package file information.
+struct FileTotals {
+    total_files: usize,
+    total_new: usize,
+    total_changed: usize,
+    total_removed: usize,
+    total_config: usize,
+    total_pacnew: usize,
+    total_pacsave: usize,
+}
+
+/// What: Calculate file totals from package file information in a single pass.
+///
+/// Inputs:
+/// - `file_info`: File information for all packages.
+///
+/// Output:
+/// - Returns aggregated file totals.
+///
+/// Details:
+/// - Performs a single iteration over file_info to calculate all totals.
+fn calculate_file_totals(file_info: &[PackageFileInfo]) -> FileTotals {
+    file_info.iter().fold(
+        FileTotals {
+            total_files: 0,
+            total_new: 0,
+            total_changed: 0,
+            total_removed: 0,
+            total_config: 0,
+            total_pacnew: 0,
+            total_pacsave: 0,
+        },
+        |acc, p| FileTotals {
+            total_files: acc.total_files + p.total_count,
+            total_new: acc.total_new + p.new_count,
+            total_changed: acc.total_changed + p.changed_count,
+            total_removed: acc.total_removed + p.removed_count,
+            total_config: acc.total_config + p.config_count,
+            total_pacnew: acc.total_pacnew + p.pacnew_candidates,
+            total_pacsave: acc.total_pacsave + p.pacsave_candidates,
+        },
+    )
+}
+
+/// What: Build summary parts for file list header.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `totals`: Aggregated file totals.
+/// - `items_len`: Number of packages.
+/// - `has_incomplete_data`: Whether data is incomplete.
+///
+/// Output:
+/// - Returns vector of formatted summary strings.
+///
+/// Details:
+/// - Formats counts with indicators when data is incomplete.
+fn build_summary_parts(
+    app: &AppState,
+    totals: &FileTotals,
+    items_len: usize,
+    has_incomplete_data: bool,
+) -> Vec<String> {
+    let total_files_text =
+        format_count_with_indicator(totals.total_files, items_len * 10, has_incomplete_data);
+    let mut summary_parts = vec![i18n::t_fmt1(
+        app,
+        "app.modals.preflight.files.total",
+        total_files_text,
+    )];
+
+    if totals.total_new > 0 {
+        let count_text =
+            format_count_with_indicator(totals.total_new, totals.total_files, has_incomplete_data);
+        summary_parts.push(i18n::t_fmt1(
+            app,
+            "app.modals.preflight.files.new",
+            count_text,
+        ));
+    }
+    if totals.total_changed > 0 {
+        let count_text = format_count_with_indicator(
+            totals.total_changed,
+            totals.total_files,
+            has_incomplete_data,
+        );
+        summary_parts.push(i18n::t_fmt1(
+            app,
+            "app.modals.preflight.files.changed",
+            count_text,
+        ));
+    }
+    if totals.total_removed > 0 {
+        let count_text = format_count_with_indicator(
+            totals.total_removed,
+            totals.total_files,
+            has_incomplete_data,
+        );
+        summary_parts.push(i18n::t_fmt1(
+            app,
+            "app.modals.preflight.files.removed",
+            count_text,
+        ));
+    }
+    if totals.total_config > 0 {
+        let count_text = format_count_with_indicator(
+            totals.total_config,
+            totals.total_files,
+            has_incomplete_data,
+        );
+        summary_parts.push(i18n::t_fmt1(
+            app,
+            "app.modals.preflight.files.config",
+            count_text,
+        ));
+    }
+    if totals.total_pacnew > 0 {
+        summary_parts.push(i18n::t_fmt1(
+            app,
+            "app.modals.preflight.files.pacnew",
+            totals.total_pacnew,
+        ));
+    }
+    if totals.total_pacsave > 0 {
+        summary_parts.push(i18n::t_fmt1(
+            app,
+            "app.modals.preflight.files.pacsave",
+            totals.total_pacsave,
+        ));
+    }
+
+    summary_parts
+}
+
+/// What: Calculate viewport range for scrolling file list.
+///
+/// Inputs:
+/// - `total_items`: Total number of display items.
+/// - `available_height`: Available height in lines.
+/// - `file_selected`: Currently selected file index (mutable, will be clamped).
+///
+/// Output:
+/// - Returns tuple of (start_idx, end_idx) for visible range.
+///
+/// Details:
+/// - Centers selected item when possible.
+/// - Ensures selected item is always visible.
+/// - Clamps file_selected to valid range.
+fn calculate_viewport(
+    total_items: usize,
+    available_height: usize,
+    file_selected: &mut usize,
+) -> (usize, usize) {
+    let file_selected_clamped = (*file_selected).min(total_items.saturating_sub(1));
+    if *file_selected != file_selected_clamped {
+        *file_selected = file_selected_clamped;
+    }
+
+    if total_items <= available_height {
+        // All items fit on screen
+        (0, total_items)
+    } else {
+        // Try to center the selected item
+        let start = file_selected_clamped
+            .saturating_sub(available_height / 2)
+            .min(total_items.saturating_sub(available_height));
+        let end = (start + available_height).min(total_items);
+
+        // Safety check: ensure selected item is always visible
+        if file_selected_clamped < start {
+            // Selected is before start - adjust to include it
+            (
+                file_selected_clamped,
+                (file_selected_clamped + available_height).min(total_items),
+            )
+        } else if file_selected_clamped >= end {
+            // Selected is at or beyond end - position it at bottom
+            let new_end = (file_selected_clamped + 1).min(total_items);
+            (new_end.saturating_sub(available_height).max(0), new_end)
+        } else {
+            (start, end)
+        }
+    }
+}
+
+/// What: Render header for package with no file info.
+///
+/// Inputs:
+/// - `pkg_name`: Package name.
+/// - `is_expanded`: Whether package is expanded.
+/// - `is_selected`: Whether package is selected.
+///
+/// Output:
+/// - Returns a line to render.
+///
+/// Details:
+/// - Used when package file info is not yet available.
+fn render_missing_package_header(
+    pkg_name: &str,
+    is_expanded: bool,
+    is_selected: bool,
+) -> Line<'static> {
+    let th = theme();
+    let arrow_symbol = if is_expanded { "▼" } else { "▶" };
+    let header_style = if is_selected {
+        Style::default()
+            .fg(th.crust)
+            .bg(th.lavender)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+            .fg(th.overlay1)
+            .add_modifier(Modifier::BOLD)
+    };
+    let spans = vec![
+        Span::styled(format!("{} {} ", arrow_symbol, pkg_name), header_style),
+        Span::styled("(0 files)", Style::default().fg(th.subtext1)),
+    ];
+    Line::from(spans)
+}
+
+/// What: Render display items within viewport range.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `display_items`: Flat list of display items.
+/// - `file_info`: File information for packages.
+/// - `file_tree_expanded`: Set of expanded package names.
+/// - `file_selected`: Currently selected file index.
+/// - `start_idx`: Start index of viewport.
+/// - `end_idx`: End index of viewport.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Renders only items within the viewport range.
+/// - Handles both package headers and file entries.
+fn render_display_items(
+    app: &AppState,
+    display_items: &[FileDisplayItem],
+    file_info: &[PackageFileInfo],
+    file_tree_expanded: &std::collections::HashSet<String>,
+    file_selected: usize,
+    start_idx: usize,
+    end_idx: usize,
+) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+
+    for (display_idx, (is_header, pkg_name, file_opt)) in display_items
+        .iter()
+        .enumerate()
+        .skip(start_idx)
+        .take(end_idx - start_idx)
+    {
+        let is_selected = display_idx == file_selected;
+        if *is_header {
+            let is_expanded = file_tree_expanded.contains(pkg_name);
+            // Handle packages that may not have file info yet
+            if let Some(pkg_info) = file_info.iter().find(|p| p.name == *pkg_name) {
+                lines.push(render_package_header(
+                    app,
+                    pkg_info,
+                    pkg_name,
+                    is_expanded,
+                    is_selected,
+                ));
+            } else {
+                lines.push(render_missing_package_header(
+                    pkg_name,
+                    is_expanded,
+                    is_selected,
+                ));
+            }
+        } else if let Some((change_type, path, is_config, predicted_pacnew, predicted_pacsave)) =
+            file_opt
+        {
+            lines.push(render_file_entry(
+                app,
+                change_type,
+                path,
+                *is_config,
+                *predicted_pacnew,
+                *predicted_pacsave,
+                is_selected,
+            ));
+        }
+    }
+
+    lines
+}
+
+/// What: Context for rendering file list.
+///
+/// Details:
+/// - Groups related parameters to reduce function signature complexity.
+struct FileListContext<'a> {
+    file_info: &'a [PackageFileInfo],
+    items: &'a [PackageItem],
+    display_items: &'a [FileDisplayItem],
+    file_tree_expanded: &'a std::collections::HashSet<String>,
+    sync_info: &'a Option<(u64, String, u8)>,
+}
+
 /// What: Render file entry line.
 ///
 /// Inputs:
@@ -439,99 +746,29 @@ fn render_file_entry(
 ///
 /// Inputs:
 /// - `app`: Application state for i18n.
-/// - `file_info`: File information.
-/// - `items`: Packages under review.
-/// - `display_items`: Flat list of display items.
+/// - `ctx`: File list context containing related parameters.
 /// - `file_selected`: Currently selected file index (mutable).
-/// - `file_tree_expanded`: Set of expanded package names.
-/// - `is_resolving`: Whether files are being resolved.
 /// - `content_rect`: Content area rectangle.
-/// - `sync_info`: Optional sync info.
 ///
 /// Output:
 /// - Returns a vector of lines to render.
-#[allow(clippy::too_many_arguments)]
 fn render_file_list(
     app: &AppState,
-    file_info: &[PackageFileInfo],
-    items: &[PackageItem],
-    display_items: &[FileDisplayItem],
+    ctx: FileListContext,
     file_selected: &mut usize,
-    file_tree_expanded: &std::collections::HashSet<String>,
-    is_resolving: bool,
     content_rect: Rect,
-    sync_info: &Option<(u64, String, u8)>,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
 
-    let total_files: usize = file_info.iter().map(|p| p.total_count).sum();
-    let total_new: usize = file_info.iter().map(|p| p.new_count).sum();
-    let total_changed: usize = file_info.iter().map(|p| p.changed_count).sum();
-    let total_removed: usize = file_info.iter().map(|p| p.removed_count).sum();
-    let total_config: usize = file_info.iter().map(|p| p.config_count).sum();
-    let total_pacnew: usize = file_info.iter().map(|p| p.pacnew_candidates).sum();
-    let total_pacsave: usize = file_info.iter().map(|p| p.pacsave_candidates).sum();
+    // Option 1: Single-pass aggregation
+    let totals = calculate_file_totals(ctx.file_info);
 
-    let has_incomplete_data = (is_resolving && file_info.len() < items.len())
-        || (!is_resolving && file_info.len() < items.len());
+    // Option 6: Simplify incomplete data check
+    let has_incomplete_data = ctx.file_info.len() < ctx.items.len();
 
-    let total_files_text =
-        format_count_with_indicator(total_files, items.len() * 10, has_incomplete_data);
-    let mut summary_parts = vec![i18n::t_fmt1(
-        app,
-        "app.modals.preflight.files.total",
-        total_files_text,
-    )];
-    if total_new > 0 {
-        let count_text = format_count_with_indicator(total_new, total_files, has_incomplete_data);
-        summary_parts.push(i18n::t_fmt1(
-            app,
-            "app.modals.preflight.files.new",
-            count_text,
-        ));
-    }
-    if total_changed > 0 {
-        let count_text =
-            format_count_with_indicator(total_changed, total_files, has_incomplete_data);
-        summary_parts.push(i18n::t_fmt1(
-            app,
-            "app.modals.preflight.files.changed",
-            count_text,
-        ));
-    }
-    if total_removed > 0 {
-        let count_text =
-            format_count_with_indicator(total_removed, total_files, has_incomplete_data);
-        summary_parts.push(i18n::t_fmt1(
-            app,
-            "app.modals.preflight.files.removed",
-            count_text,
-        ));
-    }
-    if total_config > 0 {
-        let count_text =
-            format_count_with_indicator(total_config, total_files, has_incomplete_data);
-        summary_parts.push(i18n::t_fmt1(
-            app,
-            "app.modals.preflight.files.config",
-            count_text,
-        ));
-    }
-    if total_pacnew > 0 {
-        summary_parts.push(i18n::t_fmt1(
-            app,
-            "app.modals.preflight.files.pacnew",
-            total_pacnew,
-        ));
-    }
-    if total_pacsave > 0 {
-        summary_parts.push(i18n::t_fmt1(
-            app,
-            "app.modals.preflight.files.pacsave",
-            total_pacsave,
-        ));
-    }
+    // Option 2: Extract summary building
+    let summary_parts = build_summary_parts(app, &totals, ctx.items.len(), has_incomplete_data);
 
     lines.push(Line::from(Span::styled(
         i18n::t_fmt1(
@@ -545,7 +782,7 @@ fn render_file_list(
     )));
     lines.push(Line::from(""));
 
-    let (sync_line, sync_timestamp_lines) = render_sync_timestamp(app, sync_info);
+    let (sync_line, sync_timestamp_lines) = render_sync_timestamp(app, ctx.sync_info);
     if let Some(line) = sync_line {
         lines.push(line);
         lines.push(Line::from(""));
@@ -556,92 +793,22 @@ fn render_file_list(
         .saturating_sub(header_lines)
         .max(1);
 
-    let total_items = display_items.len();
-    let file_selected_clamped = (*file_selected).min(total_items.saturating_sub(1));
-    if *file_selected != file_selected_clamped {
-        *file_selected = file_selected_clamped;
-    }
+    let total_items = ctx.display_items.len();
 
-    // Calculate viewport: center the selected item, but ensure it's always visible
-    let (start_idx, end_idx) = if total_items <= available_height {
-        // All items fit on screen
-        (0, total_items)
-    } else {
-        // Try to center the selected item
-        let start = file_selected_clamped
-            .saturating_sub(available_height / 2)
-            .min(total_items.saturating_sub(available_height));
-        let end = (start + available_height).min(total_items);
+    // Option 3: Extract viewport calculation
+    let (start_idx, end_idx) = calculate_viewport(total_items, available_height, file_selected);
 
-        // Safety check: ensure selected item is always visible
-        let (final_start, final_end) = if file_selected_clamped < start {
-            // Selected is before start - adjust to include it
-            (
-                file_selected_clamped,
-                (file_selected_clamped + available_height).min(total_items),
-            )
-        } else if file_selected_clamped >= end {
-            // Selected is at or beyond end - position it at bottom
-            let new_end = (file_selected_clamped + 1).min(total_items);
-            (new_end.saturating_sub(available_height).max(0), new_end)
-        } else {
-            (start, end)
-        };
-        (final_start, final_end)
-    };
-
-    for (display_idx, (is_header, pkg_name, file_opt)) in display_items
-        .iter()
-        .enumerate()
-        .skip(start_idx)
-        .take(end_idx - start_idx)
-    {
-        let is_selected = display_idx == *file_selected;
-        if *is_header {
-            let is_expanded = file_tree_expanded.contains(pkg_name);
-            // Handle packages that may not have file info yet
-            if let Some(pkg_info) = file_info.iter().find(|p| p.name == *pkg_name) {
-                lines.push(render_package_header(
-                    app,
-                    pkg_info,
-                    pkg_name,
-                    is_expanded,
-                    is_selected,
-                ));
-            } else {
-                // Package has no file info - render simple header
-                let th = theme();
-                let arrow_symbol = if is_expanded { "▼" } else { "▶" };
-                let header_style = if is_selected {
-                    Style::default()
-                        .fg(th.crust)
-                        .bg(th.lavender)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                        .fg(th.overlay1)
-                        .add_modifier(Modifier::BOLD)
-                };
-                let spans = vec![
-                    Span::styled(format!("{} {} ", arrow_symbol, pkg_name), header_style),
-                    Span::styled("(0 files)", Style::default().fg(th.subtext1)),
-                ];
-                lines.push(Line::from(spans));
-            }
-        } else if let Some((change_type, path, is_config, predicted_pacnew, predicted_pacsave)) =
-            file_opt
-        {
-            lines.push(render_file_entry(
-                app,
-                change_type,
-                path,
-                *is_config,
-                *predicted_pacnew,
-                *predicted_pacsave,
-                is_selected,
-            ));
-        }
-    }
+    // Option 4: Extract rendering loop
+    let mut item_lines = render_display_items(
+        app,
+        ctx.display_items,
+        ctx.file_info,
+        ctx.file_tree_expanded,
+        *file_selected,
+        start_idx,
+        end_idx,
+    );
+    lines.append(&mut item_lines);
 
     if total_items > available_height {
         lines.push(Line::from(""));
@@ -748,16 +915,13 @@ pub fn render_files_tab(
     if display_items.is_empty() {
         render_empty_state(app, items, file_info, &is_stale, &sync_info)
     } else {
-        render_file_list(
-            app,
+        let ctx = FileListContext {
             file_info,
             items,
-            &display_items,
-            file_selected,
+            display_items: &display_items,
             file_tree_expanded,
-            is_resolving,
-            content_rect,
-            &sync_info,
-        )
+            sync_info: &sync_info,
+        };
+        render_file_list(app, ctx, file_selected, content_rect)
     }
 }
