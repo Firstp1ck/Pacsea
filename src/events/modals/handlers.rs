@@ -255,6 +255,37 @@ pub(crate) fn handle_news_modal(ke: KeyEvent, app: &mut AppState, mut modal: Mod
     false
 }
 
+/// What: Handle key events for Updates modal, including restoration logic.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: Updates modal variant
+///
+/// Output:
+/// - `true` if Esc was pressed (to stop propagation), otherwise `false`
+///
+/// Details:
+/// - Delegates to common handler and restores modal if needed
+pub(crate) fn handle_updates_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
+    if let Modal::Updates {
+        ref entries,
+        ref mut scroll,
+    } = modal
+    {
+        let result = super::common::handle_updates(ke, app, entries, scroll);
+        return restore::restore_if_not_closed_with_bool_result(
+            app,
+            result,
+            Modal::Updates {
+                entries: entries.clone(),
+                scroll: *scroll,
+            },
+        );
+    }
+    false
+}
+
 /// What: Handle key events for OptionalDeps modal, including restoration logic.
 ///
 /// Inputs:

@@ -28,6 +28,7 @@ pub mod helpers;
 mod middle;
 mod modals;
 mod results;
+mod updates;
 
 /// What: Render a full frame of the Pacsea TUI.
 ///
@@ -54,6 +55,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     let total_h = area.height;
 
+    // Updates button row (1 line at the top)
+    const UPDATES_H: u16 = 1;
+
     // Minimum heights required (including borders: 2 lines for top/bottom borders)
     const MIN_RESULTS_H: u16 = 3; // 1 visible line + 2 borders
     const MIN_MIDDLE_H: u16 = 3; // 1 visible line + 2 borders
@@ -64,20 +68,24 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     const MAX_MIDDLE_H: u16 = 5; // Maximum height for Middle (three-pane) section
 
     // Allocate space in priority order:
-    // 1. Keybinds vanish first (handled by details.rs)
-    // 2. Results and Middle shrink proportionally together (they can grow when space is available)
-    // 3. Package Info pane gets remaining space, vanishes if not enough
+    // 1. Updates button row (1 line at top)
+    // 2. Keybinds vanish first (handled by details.rs)
+    // 3. Results and Middle shrink proportionally together (they can grow when space is available)
+    // 4. Package Info pane gets remaining space, vanishes if not enough
+
+    // Reserve space for updates button
+    let available_h = total_h.saturating_sub(UPDATES_H);
 
     // Allocate space to Results and Middle first (they can grow beyond minimum)
     // Reserve some space for Package Info if there's enough
     let min_top_middle_total = MIN_RESULTS_H + MIN_MIDDLE_H;
-    let space_after_min = total_h.saturating_sub(min_top_middle_total);
+    let space_after_min = available_h.saturating_sub(min_top_middle_total);
 
     // If there's space beyond minimums, allocate it to Results and Middle
     // Package Info only gets space if there's enough left after Results and Middle grow
     let (top_h, search_h, bottom_h) = if space_after_min >= MIN_PACKAGE_INFO_H {
         // Enough space for all three: Results and Middle get most of the space (75%), Package Info gets remainder (25%)
-        let top_middle_share = (total_h * 3) / 4; // 75% for Results + Middle
+        let top_middle_share = (available_h * 3) / 4; // 75% for Results + Middle
 
         // First, ensure Middle gets its maximum (5 lines) if possible
         // Need at least MAX_MIDDLE_H + MIN_RESULTS_H = 5 + 3 = 8 lines to give Middle its max
@@ -99,13 +107,13 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         let search_h = (search_h_initial + unused_results_space).min(MAX_MIDDLE_H);
 
         // Package Info gets what's left, but at least minimum if possible
-        let remaining_for_package = total_h.saturating_sub(top_h).saturating_sub(search_h);
+        let remaining_for_package = available_h.saturating_sub(top_h).saturating_sub(search_h);
         if remaining_for_package >= MIN_PACKAGE_INFO_H {
             (top_h, search_h, remaining_for_package)
         } else {
             // Not enough space for Package Info: redistribute to Results and Middle
             // Ensure Middle gets its maximum first, then Results gets the rest
-            let remaining = total_h;
+            let remaining = available_h;
             let search_h_final = if remaining >= MAX_MIDDLE_H + MIN_RESULTS_H {
                 MAX_MIDDLE_H
             } else if remaining >= MIN_MIDDLE_H + MIN_RESULTS_H {
@@ -120,22 +128,22 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     } else {
         // Not enough space for Package Info: Results and Middle share all space
         // Ensure Middle gets its maximum first, then Results gets the rest
-        let search_h = if total_h >= MAX_MIDDLE_H + MIN_RESULTS_H {
+        let search_h = if available_h >= MAX_MIDDLE_H + MIN_RESULTS_H {
             MAX_MIDDLE_H
-        } else if total_h >= MIN_MIDDLE_H + MIN_RESULTS_H {
-            total_h.saturating_sub(MIN_RESULTS_H)
+        } else if available_h >= MIN_MIDDLE_H + MIN_RESULTS_H {
+            available_h.saturating_sub(MIN_RESULTS_H)
         } else {
             MIN_MIDDLE_H
         };
-        let remaining_for_results = total_h.saturating_sub(search_h);
+        let remaining_for_results = available_h.saturating_sub(search_h);
         let mut top_h = remaining_for_results.clamp(MIN_RESULTS_H, MAX_RESULTS_H);
 
         // If enforcing minimums exceeded space, adjust
-        if top_h + search_h > total_h {
-            top_h = total_h
+        if top_h + search_h > available_h {
+            top_h = available_h
                 .saturating_sub(MIN_MIDDLE_H)
                 .clamp(MIN_RESULTS_H, MAX_RESULTS_H);
-            let search_h_adjusted = total_h
+            let search_h_adjusted = available_h
                 .saturating_sub(top_h)
                 .clamp(MIN_MIDDLE_H, MAX_MIDDLE_H);
             (top_h, search_h_adjusted, 0)
@@ -144,6 +152,19 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         }
     };
 
+    // Split area into updates row and main content
+    let main_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(UPDATES_H),
+            Constraint::Length(top_h + search_h + bottom_h),
+        ])
+        .split(area);
+
+    // Render updates button in the top row
+    updates::render_updates_button(f, app, main_chunks[0]);
+
+    // Split main content into results, middle, and details
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -151,7 +172,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             Constraint::Length(search_h),
             Constraint::Length(bottom_h),
         ])
-        .split(area);
+        .split(main_chunks[1]);
 
     results::render_results(f, app, chunks[0]);
     middle::render_middle(f, app, chunks[1]);

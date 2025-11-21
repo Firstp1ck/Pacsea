@@ -214,6 +214,66 @@ pub(crate) fn handle_news(
     false
 }
 
+/// What: Handle key events for Updates modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `entries`: Update entries list (name, old_version, new_version)
+/// - `scroll`: Mutable scroll offset
+///
+/// Output:
+/// - `true` if Esc was pressed (to stop propagation), otherwise `false`
+///
+/// Details:
+/// - Handles Esc/Enter to close, Up/Down/PageUp/PageDown for scrolling
+pub(crate) fn handle_updates(
+    ke: KeyEvent,
+    app: &mut AppState,
+    entries: &[(String, String, String)],
+    scroll: &mut u16,
+) -> bool {
+    match ke.code {
+        KeyCode::Esc | KeyCode::Enter => {
+            app.modal = crate::state::Modal::None;
+            return true; // Stop propagation
+        }
+        KeyCode::Up => {
+            *scroll = scroll.saturating_sub(1);
+        }
+        KeyCode::Down => {
+            // Calculate max scroll based on content height
+            // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
+            let content_lines = entries.len() as u16 + 4;
+            // Estimate visible lines (modal height minus borders and title/footer)
+            let max_scroll = content_lines.saturating_sub(10).max(0);
+            if *scroll < max_scroll {
+                *scroll = scroll.saturating_add(1);
+            }
+        }
+        KeyCode::PageUp => {
+            *scroll = scroll.saturating_sub(10);
+        }
+        KeyCode::PageDown => {
+            let content_lines = entries.len() as u16 + 4;
+            let max_scroll = content_lines.saturating_sub(10).max(0);
+            *scroll = (*scroll + 10).min(max_scroll);
+        }
+        KeyCode::Char('d') if ke.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+            // Ctrl+D: page down (20 lines)
+            let content_lines = entries.len() as u16 + 4;
+            let max_scroll = content_lines.saturating_sub(10).max(0);
+            *scroll = (*scroll + 25).min(max_scroll);
+        }
+        KeyCode::Char('u') if ke.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+            // Ctrl+U: page up (20 lines)
+            *scroll = scroll.saturating_sub(20);
+        }
+        _ => {}
+    }
+    false
+}
+
 /// What: Handle key events for GnomeTerminalPrompt modal.
 ///
 /// Inputs:

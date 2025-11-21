@@ -183,6 +183,12 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             handle_status(app, txt, color);
             false
         }
+        Some((count, list)) = channels.updates_rx.recv() => {
+            app.updates_count = Some(count);
+            app.updates_list = list;
+            app.updates_loading = false;
+            false
+        }
         else => false
     }
 }

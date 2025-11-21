@@ -3,7 +3,7 @@ use ratatui::prelude::Rect;
 
 use crate::state::{AppState, Modal, modal::PreflightHeaderChips, types::OptionalDepRow};
 use crate::ui::modals::{
-    alert, confirm, help, misc, news, post_summary, preflight, preflight_exec, system_update,
+    alert, confirm, help, misc, news, post_summary, preflight, preflight_exec, system_update, updates,
 };
 
 /// What: Context struct grouping PreflightExec modal fields to reduce data flow complexity.
@@ -164,6 +164,7 @@ impl ModalRenderer for Modal {
             }
             Modal::Help => render_help_modal(f, app, area),
             Modal::News { items, selected } => render_news_modal(f, app, area, items, selected),
+            Modal::Updates { entries, scroll } => render_updates_modal(f, app, area, entries, scroll),
             Modal::OptionalDeps { rows, selected } => {
                 render_optional_deps_modal(f, area, rows, selected, app)
             }
@@ -365,6 +366,18 @@ fn render_news_modal(
 ) -> Modal {
     news::render_news(f, app, area, &items, selected);
     Modal::News { items, selected }
+}
+
+/// What: Render Updates modal and return reconstructed state.
+fn render_updates_modal(
+    f: &mut Frame,
+    app: &mut AppState,
+    area: Rect,
+    entries: Vec<(String, String, String)>,
+    scroll: u16,
+) -> Modal {
+    updates::render_updates(f, app, area, &entries, scroll);
+    Modal::Updates { entries, scroll }
 }
 
 /// What: Render OptionalDeps modal and return reconstructed state.

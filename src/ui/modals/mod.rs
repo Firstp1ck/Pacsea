@@ -14,6 +14,7 @@ mod preflight;
 mod preflight_exec;
 mod renderer;
 mod system_update;
+mod updates;
 
 /// What: Render modal overlays (Alert, ConfirmInstall, ConfirmRemove, SystemUpdate, Help, News).
 ///

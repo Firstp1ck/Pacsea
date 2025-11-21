@@ -172,6 +172,10 @@ de-DE:
       loading_pkgb: "PKGBUILD wird geladen…"
       copy_pkgbuild: "PKGBUILD kopieren"
       reload_pkgbuild: "PKGBUILD neu laden"
+    updates:
+      available: "Updates verfügbar ({})"
+      none: "Keine Updates verfügbar"
+      loading: "Prüfe Updates..."
       footer:
         search_hint: "Suchen (Enter nächster, Esc abbrechen)"
         confirm_installation: "Paket-Installation bestätigen"
@@ -348,6 +352,11 @@ de-DE:
         heading: "Arch Linux Neuigkeiten"
         none: "Keine Neuigkeiten verfügbar."
         footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc: schließen"
+      updates:
+        title: " Verfügbare Updates "
+        heading: "Verfügbare Paket-Updates"
+        none: "Keine Updates verfügbar."
+        close_hint: "schließen"
       optional_deps:
         title: " Optionale Abhängigkeiten "
         heading: "TUI Optionale Abhängigkeiten"

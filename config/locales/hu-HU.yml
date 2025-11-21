@@ -117,6 +117,10 @@ hu-HU:
       cascade_mode_enabled: "Lépcsőzetes mód engedélyezve"
       cascade_mode_disabled: "Lépcsőzetes mód letiltva"
       gnome_terminal_warning: "GNOME Terminál nélkül a program váratlanul viselkedhet"
+    updates:
+      available: "Frissítések elérhető ({})"
+      none: "Nincs elérhető frissítés"
+      loading: "Frissítések ellenőrzése..."
       
     actions:
       exit: "Kilépés"
@@ -377,6 +381,11 @@ hu-HU:
         heading: "Arch Linux hírek"
         none: "Nincsenek elérhető hírek."
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: olvasottnak jelölés • {}: összes olvasottnak jelölése • Esc: bezárás"
+      updates:
+        title: " Elérhető frissítések "
+        heading: "Elérhető csomagfrissítések"
+        none: "Nincsenek frissítések elérhető."
+        close_hint: "bezárás"
       optional_deps:
         title: " Nem kötelező függőségek "
         heading: "A TUI nem kötelező függőségei"

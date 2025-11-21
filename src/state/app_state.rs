@@ -160,6 +160,16 @@ pub struct AppState {
     /// Optional status color indicator (e.g., operational vs. current incident).
     pub arch_status_color: ArchStatusColor,
 
+    // Package updates available
+    /// Number of available package updates, if checked.
+    pub updates_count: Option<usize>,
+    /// Sorted list of package names with available updates.
+    pub updates_list: Vec<String>,
+    /// Clickable rectangle for the updates button (x, y, w, h).
+    pub updates_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Whether updates check is currently in progress.
+    pub updates_loading: bool,
+
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
     pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,
@@ -227,6 +237,12 @@ pub struct AppState {
     pub news_rect: Option<(u16, u16, u16, u16)>,
     /// Inner list rectangle for clickable news rows.
     pub news_list_rect: Option<(u16, u16, u16, u16)>,
+
+    // Updates modal mouse hit-testing
+    /// Outer rectangle of the Updates modal (including borders) when visible.
+    pub updates_modal_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle for scrollable updates list.
+    pub updates_modal_content_rect: Option<(u16, u16, u16, u16)>,
 
     // Help modal scroll and hit-testing
     /// Scroll offset (lines) for the Help modal content.
@@ -516,6 +532,12 @@ impl Default for AppState {
             arch_status_text: "Arch Status: loading…".to_string(),
             arch_status_rect: None,
             arch_status_color: ArchStatusColor::None,
+
+            updates_count: None,
+            updates_list: Vec::new(),
+            updates_button_rect: None,
+            updates_loading: true,
+
             pkgb_button_rect: None,
             pkgb_check_button_rect: None,
             pkgb_reload_button_rect: None,
@@ -550,6 +572,9 @@ impl Default for AppState {
 
             news_rect: None,
             news_list_rect: None,
+
+            updates_modal_rect: None,
+            updates_modal_content_rect: None,
 
             help_scroll: 0,
             help_rect: None,
