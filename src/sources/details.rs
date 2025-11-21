@@ -5,15 +5,61 @@ use crate::util::{arrs, s, ss, u64_of};
 
 type Result<T> = super::Result<T>;
 
-/// Run `pacman -Si` for a package, parsing its key-value output into PackageDetails.
+/// Split a whitespace-separated field to Vec<String>, treating "None"/missing as empty.
+///
+/// Inputs:
+/// - `s`: Optional string field from pacman output
+///
+/// Output:
+/// - Vector of tokens, or empty when field is missing or "None".
+fn split_ws_or_none(s: Option<&String>) -> Vec<String> {
+    match s {
+        Some(v) if v != "None" => v.split_whitespace().map(|x| x.to_string()).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Process a continuation line (indented line) for a given key in the map.
+///
+/// Inputs:
+/// - `map`: Map to update
+/// - `key`: Current key being continued
+/// - `line`: Continuation line content
+///
+/// Output:
+/// - Updates the map entry for the key with the continuation content.
+///
+/// Details:
+/// - Handles special formatting for "Optional Deps" (newline-separated) vs other fields (space-separated).
+fn process_continuation_line(
+    map: &mut std::collections::BTreeMap<String, String>,
+    key: &str,
+    line: &str,
+) {
+    let entry = map.entry(key.to_string()).or_default();
+    if key == "Optional Deps" {
+        entry.push('\n');
+        entry.push_str(line.trim());
+    } else {
+        if !entry.ends_with(' ') {
+            entry.push(' ');
+        }
+        entry.push_str(line.trim());
+    }
+}
+
+/// Run `pacman -Si` command and return the output text.
 ///
 /// Inputs:
 /// - `repo`: Preferred repository prefix (may be empty to let pacman resolve)
 /// - `name`: Package name
 ///
 /// Output:
-/// - `Ok(PackageDetails)` on success; `Err` if command fails or parse errors occur.
-fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
+/// - `Ok(String)` with command output on success; `Err` if command fails.
+///
+/// Details:
+/// - Sets locale to C for consistent output parsing.
+fn run_pacman_si(repo: &str, name: &str) -> Result<String> {
     let spec = if repo.is_empty() {
         name.to_string()
     } else {
@@ -27,8 +73,21 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
     if !out.status.success() {
         return Err(format!("pacman -Si failed: {:?}", out.status).into());
     }
-    let text = String::from_utf8(out.stdout)?;
+    String::from_utf8(out.stdout).map_err(|e| e.into())
+}
 
+/// Parse pacman output text into a key-value map.
+///
+/// Inputs:
+/// - `text`: Raw output from `pacman -Si`
+///
+/// Output:
+/// - `BTreeMap<String, String>` with parsed key-value pairs.
+///
+/// Details:
+/// - Handles continuation lines (indented lines) that extend previous keys.
+/// - Skips empty lines and processes key:value pairs.
+fn parse_pacman_output(text: &str) -> std::collections::BTreeMap<String, String> {
     let mut map: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
     let mut last_key: Option<String> = None;
     for line in text.lines() {
@@ -43,33 +102,43 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
         } else if line.starts_with(' ')
             && let Some(k) = &last_key
         {
-            let e = map.entry(k.clone()).or_default();
-            if k == "Optional Deps" {
-                e.push('\n');
-                e.push_str(line.trim());
-            } else {
-                if !e.ends_with(' ') {
-                    e.push(' ');
-                }
-                e.push_str(line.trim());
-            }
+            process_continuation_line(&mut map, k, line);
         }
     }
+    map
+}
 
-    /// Split a whitespace-separated field to Vec<String>, treating "None"/missing as empty.
-    ///
-    /// Inputs:
-    /// - `s`: Optional string field from pacman output
-    ///
-    /// Output:
-    /// - Vector of tokens, or empty when field is missing or "None".
-    fn split_ws_or_none(s: Option<&String>) -> Vec<String> {
-        match s {
-            Some(v) if v != "None" => v.split_whitespace().map(|x| x.to_string()).collect(),
-            _ => Vec::new(),
-        }
-    }
+/// Extracted fields from pacman output parsing.
+///
+/// Groups related fields together to reduce data flow complexity.
+struct ParsedFields {
+    licenses: Vec<String>,
+    groups: Vec<String>,
+    provides: Vec<String>,
+    depends: Vec<String>,
+    opt_depends: Vec<String>,
+    required_by: Vec<String>,
+    optional_for: Vec<String>,
+    conflicts: Vec<String>,
+    replaces: Vec<String>,
+    description: String,
+    architecture: String,
+    download_size: Option<u64>,
+    install_size: Option<u64>,
+}
 
+/// Extract all dependency and metadata fields from the parsed map.
+///
+/// Inputs:
+/// - `map`: Parsed key-value map from pacman output
+///
+/// Output:
+/// - `ParsedFields` struct containing all extracted fields.
+///
+/// Details:
+/// - Handles multiple field name variants (e.g., "Licenses" vs "License").
+/// - Parses optional dependencies with special formatting.
+fn extract_fields(map: &std::collections::BTreeMap<String, String>) -> ParsedFields {
     let licenses = split_ws_or_none(map.get("Licenses").or_else(|| map.get("License")));
     let groups = split_ws_or_none(map.get("Groups"));
     let provides = split_ws_or_none(map.get("Provides"));
@@ -88,9 +157,37 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
     let conflicts = split_ws_or_none(map.get("Conflicts With"));
     let replaces = split_ws_or_none(map.get("Replaces"));
 
-    let mut description = map.get("Description").cloned().unwrap_or_default();
-    let mut architecture = map.get("Architecture").cloned().unwrap_or_default();
+    ParsedFields {
+        licenses,
+        groups,
+        provides,
+        depends,
+        opt_depends,
+        required_by,
+        optional_for,
+        conflicts,
+        replaces,
+        description: map.get("Description").cloned().unwrap_or_default(),
+        architecture: map.get("Architecture").cloned().unwrap_or_default(),
+        download_size: map.get("Download Size").and_then(|s| parse_size_bytes(s)),
+        install_size: map.get("Installed Size").and_then(|s| parse_size_bytes(s)),
+    }
+}
 
+/// Fill missing description and architecture from the official index if needed.
+///
+/// Inputs:
+/// - `name`: Package name to search for
+/// - `description`: Description string to fill if empty (mutable)
+/// - `architecture`: Architecture string to fill if empty (mutable)
+///
+/// Output:
+/// - Updates description and architecture in place if found in index.
+///
+/// Details:
+/// - Searches official repositories for matching package name.
+/// - Only updates fields that are currently empty.
+fn fill_missing_fields(name: &str, description: &mut String, architecture: &mut String) {
     if description.is_empty() || architecture.is_empty() {
         let mut from_idx = None;
         for it in crate::index::search_official(name) {
@@ -101,45 +198,74 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
         }
         if let Some(it) = from_idx {
             if description.is_empty() {
-                description = it.description;
+                *description = it.description;
             }
             if architecture.is_empty()
                 && let Source::Official { arch, .. } = it.source
             {
-                architecture = arch;
+                *architecture = arch;
             }
         }
     }
+}
 
-    let download_size = map.get("Download Size").and_then(|s| parse_size_bytes(s));
-    let install_size = map.get("Installed Size").and_then(|s| parse_size_bytes(s));
-
-    let pd = PackageDetails {
+/// Build PackageDetails from parsed map and extracted fields.
+///
+/// Inputs:
+/// - `repo`: Repository name (fallback if not in map)
+/// - `name`: Package name (fallback if not in map)
+/// - `map`: Parsed key-value map
+/// - `fields`: Extracted fields struct
+///
+/// Output:
+/// - `PackageDetails` struct with all fields populated.
+fn build_package_details(
+    repo: &str,
+    name: &str,
+    map: &std::collections::BTreeMap<String, String>,
+    fields: ParsedFields,
+) -> PackageDetails {
+    PackageDetails {
         repository: map
             .get("Repository")
             .cloned()
             .unwrap_or_else(|| repo.to_string()),
         name: map.get("Name").cloned().unwrap_or_else(|| name.to_string()),
         version: map.get("Version").cloned().unwrap_or_default(),
-        description,
-        architecture,
+        description: fields.description,
+        architecture: fields.architecture,
         url: map.get("URL").cloned().unwrap_or_default(),
-        licenses,
-        groups,
-        provides,
-        depends,
-        opt_depends,
-        required_by,
-        optional_for,
-        conflicts,
-        replaces,
-        download_size,
-        install_size,
+        licenses: fields.licenses,
+        groups: fields.groups,
+        provides: fields.provides,
+        depends: fields.depends,
+        opt_depends: fields.opt_depends,
+        required_by: fields.required_by,
+        optional_for: fields.optional_for,
+        conflicts: fields.conflicts,
+        replaces: fields.replaces,
+        download_size: fields.download_size,
+        install_size: fields.install_size,
         owner: map.get("Packager").cloned().unwrap_or_default(),
         build_date: map.get("Build Date").cloned().unwrap_or_default(),
         popularity: None,
-    };
-    Ok(pd)
+    }
+}
+
+/// Run `pacman -Si` for a package, parsing its key-value output into PackageDetails.
+///
+/// Inputs:
+/// - `repo`: Preferred repository prefix (may be empty to let pacman resolve)
+/// - `name`: Package name
+///
+/// Output:
+/// - `Ok(PackageDetails)` on success; `Err` if command fails or parse errors occur.
+fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
+    let text = run_pacman_si(repo, name)?;
+    let map = parse_pacman_output(&text);
+    let mut fields = extract_fields(&map);
+    fill_missing_fields(name, &mut fields.description, &mut fields.architecture);
+    Ok(build_package_details(repo, name, &map, fields))
 }
 
 /// Parse a pacman human-readable size like "1.5 MiB" into bytes.
