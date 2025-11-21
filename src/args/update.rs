@@ -12,8 +12,8 @@ use pacsea::theme;
 /// - Exits the process with appropriate exit code.
 ///
 /// Details:
-/// - Runs `sudo pacman -Syyu` first to update official packages.
-/// - Then runs `yay -Syyu` or `paru -Syyu` (prefers paru) if available.
+/// - Runs `sudo pacman -Syyu --noconfirm` first to update official packages.
+/// - Then runs `yay -Syyu --noconfirm` or `paru -Syyu --noconfirm` (prefers paru) if available.
 /// - Logs success/failure of each step to `update.log` in the config logs directory.
 /// - Informs user of final status and log file path.
 pub fn handle_update() -> ! {
@@ -46,17 +46,20 @@ pub fn handle_update() -> ! {
     let mut all_succeeded = true;
     let mut failed_commands = Vec::new();
 
-    // Step 1: Update pacman (sudo pacman -Syyu)
+    // Step 1: Update pacman (sudo pacman -Syyu --noconfirm)
     println!("{}", i18n::t("app.cli.update.starting"));
-    write_log("Starting system update: pacman -Syyu");
+    write_log("Starting system update: pacman -Syyu --noconfirm");
 
-    let pacman_output = Command::new("sudo").arg("pacman").args(["-Syyu"]).output();
+    let pacman_output = Command::new("sudo")
+        .arg("pacman")
+        .args(["-Syyu", "--noconfirm"])
+        .output();
 
     match pacman_output {
         Ok(output) => {
             if output.status.success() {
                 println!("{}", i18n::t("app.cli.update.pacman_success"));
-                write_log("SUCCESS: pacman -Syyu completed successfully");
+                write_log("SUCCESS: pacman -Syyu --noconfirm completed successfully");
                 if !output.stdout.is_empty() {
                     write_log(&format!(
                         "Output: {}",
@@ -71,7 +74,7 @@ pub fn handle_update() -> ! {
                     i18n::t_fmt1("app.cli.update.error_prefix", &error_msg)
                 );
                 write_log(&format!(
-                    "FAILED: pacman -Syyu failed with exit code {:?}",
+                    "FAILED: pacman -Syyu --noconfirm failed with exit code {:?}",
                     output.status.code()
                 ));
                 write_log(&format!("Error: {}", error_msg));
@@ -88,25 +91,34 @@ pub fn handle_update() -> ! {
         Err(e) => {
             println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
             eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-            write_log(&format!("FAILED: Could not execute pacman -Syyu: {}", e));
+            write_log(&format!(
+                "FAILED: Could not execute pacman -Syyu --noconfirm: {}",
+                e
+            ));
             all_succeeded = false;
-            failed_commands.push("pacman -Syyu".to_string());
+            failed_commands.push("pacman -Syyu --noconfirm".to_string());
         }
     }
 
-    // Step 2: Update AUR packages (yay/paru -Syyu)
+    // Step 2: Update AUR packages (yay/paru -Syyu --noconfirm)
     let aur_helper = utils::get_aur_helper();
     if let Some(helper) = aur_helper {
         println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
-        write_log(&format!("Starting AUR update: {} -Syyu", helper));
+        write_log(&format!(
+            "Starting AUR update: {} -Syyu --noconfirm",
+            helper
+        ));
 
-        let aur_output = Command::new(helper).args(["-Syyu"]).output();
+        let aur_output = Command::new(helper).args(["-Syyu", "--noconfirm"]).output();
 
         match aur_output {
             Ok(output) => {
                 if output.status.success() {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
-                    write_log(&format!("SUCCESS: {} -Syyu completed successfully", helper));
+                    write_log(&format!(
+                        "SUCCESS: {} -Syyu --noconfirm completed successfully",
+                        helper
+                    ));
                     if !output.stdout.is_empty() {
                         write_log(&format!(
                             "Output: {}",
@@ -121,7 +133,7 @@ pub fn handle_update() -> ! {
                         i18n::t_fmt1("app.cli.update.error_prefix", &error_msg)
                     );
                     write_log(&format!(
-                        "FAILED: {} -Syyu failed with exit code {:?}",
+                        "FAILED: {} -Syyu --noconfirm failed with exit code {:?}",
                         helper,
                         output.status.code()
                     ));
@@ -133,18 +145,18 @@ pub fn handle_update() -> ! {
                         ));
                     }
                     all_succeeded = false;
-                    failed_commands.push(format!("{} -Syyu", helper));
+                    failed_commands.push(format!("{} -Syyu --noconfirm", helper));
                 }
             }
             Err(e) => {
                 println!("{}", i18n::t_fmt1("app.cli.update.aur_exec_failed", helper));
                 eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
                 write_log(&format!(
-                    "FAILED: Could not execute {} -Syyu: {}",
+                    "FAILED: Could not execute {} -Syyu --noconfirm: {}",
                     helper, e
                 ));
                 all_succeeded = false;
-                failed_commands.push(format!("{} -Syyu", helper));
+                failed_commands.push(format!("{} -Syyu --noconfirm", helper));
             }
         }
     } else {
