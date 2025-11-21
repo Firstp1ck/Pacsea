@@ -114,6 +114,10 @@ en-US:
       cascade_mode_enabled: "Cascade mode enabled"
       cascade_mode_disabled: "Cascade mode disabled"
       gnome_terminal_warning: "Continuing without gnome-terminal may cause unexpected behavior"
+    updates:
+      available: "Updates available ({})"
+      none: "No updates available"
+      loading: "Checking updates..."
 
     actions:
       exit: "Exit"

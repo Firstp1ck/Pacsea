@@ -80,6 +80,7 @@ pub(crate) fn handle_preflight_exec(
             *verbose = !*verbose;
             app.toast_message = Some(format!("Verbose: {}", if *verbose { "ON" } else { "OFF" }));
         }
+        // TODO: implement Logic for aborting the transaction
         KeyCode::Char('x') => {
             if abortable {
                 app.toast_message = Some(crate::i18n::t(app, "app.toasts.abort_requested"));
@@ -108,10 +109,12 @@ pub(crate) fn handle_post_summary(
     services_pending: &[String],
 ) -> bool {
     match ke.code {
+        // TODO: implement Logic for aborting the transaction
         KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
         KeyCode::Char('r') => {
             app.toast_message = Some(crate::i18n::t(app, "app.toasts.rollback"));
         }
+        // TODO: implement Logic for restarting the services
         KeyCode::Char('s') => {
             if services_pending.is_empty() {
                 app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_services_to_restart"));
