@@ -10,6 +10,67 @@ use crate::theme::theme;
 
 use super::{FilterStates, MenuStates, OptionalRepos, RenderContext};
 
+/// What: Pre-computed i18n strings for title rendering.
+///
+/// Inputs: Individual i18n strings from AppState.
+///
+/// Output: Struct containing all i18n strings needed for title rendering.
+///
+/// Details: Reduces data flow complexity by pre-computing all i18n strings upfront.
+struct TitleI18nStrings {
+    results_title: String,
+    sort_button: String,
+    options_button: String,
+    panels_button: String,
+    config_button: String,
+    filter_aur: String,
+    filter_core: String,
+    filter_extra: String,
+    filter_multilib: String,
+    filter_eos: String,
+    filter_cachyos: String,
+    filter_artix: String,
+    filter_artix_omniverse: String,
+    filter_artix_universe: String,
+    filter_artix_lib32: String,
+    filter_artix_galaxy: String,
+    filter_artix_world: String,
+    filter_artix_system: String,
+    filter_manjaro: String,
+}
+
+/// What: Build TitleI18nStrings from AppState.
+///
+/// Inputs:
+/// - `app`: Application state for i18n
+///
+/// Output: TitleI18nStrings containing all pre-computed i18n strings.
+///
+/// Details: Extracts all i18n strings needed for title rendering in one place.
+fn build_title_i18n_strings(app: &AppState) -> TitleI18nStrings {
+    TitleI18nStrings {
+        results_title: i18n::t(app, "app.results.title"),
+        sort_button: i18n::t(app, "app.results.buttons.sort"),
+        options_button: i18n::t(app, "app.results.buttons.options"),
+        panels_button: i18n::t(app, "app.results.buttons.panels"),
+        config_button: i18n::t(app, "app.results.buttons.config_lists"),
+        filter_aur: i18n::t(app, "app.results.filters.aur"),
+        filter_core: i18n::t(app, "app.results.filters.core"),
+        filter_extra: i18n::t(app, "app.results.filters.extra"),
+        filter_multilib: i18n::t(app, "app.results.filters.multilib"),
+        filter_eos: i18n::t(app, "app.results.filters.eos"),
+        filter_cachyos: i18n::t(app, "app.results.filters.cachyos"),
+        filter_artix: i18n::t(app, "app.results.filters.artix"),
+        filter_artix_omniverse: i18n::t(app, "app.results.filters.artix_omniverse"),
+        filter_artix_universe: i18n::t(app, "app.results.filters.artix_universe"),
+        filter_artix_lib32: i18n::t(app, "app.results.filters.artix_lib32"),
+        filter_artix_galaxy: i18n::t(app, "app.results.filters.artix_galaxy"),
+        filter_artix_world: i18n::t(app, "app.results.filters.artix_world"),
+        filter_artix_system: i18n::t(app, "app.results.filters.artix_system"),
+        filter_manjaro: i18n::t(app, "app.results.filters.manjaro"),
+    }
+}
+
 /// What: Calculate consumed horizontal space for optional repos.
 ///
 /// Inputs:
@@ -166,9 +227,8 @@ fn render_button_with_underline(label: &str, style: Style) -> Vec<Span<'static>>
 /// What: Render optional filter if available.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n
 /// - `has_repo`: Whether repo is available
-/// - `filter_key`: i18n key for filter label
+/// - `label`: Pre-computed filter label
 /// - `is_active`: Whether filter is active
 /// - `filt`: Filter rendering closure
 ///
@@ -176,17 +236,302 @@ fn render_button_with_underline(label: &str, style: Style) -> Vec<Span<'static>>
 ///
 /// Details: Returns Some(span) if repo is available, None otherwise.
 fn render_optional_filter(
-    app: &AppState,
     has_repo: bool,
-    filter_key: &str,
+    label: &str,
     is_active: bool,
     filt: &dyn Fn(&str, bool) -> Span<'static>,
 ) -> Option<Span<'static>> {
     if has_repo {
-        Some(filt(&i18n::t(app, filter_key), is_active))
+        Some(filt(label, is_active))
     } else {
         None
     }
+}
+
+/// What: Render title prefix (title text with count).
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `results_len`: Number of results
+///
+/// Output: Vector of spans for the title prefix.
+///
+/// Details: Renders the "Results (N)" text with styling.
+fn render_title_prefix(i18n: &TitleI18nStrings, results_len: usize) -> Vec<Span<'static>> {
+    let th = theme();
+    let results_title_text = format!("{} ({})", i18n.results_title, results_len);
+    vec![Span::styled(
+        results_title_text,
+        Style::default().fg(th.overlay1),
+    )]
+}
+
+/// What: Render sort button.
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `is_open`: Whether sort menu is open
+///
+/// Output: Vector of spans for the sort button.
+///
+/// Details: Renders the sort button with appropriate styling based on menu state.
+fn render_sort_button(i18n: &TitleI18nStrings, is_open: bool) -> Vec<Span<'static>> {
+    let sort_button_label = format!("{} v", i18n.sort_button);
+    let btn_style = get_button_style(is_open);
+    vec![Span::styled(sort_button_label, btn_style)]
+}
+
+/// What: Create filter rendering closure.
+///
+/// Inputs: None (uses theme).
+///
+/// Output: Closure that renders a filter label with styling.
+///
+/// Details: Returns a closure that applies theme styling based on active state.
+fn create_filter_renderer() -> impl Fn(&str, bool) -> Span<'static> {
+    let th = theme();
+    move |label: &str, on: bool| -> Span<'static> {
+        let (fg, bg) = if on {
+            (th.crust, th.green)
+        } else {
+            (th.mauve, th.surface2)
+        };
+        Span::styled(
+            format!("[{label}]"),
+            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+        )
+    }
+}
+
+/// What: Render core filter buttons (AUR, core, extra, multilib).
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `filter_states`: Filter toggle states
+///
+/// Output: Vector of spans for core filters.
+///
+/// Details: Renders the four core filter buttons with spacing.
+fn render_core_filters(
+    i18n: &TitleI18nStrings,
+    filter_states: &FilterStates,
+) -> Vec<Span<'static>> {
+    let filt = create_filter_renderer();
+    vec![
+        filt(&i18n.filter_aur, filter_states.show_aur),
+        Span::raw(" "),
+        filt(&i18n.filter_core, filter_states.show_core),
+        Span::raw(" "),
+        filt(&i18n.filter_extra, filter_states.show_extra),
+        Span::raw(" "),
+        filt(&i18n.filter_multilib, filter_states.show_multilib),
+    ]
+}
+
+/// What: Render optional EOS and CachyOS filters.
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `optional_repos`: Optional repository availability flags
+/// - `filter_states`: Filter toggle states
+///
+/// Output: Vector of spans for optional filters.
+///
+/// Details: Renders EOS and CachyOS filters if available.
+fn render_optional_eos_cachyos_filters(
+    i18n: &TitleI18nStrings,
+    optional_repos: &OptionalRepos,
+    filter_states: &FilterStates,
+) -> Vec<Span<'static>> {
+    let filt = create_filter_renderer();
+    let mut spans = Vec::new();
+    if let Some(span) = render_optional_filter(
+        optional_repos.has_eos,
+        &i18n.filter_eos,
+        filter_states.show_eos,
+        &filt,
+    ) {
+        spans.push(Span::raw(" "));
+        spans.push(span);
+    }
+    if let Some(span) = render_optional_filter(
+        optional_repos.has_cachyos,
+        &i18n.filter_cachyos,
+        filter_states.show_cachyos,
+        &filt,
+    ) {
+        spans.push(Span::raw(" "));
+        spans.push(span);
+    }
+    spans
+}
+
+/// What: Render Artix filter with optional dropdown indicator.
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `optional_repos`: Optional repository availability flags
+/// - `filter_states`: Filter toggle states
+/// - `show_artix_specific_repos`: Whether Artix-specific repos are shown
+///
+/// Output: Vector of spans for Artix filter.
+///
+/// Details: Renders Artix filter with dropdown indicator if specific repos are hidden.
+fn render_artix_filter(
+    i18n: &TitleI18nStrings,
+    optional_repos: &OptionalRepos,
+    filter_states: &FilterStates,
+    show_artix_specific_repos: bool,
+) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    if optional_repos.has_artix {
+        spans.push(Span::raw(" "));
+        let artix_text = if show_artix_specific_repos {
+            format!("[{}]", i18n.filter_artix)
+        } else {
+            format!("[{}] v", i18n.filter_artix)
+        };
+        let th = theme();
+        let (fg, bg) = if filter_states.show_artix {
+            (th.crust, th.green)
+        } else {
+            (th.mauve, th.surface2)
+        };
+        spans.push(Span::styled(
+            artix_text,
+            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+        ));
+    }
+    spans
+}
+
+/// What: Render Artix-specific repository filters.
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `optional_repos`: Optional repository availability flags
+/// - `filter_states`: Filter toggle states
+///
+/// Output: Vector of spans for Artix-specific filters.
+///
+/// Details: Renders all Artix-specific repo filters if available.
+fn render_artix_specific_filters(
+    i18n: &TitleI18nStrings,
+    optional_repos: &OptionalRepos,
+    filter_states: &FilterStates,
+) -> Vec<Span<'static>> {
+    let filt = create_filter_renderer();
+    let mut spans = Vec::new();
+    let artix_filters = [
+        (
+            optional_repos.has_artix_omniverse,
+            &i18n.filter_artix_omniverse,
+            filter_states.show_artix_omniverse,
+        ),
+        (
+            optional_repos.has_artix_universe,
+            &i18n.filter_artix_universe,
+            filter_states.show_artix_universe,
+        ),
+        (
+            optional_repos.has_artix_lib32,
+            &i18n.filter_artix_lib32,
+            filter_states.show_artix_lib32,
+        ),
+        (
+            optional_repos.has_artix_galaxy,
+            &i18n.filter_artix_galaxy,
+            filter_states.show_artix_galaxy,
+        ),
+        (
+            optional_repos.has_artix_world,
+            &i18n.filter_artix_world,
+            filter_states.show_artix_world,
+        ),
+        (
+            optional_repos.has_artix_system,
+            &i18n.filter_artix_system,
+            filter_states.show_artix_system,
+        ),
+    ];
+    for (has_repo, label, is_active) in artix_filters {
+        if let Some(span) = render_optional_filter(has_repo, label, is_active, &filt) {
+            spans.push(Span::raw(" "));
+            spans.push(span);
+        }
+    }
+    spans
+}
+
+/// What: Render Manjaro filter.
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `optional_repos`: Optional repository availability flags
+/// - `filter_states`: Filter toggle states
+///
+/// Output: Vector of spans for Manjaro filter.
+///
+/// Details: Renders Manjaro filter if available.
+fn render_manjaro_filter(
+    i18n: &TitleI18nStrings,
+    optional_repos: &OptionalRepos,
+    filter_states: &FilterStates,
+) -> Vec<Span<'static>> {
+    let filt = create_filter_renderer();
+    let mut spans = Vec::new();
+    if let Some(span) = render_optional_filter(
+        optional_repos.has_manjaro,
+        &i18n.filter_manjaro,
+        filter_states.show_manjaro,
+        &filt,
+    ) {
+        spans.push(Span::raw(" "));
+        spans.push(span);
+    }
+    spans
+}
+
+/// What: Render right-aligned buttons (Config/Lists, Panels, Options).
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `menu_states`: Menu open/closed states
+/// - `pad`: Padding space before buttons
+///
+/// Output: Vector of spans for right-aligned buttons.
+///
+/// Details: Renders Config/Lists, Panels, and Options buttons with padding if space is available.
+fn render_right_aligned_buttons(
+    i18n: &TitleI18nStrings,
+    menu_states: &MenuStates,
+    pad: u16,
+) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    if pad >= 1 {
+        spans.push(Span::raw(" ".repeat(pad as usize)));
+        let config_button_label = format!("{} v", i18n.config_button);
+        let cfg_btn_style = get_button_style(menu_states.config_menu_open);
+        spans.extend(render_button_with_underline(
+            &config_button_label,
+            cfg_btn_style,
+        ));
+        spans.push(Span::raw(" "));
+        let panels_button_label = format!("{} v", i18n.panels_button);
+        let pan_btn_style = get_button_style(menu_states.panels_menu_open);
+        spans.extend(render_button_with_underline(
+            &panels_button_label,
+            pan_btn_style,
+        ));
+        spans.push(Span::raw(" "));
+        let options_button_label = format!("{} v", i18n.options_button);
+        let opt_btn_style = get_button_style(menu_states.options_menu_open);
+        spans.extend(render_button_with_underline(
+            &options_button_label,
+            opt_btn_style,
+        ));
+    }
+    spans
 }
 
 /// What: Build title spans with Sort button, filter toggles, and right-aligned buttons.
@@ -204,16 +549,17 @@ fn render_optional_filter(
 /// Details:
 /// - Applies theme styling for active buttons, ensures right-side buttons align within the title,
 ///   and toggles optional repo chips based on availability flags.
-/// - Extracts values from context and delegates to `build_title_spans_from_values`.
+/// - Uses pre-computed i18n strings and focused rendering functions to reduce complexity.
 pub fn build_title_spans_from_context(
     app: &AppState,
     ctx: &RenderContext,
     area: Rect,
 ) -> Vec<Span<'static>> {
+    let inner_width = area.width.saturating_sub(2); // exclude borders
     build_title_spans_from_values(
         app,
         ctx.results_len,
-        area,
+        inner_width,
         &ctx.optional_repos,
         &ctx.menu_states,
         &ctx.filter_states,
@@ -227,7 +573,7 @@ pub fn build_title_spans_from_context(
 /// Inputs:
 /// - `app`: Application state for i18n
 /// - `results_len`: Number of results
-/// - `area`: Target rectangle for the results block
+/// - `inner_width`: Inner width of the area (excluding borders)
 /// - `optional_repos`: Optional repository availability flags
 /// - `menu_states`: Menu open/closed states
 /// - `filter_states`: Filter toggle states
@@ -238,243 +584,52 @@ pub fn build_title_spans_from_context(
 /// Details:
 /// - Applies theme styling for active buttons, ensures right-side buttons align within the title,
 ///   and toggles optional repo chips based on availability flags.
-pub fn build_title_spans_from_values(
+/// - Uses pre-computed i18n strings and focused rendering functions to reduce complexity.
+/// - Reuses layout calculation logic from calculate_title_layout_info.
+fn build_title_spans_from_values(
     app: &AppState,
     results_len: usize,
-    area: Rect,
+    inner_width: u16,
     optional_repos: &OptionalRepos,
     menu_states: &MenuStates,
     filter_states: &FilterStates,
 ) -> Vec<Span<'static>> {
-    let th = theme();
-    let results_title_text = format!("{} ({})", i18n::t(app, "app.results.title"), results_len);
-    let sort_button_label = format!("{} v", i18n::t(app, "app.results.buttons.sort"));
-    let options_button_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
-    let panels_button_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
-    let config_button_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
-    let mut title_spans: Vec<Span> = vec![Span::styled(
-        results_title_text.clone(),
-        Style::default().fg(th.overlay1),
-    )];
+    // Pre-compute all i18n strings to reduce data flow complexity
+    let i18n = build_title_i18n_strings(app);
+
+    // Reuse layout calculation logic
+    let layout_info = calculate_title_layout_info(&i18n, results_len, inner_width, optional_repos);
+
+    // Build title spans using focused rendering functions
+    let mut title_spans = render_title_prefix(&i18n, results_len);
     title_spans.push(Span::raw("  "));
-    // Style the sort button differently when menu is open
-    let btn_style = get_button_style(menu_states.sort_menu_open);
-    title_spans.push(Span::styled(sort_button_label.clone(), btn_style));
+    title_spans.extend(render_sort_button(&i18n, menu_states.sort_menu_open));
     title_spans.push(Span::raw("  "));
-    // Filter toggles: [AUR] [core] [extra] [multilib] and optional [EOS]/[CachyOS]
-    let filt = |label: &str, on: bool| -> Span<'static> {
-        let (fg, bg) = if on {
-            (th.crust, th.green)
-        } else {
-            (th.mauve, th.surface2)
-        };
-        Span::styled(
-            format!("[{label}]"),
-            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
-        )
-    };
-    title_spans.push(filt(
-        &i18n::t(app, "app.results.filters.aur"),
-        filter_states.show_aur,
+    title_spans.extend(render_core_filters(&i18n, filter_states));
+    title_spans.extend(render_optional_eos_cachyos_filters(
+        &i18n,
+        optional_repos,
+        filter_states,
     ));
-    title_spans.push(Span::raw(" "));
-    title_spans.push(filt(
-        &i18n::t(app, "app.results.filters.core"),
-        filter_states.show_core,
+    title_spans.extend(render_artix_filter(
+        &i18n,
+        optional_repos,
+        filter_states,
+        layout_info.show_artix_specific_repos,
     ));
-    title_spans.push(Span::raw(" "));
-    title_spans.push(filt(
-        &i18n::t(app, "app.results.filters.extra"),
-        filter_states.show_extra,
-    ));
-    title_spans.push(Span::raw(" "));
-    title_spans.push(filt(
-        &i18n::t(app, "app.results.filters.multilib"),
-        filter_states.show_multilib,
-    ));
-    // Render optional EOS and CachyOS filters
-    if let Some(span) = render_optional_filter(
-        app,
-        optional_repos.has_eos,
-        "app.results.filters.eos",
-        filter_states.show_eos,
-        &filt,
-    ) {
-        title_spans.push(Span::raw(" "));
-        title_spans.push(span);
-    }
-    if let Some(span) = render_optional_filter(
-        app,
-        optional_repos.has_cachyos,
-        "app.results.filters.cachyos",
-        filter_states.show_cachyos,
-        &filt,
-    ) {
-        title_spans.push(Span::raw(" "));
-        title_spans.push(span);
-    }
-    // Right-aligned Config/Lists, Panels and Options buttons: compute remaining space first
-    // to determine if we should show Artix-specific repo filters
-    let inner_width = area.width.saturating_sub(2); // exclude borders
-    let core_labels = CoreFilterLabels {
-        aur: format!("[{}]", i18n::t(app, "app.results.filters.aur")),
-        core: format!("[{}]", i18n::t(app, "app.results.filters.core")),
-        extra: format!("[{}]", i18n::t(app, "app.results.filters.extra")),
-        multilib: format!("[{}]", i18n::t(app, "app.results.filters.multilib")),
-    };
-    let optional_labels = OptionalReposLabels {
-        eos: format!("[{}]", i18n::t(app, "app.results.filters.eos")),
-        cachyos: format!("[{}]", i18n::t(app, "app.results.filters.cachyos")),
-        artix: format!("[{}]", i18n::t(app, "app.results.filters.artix")),
-        artix_omniverse: format!("[{}]", i18n::t(app, "app.results.filters.artix_omniverse")),
-        artix_universe: format!("[{}]", i18n::t(app, "app.results.filters.artix_universe")),
-        artix_lib32: format!("[{}]", i18n::t(app, "app.results.filters.artix_lib32")),
-        artix_galaxy: format!("[{}]", i18n::t(app, "app.results.filters.artix_galaxy")),
-        artix_world: format!("[{}]", i18n::t(app, "app.results.filters.artix_world")),
-        artix_system: format!("[{}]", i18n::t(app, "app.results.filters.artix_system")),
-        manjaro: format!("[{}]", i18n::t(app, "app.results.filters.manjaro")),
-    };
-
-    // Calculate consumed space with all filters first
-    let base_consumed =
-        calculate_base_consumed_space(&results_title_text, &sort_button_label, &core_labels);
-    let optional_consumed = calculate_optional_repos_width(optional_repos, &optional_labels);
-    let consumed_left = base_consumed.saturating_add(optional_consumed);
-
-    // Minimum single space before right-side buttons when possible
-    let options_w = options_button_label.len() as u16;
-    let panels_w = panels_button_label.len() as u16;
-    let config_w = config_button_label.len() as u16;
-    let right_w = config_w
-        .saturating_add(1)
-        .saturating_add(panels_w)
-        .saturating_add(1)
-        .saturating_add(options_w); // "Config/Lists" + space + "Panels" + space + "Options"
-    let mut pad = inner_width.saturating_sub(consumed_left.saturating_add(right_w));
-
-    // If not enough space, hide Artix-specific repo filters (keep generic Artix filter)
-    let mut show_artix_specific_repos = true;
-    if pad < 1 {
-        // Recalculate without Artix-specific repo filters
-        let repos_without_specific = OptionalRepos {
-            has_eos: optional_repos.has_eos,
-            has_cachyos: optional_repos.has_cachyos,
-            has_artix: optional_repos.has_artix,
-            has_artix_omniverse: false,
-            has_artix_universe: false,
-            has_artix_lib32: false,
-            has_artix_galaxy: false,
-            has_artix_world: false,
-            has_artix_system: false,
-            has_manjaro: optional_repos.has_manjaro,
-        };
-        let consumed_without_specific = base_consumed.saturating_add(
-            calculate_optional_repos_width(&repos_without_specific, &optional_labels),
-        );
-        pad = inner_width.saturating_sub(consumed_without_specific.saturating_add(right_w));
-        if pad >= 1 {
-            show_artix_specific_repos = false;
-        }
-    }
-
-    // Render Artix filter (with dropdown indicator if specific filters are hidden)
-    if optional_repos.has_artix {
-        title_spans.push(Span::raw(" "));
-        let artix_label_text = i18n::t(app, "app.results.filters.artix");
-        let artix_text = if show_artix_specific_repos {
-            format!("[{artix_label_text}]")
-        } else {
-            format!("[{artix_label_text}] v")
-        };
-        let (fg, bg) = if filter_states.show_artix {
-            (th.crust, th.green)
-        } else {
-            (th.mauve, th.surface2)
-        };
-        title_spans.push(Span::styled(
-            artix_text,
-            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+    if layout_info.show_artix_specific_repos {
+        title_spans.extend(render_artix_specific_filters(
+            &i18n,
+            optional_repos,
+            filter_states,
         ));
     }
-
-    // Render Artix-specific repo filters if there's space (before Manjaro)
-    if show_artix_specific_repos {
-        let artix_filters = [
-            (
-                optional_repos.has_artix_omniverse,
-                "app.results.filters.artix_omniverse",
-                filter_states.show_artix_omniverse,
-            ),
-            (
-                optional_repos.has_artix_universe,
-                "app.results.filters.artix_universe",
-                filter_states.show_artix_universe,
-            ),
-            (
-                optional_repos.has_artix_lib32,
-                "app.results.filters.artix_lib32",
-                filter_states.show_artix_lib32,
-            ),
-            (
-                optional_repos.has_artix_galaxy,
-                "app.results.filters.artix_galaxy",
-                filter_states.show_artix_galaxy,
-            ),
-            (
-                optional_repos.has_artix_world,
-                "app.results.filters.artix_world",
-                filter_states.show_artix_world,
-            ),
-            (
-                optional_repos.has_artix_system,
-                "app.results.filters.artix_system",
-                filter_states.show_artix_system,
-            ),
-        ];
-        for (has_repo, filter_key, is_active) in artix_filters {
-            if let Some(span) = render_optional_filter(app, has_repo, filter_key, is_active, &filt)
-            {
-                title_spans.push(Span::raw(" "));
-                title_spans.push(span);
-            }
-        }
-    }
-
-    // Render Manjaro filter
-    if let Some(span) = render_optional_filter(
-        app,
-        optional_repos.has_manjaro,
-        "app.results.filters.manjaro",
-        filter_states.show_manjaro,
-        &filt,
-    ) {
-        title_spans.push(Span::raw(" "));
-        title_spans.push(span);
-    }
-
-    if pad >= 1 {
-        title_spans.push(Span::raw(" ".repeat(pad as usize)));
-        // Render Config/Lists button with underlined first char (C)
-        let cfg_btn_style = get_button_style(menu_states.config_menu_open);
-        title_spans.extend(render_button_with_underline(
-            &config_button_label,
-            cfg_btn_style,
-        ));
-        title_spans.push(Span::raw(" "));
-        // Render Panels button with underlined first char (P)
-        let pan_btn_style = get_button_style(menu_states.panels_menu_open);
-        title_spans.extend(render_button_with_underline(
-            &panels_button_label,
-            pan_btn_style,
-        ));
-        title_spans.push(Span::raw(" "));
-        // Render Options button with underlined first char (O)
-        let opt_btn_style = get_button_style(menu_states.options_menu_open);
-        title_spans.extend(render_button_with_underline(
-            &options_button_label,
-            opt_btn_style,
-        ));
-    }
+    title_spans.extend(render_manjaro_filter(&i18n, optional_repos, filter_states));
+    title_spans.extend(render_right_aligned_buttons(
+        &i18n,
+        menu_states,
+        layout_info.pad,
+    ));
 
     title_spans
 }
@@ -555,46 +710,43 @@ impl LayoutState {
 /// What: Calculate shared layout information for title bar.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n and results count
-/// - `area`: Target rectangle for the results block
+/// - `i18n`: Pre-computed i18n strings
+/// - `results_len`: Number of results
+/// - `inner_width`: Inner width of the area (excluding borders)
 /// - `optional_repos`: Optional repository availability flags
 ///
 /// Output: TitleLayoutInfo containing all calculated layout values.
 ///
 /// Details: Performs all layout calculations shared between rendering and rect recording.
 fn calculate_title_layout_info(
-    app: &AppState,
-    area: Rect,
+    i18n: &TitleI18nStrings,
+    results_len: usize,
+    inner_width: u16,
     optional_repos: &OptionalRepos,
 ) -> TitleLayoutInfo {
-    let results_title_text = format!(
-        "{} ({})",
-        i18n::t(app, "app.results.title"),
-        app.results.len()
-    );
-    let sort_button_label = format!("{} v", i18n::t(app, "app.results.buttons.sort"));
-    let options_button_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
-    let panels_button_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
-    let config_button_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
+    let results_title_text = format!("{} ({})", i18n.results_title, results_len);
+    let sort_button_label = format!("{} v", i18n.sort_button);
+    let options_button_label = format!("{} v", i18n.options_button);
+    let panels_button_label = format!("{} v", i18n.panels_button);
+    let config_button_label = format!("{} v", i18n.config_button);
 
-    let inner_width = area.width.saturating_sub(2); // exclude borders
     let core_labels = CoreFilterLabels {
-        aur: "[AUR]".to_string(),
-        core: "[core]".to_string(),
-        extra: "[extra]".to_string(),
-        multilib: "[multilib]".to_string(),
+        aur: format!("[{}]", i18n.filter_aur),
+        core: format!("[{}]", i18n.filter_core),
+        extra: format!("[{}]", i18n.filter_extra),
+        multilib: format!("[{}]", i18n.filter_multilib),
     };
     let optional_labels = OptionalReposLabels {
-        eos: "[EOS]".to_string(),
-        cachyos: "[CachyOS]".to_string(),
-        artix: format!("[{}]", i18n::t(app, "app.results.filters.artix")),
-        artix_omniverse: format!("[{}]", i18n::t(app, "app.results.filters.artix_omniverse")),
-        artix_universe: format!("[{}]", i18n::t(app, "app.results.filters.artix_universe")),
-        artix_lib32: format!("[{}]", i18n::t(app, "app.results.filters.artix_lib32")),
-        artix_galaxy: format!("[{}]", i18n::t(app, "app.results.filters.artix_galaxy")),
-        artix_world: format!("[{}]", i18n::t(app, "app.results.filters.artix_world")),
-        artix_system: format!("[{}]", i18n::t(app, "app.results.filters.artix_system")),
-        manjaro: format!("[{}]", i18n::t(app, "app.results.filters.manjaro")),
+        eos: format!("[{}]", i18n.filter_eos),
+        cachyos: format!("[{}]", i18n.filter_cachyos),
+        artix: format!("[{}]", i18n.filter_artix),
+        artix_omniverse: format!("[{}]", i18n.filter_artix_omniverse),
+        artix_universe: format!("[{}]", i18n.filter_artix_universe),
+        artix_lib32: format!("[{}]", i18n.filter_artix_lib32),
+        artix_galaxy: format!("[{}]", i18n.filter_artix_galaxy),
+        artix_world: format!("[{}]", i18n.filter_artix_world),
+        artix_system: format!("[{}]", i18n.filter_artix_system),
+        manjaro: format!("[{}]", i18n.filter_manjaro),
     };
 
     // Calculate consumed space with all filters first
@@ -865,8 +1017,11 @@ pub fn record_title_rects_from_context(app: &mut AppState, ctx: &RenderContext, 
 ///   controls cannot fit in the available width.
 /// - Uses shared layout calculation logic and helper functions to reduce complexity.
 pub fn record_title_rects(app: &mut AppState, area: Rect, optional_repos: &OptionalRepos) {
+    let inner_width = area.width.saturating_sub(2); // exclude borders
+    let i18n = build_title_i18n_strings(app);
     // Calculate shared layout information
-    let layout_info = calculate_title_layout_info(app, area, optional_repos);
+    let layout_info =
+        calculate_title_layout_info(&i18n, app.results.len(), inner_width, optional_repos);
 
     // Initialize layout state starting after title and sort button
     let btn_y = area.y; // top border row
