@@ -245,7 +245,7 @@ pub fn handle_invalid_packages(
 
     eprintln!("\n{}", i18n::t("app.cli.package.packages_not_found"));
     for pkg in invalid_packages {
-        eprintln!("{}", i18n::t_fmt1("app.cli.package.package_item", pkg));
+        eprintln!("  - {}", pkg);
     }
     if aur_helper.is_none() && !invalid_packages.is_empty() {
         eprintln!("\n{}", i18n::t("app.cli.package.no_aur_helper_note"));

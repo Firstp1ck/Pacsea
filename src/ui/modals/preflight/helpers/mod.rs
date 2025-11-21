@@ -63,15 +63,7 @@ pub fn render_header_chips(app: &AppState, chips: &PreflightHeaderChips) -> Line
 
     // Package count chip
     let pkg_text = if chips.aur_count > 0 {
-        format!(
-            "{}{}",
-            chips.package_count,
-            i18n::t_fmt1(
-                app,
-                "app.modals.preflight.header_chips.aur_packages",
-                chips.aur_count
-            )
-        )
+        format!("{} ({} AUR)", chips.package_count, chips.aur_count)
     } else {
         format!("{}", chips.package_count)
     };

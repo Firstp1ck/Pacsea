@@ -65,7 +65,7 @@ pub fn handle_remove(packages: &[String]) -> ! {
     eprintln!("\n{}", i18n::t("app.cli.remove.warning"));
     eprintln!("\n{}", i18n::t("app.cli.remove.packages_to_remove"));
     for pkg in &package_names {
-        eprintln!("{}", i18n::t_fmt1("app.cli.remove.package_item", pkg));
+        eprintln!("  - {}", pkg);
     }
     eprintln!();
 
@@ -102,10 +102,7 @@ pub fn handle_remove(packages: &[String]) -> ! {
                 if !found_configs.is_empty() {
                     println!("\n{}", i18n::t("app.cli.remove.config_dirs_found"));
                     for (pkg, dir) in &found_configs {
-                        println!(
-                            "{}",
-                            i18n::t_fmt2("app.cli.remove.config_dir_item", pkg, dir.display())
-                        );
+                        println!("  - {}: {}", pkg, dir.display());
                     }
                     println!("\n{}", i18n::t("app.cli.remove.config_dirs_note"));
                 }

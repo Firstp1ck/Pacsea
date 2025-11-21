@@ -511,17 +511,13 @@ fn render_dependency_item(
         }
         DependencyStatus::ToUpgrade { current, required } => {
             spans.push(Span::styled(
-                i18n::t_fmt(
-                    app,
-                    "app.modals.preflight.deps.version_upgrade",
-                    &[current, required],
-                ),
+                format!(" ({} → {})", current, required),
                 Style::default().fg(th.yellow),
             ));
         }
         DependencyStatus::Conflict { reason } => {
             spans.push(Span::styled(
-                i18n::t_fmt1(app, "app.modals.preflight.deps.conflict_reason", reason),
+                format!(" ({})", reason),
                 Style::default().fg(th.red),
             ));
         }

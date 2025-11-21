@@ -240,7 +240,7 @@ pub fn handle_install_from_file(file_path: &str) -> ! {
     if !invalid_packages.is_empty() {
         eprintln!("\n{}", i18n::t("app.cli.install.packages_not_found"));
         for pkg in &invalid_packages {
-            eprintln!("{}", i18n::t_fmt1("app.cli.install.package_item", pkg));
+            eprintln!("  - {}", pkg);
         }
         if aur_helper.is_none() && !invalid_packages.is_empty() {
             eprintln!("\n{}", i18n::t("app.cli.install.no_aur_helper_note"));

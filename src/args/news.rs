@@ -93,13 +93,7 @@ pub fn handle_news(unread: bool, read: bool, all_news: bool) -> ! {
             } else {
                 i18n::t("app.cli.news.status_unread")
             };
-            println!(
-                "{}",
-                i18n::t_fmt(
-                    "app.cli.news.item_format",
-                    &[&status as &dyn std::fmt::Display, &item.date, &item.title]
-                )
-            );
+            println!("{} {} - {}", status, item.date, item.title);
             println!("{}", i18n::t_fmt1("app.cli.news.url_label", &item.url));
             println!();
         }
