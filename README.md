@@ -197,6 +197,7 @@ cargo run
 - **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
 
 ### Other Potential Features
+- **Show with Hover over button, what the button does**
 - **Keybind harmonization and improvements**
 - **Mirror Search and extensive Mirror Selection**
 - **Add Chaotic AUR setup and add Garuda Repository Support**
