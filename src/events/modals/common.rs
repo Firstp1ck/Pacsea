@@ -249,7 +249,7 @@ pub(crate) fn handle_updates(
             // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
             let content_lines = entries.len() as u16 + 4;
             // Estimate visible lines (modal height minus borders and title/footer)
-            let max_scroll = content_lines.saturating_sub(10).max(0);
+            let max_scroll = content_lines.saturating_sub(10);
             if *scroll < max_scroll {
                 *scroll = scroll.saturating_add(1);
             }
@@ -259,16 +259,24 @@ pub(crate) fn handle_updates(
         }
         KeyCode::PageDown => {
             let content_lines = entries.len() as u16 + 4;
-            let max_scroll = content_lines.saturating_sub(10).max(0);
+            let max_scroll = content_lines.saturating_sub(10);
             *scroll = (*scroll + 10).min(max_scroll);
         }
-        KeyCode::Char('d') if ke.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+        KeyCode::Char('d')
+            if ke
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
             // Ctrl+D: page down (20 lines)
             let content_lines = entries.len() as u16 + 4;
-            let max_scroll = content_lines.saturating_sub(10).max(0);
+            let max_scroll = content_lines.saturating_sub(10);
             *scroll = (*scroll + 25).min(max_scroll);
         }
-        KeyCode::Char('u') if ke.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+        KeyCode::Char('u')
+            if ke
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
             // Ctrl+U: page up (20 lines)
             *scroll = scroll.saturating_sub(20);
         }

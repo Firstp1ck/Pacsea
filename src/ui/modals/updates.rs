@@ -37,15 +37,15 @@ pub fn render_updates(
     // Calculate desired dimensions
     let desired_w = area.width / 2;
     let desired_h = (area.height.saturating_sub(8).min(20)) * 2;
-    
+
     // Clamp dimensions to fit within available area (with 2px margins on each side)
     let w = desired_w.min(area.width.saturating_sub(4)).max(20);
     let h = desired_h.min(area.height.saturating_sub(4)).max(10);
-    
+
     // Center the modal within the area
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;
-    
+
     // Final clamp: ensure the entire rect fits within the area
     let x = x.max(area.x);
     let y = y.max(area.y);
@@ -53,7 +53,7 @@ pub fn render_updates(
     let max_h = (area.y + area.height).saturating_sub(y);
     let w = w.min(max_w);
     let h = h.min(max_h);
-    
+
     let rect = ratatui::prelude::Rect {
         x,
         y,
@@ -72,31 +72,30 @@ pub fn render_updates(
         width: rect.width.saturating_sub(2),
         height: rect.height.saturating_sub(2),
     };
-    
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(2), // Heading + blank line
-            Constraint::Min(1),   // Content area
+            Constraint::Min(1),    // Content area
         ])
         .split(inner_rect);
-    
+
     // Render heading
     let heading_line = Line::from(Span::styled(
         i18n::t(app, "app.modals.updates.heading"),
         Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
     ));
-    let heading_para = Paragraph::new(heading_line)
-        .style(Style::default().fg(th.text).bg(th.mantle));
+    let heading_para =
+        Paragraph::new(heading_line).style(Style::default().fg(th.text).bg(th.mantle));
     f.render_widget(heading_para, chunks[0]);
-    
+
     if entries.is_empty() {
         let none_line = Line::from(Span::styled(
             i18n::t(app, "app.modals.updates.none"),
             Style::default().fg(th.subtext1),
         ));
-        let none_para = Paragraph::new(none_line)
-            .style(Style::default().fg(th.text).bg(th.mantle));
+        let none_para = Paragraph::new(none_line).style(Style::default().fg(th.text).bg(th.mantle));
         f.render_widget(none_para, chunks[1]);
     } else {
         // Split content area into three sections: left pane, center arrow, right pane
@@ -104,33 +103,27 @@ pub fn render_updates(
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(48), // Left pane (old versions)
-                Constraint::Length(11),     // Center arrow with spacing (5 spaces + arrow + 5 spaces = 11 chars)
+                Constraint::Length(11), // Center arrow with spacing (5 spaces + arrow + 5 spaces = 11 chars)
                 Constraint::Percentage(48), // Right pane (new versions)
             ])
             .split(chunks[1]);
-        
+
         // Build left pane lines (old versions) - right-aligned with padding
         let mut left_lines = Vec::new();
         for (name, old_version, _new_version) in entries.iter() {
             // Add 5 spaces padding on the right to match center spacing
             let text = format!("{} - {}     ", name, old_version);
-            left_lines.push(Line::from(Span::styled(
-                text,
-                Style::default().fg(th.text),
-            )));
+            left_lines.push(Line::from(Span::styled(text, Style::default().fg(th.text))));
         }
-        
+
         // Build right pane lines (new versions) with padding
         let mut right_lines = Vec::new();
         for (name, _old_version, new_version) in entries.iter() {
             // Add 5 spaces padding on the left to match center spacing
             let text = format!("     {} - {}", name, new_version);
-            right_lines.push(Line::from(Span::styled(
-                text,
-                Style::default().fg(th.text),
-            )));
+            right_lines.push(Line::from(Span::styled(text, Style::default().fg(th.text))));
         }
-        
+
         // Build center arrow lines with spacing (5 spaces on each side)
         let mut center_lines = Vec::new();
         for _ in entries.iter() {
@@ -139,7 +132,7 @@ pub fn render_updates(
                 Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
             )));
         }
-        
+
         // Render left pane (right-aligned)
         let left_para = Paragraph::new(left_lines)
             .style(Style::default().fg(th.text).bg(th.mantle))
@@ -147,7 +140,7 @@ pub fn render_updates(
             .wrap(Wrap { trim: true })
             .scroll((scroll, 0));
         f.render_widget(left_para, pane_chunks[0]);
-        
+
         // Render center arrow (centered)
         let center_para = Paragraph::new(center_lines)
             .style(Style::default().fg(th.text).bg(th.mantle))
@@ -155,7 +148,7 @@ pub fn render_updates(
             .wrap(Wrap { trim: true })
             .scroll((scroll, 0));
         f.render_widget(center_para, pane_chunks[1]);
-        
+
         // Render right pane (left-aligned)
         let right_para = Paragraph::new(right_lines)
             .style(Style::default().fg(th.text).bg(th.mantle))
@@ -163,7 +156,7 @@ pub fn render_updates(
             .scroll((scroll, 0));
         f.render_widget(right_para, pane_chunks[2]);
     }
-    
+
     // Render modal border
     let border_block = Block::default()
         .title(Span::styled(
@@ -181,6 +174,10 @@ pub fn render_updates(
     let content_inner_y = rect.y + 1;
     let content_inner_w = rect.width.saturating_sub(2);
     let content_inner_h = rect.height.saturating_sub(2);
-    app.updates_modal_content_rect = Some((content_inner_x, content_inner_y, content_inner_w, content_inner_h));
+    app.updates_modal_content_rect = Some((
+        content_inner_x,
+        content_inner_y,
+        content_inner_w,
+        content_inner_h,
+    ));
 }
-

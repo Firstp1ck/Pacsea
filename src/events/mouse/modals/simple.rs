@@ -209,7 +209,11 @@ pub(super) fn handle_updates_modal(
     is_left_down: bool,
     app: &mut AppState,
 ) -> Option<bool> {
-    if let crate::state::Modal::Updates { ref mut scroll, ref entries } = app.modal {
+    if let crate::state::Modal::Updates {
+        ref mut scroll,
+        ref entries,
+    } = app.modal
+    {
         // Handle scroll within modal
         match m.kind {
             crossterm::event::MouseEventKind::ScrollUp => {
@@ -221,7 +225,7 @@ pub(super) fn handle_updates_modal(
                 // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
                 let content_lines = entries.len() as u16 + 4;
                 // Estimate visible lines (modal height minus borders and title/footer)
-                let max_scroll = content_lines.saturating_sub(10).max(0);
+                let max_scroll = content_lines.saturating_sub(10);
                 if *scroll < max_scroll {
                     *scroll = scroll.saturating_add(1);
                 }
@@ -229,19 +233,17 @@ pub(super) fn handle_updates_modal(
             }
             _ => {}
         }
-        
+
         // Left click outside modal closes it
-        if is_left_down {
-            if let Some((x, y, w, h)) = app.updates_modal_rect {
-                let mx = m.column;
-                let my = m.row;
-                if mx < x || mx >= x + w || my < y || my >= y + h {
-                    app.modal = crate::state::Modal::None;
-                    return Some(false);
-                }
+        if is_left_down && let Some((x, y, w, h)) = app.updates_modal_rect {
+            let mx = m.column;
+            let my = m.row;
+            if mx < x || mx >= x + w || my < y || my >= y + h {
+                app.modal = crate::state::Modal::None;
+                return Some(false);
             }
         }
-        
+
         // Consume all mouse events while Updates modal is open
         return Some(false);
     }

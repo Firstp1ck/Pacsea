@@ -133,6 +133,242 @@ pub fn spawn_auxiliary_workers(
     });
 }
 
+/// What: Check which AUR helper is available (paru or yay).
+///
+/// Output:
+/// - Tuple of (has_paru, has_yay, helper_name)
+fn check_aur_helper() -> (bool, bool, &'static str) {
+    use std::process::{Command, Stdio};
+
+    let has_paru = Command::new("paru")
+        .args(["--version"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .is_ok();
+
+    let has_yay = if !has_paru {
+        Command::new("yay")
+            .args(["--version"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .is_ok()
+    } else {
+        false
+    };
+
+    let helper = if has_paru { "paru" } else { "yay" };
+    if has_paru || has_yay {
+        tracing::debug!("Using {} to check for AUR updates", helper);
+    }
+
+    (has_paru, has_yay, helper)
+}
+
+/// What: Parse packages from checkupdates output.
+///
+/// Inputs:
+/// - `output`: Raw command output bytes
+///
+/// Output:
+/// - Vector of (package_name, new_version) tuples
+///
+/// Details:
+/// - Parses "package-name version" format
+fn parse_checkupdates(output: &[u8]) -> Vec<(String, String)> {
+    String::from_utf8_lossy(output)
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let name = parts[0].to_string();
+                    let new_version = parts[1].to_string();
+                    Some((name, new_version))
+                } else {
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
+/// What: Parse packages from -Qua output.
+///
+/// Inputs:
+/// - `output`: Raw command output bytes
+///
+/// Output:
+/// - Vector of (package_name, old_version, new_version) tuples
+///
+/// Details:
+/// - Parses "package old -> new" format
+fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
+    String::from_utf8_lossy(output)
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                // Parse "package old -> new" format
+                if let Some(arrow_pos) = trimmed.find(" -> ") {
+                    let before_arrow = &trimmed[..arrow_pos];
+                    let after_arrow = &trimmed[arrow_pos + 4..];
+                    let parts: Vec<&str> = before_arrow.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let name = parts[0].to_string();
+                        let old_version = parts[1..].join(" "); // In case version has spaces
+                        let new_version = after_arrow.trim().to_string();
+                        Some((name, old_version, new_version))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
+/// What: Get installed version of a package using pacman -Q.
+///
+/// Inputs:
+/// - `name`: Package name
+///
+/// Output:
+/// - Installed version string, or "unknown" if not found
+fn get_installed_version(name: &str) -> String {
+    use std::process::{Command, Stdio};
+
+    Command::new("pacman")
+        .args(["-Q", name])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+        .and_then(|output| {
+            if output.status.success() {
+                String::from_utf8_lossy(&output.stdout)
+                    .split_whitespace()
+                    .nth(1)
+                    .map(|v| v.to_string())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// What: Process checkupdates output and add packages to collections.
+///
+/// Inputs:
+/// - `output`: Command output result
+/// - `packages_map`: Mutable HashMap to store formatted package strings
+/// - `packages_set`: Mutable HashSet to track unique package names
+fn process_checkupdates_output(
+    output: Result<std::process::Output, std::io::Error>,
+    packages_map: &mut std::collections::HashMap<String, String>,
+    packages_set: &mut std::collections::HashSet<String>,
+) {
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                let packages = parse_checkupdates(&output.stdout);
+                let count = packages.len();
+
+                // Get installed versions for packages from checkupdates
+                for (name, new_version) in packages {
+                    let installed_version = get_installed_version(&name);
+
+                    // Format: "name - old_version -> name - new_version"
+                    let formatted = format!(
+                        "{} - {} -> {} - {}",
+                        name, installed_version, name, new_version
+                    );
+                    packages_map.insert(name.clone(), formatted);
+                    packages_set.insert(name);
+                }
+
+                tracing::debug!(
+                    "Found {} packages from official repos (checkupdates)",
+                    count
+                );
+            } else if output.status.code() != Some(1) {
+                // Exit code 1 is normal (no updates), other codes are errors
+                tracing::warn!(
+                    "checkupdates command failed with exit code: {:?}",
+                    output.status.code()
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to execute checkupdates: {}", e);
+        }
+    }
+}
+
+/// What: Process -Qua output and add packages to collections.
+///
+/// Inputs:
+/// - `result`: Command output result
+/// - `helper`: Helper name for logging
+/// - `packages_map`: Mutable HashMap to store formatted package strings
+/// - `packages_set`: Mutable HashSet to track unique package names
+fn process_qua_output(
+    result: Option<Result<std::process::Output, std::io::Error>>,
+    helper: &str,
+    packages_map: &mut std::collections::HashMap<String, String>,
+    packages_set: &mut std::collections::HashSet<String>,
+) {
+    if let Some(result) = result {
+        match result {
+            Ok(output) => {
+                if output.status.success() {
+                    let packages = parse_qua(&output.stdout);
+                    let count = packages.len();
+                    let before_count = packages_set.len();
+
+                    for (name, old_version, new_version) in packages {
+                        // Format: "name - old_version -> name - new_version"
+                        let formatted =
+                            format!("{} - {} -> {} - {}", name, old_version, name, new_version);
+                        packages_map.insert(name.clone(), formatted);
+                        packages_set.insert(name);
+                    }
+
+                    let after_count = packages_set.len();
+                    tracing::debug!(
+                        "Found {} packages from AUR (-Qua), {} total ({} new)",
+                        count,
+                        after_count,
+                        after_count - before_count
+                    );
+                } else if output.status.code() != Some(1) {
+                    // Exit code 1 is normal (no updates), other codes are errors
+                    tracing::warn!(
+                        "-Qua command failed with exit code: {:?}",
+                        output.status.code()
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to execute {} -Qua: {}", helper, e);
+            }
+        }
+    } else {
+        tracing::debug!("No AUR helper available, skipping AUR updates check");
+    }
+}
+
 /// What: Spawn background worker to check for available package updates.
 ///
 /// Inputs:
@@ -156,88 +392,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
             use std::collections::HashSet;
             use std::process::{Command, Stdio};
 
-            // Check for paru first, then yay (for AUR updates)
-            let has_paru = Command::new("paru")
-                .args(["--version"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .output()
-                .is_ok();
-
-            let has_yay = if !has_paru {
-                Command::new("yay")
-                    .args(["--version"])
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .output()
-                    .is_ok()
-            } else {
-                false
-            };
-
-            let helper = if has_paru { "paru" } else { "yay" };
-            if has_paru || has_yay {
-                tracing::debug!("Using {} to check for AUR updates", helper);
-            }
-
-            // Helper function to parse packages from checkupdates output
-            // Format: "package-name version" -> "package-name - installed_version -> package-name - new_version"
-            // Note: checkupdates doesn't show installed version, so we query pacman -Q to get it
-            let parse_checkupdates = |output: &[u8]| -> Vec<(String, String)> {
-                String::from_utf8_lossy(output)
-                    .lines()
-                    .filter_map(|line| {
-                        let trimmed = line.trim();
-                        if trimmed.is_empty() {
-                            None
-                        } else {
-                            let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                            if parts.len() >= 2 {
-                                let name = parts[0].to_string();
-                                let new_version = parts[1].to_string();
-                                // Format: "name+old -> name+new" but we don't have old version from checkupdates
-                                // So we'll use "name -> name+new_version" or query installed version
-                                Some((name, new_version))
-                            } else {
-                                None
-                            }
-                        }
-                    })
-                    .collect()
-            };
-
-            // Helper function to parse packages from -Qua output
-            // Format: "package-name old-version -> new-version" -> "package-name - old_version -> package-name - new_version"
-            let parse_qua = |output: &[u8]| -> Vec<(String, String, String)> {
-                String::from_utf8_lossy(output)
-                    .lines()
-                    .filter_map(|line| {
-                        let trimmed = line.trim();
-                        if trimmed.is_empty() {
-                            None
-                        } else {
-                            // Parse "package old -> new" format
-                            if let Some(arrow_pos) = trimmed.find(" -> ") {
-                                let before_arrow = &trimmed[..arrow_pos];
-                                let after_arrow = &trimmed[arrow_pos + 4..];
-                                let parts: Vec<&str> = before_arrow.split_whitespace().collect();
-                                if parts.len() >= 2 {
-                                    let name = parts[0].to_string();
-                                    let old_version = parts[1..].join(" "); // In case version has spaces
-                                    let new_version = after_arrow.trim().to_string();
-                                    Some((name, old_version, new_version))
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        }
-                    })
-                    .collect()
-            };
+            let (has_paru, has_yay, helper) = check_aur_helper();
 
             // Execute checkupdates command (official repos)
             let output_checkupdates = Command::new("checkupdates")
@@ -272,109 +427,30 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
             // Collect packages from both commands
             // Use HashMap to store: package_name -> formatted_string
             // Use HashSet to track unique package names for deduplication
-            let mut packages_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+            let mut packages_map: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
             let mut packages_set = HashSet::new();
 
             // Parse checkupdates output (official repos)
-            match output_checkupdates {
-                Ok(output) => {
-                    if output.status.success() {
-                        let packages = parse_checkupdates(&output.stdout);
-                        let count = packages.len();
-                        
-                        // Get installed versions for packages from checkupdates
-                        for (name, new_version) in packages {
-                            // Query installed version using pacman -Q
-                            let installed_version = Command::new("pacman")
-                                .args(["-Q", &name])
-                                .stdin(Stdio::null())
-                                .stdout(Stdio::piped())
-                                .stderr(Stdio::null())
-                                .output()
-                                .ok()
-                                .and_then(|output| {
-                                    if output.status.success() {
-                                        String::from_utf8_lossy(&output.stdout)
-                                            .trim()
-                                            .split_whitespace()
-                                            .nth(1)
-                                            .map(|v| v.to_string())
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .unwrap_or_else(|| "unknown".to_string());
-                            
-                            // Format: "name - old_version -> name - new_version"
-                            let formatted = format!("{} - {} -> {} - {}", name, installed_version, name, new_version);
-                            packages_map.insert(name.clone(), formatted);
-                            packages_set.insert(name);
-                        }
-                        
-                        tracing::debug!("Found {} packages from official repos (checkupdates)", count);
-                    } else if output.status.code() != Some(1) {
-                        // Exit code 1 is normal (no updates), other codes are errors
-                        tracing::warn!(
-                            "checkupdates command failed with exit code: {:?}",
-                            output.status.code()
-                        );
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to execute checkupdates: {}", e);
-                }
-            }
+            process_checkupdates_output(output_checkupdates, &mut packages_map, &mut packages_set);
 
             // Parse -Qua output (AUR)
-            if let Some(result) = output_qua {
-                match result {
-                    Ok(output) => {
-                        if output.status.success() {
-                            let packages = parse_qua(&output.stdout);
-                            let count = packages.len();
-                            let before_count = packages_set.len();
-                            
-                            for (name, old_version, new_version) in packages {
-                                // Format: "name - old_version -> name - new_version"
-                                let formatted = format!("{} - {} -> {} - {}", name, old_version, name, new_version);
-                                packages_map.insert(name.clone(), formatted);
-                                packages_set.insert(name);
-                            }
-                            
-                            let after_count = packages_set.len();
-                            tracing::debug!(
-                                "Found {} packages from AUR (-Qua), {} total ({} new)",
-                                count,
-                                after_count,
-                                after_count - before_count
-                            );
-                        } else if output.status.code() != Some(1) {
-                            // Exit code 1 is normal (no updates), other codes are errors
-                            tracing::warn!(
-                                "-Qua command failed with exit code: {:?}",
-                                output.status.code()
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to execute {} -Qua: {}", helper, e);
-                    }
-                }
-            } else {
-                tracing::debug!("No AUR helper available, skipping AUR updates check");
-            }
+            process_qua_output(output_qua, helper, &mut packages_map, &mut packages_set);
 
             // Convert to Vec of formatted strings, sorted by package name
             let mut package_names: Vec<String> = packages_set.into_iter().collect();
             package_names.sort_unstable();
-            
+
             let packages: Vec<String> = package_names
                 .iter()
                 .filter_map(|name| packages_map.get(name).cloned())
                 .collect();
 
             let count = packages.len();
-            tracing::debug!("Found {} total available updates (after deduplication)", count);
+            tracing::debug!(
+                "Found {} total available updates (after deduplication)",
+                count
+            );
 
             // Save to file
             let lists_dir = crate::theme::lists_dir();

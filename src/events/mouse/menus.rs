@@ -58,7 +58,7 @@ fn handle_import_button(app: &mut AppState) -> Option<bool> {
 /// - Opens Updates modal with scroll support
 fn handle_updates_button(app: &mut AppState) -> Option<bool> {
     let updates_file = crate::theme::lists_dir().join("available_updates.txt");
-    
+
     // Load updates from file and parse into structured format
     let entries = if updates_file.exists() {
         std::fs::read_to_string(&updates_file)
@@ -75,15 +75,17 @@ fn handle_updates_button(app: &mut AppState) -> Option<bool> {
                             if let Some(arrow_pos) = trimmed.find(" -> ") {
                                 let before_arrow = trimmed[..arrow_pos].trim();
                                 let after_arrow = trimmed[arrow_pos + 4..].trim();
-                                
+
                                 // Parse "name - old_version" from before_arrow
                                 if let Some(dash_pos) = before_arrow.rfind(" - ") {
                                     let name = before_arrow[..dash_pos].trim().to_string();
-                                    let old_version = before_arrow[dash_pos + 3..].trim().to_string();
-                                    
+                                    let old_version =
+                                        before_arrow[dash_pos + 3..].trim().to_string();
+
                                     // Parse "name - new_version" from after_arrow
                                     if let Some(dash_pos) = after_arrow.rfind(" - ") {
-                                        let new_version = after_arrow[dash_pos + 3..].trim().to_string();
+                                        let new_version =
+                                            after_arrow[dash_pos + 3..].trim().to_string();
                                         Some((name, old_version, new_version))
                                     } else {
                                         None
@@ -102,11 +104,8 @@ fn handle_updates_button(app: &mut AppState) -> Option<bool> {
     } else {
         Vec::new()
     };
-    
-    app.modal = crate::state::Modal::Updates {
-        entries,
-        scroll: 0,
-    };
+
+    app.modal = crate::state::Modal::Updates { entries, scroll: 0 };
     Some(false)
 }
 

@@ -61,13 +61,11 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
     }
 
     let line = Line::from(spans);
-    let paragraph = Paragraph::new(line)
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(ratatui::widgets::Borders::NONE)
-                .style(Style::default().bg(th.base)),
-        );
+    let paragraph = Paragraph::new(line).alignment(Alignment::Center).block(
+        Block::default()
+            .borders(ratatui::widgets::Borders::NONE)
+            .style(Style::default().bg(th.base)),
+    );
 
     // Render the button
     f.render_widget(paragraph, area);
