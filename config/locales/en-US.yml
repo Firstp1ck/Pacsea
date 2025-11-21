@@ -107,10 +107,6 @@ en-US:
       abort_requested: "Abort requested (placeholder)"
       rollback: "Rollback (placeholder)"
       no_services_to_restart: "No services to restart"
-    updates:
-      available: "Updates available ({})"
-      none: "No updates available"
-      loading: "Checking updates..."
       restart_services: "Restart services (placeholder)"
       snapshot_placeholder: "Snapshot (placeholder)"
       dry_run_enabled: "Dry-run mode enabled"
