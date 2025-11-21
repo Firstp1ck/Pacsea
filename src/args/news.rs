@@ -49,22 +49,31 @@ pub fn handle_news(unread: bool, read: bool, all_news: bool) -> ! {
     };
 
     // Fetch news (using tokio runtime for async)
-    let rt = tokio::runtime::Runtime::new().unwrap_or_else(|e| {
-        eprintln!("{}", i18n::t_fmt1("app.cli.news.runtime_error", &e));
-        tracing::error!(error = %e, "Failed to create async runtime");
-        std::process::exit(1);
+    // Spawn a separate thread with its own runtime to avoid nested runtime issues
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build();
+        let res = match rt {
+            Ok(rt) => rt.block_on(pacsea::sources::fetch_arch_news(100)),
+            Err(e) => Err::<Vec<pacsea::state::NewsItem>, _>(format!("rt: {e}").into()),
+        };
+        let _ = tx.send(res);
     });
-
-    let news_items = rt.block_on(async {
-        match pacsea::sources::fetch_arch_news(100).await {
-            Ok(items) => items,
-            Err(e) => {
-                eprintln!("{}", i18n::t_fmt1("app.cli.news.fetch_error", &e));
-                tracing::error!(error = %e, "Failed to fetch news");
-                std::process::exit(1);
-            }
+    let news_items = match rx.recv() {
+        Ok(Ok(items)) => items,
+        Ok(Err(e)) => {
+            eprintln!("{}", i18n::t_fmt1("app.cli.news.fetch_error", &e));
+            tracing::error!(error = %e, "Failed to fetch news");
+            std::process::exit(1);
         }
-    });
+        Err(e) => {
+            eprintln!("{}", i18n::t_fmt1("app.cli.news.runtime_error", e));
+            tracing::error!(error = %e, "Failed to receive news from thread");
+            std::process::exit(1);
+        }
+    };
 
     // Filter news based on option
     let filtered_items: Vec<&pacsea::state::NewsItem> = if show_all {
