@@ -66,7 +66,6 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
         ml.contains("package database refresh")
     };
     let is_refresh_success = is_refresh && message.contains("✓");
-    let is_refresh_failure = is_refresh && message.contains("✗");
     let header_text = if is_help {
         i18n::t(app, "app.modals.help.heading")
     } else if is_config {
@@ -93,8 +92,6 @@ pub fn render_alert(f: &mut Frame, app: &mut AppState, area: Rect, message: &str
         th.mauve
     } else if is_refresh_success {
         th.green
-    } else if is_refresh_failure {
-        th.red
     } else {
         th.red
     };

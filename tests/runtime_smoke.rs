@@ -22,7 +22,7 @@ async fn runtime_smoke_headless_initializes_and_runs_without_panic() {
     // explicitly disables mouse reporting in headless mode to prevent this.
 
     // Spawn the runtime in the background. Use dry-run to avoid any real install actions.
-    let handle = tokio::spawn(async { pacsea::app::run(true).await });
+    let handle = tokio::spawn(async { pacsea::app::run(true, None).await });
 
     // Allow a minimal window for initialization - just enough to verify it starts without panicking
     // In headless mode, we skip slow operations (pacman calls, network), so this should be fast
