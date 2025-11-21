@@ -1,5 +1,6 @@
 use ratatui::prelude::Rect;
 
+use super::{FilterStates, MenuStates, OptionalRepos, RenderContext};
 use crate::state::{AppState, Source};
 
 /// What: Detect availability of optional repos from the unfiltered results set.
@@ -135,6 +136,68 @@ pub fn center_selection(app: &mut AppState, area: Rect) {
         } else {
             app.list_state.select(selected_idx);
         }
+    }
+}
+
+/// What: Extract all data needed for rendering from AppState in one operation.
+///
+/// Inputs:
+/// - `app`: Application state to extract data from
+///
+/// Output:
+/// - RenderContext containing all extracted values
+///
+/// Details:
+/// - Reduces data flow complexity by extracting all needed values in a single function call
+///   instead of multiple individual field accesses.
+pub fn extract_render_context(app: &AppState) -> RenderContext {
+    let (has_eos, has_cachyos, has_artix, has_artix_repos, has_manjaro) =
+        detect_optional_repos(app);
+    let (
+        has_artix_omniverse,
+        has_artix_universe,
+        has_artix_lib32,
+        has_artix_galaxy,
+        has_artix_world,
+        has_artix_system,
+    ) = has_artix_repos;
+
+    RenderContext {
+        results_len: app.results.len(),
+        optional_repos: OptionalRepos {
+            has_eos,
+            has_cachyos,
+            has_artix,
+            has_artix_omniverse,
+            has_artix_universe,
+            has_artix_lib32,
+            has_artix_galaxy,
+            has_artix_world,
+            has_artix_system,
+            has_manjaro,
+        },
+        menu_states: MenuStates {
+            sort_menu_open: app.sort_menu_open,
+            config_menu_open: app.config_menu_open,
+            panels_menu_open: app.panels_menu_open,
+            options_menu_open: app.options_menu_open,
+        },
+        filter_states: FilterStates {
+            show_aur: app.results_filter_show_aur,
+            show_core: app.results_filter_show_core,
+            show_extra: app.results_filter_show_extra,
+            show_multilib: app.results_filter_show_multilib,
+            show_eos: app.results_filter_show_eos,
+            show_cachyos: app.results_filter_show_cachyos,
+            show_artix: app.results_filter_show_artix,
+            show_artix_omniverse: app.results_filter_show_artix_omniverse,
+            show_artix_universe: app.results_filter_show_artix_universe,
+            show_artix_lib32: app.results_filter_show_artix_lib32,
+            show_artix_galaxy: app.results_filter_show_artix_galaxy,
+            show_artix_world: app.results_filter_show_artix_world,
+            show_artix_system: app.results_filter_show_artix_system,
+            show_manjaro: app.results_filter_show_manjaro,
+        },
     }
 }
 

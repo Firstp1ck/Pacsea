@@ -103,101 +103,70 @@ pub struct FilterStates {
 ///   install markers.
 /// - Builds the title with Sort button, filter toggles, and right-aligned options/config/panels.
 /// - Renders dropdown overlays for Sort/Options/Config/Panels when open, and records rects.
+/// - Reduces data flow complexity by extracting all data in one operation and batching mutations.
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
-    let th = theme();
-
     // Keep selection centered within the visible results list when possible
     utils::center_selection(app, area);
 
-    // Extract values needed for title building before mutating app
-    // Group into context struct to reduce data flow complexity
-    let (has_eos, has_cachyos, has_artix, has_artix_repos, has_manjaro) =
-        utils::detect_optional_repos(app);
-    let (
-        has_artix_omniverse,
-        has_artix_universe,
-        has_artix_lib32,
-        has_artix_galaxy,
-        has_artix_world,
-        has_artix_system,
-    ) = has_artix_repos;
+    // Extract all data needed for rendering in one operation to reduce data flow complexity
+    let ctx = utils::extract_render_context(app);
 
-    let ctx = RenderContext {
-        results_len: app.results.len(),
-        optional_repos: OptionalRepos {
-            has_eos,
-            has_cachyos,
-            has_artix,
-            has_artix_omniverse,
-            has_artix_universe,
-            has_artix_lib32,
-            has_artix_galaxy,
-            has_artix_world,
-            has_artix_system,
-            has_manjaro,
-        },
-        menu_states: MenuStates {
-            sort_menu_open: app.sort_menu_open,
-            config_menu_open: app.config_menu_open,
-            panels_menu_open: app.panels_menu_open,
-            options_menu_open: app.options_menu_open,
-        },
-        filter_states: FilterStates {
-            show_aur: app.results_filter_show_aur,
-            show_core: app.results_filter_show_core,
-            show_extra: app.results_filter_show_extra,
-            show_multilib: app.results_filter_show_multilib,
-            show_eos: app.results_filter_show_eos,
-            show_cachyos: app.results_filter_show_cachyos,
-            show_artix: app.results_filter_show_artix,
-            show_artix_omniverse: app.results_filter_show_artix_omniverse,
-            show_artix_universe: app.results_filter_show_artix_universe,
-            show_artix_lib32: app.results_filter_show_artix_lib32,
-            show_artix_galaxy: app.results_filter_show_artix_galaxy,
-            show_artix_world: app.results_filter_show_artix_world,
-            show_artix_system: app.results_filter_show_artix_system,
-            show_manjaro: app.results_filter_show_manjaro,
-        },
-    };
-
-    // Build title with Sort button, filter toggles, and a right-aligned Options button
-    // (using context struct to avoid borrow conflicts and reduce data flow complexity)
+    // Build title and record rects (mutates app)
     let title_spans = title::build_title_spans_from_context(app, &ctx, area);
-
-    // Record clickable rects for title bar controls (mutates app)
     title::record_title_rects_from_context(app, &ctx, area);
 
-    // Extract sort button x position for sort menu positioning
+    // Render list widget
+    render_list_widget(f, app, area, &title_spans);
+
+    // Render status and sort menu, record rects (all mutate app)
+    status::render_status(f, app, area);
     let btn_x = app.sort_button_rect.map(|(x, _, _, _)| x).unwrap_or(area.x);
+    sort_menu::render_sort_menu(f, app, area, btn_x);
+    utils::record_results_rect(app, area);
+}
 
-    // Build list items (only visible ones for performance)
-    // Extract offset before building to avoid borrowing app.list_state
+/// What: Render the list widget with title and items.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state for list items and list_state
+/// - `area`: Target rectangle for the results block
+/// - `title_spans`: Pre-built title spans
+///
+/// Output:
+/// - Renders the list widget with items and title.
+///
+/// Details:
+/// - Builds list items only for visible viewport to improve performance.
+/// - Mutates app.list_state during rendering.
+fn render_list_widget(
+    f: &mut Frame,
+    app: &mut AppState,
+    area: Rect,
+    title_spans: &[ratatui::text::Span<'static>],
+) {
+    let th = theme();
     let list_offset = app.list_state.offset();
+    let viewport_rows = area.height.saturating_sub(2) as usize;
+    let start = list_offset;
+    let end = std::cmp::min(app.results.len(), start + viewport_rows);
+    let prefs = crate::theme::settings();
 
-    // Build the list items using helper functions to reduce complexity
-    let items: Vec<ListItem> = {
-        let prefs = crate::theme::settings();
-        let viewport_rows = area.height.saturating_sub(2) as usize;
-        let start = list_offset;
-        let end = std::cmp::min(app.results.len(), start + viewport_rows);
+    let items: Vec<ListItem> = app
+        .results
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let in_viewport = i >= start && i < end;
+            list::build_list_item(p, app, &th, &prefs, in_viewport)
+        })
+        .collect();
 
-        app.results
-            .iter()
-            .enumerate()
-            .map(|(i, p)| {
-                let in_viewport = i >= start && i < end;
-                list::build_list_item(p, app, &th, &prefs, in_viewport)
-            })
-            .collect()
-    };
-
-    // Build a custom block title with an additional status line on the bottom border.
-    // Render the list normally first.
     let list = List::new(items)
         .style(Style::default().fg(th.text).bg(th.base))
         .block(
             Block::default()
-                .title(Line::from(title_spans))
+                .title(Line::from(title_spans.to_vec()))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(th.surface2)),
@@ -206,15 +175,6 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .highlight_symbol("> ");
 
     f.render_stateful_widget(list, area, &mut app.list_state);
-
-    // Draw status label on the bottom border line of the Results block
-    status::render_status(f, app, area);
-
-    // Optional: render sort dropdown overlay near the button
-    sort_menu::render_sort_menu(f, app, area, btn_x);
-
-    // Record inner results rect for mouse hit-testing
-    utils::record_results_rect(app, area);
 }
 
 /// What: Render dropdown menus (Config/Lists, Panels, Options) on top layer.
