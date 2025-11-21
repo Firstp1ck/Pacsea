@@ -200,11 +200,15 @@ de-DE:
       loading_pkgb: "PKGBUILD wird geladen…"
       copy_pkgbuild: "PKGBUILD kopieren"
       reload_pkgbuild: "PKGBUILD neu laden"
-    footer:
-      search_hint: "Suchen (Enter nächster, Esc abbrechen)"
-      confirm_installation: "Paket-Installation bestätigen"
-      confirm_downgrade: "Paket-Downgrade bestätigen"
-      confirm_removal: "Paket-Entfernung bestätigen"
+    updates:
+      available: "Updates verfügbar ({})"
+      none: "Keine Updates verfügbar"
+      loading: "Prüfe Updates..."
+      footer:
+        search_hint: "Suchen (Enter nächster, Esc abbrechen)"
+        confirm_installation: "Paket-Installation bestätigen"
+        confirm_downgrade: "Paket-Downgrade bestätigen"
+        confirm_removal: "Paket-Entfernung bestätigen"
 
     results:
       title: "Ergebnisse"

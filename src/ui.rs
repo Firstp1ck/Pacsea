@@ -323,7 +323,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             Constraint::Length(UPDATES_H),
             Constraint::Length(layout.results + layout.middle + layout.details),
         ])
-        .split(area);
+        .split(main_chunks[1]);
 
     // Render updates button in the top row
     updates::render_updates_button(f, app, main_chunks[0]);
