@@ -1,14 +1,14 @@
-//! Unit tests for render_header_chips function.
+//! Unit tests for `render_header_chips` function.
 
 use super::render_header_chips;
 use crate::state::AppState;
 use crate::state::modal::{PreflightHeaderChips, RiskLevel};
 
-/// What: Test render_header_chips with minimal data.
+/// What: Test `render_header_chips` with minimal data.
 ///
 /// Inputs:
-/// - `app`: Default AppState
-/// - `chips`: Minimal PreflightHeaderChips with zero values
+/// - `app`: Default `AppState`
+/// - `chips`: Minimal `PreflightHeaderChips` with zero values
 ///
 /// Output:
 /// - Returns a Line containing styled spans
@@ -30,7 +30,7 @@ fn test_render_header_chips_minimal() {
     assert!(!line.spans.is_empty());
 }
 
-/// What: Test render_header_chips with AUR packages.
+/// What: Test `render_header_chips` with AUR packages.
 ///
 /// Inputs:
 /// - `app`: Default `AppState`

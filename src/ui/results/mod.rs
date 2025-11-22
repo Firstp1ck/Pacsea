@@ -18,7 +18,7 @@ mod utils;
 
 /// What: Context struct containing all extracted values needed for rendering.
 ///
-/// Inputs: Values extracted from AppState to avoid borrow conflicts.
+/// Inputs: Values extracted from `AppState` to avoid borrow conflicts.
 ///
 /// Output: Grouped context data.
 ///

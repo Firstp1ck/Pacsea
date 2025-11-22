@@ -192,7 +192,7 @@ mod tests {
     /// - Config file content as string.
     ///
     /// Output:
-    /// - HashSet of normalized key names extracted from the config.
+    /// - `HashSet` of normalized key names extracted from the config.
     ///
     /// Details:
     /// - Skips empty lines, comments, and lines without '='.
