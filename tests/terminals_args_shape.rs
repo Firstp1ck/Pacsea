@@ -66,8 +66,15 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ =
-        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        &click_options,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -147,8 +154,15 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ =
-        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        &click_options,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -224,8 +238,15 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ =
-        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        &click_options,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -301,8 +322,15 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ =
-        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        &click_options,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -378,8 +406,15 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ =
-        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        &click_options,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -455,8 +490,15 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ =
-        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        &click_options,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -531,8 +573,15 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         row: 5,
         modifiers: KeyModifiers::empty(),
     });
-    let _ =
-        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(
+        &click_options,
+        &mut app,
+        &qtx,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+    );
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),

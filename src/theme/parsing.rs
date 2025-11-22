@@ -105,17 +105,17 @@ pub(super) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
 #[allow(clippy::many_single_char_names)]
 pub(super) fn parse_color_value(s: &str) -> Option<Color> {
     // Trim and strip inline comments (support trailing "// ..." and "# ...").
-    // Preserve a leading '#' for hex values by searching for '#' only after the first char.
+    // Preserve a leading '#' for hex values by searching for '#' only after position 1.
     let mut t = s.trim();
+    // Strip // comments first
     if let Some(i) = t.find("//") {
         t = &t[..i];
     }
-    t.strip_prefix('#')
-        .and_then(|stripped| stripped.find('#').map(|j| j + 1))
-        .or_else(|| t.find('#'))
-        .map(|i_rel| {
-            t = &t[..i_rel];
-        });
+    // Strip # comments, but preserve leading # for hex colors
+    // Look for # after position 1 (to preserve #RRGGBB format)
+    if let Some(i) = t.char_indices().skip(1).find(|(_, ch)| *ch == '#') {
+        t = &t[..i.0];
+    }
     t = t.trim();
     if t.is_empty() {
         return None;
@@ -325,15 +325,15 @@ pub(super) fn levenshtein(a: &str, b: &str) -> usize {
 /// Details:
 /// - Strips trailing `//` sections and secondary `#` characters without harming leading `#RRGGBB` values.
 pub(super) fn strip_inline_comment(mut s: &str) -> &str {
+    // Strip // comments first
     if let Some(i) = s.find("//") {
         s = &s[..i];
     }
-    s.strip_prefix('#')
-        .and_then(|stripped| stripped.find('#').map(|j| j + 1))
-        .or_else(|| s.find('#'))
-        .map(|i_rel| {
-            s = &s[..i_rel];
-        });
+    // Strip # comments, but preserve leading # for hex colors
+    // Look for # after position 1 (to preserve #RRGGBB format)
+    if let Some(i) = s.char_indices().skip(1).find(|(_, ch)| *ch == '#') {
+        s = &s[..i.0];
+    }
     s.trim()
 }
 
