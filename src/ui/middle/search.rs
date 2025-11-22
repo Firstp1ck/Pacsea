@@ -39,11 +39,11 @@ pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
     ));
     if search_focused && app.search_normal_mode {
         let caret_ci = app.search_caret;
-        let (sel_from_ci, sel_to_ci) = if let Some(anchor) = app.search_select_anchor {
-            (anchor.min(caret_ci), anchor.max(caret_ci))
-        } else {
-            (caret_ci, caret_ci)
-        };
+        let (sel_from_ci, sel_to_ci) = app
+            .search_select_anchor
+            .map_or((caret_ci, caret_ci), |anchor| {
+                (anchor.min(caret_ci), anchor.max(caret_ci))
+            });
         let cc = app.input.chars().count();
         let sel_from_ci = sel_from_ci.min(cc);
         let sel_to_ci = sel_to_ci.min(cc);

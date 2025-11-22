@@ -242,13 +242,10 @@ fn build_terminal_rows(app: &AppState, rows: &mut Vec<crate::state::types::Optio
 /// - Checks `KDE_FULL_SESSION`, `XDG_CURRENT_DESKTOP`, and `klipper` command
 fn is_kde_session() -> bool {
     std::env::var("KDE_FULL_SESSION").is_ok()
-        || std::env::var("XDG_CURRENT_DESKTOP")
-            .ok()
-            .map(|v| {
-                let u = v.to_uppercase();
-                u.contains("KDE") || u.contains("PLASMA")
-            })
-            .unwrap_or(false)
+        || std::env::var("XDG_CURRENT_DESKTOP").ok().is_some_and(|v| {
+            let u = v.to_uppercase();
+            u.contains("KDE") || u.contains("PLASMA")
+        })
         || crate::install::command_on_path("klipper")
 }
 
@@ -476,14 +473,11 @@ fn build_security_scanner_rows(
     let sleuth_installed = {
         let onpath = crate::install::command_on_path("aur-sleuth");
         let home = std::env::var("HOME").ok();
-        let user_local = home
-            .as_deref()
-            .map(|h| {
-                std::path::Path::new(h)
-                    .join(".local/bin/aur-sleuth")
-                    .exists()
-            })
-            .unwrap_or(false);
+        let user_local = home.as_deref().map_or(false, |h| {
+            std::path::Path::new(h)
+                .join(".local/bin/aur-sleuth")
+                .exists()
+        });
         let system_local = std::path::Path::new("/usr/local/bin/aur-sleuth").exists();
         onpath || user_local || system_local
     };

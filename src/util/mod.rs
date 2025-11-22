@@ -432,10 +432,10 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
 /// matching the same leap-year logic as `ts_to_date`.
 #[must_use]
 pub fn today_yyyymmdd_utc() -> String {
-    let secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        Ok(dur) => dur.as_secs() as i64,
-        Err(_) => 0, // fallback to epoch if clock is before 1970
-    };
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map_or(0, |dur| dur.as_secs() as i64); // fallback to epoch if clock is before 1970
     let mut days = secs / 86_400;
     // Derive year
     let mut year: i32 = 1970;

@@ -438,8 +438,7 @@ fn convert_entry(name: String, entry: AggregatedEntry) -> DependencyInfo {
 
     let is_core = repo
         .as_deref()
-        .map(|r| r.eq_ignore_ascii_case("core"))
-        .unwrap_or(false);
+        .map_or(false, |r| r.eq_ignore_ascii_case("core"));
     let is_system = groups
         .iter()
         .any(|g| matches!(g.as_str(), "base" | "base-devel"));

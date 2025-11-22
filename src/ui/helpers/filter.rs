@@ -19,11 +19,7 @@ use crate::state::{AppState, Focus};
 #[must_use]
 pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
     let apply = matches!(app.focus, Focus::Recent)
-        && app
-            .pane_find
-            .as_ref()
-            .map(|s| !s.is_empty())
-            .unwrap_or(false);
+        && app.pane_find.as_ref().map_or(false, |s| !s.is_empty());
     if !apply {
         return (0..app.recent.len()).collect();
     }
@@ -59,11 +55,7 @@ pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
 #[must_use]
 pub fn filtered_install_indices(app: &AppState) -> Vec<usize> {
     let apply = matches!(app.focus, Focus::Install)
-        && app
-            .pane_find
-            .as_ref()
-            .map(|s| !s.is_empty())
-            .unwrap_or(false);
+        && app.pane_find.as_ref().map_or(false, |s| !s.is_empty());
     if !apply {
         return (0..app.install_list.len()).collect();
     }

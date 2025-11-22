@@ -384,10 +384,9 @@ pub fn maybe_migrate_legacy_confs() {
         let keybinds_path = base.join("keybinds.conf");
 
         // theme.conf
-        let theme_missing_or_empty = match std::fs::metadata(&theme_path) {
-            Ok(m) => m.len() == 0,
-            Err(_) => true,
-        };
+        let theme_missing_or_empty = std::fs::metadata(&theme_path)
+            .ok()
+            .map_or(true, |m| m.len() == 0);
         if theme_missing_or_empty {
             if let Some(dir) = theme_path.parent() {
                 let _ = fs::create_dir_all(dir);
@@ -396,10 +395,9 @@ pub fn maybe_migrate_legacy_confs() {
         }
 
         // settings.conf
-        let settings_missing_or_empty = match std::fs::metadata(&settings_path) {
-            Ok(m) => m.len() == 0,
-            Err(_) => true,
-        };
+        let settings_missing_or_empty = std::fs::metadata(&settings_path)
+            .ok()
+            .map_or(true, |m| m.len() == 0);
         if settings_missing_or_empty {
             if let Some(dir) = settings_path.parent() {
                 let _ = fs::create_dir_all(dir);
@@ -408,10 +406,9 @@ pub fn maybe_migrate_legacy_confs() {
         }
 
         // keybinds.conf
-        let keybinds_missing_or_empty = match std::fs::metadata(&keybinds_path) {
-            Ok(m) => m.len() == 0,
-            Err(_) => true,
-        };
+        let keybinds_missing_or_empty = std::fs::metadata(&keybinds_path)
+            .ok()
+            .map_or(true, |m| m.len() == 0);
         if keybinds_missing_or_empty {
             if let Some(dir) = keybinds_path.parent() {
                 let _ = fs::create_dir_all(dir);
@@ -423,14 +420,12 @@ pub fn maybe_migrate_legacy_confs() {
     let theme_path = base.join("theme.conf");
     let settings_path = base.join("settings.conf");
 
-    let theme_missing_or_empty = match std::fs::metadata(&theme_path) {
-        Ok(m) => m.len() == 0,
-        Err(_) => true,
-    };
-    let settings_missing_or_empty = match std::fs::metadata(&settings_path) {
-        Ok(m) => m.len() == 0,
-        Err(_) => true,
-    };
+    let theme_missing_or_empty = std::fs::metadata(&theme_path)
+        .ok()
+        .map_or(true, |m| m.len() == 0);
+    let settings_missing_or_empty = std::fs::metadata(&settings_path)
+        .ok()
+        .map_or(true, |m| m.len() == 0);
     if !theme_missing_or_empty && !settings_missing_or_empty {
         // Nothing to do
         return;

@@ -778,15 +778,11 @@ fn render_display_items(
 
             // Check if this is a selected optional dependency
             let is_optdep_selected = if *dep_type == "optdepends" {
-                ctx.selected_optdepends
-                    .get(pkg_name)
-                    .map(|set| {
-                        // Extract package name from dependency spec (may include version or description)
-                        let pkg_name_from_dep =
-                            crate::logic::sandbox::extract_package_name(dep_name);
-                        set.contains(dep_name) || set.contains(&pkg_name_from_dep)
-                    })
-                    .unwrap_or(false)
+                ctx.selected_optdepends.get(pkg_name).map_or(false, |set| {
+                    // Extract package name from dependency spec (may include version or description)
+                    let pkg_name_from_dep = crate::logic::sandbox::extract_package_name(dep_name);
+                    set.contains(dep_name) || set.contains(&pkg_name_from_dep)
+                })
             } else {
                 false
             };

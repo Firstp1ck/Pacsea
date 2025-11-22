@@ -285,11 +285,12 @@ fn calculate_tab_color(
         return th.mauve;
     }
 
-    if let Some(order_idx) = completion_order.iter().position(|&x| x == tab_idx) {
-        get_completion_highlight_color(order_idx, th)
-    } else {
-        th.overlay1
-    }
+    completion_order
+        .iter()
+        .position(|&x| x == tab_idx)
+        .map_or(th.overlay1, |order_idx| {
+            get_completion_highlight_color(order_idx, th)
+        })
 }
 
 /// What: Calculate the width of a tab for rectangle storage.

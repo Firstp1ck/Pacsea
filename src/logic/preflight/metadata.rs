@@ -288,19 +288,17 @@ fn extract_aur_package_sizes<R: CommandRunner>(
     let download_size = fs::metadata(pkg_path).ok().map(|meta| meta.len());
 
     // Get install size from package metadata
-    let install_size = if let Some(pkg_str) = pkg_path.to_str() {
-        match runner.run("pacman", &["-Qp", pkg_str]) {
-            Ok(output) => {
+    let install_size = pkg_path.to_str().map_or(None, |pkg_str| {
+        runner
+            .run("pacman", &["-Qp", pkg_str])
+            .ok()
+            .map_or(None, |output| {
                 let fields = parse_pacman_key_values(&output);
                 fields
                     .get("Installed Size")
                     .and_then(|raw| parse_size_to_bytes(raw))
-            }
-            Err(_) => None,
-        }
-    } else {
-        None
-    };
+            })
+    });
 
     Ok(OfficialMetadata {
         download_size,
@@ -328,15 +326,14 @@ pub(super) fn fetch_aur_metadata<R: CommandRunner>(
     name: &str,
     version: Option<&str>,
 ) -> Result<OfficialMetadata, CommandError> {
-    if let Some(pkg_path) = find_aur_package_file(name, version) {
-        extract_aur_package_sizes(runner, &pkg_path)
-    } else {
+    find_aur_package_file(name, version).map_or(
         // Package file not found in cache - return None values (graceful degradation)
         Ok(OfficialMetadata {
             download_size: None,
             install_size: None,
-        })
-    }
+        }),
+        |pkg_path| extract_aur_package_sizes(runner, &pkg_path),
+    )
 }
 
 #[cfg(not(windows))]

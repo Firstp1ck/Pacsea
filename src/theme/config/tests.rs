@@ -80,7 +80,7 @@ mod tests {
                 if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
                     return None;
                 }
-                if let Some(eq_pos) = trimmed.find('=') {
+                trimmed.find('=').map_or(None, |eq_pos| {
                     let key = trimmed[..eq_pos]
                         .trim()
                         .to_lowercase()
@@ -88,9 +88,7 @@ mod tests {
                     // Map to canonical key if possible
                     let canon = canonical_for_key(&key).unwrap_or(&key);
                     Some(canon.to_string())
-                } else {
-                    None
-                }
+                })
             })
             .collect();
 
@@ -161,7 +159,7 @@ mod tests {
                 if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
                     return None;
                 }
-                if let Some(eq_pos) = trimmed.find('=') {
+                trimmed.find('=').map_or(None, |eq_pos| {
                     let key = trimmed[..eq_pos]
                         .trim()
                         .to_lowercase()
@@ -169,9 +167,7 @@ mod tests {
                     // Map to canonical key if possible
                     let canon = canonical_for_key(&key).unwrap_or(&key);
                     Some(canon.to_string())
-                } else {
-                    None
-                }
+                })
             })
             .collect();
 

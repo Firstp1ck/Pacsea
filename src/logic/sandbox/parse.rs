@@ -95,11 +95,7 @@ pub fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<Str
             let value = value.trim();
 
             // Handle both depends= and depends+= patterns
-            let base_key = if let Some(stripped) = key.strip_suffix('+') {
-                stripped
-            } else {
-                key
-            };
+            let base_key = key.strip_suffix('+').map_or(key, |stripped| stripped);
 
             tracing::debug!(
                 "parse_pkgbuild_deps: Found key-value pair: key='{}', base_key='{}', value='{}'",
