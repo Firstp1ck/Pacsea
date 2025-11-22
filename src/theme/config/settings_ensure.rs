@@ -165,9 +165,9 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     };
 
     // Ensure directory exists
-    p.parent().map(|dir| {
+    if let Some(dir) = p.parent() {
         let _ = fs::create_dir_all(dir);
-    });
+    }
 
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();

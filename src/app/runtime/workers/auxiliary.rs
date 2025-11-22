@@ -38,7 +38,7 @@ pub fn spawn_auxiliary_workers(
     news_tx: &mpsc::UnboundedSender<Vec<NewsItem>>,
     tick_tx: &mpsc::UnboundedSender<()>,
     news_read_urls: &std::collections::HashSet<String>,
-    official_index_path: &std::path::PathBuf,
+    official_index_path: &std::path::Path,
     net_err_tx: &mpsc::UnboundedSender<String>,
     index_notify_tx: &mpsc::UnboundedSender<()>,
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
@@ -100,7 +100,7 @@ pub fn spawn_auxiliary_workers(
     {
         // Skip index update in headless mode to avoid slow network/disk operations
         if !headless {
-            let index_path = official_index_path.clone();
+            let index_path = official_index_path.to_path_buf();
             let net_err = net_err_tx.clone();
             let index_notify = index_notify_tx.clone();
             tokio::spawn(async move {

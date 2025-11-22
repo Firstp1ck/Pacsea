@@ -248,7 +248,7 @@ fn render_empty_state(
         }
     }
 
-    if let Some(true) = is_stale {
+    if matches!(is_stale, Some(true)) {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             i18n::t(app, "app.modals.preflight.files.file_db_stale"),

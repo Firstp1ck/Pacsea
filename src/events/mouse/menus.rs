@@ -329,7 +329,7 @@ fn handle_options_menu_click(
             2 => handle_news_option(app),
             3 => handle_optional_deps_option(app),
             _ => return None,
-        };
+        }
         app.options_menu_open = false;
         Some(false)
     } else {

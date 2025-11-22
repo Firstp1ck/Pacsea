@@ -83,7 +83,7 @@ pub fn all_official() -> Vec<PackageItem> {
 ///
 /// Details:
 /// - Loads from disk only when the in-memory list is empty to avoid redundant IO.
-pub async fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
+pub fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
     let items = all_official();
     if !items.is_empty() {
         return items;
@@ -236,7 +236,7 @@ mod tests {
             serde_json::to_string(&idx_json).expect("failed to serialize index JSON"),
         )
         .expect("failed to write index JSON file");
-        let items = super::all_official_or_fetch(&path).await;
+        let items = super::all_official_or_fetch(&path);
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "foo");
         let _ = std::fs::remove_file(&path);

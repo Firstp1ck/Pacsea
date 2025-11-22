@@ -385,7 +385,7 @@ fn render_options_menu(
         i18n::t(app, "app.results.options_menu.news"),
         i18n::t(app, "app.results.options_menu.tui_optional_deps"),
     ];
-    let opts: Vec<String> = opts.iter().map(|s| s.clone()).collect();
+    let opts: Vec<String> = opts.to_vec();
 
     let widest = opts
         .iter()

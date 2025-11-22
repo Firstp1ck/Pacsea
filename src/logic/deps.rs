@@ -446,14 +446,14 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             &provided,
             &upgradable,
         ) {
-            Ok(mut resolved_deps) => {
+            Ok(resolved_deps) => {
                 tracing::debug!(
                     "  Found {} dependencies for {}",
                     resolved_deps.len(),
                     item.name
                 );
 
-                for dep in resolved_deps.drain(..) {
+                for dep in resolved_deps {
                     merge_dependency(
                         &dep,
                         &item.name,

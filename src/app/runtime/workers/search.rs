@@ -43,7 +43,7 @@ pub fn spawn_search_worker(
                 select! { Some(new_q) = query_rx.recv() => { latest = new_q; } _ = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } }
             }
             if latest.text.trim().is_empty() {
-                let mut items = pkgindex::all_official_or_fetch(&index_path).await;
+                let mut items = pkgindex::all_official_or_fetch(&index_path);
                 items.sort_by(|a, b| {
                     let oa = repo_order(&a.source);
                     let ob = repo_order(&b.source);
@@ -77,7 +77,7 @@ pub fn spawn_search_worker(
             let ipath = index_path.clone();
             tokio::spawn(async move {
                 if crate::index::all_official().is_empty() {
-                    let _ = crate::index::all_official_or_fetch(&ipath).await;
+                    let _ = crate::index::all_official_or_fetch(&ipath);
                 }
                 let mut items = pkgindex::search_official(&qtext);
                 let q_for_net = qtext.clone();
