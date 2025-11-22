@@ -5,6 +5,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::Paragraph,
 };
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::i18n;
 use crate::state::AppState;
@@ -53,8 +54,19 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     let sy = area.y.saturating_add(area.height.saturating_sub(1));
     let maxw = area.width.saturating_sub(4); // avoid right corner
     let mut content = status_text.clone();
-    if content.len() as u16 > maxw {
-        content.truncate(maxw as usize);
+    // Truncate by display width, not byte length, to handle wide characters
+    if content.width() as u16 > maxw {
+        let mut truncated = String::new();
+        let mut width_so_far = 0u16;
+        for ch in content.chars() {
+            let ch_width = ch.width().unwrap_or(0) as u16;
+            if width_so_far + ch_width > maxw {
+                break;
+            }
+            truncated.push(ch);
+            width_so_far += ch_width;
+        }
+        content = truncated;
     }
     // Compute style to blend with border line
     // Compose a dot + text with color depending on status
@@ -101,15 +113,18 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
         Span::styled(content.clone(), style_text),
     ]));
     // Record clickable rect centered within the available width
-    let cw = ((content.len() + dot.len() + 1) as u16).min(maxw); // +1 for the space
+    // Use Unicode display width, not byte length, to handle wide characters
+    let dot_width = dot.width() as u16;
+    let content_width = content.width() as u16;
+    let cw = (content_width + dot_width + 1).min(maxw); // +1 for the space
     let pad_left = maxw.saturating_sub(cw) / 2;
     let start_x = sx.saturating_add(pad_left);
     // Clickable rect only over the text portion, not the dot or space
-    let click_start_x = start_x.saturating_add((dot.len() + 1) as u16);
+    let click_start_x = start_x.saturating_add(dot_width + 1);
     app.arch_status_rect = Some((
         click_start_x,
         sy,
-        (content.len() as u16).min(maxw.saturating_sub((dot.len() + 1) as u16)),
+        content_width.min(maxw.saturating_sub(dot_width + 1)),
         1,
     ));
     let rect = ratatui::prelude::Rect {

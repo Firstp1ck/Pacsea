@@ -136,6 +136,28 @@ fn format_news_item(
 /// - Replaces placeholders in the i18n template with actual key labels.
 fn build_footer(app: &AppState) -> Line<'static> {
     let th = theme();
+    // Debug: Log keybind state
+    tracing::debug!(
+        "news_mark_read len: {}, news_mark_all_read len: {}",
+        app.keymap.news_mark_read.len(),
+        app.keymap.news_mark_all_read.len()
+    );
+    if let Some(k) = app.keymap.news_mark_read.first() {
+        tracing::debug!(
+            "news_mark_read: code={:?}, mods={:?}, label={}",
+            k.code,
+            k.mods,
+            k.label()
+        );
+    }
+    if let Some(k) = app.keymap.news_mark_all_read.first() {
+        tracing::debug!(
+            "news_mark_all_read: code={:?}, mods={:?}, label={}",
+            k.code,
+            k.mods,
+            k.label()
+        );
+    }
     let mark_read_key = app
         .keymap
         .news_mark_read
@@ -149,9 +171,11 @@ fn build_footer(app: &AppState) -> Line<'static> {
         .map(|k| k.label())
         .unwrap_or_else(|| "Ctrl+R".to_string());
     let footer_template = i18n::t(app, "app.modals.news.footer_hint");
-    let footer_text = footer_template
-        .replace("{}", &mark_read_key)
-        .replace("{}", &mark_all_read_key);
+    // Replace placeholders one at a time to avoid replacing all {} with the first value
+    let footer_text =
+        footer_template
+            .replacen("{}", &mark_read_key, 1)
+            .replacen("{}", &mark_all_read_key, 1);
     Line::from(Span::styled(footer_text, Style::default().fg(th.subtext1)))
 }
 

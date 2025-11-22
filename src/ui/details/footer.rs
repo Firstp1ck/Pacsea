@@ -590,11 +590,14 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
     }
 
     if !app.installed_only_mode
-        && (!km.search_normal_import.is_empty() || !km.search_normal_export.is_empty())
+        && (!km.search_normal_import.is_empty()
+            || !km.search_normal_export.is_empty()
+            || !km.search_normal_updates.is_empty())
     {
         let install_list_text = i18n::t(app, "app.modals.help.normal_mode.install_list");
         let import_text = i18n::t(app, "app.modals.help.normal_mode.import");
         let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
+        let updates_text = i18n::t(app, "app.modals.help.normal_mode.updates");
 
         n2_spans.push(Span::raw(install_list_text.clone()));
         if let Some(k) = km.search_normal_import.first() {
@@ -605,9 +608,22 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
                 n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
                 n2_spans.push(Span::raw(export_text.clone()));
             }
+            if let Some(k3) = km.search_normal_updates.first() {
+                n2_spans.push(Span::raw(", "));
+                n2_spans.push(Span::styled(format!("[{}]", k3.label()), key_style));
+                n2_spans.push(Span::raw(updates_text.clone()));
+            }
         } else if let Some(k) = km.search_normal_export.first() {
             n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
             n2_spans.push(Span::raw(export_text.clone()));
+            if let Some(k2) = km.search_normal_updates.first() {
+                n2_spans.push(Span::raw(", "));
+                n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
+                n2_spans.push(Span::raw(updates_text.clone()));
+            }
+        } else if let Some(k) = km.search_normal_updates.first() {
+            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            n2_spans.push(Span::raw(updates_text.clone()));
         }
     }
 

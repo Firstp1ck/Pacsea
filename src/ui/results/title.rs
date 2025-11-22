@@ -3,6 +3,7 @@ use ratatui::{
     style::{Modifier, Style},
     text::Span,
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
 use crate::state::AppState;
@@ -80,37 +81,38 @@ fn build_title_i18n_strings(app: &AppState) -> TitleI18nStrings {
 /// Output: Total consumed width in characters.
 ///
 /// Details: Sums up the width of all available optional repos plus spacing.
+/// Uses Unicode display width, not byte length, to handle wide characters.
 fn calculate_optional_repos_width(repos: &OptionalRepos, labels: &OptionalReposLabels) -> u16 {
     let mut width = 0u16;
     if repos.has_eos {
-        width = width.saturating_add(1 + labels.eos.len() as u16);
+        width = width.saturating_add(1 + labels.eos.width() as u16);
     }
     if repos.has_cachyos {
-        width = width.saturating_add(1 + labels.cachyos.len() as u16);
+        width = width.saturating_add(1 + labels.cachyos.width() as u16);
     }
     if repos.has_artix {
-        width = width.saturating_add(1 + labels.artix.len() as u16);
+        width = width.saturating_add(1 + labels.artix.width() as u16);
     }
     if repos.has_artix_omniverse {
-        width = width.saturating_add(1 + labels.artix_omniverse.len() as u16);
+        width = width.saturating_add(1 + labels.artix_omniverse.width() as u16);
     }
     if repos.has_artix_universe {
-        width = width.saturating_add(1 + labels.artix_universe.len() as u16);
+        width = width.saturating_add(1 + labels.artix_universe.width() as u16);
     }
     if repos.has_artix_lib32 {
-        width = width.saturating_add(1 + labels.artix_lib32.len() as u16);
+        width = width.saturating_add(1 + labels.artix_lib32.width() as u16);
     }
     if repos.has_artix_galaxy {
-        width = width.saturating_add(1 + labels.artix_galaxy.len() as u16);
+        width = width.saturating_add(1 + labels.artix_galaxy.width() as u16);
     }
     if repos.has_artix_world {
-        width = width.saturating_add(1 + labels.artix_world.len() as u16);
+        width = width.saturating_add(1 + labels.artix_world.width() as u16);
     }
     if repos.has_artix_system {
-        width = width.saturating_add(1 + labels.artix_system.len() as u16);
+        width = width.saturating_add(1 + labels.artix_system.width() as u16);
     }
     if repos.has_manjaro {
-        width = width.saturating_add(1 + labels.manjaro.len() as u16);
+        width = width.saturating_add(1 + labels.manjaro.width() as u16);
     }
     width
 }
@@ -142,25 +144,26 @@ struct OptionalReposLabels {
 /// - `sort_button_label`: Sort button label
 /// - `core_labels`: Labels for core filters (AUR, core, extra, multilib)
 ///
-/// Output: Base consumed width in characters.
+/// Output: Base consumed width in display columns.
 ///
 /// Details: Calculates space for fixed elements that are always present.
+/// Uses Unicode display width, not byte length, to handle wide characters.
 fn calculate_base_consumed_space(
     results_title_text: &str,
     sort_button_label: &str,
     core_labels: &CoreFilterLabels,
 ) -> u16 {
-    (results_title_text.len()
+    (results_title_text.width()
         + 2 // spaces before Sort
-        + sort_button_label.len()
+        + sort_button_label.width()
         + 2 // spaces after Sort
-        + core_labels.aur.len()
+        + core_labels.aur.width()
         + 1 // space
-        + core_labels.core.len()
+        + core_labels.core.width()
         + 1 // space
-        + core_labels.extra.len()
+        + core_labels.extra.width()
         + 1 // space
-        + core_labels.multilib.len()) as u16
+        + core_labels.multilib.width()) as u16
 }
 
 /// What: Represents labels for core filters.
@@ -702,8 +705,9 @@ impl LayoutState {
     /// Output: Rectangle tuple (x, y, width, height).
     ///
     /// Details: Creates rectangle at current x position with label width.
+    /// Uses Unicode display width, not byte length, to handle wide characters.
     fn record_rect(&self, label: &str) -> (u16, u16, u16, u16) {
-        (self.x, self.y, label.len() as u16, 1)
+        (self.x, self.y, label.width() as u16, 1)
     }
 }
 
@@ -755,9 +759,10 @@ fn calculate_title_layout_info(
     let optional_consumed = calculate_optional_repos_width(optional_repos, &optional_labels);
     let consumed_left = base_consumed.saturating_add(optional_consumed);
 
-    let options_w = options_button_label.len() as u16;
-    let panels_w = panels_button_label.len() as u16;
-    let config_w = config_button_label.len() as u16;
+    // Use Unicode display width, not byte length, to handle wide characters
+    let options_w = options_button_label.width() as u16;
+    let panels_w = panels_button_label.width() as u16;
+    let config_w = config_button_label.width() as u16;
     let right_w = config_w
         .saturating_add(1)
         .saturating_add(panels_w)
@@ -823,17 +828,18 @@ fn record_core_filter_rects(
     layout: &mut LayoutState,
     core_labels: &CoreFilterLabels,
 ) {
+    // Use Unicode display width, not byte length, to handle wide characters
     app.results_filter_aur_rect = Some(layout.record_rect(&core_labels.aur));
-    layout.advance(core_labels.aur.len() as u16, 1);
+    layout.advance(core_labels.aur.width() as u16, 1);
 
     app.results_filter_core_rect = Some(layout.record_rect(&core_labels.core));
-    layout.advance(core_labels.core.len() as u16, 1);
+    layout.advance(core_labels.core.width() as u16, 1);
 
     app.results_filter_extra_rect = Some(layout.record_rect(&core_labels.extra));
-    layout.advance(core_labels.extra.len() as u16, 1);
+    layout.advance(core_labels.extra.width() as u16, 1);
 
     app.results_filter_multilib_rect = Some(layout.record_rect(&core_labels.multilib));
-    layout.advance(core_labels.multilib.len() as u16, 1);
+    layout.advance(core_labels.multilib.width() as u16, 1);
 }
 
 /// What: Record rectangles for optional repository filters.
@@ -856,9 +862,10 @@ fn record_optional_repo_rects(
     show_artix_specific_repos: bool,
 ) {
     // Record EOS filter
+    // Use Unicode display width, not byte length, to handle wide characters
     if optional_repos.has_eos {
         app.results_filter_eos_rect = Some(layout.record_rect(&optional_labels.eos));
-        layout.advance(optional_labels.eos.len() as u16, 1);
+        layout.advance(optional_labels.eos.width() as u16, 1);
     } else {
         app.results_filter_eos_rect = None;
     }
@@ -866,7 +873,7 @@ fn record_optional_repo_rects(
     // Record CachyOS filter
     if optional_repos.has_cachyos {
         app.results_filter_cachyos_rect = Some(layout.record_rect(&optional_labels.cachyos));
-        layout.advance(optional_labels.cachyos.len() as u16, 1);
+        layout.advance(optional_labels.cachyos.width() as u16, 1);
     } else {
         app.results_filter_cachyos_rect = None;
     }
@@ -879,7 +886,7 @@ fn record_optional_repo_rects(
             format!("{} v", optional_labels.artix)
         };
         app.results_filter_artix_rect = Some(layout.record_rect(&artix_label_with_indicator));
-        layout.advance(artix_label_with_indicator.len() as u16, 1);
+        layout.advance(artix_label_with_indicator.width() as u16, 1);
     } else {
         app.results_filter_artix_rect = None;
     }
@@ -921,7 +928,8 @@ fn record_optional_repo_rects(
         for (has_repo, label, rect_field) in artix_rects {
             if has_repo {
                 *rect_field = Some(layout.record_rect(label));
-                layout.advance(label.len() as u16, 1);
+                // Use Unicode display width, not byte length, to handle wide characters
+                layout.advance(label.width() as u16, 1);
             } else {
                 *rect_field = None;
             }
@@ -963,9 +971,10 @@ fn record_right_aligned_button_rects(
 ) {
     if layout_info.pad >= 1 {
         // Record clickable rects at the computed right edge (Panels to the left of Options)
-        let options_w = layout_info.options_button_label.len() as u16;
-        let panels_w = layout_info.panels_button_label.len() as u16;
-        let config_w = layout_info.config_button_label.len() as u16;
+        // Use Unicode display width, not byte length, to handle wide characters
+        let options_w = layout_info.options_button_label.width() as u16;
+        let panels_w = layout_info.panels_button_label.width() as u16;
+        let config_w = layout_info.config_button_label.width() as u16;
         let opt_x = area
             .x
             .saturating_add(1) // left border inset
@@ -1024,13 +1033,14 @@ pub fn record_title_rects(app: &mut AppState, area: Rect, optional_repos: &Optio
         calculate_title_layout_info(&i18n, app.results.len(), inner_width, optional_repos);
 
     // Initialize layout state starting after title and sort button
+    // Use Unicode display width, not byte length, to handle wide characters
     let btn_y = area.y; // top border row
     let initial_x = area
         .x
         .saturating_add(1) // left border inset
-        .saturating_add(layout_info.results_title_text.len() as u16)
+        .saturating_add(layout_info.results_title_text.width() as u16)
         .saturating_add(2) // two spaces before Sort
-        .saturating_add(layout_info.sort_button_label.len() as u16)
+        .saturating_add(layout_info.sort_button_label.width() as u16)
         .saturating_add(2); // space after sort
     let mut layout = LayoutState::new(initial_x, btn_y);
 
@@ -1038,12 +1048,12 @@ pub fn record_title_rects(app: &mut AppState, area: Rect, optional_repos: &Optio
     let sort_btn_x = area
         .x
         .saturating_add(1)
-        .saturating_add(layout_info.results_title_text.len() as u16)
+        .saturating_add(layout_info.results_title_text.width() as u16)
         .saturating_add(2);
     app.sort_button_rect = Some((
         sort_btn_x,
         btn_y,
-        layout_info.sort_button_label.len() as u16,
+        layout_info.sort_button_label.width() as u16,
         1,
     ));
 

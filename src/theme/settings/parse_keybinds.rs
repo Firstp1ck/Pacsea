@@ -324,7 +324,17 @@ fn apply_install_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Sett
 /// - Returns `true` if the key matched a news modal keybind pattern.
 fn apply_news_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Settings) -> bool {
     match key {
+        "keybind_news_mark_read" => {
+            if chord.is_none() {
+                tracing::warn!("Failed to parse keybind_news_mark_read");
+            }
+            assign_keybind(chord, &mut settings.keymap.news_mark_read);
+            true
+        }
         "keybind_news_mark_all_read" => {
+            if chord.is_none() {
+                tracing::warn!("Failed to parse keybind_news_mark_all_read");
+            }
             assign_keybind(chord, &mut settings.keymap.news_mark_all_read);
             true
         }
@@ -691,13 +701,24 @@ mod tests {
         let mut settings = Settings::default();
         let chord = create_test_chord();
 
+        // Test news_mark_read
         assert!(apply_news_keybind(
-            "keybind_news_mark_all_read",
+            "keybind_news_mark_read",
             Some(chord),
             &mut settings
         ));
-        assert_eq!(settings.keymap.news_mark_all_read.len(), 1);
-        assert_eq!(settings.keymap.news_mark_all_read[0], chord);
+        assert_eq!(settings.keymap.news_mark_read.len(), 1);
+        assert_eq!(settings.keymap.news_mark_read[0], chord);
+
+        // Test news_mark_all_read
+        let mut settings2 = Settings::default();
+        assert!(apply_news_keybind(
+            "keybind_news_mark_all_read",
+            Some(chord),
+            &mut settings2
+        ));
+        assert_eq!(settings2.keymap.news_mark_all_read.len(), 1);
+        assert_eq!(settings2.keymap.news_mark_all_read[0], chord);
 
         // Test invalid keybind
         assert!(!apply_news_keybind(
@@ -790,6 +811,46 @@ invalid_line_without_equals
         assert_eq!(settings.keymap.search_install.len(), 1);
         // recent_remove should have 4 entries: 2 defaults + 2 from parsing (due to duplicate checking)
         assert_eq!(settings.keymap.recent_remove.len(), 4);
+    }
+
+    #[test]
+    /// What: Ensure news keybinds are parsed correctly from config file.
+    ///
+    /// Inputs:
+    /// - Configuration content with news keybind entries.
+    ///
+    /// Output:
+    /// - Correctly parses and assigns news keybinds to settings.
+    ///
+    /// Details:
+    /// - Tests parsing of news_mark_read and news_mark_all_read keybinds.
+    /// - Verifies that both keybinds are loaded correctly.
+    fn test_parse_news_keybinds() {
+        let mut settings = Settings::default();
+        let content = r#"
+keybind_news_mark_read = r
+keybind_news_mark_all_read = CTRL+R
+"#;
+
+        parse_keybinds(content, &mut settings);
+
+        // Verify parsed news keybinds
+        assert_eq!(settings.keymap.news_mark_read.len(), 1);
+        assert_eq!(settings.keymap.news_mark_read[0].code, KeyCode::Char('r'));
+        assert!(settings.keymap.news_mark_read[0].mods.is_empty());
+        assert_eq!(settings.keymap.news_mark_read[0].label(), "R");
+
+        assert_eq!(settings.keymap.news_mark_all_read.len(), 1);
+        assert_eq!(
+            settings.keymap.news_mark_all_read[0].code,
+            KeyCode::Char('r')
+        );
+        assert!(
+            settings.keymap.news_mark_all_read[0]
+                .mods
+                .contains(KeyModifiers::CONTROL)
+        );
+        assert_eq!(settings.keymap.news_mark_all_read[0].label(), "Ctrl+R");
     }
 
     #[test]

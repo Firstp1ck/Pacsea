@@ -5,6 +5,7 @@ use ratatui::{
     text::Line,
     widgets::{Block, BorderType, Borders, Paragraph, Wrap},
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
 use crate::state::AppState;
@@ -107,10 +108,11 @@ fn calculate_url_button_rect(
     if url_txt.is_empty() {
         return None;
     }
-    let key_len = key_txt.len() as u16;
+    // Use Unicode display width, not byte length, to handle wide characters
+    let key_len = key_txt.width() as u16;
     let x_start = content_x.saturating_add(key_len);
     let max_w = inner_w.saturating_sub(key_len);
-    let w = url_txt.len().min(max_w as usize) as u16;
+    let w = url_txt.width().min(max_w as usize) as u16;
     if w > 0 {
         Some((x_start, cur_y, w, 1))
     } else {
@@ -137,7 +139,8 @@ fn calculate_pkgbuild_button_rect(
     cur_y: u16,
     inner_w: u16,
 ) -> Option<(u16, u16, u16, u16)> {
-    let w = txt.len().min(inner_w as usize) as u16;
+    // Use Unicode display width, not byte length, to handle wide characters
+    let w = txt.width().min(inner_w as usize) as u16;
     if w > 0 {
         Some((content_x, cur_y, w, 1))
     } else {

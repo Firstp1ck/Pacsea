@@ -1174,6 +1174,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "unicode-width 0.1.14",
  "which",
 ]
 

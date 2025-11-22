@@ -5,6 +5,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Paragraph},
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
 use crate::state::AppState;
@@ -71,7 +72,8 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
     f.render_widget(paragraph, area);
 
     // Calculate clickable rectangle: only the button text width, centered
-    let button_width = button_text.len() as u16;
+    // Use Unicode display width, not byte length, to handle wide characters
+    let button_width = button_text.width() as u16;
     let button_x = area
         .x
         .saturating_add(area.width.saturating_sub(button_width) / 2);

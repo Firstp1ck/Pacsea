@@ -5,6 +5,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Paragraph, Wrap},
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
 use crate::state::AppState;
@@ -73,13 +74,14 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
         app.pkgb_package_name.as_deref() != current_package && app.pkgb_package_name.is_some();
 
     // Record clickable rect for the "Copy PKGBUILD" button on the top border row
+    // Use Unicode display width, not byte length, to handle wide characters
     let btn_y = pkgb_area.y;
     let btn_x = pkgb_area
         .x
         .saturating_add(1)
-        .saturating_add(pkgb_title_text.len() as u16)
+        .saturating_add(pkgb_title_text.width() as u16)
         .saturating_add(2);
-    let btn_w = check_button_label.len() as u16;
+    let btn_w = check_button_label.width() as u16;
     app.pkgb_check_button_rect = Some((btn_x, btn_y, btn_w, 1));
 
     // Add "Reload PKGBUILD" button if needed
@@ -95,7 +97,7 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
 
         // Record clickable rect for the reload button
         let reload_btn_x = btn_x.saturating_add(btn_w).saturating_add(2);
-        let reload_btn_w = reload_button_label.len() as u16;
+        let reload_btn_w = reload_button_label.width() as u16;
         app.pkgb_reload_button_rect = Some((reload_btn_x, btn_y, reload_btn_w, 1));
     }
 

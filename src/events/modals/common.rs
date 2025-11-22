@@ -187,20 +187,15 @@ pub(crate) fn handle_news(
     items: &[crate::state::NewsItem],
     selected: &mut usize,
 ) -> bool {
-    let chord = (ke.code, ke.modifiers);
     let km = &app.keymap;
-    if km.news_mark_read.iter().any(|c| (c.code, c.mods) == chord) {
+    if crate::events::utils::matches_any(&ke, &km.news_mark_read) {
         if let Some(it) = items.get(*selected) {
             app.news_read_urls.insert(it.url.clone());
             app.news_read_dirty = true;
         }
         return false;
     }
-    if km
-        .news_mark_all_read
-        .iter()
-        .any(|c| (c.code, c.mods) == chord)
-    {
+    if crate::events::utils::matches_any(&ke, &km.news_mark_all_read) {
         for it in items.iter() {
             app.news_read_urls.insert(it.url.clone());
         }

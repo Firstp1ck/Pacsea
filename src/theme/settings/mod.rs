@@ -53,7 +53,7 @@ pub fn settings() -> Settings {
         }
     }
 
-    // Validate sum; if invalid, revert to defaults
+    // Validate sum; if invalid, revert layout to defaults but preserve keybinds
     let sum = out
         .layout_left_pct
         .saturating_add(out.layout_center_pct)
@@ -63,7 +63,10 @@ pub fn settings() -> Settings {
         || out.layout_center_pct == 0
         || out.layout_right_pct == 0
     {
+        // Preserve keybinds when resetting layout defaults
+        let keymap = out.keymap.clone();
         out = Settings::default();
+        out.keymap = keymap;
     }
     out
 }

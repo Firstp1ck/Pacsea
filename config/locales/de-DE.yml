@@ -376,6 +376,7 @@ de-DE:
           install_list: "  • Installationsliste:  "
           import: " Importieren"
           export: " Exportieren"
+          updates: " Öffne Verfügbare updates"
       news:
         title: " Neuigkeiten "
         heading: "Arch Linux Neuigkeiten"

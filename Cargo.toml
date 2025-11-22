@@ -19,6 +19,7 @@ tokio = { version = "1.48.0", features = [
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "time"] }
+unicode-width = "0.1"
 which = "8.0.0"
 reqwest = { version = "0.12", features = [] }
 futures = "0.3"

@@ -5,6 +5,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, List, ListItem, Paragraph},
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
 use crate::state::{AppState, Source};
@@ -194,7 +195,8 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
     let sy = area.y + area.height.saturating_sub(1);
 
     // Import button on the far right
-    let import_w = import_label.len() as u16;
+    // Use Unicode display width, not byte length, to handle wide characters
+    let import_w = import_label.width() as u16;
     let import_sx = area.x + 1 + inner_w.saturating_sub(import_w);
     let import_rect = Rect {
         x: import_sx,
@@ -202,9 +204,16 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
         width: import_w.min(inner_w),
         height: 1,
     };
+    // Split label for styling: first character underlined, rest normal
+    let import_first_char = import_label
+        .chars()
+        .next()
+        .map(|c| c.to_string())
+        .unwrap_or_default();
+    let import_rest = import_label.chars().skip(1).collect::<String>();
     let import_line = Paragraph::new(Line::from(vec![
-        Span::styled(&import_label[..1], style.add_modifier(Modifier::UNDERLINED)),
-        Span::styled(&import_label[1..], style),
+        Span::styled(import_first_char, style.add_modifier(Modifier::UNDERLINED)),
+        Span::styled(import_rest, style),
     ]));
     app.install_import_rect = Some((
         import_rect.x,
@@ -216,7 +225,7 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
 
     // Export button to the left of Import with 2 spaces gap
     let gap: u16 = 2;
-    let export_w = export_label.len() as u16;
+    let export_w = export_label.width() as u16;
     let export_max_w = inner_w;
     let export_right = import_rect.x.saturating_sub(gap);
     let export_sx = if export_w > export_right.saturating_sub(area.x + 1) {
@@ -230,9 +239,16 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
         width: export_w.min(export_max_w),
         height: 1,
     };
+    // Split label for styling: first character underlined, rest normal
+    let export_first_char = export_label
+        .chars()
+        .next()
+        .map(|c| c.to_string())
+        .unwrap_or_default();
+    let export_rest = export_label.chars().skip(1).collect::<String>();
     let export_line = Paragraph::new(Line::from(vec![
-        Span::styled(&export_label[..1], style.add_modifier(Modifier::UNDERLINED)),
-        Span::styled(&export_label[1..], style),
+        Span::styled(export_first_char, style.add_modifier(Modifier::UNDERLINED)),
+        Span::styled(export_rest, style),
     ]));
     app.install_export_rect = Some((
         export_rect.x,

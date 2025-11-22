@@ -360,6 +360,10 @@ mod tests {
         let bt = parse_key_chord("Shift+Tab").unwrap();
         assert_eq!(bt.code, KeyCode::BackTab);
         assert!(bt.mods.is_empty());
+        let sr = parse_key_chord("Shift+R").unwrap();
+        assert_eq!(sr.code, KeyCode::Char('r'));
+        assert!(sr.mods.contains(KeyModifiers::SHIFT));
+        assert!(!sr.mods.contains(KeyModifiers::CONTROL));
     }
 
     #[test]

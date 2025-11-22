@@ -5,6 +5,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::i18n;
 use crate::state::AppState;
@@ -23,6 +24,7 @@ use crate::theme::theme;
 /// Details:
 /// - Aligns menus with their buttons, clamps width to viewport, clears background, and numbers rows
 ///   for keyboard shortcuts while ensuring menus render above other content.
+#[allow(clippy::cognitive_complexity)]
 pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
     let th = theme();
 
@@ -37,9 +39,14 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             i18n::t(app, "app.results.config_menu.options.installed_packages"),
             i18n::t(app, "app.results.config_menu.options.recent_searches"),
         ];
-        let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
+        // Use Unicode display width, not byte length, to handle wide characters like →
+        let widest = opts.iter().map(|s| s.width() as u16).max().unwrap_or(0);
+        // Calculate max number width first to include it in total width
+        let max_num_width = format!("{}", opts.len()).len() as u16;
+        // Width must accommodate: widest text + spacing + max number width
         let w = widest
-            .saturating_add(2)
+            .saturating_add(max_num_width)
+            .saturating_add(2) // spacing between text and number
             .min(results_area.width.saturating_sub(2));
         // Place menu below the Config/Lists button aligned to its right edge
         let rect_w = w.saturating_add(2);
@@ -61,20 +68,74 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         app.config_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
 
         // Build lines with right-aligned row numbers 1..N
+        // Use Unicode display width for accurate alignment with wide characters
+        let spacing = 2u16;
+        let num_start_col = widest + spacing; // Column where numbers start (display width)
+        let total_line_width = w; // All lines must be exactly this display width
         let mut lines: Vec<Line> = Vec::new();
         for (i, text) in opts.iter().enumerate() {
-            let num = format!("{}", i + 1);
-            let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
-            let padding = " ".repeat(pad as usize);
+            let num_str = format!("{}", i + 1);
+            // Pad number to max_num_width for right alignment (numbers are ASCII, so len() = width)
+            let num_width = num_str.len() as u16;
+            let num_padding = max_num_width.saturating_sub(num_width);
+            let padded_num = format!("{}{}", " ".repeat(num_padding as usize), num_str);
+
+            // Calculate padding using display width, not byte length
+            let text_display_width = text.width() as u16;
+            let text_padding = widest.saturating_sub(text_display_width);
+
+            // Build complete line
+            let mut complete_line = format!(
+                "{}{}{}{}",
+                text,
+                " ".repeat(text_padding as usize),
+                " ".repeat(spacing as usize),
+                padded_num
+            );
+
+            // Ensure line has exactly total_line_width display width
+            let current_width = complete_line.width() as u16;
+            if current_width < total_line_width {
+                complete_line.push_str(&" ".repeat((total_line_width - current_width) as usize));
+            } else if current_width > total_line_width {
+                // Truncate by display width, not byte length
+                let mut truncated = String::new();
+                let mut width_so_far = 0u16;
+                for ch in complete_line.chars() {
+                    let ch_width = ch.width().unwrap_or(0) as u16;
+                    if width_so_far + ch_width > total_line_width {
+                        break;
+                    }
+                    truncated.push(ch);
+                    width_so_far += ch_width;
+                }
+                complete_line = truncated;
+            }
+
+            // Split at num_start_col display width for styling
+            let mut text_part = String::new();
+            let mut width_so_far = 0u16;
+            for ch in complete_line.chars() {
+                let ch_width = ch.width().unwrap_or(0) as u16;
+                if width_so_far + ch_width > num_start_col {
+                    break;
+                }
+                text_part.push(ch);
+                width_so_far += ch_width;
+            }
+            let num_part = complete_line
+                .chars()
+                .skip(text_part.chars().count())
+                .collect::<String>();
+
             lines.push(Line::from(vec![
-                Span::styled(text.clone(), Style::default().fg(th.text)),
-                Span::raw(padding),
-                Span::styled(num, Style::default().fg(th.overlay1)),
+                Span::styled(text_part, Style::default().fg(th.text)),
+                Span::styled(num_part, Style::default().fg(th.overlay1)),
             ]));
         }
         let menu = Paragraph::new(lines)
             .style(Style::default().fg(th.text).bg(th.base))
-            .wrap(Wrap { trim: true })
+            .wrap(Wrap { trim: false })
             .block(
                 Block::default()
                     .style(Style::default().bg(th.base))
@@ -118,9 +179,15 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             i18n::t(app, "app.results.panels_menu.show_keybinds")
         };
         let opts: Vec<String> = vec![label_recent, label_install, label_keybinds];
-        let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
+        // Use Unicode display width, not byte length, to handle wide characters
+        let widest = opts.iter().map(|s| s.width() as u16).max().unwrap_or(0);
+        // Calculate max number width first to include it in total width
+        let max_num_width = format!("{}", opts.len()).len() as u16;
+        // Width must accommodate: widest text + spacing + max number width
+        let spacing = 2u16;
         let w = widest
-            .saturating_add(2)
+            .saturating_add(max_num_width)
+            .saturating_add(spacing)
             .min(results_area.width.saturating_sub(2));
         // Place menu below the Panels button aligned to its right edge
         let rect_w = w.saturating_add(2);
@@ -141,20 +208,74 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         // Record inner list area for hit-testing (exclude borders)
         app.panels_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
 
+        // Build lines with right-aligned row numbers 1..N
+        // Use Unicode display width for accurate alignment with wide characters
+        let num_start_col = widest + spacing; // Column where numbers start (display width)
+        let total_line_width = w; // All lines must be exactly this display width
         let mut lines: Vec<Line> = Vec::new();
         for (i, text) in opts.iter().enumerate() {
-            let num = format!("{}", i + 1);
-            let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
-            let padding = " ".repeat(pad as usize);
+            let num_str = format!("{}", i + 1);
+            // Pad number to max_num_width for right alignment (numbers are ASCII, so len() = width)
+            let num_width = num_str.len() as u16;
+            let num_padding = max_num_width.saturating_sub(num_width);
+            let padded_num = format!("{}{}", " ".repeat(num_padding as usize), num_str);
+
+            // Calculate padding using display width, not byte length
+            let text_display_width = text.width() as u16;
+            let text_padding = widest.saturating_sub(text_display_width);
+
+            // Build complete line
+            let mut complete_line = format!(
+                "{}{}{}{}",
+                text,
+                " ".repeat(text_padding as usize),
+                " ".repeat(spacing as usize),
+                padded_num
+            );
+
+            // Ensure line has exactly total_line_width display width
+            let current_width = complete_line.width() as u16;
+            if current_width < total_line_width {
+                complete_line.push_str(&" ".repeat((total_line_width - current_width) as usize));
+            } else if current_width > total_line_width {
+                // Truncate by display width, not byte length
+                let mut truncated = String::new();
+                let mut width_so_far = 0u16;
+                for ch in complete_line.chars() {
+                    let ch_width = ch.width().unwrap_or(0) as u16;
+                    if width_so_far + ch_width > total_line_width {
+                        break;
+                    }
+                    truncated.push(ch);
+                    width_so_far += ch_width;
+                }
+                complete_line = truncated;
+            }
+
+            // Split at num_start_col display width for styling
+            let mut text_part = String::new();
+            let mut width_so_far = 0u16;
+            for ch in complete_line.chars() {
+                let ch_width = ch.width().unwrap_or(0) as u16;
+                if width_so_far + ch_width > num_start_col {
+                    break;
+                }
+                text_part.push(ch);
+                width_so_far += ch_width;
+            }
+            let num_part = complete_line
+                .chars()
+                .skip(text_part.chars().count())
+                .collect::<String>();
+
             lines.push(Line::from(vec![
-                Span::styled(text.clone(), Style::default().fg(th.text)),
-                Span::raw(padding),
-                Span::styled(num, Style::default().fg(th.overlay1)),
+                Span::styled(text_part, Style::default().fg(th.text)),
+                Span::styled(num_part, Style::default().fg(th.overlay1)),
             ]));
         }
         let menu = Paragraph::new(lines)
             .style(Style::default().fg(th.text).bg(th.base))
-            .wrap(Wrap { trim: true })
+            .wrap(Wrap { trim: false })
             .block(
                 Block::default()
                     .style(Style::default().bg(th.base))
@@ -193,9 +314,14 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             i18n::t(app, "app.results.options_menu.news"),
             i18n::t(app, "app.results.options_menu.tui_optional_deps"),
         ];
-        let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
+        // Use Unicode display width, not byte length, to handle wide characters
+        let widest = opts.iter().map(|s| s.width() as u16).max().unwrap_or(0);
+        // Calculate max number width first to include it in total width
+        let max_num_width = format!("{}", opts.len()).len() as u16;
+        // Width must accommodate: widest text + spacing + max number width
         let w = widest
-            .saturating_add(2)
+            .saturating_add(max_num_width)
+            .saturating_add(2) // spacing between text and number
             .min(results_area.width.saturating_sub(2));
         // Place menu below the Options button aligned to its right edge
         let rect_w = w.saturating_add(2);
@@ -217,20 +343,74 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         app.options_menu_rect = Some((rect.x + 1, rect.y + 1, w, h.saturating_sub(2)));
 
         // Build lines with right-aligned row numbers 1..N
+        // Use Unicode display width for accurate alignment with wide characters
+        let spacing = 2u16;
+        let num_start_col = widest + spacing; // Column where numbers start (display width)
+        let total_line_width = w; // All lines must be exactly this display width
         let mut lines: Vec<Line> = Vec::new();
         for (i, text) in opts.iter().enumerate() {
-            let num = format!("{}", i + 1);
-            let pad = w.saturating_sub(text.len() as u16).saturating_sub(2);
-            let padding = " ".repeat(pad as usize);
+            let num_str = format!("{}", i + 1);
+            // Pad number to max_num_width for right alignment (numbers are ASCII, so len() = width)
+            let num_width = num_str.len() as u16;
+            let num_padding = max_num_width.saturating_sub(num_width);
+            let padded_num = format!("{}{}", " ".repeat(num_padding as usize), num_str);
+
+            // Calculate padding using display width, not byte length
+            let text_display_width = text.width() as u16;
+            let text_padding = widest.saturating_sub(text_display_width);
+
+            // Build complete line
+            let mut complete_line = format!(
+                "{}{}{}{}",
+                text,
+                " ".repeat(text_padding as usize),
+                " ".repeat(spacing as usize),
+                padded_num
+            );
+
+            // Ensure line has exactly total_line_width display width
+            let current_width = complete_line.width() as u16;
+            if current_width < total_line_width {
+                complete_line.push_str(&" ".repeat((total_line_width - current_width) as usize));
+            } else if current_width > total_line_width {
+                // Truncate by display width, not byte length
+                let mut truncated = String::new();
+                let mut width_so_far = 0u16;
+                for ch in complete_line.chars() {
+                    let ch_width = ch.width().unwrap_or(0) as u16;
+                    if width_so_far + ch_width > total_line_width {
+                        break;
+                    }
+                    truncated.push(ch);
+                    width_so_far += ch_width;
+                }
+                complete_line = truncated;
+            }
+
+            // Split at num_start_col display width for styling
+            let mut text_part = String::new();
+            let mut width_so_far = 0u16;
+            for ch in complete_line.chars() {
+                let ch_width = ch.width().unwrap_or(0) as u16;
+                if width_so_far + ch_width > num_start_col {
+                    break;
+                }
+                text_part.push(ch);
+                width_so_far += ch_width;
+            }
+            let num_part = complete_line
+                .chars()
+                .skip(text_part.chars().count())
+                .collect::<String>();
+
             lines.push(Line::from(vec![
-                Span::styled(text.clone(), Style::default().fg(th.text)),
-                Span::raw(padding),
-                Span::styled(num, Style::default().fg(th.overlay1)),
+                Span::styled(text_part, Style::default().fg(th.text)),
+                Span::styled(num_part, Style::default().fg(th.overlay1)),
             ]));
         }
         let menu = Paragraph::new(lines)
             .style(Style::default().fg(th.text).bg(th.base))
-            .wrap(Wrap { trim: true })
+            .wrap(Wrap { trim: false })
             .block(
                 Block::default()
                     .style(Style::default().bg(th.base))
