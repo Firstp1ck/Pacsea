@@ -43,7 +43,7 @@ impl CommandRunner for SystemCommandRunner {
         if !output.status.success() {
             return Err(CommandError::Failed {
                 program: program.to_string(),
-                args: args.iter().map(|s| s.to_string()).collect(),
+                args: args.iter().map(ToString::to_string).collect(),
                 status: output.status,
             });
         }

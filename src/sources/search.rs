@@ -26,7 +26,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
                     let name = s(pkg, "Name");
                     let version = s(pkg, "Version");
                     let description = s(pkg, "Description");
-                    let popularity = pkg.get("Popularity").and_then(|v| v.as_f64());
+                    let popularity = pkg.get("Popularity").and_then(serde_json::Value::as_f64);
                     if name.is_empty() {
                         continue;
                     }

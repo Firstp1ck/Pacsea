@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::i18n;
 use crate::state::{AppState, NewsItem};
-use crate::theme::theme;
+use crate::theme::{KeyChord, theme};
 
 // Option 2: Extract constants for magic numbers
 const MODAL_WIDTH_RATIO: u16 = 2;
@@ -140,13 +140,13 @@ fn build_footer(app: &AppState) -> Line<'static> {
         .keymap
         .news_mark_read
         .first()
-        .map(|k| k.label())
+        .map(KeyChord::label)
         .unwrap_or_else(|| "R".to_string());
     let mark_all_read_key = app
         .keymap
         .news_mark_all_read
         .first()
-        .map(|k| k.label())
+        .map(KeyChord::label)
         .unwrap_or_else(|| "Ctrl+R".to_string());
     let footer_template = i18n::t(app, "app.modals.news.footer_hint");
     // Replace placeholders one at a time to avoid replacing all {} with the first value

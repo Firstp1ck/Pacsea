@@ -567,7 +567,10 @@ fn split_ws_or_none(field: Option<&String>) -> Vec<String> {
             if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
                 Vec::new()
             } else {
-                trimmed.split_whitespace().map(|s| s.to_string()).collect()
+                trimmed
+                    .split_whitespace()
+                    .map(ToString::to_string)
+                    .collect()
             }
         }
         None => Vec::new(),

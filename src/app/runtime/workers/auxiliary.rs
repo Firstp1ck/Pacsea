@@ -260,7 +260,7 @@ fn get_installed_version(name: &str) -> String {
                 String::from_utf8_lossy(&output.stdout)
                     .split_whitespace()
                     .nth(1)
-                    .map(|v| v.to_string())
+                    .map(ToString::to_string)
             } else {
                 None
             }

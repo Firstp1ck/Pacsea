@@ -188,7 +188,7 @@ pub(super) fn extract_binaries_from_file_list(file_list: &str, package: &str) ->
             if let Some(binary_name) = Path::new(path)
                 .file_name()
                 .and_then(|name| name.to_str())
-                .map(|s| s.to_string())
+                .map(ToString::to_string)
             {
                 // Store full path for exact matching
                 if seen.insert(path.to_string()) {

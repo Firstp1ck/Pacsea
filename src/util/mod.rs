@@ -92,7 +92,7 @@ pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
         if let Some(arr) = v.get(*k).and_then(|x| x.as_array()) {
             return arr
                 .iter()
-                .filter_map(|e| e.as_str().map(|s| s.to_owned()))
+                .filter_map(|e| e.as_str().map(ToOwned::to_owned))
                 .collect();
         }
     }

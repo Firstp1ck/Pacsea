@@ -197,7 +197,7 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
                         return false;
                     }
                     // Check if it contains at least one alphanumeric character
-                    if !s.chars().any(|c| c.is_alphanumeric()) {
+                    if !s.chars().any(char::is_alphanumeric) {
                         return false;
                     }
                     true
@@ -338,7 +338,7 @@ pub(super) fn parse_pacman_si_conflicts(text: &str) -> Vec<String> {
                     if s.ends_with(':') {
                         return false;
                     }
-                    if !s.chars().any(|c| c.is_alphanumeric()) {
+                    if !s.chars().any(char::is_alphanumeric) {
                         return false;
                     }
                     true

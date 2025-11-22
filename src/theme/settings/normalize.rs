@@ -24,7 +24,7 @@ pub fn normalize(settings: &mut Settings) {
         settings.selected_countries = settings
             .selected_countries
             .split(',')
-            .map(|s| s.trim())
+            .map(str::trim)
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join(", ");

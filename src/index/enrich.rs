@@ -36,7 +36,7 @@ pub fn request_enrich_for(
                 .chain(chunk.iter().cloned())
                 .collect();
             let block = tokio::task::spawn_blocking(move || {
-                let args_ref: Vec<&str> = args_owned.iter().map(|s| s.as_str()).collect();
+                let args_ref: Vec<&str> = args_owned.iter().map(String::as_str).collect();
                 crate::util::pacman::run_pacman(&args_ref)
             })
             .await;

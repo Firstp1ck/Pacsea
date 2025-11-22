@@ -50,7 +50,7 @@ pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<Stri
                 .collect();
 
             let mut args = vec!["-Fl"];
-            args.extend(specs.iter().map(|s| s.as_str()));
+            args.extend(specs.iter().map(String::as_str));
 
             match Command::new("pacman")
                 .args(&args)
@@ -150,7 +150,7 @@ pub fn resolve_install_files_with_remote_list(
     // Get installed file list (if package is already installed)
     let installed_files = get_installed_file_list(name).unwrap_or_default();
 
-    let installed_set: HashSet<&str> = installed_files.iter().map(|s| s.as_str()).collect();
+    let installed_set: HashSet<&str> = installed_files.iter().map(String::as_str).collect();
 
     let mut file_changes = Vec::new();
     let mut new_count = 0;
@@ -160,7 +160,7 @@ pub fn resolve_install_files_with_remote_list(
 
     // Get backup files for this package (for pacnew/pacsave prediction)
     let backup_files = get_backup_files(name, source).unwrap_or_default();
-    let backup_set: HashSet<&str> = backup_files.iter().map(|s| s.as_str()).collect();
+    let backup_set: HashSet<&str> = backup_files.iter().map(String::as_str).collect();
 
     for path in remote_files {
         let is_config = path.starts_with("/etc/");
@@ -245,7 +245,7 @@ pub fn resolve_remove_files(name: &str) -> Result<PackageFileInfo, String> {
         },
     )
     .unwrap_or_default();
-    let backup_set: HashSet<&str> = backup_files.iter().map(|s| s.as_str()).collect();
+    let backup_set: HashSet<&str> = backup_files.iter().map(String::as_str).collect();
 
     for path in installed_files {
         let is_config = path.starts_with("/etc/");

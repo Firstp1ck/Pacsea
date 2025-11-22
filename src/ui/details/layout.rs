@@ -1,6 +1,7 @@
 use ratatui::prelude::Rect;
 
 use crate::state::{AppState, Focus};
+use crate::theme::KeyChord;
 
 /// What: Calculate the number of rows required for the footer/keybinds section.
 ///
@@ -27,32 +28,32 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
         let toggle_label = km
             .search_normal_toggle
             .first()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .unwrap_or_else(|| "Esc".to_string());
         let insert_label = km
             .search_normal_insert
             .first()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .unwrap_or_else(|| "i".to_string());
         let left_label = km
             .search_normal_select_left
             .first()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .unwrap_or_else(|| "h".to_string());
         let right_label = km
             .search_normal_select_right
             .first()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .unwrap_or_else(|| "l".to_string());
         let delete_label = km
             .search_normal_delete
             .first()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .unwrap_or_else(|| "d".to_string());
         let clear_label = km
             .search_normal_clear
             .first()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .unwrap_or_else(|| "Shift+Del".to_string());
 
         let line1 = format!(

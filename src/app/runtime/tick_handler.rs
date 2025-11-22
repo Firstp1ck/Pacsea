@@ -136,10 +136,7 @@ fn check_and_trigger_deps_resolution(
     } else if app.preflight_deps_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
-            app.preflight_deps_items
-                .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
+            app.preflight_deps_items.as_ref().map(Vec::len).unwrap_or(0),
             app.preflight_deps_resolving,
             app.deps_resolving
         );
@@ -168,7 +165,7 @@ fn check_and_trigger_files_resolution(
             "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
             app.preflight_files_items
                 .as_ref()
-                .map(|v| v.len())
+                .map(Vec::len)
                 .unwrap_or(0),
             app.preflight_files_resolving,
             app.files_resolving
@@ -212,7 +209,7 @@ fn check_and_trigger_sandbox_resolution(
             "[Runtime] Tick: NOT triggering sandbox - items={}, preflight_sandbox_resolving={}, sandbox_resolving={}",
             app.preflight_sandbox_items
                 .as_ref()
-                .map(|v| v.len())
+                .map(Vec::len)
                 .unwrap_or(0),
             app.preflight_sandbox_resolving,
             app.sandbox_resolving

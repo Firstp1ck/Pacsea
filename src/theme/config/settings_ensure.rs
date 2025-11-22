@@ -177,7 +177,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
         if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(|s| s.to_string()).collect()
+            content.lines().map(ToString::to_string).collect()
         } else {
             Vec::new()
         }
@@ -190,7 +190,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     if created_new || lines.is_empty() {
         lines = SETTINGS_SKELETON_CONTENT
             .lines()
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect();
     }
     // Parse existing settings keys (normalize keys like the parser does)
@@ -336,7 +336,7 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
     }
 
     // Append missing keybinds to the file
-    let mut new_lines: Vec<String> = existing_content.lines().map(|s| s.to_string()).collect();
+    let mut new_lines: Vec<String> = existing_content.lines().map(ToString::to_string).collect();
 
     // Add separator and header comment for auto-added keybinds
     if !new_lines.is_empty()

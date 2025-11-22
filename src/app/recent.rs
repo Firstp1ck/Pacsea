@@ -83,7 +83,7 @@ mod tests {
         app.last_saved_value = Some("ripgrep".into());
         app.last_input_change = std::time::Instant::now() - std::time::Duration::from_secs(3);
         maybe_save_recent(&mut app);
-        assert_eq!(app.recent.first().map(|s| s.as_str()), Some("fd"));
+        assert_eq!(app.recent.first().map(String::as_str), Some("fd"));
         assert!(app.recent_dirty);
     }
 

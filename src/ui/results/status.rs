@@ -9,7 +9,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::i18n;
 use crate::state::AppState;
-use crate::theme::theme;
+use crate::theme::{KeyChord, theme};
 
 /// What: Draw the status label on the bottom border line of the Results block.
 ///
@@ -33,7 +33,7 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
         .keymap
         .search_normal_open_status
         .first()
-        .map(|c| c.label());
+        .map(KeyChord::label);
     let show_key = matches!(app.focus, crate::state::Focus::Search)
         && app.search_normal_mode
         && key_label_opt.is_some();

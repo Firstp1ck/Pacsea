@@ -14,7 +14,7 @@ type Result<T> = super::Result<T>;
 /// - Vector of tokens, or empty when field is missing or "None".
 fn split_ws_or_none(s: Option<&String>) -> Vec<String> {
     match s {
-        Some(v) if v != "None" => v.split_whitespace().map(|x| x.to_string()).collect(),
+        Some(v) if v != "None" => v.split_whitespace().map(ToString::to_string).collect(),
         _ => Vec::new(),
     }
 }
@@ -73,7 +73,7 @@ fn run_pacman_si(repo: &str, name: &str) -> Result<String> {
     if !out.status.success() {
         return Err(format!("pacman -Si failed: {:?}", out.status).into());
     }
-    String::from_utf8(out.stdout).map_err(|e| e.into())
+    String::from_utf8(out.stdout).map_err(std::convert::Into::into)
 }
 
 /// Parse pacman output text into a key-value map.
@@ -353,7 +353,7 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
 
     let version0 = s(&obj, "Version");
     let description0 = s(&obj, "Description");
-    let popularity0 = obj.get("Popularity").and_then(|v| v.as_f64());
+    let popularity0 = obj.get("Popularity").and_then(serde_json::Value::as_f64);
 
     let d = PackageDetails {
         repository: "AUR".into(),
@@ -382,7 +382,9 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
         download_size: None,
         install_size: None,
         owner: s(&obj, "Maintainer"),
-        build_date: crate::util::ts_to_date(obj.get("LastModified").and_then(|v| v.as_i64())),
+        build_date: crate::util::ts_to_date(
+            obj.get("LastModified").and_then(serde_json::Value::as_i64),
+        ),
         popularity: popularity0,
     };
     Ok(d)
@@ -593,7 +595,7 @@ mod tests {
             use crate::util::{arrs, s};
             let version0 = s(obj, "Version");
             let description0 = s(obj, "Description");
-            let popularity0 = obj.get("Popularity").and_then(|v| v.as_f64());
+            let popularity0 = obj.get("Popularity").and_then(serde_json::Value::as_f64);
             crate::state::PackageDetails {
                 repository: "AUR".into(),
                 name: item.name.clone(),
@@ -622,7 +624,7 @@ mod tests {
                 install_size: None,
                 owner: s(obj, "Maintainer"),
                 build_date: crate::util::ts_to_date(
-                    obj.get("LastModified").and_then(|v| v.as_i64()),
+                    obj.get("LastModified").and_then(serde_json::Value::as_i64),
                 ),
                 popularity: popularity0,
             }

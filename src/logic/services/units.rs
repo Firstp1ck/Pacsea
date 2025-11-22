@@ -152,7 +152,7 @@ pub(super) fn extract_service_units_from_file_list(file_list: &str, package: &st
         if let Some(file_name) = Path::new(path)
             .file_name()
             .and_then(|name| name.to_str())
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .filter(|name| seen.insert(name.clone()))
         {
             units.push(file_name);

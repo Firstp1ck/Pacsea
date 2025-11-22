@@ -21,18 +21,18 @@ pub async fn fetch_official_pkg_names()
     let core = tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "core"]))
         .await
         .ok()
-        .and_then(|r| r.ok())
+        .and_then(Result::ok)
         .unwrap_or_default();
     let extra = tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "extra"]))
         .await
         .ok()
-        .and_then(|r| r.ok())
+        .and_then(Result::ok)
         .unwrap_or_default();
     let multilib =
         tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "multilib"]))
             .await
             .ok()
-            .and_then(|r| r.ok())
+            .and_then(Result::ok)
             .unwrap_or_default();
     // EOS/EndeavourOS: attempt both known names
     let mut eos_pairs: Vec<(&str, String)> = Vec::new();
@@ -41,7 +41,7 @@ pub async fn fetch_official_pkg_names()
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
                 .ok()
-                .and_then(|r| r.ok())
+                .and_then(Result::ok)
                 .unwrap_or_default();
         eos_pairs.push((repo, body));
     }
@@ -52,7 +52,7 @@ pub async fn fetch_official_pkg_names()
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
                 .ok()
-                .and_then(|r| r.ok())
+                .and_then(Result::ok)
                 .unwrap_or_default();
         cach_pairs.push((repo, body));
     }
@@ -63,7 +63,7 @@ pub async fn fetch_official_pkg_names()
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
                 .ok()
-                .and_then(|r| r.ok())
+                .and_then(Result::ok)
                 .unwrap_or_default();
         artix_pairs.push((repo, body));
     }

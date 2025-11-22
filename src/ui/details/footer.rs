@@ -110,7 +110,7 @@ fn add_multi_keybind_entry(
     if !keys.is_empty() {
         let keys_str = keys
             .iter()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .collect::<Vec<_>>()
             .join(" / ");
         spans.extend([
@@ -522,7 +522,7 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
 
     let label = |v: &Vec<KeyChord>, def: &str| {
         v.first()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .unwrap_or_else(|| def.to_string())
     };
     let toggle_label = label(&km.search_normal_toggle, "Esc");

@@ -22,7 +22,7 @@ impl PathGuard {
         let base_path = original
             .as_ref()
             .filter(|p| !p.is_empty())
-            .map(|s| s.as_str())
+            .map(String::as_str)
             .unwrap_or("/usr/bin:/bin:/usr/local/bin");
         let mut new_path = dir.display().to_string();
         new_path.push(':');

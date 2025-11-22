@@ -221,7 +221,7 @@ fn load_cached_sandbox(
             "[Install] Sandbox cache file check: signature={:?}, found={}, cached_entries={}",
             signature,
             cache_result.is_some(),
-            cache_result.as_ref().map(|v| v.len()).unwrap_or(0)
+            cache_result.as_ref().map(Vec::len).unwrap_or(0)
         );
         if let Some(ref cached) = cache_result {
             tracing::debug!(

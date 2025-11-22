@@ -79,7 +79,7 @@ pub(super) fn fetch_installed_version<R: CommandRunner>(
     let _pkg_name = parts.next();
     parts
         .next_back()
-        .map(|value| value.to_string())
+        .map(ToString::to_string)
         .ok_or_else(|| CommandError::Parse {
             program: "pacman -Q".to_string(),
             field: "version".to_string(),
@@ -369,13 +369,13 @@ mod tests {
         fn run(&self, program: &str, args: &[&str]) -> Result<String, CommandError> {
             let key = (
                 program.to_string(),
-                args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                args.iter().map(ToString::to_string).collect::<Vec<_>>(),
             );
             let mut guard = self.responses.lock().expect("poisoned responses mutex");
             guard.remove(&key).unwrap_or_else(|| {
                 Err(CommandError::Failed {
                     program: program.to_string(),
-                    args: args.iter().map(|s| s.to_string()).collect(),
+                    args: args.iter().map(ToString::to_string).collect(),
                     status: std::process::ExitStatus::from_raw(1),
                 })
             })

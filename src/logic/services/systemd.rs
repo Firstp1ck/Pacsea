@@ -164,7 +164,7 @@ dbus.socket                 loaded active running D-Bus Socket
         let active = parse_active_units(output);
         let expected: BTreeSet<String> = ["sshd.service", "cups.service"]
             .iter()
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect();
         assert_eq!(active, expected);
     }
