@@ -512,7 +512,7 @@ hu-HU:
           pacsave: "{} pacsave"
           pacnew_label: "⚠ pacnew "
           pacsave_label: "⚠ pacsave "
-          files_count: "({} fájl"
+          files_count: "({}) fájl"
           showing_range_items: "… {}-{} / {} elem megjelenítése (↑↓ a navigációhoz)"
         services:
           updating: "Szolgáltatás-hatásadatok frissítése…"

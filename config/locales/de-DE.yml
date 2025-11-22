@@ -509,7 +509,7 @@ de-DE:
           pacsave: "{} pacsave"
           pacnew_label: "⚠ pacnew "
           pacsave_label: "⚠ pacsave "
-          files_count: "({} Dateien"
+          files_count: "({}) Dateien"
           showing_range_items: "... zeigt {}-{} von {} Elementen (↑↓ zum Navigieren)"
         services:
           updating: "Aktualisiere Dienstauswirkungsdaten…"
