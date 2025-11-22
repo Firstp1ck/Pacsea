@@ -66,7 +66,7 @@ pub(super) fn switch_preflight_tab(
         dependency_info,
         dep_selected,
         file_info,
-        file_selected: _file_selected,
+        file_selected,
         service_info,
         service_selected,
         services_loaded,
@@ -174,6 +174,13 @@ pub(super) fn switch_preflight_tab(
                     );
                     app.preflight_files_items = Some(items.to_vec());
                     app.preflight_files_resolving = true;
+                } else {
+                    *file_info = cached_files;
+                    *file_selected = 0;
+                    tracing::info!(
+                        "[Preflight] switch_preflight_tab: Files - Loaded {} files into modal, file_selected=0",
+                        file_info.len()
+                    );
                 }
             } else {
                 tracing::debug!(
