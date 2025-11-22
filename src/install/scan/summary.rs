@@ -20,7 +20,7 @@ Details:
 /// - Appends overall risk calculation commands to the vector.
 ///
 /// Details:
-/// - Aggregates scores from ShellCheck, ClamAV, Trivy, Semgrep, VirusTotal, and Custom scans.
+/// - Aggregates scores from `ShellCheck`, `ClamAV`, `Trivy`, `Semgrep`, `VirusTotal`, and Custom scans.
 /// - Calculates overall percentage and tier (LOW/MEDIUM/HIGH/CRITICAL).
 #[cfg(not(target_os = "windows"))]
 pub fn add_overall_risk_calc(cmds: &mut Vec<String>) {

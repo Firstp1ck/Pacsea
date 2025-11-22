@@ -14,7 +14,7 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 ///
 /// Details:
 /// - Defers to `spawn_shell_commands_in_terminal_with_hold` to add the default hold tail.
-/// - During tests, this is a no-op to avoid opening real terminal windows, unless PACSEA_TEST_OUT is set.
+/// - During tests, this is a no-op to avoid opening real terminal windows, unless `PACSEA_TEST_OUT` is set.
 pub fn spawn_shell_commands_in_terminal(_cmds: &[String]) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
     #[cfg(test)]
@@ -63,9 +63,9 @@ fn log_to_terminal_log(message: &str) {
 /// - Modifies the command with appropriate environment variables.
 ///
 /// Details:
-/// - Sets PACSEA_TEST_OUT if present in environment.
-/// - Suppresses Konsole Wayland warnings on Wayland.
-/// - Forces software rendering for GNOME Console and kgx.
+/// - Sets `PACSEA_TEST_OUT` if present in environment.
+/// - Suppresses `Konsole` `Wayland` warnings on `Wayland`.
+/// - Forces software rendering for `GNOME Console` and `kgx`.
 fn configure_terminal_env(cmd: &mut Command, term: &str, is_wayland: bool) {
     if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
         if let Some(parent) = std::path::Path::new(&p).parent() {

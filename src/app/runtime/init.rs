@@ -510,7 +510,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that initialize_locale_system sets default locale when config file is missing.
+    /// What: Verify that `initialize_locale_system` sets default locale when config file is missing.
     ///
     /// Inputs:
     /// - App state with default locale

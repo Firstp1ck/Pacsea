@@ -23,7 +23,7 @@ Details:
 ///
 /// Details:
 /// - Mirrors the package flow but omits clone steps, operating on the provided directory.
-/// - Respects optional toggles for ClamAV, Trivy, Semgrep, aur-sleuth, ShellCheck, custom patterns, and VirusTotal.
+/// - Respects optional toggles for `ClamAV`, `Trivy`, `Semgrep`, `aur-sleuth`, `ShellCheck`, custom patterns, and `VirusTotal`.
 pub fn build_scan_cmds_in_dir(target_dir: &str) -> Vec<String> {
     let mut cmds: Vec<String> = Vec::new();
 

@@ -516,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_sandbox_result updates cache correctly.
+    /// What: Verify that `handle_sandbox_result` updates cache correctly.
     ///
     /// Inputs:
     /// - App state

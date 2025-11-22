@@ -106,7 +106,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_service_result updates cache correctly.
+    /// What: Verify that `handle_service_result` updates cache correctly.
     ///
     /// Inputs:
     /// - App state

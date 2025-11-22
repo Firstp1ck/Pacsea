@@ -202,11 +202,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_search_results ignores results with mismatched query ID.
+    /// What: Verify that `handle_search_results` ignores results with mismatched query ID.
     ///
     /// Inputs:
-    /// - App state with latest_query_id = 1
-    /// - SearchResults with id = 2
+    /// - `AppState` with latest_query_id = 1
+    /// - `SearchResults` with id = 2
     ///
     /// Output:
     /// - Results are ignored, app state unchanged
@@ -246,11 +246,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_search_results updates results when query ID matches.
+    /// What: Verify that `handle_search_results` updates results when query ID matches.
     ///
     /// Inputs:
-    /// - App state with latest_query_id = 1
-    /// - SearchResults with id = 1 and new items
+    /// - `AppState` with latest_query_id = 1
+    /// - `SearchResults` with id = 1 and new items
     ///
     /// Output:
     /// - Results are updated with new items
@@ -291,11 +291,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_details_update updates cache and current details.
+    /// What: Verify that `handle_details_update` updates cache and current details.
     ///
     /// Inputs:
-    /// - App state with details_focus set
-    /// - PackageDetails for focused package
+    /// - `AppState` with details_focus set
+    /// - `PackageDetails` for focused package
     ///
     /// Output:
     /// - Details cache is updated
@@ -344,11 +344,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_preview loads details from cache when available.
+    /// What: Verify that `handle_preview` loads details from cache when available.
     ///
     /// Inputs:
-    /// - App state with cached details
-    /// - PackageItem to preview
+    /// - `AppState` with cached details
+    /// - `PackageItem` to preview
     ///
     /// Output:
     /// - Details are loaded from cache

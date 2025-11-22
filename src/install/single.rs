@@ -30,7 +30,7 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 /// - `true` if the terminal was successfully spawned, `false` otherwise
 ///
 /// Details:
-/// - Handles xfce4-terminal special command format and sets up PACSEA_TEST_OUT environment variable if needed.
+/// - Handles `xfce4-terminal` special command format and sets up `PACSEA_TEST_OUT` environment variable if needed.
 fn try_spawn_terminal(
     term: &str,
     args: &[&str],
