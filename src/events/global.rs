@@ -125,8 +125,7 @@ fn handle_options_system_update(app: &mut AppState) {
             .selected_countries
             .split(',')
             .next()
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "Worldwide".to_string());
+            .map_or_else(|| "Worldwide".to_string(), |s| s.trim().to_string());
         countries.iter().position(|c| c == &sel).unwrap_or(0)
     };
     app.modal = crate::state::Modal::SystemUpdate {

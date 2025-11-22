@@ -109,8 +109,7 @@ fn check_and_trigger_summary_resolution(
             "[Runtime] Tick: NOT triggering summary - items={}, preflight_summary_resolving={}",
             app.preflight_summary_items
                 .as_ref()
-                .map(|(items, _)| items.len())
-                .unwrap_or(0),
+                .map_or(0, |(items, _)| items.len()),
             app.preflight_summary_resolving
         );
     }
@@ -136,7 +135,7 @@ fn check_and_trigger_deps_resolution(
     } else if app.preflight_deps_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
-            app.preflight_deps_items.as_ref().map(Vec::len).unwrap_or(0),
+            app.preflight_deps_items.as_ref().map_or(0, Vec::len),
             app.preflight_deps_resolving,
             app.deps_resolving
         );
@@ -163,10 +162,7 @@ fn check_and_trigger_files_resolution(
     } else if app.preflight_files_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
-            app.preflight_files_items
-                .as_ref()
-                .map(Vec::len)
-                .unwrap_or(0),
+            app.preflight_files_items.as_ref().map_or(0, Vec::len),
             app.preflight_files_resolving,
             app.files_resolving
         );
@@ -207,10 +203,7 @@ fn check_and_trigger_sandbox_resolution(
     } else if app.preflight_sandbox_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering sandbox - items={}, preflight_sandbox_resolving={}, sandbox_resolving={}",
-            app.preflight_sandbox_items
-                .as_ref()
-                .map(Vec::len)
-                .unwrap_or(0),
+            app.preflight_sandbox_items.as_ref().map_or(0, Vec::len),
             app.preflight_sandbox_resolving,
             app.sandbox_resolving
         );
@@ -332,10 +325,7 @@ fn handle_installed_cache_polling(
         return;
     }
 
-    let should_poll = app
-        .next_installed_refresh_at
-        .map(|t| now >= t)
-        .unwrap_or(true);
+    let should_poll = app.next_installed_refresh_at.map_or(true, |t| now >= t);
     if !should_poll {
         return;
     }
@@ -467,8 +457,7 @@ pub fn handle_tick(
     if app.need_ring_prefetch
         && app
             .ring_resume_at
-            .map(|t| std::time::Instant::now() >= t)
-            .unwrap_or(false)
+            .is_some_and(|t| std::time::Instant::now() >= t)
     {
         crate::logic::set_allowed_ring(app, 30);
         crate::logic::ring_prefetch_from_selected(app, details_req_tx);

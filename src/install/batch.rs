@@ -162,8 +162,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     // Prefer GNOME Terminal when running under GNOME desktop
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
-        .map(|v| v.to_uppercase().contains("GNOME"))
-        .unwrap_or(false);
+        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
     let terms_gnome_first: &[(&str, &[&str], bool)] = &[
         ("gnome-terminal", &["--", "bash", "-lc"], false),
         ("gnome-console", &["--", "bash", "-lc"], false),

@@ -225,8 +225,7 @@ fn check_gnome_terminal(app: &mut AppState, headless: bool) {
 
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
-        .map(|v| v.to_uppercase().contains("GNOME"))
-        .unwrap_or(false);
+        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
 
     if !is_gnome {
         return;

@@ -37,8 +37,7 @@ pub fn is_installed(name: &str) -> bool {
     installed_lock()
         .read()
         .ok()
-        .map(|s| s.contains(name))
-        .unwrap_or(false)
+        .is_some_and(|s| s.contains(name))
 }
 
 #[cfg(test)]
