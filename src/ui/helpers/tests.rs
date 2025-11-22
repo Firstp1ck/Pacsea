@@ -178,7 +178,7 @@ fn init_test_translations(app: &mut crate::state::AppState) {
     app.translations_fallback = translations;
 }
 
-/// What: Create a test PackageItem for an official repository package.
+/// What: Create a test `PackageItem` for an official repository package.
 ///
 /// Inputs:
 /// - `name`: Package name
@@ -188,7 +188,7 @@ fn init_test_translations(app: &mut crate::state::AppState) {
 /// - Returns a `PackageItem` with default test values for an official package.
 ///
 /// Details:
-/// - Sets version to "1.0", creates a default description, and sets architecture to "x86_64".
+/// - Sets version to "1.0", creates a default description, and sets architecture to `x86_64`.
 /// - Used in tests to create mock official packages.
 fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
     crate::state::PackageItem {

@@ -194,7 +194,7 @@ fn persist_command_to_log(cmd_str: &str) {
 /// - `is_gnome`: Whether running under GNOME desktop.
 ///
 /// Output:
-/// - Vector of terminal candidates with (name, args, needs_xfce_command) tuples.
+/// - Vector of terminal candidates with (`name`, `args`, `needs_xfce_command`) tuples.
 ///
 /// Details:
 /// - Prioritizes GNOME terminals when under GNOME, otherwise uses default order.

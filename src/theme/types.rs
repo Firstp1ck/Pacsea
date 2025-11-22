@@ -358,7 +358,7 @@ pub struct KeyMap {
 /// - Tuple of global key binding vectors
 ///
 /// Details:
-/// - Returns help_overlay, reload_theme, exit, show_pkgbuild, change_sort, and pane navigation keys.
+/// - Returns `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
 fn default_global_keys(
     none: KeyModifiers,
     ctrl: KeyModifiers,
@@ -424,7 +424,7 @@ fn default_global_keys(
 /// - Tuple of dropdown toggle key binding vectors
 ///
 /// Details:
-/// - Returns config_menu_toggle, options_menu_toggle, and panels_menu_toggle keys.
+/// - Returns `config_menu_toggle`, `options_menu_toggle`, and `panels_menu_toggle` keys.
 fn default_dropdown_keys(shift: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>, Vec<KeyChord>) {
     use KeyCode::*;
     (
@@ -751,7 +751,7 @@ fn default_install_keys(
 /// - Tuple of news modal key binding vectors
 ///
 /// Details:
-/// - Returns news_mark_read and news_mark_all_read key bindings.
+/// - Returns `news_mark_read` and `news_mark_all_read` key bindings.
 fn default_news_keys(none: KeyModifiers, ctrl: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>) {
     use KeyCode::*;
     (

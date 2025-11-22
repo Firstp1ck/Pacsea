@@ -281,7 +281,7 @@ fn filter_important_deps(dependency_info: &[DependencyInfo]) -> Vec<&DependencyI
 /// - `important_deps`: List of important dependencies.
 ///
 /// Output:
-/// - HashMap mapping package names to their dependencies.
+/// - `HashMap` mapping package names to their dependencies.
 fn group_dependencies_by_package<'a>(
     important_deps: &[&'a DependencyInfo],
 ) -> std::collections::HashMap<String, Vec<&'a DependencyInfo>> {
@@ -344,7 +344,7 @@ fn build_summary_parts(
 /// - `installed_packages`: List of installed packages.
 ///
 /// Output:
-/// - Vector of (is_header, package_name, optional_dependency) tuples.
+/// - Vector of (`is_header`, `package_name`, `optional_dependency`) tuples.
 fn build_display_items<'a>(
     items: &[PackageItem],
     grouped: &std::collections::HashMap<String, Vec<&'a DependencyInfo>>,

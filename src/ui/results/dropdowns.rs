@@ -19,7 +19,7 @@ use crate::theme::theme;
 /// - `extra_width`: Additional width needed (e.g., for checkboxes)
 ///
 /// Output:
-/// - Tuple of (width, height, max_number_width)
+/// - Tuple of (`width`, `height`, `max_number_width`)
 ///
 /// Details:
 /// - Uses Unicode display width for accurate sizing with wide characters.
@@ -250,7 +250,7 @@ fn create_menu_block(
 /// - `th`: Theme colors
 ///
 /// Output:
-/// - Updates app.config_menu_rect if menu is rendered
+/// - Updates `app.config_menu_rect` if menu is rendered
 fn render_config_menu(
     f: &mut Frame,
     app: &mut AppState,
@@ -302,7 +302,7 @@ fn render_config_menu(
 /// - `th`: Theme colors
 ///
 /// Output:
-/// - Updates app.panels_menu_rect if menu is rendered
+/// - Updates `app.panels_menu_rect` if menu is rendered
 fn render_panels_menu(
     f: &mut Frame,
     app: &mut AppState,
@@ -362,7 +362,7 @@ fn render_panels_menu(
 /// - `th`: Theme colors
 ///
 /// Output:
-/// - Updates app.options_menu_rect if menu is rendered
+/// - Updates `app.options_menu_rect` if menu is rendered
 fn render_options_menu(
     f: &mut Frame,
     app: &mut AppState,
@@ -418,7 +418,7 @@ fn render_options_menu(
 /// - `th`: Theme colors
 ///
 /// Output:
-/// - Updates app.artix_filter_menu_rect if menu is rendered
+/// - Updates `app.artix_filter_menu_rect` if menu is rendered
 fn render_artix_filter_menu(
     f: &mut Frame,
     app: &mut AppState,

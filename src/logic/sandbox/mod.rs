@@ -19,13 +19,13 @@ use crate::logic::sandbox::fetch::fetch_srcinfo_async;
 use crate::state::types::PackageItem;
 use futures::stream::{FuturesUnordered, StreamExt};
 
-/// What: Create an empty SandboxInfo for a package when analysis fails.
+/// What: Create an empty `SandboxInfo` for a package when analysis fails.
 ///
 /// Inputs:
 /// - `name`: Package name.
 ///
 /// Output:
-/// - Empty SandboxInfo with the package name.
+/// - Empty `SandboxInfo` with the package name.
 ///
 /// Details:
 /// - Used as fallback when analysis fails to ensure package appears in results.
@@ -51,7 +51,7 @@ fn create_empty_sandbox_info(name: String) -> SandboxInfo {
 /// - `Some(SandboxInfo)` on success, `None` on failure.
 ///
 /// Details:
-/// - Analyzes dependencies from .SRCINFO and creates SandboxInfo.
+/// - Analyzes dependencies from .SRCINFO and creates `SandboxInfo`.
 fn handle_srcinfo_analysis(
     name: &str,
     srcinfo_text: &str,
