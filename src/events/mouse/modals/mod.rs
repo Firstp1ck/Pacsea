@@ -37,10 +37,14 @@ pub(super) fn handle_modal_mouse(
     app: &mut AppState,
 ) -> Option<bool> {
     match &mut app.modal {
-        crate::state::Modal::Help => simple::handle_help_modal(m, mx, my, is_left_down, app),
-        crate::state::Modal::VirusTotalSetup { .. } => {
-            simple::handle_virustotal_modal(m, mx, my, is_left_down, app)
-        }
+        crate::state::Modal::Help => Some(simple::handle_help_modal(m, mx, my, is_left_down, app)),
+        crate::state::Modal::VirusTotalSetup { .. } => Some(simple::handle_virustotal_modal(
+            m,
+            mx,
+            my,
+            is_left_down,
+            app,
+        )),
         crate::state::Modal::Preflight { .. } => {
             preflight::handle_preflight_modal(m, mx, my, is_left_down, app)
         }

@@ -37,10 +37,10 @@ const fn point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> 
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_import_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+fn handle_import_button(app: &mut AppState) -> bool {
     app.modal = crate::state::Modal::ImportHelp;
-    Some(false)
+    false
 }
 
 /// Handle click on Updates button.
@@ -51,12 +51,12 @@ fn handle_import_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
+/// - `false` if handled
 ///
 /// Details:
 /// - Loads updates from `~/.config/pacsea/lists/available_updates.txt`
 /// - Opens Updates modal with scroll support
-pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
+pub(crate) fn handle_updates_button(app: &mut AppState) -> bool {
     let updates_file = crate::theme::lists_dir().join("available_updates.txt");
 
     // Load updates from file and parse into structured format
@@ -100,7 +100,7 @@ pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
     };
 
     app.modal = crate::state::Modal::Updates { entries, scroll: 0 };
-    Some(false)
+    false
 }
 
 /// Handle click on Export button.
@@ -111,17 +111,17 @@ pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
+/// - `false` if handled
 ///
 /// Details:
 /// - Shows toast message if list is empty or export fails
-fn handle_export_button(app: &mut AppState) -> Option<bool> {
+fn handle_export_button(app: &mut AppState) -> bool {
     let mut names: Vec<String> = app.install_list.iter().map(|p| p.name.clone()).collect();
     names.sort();
     if names.is_empty() {
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.install_list_empty"));
         app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
-        return Some(false);
+        return false;
     }
     let export_dir = crate::theme::config_dir().join("export");
     let _ = std::fs::create_dir_all(&export_dir);
@@ -162,7 +162,7 @@ fn handle_export_button(app: &mut AppState) -> Option<bool> {
             tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
         }
     }
-    Some(false)
+    false
 }
 
 /// Handle click on Arch status label.
@@ -170,10 +170,10 @@ fn handle_export_button(app: &mut AppState) -> Option<bool> {
 /// What: Opens status.archlinux.org URL in browser.
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_arch_status() -> Option<bool> {
+/// - `false` if handled
+fn handle_arch_status() -> bool {
     crate::util::open_url("https://status.archlinux.org");
-    Some(false)
+    false
 }
 
 /// Handle click on sort menu button.
@@ -184,8 +184,8 @@ fn handle_arch_status() -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_sort_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+fn handle_sort_button(app: &mut AppState) -> bool {
     app.sort_menu_open = !app.sort_menu_open;
     if app.sort_menu_open {
         app.sort_menu_auto_close_at =
@@ -193,7 +193,7 @@ fn handle_sort_button(app: &mut AppState) -> Option<bool> {
     } else {
         app.sort_menu_auto_close_at = None;
     }
-    Some(false)
+    false
 }
 
 /// Handle click on options menu button.
@@ -204,15 +204,15 @@ fn handle_sort_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_options_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+fn handle_options_button(app: &mut AppState) -> bool {
     app.options_menu_open = !app.options_menu_open;
     if app.options_menu_open {
         app.panels_menu_open = false;
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
     }
-    Some(false)
+    false
 }
 
 /// Handle click on config menu button.
@@ -223,14 +223,14 @@ fn handle_options_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_config_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+fn handle_config_button(app: &mut AppState) -> bool {
     app.config_menu_open = !app.config_menu_open;
     if app.config_menu_open {
         app.options_menu_open = false;
         app.panels_menu_open = false;
     }
-    Some(false)
+    false
 }
 
 /// Handle click on panels menu button.
@@ -241,15 +241,15 @@ fn handle_config_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_panels_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+fn handle_panels_button(app: &mut AppState) -> bool {
     app.panels_menu_open = !app.panels_menu_open;
     if app.panels_menu_open {
         app.options_menu_open = false;
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
     }
-    Some(false)
+    false
 }
 
 /// Handle click inside sort menu.
@@ -664,28 +664,28 @@ pub(super) fn handle_menus_mouse(
 ) -> Option<bool> {
     // Check button clicks first
     if point_in_rect(mx, my, app.updates_button_rect) {
-        return handle_updates_button(app);
+        return Some(handle_updates_button(app));
     }
     if point_in_rect(mx, my, app.install_import_rect) {
-        return handle_import_button(app);
+        return Some(handle_import_button(app));
     }
     if point_in_rect(mx, my, app.install_export_rect) {
-        return handle_export_button(app);
+        return Some(handle_export_button(app));
     }
     if point_in_rect(mx, my, app.arch_status_rect) {
-        return handle_arch_status();
+        return Some(handle_arch_status());
     }
     if point_in_rect(mx, my, app.sort_button_rect) {
-        return handle_sort_button(app);
+        return Some(handle_sort_button(app));
     }
     if point_in_rect(mx, my, app.options_button_rect) {
-        return handle_options_button(app);
+        return Some(handle_options_button(app));
     }
     if point_in_rect(mx, my, app.config_button_rect) {
-        return handle_config_button(app);
+        return Some(handle_config_button(app));
     }
     if point_in_rect(mx, my, app.panels_button_rect) {
-        return handle_panels_button(app);
+        return Some(handle_panels_button(app));
     }
 
     // Check menu clicks if menus are open

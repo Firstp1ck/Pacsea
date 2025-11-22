@@ -48,7 +48,7 @@ fn create_empty_sandbox_info(name: String) -> SandboxInfo {
 /// - `provided`: Provided packages set.
 ///
 /// Output:
-/// - `Some(SandboxInfo)` on success, `None` on failure.
+/// - `SandboxInfo` on success.
 ///
 /// Details:
 /// - Analyzes dependencies from .SRCINFO and creates `SandboxInfo`.
@@ -57,16 +57,16 @@ fn handle_srcinfo_analysis(
     srcinfo_text: &str,
     installed: &std::collections::HashSet<String>,
     provided: &std::collections::HashSet<String>,
-) -> Option<SandboxInfo> {
+) -> SandboxInfo {
     match analyze_package_from_srcinfo(name, srcinfo_text, installed, provided) {
-        Ok(info) => Some(info),
+        Ok(info) => info,
         Err(e) => {
             tracing::warn!("Failed to analyze sandbox info for {}: {}", name, e);
             tracing::info!(
                 "Creating empty sandbox info for {} (.SRCINFO analysis failed)",
                 name
             );
-            Some(create_empty_sandbox_info(name.to_string()))
+            create_empty_sandbox_info(name.to_string())
         }
     }
 }
@@ -80,7 +80,7 @@ fn handle_srcinfo_analysis(
 /// - `provided`: Provided packages set.
 ///
 /// Output:
-/// - `Some(SandboxInfo)` on success, `None` on failure.
+/// - `SandboxInfo` on success.
 ///
 /// Details:
 /// - Analyzes dependencies from PKGBUILD when .SRCINFO is unavailable.
@@ -89,7 +89,7 @@ fn handle_pkgbuild_analysis(
     pkgbuild_text: &str,
     installed: &std::collections::HashSet<String>,
     provided: &std::collections::HashSet<String>,
-) -> Option<SandboxInfo> {
+) -> SandboxInfo {
     match analyze_package_from_pkgbuild(name, pkgbuild_text, installed, provided) {
         Ok(info) => {
             let total_deps = info.depends.len()
@@ -105,7 +105,7 @@ fn handle_pkgbuild_analysis(
                 info.checkdepends.len(),
                 info.optdepends.len()
             );
-            Some(info)
+            info
         }
         Err(e) => {
             tracing::warn!(
@@ -117,7 +117,7 @@ fn handle_pkgbuild_analysis(
                 "Creating empty sandbox info for {} (PKGBUILD analysis failed)",
                 name
             );
-            Some(create_empty_sandbox_info(name.to_string()))
+            create_empty_sandbox_info(name.to_string())
         }
     }
 }
@@ -142,7 +142,12 @@ async fn process_sandbox_package(
     provided: std::collections::HashSet<String>,
 ) -> Option<SandboxInfo> {
     match fetch_srcinfo_async(&client, &name).await {
-        Ok(srcinfo_text) => handle_srcinfo_analysis(&name, &srcinfo_text, &installed, &provided),
+        Ok(srcinfo_text) => Some(handle_srcinfo_analysis(
+            &name,
+            &srcinfo_text,
+            &installed,
+            &provided,
+        )),
         Err(e) => {
             tracing::debug!(
                 "Failed to fetch .SRCINFO for {}: {}, trying PKGBUILD",
@@ -162,12 +167,12 @@ async fn process_sandbox_package(
                         "Successfully fetched PKGBUILD for {}, parsing dependencies",
                         name
                     );
-                    handle_pkgbuild_analysis(
+                    Some(handle_pkgbuild_analysis(
                         &name,
                         &pkgbuild_text,
                         &installed_for_fallback,
                         &provided_for_fallback,
-                    )
+                    ))
                 }
                 Ok(Err(e)) => {
                     tracing::warn!("Failed to fetch PKGBUILD for {}: {}", name, e);

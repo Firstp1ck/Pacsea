@@ -96,8 +96,8 @@ fn handle_pkgb_toggle_click(
 /// - `text`: The text to copy
 ///
 /// Output:
-/// - `Some(String)` with success/error message, or `None` if clipboard tool is not available.
-fn copy_to_clipboard(text: String) -> Option<String> {
+/// - `String` with success/error message.
+fn copy_to_clipboard(text: String) -> String {
     let suffix = {
         let s = crate::theme::settings().clipboard_suffix;
         if s.trim().is_empty() {
@@ -124,7 +124,7 @@ fn copy_to_clipboard(text: String) -> Option<String> {
             let _ = std::io::Write::write_all(&mut sin, payload.as_bytes());
         }
         let _ = child.wait();
-        return Some("PKGBUILD is added to the Clipboard".to_string());
+        return "PKGBUILD is added to the Clipboard".to_string();
     }
 
     // Try xclip as a generic fallback on X11
@@ -139,7 +139,7 @@ fn copy_to_clipboard(text: String) -> Option<String> {
             let _ = std::io::Write::write_all(&mut sin, payload.as_bytes());
         }
         let _ = child.wait();
-        return Some("PKGBUILD is added to the Clipboard".to_string());
+        return "PKGBUILD is added to the Clipboard".to_string();
     }
 
     // Neither wl-copy nor xclip worked — report guidance
@@ -149,7 +149,7 @@ fn copy_to_clipboard(text: String) -> Option<String> {
     } else {
         "Clipboard tool not found. Please install 'xclip' or 'wl-clipboard' (wl-copy).".to_string()
     };
-    Some(hint)
+    hint
 }
 
 /// Handle copy PKGBUILD button click.
@@ -173,7 +173,7 @@ fn handle_copy_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
         let (tx_msg, rx_msg) = std::sync::mpsc::channel::<Option<String>>();
         std::thread::spawn(move || {
             let result = copy_to_clipboard(text);
-            let _ = tx_msg.send(result);
+            let _ = tx_msg.send(Some(result));
         });
         // Default optimistic toast; overwritten by worker if needed
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.copying_pkgbuild"));

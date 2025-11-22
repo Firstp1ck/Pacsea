@@ -15,7 +15,7 @@ use crossterm::event::{MouseEvent, MouseEventKind};
 /// - `app`: Mutable application state containing modal state and UI rectangles
 ///
 /// Output:
-/// - `Some(false)` if the event was handled, `None` if not handled.
+/// - `false` if the event was handled
 ///
 /// Details:
 /// - Supports scrolling within content area.
@@ -27,7 +27,7 @@ pub(super) fn handle_help_modal(
     my: u16,
     is_left_down: bool,
     app: &mut AppState,
-) -> Option<bool> {
+) -> bool {
     // Scroll within Help content area
     if let Some((x, y, w, h)) = app.help_rect
         && mx >= x
@@ -38,11 +38,11 @@ pub(super) fn handle_help_modal(
         match m.kind {
             MouseEventKind::ScrollUp => {
                 app.help_scroll = app.help_scroll.saturating_sub(1);
-                return Some(false);
+                return false;
             }
             MouseEventKind::ScrollDown => {
                 app.help_scroll = app.help_scroll.saturating_add(1);
-                return Some(false);
+                return false;
             }
             _ => {}
         }
@@ -62,10 +62,10 @@ pub(super) fn handle_help_modal(
             // Fallback: close on any click if no rect is known
             app.modal = crate::state::Modal::None;
         }
-        return Some(false);
+        return false;
     }
     // Consume remaining mouse events while Help is open
-    Some(false)
+    false
 }
 
 /// Handle mouse events for the `VirusTotalSetup` modal.
@@ -80,7 +80,7 @@ pub(super) fn handle_help_modal(
 /// - `app`: Mutable application state containing modal state and UI rectangles
 ///
 /// Output:
-/// - `Some(false)` if the event was handled, `None` if not handled.
+/// - `false` if the event was handled
 ///
 /// Details:
 /// - Opens URL when clicking the link area.
@@ -91,7 +91,7 @@ pub(super) fn handle_virustotal_modal(
     my: u16,
     is_left_down: bool,
     app: &mut AppState,
-) -> Option<bool> {
+) -> bool {
     if is_left_down
         && let Some((x, y, w, h)) = app.vt_url_rect
         && mx >= x
@@ -110,7 +110,7 @@ pub(super) fn handle_virustotal_modal(
         });
     }
     // Consume all mouse events while VirusTotal setup modal is open
-    Some(false)
+    false
 }
 
 /// Handle mouse events for the News modal.

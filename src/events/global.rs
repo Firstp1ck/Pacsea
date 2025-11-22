@@ -297,13 +297,13 @@ fn handle_escape(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if help was opened, `None` otherwise
+/// - `false` if help was opened
 ///
 /// Details:
 /// - Opens the Help modal when the help overlay keybind is pressed.
-fn handle_help_overlay(app: &mut AppState) -> Option<bool> {
+fn handle_help_overlay(app: &mut AppState) -> bool {
     app.modal = crate::state::Modal::Help;
-    Some(false)
+    false
 }
 
 /// What: Handle theme reload keybind.
@@ -312,11 +312,11 @@ fn handle_help_overlay(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if theme was reloaded, `None` otherwise
+/// - `false` if theme was reloaded
 ///
 /// Details:
 /// - Reloads the theme configuration and shows a toast message on success.
-fn handle_reload_theme(app: &mut AppState) -> Option<bool> {
+fn handle_reload_theme(app: &mut AppState) -> bool {
     match reload_theme() {
         Ok(()) => {
             app.toast_message = Some(crate::i18n::t(app, "app.toasts.theme_reloaded"));
@@ -327,7 +327,7 @@ fn handle_reload_theme(app: &mut AppState) -> Option<bool> {
             app.modal = crate::state::Modal::Alert { message: msg };
         }
     }
-    Some(false)
+    false
 }
 
 /// What: Handle exit keybind.
@@ -336,12 +336,12 @@ fn handle_reload_theme(app: &mut AppState) -> Option<bool> {
 /// - None (uses closure pattern)
 ///
 /// Output:
-/// - `Some(true)` to signal exit
+/// - `true` to signal exit
 ///
 /// Details:
 /// - Returns exit signal when exit keybind is pressed.
-const fn handle_exit() -> Option<bool> {
-    Some(true)
+const fn handle_exit() -> bool {
+    true
 }
 
 /// What: Handle PKGBUILD viewer toggle keybind.
@@ -351,14 +351,14 @@ const fn handle_exit() -> Option<bool> {
 /// - `pkgb_tx`: Channel to request PKGBUILD content
 ///
 /// Output:
-/// - `Some(false)` if PKGBUILD was toggled, `None` otherwise
+/// - `false` if PKGBUILD was toggled
 ///
 /// Details:
 /// - Toggles PKGBUILD viewer visibility and requests content if opening.
 fn handle_toggle_pkgbuild(
     app: &mut AppState,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
-) -> Option<bool> {
+) -> bool {
     if app.pkgb_visible {
         app.pkgb_visible = false;
         app.pkgb_text = None;
@@ -373,7 +373,7 @@ fn handle_toggle_pkgbuild(
             let _ = pkgb_tx.send(item);
         }
     }
-    Some(false)
+    false
 }
 
 /// What: Handle sort mode change keybind.
@@ -383,14 +383,11 @@ fn handle_toggle_pkgbuild(
 /// - `details_tx`: Channel to request package details
 ///
 /// Output:
-/// - `Some(false)` if sort mode was changed, `None` otherwise
+/// - `false` if sort mode was changed
 ///
 /// Details:
 /// - Cycles through sort modes, persists preference, re-sorts results, and refreshes details.
-fn handle_change_sort(
-    app: &mut AppState,
-    details_tx: &mpsc::UnboundedSender<PackageItem>,
-) -> Option<bool> {
+fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) -> bool {
     // Cycle through sort modes in fixed order
     app.sort_mode = match app.sort_mode {
         crate::state::SortMode::RepoThenName => crate::state::SortMode::AurPopularityThenOfficial,
@@ -412,7 +409,7 @@ fn handle_change_sort(
     app.sort_menu_open = true;
     app.sort_menu_auto_close_at =
         Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
-    Some(false)
+    false
 }
 
 /// What: Handle numeric menu selection for options menu.
@@ -450,14 +447,14 @@ fn handle_options_menu_numeric(
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if selection was handled, `None` otherwise
+/// - `false` if selection was handled
 ///
 /// Details:
 /// - Routes numeric selection to panels menu handler and keeps menu open.
-fn handle_panels_menu_numeric(idx: usize, app: &mut AppState) -> Option<bool> {
+fn handle_panels_menu_numeric(idx: usize, app: &mut AppState) -> bool {
     handle_panels_menu_selection(idx, app);
     // Keep menu open after toggling panels
-    Some(false)
+    false
 }
 
 /// What: Handle numeric menu selection for config menu.
@@ -467,13 +464,13 @@ fn handle_panels_menu_numeric(idx: usize, app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if selection was handled, `None` otherwise
+/// - `false` if selection was handled
 ///
 /// Details:
 /// - Routes numeric selection to config menu handler.
-fn handle_config_menu_numeric(idx: usize, app: &mut AppState) -> Option<bool> {
+fn handle_config_menu_numeric(idx: usize, app: &mut AppState) -> bool {
     handle_config_menu_selection(idx, app);
-    Some(false)
+    false
 }
 
 /// What: Handle numeric key press when dropdown menus are open.
@@ -497,9 +494,9 @@ fn handle_menu_numeric_selection(
     if app.options_menu_open {
         handle_options_menu_numeric(idx, app, details_tx)
     } else if app.panels_menu_open {
-        handle_panels_menu_numeric(idx, app)
+        Some(handle_panels_menu_numeric(idx, app))
     } else if app.config_menu_open {
-        handle_config_menu_numeric(idx, app)
+        Some(handle_config_menu_numeric(idx, app))
     } else {
         None
     }
@@ -530,27 +527,27 @@ fn handle_global_keybinds(
     if !matches!(app.modal, crate::state::Modal::Preflight { .. })
         && matches_keybind(ke, &km.help_overlay)
     {
-        return handle_help_overlay(app);
+        return Some(handle_help_overlay(app));
     }
 
     // Theme reload
     if matches_keybind(ke, &km.reload_theme) {
-        return handle_reload_theme(app);
+        return Some(handle_reload_theme(app));
     }
 
     // Exit
     if matches_keybind(ke, &km.exit) {
-        return handle_exit();
+        return Some(handle_exit());
     }
 
     // PKGBUILD toggle
     if matches_keybind(ke, &km.show_pkgbuild) {
-        return handle_toggle_pkgbuild(app, pkgb_tx);
+        return Some(handle_toggle_pkgbuild(app, pkgb_tx));
     }
 
     // Sort change
     if matches_keybind(ke, &km.change_sort) {
-        return handle_change_sort(app, details_tx);
+        return Some(handle_change_sort(app, details_tx));
     }
 
     None

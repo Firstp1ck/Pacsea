@@ -112,18 +112,18 @@ fn format_aur_pct_suffix(body: &str) -> String {
 /// - `aur_is_down`: Whether AUR is specifically down.
 ///
 /// Output:
-/// - `Some((text, color))` if status should be returned, `None` otherwise.
+/// - `(text, color)` tuple representing the status.
 fn handle_arch_systems_status(
     body: &str,
     systems_status_color: ArchStatusColor,
     aur_is_down: bool,
-) -> Option<(String, ArchStatusColor)> {
+) -> (String, ArchStatusColor) {
     let aur_pct_suffix = format_aur_pct_suffix(body);
     if aur_is_down {
-        return Some((
+        return (
             format!("Status: AUR Down{aur_pct_suffix}"),
             ArchStatusColor::IncidentSevereToday,
-        ));
+        );
     }
     let text = match systems_status_color {
         ArchStatusColor::IncidentSevereToday => {
@@ -134,7 +134,7 @@ fn handle_arch_systems_status(
         }
         _ => format!("Arch systems nominal{aur_pct_suffix}"),
     };
-    Some((text, systems_status_color))
+    (text, systems_status_color)
 }
 
 /// What: Check if outage announcement is for today's date.
@@ -217,7 +217,7 @@ fn is_outage_today(body: &str, outage_pos: usize) -> bool {
 /// - `has_all_ok`: Whether "all systems operational" text is present.
 ///
 /// Output:
-/// - `Some((text, color))` if outage should be returned, `None` otherwise.
+/// - `(text, color)` tuple representing the status.
 fn handle_outage_announcement(
     body: &str,
     _lowered: &str,
@@ -226,30 +226,30 @@ fn handle_outage_announcement(
     aur_pct_opt: Option<u32>,
     final_color: Option<ArchStatusColor>,
     has_all_ok: bool,
-) -> Option<(String, ArchStatusColor)> {
+) -> (String, ArchStatusColor) {
     if is_outage_today(body, outage_pos) {
         let forced_color = match aur_pct_opt {
             Some(p) if p < 90 => ArchStatusColor::IncidentSevereToday,
             _ => ArchStatusColor::IncidentToday,
         };
-        return Some((
+        return (
             format!("AUR outage (see status){aur_pct_suffix}"),
             severity_max(
                 forced_color,
                 final_color.unwrap_or(ArchStatusColor::IncidentToday),
             ),
-        ));
+        );
     }
     if has_all_ok {
-        return Some((
+        return (
             format!("All systems operational{aur_pct_suffix}"),
             final_color.unwrap_or(ArchStatusColor::IncidentToday),
-        ));
+        );
     }
-    Some((
+    (
         format!("Arch systems nominal{aur_pct_suffix}"),
         final_color.unwrap_or(ArchStatusColor::IncidentToday),
-    ))
+    )
 }
 
 /// Parse a status message and color from the HTML of a status page.
@@ -272,9 +272,7 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
             ArchStatusColor::IncidentToday | ArchStatusColor::IncidentSevereToday
         )
     {
-        if let Some(result) = handle_arch_systems_status(body, systems_status_color, aur_is_down) {
-            return result;
-        }
+        return handle_arch_systems_status(body, systems_status_color, aur_is_down);
     }
 
     if aur_is_down {
@@ -306,7 +304,7 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
 
     let outage_key = "the aur is currently experiencing an outage";
     if let Some(pos) = lowered.find(outage_key) {
-        if let Some(result) = handle_outage_announcement(
+        return handle_outage_announcement(
             body,
             &lowered,
             pos,
@@ -314,9 +312,7 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
             aur_pct_opt,
             final_color,
             has_all_ok,
-        ) {
-            return result;
-        }
+        );
     }
 
     if let Some(rect_color) = aur_color_from_rect
