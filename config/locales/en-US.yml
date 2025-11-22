@@ -508,7 +508,7 @@ en-US:
           pacsave: "{} pacsave"
           pacnew_label: "⚠ pacnew "
           pacsave_label: "⚠ pacsave "
-          files_count: "({} files"
+          files_count: "({}) files"
           showing_range_items: "... showing {}-{} of {} items (↑↓ to navigate)"
         services:
           updating: "Updating service impact data…"
