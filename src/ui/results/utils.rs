@@ -139,13 +139,13 @@ pub fn center_selection(app: &mut AppState, area: Rect) {
     }
 }
 
-/// What: Extract all data needed for rendering from AppState in one operation.
+/// What: Extract all data needed for rendering from `AppState` in one operation.
 ///
 /// Inputs:
 /// - `app`: Application state to extract data from
 ///
 /// Output:
-/// - RenderContext containing all extracted values
+/// - `RenderContext` containing all extracted values
 ///
 /// Details:
 /// - Reduces data flow complexity by extracting all needed values in a single function call

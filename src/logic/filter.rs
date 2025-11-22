@@ -138,16 +138,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify CachyOS and EOS toggles act independently when filtering official repos.
+    /// What: Verify `CachyOS` and `EOS` toggles act independently when filtering official repos.
     ///
     /// Inputs:
-    /// - `app`: `AppState` containing CachyOS and EndeavourOS entries with toggle combinations.
+    /// - `app`: `AppState` containing `CachyOS` and `EndeavourOS` entries with toggle combinations.
     ///
     /// Output:
-    /// - CachyOS packages persist while EOS entries are removed per toggle state.
+    /// - `CachyOS` packages persist while `EOS` entries are removed per toggle state.
     ///
     /// Details:
-    /// - Confirms CachyOS inclusion does not implicitly re-enable EOS repositories.
+    /// - Confirms `CachyOS` inclusion does not implicitly re-enable `EOS` repositories.
     fn apply_filters_cachyos_and_eos_interaction() {
         let mut app = AppState {
             ..Default::default()

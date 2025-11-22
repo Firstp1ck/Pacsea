@@ -162,7 +162,7 @@ mod tests {
     /// What: Initialize minimal English translations for search tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with search-related translations

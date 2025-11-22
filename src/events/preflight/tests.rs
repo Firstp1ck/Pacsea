@@ -749,7 +749,7 @@ fn empty_file_info_handled_correctly() {
 }
 
 #[test]
-/// What: Verify that dependencies are correctly filtered by required_by when loading from cache.
+/// What: Verify that dependencies are correctly filtered by `required_by` when loading from cache.
 ///
 /// Inputs:
 /// - `AppState` with cached dependencies, some matching current items and some not.

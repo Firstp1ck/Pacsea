@@ -13,7 +13,7 @@ use super::{FilterStates, MenuStates, OptionalRepos, RenderContext};
 
 /// What: Pre-computed i18n strings for title rendering.
 ///
-/// Inputs: Individual i18n strings from AppState.
+/// Inputs: Individual i18n strings from `AppState`.
 ///
 /// Output: Struct containing all i18n strings needed for title rendering.
 ///
@@ -40,12 +40,12 @@ struct TitleI18nStrings {
     filter_manjaro: String,
 }
 
-/// What: Build TitleI18nStrings from AppState.
+/// What: Build `TitleI18nStrings` from `AppState`.
 ///
 /// Inputs:
 /// - `app`: Application state for i18n
 ///
-/// Output: TitleI18nStrings containing all pre-computed i18n strings.
+/// Output: `TitleI18nStrings` containing all pre-computed i18n strings.
 ///
 /// Details: Extracts all i18n strings needed for title rendering in one place.
 fn build_title_i18n_strings(app: &AppState) -> TitleI18nStrings {
@@ -331,7 +331,7 @@ fn render_core_filters(
     ]
 }
 
-/// What: Render optional EOS and CachyOS filters.
+/// What: Render optional `EOS` and `CachyOS` filters.
 ///
 /// Inputs:
 /// - `i18n`: Pre-computed i18n strings
@@ -340,7 +340,7 @@ fn render_core_filters(
 ///
 /// Output: Vector of spans for optional filters.
 ///
-/// Details: Renders EOS and CachyOS filters if available.
+/// Details: Renders `EOS` and `CachyOS` filters if available.
 fn render_optional_eos_cachyos_filters(
     i18n: &TitleI18nStrings,
     optional_repos: &OptionalRepos,
@@ -588,7 +588,7 @@ pub fn build_title_spans_from_context(
 /// - Applies theme styling for active buttons, ensures right-side buttons align within the title,
 ///   and toggles optional repo chips based on availability flags.
 /// - Uses pre-computed i18n strings and focused rendering functions to reduce complexity.
-/// - Reuses layout calculation logic from calculate_title_layout_info.
+/// - Reuses layout calculation logic from `calculate_title_layout_info`.
 fn build_title_spans_from_values(
     app: &AppState,
     results_len: usize,
@@ -663,7 +663,7 @@ struct TitleLayoutInfo {
 ///
 /// Output: Struct that tracks current x cursor position and y position.
 ///
-/// Details: Encapsulates layout state to avoid manual x_cursor tracking.
+/// Details: Encapsulates layout state to avoid manual `x_cursor` tracking.
 struct LayoutState {
     x: u16,
     y: u16,
@@ -676,7 +676,7 @@ impl LayoutState {
     /// - `x`: Initial x position
     /// - `y`: Y position (constant)
     ///
-    /// Output: New LayoutState instance.
+    /// Output: New `LayoutState` instance.
     ///
     /// Details: Initializes layout state with starting position.
     fn new(x: u16, y: u16) -> Self {
@@ -719,7 +719,7 @@ impl LayoutState {
 /// - `inner_width`: Inner width of the area (excluding borders)
 /// - `optional_repos`: Optional repository availability flags
 ///
-/// Output: TitleLayoutInfo containing all calculated layout values.
+/// Output: `TitleLayoutInfo` containing all calculated layout values.
 ///
 /// Details: Performs all layout calculations shared between rendering and rect recording.
 fn calculate_title_layout_info(
@@ -853,7 +853,7 @@ fn record_core_filter_rects(
 ///
 /// Output: Updates app with optional repo filter rectangles.
 ///
-/// Details: Records rectangles for EOS, CachyOS, Artix, Artix-specific repos, and Manjaro filters.
+/// Details: Records rectangles for `EOS`, `CachyOS`, `Artix`, Artix-specific repos, and `Manjaro` filters.
 fn record_optional_repo_rects(
     app: &mut AppState,
     layout: &mut LayoutState,

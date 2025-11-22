@@ -892,7 +892,7 @@ fn prepare_cascade_candidates<'a>(
 ///
 /// Details:
 /// - Renders the cascade candidates list with preview limit.
-/// - Uses pre-computed is_direct flags to avoid recalculation.
+/// - Uses pre-computed `is_direct` flags to avoid recalculation.
 fn render_cascade_candidates(
     app: &AppState,
     candidates: &[(&DependencyInfo, bool)],

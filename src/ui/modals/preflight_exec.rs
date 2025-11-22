@@ -18,7 +18,7 @@ use crate::ui::helpers::{format_bytes, format_signed_bytes};
 /// - `f`: Frame to render into (for clearing the modal area)
 ///
 /// Output:
-/// - Returns tuple of (modal_rect, inner_rect, column_rects) where column_rects[0] is sidebar and column_rects[1] is log panel.
+/// - Returns tuple of (`modal_rect`, `inner_rect`, `column_rects`) where `column_rects[0]` is sidebar and `column_rects[1]` is log panel.
 ///
 /// Details:
 /// - Centers modal with max width of 110, calculates inner area with 1px border, and splits into 30%/70% columns.

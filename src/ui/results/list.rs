@@ -31,7 +31,7 @@ pub struct PackageListStatus {
 /// - `app`: Application state containing the lists
 ///
 /// Output:
-/// - PackageListStatus struct with boolean flags for each list type
+/// - `PackageListStatus` struct with boolean flags for each list type
 ///
 /// Details:
 /// - Performs case-insensitive name matching against all three lists.
@@ -106,21 +106,21 @@ pub fn determine_source_label_and_color(
     }
 }
 
-/// What: Build a ListItem with package marker styling applied.
+/// What: Build a `ListItem` with package marker styling applied.
 ///
 /// Inputs:
 /// - `segs`: Vector of spans representing the package information
-/// - `marker_type`: Type of marker to apply (FullLine, Front, or End)
+/// - `marker_type`: Type of marker to apply (`FullLine`, `Front`, or `End`)
 /// - `label`: Marker label text (e.g., "[+]", "[-]", "[↓]")
 /// - `color`: Color for the marker
-/// - `in_install`: Whether package is in install list (affects FullLine background)
+/// - `in_install`: Whether package is in install list (affects `FullLine` background)
 /// - `theme`: Theme for additional color values
 ///
 /// Output:
-/// - ListItem with marker styling applied
+/// - `ListItem` with marker styling applied
 ///
 /// Details:
-/// - FullLine: Colors the entire line background with dimmed color for installs
+/// - `FullLine`: Colors the entire line background with dimmed color for installs
 /// - Front: Adds marker at the beginning of the line
 /// - End: Adds marker at the end of the line
 pub fn build_package_marker_item(
@@ -178,7 +178,7 @@ pub fn build_package_marker_item(
     }
 }
 
-/// What: Build a ListItem for a package in the results list.
+/// What: Build a `ListItem` for a package in the results list.
 ///
 /// Inputs:
 /// - `package`: Package to render
@@ -188,7 +188,7 @@ pub fn build_package_marker_item(
 /// - `in_viewport`: Whether this item is in the visible viewport
 ///
 /// Output:
-/// - ListItem ready for rendering
+/// - `ListItem` ready for rendering
 ///
 /// Details:
 /// - Returns empty item if not in viewport for performance.

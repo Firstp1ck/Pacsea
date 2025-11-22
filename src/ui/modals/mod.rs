@@ -16,7 +16,7 @@ mod renderer;
 mod system_update;
 mod updates;
 
-/// What: Render modal overlays (Alert, ConfirmInstall, ConfirmRemove, SystemUpdate, Help, News).
+/// What: Render modal overlays (`Alert`, `ConfirmInstall`, `ConfirmRemove`, `SystemUpdate`, `Help`, `News`).
 ///
 /// Inputs:
 /// - `f`: Frame to render into

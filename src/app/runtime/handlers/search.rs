@@ -205,8 +205,8 @@ mod tests {
     /// What: Verify that `handle_search_results` ignores results with mismatched query ID.
     ///
     /// Inputs:
-    /// - `AppState` with latest_query_id = 1
-    /// - `SearchResults` with id = 2
+    /// - `AppState` with `latest_query_id` = 1
+    /// - `SearchResults` with `id` = 2
     ///
     /// Output:
     /// - Results are ignored, app state unchanged
@@ -249,8 +249,8 @@ mod tests {
     /// What: Verify that `handle_search_results` updates results when query ID matches.
     ///
     /// Inputs:
-    /// - `AppState` with latest_query_id = 1
-    /// - `SearchResults` with id = 1 and new items
+    /// - `AppState` with `latest_query_id` = 1
+    /// - `SearchResults` with `id` = 1 and new items
     ///
     /// Output:
     /// - Results are updated with new items
@@ -294,7 +294,7 @@ mod tests {
     /// What: Verify that `handle_details_update` updates cache and current details.
     ///
     /// Inputs:
-    /// - `AppState` with details_focus set
+    /// - `AppState` with `details_focus` set
     /// - `PackageDetails` for focused package
     ///
     /// Output:

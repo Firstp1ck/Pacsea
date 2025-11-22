@@ -265,7 +265,7 @@ fn is_leap(y: i32) -> bool {
 
 /// Open a file in the default editor (cross-platform).
 ///
-/// On Windows, uses PowerShell's `Invoke-Item` to open files with the default application.
+/// On Windows, uses `PowerShell`'s `Invoke-Item` to open files with the default application.
 /// On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
 ///
 /// This function spawns the command in a background thread and ignores errors.

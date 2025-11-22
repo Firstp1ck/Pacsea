@@ -36,10 +36,10 @@ makedepends=('make' 'gcc')
 }
 
 #[test]
-/// What: Test parsing dependencies with depends+= syntax in package() function.
+/// What: Test parsing dependencies with depends+= syntax in `package()` function.
 ///
 /// Inputs:
-/// - PKGBUILD with depends+= inside package() function.
+/// - PKGBUILD with depends+= inside `package()` function.
 ///
 /// Output:
 /// - Correctly parsed dependencies from depends+=.

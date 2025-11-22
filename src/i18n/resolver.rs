@@ -16,7 +16,7 @@ use crate::i18n::detection::detect_system_locale;
 /// - Resolved locale code (e.g., "de-DE")
 ///
 /// Details:
-/// - Priority: settings_locale -> system locale -> default from `i18n.yml`
+/// - Priority: `settings_locale` -> system locale -> default from `i18n.yml`
 /// - Applies fallback chain from `i18n.yml` (e.g., de-CH -> de-DE -> en-US)
 /// - Validates locale format (basic check for valid locale code structure)
 pub fn resolve_locale(settings_locale: &str, i18n_config_path: &PathBuf) -> String {
