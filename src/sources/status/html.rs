@@ -318,7 +318,7 @@ mod tests {
     /// - Ensures the early check for arch systems status works correctly and isn't overridden by other checks.
     fn status_parse_detects_some_systems_down_heading() {
         // HTML with "Some systems down" but AUR is operational (so it should show generic message)
-        let html = r#"<html><body><h2>Some systems down</h2><div>Monitors (default)</div><div>AUR</div><div>Operational</div></body></html>"#;
+        let html = "<html><body><h2>Some systems down</h2><div>Monitors (default)</div><div>AUR</div><div>Operational</div></body></html>";
         let (text, color) = parse_arch_status_from_html(html);
         assert_eq!(color, ArchStatusColor::IncidentSevereToday);
         assert!(text.contains("Some Arch systems down"));
@@ -335,6 +335,7 @@ mod tests {
     ///
     /// Details:
     /// - Builds several HTML variants to confirm the parser reacts to both high-level outage banners and raw percentages.
+    #[allow(clippy::many_single_char_names)]
     fn status_parse_color_by_percentage_and_outage() {
         let (y, m, d) = {
             let out = std::process::Command::new("date")
@@ -377,7 +378,7 @@ mod tests {
 
         let make_html = |percent: u32, outage: bool| -> String {
             format!(
-                r#"<html><body><h2>Uptime Last 90 days</h2><div>Monitors (default)</div><div>AUR</div><div>{date_str}</div><div>{percent}% uptime</div>{outage_block}</body></html>"#,
+                "<html><body><h2>Uptime Last 90 days</h2><div>Monitors (default)</div><div>AUR</div><div>{date_str}</div><div>{percent}% uptime</div>{outage_block}</body></html>",
                 outage_block = if outage {
                     "<h4>The AUR is currently experiencing an outage</h4>"
                 } else {
@@ -418,6 +419,7 @@ mod tests {
     ///
     /// Details:
     /// - Ensures the parser checks the SVG dataset first so maintenance banners with stale percentages still reflect current outages.
+    #[allow(clippy::many_single_char_names)]
     fn status_parse_prefers_svg_rect_color() {
         let (y, m, d) = {
             let out = std::process::Command::new("date")
@@ -478,7 +480,7 @@ mod tests {
     /// - Ensures AUR-specific "Down" status is prioritized over generic "Some systems down" message.
     fn status_parse_prioritizes_aur_down_over_some_systems_down() {
         // HTML with "Some systems down" heading and AUR showing "Down"
-        let html = r#"<html><body><h2>Some systems down</h2><div>Monitors (default)</div><div>AUR</div><div>>Down<</div></body></html>"#;
+        let html = "<html><body><h2>Some systems down</h2><div>Monitors (default)</div><div>AUR</div><div>>Down<</div></body></html>";
         let (text, color) = parse_arch_status_from_html(html);
         assert_eq!(color, ArchStatusColor::IncidentSevereToday);
         assert!(
@@ -501,20 +503,20 @@ mod tests {
     /// - Tests various HTML patterns for AUR "Down" status detection.
     fn status_is_aur_down_in_monitors() {
         // Test AUR Down with title="Down" pattern (actual status page format)
-        let html_title = r#"<html><body><div>Monitors</div><div>AUR</div><div title="Down">Status</div></body></html>"#;
+        let html_title = "<html><body><div>Monitors</div><div>AUR</div><div title=\"Down\">Status</div></body></html>";
         assert!(is_aur_down_in_monitors(html_title));
 
         // Test AUR Down with title='Down' pattern
-        let html_title_single = r#"<html><body><div>Monitors</div><div>AUR</div><div title='Down'>Status</div></body></html>"#;
+        let html_title_single = "<html><body><div>Monitors</div><div>AUR</div><div title='Down'>Status</div></body></html>";
         assert!(is_aur_down_in_monitors(html_title_single));
 
         // Test AUR Down with actual status page HTML structure
-        let html_real = r#"<div class="psp-monitor-row"><div>Monitors</div><div>AUR</div><div class="psp-monitor-row-status-inner" title="Down"><span>Down</span></div></div>"#;
+        let html_real = "<div class=\"psp-monitor-row\"><div>Monitors</div><div>AUR</div><div class=\"psp-monitor-row-status-inner\" title=\"Down\"><span>Down</span></div></div>";
         assert!(is_aur_down_in_monitors(html_real));
 
         // Test with actual website HTML structure (from status.archlinux.org)
         // Must include "Monitors" text for the function to find the monitors section
-        let html_actual = r#"<div>Monitors (default)</div><div class="psp-monitor-row"><div class="uk-flex uk-flex-between uk-flex-wrap"><div class="psp-monitor-row-header uk-text-muted uk-flex uk-flex-auto"><a title="AUR" class="psp-monitor-name uk-text-truncate uk-display-inline-block" href="https://status.archlinux.org/788139639">AUR<svg class="icon icon-plus-square uk-flex-none"><use href="/assets/symbol-defs.svg#icon-arrow-right"></use></svg></a><div class="uk-flex-none"><span class="m-r-5 m-l-5 uk-visible@s">|</span><span class="uk-text-primary uk-visible@s">94.864%</span><div class="uk-hidden@s uk-margin-small-left"><div class="uk-text-danger psp-monitor-row-status-inner" title="Down"><span class="dot is-error" aria-hidden="true"></span><span class="uk-visible@s">Down</span></div></div></div></div></div><div class="psp-monitor-row-status uk-visible@s"><div class="uk-text-danger psp-monitor-row-status-inner" title="Down"><span class="dot is-error" aria-hidden="true"></span><span class="uk-visible@s">Down</span></div></div></div>"#;
+        let html_actual = "<div>Monitors (default)</div><div class=\"psp-monitor-row\"><div class=\"uk-flex uk-flex-between uk-flex-wrap\"><div class=\"psp-monitor-row-header uk-text-muted uk-flex uk-flex-auto\"><a title=\"AUR\" class=\"psp-monitor-name uk-text-truncate uk-display-inline-block\" href=\"https://status.archlinux.org/788139639\">AUR<svg class=\"icon icon-plus-square uk-flex-none\"><use href=\"/assets/symbol-defs.svg#icon-arrow-right\"></use></svg></a><div class=\"uk-flex-none\"><span class=\"m-r-5 m-l-5 uk-visible@s\">|</span><span class=\"uk-text-primary uk-visible@s\">94.864%</span><div class=\"uk-hidden@s uk-margin-small-left\"><div class=\"uk-text-danger psp-monitor-row-status-inner\" title=\"Down\"><span class=\"dot is-error\" aria-hidden=\"true\"></span><span class=\"uk-visible@s\">Down</span></div></div></div></div></div><div class=\"psp-monitor-row-status uk-visible@s\"><div class=\"uk-text-danger psp-monitor-row-status-inner\" title=\"Down\"><span class=\"dot is-error\" aria-hidden=\"true\"></span><span class=\"uk-visible@s\">Down</span></div></div></div>";
         assert!(
             is_aur_down_in_monitors(html_actual),
             "Should detect AUR Down in actual website HTML structure"
@@ -522,26 +524,26 @@ mod tests {
 
         // Test AUR Down with >down< pattern
         let html1 =
-            r#"<html><body><div>Monitors</div><div>AUR</div><div>>Down<</div></body></html>"#;
+            "<html><body><div>Monitors</div><div>AUR</div><div>>Down<</div></body></html>";
         assert!(is_aur_down_in_monitors(html1));
 
         // Test AUR Down with "down" pattern
         let html2 =
-            r#"<html><body><div>Monitors</div><div>AUR</div><div>"Down"</div></body></html>"#;
+            "<html><body><div>Monitors</div><div>AUR</div><div>\"Down\"</div></body></html>";
         assert!(is_aur_down_in_monitors(html2));
 
         // Test AUR Down with 'down' pattern
         let html3 =
-            r#"<html><body><div>Monitors</div><div>AUR</div><div>'Down'</div></body></html>"#;
+            "<html><body><div>Monitors</div><div>AUR</div><div>'Down'</div></body></html>";
         assert!(is_aur_down_in_monitors(html3));
 
         // Test AUR Operational (should return false)
         let html4 =
-            r#"<html><body><div>Monitors</div><div>AUR</div><div>Operational</div></body></html>"#;
+            "<html><body><div>Monitors</div><div>AUR</div><div>Operational</div></body></html>";
         assert!(!is_aur_down_in_monitors(html4));
 
         // Test no monitors section (should return false)
-        let html5 = r#"<html><body><div>AUR</div><div>Down</div></body></html>"#;
+        let html5 = "<html><body><div>AUR</div><div>Down</div></body></html>";
         assert!(!is_aur_down_in_monitors(html5));
     }
 }

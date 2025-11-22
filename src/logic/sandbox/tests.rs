@@ -14,12 +14,12 @@ use crate::logic::sandbox::parse::parse_pkgbuild_deps;
 /// Details:
 /// - Validates basic dependency parsing works.
 fn test_parse_pkgbuild_deps_basic() {
-    let pkgbuild = r#"
+    let pkgbuild = r"
 pkgname=test-package
 pkgver=1.0.0
 depends=('foo' 'bar>=1.2')
 makedepends=('make' 'gcc')
-"#;
+";
 
     let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
 
@@ -80,10 +80,10 @@ package() {
 /// Details:
 /// - Validates that unquoted dependencies are parsed correctly.
 fn test_parse_pkgbuild_deps_unquoted() {
-    let pkgbuild = r#"
+    let pkgbuild = r"
 pkgname=test-package
 depends=(libcairo.so libdbus-1.so)
-"#;
+";
 
     let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
 
@@ -108,14 +108,14 @@ depends=(libcairo.so libdbus-1.so)
 /// Details:
 /// - Validates multi-line array parsing works correctly.
 fn test_parse_pkgbuild_deps_multiline() {
-    let pkgbuild = r#"
+    let pkgbuild = r"
 pkgname=test-package
 depends=(
     'foo'
     'bar>=1.2'
     'baz'
 )
-"#;
+";
 
     let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
 
@@ -141,13 +141,13 @@ depends=(
 /// Details:
 /// - Validates that makedepends+= is also handled.
 fn test_parse_pkgbuild_deps_makedepends_append() {
-    let pkgbuild = r#"
+    let pkgbuild = r"
 pkgname=test-package
 build() {
     makedepends+=(cmake ninja)
     cmake -B build
 }
-"#;
+";
 
     let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild);
 

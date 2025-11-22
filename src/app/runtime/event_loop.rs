@@ -1,7 +1,7 @@
 use ratatui::Terminal;
 use tokio::select;
 
-use crate::state::*;
+use crate::state::{AppState, Modal, PackageItem};
 use crate::ui::ui;
 
 use super::background::Channels;
@@ -23,14 +23,10 @@ use super::tick_handler::{
 /// - Batch-drains imported items arriving close together to avoid repeated redraws
 fn handle_add_batch(app: &mut AppState, channels: &mut Channels, first: PackageItem) {
     let mut batch = vec![first];
-    loop {
-        match channels.add_rx.try_recv() {
-            Ok(it) => batch.push(it),
-            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
-        }
+    while let Ok(it) = channels.add_rx.try_recv() {
+        batch.push(it);
     }
-    for it in batch.into_iter() {
+    for it in batch {
         handle_add_to_install_list(
             app,
             it,
@@ -85,6 +81,7 @@ fn handle_file_result_with_logging(
 /// Details:
 /// - Waits for and processes a single message from any channel
 /// - Returns `true` when an event handler indicates exit (e.g., quit command)
+#[allow(clippy::too_many_lines)]
 async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -> bool {
     select! {
         Some(ev) = channels.event_rx.recv() => {
@@ -98,7 +95,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.pkgb_req_tx,
             )
         }
-        Some(_) = channels.index_notify_rx.recv() => {
+        Some(()) = channels.index_notify_rx.recv() => {
             app.loading_index = false;
             let _ = channels.tick_tx.send(());
             false
@@ -113,7 +110,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(details) = channels.details_res_rx.recv() => {
-            handle_details_update(app, details, &channels.tick_tx);
+            handle_details_update(app, &details, &channels.tick_tx);
             false
         }
         Some(item) = channels.preview_rx.recv() => {
@@ -161,7 +158,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             app.modal = Modal::Alert { message: msg };
             false
         }
-        Some(_) = channels.tick_rx.recv() => {
+        Some(()) = channels.tick_rx.recv() => {
             handle_tick(
                 app,
                 &channels.query_tx,
@@ -176,7 +173,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(todays) = channels.news_rx.recv() => {
-            handle_news(app, todays);
+            handle_news(app, &todays);
             false
         }
         Some((txt, color)) = channels.status_rx.recv() => {

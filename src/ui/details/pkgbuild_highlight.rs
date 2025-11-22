@@ -173,8 +173,8 @@ pub fn highlight_pkgbuild(text: &str, th: &Theme) -> Vec<ratatui::text::Line<'st
         let mut spans = Vec::new();
 
         match highlighter.highlight_line(line, syntax_set) {
-            Ok(highlighted) => {
-                for (style, text) in highlighted {
+            Ok(highlighted_line) => {
+                for (style, text) in highlighted_line {
                     // Syntect's colors are already scope-based - map them to our theme colors
                     let color = map_syntect_color(style.foreground, th);
                     let mut ratatui_style = Style::default().fg(color);
@@ -225,11 +225,11 @@ mod tests {
     #[test]
     fn test_highlight_pkgbuild_basic() {
         let th = theme();
-        let pkgbuild = r#"pkgname=test
+        let pkgbuild = r"pkgname=test
 pkgver=1.0.0
 # This is a comment
 depends=('bash')
-"#;
+";
 
         let lines = highlight_pkgbuild(pkgbuild, &th);
         assert!(!lines.is_empty());

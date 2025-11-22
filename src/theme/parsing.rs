@@ -102,6 +102,7 @@ pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
 /// Details:
 /// - Strips trailing comments beginning with `//` or secondary `#` markers.
 /// - Accepts `#RRGGBB` hex and `R,G,B` decimal triplets (0-255 per channel).
+#[allow(clippy::many_single_char_names)]
 pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
     // Trim and strip inline comments (support trailing "// ..." and "# ...").
     // Preserve a leading '#' for hex values by searching for '#' only after the first char.

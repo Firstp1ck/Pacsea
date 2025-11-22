@@ -34,14 +34,14 @@ use crate::state::*;
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_auxiliary_workers(
     headless: bool,
-    status_tx: mpsc::UnboundedSender<(String, ArchStatusColor)>,
-    news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
-    tick_tx: mpsc::UnboundedSender<()>,
-    news_read_urls: std::collections::HashSet<String>,
-    official_index_path: std::path::PathBuf,
-    net_err_tx: mpsc::UnboundedSender<String>,
-    index_notify_tx: mpsc::UnboundedSender<()>,
-    updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
+    status_tx: &mpsc::UnboundedSender<(String, ArchStatusColor)>,
+    news_tx: &mpsc::UnboundedSender<Vec<NewsItem>>,
+    tick_tx: &mpsc::UnboundedSender<()>,
+    news_read_urls: &std::collections::HashSet<String>,
+    official_index_path: &std::path::PathBuf,
+    net_err_tx: &mpsc::UnboundedSender<String>,
+    index_notify_tx: &mpsc::UnboundedSender<()>,
+    updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
 ) {
     // Fetch Arch status text once at startup (skip in headless mode to avoid network delays)
     if !headless {
@@ -67,7 +67,7 @@ pub fn spawn_auxiliary_workers(
     // Fetch Arch news once at startup; show unread items (by URL) if any (skip in headless mode)
     if !headless {
         let news_tx_once = news_tx.clone();
-        let read_set = news_read_urls;
+        let read_set = news_read_urls.clone();
         tokio::spawn(async move {
             if let Ok(list) = sources::fetch_arch_news(10).await {
                 let unread: Vec<NewsItem> = list
@@ -119,7 +119,7 @@ pub fn spawn_auxiliary_workers(
 
     // Check for available package updates once at startup (skip in headless mode)
     if !headless {
-        spawn_updates_worker(updates_tx);
+        spawn_updates_worker(updates_tx.clone());
     }
 
     // Spawn tick worker
@@ -136,7 +136,7 @@ pub fn spawn_auxiliary_workers(
 /// What: Check which AUR helper is available (paru or yay).
 ///
 /// Output:
-/// - Tuple of (`has_paru`, `has_yay`, `helper_name`)
+/// - Tuple of (has_paru, has_yay, `helper_name`)
 fn check_aur_helper() -> (bool, bool, &'static str) {
     use std::process::{Command, Stdio};
 
@@ -174,7 +174,7 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
 /// - `output`: Raw command output bytes
 ///
 /// Output:
-/// - Vector of (`package_name`, `new_version`) tuples
+/// - Vector of (package_name, new_version) tuples
 ///
 /// Details:
 /// - Parses "package-name version" format
@@ -205,7 +205,7 @@ fn parse_checkupdates(output: &[u8]) -> Vec<(String, String)> {
 /// - `output`: Raw command output bytes
 ///
 /// Output:
-/// - Vector of (`package_name`, `old_version`, `new_version`) tuples
+/// - Vector of (package_name, old_version, new_version) tuples
 ///
 /// Details:
 /// - Parses "package old -> new" format
@@ -272,8 +272,8 @@ fn get_installed_version(name: &str) -> String {
 ///
 /// Inputs:
 /// - `output`: Command output result
-/// - `packages_map`: Mutable `HashMap` to store formatted package strings
-/// - `packages_set`: Mutable `HashSet` to track unique package names
+/// - `packages_map`: Mutable HashMap to store formatted package strings
+/// - `packages_set`: Mutable HashSet to track unique package names
 fn process_checkupdates_output(
     output: Result<std::process::Output, std::io::Error>,
     packages_map: &mut std::collections::HashMap<String, String>,
@@ -321,8 +321,8 @@ fn process_checkupdates_output(
 /// Inputs:
 /// - `result`: Command output result
 /// - `helper`: Helper name for logging
-/// - `packages_map`: Mutable `HashMap` to store formatted package strings
-/// - `packages_set`: Mutable `HashSet` to track unique package names
+/// - `packages_map`: Mutable HashMap to store formatted package strings
+/// - `packages_set`: Mutable HashSet to track unique package names
 fn process_qua_output(
     result: Option<Result<std::process::Output, std::io::Error>>,
     helper: &str,
@@ -379,9 +379,9 @@ fn process_qua_output(
 ///
 /// Details:
 /// - Executes `checkupdates` (official repos) and `yay -Qua` or `paru -Qua` (AUR)
-/// - Checks for `paru` first, then falls back to `yay` for AUR updates
+/// - Checks for paru first, then falls back to yay for AUR updates
 /// - Parses output from both commands (one package name per line)
-/// - Removes duplicates using `HashSet`
+/// - Removes duplicates using HashSet
 /// - Sorts package names alphabetically
 /// - Saves list to `~/.config/pacsea/lists/available_updates.txt`
 /// - Sends `(count, sorted_list)` via channel

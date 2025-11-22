@@ -71,7 +71,7 @@ mod tests {
         std::fs::create_dir_all(&bin).unwrap();
         let mut curl = bin.clone();
         curl.push("curl");
-        let script = r##"#!/usr/bin/env bash
+        let script = r#"#!/usr/bin/env bash
 set -e
 state_dir="${PACSEA_FAKE_STATE_DIR:-.}"
 if [[ ! -f "$state_dir/pacsea_search_called" ]]; then
@@ -80,7 +80,7 @@ if [[ ! -f "$state_dir/pacsea_search_called" ]]; then
 else
   exit 22
 fi
-"##;
+"#;
         std::fs::write(&curl, script.as_bytes()).unwrap();
         #[cfg(unix)]
         {

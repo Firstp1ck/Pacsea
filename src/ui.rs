@@ -251,6 +251,7 @@ fn calculate_layout_heights(available_h: u16) -> LayoutHeights {
 /// Details:
 /// - Positions toast in bottom-right corner with appropriate sizing.
 /// - Uses match expression to determine toast title based on message content.
+#[allow(clippy::many_single_char_names)]
 fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
     let Some(msg) = &app.toast_message else {
         return;
@@ -456,9 +457,7 @@ mod tests {
 
         let backend = TestBackend::new(120, 40);
         let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         // Seed minimal data to exercise all three sections
         app.results = vec![crate::state::PackageItem {

@@ -90,7 +90,7 @@ pub fn handle_service_result(
     services: Vec<crate::state::modal::ServiceImpact>,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, services, tick_tx, ServiceHandlerConfig);
+    handle_result(app, &services, tick_tx, &ServiceHandlerConfig);
 }
 
 #[cfg(test)]

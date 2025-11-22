@@ -234,7 +234,9 @@ fn sync_empty_or_mismatched_sandbox(
         return;
     }
 
-    if !sandbox_info.is_empty() {
+    if sandbox_info.is_empty() {
+        handle_empty_sandbox_result(aur_items, sandbox_loaded, sandbox_error);
+    } else {
         handle_partial_match(
             sandbox_info,
             item_names,
@@ -242,8 +244,6 @@ fn sync_empty_or_mismatched_sandbox(
             sandbox_loaded,
             sandbox_error,
         );
-    } else {
-        handle_empty_sandbox_result(aur_items, sandbox_loaded, sandbox_error);
     }
 }
 
@@ -270,16 +270,7 @@ fn handle_partial_match(
         .cloned()
         .collect();
 
-    if !partial_match.is_empty() {
-        tracing::debug!(
-            "[Runtime] Partial sandbox sync: {} of {} packages matched",
-            partial_match.len(),
-            item_names.len()
-        );
-        *modal_sandbox = partial_match;
-        *sandbox_loaded = true;
-        *sandbox_error = None;
-    } else {
+    if partial_match.is_empty() {
         tracing::warn!(
             "[Runtime] Sandbox info exists but doesn't match modal items. Modal items: {:?}, Sandbox packages: {:?}",
             item_names,
@@ -288,9 +279,16 @@ fn handle_partial_match(
                 .map(|s| &s.package_name)
                 .collect::<Vec<_>>()
         );
+    } else {
+        tracing::debug!(
+            "[Runtime] Partial sandbox sync: {} of {} packages matched",
+            partial_match.len(),
+            item_names.len()
+        );
+        *modal_sandbox = partial_match;
+    }
         *sandbox_loaded = true;
         *sandbox_error = None;
-    }
 }
 
 /// What: Handle empty sandbox result when AUR packages are expected.
@@ -502,7 +500,7 @@ pub fn handle_sandbox_result(
     sandbox_info: Vec<crate::logic::sandbox::SandboxInfo>,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, sandbox_info, tick_tx, SandboxHandlerConfig);
+    handle_result(app, &sandbox_info, tick_tx, &SandboxHandlerConfig);
 }
 
 #[cfg(test)]

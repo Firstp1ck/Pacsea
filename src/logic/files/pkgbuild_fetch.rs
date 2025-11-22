@@ -328,12 +328,11 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
                 && !text.trim_start().starts_with("<html")
             {
                 return Ok(text);
-            } else {
+            }
                 tracing::warn!(
                     "GitLab main returned invalid PKGBUILD (likely HTML): first 200 chars: {:?}",
                     text.chars().take(200).collect::<String>()
                 );
-            }
         }
         _ => {}
     }

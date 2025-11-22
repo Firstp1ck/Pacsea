@@ -183,9 +183,7 @@ fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
 /// Details:
 /// - Covers the case-insensitive dedupe path plus button label toggling when PKGBUILD visibility flips.
 fn filtered_indices_and_details_lines() {
-    let mut app = crate::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate::state::AppState::default();
     init_test_translations(&mut app);
     app.recent = vec!["alpha".into(), "bravo".into(), "charlie".into()];
     assert_eq!(filtered_recent_indices(&app), vec![0, 1, 2]);
@@ -238,9 +236,7 @@ fn filtered_indices_and_details_lines() {
             .content
             .contains("Show PKGBUILD")
     );
-    let mut app2 = crate::state::AppState {
-        ..Default::default()
-    };
+    let mut app2 = crate::state::AppState::default();
     init_test_translations(&mut app2);
     app2.details = app.details.clone();
     app2.pkgb_visible = true;
@@ -264,9 +260,7 @@ fn filtered_indices_and_details_lines() {
 /// Details:
 /// - Confirms string composition matches UI expectations for optional fields.
 fn details_lines_sizes_and_lists() {
-    let mut app = crate::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate::state::AppState::default();
     init_test_translations(&mut app);
     app.details = crate::state::PackageDetails {
         repository: "extra".into(),
@@ -305,7 +299,7 @@ fn details_lines_sizes_and_lists() {
     assert!(lines.iter().any(|l| {
         l.spans
             .iter()
-            .any(|s| s.content.contains("Licences") || s.content.contains("-"))
+            .any(|s| s.content.contains("Licences") || s.content.contains('-'))
     }));
     assert!(
         lines
@@ -327,9 +321,7 @@ fn details_lines_sizes_and_lists() {
 /// Details:
 /// - Applies a short timeout for each check to guard against unexpected asynchronous sends.
 async fn trigger_recent_preview_noop_when_not_recent_or_invalid() {
-    let mut app = crate::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate::state::AppState::default();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     app.focus = crate::state::Focus::Search;
     trigger_recent_preview(&app, &tx);

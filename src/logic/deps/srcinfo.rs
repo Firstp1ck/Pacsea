@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_parse_srcinfo_deps() {
-        let srcinfo = r#"
+        let srcinfo = r"
 pkgbase = test-package
 pkgname = test-package
 pkgver = 1.0.0
@@ -115,7 +115,7 @@ makedepends = gcc
 checkdepends = check
 optdepends = optional: optional-package
 depends = libfoo.so=1-64
-"#;
+";
 
         let (depends, makedepends, checkdepends, optdepends) = parse_srcinfo_deps(srcinfo);
 
@@ -150,7 +150,7 @@ depends = libfoo.so=1-64
     /// Details:
     /// - Validates parsing logic handles multiple conflict entries.
     fn test_parse_srcinfo_conflicts() {
-        let srcinfo = r#"
+        let srcinfo = r"
 pkgbase = test-package
 pkgname = test-package
 pkgver = 1.0.0
@@ -158,7 +158,7 @@ pkgrel = 1
 conflicts = conflicting-pkg1
 conflicts = conflicting-pkg2>=2.0
 conflicts = libfoo.so=1-64
-"#;
+";
 
         let conflicts = parse_srcinfo_conflicts(srcinfo);
 
@@ -180,11 +180,11 @@ conflicts = libfoo.so=1-64
     /// Details:
     /// - Confirms graceful handling of missing conflicts.
     fn test_parse_srcinfo_conflicts_empty() {
-        let srcinfo = r#"
+        let srcinfo = r"
 pkgbase = test-package
 pkgname = test-package
 pkgver = 1.0.0
-"#;
+";
 
         let conflicts = parse_srcinfo_conflicts(srcinfo);
         assert!(conflicts.is_empty());

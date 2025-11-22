@@ -65,7 +65,7 @@ pub fn initialize_locale_system(
     );
 
     // Load translations
-    let mut loader = crate::i18n::LocaleLoader::new(locales_dir.clone());
+    let mut loader = crate::i18n::LocaleLoader::new(locales_dir);
 
     // Load fallback (English) translations first - this is required
     match loader.load("en-US") {
@@ -217,7 +217,7 @@ fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Setting
 ///
 /// Details:
 /// - Checks if running on GNOME desktop without gnome-terminal or gnome-console/kgx
-/// - Sets modal to GnomeTerminalPrompt if terminal is missing
+/// - Sets modal to `GnomeTerminalPrompt` if terminal is missing
 fn check_gnome_terminal(app: &mut AppState, headless: bool) {
     if headless {
         return;

@@ -21,6 +21,7 @@ pub fn spawn_details_worker(
     mut details_req_rx: mpsc::UnboundedReceiver<PackageItem>,
     details_res_tx: mpsc::UnboundedSender<PackageDetails>,
 ) {
+    use std::collections::HashSet;
     let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
         const DETAILS_BATCH_WINDOW_MS: u64 = 120;
@@ -33,18 +34,17 @@ pub fn spawn_details_worker(
             loop {
                 tokio::select! {
                     Some(next) = details_req_rx.recv() => { batch.push(next); }
-                    _ = sleep(Duration::from_millis(DETAILS_BATCH_WINDOW_MS)) => { break; }
+                    () = sleep(Duration::from_millis(DETAILS_BATCH_WINDOW_MS)) => { break; }
                 }
             }
-            use std::collections::HashSet;
             let mut seen: HashSet<String> = HashSet::new();
             let mut ordered: Vec<PackageItem> = Vec::with_capacity(batch.len());
-            for it in batch.into_iter() {
+            for it in batch {
                 if seen.insert(it.name.clone()) {
                     ordered.push(it);
                 }
             }
-            for it in ordered.into_iter() {
+            for it in ordered {
                 if !crate::logic::is_allowed(&it.name) {
                     continue;
                 }

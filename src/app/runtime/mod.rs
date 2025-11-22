@@ -1,7 +1,7 @@
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crate::logic::send_query;
-use crate::state::*;
+use crate::state::AppState;
 
 use super::terminal::{restore_terminal, setup_terminal};
 
@@ -77,14 +77,14 @@ pub async fn run(dry_run_flag: bool, refresh_result: Option<bool>) -> Result<()>
     // Spawn auxiliary workers (status, news, tick, index updates)
     spawn_auxiliary_workers(
         headless,
-        channels.status_tx.clone(),
-        channels.news_tx.clone(),
-        channels.tick_tx.clone(),
-        app.news_read_urls.clone(),
-        app.official_index_path.clone(),
-        channels.net_err_tx.clone(),
-        channels.index_notify_tx.clone(),
-        channels.updates_tx.clone(),
+        &channels.status_tx,
+        &channels.news_tx,
+        &channels.tick_tx,
+        &app.news_read_urls,
+        &app.official_index_path,
+        &channels.net_err_tx,
+        &channels.index_notify_tx,
+        &channels.updates_tx,
     );
 
     // Spawn event reading thread

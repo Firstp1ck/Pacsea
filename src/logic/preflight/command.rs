@@ -79,16 +79,16 @@ pub enum CommandError {
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CommandError::Io(err) => write!(f, "I/O error: {err}"),
-            CommandError::Utf8(err) => write!(f, "UTF-8 decoding error: {err}"),
-            CommandError::Failed {
+            Self::Io(err) => write!(f, "I/O error: {err}"),
+            Self::Utf8(err) => write!(f, "UTF-8 decoding error: {err}"),
+            Self::Failed {
                 program,
                 args,
                 status,
             } => {
                 write!(f, "{program:?} {args:?} exited with status {status}")
             }
-            CommandError::Parse { program, field } => {
+            Self::Parse { program, field } => {
                 write!(
                     f,
                     "{program} output did not contain expected field \"{field}\""
@@ -101,9 +101,9 @@ impl fmt::Display for CommandError {
 impl std::error::Error for CommandError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            CommandError::Io(err) => Some(err),
-            CommandError::Utf8(err) => Some(err),
-            CommandError::Failed { .. } | CommandError::Parse { .. } => None,
+            Self::Io(err) => Some(err),
+            Self::Utf8(err) => Some(err),
+            Self::Failed { .. } | Self::Parse { .. } => None,
         }
     }
 }

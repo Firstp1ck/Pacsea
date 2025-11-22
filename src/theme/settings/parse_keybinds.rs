@@ -790,7 +790,7 @@ mod tests {
     /// - Verifies comment stripping and normalization.
     fn test_parse_keybinds() {
         let mut settings = Settings::default();
-        let content = r#"
+        let content = r"
 # This is a comment
 keybind_help = Ctrl+R
 keybind.search.move.up = Ctrl+Up
@@ -800,7 +800,7 @@ keybind search install = Ctrl+I
 keybind_recent_remove = Ctrl+D
 keybind_recent_remove = Ctrl+X
 invalid_line_without_equals
-"#;
+";
 
         parse_keybinds(content, &mut settings);
 
@@ -827,10 +827,10 @@ invalid_line_without_equals
     /// - Verifies that both keybinds are loaded correctly.
     fn test_parse_news_keybinds() {
         let mut settings = Settings::default();
-        let content = r#"
+        let content = r"
 keybind_news_mark_read = r
 keybind_news_mark_all_read = CTRL+R
-"#;
+";
 
         parse_keybinds(content, &mut settings);
 

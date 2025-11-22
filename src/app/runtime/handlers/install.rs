@@ -101,7 +101,13 @@ impl HandlerConfig for DependencyHandlerConfig {
                 .cloned()
                 .collect();
             let old_deps_len = dependency_info.len();
-            if !filtered_deps.is_empty() {
+            if filtered_deps.is_empty() {
+                tracing::debug!(
+                    "[Runtime] No matching dependencies to sync (results={}, items={:?})",
+                    results.len(),
+                    item_names
+                );
+            } else {
                 tracing::info!(
                     "[Runtime] Syncing {} dependencies to preflight modal (was_preflight={}, modal had {} before)",
                     filtered_deps.len(),
@@ -113,12 +119,6 @@ impl HandlerConfig for DependencyHandlerConfig {
                     "[Runtime] Modal dependency_info now has {} entries (was {})",
                     dependency_info.len(),
                     old_deps_len
-                );
-            } else {
-                tracing::debug!(
-                    "[Runtime] No matching dependencies to sync (results={}, items={:?})",
-                    results.len(),
-                    item_names
                 );
             }
         }
@@ -241,7 +241,7 @@ pub fn handle_dependency_result(
     deps: Vec<crate::state::modal::DependencyInfo>,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, deps, tick_tx, DependencyHandlerConfig);
+    handle_result(app, &deps, tick_tx, &DependencyHandlerConfig);
 }
 
 #[cfg(test)]

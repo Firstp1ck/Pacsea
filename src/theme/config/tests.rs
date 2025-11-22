@@ -205,15 +205,12 @@ mod tests {
                 if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
                     return None;
                 }
-                if let Some(eq_pos) = trimmed.find('=') {
-                    let key = trimmed[..eq_pos]
+                trimmed.find('=').map(|eq_pos| {
+                    trimmed[..eq_pos]
                         .trim()
                         .to_lowercase()
-                        .replace(['.', '-', ' '], "_");
-                    Some(key)
-                } else {
-                    None
-                }
+                        .replace(['.', '-', ' '], "_")
+                })
             })
             .collect()
     }
@@ -273,9 +270,7 @@ mod tests {
         for key in expected_keys {
             assert!(
                 extracted_keys.contains(*key),
-                "Missing key '{}' in {}",
-                key,
-                context
+                "Missing key '{key}' in {context}"
             );
         }
     }
@@ -393,13 +388,11 @@ mod tests {
     ///
     /// Details:
     /// - Checks for both "key = value" and "key=value" formats.
-    fn assert_config_contains(content: &str, key: &str, value: &str, context: &str) {
+    fn assert_config_contains(content: &str, key: &str, value: &str, test_context: &str) {
         assert!(
-            content.contains(&format!("{} = {}", key, value))
-                || content.contains(&format!("{}={}", key, value)),
-            "{} should persist {}",
-            context,
-            key
+            content.contains(&format!("{key} = {value}"))
+                || content.contains(&format!("{key}={value}")),
+            "{test_context} should persist {key}"
         );
     }
 

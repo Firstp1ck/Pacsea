@@ -61,7 +61,9 @@ pub fn handle_summary_result(
     let cancelled = app
         .preflight_cancelled
         .load(std::sync::atomic::Ordering::Relaxed);
-    if !cancelled {
+    if cancelled {
+        tracing::debug!("[Runtime] Ignoring summary result (preflight cancelled)");
+    } else {
         // Update preflight modal with computed summary
         tracing::info!(
             stage = "summary",
@@ -77,13 +79,142 @@ pub fn handle_summary_result(
             *summary = Some(Box::new(summary_outcome.summary));
             *header_chips = summary_outcome.header;
         }
-    } else {
-        tracing::debug!("[Runtime] Ignoring summary result (preflight cancelled)");
     }
     app.preflight_summary_resolving = false;
     // Clear preflight summary items
     app.preflight_summary_items = None;
     let _ = tick_tx.send(());
+}
+
+/// What: Check and trigger summary resolution if conditions are met.
+fn check_and_trigger_summary_resolution(
+    app: &mut AppState,
+    summary_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+) {
+    if let Some((ref items, ref action)) = app.preflight_summary_items
+        && !app.preflight_summary_resolving
+    {
+        tracing::debug!(
+            "[Runtime] Tick: Triggering summary computation for {} items, action={:?}",
+            items.len(),
+            action
+        );
+        app.preflight_summary_resolving = true;
+        let _ = summary_req_tx.send((items.clone(), *action));
+    } else if app.preflight_summary_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering summary - items={}, preflight_summary_resolving={}",
+            app.preflight_summary_items
+                .as_ref()
+                .map(|(items, _)| items.len())
+                .unwrap_or(0),
+            app.preflight_summary_resolving
+        );
+    }
+}
+
+/// What: Check and trigger dependency resolution if conditions are met.
+fn check_and_trigger_deps_resolution(
+    app: &mut AppState,
+    deps_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+) {
+    if let Some(ref items) = app.preflight_deps_items
+        && app.preflight_deps_resolving
+        && !app.deps_resolving
+    {
+        tracing::debug!(
+            "[Runtime] Tick: Triggering dependency resolution for {} preflight items (preflight_deps_resolving={}, deps_resolving={})",
+            items.len(),
+            app.preflight_deps_resolving,
+            app.deps_resolving
+        );
+        app.deps_resolving = true;
+        let _ = deps_req_tx.send(items.clone());
+    } else if app.preflight_deps_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
+            app.preflight_deps_items
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(0),
+            app.preflight_deps_resolving,
+            app.deps_resolving
+        );
+    }
+}
+
+/// What: Check and trigger file resolution if conditions are met.
+fn check_and_trigger_files_resolution(
+    app: &mut AppState,
+    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+) {
+    if let Some(ref items) = app.preflight_files_items
+        && app.preflight_files_resolving
+        && !app.files_resolving
+    {
+        tracing::debug!(
+            "[Runtime] Tick: Triggering file resolution for {} preflight items (preflight_files_resolving={}, files_resolving={})",
+            items.len(),
+            app.preflight_files_resolving,
+            app.files_resolving
+        );
+        app.files_resolving = true;
+        let _ = files_req_tx.send(items.clone());
+    } else if app.preflight_files_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
+            app.preflight_files_items
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(0),
+            app.preflight_files_resolving,
+            app.files_resolving
+        );
+    }
+}
+
+/// What: Check and trigger service resolution if conditions are met.
+fn check_and_trigger_services_resolution(
+    app: &mut AppState,
+    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+) {
+    if let Some(ref items) = app.preflight_services_items
+        && app.preflight_services_resolving
+        && !app.services_resolving
+    {
+        app.services_resolving = true;
+        let _ = services_req_tx.send(items.clone());
+    }
+}
+
+/// What: Check and trigger sandbox resolution if conditions are met.
+fn check_and_trigger_sandbox_resolution(
+    app: &mut AppState,
+    sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+) {
+    if let Some(ref items) = app.preflight_sandbox_items
+        && app.preflight_sandbox_resolving
+        && !app.sandbox_resolving
+    {
+        tracing::debug!(
+            "[Runtime] Tick: Triggering sandbox resolution for {} preflight items (preflight_sandbox_resolving={}, sandbox_resolving={})",
+            items.len(),
+            app.preflight_sandbox_resolving,
+            app.sandbox_resolving
+        );
+        app.sandbox_resolving = true;
+        let _ = sandbox_req_tx.send(items.clone());
+    } else if app.preflight_sandbox_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering sandbox - items={}, preflight_sandbox_resolving={}, sandbox_resolving={}",
+            app.preflight_sandbox_items
+                .as_ref()
+                .map(|v| v.len())
+                .unwrap_or(0),
+            app.preflight_sandbox_resolving,
+            app.sandbox_resolving
+        );
+    }
 }
 
 /// What: Handle preflight resolution requests.
@@ -126,107 +257,11 @@ fn handle_preflight_resolution(
     }
 
     // Check for preflight resolution requests - each stage has its own queue
-    if let Some((ref items, ref action)) = app.preflight_summary_items
-        && !app.preflight_summary_resolving
-    {
-        // Trigger summary computation
-        tracing::debug!(
-            "[Runtime] Tick: Triggering summary computation for {} items, action={:?}",
-            items.len(),
-            action
-        );
-        app.preflight_summary_resolving = true;
-        let _ = summary_req_tx.send((items.clone(), *action));
-    } else if app.preflight_summary_items.is_some() {
-        tracing::debug!(
-            "[Runtime] Tick: NOT triggering summary - items={}, preflight_summary_resolving={}",
-            app.preflight_summary_items
-                .as_ref()
-                .map(|(items, _)| items.len())
-                .unwrap_or(0),
-            app.preflight_summary_resolving
-        );
-    }
-    if let Some(ref items) = app.preflight_deps_items
-        && app.preflight_deps_resolving
-        && !app.deps_resolving
-    {
-        // Trigger dependency resolution for preflight items
-        tracing::debug!(
-            "[Runtime] Tick: Triggering dependency resolution for {} preflight items (preflight_deps_resolving={}, deps_resolving={})",
-            items.len(),
-            app.preflight_deps_resolving,
-            app.deps_resolving
-        );
-        app.deps_resolving = true;
-        let _ = deps_req_tx.send(items.clone());
-    } else if app.preflight_deps_items.is_some() {
-        tracing::debug!(
-            "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
-            app.preflight_deps_items
-                .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
-            app.preflight_deps_resolving,
-            app.deps_resolving
-        );
-    }
-    if let Some(ref items) = app.preflight_files_items
-        && app.preflight_files_resolving
-        && !app.files_resolving
-    {
-        // Trigger file resolution for preflight items
-        tracing::debug!(
-            "[Runtime] Tick: Triggering file resolution for {} preflight items (preflight_files_resolving={}, files_resolving={})",
-            items.len(),
-            app.preflight_files_resolving,
-            app.files_resolving
-        );
-        app.files_resolving = true;
-        let _ = files_req_tx.send(items.clone());
-    } else if app.preflight_files_items.is_some() {
-        tracing::debug!(
-            "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
-            app.preflight_files_items
-                .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
-            app.preflight_files_resolving,
-            app.files_resolving
-        );
-    }
-    if let Some(ref items) = app.preflight_services_items
-        && app.preflight_services_resolving
-        && !app.services_resolving
-    {
-        // Trigger service resolution for preflight items
-        app.services_resolving = true;
-        let _ = services_req_tx.send(items.clone());
-    }
-    if let Some(ref items) = app.preflight_sandbox_items
-        && app.preflight_sandbox_resolving
-        && !app.sandbox_resolving
-    {
-        // Trigger sandbox resolution for preflight items (already filtered to AUR)
-        tracing::debug!(
-            "[Runtime] Tick: Triggering sandbox resolution for {} preflight items (preflight_sandbox_resolving={}, sandbox_resolving={})",
-            items.len(),
-            app.preflight_sandbox_resolving,
-            app.sandbox_resolving
-        );
-        app.sandbox_resolving = true;
-        let _ = sandbox_req_tx.send(items.clone());
-    } else if app.preflight_sandbox_items.is_some() {
-        tracing::debug!(
-            "[Runtime] Tick: NOT triggering sandbox - items={}, preflight_sandbox_resolving={}, sandbox_resolving={}",
-            app.preflight_sandbox_items
-                .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
-            app.preflight_sandbox_resolving,
-            app.sandbox_resolving
-        );
-    }
+    check_and_trigger_summary_resolution(app, summary_req_tx);
+    check_and_trigger_deps_resolution(app, deps_req_tx);
+    check_and_trigger_files_resolution(app, files_req_tx);
+    check_and_trigger_services_resolution(app, services_req_tx);
+    check_and_trigger_sandbox_resolution(app, sandbox_req_tx);
 }
 
 /// What: Handle PKGBUILD reload debouncing.
@@ -467,14 +502,14 @@ pub fn handle_tick(
 /// Details:
 /// - Shows toast if no new news
 /// - Opens news modal if there are unread items
-pub fn handle_news(app: &mut AppState, todays: Vec<NewsItem>) {
+pub fn handle_news(app: &mut AppState, todays: &[NewsItem]) {
     if todays.is_empty() {
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
         app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
     } else {
         // Show unread news items; default to first selected
         app.modal = Modal::News {
-            items: todays.clone(),
+            items: todays.to_vec(),
             selected: 0,
         };
     }
@@ -679,7 +714,7 @@ mod tests {
         let mut app = new_app();
         let news: Vec<NewsItem> = vec![];
 
-        handle_news(&mut app, news);
+        handle_news(&mut app, &news);
 
         // Toast should be set
         assert!(app.toast_message.is_some());
@@ -707,7 +742,7 @@ mod tests {
             date: String::new(),
         }];
 
-        handle_news(&mut app, news.clone());
+        handle_news(&mut app, &news);
 
         // Modal should be opened
         if let crate::state::Modal::News { items, selected } = &app.modal {

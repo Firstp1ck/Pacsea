@@ -210,10 +210,10 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
         .next()
         .map(|c| c.to_string())
         .unwrap_or_default();
-    let import_rest = import_label.chars().skip(1).collect::<String>();
+    let import_suffix = import_label.chars().skip(1).collect::<String>();
     let import_line = Paragraph::new(Line::from(vec![
         Span::styled(import_first_char, style.add_modifier(Modifier::UNDERLINED)),
-        Span::styled(import_rest, style),
+        Span::styled(import_suffix, style),
     ]));
     app.install_import_rect = Some((
         import_rect.x,
@@ -245,10 +245,10 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
         .next()
         .map(|c| c.to_string())
         .unwrap_or_default();
-    let export_rest = export_label.chars().skip(1).collect::<String>();
+    let export_suffix = export_label.chars().skip(1).collect::<String>();
     let export_line = Paragraph::new(Line::from(vec![
         Span::styled(export_first_char, style.add_modifier(Modifier::UNDERLINED)),
-        Span::styled(export_rest, style),
+        Span::styled(export_suffix, style),
     ]));
     app.install_export_rect = Some((
         export_rect.x,
@@ -302,9 +302,7 @@ mod tests {
     fn install_renders_and_records_rect() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.push(crate::state::PackageItem {
             name: "test-package".to_string(),
@@ -339,9 +337,7 @@ mod tests {
     fn install_renders_buttons_with_correct_rects() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
         term.draw(|f| {
@@ -376,9 +372,7 @@ mod tests {
     fn install_renders_with_selection() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.push(crate::state::PackageItem {
             name: "package1".to_string(),
@@ -420,9 +414,7 @@ mod tests {
     fn install_renders_with_focus_styling() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
         // Render unfocused
@@ -461,9 +453,7 @@ mod tests {
     fn install_handles_empty_list() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.clear();
 

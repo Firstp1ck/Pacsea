@@ -28,11 +28,11 @@ pub(crate) fn compare_versions(a: &str, b: &str) -> Ordering {
 
         match (a_seg.parse::<i64>(), b_seg.parse::<i64>()) {
             (Ok(a_num), Ok(b_num)) => match a_num.cmp(&b_num) {
-                Ordering::Equal => continue,
+                Ordering::Equal => {}
                 ord => return ord,
             },
             _ => match a_seg.cmp(b_seg) {
-                Ordering::Equal => continue,
+                Ordering::Equal => {}
                 ord => return ord,
             },
         }

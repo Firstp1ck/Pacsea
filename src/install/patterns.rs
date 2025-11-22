@@ -66,13 +66,13 @@ impl Default for PatternSets {
     fn default() -> Self {
         // Defaults intentionally mirror the scanner's built-in bash ERE sets.
         // These are intended for grep -E (ERE) within bash, not Rust regex compilation.
-        let critical = r#"(/dev/(tcp|udp)/|bash -i *>& *[^ ]*/dev/(tcp|udp)/[0-9]+|exec [0-9]{2,}<>/dev/(tcp|udp)/|rm -rf[[:space:]]+/|dd if=/dev/zero of=/dev/sd[a-z]|[>]{1,2}[[:space:]]*/dev/sd[a-z]|: *\(\) *\{ *: *\| *: *& *\};:|/etc/sudoers([[:space:]>]|$)|echo .*[>]{2}.*(/etc/sudoers|/root/.ssh/authorized_keys)|/etc/ld\.so\.preload|LD_PRELOAD=|authorized_keys.*[>]{2}|ssh-rsa [A-Za-z0-9+/=]+.*[>]{2}.*authorized_keys|curl .*(169\.254\.169\.254))"#.to_string();
+        let critical = r"(/dev/(tcp|udp)/|bash -i *>& *[^ ]*/dev/(tcp|udp)/[0-9]+|exec [0-9]{2,}<>/dev/(tcp|udp)/|rm -rf[[:space:]]+/|dd if=/dev/zero of=/dev/sd[a-z]|[>]{1,2}[[:space:]]*/dev/sd[a-z]|: *\(\) *\{ *: *\| *: *& *\};:|/etc/sudoers([[:space:]>]|$)|echo .*[>]{2}.*(/etc/sudoers|/root/.ssh/authorized_keys)|/etc/ld\.so\.preload|LD_PRELOAD=|authorized_keys.*[>]{2}|ssh-rsa [A-Za-z0-9+/=]+.*[>]{2}.*authorized_keys|curl .*(169\.254\.169\.254))".to_string();
 
-        let high = r#"(eval|base64 -d|wget .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|curl .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|sudo[[:space:]]|chattr[[:space:]]|useradd|adduser|groupadd|systemctl|service[[:space:]]|crontab|/etc/cron\.|[>]{2}.*(\.bashrc|\.bash_profile|/etc/profile|\.zshrc)|cat[[:space:]]+/etc/shadow|cat[[:space:]]+~/.ssh/id_rsa|cat[[:space:]]+~/.bash_history|systemctl stop (auditd|rsyslog)|service (auditd|rsyslog) stop|scp .*@|curl -F|nc[[:space:]].*<|tar -czv?f|zip -r)"#.to_string();
+        let high = r"(eval|base64 -d|wget .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|curl .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|sudo[[:space:]]|chattr[[:space:]]|useradd|adduser|groupadd|systemctl|service[[:space:]]|crontab|/etc/cron\.|[>]{2}.*(\.bashrc|\.bash_profile|/etc/profile|\.zshrc)|cat[[:space:]]+/etc/shadow|cat[[:space:]]+~/.ssh/id_rsa|cat[[:space:]]+~/.bash_history|systemctl stop (auditd|rsyslog)|service (auditd|rsyslog) stop|scp .*@|curl -F|nc[[:space:]].*<|tar -czv?f|zip -r)".to_string();
 
-        let medium = r#"(whoami|uname -a|hostname|id|groups|nmap|netstat -anp|ss -anp|ifconfig|ip addr|arp -a|grep -ri .*secret|find .*-name.*(password|\.key)|env[[:space:]]*\|[[:space:]]*grep -i pass|wget https?://|curl https?://)"#.to_string();
+        let medium = r"(whoami|uname -a|hostname|id|groups|nmap|netstat -anp|ss -anp|ifconfig|ip addr|arp -a|grep -ri .*secret|find .*-name.*(password|\.key)|env[[:space:]]*\|[[:space:]]*grep -i pass|wget https?://|curl https?://)".to_string();
 
-        let low = r#"(http_proxy=|https_proxy=|ALL_PROXY=|yes[[:space:]]+> */dev/null *&|ulimit -n [0-9]{5,})"#.to_string();
+        let low = r"(http_proxy=|https_proxy=|ALL_PROXY=|yes[[:space:]]+> */dev/null *&|ulimit -n [0-9]{5,})".to_string();
 
         Self {
             critical,
@@ -375,7 +375,7 @@ mod tests {
     /// - Verifies each severity bucket independently to catch regressions in join order.
     fn parse_joins_lines_with_or() {
         let d = PatternSets::default();
-        let cfg = r#"
+        let cfg = r"
             [critical]
             a
             b
@@ -391,7 +391,7 @@ mod tests {
             [low]
             l1
             l2
-        "#;
+        ";
         let p = parse(cfg, &d);
         assert_eq!(p.critical, "a|b|c");
         assert_eq!(p.high, "foo|bar");
@@ -412,7 +412,7 @@ mod tests {
     /// - Confirms default fallback remains for untouched severities while demonstrating indentation trimming for `low`.
     fn parse_handles_comments_and_whitespace() {
         let d = PatternSets::default();
-        let cfg = r#"
+        let cfg = r"
             # comment
             ; also comment
             // yet another
@@ -429,7 +429,7 @@ mod tests {
 
             [low]
                 l1
-        "#;
+            ";
         let p = parse(cfg, &d);
         assert_eq!(p.critical, "a|b");
         assert_eq!(p.high, "foo");

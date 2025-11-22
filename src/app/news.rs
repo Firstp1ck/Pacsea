@@ -49,7 +49,7 @@ pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     let mut month: u32 = 1;
     let mut day: u64 = days;
 
-    for &days_in_m in days_in_month.iter() {
+    for &days_in_m in &days_in_month {
         if day < days_in_m as u64 {
             break;
         }
@@ -108,6 +108,7 @@ fn parse_month_name(m_s: &str) -> Option<u32> {
 /// Output:
 /// - `Some((y, m, d))` for recognized and valid dates; `None` otherwise.
 #[cfg_attr(not(test), allow(dead_code))]
+#[allow(clippy::many_single_char_names)]
 pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
     let t = s.trim();
     // Case 1: ISO: YYYY-MM-DD

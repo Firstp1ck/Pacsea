@@ -28,6 +28,7 @@ pub fn handle_search_results(
     // Respect installed-only mode: keep results restricted to explicit installs
     let mut incoming = new_results.items;
     if app.installed_only_mode {
+        use std::collections::HashSet;
         let explicit = crate::index::explicit_names();
         if app.input.trim().is_empty() {
             // For empty query, reconstruct full installed list (official + AUR fallbacks)
@@ -35,9 +36,8 @@ pub fn handle_search_results(
                 .into_iter()
                 .filter(|p| explicit.contains(&p.name))
                 .collect();
-            use std::collections::HashSet;
             let official_names: HashSet<String> = items.iter().map(|p| p.name.clone()).collect();
-            for name in explicit.into_iter() {
+            for name in explicit {
                 if !official_names.contains(&name) {
                     let is_eos = name.to_lowercase().contains("eos-");
                     let src = if is_eos {
@@ -79,7 +79,7 @@ pub fn handle_search_results(
         if let Some(cached) = app.details_cache.get(&item.name).cloned() {
             app.details = cached;
         } else {
-            let _ = details_req_tx.send(item.clone());
+            let _ = details_req_tx.send(item);
         }
     }
     crate::logic::set_allowed_ring(app, 30);
@@ -134,7 +134,7 @@ pub fn handle_search_results(
 /// - Updates result list entry with new information
 pub fn handle_details_update(
     app: &mut AppState,
-    details: PackageDetails,
+    details: &PackageDetails,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
     if app.details_focus.as_deref() == Some(details.name.as_str()) {
@@ -181,7 +181,7 @@ pub fn handle_preview(
     if let Some(cached) = app.details_cache.get(&item.name).cloned() {
         app.details = cached;
     } else {
-        let _ = details_req_tx.send(item.clone());
+        let _ = details_req_tx.send(item);
     }
     if !app.results.is_empty() && app.selected >= app.results.len() {
         app.selected = app.results.len() - 1;
@@ -333,7 +333,7 @@ mod tests {
             popularity: None,
         };
 
-        handle_details_update(&mut app, details.clone(), &tick_tx);
+        handle_details_update(&mut app, &details, &tick_tx);
 
         // Cache should be updated
         assert!(app.details_cache.contains_key("test-package"));

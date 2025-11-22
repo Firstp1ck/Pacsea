@@ -24,6 +24,7 @@ use crate::theme::theme;
 /// Details:
 /// - Highlights the heading, truncates the list to fit the modal, and shows instructions for
 ///   confirming, cancelling, or initiating security scans.
+#[allow(clippy::many_single_char_names)]
 pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: &[PackageItem]) {
     let th = theme();
     let w = area.width.saturating_sub(6).min(90);
@@ -102,6 +103,7 @@ pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: 
 /// Details:
 /// - Emphasizes critical warnings when core packages are present, truncates long lists, and
 ///   instructs on confirm/cancel actions while matching the theme.
+#[allow(clippy::many_single_char_names)]
 pub fn render_confirm_remove(f: &mut Frame, app: &AppState, area: Rect, items: &[PackageItem]) {
     let th = theme();
     let w = area.width.saturating_sub(6).min(90);

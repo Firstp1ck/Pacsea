@@ -22,6 +22,7 @@ use crate::ui::helpers::{format_bytes, format_signed_bytes};
 ///
 /// Details:
 /// - Centers modal with max width of 110, calculates inner area with 1px border, and splits into 30%/70% columns.
+#[allow(clippy::many_single_char_names)]
 fn calculate_modal_layout(area: Rect, f: &mut Frame) -> (Rect, Rect, Vec<Rect>) {
     let w = area.width.saturating_sub(4).min(110);
     let h = area.height.saturating_sub(4).min(area.height);

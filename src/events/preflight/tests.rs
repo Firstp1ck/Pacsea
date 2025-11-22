@@ -1249,7 +1249,7 @@ fn test_all_preflight_keys_return_false() {
         let mut tab = PreflightTab::Summary;
 
         // Switch to Files tab for 'f' key test
-        if matches!(key_code, KeyCode::Char('f') | KeyCode::Char('F')) {
+        if matches!(key_code, KeyCode::Char('f' | 'F')) {
             tab = PreflightTab::Files;
         }
 

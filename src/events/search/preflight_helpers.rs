@@ -113,8 +113,6 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: app.remove_cascade_mode,
         };
-        app.toast_message = Some(crate::i18n::t(app, "app.toasts.preflight_opened"));
-        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
     } else {
         // Insert mode: always use background computation
         let items_clone = items.clone();
@@ -159,7 +157,11 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: app.remove_cascade_mode,
         };
-        app.toast_message = Some("Preflight opened".to_string());
-        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
     }
+    app.toast_message = Some(if use_cache {
+        crate::i18n::t(app, "app.toasts.preflight_opened")
+    } else {
+        "Preflight opened".to_string()
+    });
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
 }

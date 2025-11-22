@@ -68,11 +68,11 @@ fn write_executable(dir: &std::path::Path, name: &str, body: &str) {
 
 #[test]
 fn test_parse_backup_from_pkgbuild_single_line() {
-    let pkgbuild = r#"
+    let pkgbuild = r"
 pkgname=test
 pkgver=1.0
 backup=('/etc/config' '/etc/other.conf')
-"#;
+";
     let backup_files = parse_backup_from_pkgbuild(pkgbuild);
     assert_eq!(backup_files.len(), 2);
     assert!(backup_files.contains(&"/etc/config".to_string()));
@@ -81,7 +81,7 @@ backup=('/etc/config' '/etc/other.conf')
 
 #[test]
 fn test_parse_backup_from_pkgbuild_multi_line() {
-    let pkgbuild = r#"
+    let pkgbuild = r"
 pkgname=test
 pkgver=1.0
 backup=(
@@ -89,7 +89,7 @@ backup=(
     '/etc/other.conf'
     '/etc/more.conf'
 )
-"#;
+";
     let backup_files = parse_backup_from_pkgbuild(pkgbuild);
     assert_eq!(backup_files.len(), 3);
     assert!(backup_files.contains(&"/etc/config".to_string()));
@@ -99,14 +99,14 @@ backup=(
 
 #[test]
 fn test_parse_backup_from_srcinfo() {
-    let srcinfo = r#"
+    let srcinfo = r"
 pkgbase = test-package
 pkgname = test-package
 pkgver = 1.0.0
 backup = /etc/config
 backup = /etc/other.conf
 backup = /etc/more.conf
-"#;
+";
     let backup_files = parse_backup_from_srcinfo(srcinfo);
     assert_eq!(backup_files.len(), 3);
     assert!(backup_files.contains(&"/etc/config".to_string()));

@@ -171,6 +171,7 @@ pub fn render_scan_config(
 ///
 /// Details:
 /// - Highlights the heading, explains why the terminal is recommended, and warns about cancelling.
+#[allow(clippy::many_single_char_names)]
 pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
     let th = theme();
     // Centered confirmation dialog for installing GNOME Terminal
@@ -238,6 +239,7 @@ pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
 /// Details:
 /// - Provides direct link to the API portal, surfaces instructions, and mirrors the buffer so users
 ///   can verify pasted values.
+#[allow(clippy::many_single_char_names)]
 pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, input: &str) {
     let th = theme();
     // Centered dialog for VirusTotal API key setup with clickable URL and input field
@@ -332,6 +334,7 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
 /// Details:
 /// - Enumerates formatting rules, provides an example snippet, and keeps styling aligned with other
 ///   informational modals.
+#[allow(clippy::many_single_char_names)]
 pub fn render_import_help(f: &mut Frame, area: Rect) {
     let th = theme();
     let w = area.width.saturating_sub(10).min(85);

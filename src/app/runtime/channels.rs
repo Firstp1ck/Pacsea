@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicBool;
 use crossterm::event::Event as CEvent;
 use tokio::sync::mpsc;
 
-use crate::state::*;
+use crate::state::{ArchStatusColor, NewsItem, PackageDetails, PackageItem, QueryInput, SearchResults};
 
 /// What: Channel definitions for runtime communication.
 ///
@@ -307,7 +307,7 @@ impl Channels {
             index_path,
         );
 
-        Channels {
+        Self {
             event_tx: event_channels.tx,
             event_rx: event_channels.rx,
             event_thread_cancelled: event_channels.cancelled,

@@ -573,6 +573,7 @@ fn build_recent_bindings(
 /// Details:
 /// - Formats bindings per pane, includes normal-mode guidance, and records clickable bounds to
 ///   enable mouse scrolling while using the current theme colors.
+#[allow(clippy::many_single_char_names)]
 pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
     // Full-screen translucent help overlay

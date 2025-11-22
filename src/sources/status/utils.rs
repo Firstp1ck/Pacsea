@@ -500,67 +500,67 @@ mod tests {
     fn status_extract_arch_systems_status_color() {
         // Test "Some Systems down" pattern
         let html_severe =
-            r#"<html><body><div>Status: Arch systems Some Systems down</div></body></html>"#;
+            "<html><body><div>Status: Arch systems Some Systems down</div></body></html>";
         let color = extract_arch_systems_status_color(html_severe);
         assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
 
         // Test "Down" pattern in status context
-        let html_moderate = r#"<html><body><div>Status: Arch systems Down</div></body></html>"#;
+        let html_moderate = "<html><body><div>Status: Arch systems Down</div></body></html>";
         let color = extract_arch_systems_status_color(html_moderate);
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
 
         // Test "Down" in monitors section
-        let html_monitors_down = r#"<html><body><div>Monitors (default)</div><div>AUR</div><div>Down</div></body></html>"#;
+        let html_monitors_down = "<html><body><div>Monitors (default)</div><div>AUR</div><div>Down</div></body></html>";
         let color = extract_arch_systems_status_color(html_monitors_down);
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
 
         // Test "Down" in monitors section with HTML tags
         let html_monitors_html =
-            r#"<html><body><div>Monitors</div><div>>Down<</div></body></html>"#;
+            "<html><body><div>Monitors</div><div>>Down<</div></body></html>";
         let color = extract_arch_systems_status_color(html_monitors_html);
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
 
         // Test "Down" in monitors section with quotes
         let html_monitors_quotes =
-            r#"<html><body><div>Monitors</div><div>"Down"</div></body></html>"#;
+            "<html><body><div>Monitors</div><div>\"Down\"</div></body></html>";
         let color = extract_arch_systems_status_color(html_monitors_quotes);
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
 
         // Test "Some Systems down" in monitors section
         let html_monitors_severe =
-            r#"<html><body><div>Monitors</div><div>Some Systems down</div></body></html>"#;
+            "<html><body><div>Monitors</div><div>Some Systems down</div></body></html>";
         let color = extract_arch_systems_status_color(html_monitors_severe);
         assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
 
         // Test no issues (should return None)
-        let html_ok = r#"<html><body><div>Status: Arch systems Operational</div><div>Monitors</div><div>Operational</div></body></html>"#;
+        let html_ok = "<html><body><div>Status: Arch systems Operational</div><div>Monitors</div><div>Operational</div></body></html>";
         let color = extract_arch_systems_status_color(html_ok);
         assert_eq!(color, None);
 
         // Test "Down" but with "operational" context (should not trigger false positive)
-        let html_operational = r#"<html><body><div>Status: Arch systems Operational</div><div>Monitors</div><div>All systems operational</div></body></html>"#;
+        let html_operational = "<html><body><div>Status: Arch systems Operational</div><div>Monitors</div><div>All systems operational</div></body></html>";
         let color = extract_arch_systems_status_color(html_operational);
         assert_eq!(color, None);
 
         // Test case-insensitive matching
         let html_lowercase =
-            r#"<html><body><div>status: arch systems some systems down</div></body></html>"#;
+            "<html><body><div>status: arch systems some systems down</div></body></html>";
         let color = extract_arch_systems_status_color(html_lowercase);
         assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
 
         // Test "Down" without colon (alternative pattern)
-        let html_no_colon = r#"<html><body><div>Status Arch systems Down</div></body></html>"#;
+        let html_no_colon = "<html><body><div>Status Arch systems Down</div></body></html>";
         let color = extract_arch_systems_status_color(html_no_colon);
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
 
         // Test "Some systems down" as a standalone heading (actual status page format)
         let html_standalone_heading =
-            r#"<html><body><h2>Some systems down</h2><div>Monitors</div></body></html>"#;
+            "<html><body><h2>Some systems down</h2><div>Monitors</div></body></html>";
         let color = extract_arch_systems_status_color(html_standalone_heading);
         assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
 
         // Test "Some systems down" in body text
-        let html_body_text = r#"<html><body><div>Some systems down</div></body></html>"#;
+        let html_body_text = "<html><body><div>Some systems down</div></body></html>";
         let color = extract_arch_systems_status_color(html_body_text);
         assert_eq!(color, Some(ArchStatusColor::IncidentSevereToday));
     }

@@ -62,17 +62,16 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(100, 28);
         let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
-
         // Alert
-        app.modal = crate::state::Modal::Alert {
+        let mut app = crate::state::AppState {
+            modal: crate::state::Modal::Alert {
             message: "Test".into(),
+            },
+            ..Default::default()
         };
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
         .unwrap();
 
@@ -80,7 +79,7 @@ mod tests {
         app.modal = crate::state::Modal::ConfirmInstall { items: vec![] };
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
         .unwrap();
 
@@ -99,7 +98,7 @@ mod tests {
         };
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
         .unwrap();
 
@@ -107,7 +106,7 @@ mod tests {
         app.modal = crate::state::Modal::Help;
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
         .unwrap();
         assert!(app.help_rect.is_some());
@@ -117,13 +116,13 @@ mod tests {
             items: vec![crate::state::NewsItem {
                 date: "2025-10-11".into(),
                 title: "Test".into(),
-                url: "".into(),
+                url: String::new(),
             }],
             selected: 0,
         };
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
         .unwrap();
         assert!(app.news_rect.is_some());

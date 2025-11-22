@@ -47,8 +47,8 @@ fn test_render_header_chips_with_aur() {
     let chips = PreflightHeaderChips {
         package_count: 5,
         aur_count: 2,
-        download_bytes: 1048576,
-        install_delta_bytes: 512000,
+        download_bytes: 1_048_576,
+        install_delta_bytes: 512_000,
         risk_level: RiskLevel::Medium,
         risk_score: 5,
     };
@@ -61,7 +61,7 @@ fn test_render_header_chips_with_aur() {
         .map(|s| s.content.as_ref())
         .collect::<String>();
     // The AUR count should be included in the package count chip
-    assert!(line_text.contains("5") || line_text.contains("2"));
+    assert!(line_text.contains('5') || line_text.contains('2'));
 }
 
 /// What: Test render_header_chips with positive install delta.
@@ -82,7 +82,7 @@ fn test_render_header_chips_positive_delta() {
         package_count: 1,
         aur_count: 0,
         download_bytes: 0,
-        install_delta_bytes: 1048576, // Positive
+        install_delta_bytes: 1_048_576, // Positive
         risk_level: RiskLevel::Low,
         risk_score: 1,
     };
@@ -108,7 +108,7 @@ fn test_render_header_chips_negative_delta() {
         package_count: 1,
         aur_count: 0,
         download_bytes: 0,
-        install_delta_bytes: -1048576, // Negative
+        install_delta_bytes: -1_048_576, // Negative
         risk_level: RiskLevel::Low,
         risk_score: 1,
     };

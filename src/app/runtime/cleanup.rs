@@ -1,4 +1,4 @@
-use crate::state::*;
+use crate::state::AppState;
 
 use super::super::persist::{
     maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install,
