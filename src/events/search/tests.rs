@@ -407,7 +407,12 @@ fn search_insert_mode_space_adds_items() {
     );
     let received = arx.try_recv().ok();
     assert!(received.is_some());
-    assert_eq!(received.unwrap().name, "test-package");
+    assert_eq!(
+        received
+            .expect("received should be Some after is_some() check")
+            .name,
+        "test-package"
+    );
 
     // Test installed-only mode: should add to remove_list
     app.installed_only_mode = true;

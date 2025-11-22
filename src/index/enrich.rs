@@ -239,7 +239,10 @@ exit 0
 
         // Check that fields got updated for foo
         let all = crate::index::all_official();
-        let pkg = all.iter().find(|p| p.name == "foo").unwrap();
+        let pkg = all
+            .iter()
+            .find(|p| p.name == "foo")
+            .expect("package 'foo' should exist in test data");
         assert_eq!(pkg.version, "1.2.3");
         assert_eq!(pkg.description, "hello");
         match &pkg.source {

@@ -144,7 +144,9 @@ fn check_if_provided(name: &str, _installed: &HashSet<String>) -> Option<String>
                 tracing::debug!(
                     "{} is provided by {}",
                     name,
-                    providing_pkg.as_ref().unwrap()
+                    providing_pkg
+                        .as_ref()
+                        .expect("providing_pkg should be Some after is_some() check")
                 );
             }
             providing_pkg

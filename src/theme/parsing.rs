@@ -355,13 +355,13 @@ mod tests {
         assert_eq!(parse_key_identifier("F5"), Some(KeyCode::F(5)));
         assert_eq!(parse_key_identifier("?"), Some(KeyCode::Char('?')));
         assert_eq!(parse_key_identifier("Backspace"), Some(KeyCode::Backspace));
-        let kc = parse_key_chord("Ctrl+R").unwrap();
+        let kc = parse_key_chord("Ctrl+R").expect("Ctrl+R should be a valid key chord");
         assert_eq!(kc.code, KeyCode::Char('r'));
         assert!(kc.mods.contains(KeyModifiers::CONTROL));
-        let bt = parse_key_chord("Shift+Tab").unwrap();
+        let bt = parse_key_chord("Shift+Tab").expect("Shift+Tab should be a valid key chord");
         assert_eq!(bt.code, KeyCode::BackTab);
         assert!(bt.mods.is_empty());
-        let sr = parse_key_chord("Shift+R").unwrap();
+        let sr = parse_key_chord("Shift+R").expect("Shift+R should be a valid key chord");
         assert_eq!(sr.code, KeyCode::Char('r'));
         assert!(sr.mods.contains(KeyModifiers::SHIFT));
         assert!(!sr.mods.contains(KeyModifiers::CONTROL));

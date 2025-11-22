@@ -149,7 +149,9 @@ mod tests {
         .expect("Failed to render recent pane");
 
         assert!(app.recent_rect.is_some());
-        let (x, y, w, h) = app.recent_rect.unwrap();
+        let (x, y, w, h) = app
+            .recent_rect
+            .expect("recent_rect should be Some after is_some() check");
         // Rect should exclude borders
         assert_eq!(x, 1);
         assert_eq!(y, 1);

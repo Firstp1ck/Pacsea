@@ -141,7 +141,11 @@ pub(super) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 
     if let Some((is_header, pkg_name, dep_opt)) = display_items.get(ctx.sandbox_selected) {
         if *is_header {
-            let item = ctx.items.iter().find(|p| p.name == *pkg_name).unwrap();
+            let item = ctx
+                .items
+                .iter()
+                .find(|p| p.name == *pkg_name)
+                .expect("package should exist in items when present in display_items");
             if matches!(item.source, crate::state::Source::Aur) {
                 if ctx.sandbox_tree_expanded.contains(pkg_name) {
                     ctx.sandbox_tree_expanded.remove(pkg_name);

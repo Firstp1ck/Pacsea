@@ -180,7 +180,10 @@ exit 0
 
         // Check merge kept enriched fields for existing name "foo"
         let items = crate::index::all_official();
-        let foo = items.iter().find(|p| p.name == "foo").unwrap();
+        let foo = items
+            .iter()
+            .find(|p| p.name == "foo")
+            .expect("package 'foo' should exist in test data");
         match &foo.source {
             crate::state::Source::Official { repo, arch } => {
                 assert_eq!(repo, "core");

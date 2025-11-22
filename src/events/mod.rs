@@ -233,7 +233,7 @@ mod tests {
             }
             return;
         }
-        let command_idx = command_idx.unwrap();
+        let command_idx = command_idx.expect("command_idx should be Some after is_none() check");
         assert!(
             command_idx + 1 < lines.len(),
             "--command found at index {command_idx} but no following argument. Lines: {:?}",

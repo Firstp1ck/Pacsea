@@ -346,8 +346,12 @@ mod tests {
         })
         .expect("Failed to render install pane buttons");
 
-        let import_rect = app.install_import_rect.unwrap();
-        let export_rect = app.install_export_rect.unwrap();
+        let import_rect = app
+            .install_import_rect
+            .expect("install_import_rect should be set after rendering");
+        let export_rect = app
+            .install_export_rect
+            .expect("install_export_rect should be set after rendering");
 
         // Import should be to the right of Export
         assert!(import_rect.0 > export_rect.0);

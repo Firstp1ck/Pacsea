@@ -83,7 +83,11 @@ pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, Stri
     if !errors.is_empty() {
         Err(errors.join("\n"))
     } else {
-        let get = |name: &str| map.get(name).copied().unwrap();
+        let get = |name: &str| {
+            map.get(name)
+                .copied()
+                .expect("all required keys should be present after validation")
+        };
         Ok(Theme {
             base: get("base"),
             mantle: get("mantle"),

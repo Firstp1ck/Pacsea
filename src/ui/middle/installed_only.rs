@@ -465,8 +465,12 @@ mod tests {
         })
         .expect("Failed to render installed-only pane with split area");
 
-        let downgrade_rect = app.downgrade_rect.unwrap();
-        let install_rect = app.install_rect.unwrap(); // Maps to Remove list
+        let downgrade_rect = app
+            .downgrade_rect
+            .expect("downgrade_rect should be set after rendering");
+        let install_rect = app
+            .install_rect
+            .expect("install_rect should be set after rendering"); // Maps to Remove list
 
         // Both should have similar widths (accounting for borders)
         let downgrade_width = downgrade_rect.2;
@@ -501,7 +505,9 @@ mod tests {
         .expect("Failed to render installed-only pane to record downgrade rect");
 
         assert!(app.downgrade_rect.is_some());
-        let (x, y, w, h) = app.downgrade_rect.unwrap();
+        let (x, y, w, h) = app
+            .downgrade_rect
+            .expect("downgrade_rect should be Some after is_some() check");
         // Rect should exclude borders
         assert_eq!(x, 1);
         assert_eq!(y, 1);

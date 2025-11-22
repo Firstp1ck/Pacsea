@@ -98,7 +98,8 @@ mod tests {
     fn news_extract_between_and_strip_time_tz() {
         // extract_between
         assert_eq!(
-            super::extract_between("<a>hi</a>", "<a>", "</a>").unwrap(),
+            super::extract_between("<a>hi</a>", "<a>", "</a>")
+                .expect("extract_between should find 'hi' in test string"),
             "hi"
         );
         assert!(super::extract_between("nope", "<a>", "</a>").is_none());

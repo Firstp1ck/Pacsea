@@ -906,7 +906,13 @@ mod tests {
         // Summary should be updated
         if let crate::state::Modal::Preflight { summary, .. } = &app.modal {
             assert!(summary.is_some());
-            assert_eq!(summary.as_ref().unwrap().package_count, 1);
+            assert_eq!(
+                summary
+                    .as_ref()
+                    .expect("summary should be Some after is_some() check")
+                    .package_count,
+                1
+            );
         } else {
             panic!("Expected Preflight modal");
         }

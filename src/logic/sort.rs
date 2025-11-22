@@ -155,7 +155,7 @@ mod tests {
             app.results
                 .iter()
                 .position(|p| p.name.contains("bb"))
-                .unwrap()
+                .expect("should find package containing 'bb' in test data")
                 <= 1
         );
     }

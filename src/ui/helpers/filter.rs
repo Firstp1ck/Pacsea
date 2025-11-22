@@ -27,7 +27,11 @@ pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
     if !apply {
         return (0..app.recent.len()).collect();
     }
-    let pat = app.pane_find.as_ref().unwrap().to_lowercase();
+    let pat = app
+        .pane_find
+        .as_ref()
+        .expect("pane_find should be Some when apply is true")
+        .to_lowercase();
     app.recent
         .iter()
         .enumerate()
@@ -63,7 +67,11 @@ pub fn filtered_install_indices(app: &AppState) -> Vec<usize> {
     if !apply {
         return (0..app.install_list.len()).collect();
     }
-    let pat = app.pane_find.as_ref().unwrap().to_lowercase();
+    let pat = app
+        .pane_find
+        .as_ref()
+        .expect("pane_find should be Some when apply is true")
+        .to_lowercase();
     app.install_list
         .iter()
         .enumerate()

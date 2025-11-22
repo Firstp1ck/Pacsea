@@ -215,7 +215,11 @@ impl LocaleLoader {
                 }
             }
         } else {
-            Ok(self.cache.get(locale).unwrap().clone())
+            Ok(self
+                .cache
+                .get(locale)
+                .expect("locale should be in cache after contains_key check")
+                .clone())
         }
     }
 

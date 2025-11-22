@@ -232,7 +232,10 @@ fn filtered_indices_and_details_lines() {
     let th = crate::theme::theme();
     let lines = format_details_lines(&app, 80, &th);
     assert!(
-        lines.last().unwrap().spans[0]
+        lines
+            .last()
+            .expect("lines should not be empty in test")
+            .spans[0]
             .content
             .contains("Show PKGBUILD")
     );
@@ -242,7 +245,10 @@ fn filtered_indices_and_details_lines() {
     app2.pkgb_visible = true;
     let lines2 = format_details_lines(&app2, 80, &th);
     assert!(
-        lines2.last().unwrap().spans[0]
+        lines2
+            .last()
+            .expect("lines2 should not be empty in test")
+            .spans[0]
             .content
             .contains("Hide PKGBUILD")
     );

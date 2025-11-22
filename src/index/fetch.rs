@@ -80,11 +80,12 @@ pub async fn fetch_official_pkg_names()
             let r = it.next();
             let n = it.next();
             let v = it.next();
-            if r.is_none() || n.is_none() {
+            let Some(r) = r else {
                 continue;
-            }
-            let r = r.unwrap();
-            let n = n.unwrap();
+            };
+            let Some(n) = n else {
+                continue;
+            };
             if r != repo {
                 continue;
             }

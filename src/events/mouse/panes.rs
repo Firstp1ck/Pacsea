@@ -56,7 +56,9 @@ fn handle_results_pane(
     }
 
     if is_left_down {
-        let (_, y, _, _) = app.results_rect.unwrap();
+        let (_, y, _, _) = app
+            .results_rect
+            .expect("results_rect should be Some when is_in_rect returns true");
         let row = my.saturating_sub(y) as usize;
         let offset = app.list_state.offset();
         let idx = offset + row;
@@ -157,7 +159,9 @@ fn handle_install_click(
     }
 
     app.focus = crate::state::Focus::Install;
-    let (_, y, _, _) = app.install_rect.unwrap();
+    let (_, y, _, _) = app
+        .install_rect
+        .expect("install_rect should be Some when is_in_rect returns true");
     let row = my.saturating_sub(y) as usize;
 
     if app.installed_only_mode {
@@ -289,7 +293,9 @@ fn handle_downgrade_click(
 
     app.focus = crate::state::Focus::Install;
     app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
-    let (_, y, _, _) = app.downgrade_rect.unwrap();
+    let (_, y, _, _) = app
+        .downgrade_rect
+        .expect("downgrade_rect should be Some when is_in_rect returns true");
     let row = my.saturating_sub(y) as usize;
     let max = app.downgrade_list.len().saturating_sub(1);
     if !app.downgrade_list.is_empty() {

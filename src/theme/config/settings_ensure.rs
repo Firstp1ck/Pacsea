@@ -218,7 +218,14 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     // Append missing settings to the file
     // Add separator and header comment for auto-added settings
-    if !created_new && !lines.is_empty() && !lines.last().unwrap().trim().is_empty() {
+    if !created_new
+        && !lines.is_empty()
+        && !lines
+            .last()
+            .expect("lines should not be empty after is_empty() check")
+            .trim()
+            .is_empty()
+    {
         lines.push(String::new());
     }
     if !missing_settings.is_empty() {
@@ -332,7 +339,13 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
     let mut new_lines: Vec<String> = existing_content.lines().map(|s| s.to_string()).collect();
 
     // Add separator and header comment for auto-added keybinds
-    if !new_lines.is_empty() && !new_lines.last().unwrap().trim().is_empty() {
+    if !new_lines.is_empty()
+        && !new_lines
+            .last()
+            .expect("new_lines should not be empty after is_empty() check")
+            .trim()
+            .is_empty()
+    {
         new_lines.push(String::new());
     }
     if !missing_keybinds.is_empty() {
