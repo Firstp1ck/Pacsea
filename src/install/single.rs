@@ -82,7 +82,7 @@ fn try_spawn_terminal(
 /// What: Get the terminal preference list based on desktop environment.
 ///
 /// Input:
-/// - None (reads XDG_CURRENT_DESKTOP environment variable)
+/// - None (reads `XDG_CURRENT_DESKTOP` environment variable)
 ///
 /// Output:
 /// - Slice of terminal tuples `(name, args, needs_xfce_command)` ordered by preference
@@ -127,13 +127,13 @@ fn get_terminal_preferences() -> &'static [(&'static str, &'static [&'static str
 /// What: Spawn a terminal to install a single package.
 ///
 /// Input:
-/// - item to install; password for sudo on official installs (optional); dry_run to print instead of execute
+/// - item to install; password for sudo on official installs (optional); `dry_run` to print instead of execute
 ///
 /// Output:
-/// - Launches a terminal (or bash) running pacman/paru/yay to perform the install
+/// - Launches a terminal (or `bash`) running `pacman`/`paru`/`yay` to perform the install
 ///
 /// Details:
-/// - Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.), falling back to bash. Uses pacman for official packages and paru/yay for AUR; appends a hold tail to keep the window open; logs installed names when not in dry_run.
+/// - Prefers common terminals (`GNOME Console`/`Terminal`, `kitty`, `alacritty`, `xterm`, `xfce4-terminal`, etc.), falling back to `bash`. Uses `pacman` for official packages and `paru`/`yay` for AUR; appends a hold tail to keep the window open; logs installed names when not in `dry_run`.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
 pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: bool) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)

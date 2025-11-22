@@ -542,10 +542,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_tick flushes caches when called.
+    /// What: Verify that `handle_tick` flushes caches when called.
     ///
     /// Inputs:
-    /// - App state with cache_dirty = true
+    /// - `AppState` with cache_dirty = true
     /// - Channel senders
     ///
     /// Output:
@@ -585,10 +585,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_tick clears queues when cancelled.
+    /// What: Verify that `handle_tick` clears queues when cancelled.
     ///
     /// Inputs:
-    /// - App state with cancellation flag set
+    /// - `AppState` with cancellation flag set
     /// - Preflight items queued
     ///
     /// Output:
@@ -645,14 +645,14 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_tick processes PKGBUILD reload debouncing.
+    /// What: Verify that `handle_tick` processes `PKGBUILD` reload debouncing.
     ///
     /// Inputs:
-    /// - App state with pending PKGBUILD reload request
+    /// - `AppState` with pending `PKGBUILD` reload request
     /// - Time elapsed beyond debounce threshold
     ///
     /// Output:
-    /// - PKGBUILD request is sent if still on same package
+    /// - `PKGBUILD` request is sent if still on same package
     ///
     /// Details:
     /// - Tests that debouncing works correctly
@@ -698,10 +698,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_news shows toast when no new news.
+    /// What: Verify that `handle_news` shows toast when no new news.
     ///
     /// Inputs:
-    /// - App state
+    /// - `AppState`
     /// - Empty news list
     ///
     /// Output:
@@ -722,10 +722,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_news opens modal when news available.
+    /// What: Verify that `handle_news` opens modal when news available.
     ///
     /// Inputs:
-    /// - App state
+    /// - `AppState`
     /// - Non-empty news list
     ///
     /// Output:
@@ -754,10 +754,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_status updates status text and color.
+    /// What: Verify that `handle_status` updates status text and color.
     ///
     /// Inputs:
-    /// - App state
+    /// - `AppState`
     /// - Status text and color
     ///
     /// Output:
@@ -778,14 +778,14 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_pkgbuild_result updates text when focused.
+    /// What: Verify that `handle_pkgbuild_result` updates text when focused.
     ///
     /// Inputs:
-    /// - App state with details_focus set
-    /// - PKGBUILD text
+    /// - `AppState` with details_focus set
+    /// - `PKGBUILD` text
     ///
     /// Output:
-    /// - PKGBUILD text is updated
+    /// - `PKGBUILD` text is updated
     /// - Pending reload request is cleared
     ///
     /// Details:
@@ -814,10 +814,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_summary_result updates modal when not cancelled.
+    /// What: Verify that `handle_summary_result` updates modal when not cancelled.
     ///
     /// Inputs:
-    /// - App state with preflight modal open
+    /// - `AppState` with preflight modal open
     /// - Summary outcome
     /// - Cancellation flag not set
     ///

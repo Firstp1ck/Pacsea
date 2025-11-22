@@ -537,16 +537,16 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that initialize_app_state sets dry_run flag correctly.
+    /// What: Verify that `initialize_app_state` sets dry_run flag correctly.
     ///
     /// Inputs:
-    /// - App state
+    /// - `AppState`
     /// - dry_run_flag = true
     /// - headless = false
     ///
     /// Output:
-    /// - app.dry_run is set to true
-    /// - InitFlags are returned
+    /// - `app.dry_run` is set to true
+    /// - `InitFlags` are returned
     ///
     /// Details:
     /// - Tests that dry_run flag is properly initialized
@@ -561,15 +561,15 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that initialize_app_state loads settings correctly.
+    /// What: Verify that `initialize_app_state` loads settings correctly.
     ///
     /// Inputs:
-    /// - App state
+    /// - `AppState`
     /// - dry_run_flag = false
     /// - headless = false
     ///
     /// Output:
-    /// - App state has layout percentages set
+    /// - `AppState` has layout percentages set
     /// - Keymap is set
     /// - Sort mode is set
     ///
@@ -589,11 +589,11 @@ mod tests {
     }
 
     #[tokio::test]
-    /// What: Verify that trigger_initial_resolutions skips when install list is empty.
+    /// What: Verify that `trigger_initial_resolutions` skips when install list is empty.
     ///
     /// Inputs:
-    /// - App state with empty install list
-    /// - InitFlags with needs_deps_resolution = true
+    /// - `AppState` with empty install list
+    /// - `InitFlags` with needs_deps_resolution = true
     /// - Channel senders
     ///
     /// Output:
@@ -633,15 +633,15 @@ mod tests {
     }
 
     #[tokio::test]
-    /// What: Verify that trigger_initial_resolutions sets flags and sends requests when needed.
+    /// What: Verify that `trigger_initial_resolutions` sets flags and sends requests when needed.
     ///
     /// Inputs:
-    /// - App state with non-empty install list
-    /// - InitFlags with needs_deps_resolution = true
+    /// - `AppState` with non-empty install list
+    /// - `InitFlags` with needs_deps_resolution = true
     /// - Channel senders
     ///
     /// Output:
-    /// - deps_resolving flag is set
+    /// - `deps_resolving` flag is set
     /// - Request is sent to deps_req_tx
     ///
     /// Details:
