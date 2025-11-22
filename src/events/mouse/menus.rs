@@ -72,30 +72,24 @@ pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
                             None
                         } else {
                             // Parse format: "name - old_version -> name - new_version"
-                            if let Some(arrow_pos) = trimmed.find(" -> ") {
+                            trimmed.find(" -> ").and_then(|arrow_pos| {
                                 let before_arrow = trimmed[..arrow_pos].trim();
                                 let after_arrow = trimmed[arrow_pos + 4..].trim();
 
                                 // Parse "name - old_version" from before_arrow
-                                if let Some(dash_pos) = before_arrow.rfind(" - ") {
+                                before_arrow.rfind(" - ").and_then(|dash_pos| {
                                     let name = before_arrow[..dash_pos].trim().to_string();
                                     let old_version =
                                         before_arrow[dash_pos + 3..].trim().to_string();
 
                                     // Parse "name - new_version" from after_arrow
-                                    if let Some(dash_pos) = after_arrow.rfind(" - ") {
+                                    after_arrow.rfind(" - ").map(|dash_pos| {
                                         let new_version =
                                             after_arrow[dash_pos + 3..].trim().to_string();
-                                        Some((name, old_version, new_version))
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
+                                        (name, old_version, new_version)
+                                    })
+                                })
+                            })
                         }
                     })
                     .collect::<Vec<(String, String, String)>>()

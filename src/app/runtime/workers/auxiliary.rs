@@ -218,7 +218,7 @@ fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
                 None
             } else {
                 // Parse "package old -> new" format
-                if let Some(arrow_pos) = trimmed.find(" -> ") {
+                trimmed.find(" -> ").and_then(|arrow_pos| {
                     let before_arrow = &trimmed[..arrow_pos];
                     let after_arrow = &trimmed[arrow_pos + 4..];
                     let parts: Vec<&str> = before_arrow.split_whitespace().collect();
@@ -230,9 +230,7 @@ fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
                     } else {
                         None
                     }
-                } else {
-                    None
-                }
+                })
             }
         })
         .collect()
