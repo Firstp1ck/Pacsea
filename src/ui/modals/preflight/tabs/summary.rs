@@ -242,37 +242,29 @@ fn render_dependency_spans(dep: &DependencyInfo) -> Option<Vec<Span<'static>>> {
     Some(spans)
 }
 
-/// What: Render install action dependencies (conflicts and upgrades).
+/// What: Filter installed packages from items list.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n.
-/// - `items`: Packages under review.
-/// - `dependency_info`: Dependency information.
-/// - `conflicts_selected`: Selected index in the conflicts list (for navigation).
-/// - `content_rect`: Content area rectangle.
-/// - `highlight_selection`: Whether to highlight the selected conflict (true when conflicts section is active).
+/// - `items`: List of packages to check.
 ///
 /// Output:
-/// - Returns a vector of lines to render.
-///
-/// Details:
-/// - Shows conflicts and upgrades grouped by package.
-/// - Supports viewport-based rendering for large conflict lists.
-fn render_install_dependencies(
-    app: &AppState,
-    items: &[PackageItem],
-    dependency_info: &[DependencyInfo],
-) -> Vec<Line<'static>> {
-    let th = theme();
-    let mut lines = Vec::new();
-
-    // Check which packages are already installed
-    let installed_packages: Vec<&PackageItem> = items
+/// - Vector of references to packages that are already installed.
+fn filter_installed_packages(items: &[PackageItem]) -> Vec<&PackageItem> {
+    items
         .iter()
         .filter(|item| crate::index::is_installed(&item.name))
-        .collect();
+        .collect()
+}
 
-    let important_deps: Vec<&DependencyInfo> = dependency_info
+/// What: Filter important dependencies (conflicts and upgrades).
+///
+/// Inputs:
+/// - `dependency_info`: List of dependency information.
+///
+/// Output:
+/// - Vector of references to dependencies with conflicts or upgrades.
+fn filter_important_deps(dependency_info: &[DependencyInfo]) -> Vec<&DependencyInfo> {
+    dependency_info
         .iter()
         .filter(|d| {
             matches!(
@@ -280,35 +272,45 @@ fn render_install_dependencies(
                 DependencyStatus::Conflict { .. } | DependencyStatus::ToUpgrade { .. }
             )
         })
-        .collect();
+        .collect()
+}
 
-    // If no conflicts/upgrades and no installed packages, show success message
-    if important_deps.is_empty() && installed_packages.is_empty() {
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.summary.no_conflicts_or_upgrades"),
-            Style::default().fg(th.green),
-        )));
-        return lines;
-    }
-
-    use std::collections::{HashMap, HashSet};
+/// What: Group dependencies by the packages that require them.
+///
+/// Inputs:
+/// - `important_deps`: List of important dependencies.
+///
+/// Output:
+/// - HashMap mapping package names to their dependencies.
+fn group_dependencies_by_package<'a>(
+    important_deps: &[&'a DependencyInfo],
+) -> std::collections::HashMap<String, Vec<&'a DependencyInfo>> {
+    use std::collections::HashMap;
     let mut grouped: HashMap<String, Vec<&DependencyInfo>> = HashMap::new();
-    for dep in &important_deps {
+    for dep in important_deps {
         for req_by in &dep.required_by {
-            grouped.entry(req_by.clone()).or_default().push(dep);
+            grouped.entry(req_by.clone()).or_default().push(*dep);
         }
     }
+    grouped
+}
 
-    let conflict_count = important_deps
-        .iter()
-        .filter(|d| matches!(d.status, DependencyStatus::Conflict { .. }))
-        .count();
-    let upgrade_count = important_deps
-        .iter()
-        .filter(|d| matches!(d.status, DependencyStatus::ToUpgrade { .. }))
-        .count();
-    let installed_count = installed_packages.len();
-
+/// What: Build summary parts for conflicts, upgrades, and installed packages.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `conflict_count`: Number of conflicts.
+/// - `upgrade_count`: Number of upgrades.
+/// - `installed_count`: Number of installed packages.
+///
+/// Output:
+/// - Vector of formatted summary strings.
+fn build_summary_parts(
+    app: &AppState,
+    conflict_count: usize,
+    upgrade_count: usize,
+    installed_count: usize,
+) -> Vec<String> {
     let mut summary_parts = Vec::new();
     if conflict_count > 0 {
         summary_parts.push(i18n::t_fmt1(
@@ -331,7 +333,89 @@ fn render_install_dependencies(
             installed_count,
         ));
     }
+    summary_parts
+}
 
+/// What: Build display items list for rendering.
+///
+/// Inputs:
+/// - `items`: List of packages.
+/// - `grouped`: Dependencies grouped by package.
+/// - `installed_packages`: List of installed packages.
+///
+/// Output:
+/// - Vector of (is_header, package_name, optional_dependency) tuples.
+fn build_display_items<'a>(
+    items: &[PackageItem],
+    grouped: &std::collections::HashMap<String, Vec<&'a DependencyInfo>>,
+    installed_packages: &[&PackageItem],
+) -> Vec<(bool, String, Option<&'a DependencyInfo>)> {
+    use std::collections::HashSet;
+    let mut display_items: Vec<(bool, String, Option<&DependencyInfo>)> = Vec::new();
+    for pkg_name in items.iter().map(|p| &p.name) {
+        if let Some(pkg_deps) = grouped.get(pkg_name) {
+            display_items.push((true, pkg_name.clone(), None));
+            let mut seen_deps = HashSet::new();
+            for dep in pkg_deps {
+                if seen_deps.insert(dep.name.as_str()) {
+                    display_items.push((false, String::new(), Some(*dep)));
+                }
+            }
+        }
+    }
+    for installed_pkg in installed_packages {
+        if !grouped.contains_key(&installed_pkg.name) {
+            display_items.push((true, installed_pkg.name.clone(), None));
+            display_items.push((false, installed_pkg.name.clone(), None));
+        }
+    }
+    display_items
+}
+
+/// What: Render install action dependencies (conflicts and upgrades).
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `items`: Packages under review.
+/// - `dependency_info`: Dependency information.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Shows conflicts and upgrades grouped by package.
+/// - Displays installed packages separately.
+fn render_install_dependencies(
+    app: &AppState,
+    items: &[PackageItem],
+    dependency_info: &[DependencyInfo],
+) -> Vec<Line<'static>> {
+    let th = theme();
+    let mut lines = Vec::new();
+
+    let installed_packages = filter_installed_packages(items);
+    let important_deps = filter_important_deps(dependency_info);
+
+    if important_deps.is_empty() && installed_packages.is_empty() {
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.summary.no_conflicts_or_upgrades"),
+            Style::default().fg(th.green),
+        )));
+        return lines;
+    }
+
+    let grouped = group_dependencies_by_package(&important_deps);
+    let conflict_count = important_deps
+        .iter()
+        .filter(|d| matches!(d.status, DependencyStatus::Conflict { .. }))
+        .count();
+    let upgrade_count = important_deps
+        .iter()
+        .filter(|d| matches!(d.status, DependencyStatus::ToUpgrade { .. }))
+        .count();
+    let installed_count = installed_packages.len();
+
+    let summary_parts = build_summary_parts(app, conflict_count, upgrade_count, installed_count);
     let header_text = if conflict_count > 0 || installed_count > 0 {
         i18n::t_fmt1(
             app,
@@ -360,31 +444,7 @@ fn render_install_dependencies(
     )));
     lines.push(Line::from(""));
 
-    // Build display items list (package headers + their dependencies)
-    let mut display_items: Vec<(bool, String, Option<&DependencyInfo>)> = Vec::new();
-
-    // First, show packages with conflicts/upgrades
-    for pkg_name in items.iter().map(|p| &p.name) {
-        if let Some(pkg_deps) = grouped.get(pkg_name) {
-            display_items.push((true, pkg_name.clone(), None));
-            let mut seen_deps = HashSet::new();
-            for dep in pkg_deps {
-                if seen_deps.insert(dep.name.as_str()) {
-                    display_items.push((false, String::new(), Some(*dep)));
-                }
-            }
-        }
-    }
-
-    // Then, show installed packages (if not already shown)
-    for installed_pkg in &installed_packages {
-        if !grouped.contains_key(&installed_pkg.name) {
-            display_items.push((true, installed_pkg.name.clone(), None));
-            // Add a placeholder entry to show "installed" status
-            // We'll handle this specially in the rendering loop
-            display_items.push((false, installed_pkg.name.clone(), None));
-        }
-    }
+    let display_items = build_display_items(items, &grouped, &installed_packages);
 
     // Render all items (no viewport - mouse scrolling handles it)
     for (is_header, pkg_name, dep) in &display_items {
