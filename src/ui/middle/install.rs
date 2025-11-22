@@ -8,8 +8,98 @@ use ratatui::{
 use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
-use crate::state::{AppState, Source};
+use crate::state::{AppState, PackageItem, Source};
 use crate::theme::theme;
+
+/// What: Build list items for a package list with selection and loading indicators.
+///
+/// Inputs:
+/// - `indices`: Display indices into the package list
+/// - `packages`: Full package list
+/// - `selected_idx`: Currently selected display index
+/// - `focused`: Whether the pane is focused
+/// - `app`: Application state for loading checks
+///
+/// Output:
+/// - Vector of `ListItem` widgets ready for rendering
+///
+/// Details:
+/// - Adds selection indicator, loading indicator, popularity, source, name, and version.
+pub(super) fn build_package_list_items<'a, F>(
+    indices: &[usize],
+    packages: &'a [PackageItem],
+    selected_idx: Option<usize>,
+    focused: bool,
+    is_loading: F,
+) -> Vec<ListItem<'a>>
+where
+    F: Fn(&str) -> bool,
+{
+    let th = theme();
+    indices
+        .iter()
+        .enumerate()
+        .filter_map(|(display_idx, &i)| packages.get(i).map(|p| (display_idx, p)))
+        .map(|(display_idx, p)| {
+            let (src, color) = match &p.source {
+                Source::Official { repo, .. } => (repo.to_string(), th.green),
+                Source::Aur => ("AUR".to_string(), th.yellow),
+            };
+            let mut segs: Vec<Span> = Vec::new();
+
+            // Add selection indicator manually if this item is selected
+            let is_selected = selected_idx == Some(display_idx);
+            if is_selected {
+                segs.push(Span::styled(
+                    "▶ ",
+                    Style::default()
+                        .fg(if focused { th.text } else { th.subtext0 })
+                        .bg(if focused { th.surface2 } else { th.base }),
+                ));
+            } else {
+                // Add spacing to align with selected items
+                segs.push(Span::raw("  "));
+            }
+
+            // Add loading indicator if package is being processed
+            if is_loading(&p.name) {
+                segs.push(Span::styled(
+                    "⟳ ",
+                    Style::default()
+                        .fg(th.sapphire)
+                        .bg(if is_selected && focused {
+                            th.surface2
+                        } else {
+                            th.base
+                        })
+                        .add_modifier(Modifier::BOLD),
+                ));
+            } else {
+                // Add spacing when not loading to maintain alignment
+                segs.push(Span::raw("  "));
+            }
+
+            if let Some(pop) = p.popularity {
+                segs.push(Span::styled(
+                    format!("Pop: {pop:.2} "),
+                    Style::default().fg(th.overlay1),
+                ));
+            }
+            segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
+            segs.push(Span::styled(
+                p.name.clone(),
+                Style::default()
+                    .fg(if focused { th.text } else { th.subtext0 })
+                    .add_modifier(Modifier::BOLD),
+            ));
+            segs.push(Span::styled(
+                format!("  {}", p.version),
+                Style::default().fg(if focused { th.overlay1 } else { th.surface2 }),
+            ));
+            ListItem::new(Line::from(segs))
+        })
+        .collect()
+}
 
 /// What: Render the normal Install list (single right pane) with Import/Export buttons.
 ///
@@ -31,87 +121,13 @@ pub fn render_install(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Normal Install List (single right pane)
     let indices: Vec<usize> = crate::ui::helpers::filtered_install_indices(app);
     let selected_idx = app.install_state.selected();
-    let install_items: Vec<ListItem> = indices
-        .iter()
-        .enumerate()
-        .filter_map(|(display_idx, &i)| app.install_list.get(i).map(|p| (display_idx, p)))
-        .map(|(display_idx, p)| {
-            let (src, color) = match &p.source {
-                Source::Official { repo, .. } => (repo.to_string(), th.green),
-                Source::Aur => ("AUR".to_string(), th.yellow),
-            };
-            let mut segs: Vec<Span> = Vec::new();
-
-            // Add selection indicator manually if this item is selected
-            let is_selected = selected_idx == Some(display_idx);
-            if is_selected {
-                segs.push(Span::styled(
-                    "▶ ",
-                    Style::default()
-                        .fg(if install_focused {
-                            th.text
-                        } else {
-                            th.subtext0
-                        })
-                        .bg(if install_focused {
-                            th.surface2
-                        } else {
-                            th.base
-                        }),
-                ));
-            } else {
-                // Add spacing to align with selected items
-                segs.push(Span::raw("  "));
-            }
-
-            // Add loading indicator if package is being processed (same position and style regardless of selection)
-            if crate::ui::helpers::is_package_loading_preflight(app, &p.name) {
-                // Use explicit style that overrides highlight_style - always sapphire blue and bold
-                // Match background to selection state so it blends properly
-                segs.push(Span::styled(
-                    "⟳ ",
-                    Style::default()
-                        .fg(th.sapphire)
-                        .bg(if is_selected && install_focused {
-                            th.surface2
-                        } else {
-                            th.base
-                        })
-                        .add_modifier(Modifier::BOLD),
-                ));
-            } else {
-                // Add spacing when not loading to maintain alignment (same width as "⟳ ")
-                segs.push(Span::raw("  "));
-            }
-
-            if let Some(pop) = p.popularity {
-                segs.push(Span::styled(
-                    format!("Pop: {pop:.2} "),
-                    Style::default().fg(th.overlay1),
-                ));
-            }
-            segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
-            segs.push(Span::styled(
-                p.name.clone(),
-                Style::default()
-                    .fg(if install_focused {
-                        th.text
-                    } else {
-                        th.subtext0
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ));
-            segs.push(Span::styled(
-                format!("  {}", p.version),
-                Style::default().fg(if install_focused {
-                    th.overlay1
-                } else {
-                    th.surface2
-                }),
-            ));
-            ListItem::new(Line::from(segs))
-        })
-        .collect();
+    let install_items = build_package_list_items(
+        &indices,
+        &app.install_list,
+        selected_idx,
+        install_focused,
+        |name| crate::ui::helpers::is_package_loading_preflight(app, name),
+    );
     let title_text = if install_focused {
         i18n::t(app, "app.titles.install_list_focused")
     } else {

@@ -99,6 +99,35 @@ mod tests {
         let _guard = crate::global_test_mutex_lock();
 
         // Seed current index with enriched fields
+        seed_enriched_index();
+
+        // Create a fake pacman on PATH that returns -Sl results for fetch
+        let (old_path, root, tmp) = setup_fake_pacman_for_update();
+
+        // Setup channels and run update
+        let (err_tx, mut err_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let (notify_tx, mut notify_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+        super::update_in_background(tmp.clone(), err_tx, notify_tx).await;
+
+        // Verify notification and no error
+        verify_update_notification(&mut notify_rx, &mut err_rx).await;
+
+        // Check merge kept enriched fields for existing name "foo"
+        verify_enriched_fields_preserved();
+
+        // Teardown
+        teardown_test_env(old_path, tmp, root);
+    }
+
+    /// What: Seed the index with enriched test data.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: None (modifies global index state).
+    ///
+    /// Details:
+    /// - Creates a test package "foo" with enriched fields.
+    fn seed_enriched_index() {
         if let Ok(mut g) = super::idx().write() {
             g.pkgs = vec![super::OfficialPkg {
                 name: "foo".to_string(),
@@ -108,8 +137,18 @@ mod tests {
                 description: "old".to_string(),
             }];
         }
+    }
 
-        // Create a fake pacman on PATH that returns -Sl results for fetch
+    /// What: Setup fake pacman script for update test.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output:
+    /// - Returns (old_path, root_dir, tmp_file) for teardown.
+    ///
+    /// Details:
+    /// - Creates a temporary pacman script that returns test data.
+    fn setup_fake_pacman_for_update() -> (String, std::path::PathBuf, std::path::PathBuf) {
         let old_path = std::env::var("PATH").unwrap_or_default();
         let mut root = std::env::temp_dir();
         root.push(format!(
@@ -155,30 +194,47 @@ exit 0
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
-
-        // Setup channels
-        let (err_tx, mut err_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-        let (notify_tx, mut notify_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
-
         let mut tmp = std::env::temp_dir();
         tmp.push("pacsea_update_merge.json");
-        super::update_in_background(tmp.clone(), err_tx, notify_tx).await;
+        (old_path, root, tmp)
+    }
 
-        // Expect notify within timeout and no error
-        let notified =
-            tokio::time::timeout(std::time::Duration::from_millis(500), notify_rx.recv())
-                .await
-                .ok()
-                .flatten()
-                .is_some();
+    /// What: Verify update notification and no error.
+    ///
+    /// Inputs:
+    /// - `notify_rx`: Receiver for notification channel
+    /// - `err_rx`: Receiver for error channel
+    ///
+    /// Output: None (panics on assertion failure).
+    ///
+    /// Details:
+    /// - Asserts notification received and no error sent.
+    async fn verify_update_notification(
+        notify_rx: &mut tokio::sync::mpsc::UnboundedReceiver<()>,
+        err_rx: &mut tokio::sync::mpsc::UnboundedReceiver<String>,
+    ) {
+        let notified = tokio::time::timeout(std::time::Duration::from_millis(500), notify_rx.recv())
+            .await
+            .ok()
+            .flatten()
+            .is_some();
         assert!(notified);
         let none = tokio::time::timeout(std::time::Duration::from_millis(200), err_rx.recv())
             .await
             .ok()
             .flatten();
         assert!(none.is_none());
+    }
 
-        // Check merge kept enriched fields for existing name "foo"
+    /// What: Verify enriched fields were preserved during merge.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: None (panics on assertion failure).
+    ///
+    /// Details:
+    /// - Checks that "foo" package retained its enriched fields.
+    fn verify_enriched_fields_preserved() {
         let items = crate::index::all_official();
         let foo = items
             .iter()
@@ -192,8 +248,24 @@ exit 0
             _ => panic!("expected official"),
         }
         assert_eq!(foo.version, "0.9"); // preserved from enriched
+    }
 
-        // Teardown
+    /// What: Cleanup test environment.
+    ///
+    /// Inputs:
+    /// - `old_path`: Original PATH value to restore
+    /// - `tmp`: Temporary file path to remove
+    /// - `root`: Root directory to remove
+    ///
+    /// Output: None.
+    ///
+    /// Details:
+    /// - Restores PATH and removes temporary files.
+    fn teardown_test_env(
+        old_path: String,
+        tmp: std::path::PathBuf,
+        root: std::path::PathBuf,
+    ) {
         unsafe { std::env::set_var("PATH", &old_path) };
         let _ = std::fs::remove_file(&tmp);
         let _ = std::fs::remove_dir_all(&root);
