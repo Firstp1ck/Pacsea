@@ -19,6 +19,10 @@ use crate::theme::types::Theme;
 /// - Ignores preference keys that belong to other config files for backwards compatibility.
 /// - Detects duplicates, missing required keys, and invalid color formats with precise line info.
 pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
+    const REQUIRED: [&str; 16] = [
+        "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
+        "subtext0", "subtext1", "sapphire", "mauve", "green", "yellow", "red", "lavender",
+    ];
     let content = fs::read_to_string(path).map_err(|e| format!("{e}"))?;
     let mut map: HashMap<String, Color> = HashMap::new();
     let mut errors: Vec<String> = Vec::new();
@@ -65,10 +69,6 @@ pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, Stri
         apply_override_to_map(&mut map, key, val, &mut errors, line_no);
     }
     // Check missing required keys
-    const REQUIRED: [&str; 16] = [
-        "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
-        "subtext0", "subtext1", "sapphire", "mauve", "green", "yellow", "red", "lavender",
-    ];
     // Syntax command color defaults to sapphire if not specified
     let mut missing: Vec<&str> = Vec::new();
     for k in REQUIRED {

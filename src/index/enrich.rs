@@ -22,6 +22,7 @@ pub fn request_enrich_for(
     tokio::spawn(async move {
         // Deduplicate names
         use std::collections::HashSet;
+        const BATCH: usize = 100;
         let set: HashSet<String> = names.into_iter().collect();
         if set.is_empty() {
             return;
@@ -29,7 +30,6 @@ pub fn request_enrich_for(
         // Batch -Si queries
         let mut desc_map: std::collections::HashMap<String, (String, String, String, String)> =
             std::collections::HashMap::new(); // name -> (desc, arch, repo, version)
-        const BATCH: usize = 100;
         let all: Vec<String> = set.into_iter().collect();
         for chunk in all.chunks(BATCH) {
             let args_owned: Vec<String> = std::iter::once("-Si".to_string())

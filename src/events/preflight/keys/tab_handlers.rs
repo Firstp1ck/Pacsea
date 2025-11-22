@@ -92,11 +92,11 @@ pub(super) fn handle_files_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 /// - Toggles expansion/collapse of sandbox dependency trees for selected package.
 /// - Toggles optional dependency selection when on an optdepends entry.
 pub(super) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+    type SandboxDisplayItem = (bool, String, Option<(&'static str, String)>);
     if ctx.items.is_empty() {
         return false;
     }
 
-    type SandboxDisplayItem = (bool, String, Option<(&'static str, String)>);
     let mut display_items: Vec<SandboxDisplayItem> = Vec::new();
     for item in ctx.items {
         let is_aur = matches!(item.source, crate::state::Source::Aur);

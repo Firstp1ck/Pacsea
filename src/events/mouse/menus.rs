@@ -351,6 +351,7 @@ fn handle_installed_only_toggle(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) {
+    use std::collections::HashSet;
     if app.installed_only_mode {
         if let Some(prev) = app.results_backup_for_toggle.take() {
             app.all_results = prev;
@@ -366,7 +367,6 @@ fn handle_installed_only_toggle(
             .into_iter()
             .filter(|p| explicit.contains(&p.name))
             .collect();
-        use std::collections::HashSet;
         let official_names: HashSet<String> = items.iter().map(|p| p.name.clone()).collect();
         for name in explicit {
             if !official_names.contains(&name) {

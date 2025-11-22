@@ -105,13 +105,6 @@ mod tests {
     /// Details:
     /// - Verifies the async refresh reads command output, updates the cache, and the cache contents persist after restoring PATH.
     async fn refresh_explicit_cache_populates_cache_from_pacman_output() {
-        let _guard = crate::global_test_mutex_lock();
-
-        if let Ok(mut g) = super::explicit_lock().write() {
-            g.clear();
-        }
-
-        let old_path = std::env::var("PATH").unwrap_or_default();
         struct PathGuard {
             original: String,
         }
@@ -122,6 +115,13 @@ mod tests {
                 }
             }
         }
+        let _guard = crate::global_test_mutex_lock();
+
+        if let Ok(mut g) = super::explicit_lock().write() {
+            g.clear();
+        }
+
+        let old_path = std::env::var("PATH").unwrap_or_default();
         let _path_guard = PathGuard {
             original: old_path.clone(),
         };
