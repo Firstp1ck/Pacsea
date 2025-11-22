@@ -2,7 +2,7 @@ use crate::state::ArchStatusColor;
 
 use super::utils::{severity_max, today_ymd_utc};
 
-/// Parse the UptimeRobot API response to extract the worst status among all monitors (AUR, Forum, Website, Wiki).
+/// Parse the `UptimeRobot` API response to extract the worst status among all monitors (AUR, Forum, Website, Wiki).
 ///
 /// Inputs:
 /// - `v`: JSON value from <https://status.archlinux.org/api/getMonitorList/vmM5ruWEAB>

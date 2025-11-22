@@ -209,7 +209,7 @@ fn fill_missing_fields(name: &str, description: &mut String, architecture: &mut 
     }
 }
 
-/// Build PackageDetails from parsed map and extracted fields.
+/// Build `PackageDetails` from parsed map and extracted fields.
 ///
 /// Inputs:
 /// - `repo`: Repository name (fallback if not in map)
@@ -252,7 +252,7 @@ fn build_package_details(
     }
 }
 
-/// Run `pacman -Si` for a package, parsing its key-value output into PackageDetails.
+/// Run `pacman -Si` for a package, parsing its key-value output into `PackageDetails`.
 ///
 /// Inputs:
 /// - `repo`: Preferred repository prefix (may be empty to let pacman resolve)

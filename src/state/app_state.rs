@@ -110,7 +110,7 @@ pub struct AppState {
     /// Whether Search pane is in Normal mode (Vim-like navigation) instead of Insert mode.
     pub search_normal_mode: bool,
 
-    /// Caret position (in characters) within the Search input.
+    /// Caret position (in characters) within the `Search` input.
     /// Always clamped to the range 0..=input.chars().count().
     pub search_caret: usize,
     /// Selection anchor (in characters) for the Search input when selecting text.
@@ -143,7 +143,7 @@ pub struct AppState {
     pub url_button_rect: Option<(u16, u16, u16, u16)>,
 
     // VirusTotal API setup modal clickable URL rectangle
-    /// Rectangle of the clickable VirusTotal API URL in the setup modal (x, y, w, h).
+    /// Rectangle of the clickable `VirusTotal` API URL in the setup modal (x, y, w, h).
     pub vt_url_rect: Option<(u16, u16, u16, u16)>,
 
     // Install pane bottom action (Import)
@@ -344,7 +344,7 @@ pub struct AppState {
     pub results_filter_multilib_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the EOS filter toggle in the Results title (x, y, w, h).
     pub results_filter_eos_rect: Option<(u16, u16, u16, u16)>,
-    /// Clickable rectangle for the CachyOS filter toggle in the Results title (x, y, w, h).
+    /// Clickable rectangle for the `CachyOS` filter toggle in the Results title (x, y, w, h).
     pub results_filter_cachyos_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the Artix filter toggle in the Results title (x, y, w, h).
     pub results_filter_artix_rect: Option<(u16, u16, u16, u16)>,

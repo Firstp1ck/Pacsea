@@ -510,15 +510,15 @@ pub enum Modal {
     },
     /// Select which scans to run before executing the AUR scan.
     ScanConfig {
-        /// Whether to run ClamAV (clamscan).
+        /// Whether to run `ClamAV` (clamscan).
         do_clamav: bool,
         /// Whether to run Trivy filesystem scan.
         do_trivy: bool,
         /// Whether to run Semgrep static analysis.
         do_semgrep: bool,
-        /// Whether to run ShellCheck on PKGBUILD/.install.
+        /// Whether to run `ShellCheck` on `PKGBUILD`/.install.
         do_shellcheck: bool,
-        /// Whether to run VirusTotal hash lookups.
+        /// Whether to run `VirusTotal` hash lookups.
         do_virustotal: bool,
         /// Whether to run custom suspicious-pattern scan (PKGBUILD/.install).
         do_custom: bool,
@@ -527,9 +527,9 @@ pub enum Modal {
         /// Cursor row in the dialog.
         cursor: usize,
     },
-    /// Prompt to install GNOME Terminal at startup on GNOME when not present.
+    /// Prompt to install `GNOME Terminal` at startup on GNOME when not present.
     GnomeTerminalPrompt,
-    /// Setup dialog for VirusTotal API key.
+    /// Setup dialog for `VirusTotal` API key.
     VirusTotalSetup {
         /// User-entered API key buffer.
         input: String,

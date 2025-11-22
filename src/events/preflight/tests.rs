@@ -78,7 +78,7 @@ fn dep(name: &str, required_by: &[&str]) -> DependencyInfo {
 /// - `DependencyInfo` instance with the specified status for assertions.
 ///
 /// Details:
-/// - Allows testing different dependency statuses (Installed, ToInstall, etc.) to verify correct display.
+/// - Allows testing different dependency statuses (`Installed`, `ToInstall`, etc.) to verify correct display.
 fn dep_with_status(name: &str, required_by: &[&str], status: DependencyStatus) -> DependencyInfo {
     DependencyInfo {
         name: name.into(),
@@ -504,7 +504,7 @@ fn handle_service_restart_shortcuts_force_decisions() {
 /// - Preflight modal with dependencies including installed ones.
 ///
 /// Output:
-/// - All dependencies, including installed ones, are present in dependency_info.
+/// - All dependencies, including installed ones, are present in `dependency_info`.
 ///
 /// Details:
 /// - Tests that installed dependencies are not filtered out and should display with checkmarks.
@@ -545,11 +545,11 @@ fn installed_dependencies_are_included_in_list() {
 /// What: Verify that cached dependencies are correctly loaded when switching to Deps tab.
 ///
 /// Inputs:
-/// - AppState with cached dependencies in install_list_deps.
+/// - `AppState` with cached dependencies in `install_list_deps`.
 /// - Preflight modal initially on Summary tab, then switching to Deps tab.
 ///
 /// Output:
-/// - Cached dependencies are loaded into dependency_info when switching to Deps tab.
+/// - Cached dependencies are loaded into `dependency_info` when switching to Deps tab.
 ///
 /// Details:
 /// - Tests the tab switching logic that loads cached dependencies from app state.
@@ -610,11 +610,11 @@ fn cached_dependencies_load_on_tab_switch() {
 /// What: Verify that cached files are correctly loaded when switching to Files tab.
 ///
 /// Inputs:
-/// - AppState with cached files in install_list_files.
+/// - `AppState` with cached files in `install_list_files`.
 /// - Preflight modal initially on Summary tab, then switching to Files tab.
 ///
 /// Output:
-/// - Cached files are loaded into file_info when switching to Files tab.
+/// - Cached files are loaded into `file_info` when switching to Files tab.
 ///
 /// Details:
 /// - Tests the tab switching logic that loads cached files from app state.
@@ -705,7 +705,7 @@ fn installed_dependencies_counted_in_display_length() {
 /// What: Verify that files are correctly displayed when file_info is populated.
 ///
 /// Inputs:
-/// - Preflight modal with file_info containing files for a package.
+/// - Preflight modal with `file_info` containing files for a package.
 ///
 /// Output:
 /// - File display length correctly counts files when package is expanded.
@@ -732,7 +732,7 @@ fn files_displayed_when_file_info_populated() {
 /// What: Verify that empty file_info shows correct empty state.
 ///
 /// Inputs:
-/// - Preflight modal with empty file_info but packages in items.
+/// - Preflight modal with empty `file_info` but packages in items.
 ///
 /// Output:
 /// - File display length returns 2 (all packages shown even if no file info).
@@ -752,7 +752,7 @@ fn empty_file_info_handled_correctly() {
 /// What: Verify that dependencies are correctly filtered by required_by when loading from cache.
 ///
 /// Inputs:
-/// - AppState with cached dependencies, some matching current items and some not.
+/// - `AppState` with cached dependencies, some matching current items and some not.
 /// - Preflight modal switching to Deps tab.
 ///
 /// Output:
@@ -823,7 +823,7 @@ fn dependencies_filtered_by_required_by_on_cache_load() {
 /// What: Verify that files are correctly filtered by package name when loading from cache.
 ///
 /// Inputs:
-/// - AppState with cached files for multiple packages.
+/// - `AppState` with cached files for multiple packages.
 /// - Preflight modal with only some packages in items.
 ///
 /// Output:

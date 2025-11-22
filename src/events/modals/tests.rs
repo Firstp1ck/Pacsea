@@ -814,14 +814,14 @@ fn confirm_install_esc_closes_modal() {
 /// What: Verify Esc key closes `ConfirmRemove` modal.
 ///
 /// Inputs:
-/// - ConfirmRemove modal with items
+/// - `ConfirmRemove` modal with items
 /// - Esc key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Esc closes ConfirmRemove modal correctly
+/// - Tests that Esc closes `ConfirmRemove` modal correctly
 fn confirm_remove_esc_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ConfirmRemove {
@@ -843,17 +843,17 @@ fn confirm_remove_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Enter key closes ConfirmRemove modal.
+/// What: Verify Enter key closes `ConfirmRemove` modal.
 ///
 /// Inputs:
-/// - ConfirmRemove modal with items
+/// - `ConfirmRemove` modal with items
 /// - Enter key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Enter also closes ConfirmRemove modal
+/// - Tests that Enter also closes `ConfirmRemove` modal
 /// - Cleans up terminal window opened by the test
 fn confirm_remove_enter_closes_modal() {
     let mut app = new_app();
@@ -926,17 +926,17 @@ fn help_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes GnomeTerminalPrompt modal.
+/// What: Verify Esc key closes `GnomeTerminalPrompt` modal.
 ///
 /// Inputs:
-/// - GnomeTerminalPrompt modal
+/// - `GnomeTerminalPrompt` modal
 /// - Esc key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Esc closes GnomeTerminalPrompt modal correctly
+/// - Tests that Esc closes `GnomeTerminalPrompt` modal correctly
 fn gnome_terminal_prompt_esc_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::GnomeTerminalPrompt;
@@ -950,10 +950,10 @@ fn gnome_terminal_prompt_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Enter key in VirusTotalSetup modal with empty input opens browser.
+/// What: Verify Enter key in `VirusTotalSetup` modal with empty input opens browser.
 ///
 /// Inputs:
-/// - VirusTotalSetup modal with empty input
+/// - `VirusTotalSetup` modal with empty input
 /// - Enter key event
 ///
 /// Output:
@@ -985,10 +985,10 @@ fn virustotal_setup_enter_opens_browser() {
 }
 
 #[test]
-/// What: Verify Enter key in GnomeTerminalPrompt modal spawns terminal.
+/// What: Verify Enter key in `GnomeTerminalPrompt` modal spawns terminal.
 ///
 /// Inputs:
-/// - GnomeTerminalPrompt modal
+/// - `GnomeTerminalPrompt` modal
 /// - Enter key event
 ///
 /// Output:
@@ -1012,17 +1012,17 @@ fn gnome_terminal_prompt_enter_spawns_terminal() {
 }
 
 #[test]
-/// What: Verify Esc key closes ImportHelp modal.
+/// What: Verify Esc key closes `ImportHelp` modal.
 ///
 /// Inputs:
-/// - ImportHelp modal
+/// - `ImportHelp` modal
 /// - Esc key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Esc closes ImportHelp modal correctly
+/// - Tests that Esc closes `ImportHelp` modal correctly
 fn import_help_esc_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ImportHelp;
@@ -1036,17 +1036,17 @@ fn import_help_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Enter key closes ImportHelp modal.
+/// What: Verify Enter key closes `ImportHelp` modal.
 ///
 /// Inputs:
-/// - ImportHelp modal
+/// - `ImportHelp` modal
 /// - Enter key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Enter also closes ImportHelp modal
+/// - Tests that Enter also closes `ImportHelp` modal
 /// - Cleans up file picker window opened by the test
 fn import_help_enter_closes_modal() {
     let mut app = new_app();

@@ -84,7 +84,7 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
 /// - `prefs`: Current settings to get values from
 ///
 /// Output:
-/// - Vector of (setting_line, optional_comment) tuples
+/// - Vector of (`setting_line`, `optional_comment`) tuples
 fn parse_missing_settings(
     skeleton_lines: &[&str],
     have: &HashSet<String>,
