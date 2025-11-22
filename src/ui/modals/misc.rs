@@ -303,7 +303,7 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
     let inner_y = rect.y + 1;
     let url_line_y = inner_y + 3;
     let url_x = inner_x + 1;
-    let url_w = vt_url.len() as u16;
+    let url_w = u16::try_from(vt_url.len()).unwrap_or(u16::MAX);
     app.vt_url_rect = Some((url_x, url_line_y, url_w, 1));
     let boxw = Paragraph::new(lines)
         .style(Style::default().fg(th.text).bg(th.mantle))

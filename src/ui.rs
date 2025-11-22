@@ -258,7 +258,9 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
     };
 
     let th = theme();
-    let inner_w = (msg.len() as u16).min(area.width.saturating_sub(4));
+    let inner_w = u16::try_from(msg.len())
+        .unwrap_or(u16::MAX)
+        .min(area.width.saturating_sub(4));
     let w = inner_w.saturating_add(2 + 2);
     let h: u16 = 3;
     let x = area.x + area.width.saturating_sub(w).saturating_sub(1);

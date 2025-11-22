@@ -104,11 +104,11 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
             }
         }
         let w = if footer_w == 0 { 1 } else { footer_w };
-        let rows1 = ((line1.len() as u16).div_ceil(w)).max(1);
+        let rows1 = (u16::try_from(line1.len()).unwrap_or(u16::MAX).div_ceil(w)).max(1);
         let rows2 = if line2.is_empty() {
             0
         } else {
-            ((line2.len() as u16).div_ceil(w)).max(1)
+            (u16::try_from(line2.len()).unwrap_or(u16::MAX).div_ceil(w)).max(1)
         };
         rows1 + rows2
     } else {

@@ -80,7 +80,10 @@ fn calculate_wrapped_line_rows(line_len: usize, inner_w: u16) -> u16 {
     if inner_w == 0 {
         1
     } else {
-        (line_len as u16).div_ceil(inner_w).max(1)
+        u16::try_from(line_len)
+            .unwrap_or(u16::MAX)
+            .div_ceil(inner_w)
+            .max(1)
     }
 }
 
@@ -109,10 +112,10 @@ fn calculate_url_button_rect(
         return None;
     }
     // Use Unicode display width, not byte length, to handle wide characters
-    let key_len = key_txt.width() as u16;
+    let key_len = u16::try_from(key_txt.width()).unwrap_or(u16::MAX);
     let x_start = content_x.saturating_add(key_len);
     let max_w = inner_w.saturating_sub(key_len);
-    let w = url_txt.width().min(max_w as usize) as u16;
+    let w = u16::try_from(url_txt.width().min(max_w as usize)).unwrap_or(u16::MAX);
     if w > 0 {
         Some((x_start, cur_y, w, 1))
     } else {
@@ -140,7 +143,7 @@ fn calculate_pkgbuild_button_rect(
     inner_w: u16,
 ) -> Option<(u16, u16, u16, u16)> {
     // Use Unicode display width, not byte length, to handle wide characters
-    let w = txt.width().min(inner_w as usize) as u16;
+    let w = u16::try_from(txt.width().min(inner_w as usize)).unwrap_or(u16::MAX);
     if w > 0 {
         Some((content_x, cur_y, w, 1))
     } else {

@@ -305,9 +305,9 @@ fn calculate_tab_color(
 fn calculate_tab_width(label: &str, status_icon: &str, is_active: bool) -> u16 {
     let base_width = label.len() + status_icon.len();
     if is_active {
-        (base_width + 2) as u16 // +2 for brackets
+        u16::try_from(base_width + 2).unwrap_or(u16::MAX) // +2 for brackets
     } else {
-        base_width as u16
+        u16::try_from(base_width).unwrap_or(u16::MAX)
     }
 }
 

@@ -55,11 +55,11 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     let maxw = area.width.saturating_sub(4); // avoid right corner
     let mut content = status_text.clone();
     // Truncate by display width, not byte length, to handle wide characters
-    if content.width() as u16 > maxw {
+    if u16::try_from(content.width()).unwrap_or(u16::MAX) > maxw {
         let mut truncated = String::new();
         let mut width_so_far = 0u16;
         for ch in content.chars() {
-            let ch_width = ch.width().unwrap_or(0) as u16;
+            let ch_width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(u16::MAX);
             if width_so_far + ch_width > maxw {
                 break;
             }
@@ -114,8 +114,8 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     ]));
     // Record clickable rect centered within the available width
     // Use Unicode display width, not byte length, to handle wide characters
-    let dot_width = dot.width() as u16;
-    let content_width = content.width() as u16;
+    let dot_width = u16::try_from(dot.width()).unwrap_or(u16::MAX);
+    let content_width = u16::try_from(content.width()).unwrap_or(u16::MAX);
     let cw = (content_width + dot_width + 1).min(maxw); // +1 for the space
     let pad_left = maxw.saturating_sub(cw) / 2;
     let start_x = sx.saturating_add(pad_left);

@@ -79,9 +79,9 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
     let btn_x = pkgb_area
         .x
         .saturating_add(1)
-        .saturating_add(pkgb_title_text.width() as u16)
+        .saturating_add(u16::try_from(pkgb_title_text.width()).unwrap_or(u16::MAX))
         .saturating_add(2);
-    let btn_w = check_button_label.width() as u16;
+    let btn_w = u16::try_from(check_button_label.width()).unwrap_or(u16::MAX);
     app.pkgb_check_button_rect = Some((btn_x, btn_y, btn_w, 1));
 
     // Add "Reload PKGBUILD" button if needed
@@ -97,7 +97,7 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
 
         // Record clickable rect for the reload button
         let reload_btn_x = btn_x.saturating_add(btn_w).saturating_add(2);
-        let reload_btn_w = reload_button_label.width() as u16;
+        let reload_btn_w = u16::try_from(reload_button_label.width()).unwrap_or(u16::MAX);
         app.pkgb_reload_button_rect = Some((reload_btn_x, btn_y, reload_btn_w, 1));
     }
 

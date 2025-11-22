@@ -40,9 +40,13 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             i18n::t(app, "app.results.config_menu.options.recent_searches"),
         ];
         // Use Unicode display width, not byte length, to handle wide characters like →
-        let widest = opts.iter().map(|s| s.width() as u16).max().unwrap_or(0);
+        let widest = opts
+            .iter()
+            .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
+            .max()
+            .unwrap_or(0);
         // Calculate max number width first to include it in total width
-        let max_num_width = format!("{}", opts.len()).len() as u16;
+        let max_num_width = u16::try_from(format!("{}", opts.len()).len()).unwrap_or(u16::MAX);
         // Width must accommodate: widest text + spacing + max number width
         let w = widest
             .saturating_add(max_num_width)
@@ -56,7 +60,9 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             .map(|(x, _, _, _)| x)
             .unwrap_or(max_x);
         let menu_x = cbx.min(max_x);
-        let h = (opts.len() as u16) + 2; // borders
+        let h = u16::try_from(opts.len())
+            .unwrap_or(u16::MAX)
+            .saturating_add(2); // borders
         let menu_y = results_area.y.saturating_add(1); // just below top border (rendered on top layer)
         let rect = ratatui::prelude::Rect {
             x: menu_x,
@@ -76,12 +82,12 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         for (i, text) in opts.iter().enumerate() {
             let num_str = format!("{}", i + 1);
             // Pad number to max_num_width for right alignment (numbers are ASCII, so len() = width)
-            let num_width = num_str.len() as u16;
+            let num_width = u16::try_from(num_str.len()).unwrap_or(u16::MAX);
             let num_padding = max_num_width.saturating_sub(num_width);
             let padded_num = format!("{}{}", " ".repeat(num_padding as usize), num_str);
 
             // Calculate padding using display width, not byte length
-            let text_display_width = text.width() as u16;
+            let text_display_width = u16::try_from(text.width()).unwrap_or(u16::MAX);
             let text_padding = widest.saturating_sub(text_display_width);
 
             // Build complete line
@@ -94,7 +100,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             );
 
             // Ensure line has exactly total_line_width display width
-            let current_width = complete_line.width() as u16;
+            let current_width = u16::try_from(complete_line.width()).unwrap_or(u16::MAX);
             if current_width < total_line_width {
                 complete_line.push_str(&" ".repeat((total_line_width - current_width) as usize));
             } else if current_width > total_line_width {
@@ -102,7 +108,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
                 let mut truncated = String::new();
                 let mut width_so_far = 0u16;
                 for ch in complete_line.chars() {
-                    let ch_width = ch.width().unwrap_or(0) as u16;
+                    let ch_width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(u16::MAX);
                     if width_so_far + ch_width > total_line_width {
                         break;
                     }
@@ -116,7 +122,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             let mut text_part = String::new();
             let mut width_so_far = 0u16;
             for ch in complete_line.chars() {
-                let ch_width = ch.width().unwrap_or(0) as u16;
+                let ch_width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(u16::MAX);
                 if width_so_far + ch_width > num_start_col {
                     break;
                 }
@@ -180,9 +186,13 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         };
         let opts: Vec<String> = vec![label_recent, label_install, label_keybinds];
         // Use Unicode display width, not byte length, to handle wide characters
-        let widest = opts.iter().map(|s| s.width() as u16).max().unwrap_or(0);
+        let widest = opts
+            .iter()
+            .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
+            .max()
+            .unwrap_or(0);
         // Calculate max number width first to include it in total width
-        let max_num_width = format!("{}", opts.len()).len() as u16;
+        let max_num_width = u16::try_from(format!("{}", opts.len()).len()).unwrap_or(u16::MAX);
         // Width must accommodate: widest text + spacing + max number width
         let spacing = 2u16;
         let w = widest
@@ -197,7 +207,9 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             .map(|(x, _, _, _)| x)
             .unwrap_or(max_x);
         let menu_x = pbx.min(max_x);
-        let h = (opts.len() as u16) + 2; // borders
+        let h = u16::try_from(opts.len())
+            .unwrap_or(u16::MAX)
+            .saturating_add(2); // borders
         let menu_y = results_area.y.saturating_add(1); // just below top border (rendered on top layer)
         let rect = ratatui::prelude::Rect {
             x: menu_x,
@@ -216,12 +228,12 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         for (i, text) in opts.iter().enumerate() {
             let num_str = format!("{}", i + 1);
             // Pad number to max_num_width for right alignment (numbers are ASCII, so len() = width)
-            let num_width = num_str.len() as u16;
+            let num_width = u16::try_from(num_str.len()).unwrap_or(u16::MAX);
             let num_padding = max_num_width.saturating_sub(num_width);
             let padded_num = format!("{}{}", " ".repeat(num_padding as usize), num_str);
 
             // Calculate padding using display width, not byte length
-            let text_display_width = text.width() as u16;
+            let text_display_width = u16::try_from(text.width()).unwrap_or(u16::MAX);
             let text_padding = widest.saturating_sub(text_display_width);
 
             // Build complete line
@@ -234,7 +246,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             );
 
             // Ensure line has exactly total_line_width display width
-            let current_width = complete_line.width() as u16;
+            let current_width = u16::try_from(complete_line.width()).unwrap_or(u16::MAX);
             if current_width < total_line_width {
                 complete_line.push_str(&" ".repeat((total_line_width - current_width) as usize));
             } else if current_width > total_line_width {
@@ -242,7 +254,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
                 let mut truncated = String::new();
                 let mut width_so_far = 0u16;
                 for ch in complete_line.chars() {
-                    let ch_width = ch.width().unwrap_or(0) as u16;
+                    let ch_width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(u16::MAX);
                     if width_so_far + ch_width > total_line_width {
                         break;
                     }
@@ -256,7 +268,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             let mut text_part = String::new();
             let mut width_so_far = 0u16;
             for ch in complete_line.chars() {
-                let ch_width = ch.width().unwrap_or(0) as u16;
+                let ch_width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(u16::MAX);
                 if width_so_far + ch_width > num_start_col {
                     break;
                 }
@@ -315,9 +327,13 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             i18n::t(app, "app.results.options_menu.tui_optional_deps"),
         ];
         // Use Unicode display width, not byte length, to handle wide characters
-        let widest = opts.iter().map(|s| s.width() as u16).max().unwrap_or(0);
+        let widest = opts
+            .iter()
+            .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
+            .max()
+            .unwrap_or(0);
         // Calculate max number width first to include it in total width
-        let max_num_width = format!("{}", opts.len()).len() as u16;
+        let max_num_width = u16::try_from(format!("{}", opts.len()).len()).unwrap_or(u16::MAX);
         // Width must accommodate: widest text + spacing + max number width
         let w = widest
             .saturating_add(max_num_width)
@@ -331,7 +347,9 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             .map(|(x, _, _, _)| x)
             .unwrap_or(max_x);
         let menu_x = obx.min(max_x);
-        let h = (opts.len() as u16) + 2; // borders
+        let h = u16::try_from(opts.len())
+            .unwrap_or(u16::MAX)
+            .saturating_add(2); // borders
         let menu_y = results_area.y.saturating_add(1); // just below top border (rendered on top layer)
         let rect = ratatui::prelude::Rect {
             x: menu_x,
@@ -351,12 +369,12 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
         for (i, text) in opts.iter().enumerate() {
             let num_str = format!("{}", i + 1);
             // Pad number to max_num_width for right alignment (numbers are ASCII, so len() = width)
-            let num_width = num_str.len() as u16;
+            let num_width = u16::try_from(num_str.len()).unwrap_or(u16::MAX);
             let num_padding = max_num_width.saturating_sub(num_width);
             let padded_num = format!("{}{}", " ".repeat(num_padding as usize), num_str);
 
             // Calculate padding using display width, not byte length
-            let text_display_width = text.width() as u16;
+            let text_display_width = u16::try_from(text.width()).unwrap_or(u16::MAX);
             let text_padding = widest.saturating_sub(text_display_width);
 
             // Build complete line
@@ -369,7 +387,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             );
 
             // Ensure line has exactly total_line_width display width
-            let current_width = complete_line.width() as u16;
+            let current_width = u16::try_from(complete_line.width()).unwrap_or(u16::MAX);
             if current_width < total_line_width {
                 complete_line.push_str(&" ".repeat((total_line_width - current_width) as usize));
             } else if current_width > total_line_width {
@@ -377,7 +395,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
                 let mut truncated = String::new();
                 let mut width_so_far = 0u16;
                 for ch in complete_line.chars() {
-                    let ch_width = ch.width().unwrap_or(0) as u16;
+                    let ch_width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(u16::MAX);
                     if width_so_far + ch_width > total_line_width {
                         break;
                     }
@@ -391,7 +409,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             let mut text_part = String::new();
             let mut width_so_far = 0u16;
             for ch in complete_line.chars() {
-                let ch_width = ch.width().unwrap_or(0) as u16;
+                let ch_width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(u16::MAX);
                 if width_so_far + ch_width > num_start_col {
                     break;
                 }
@@ -482,7 +500,11 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
                     app.results_filter_show_artix_system,
                 ),
             ];
-            let widest = opts.iter().map(|(s, _)| s.len()).max().unwrap_or(0) as u16;
+            let widest = opts
+                .iter()
+                .map(|(s, _)| u16::try_from(s.len()).unwrap_or(u16::MAX))
+                .max()
+                .unwrap_or(0);
             let w = widest
                 .saturating_add(4) // space for checkbox indicator
                 .saturating_add(2)
@@ -495,7 +517,9 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
                 .map(|(x, _, _, _)| x)
                 .unwrap_or(max_x);
             let menu_x = artix_x.min(max_x);
-            let h = (opts.len() as u16) + 2; // borders
+            let h = u16::try_from(opts.len())
+                .unwrap_or(u16::MAX)
+                .saturating_add(2); // borders
             let menu_y = results_area.y.saturating_add(1); // just below top border
             let rect = ratatui::prelude::Rect {
                 x: menu_x,
@@ -511,8 +535,8 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
             for (text, enabled) in opts.iter() {
                 let indicator = if *enabled { "✓ " } else { "  " };
                 let pad = w
-                    .saturating_sub(text.len() as u16)
-                    .saturating_sub(indicator.len() as u16);
+                    .saturating_sub(u16::try_from(text.len()).unwrap_or(u16::MAX))
+                    .saturating_sub(u16::try_from(indicator.len()).unwrap_or(u16::MAX));
                 let padding = " ".repeat(pad as usize);
                 lines.push(Line::from(vec![
                     Span::styled(

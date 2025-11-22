@@ -147,7 +147,7 @@ pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
         }
         ci
     } else {
-        app.input.len() as u16
+        u16::try_from(app.input.len()).unwrap_or(u16::MAX)
     };
     let x = std::cmp::min(area.x + 1 + 2 + caret_cols, right);
     let y = area.y + 1;

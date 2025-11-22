@@ -223,7 +223,9 @@ pub(super) fn handle_updates_modal(
             crossterm::event::MouseEventKind::ScrollDown => {
                 // Calculate max scroll based on content height
                 // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
-                let content_lines = entries.len() as u16 + 4;
+                let content_lines = u16::try_from(entries.len())
+                    .unwrap_or(u16::MAX)
+                    .saturating_add(4);
                 // Estimate visible lines (modal height minus borders and title/footer)
                 let max_scroll = content_lines.saturating_sub(10);
                 if *scroll < max_scroll {

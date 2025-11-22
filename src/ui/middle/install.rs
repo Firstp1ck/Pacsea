@@ -196,7 +196,7 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
 
     // Import button on the far right
     // Use Unicode display width, not byte length, to handle wide characters
-    let import_w = import_label.width() as u16;
+    let import_w = u16::try_from(import_label.width()).unwrap_or(u16::MAX);
     let import_sx = area.x + 1 + inner_w.saturating_sub(import_w);
     let import_rect = Rect {
         x: import_sx,
@@ -225,7 +225,7 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
 
     // Export button to the left of Import with 2 spaces gap
     let gap: u16 = 2;
-    let export_w = export_label.width() as u16;
+    let export_w = u16::try_from(export_label.width()).unwrap_or(u16::MAX);
     let export_max_w = inner_w;
     let export_right = import_rect.x.saturating_sub(gap);
     let export_sx = if export_w > export_right.saturating_sub(area.x + 1) {
