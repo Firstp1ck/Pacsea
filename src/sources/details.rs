@@ -453,8 +453,8 @@ pub async fn fetch_official_details(
             .await
             {
                 v = Some(val);
-                repo_selected = r.clone();
-                arch_selected = a.clone();
+                repo_selected.clone_from(r);
+                arch_selected.clone_from(a);
                 break 'outer;
             }
         }

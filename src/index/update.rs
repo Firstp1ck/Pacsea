@@ -46,10 +46,10 @@ pub async fn update_in_background(
                         for mut p in new_pkgs {
                             if let Some(old) = old_map.get(&p.name) {
                                 // keep enriched data
-                                p.repo = old.repo.clone();
-                                p.arch = old.arch.clone();
-                                p.version = old.version.clone();
-                                p.description = old.description.clone();
+                                p.repo.clone_from(&old.repo);
+                                p.arch.clone_from(&old.arch);
+                                p.version.clone_from(&old.version);
+                                p.description.clone_from(&old.description);
                             }
                             merged.push(p);
                         }

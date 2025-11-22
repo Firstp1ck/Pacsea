@@ -62,7 +62,7 @@ pub fn initialize_locale_system(
             locale_pref
         }
     );
-    app.locale = resolved_locale.clone();
+    app.locale.clone_from(&resolved_locale);
 
     // Load translations
     let mut loader = crate::i18n::LocaleLoader::new(locales_dir);

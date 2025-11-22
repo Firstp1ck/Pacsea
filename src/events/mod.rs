@@ -369,7 +369,7 @@ mod tests {
             "app.optional_deps.categories.security".to_string(),
             "Security".to_string(),
         );
-        app.translations = translations.clone();
+        app.translations.clone_from(&translations);
         app.translations_fallback = translations;
         let (qtx, _qrx) = mpsc::unbounded_channel();
         let (dtx, _drx) = mpsc::unbounded_channel();
@@ -543,7 +543,7 @@ mod tests {
             "app.optional_deps.categories.security".to_string(),
             "Security".to_string(),
         );
-        app.translations = translations.clone();
+        app.translations.clone_from(&translations);
         app.translations_fallback = translations;
         let (qtx, _qrx) = mpsc::unbounded_channel();
         let (dtx, _drx) = mpsc::unbounded_channel();

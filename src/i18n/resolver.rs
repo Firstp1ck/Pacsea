@@ -122,7 +122,7 @@ fn resolve_with_fallbacks(
         // Check if we have a fallback for this locale
         if let Some(fallback) = fallbacks.get(&current) {
             tracing::debug!("Locale '{}' has fallback: {}", current, fallback);
-            current = fallback.clone();
+            current.clone_from(fallback);
         } else {
             // No fallback defined - check if this locale is available
             if available_locales.contains(&current) {

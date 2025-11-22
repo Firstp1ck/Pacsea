@@ -39,13 +39,13 @@ pub fn move_sel_cached(
         app.details_focus = Some(item.name.clone());
 
         // Update details pane immediately with a placeholder reflecting the selection
-        app.details.name = item.name.clone();
-        app.details.version = item.version.clone();
+        app.details.name.clone_from(&item.name);
+        app.details.version.clone_from(&item.version);
         app.details.description.clear();
         match &item.source {
             crate::state::Source::Official { repo, arch } => {
-                app.details.repository = repo.clone();
-                app.details.architecture = arch.clone();
+                app.details.repository.clone_from(repo);
+                app.details.architecture.clone_from(arch);
             }
             crate::state::Source::Aur => {
                 app.details.repository = "AUR".to_string();

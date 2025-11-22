@@ -266,7 +266,7 @@ fn merge_dependency(
     // Merge version requirements (keep more restrictive)
     if !dep.version.is_empty() && dep.version != entry.version {
         if entry.version.is_empty() {
-            entry.version = dep.version.clone();
+            entry.version.clone_from(&dep.version);
         } else {
             // Check which version requirement is more restrictive
             let existing_status =
@@ -277,7 +277,7 @@ fn merge_dependency(
             let new_req_priority = dependency_priority(&new_status);
 
             if new_req_priority < existing_req_priority {
-                entry.version = dep.version.clone();
+                entry.version.clone_from(&dep.version);
                 entry.status = new_status;
             }
         }

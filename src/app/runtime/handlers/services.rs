@@ -54,7 +54,7 @@ impl HandlerConfig for ServiceHandlerConfig {
                 ..
             } = &mut app.modal
         {
-            *service_info = app.install_list_services.clone();
+            service_info.clone_from(&app.install_list_services);
             *services_loaded = true;
             tracing::debug!(
                 "[Runtime] Synced {} services to preflight modal",
