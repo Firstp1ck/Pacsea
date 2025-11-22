@@ -60,10 +60,7 @@ fn optional_deps_esc_closes_modal() {
         selectable: true,
         note: None,
     }];
-    app.modal = crate::state::Modal::OptionalDeps {
-        rows,
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Esc, KeyModifiers::empty());
@@ -322,10 +319,7 @@ fn optional_deps_navigation_preserves_modal() {
             note: None,
         },
     ];
-    app.modal = crate::state::Modal::OptionalDeps {
-        rows,
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
@@ -423,10 +417,7 @@ fn optional_deps_unhandled_key_preserves_modal() {
         selectable: true,
         note: None,
     }];
-    app.modal = crate::state::Modal::OptionalDeps {
-        rows,
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Char('x'), KeyModifiers::empty());
@@ -549,10 +540,7 @@ fn news_esc_closes_modal() {
             url: "https://example.com/news2".to_string(),
         },
     ];
-    app.modal = crate::state::Modal::News {
-        items,
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::News { items, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Esc, KeyModifiers::empty());
@@ -593,10 +581,7 @@ fn news_navigation_preserves_modal() {
             url: "https://example.com/news3".to_string(),
         },
     ];
-    app.modal = crate::state::Modal::News {
-        items,
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::News { items, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
@@ -666,10 +651,7 @@ fn news_enter_preserves_modal() {
         title: "Test News".to_string(),
         url: test_url.to_string(),
     }];
-    app.modal = crate::state::Modal::News {
-        items,
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::News { items, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
@@ -707,10 +689,7 @@ fn news_unhandled_key_preserves_modal() {
         title: "Test News".to_string(),
         url: "https://example.com/news".to_string(),
     }];
-    app.modal = crate::state::Modal::News {
-        items,
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::News { items, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Char('x'), KeyModifiers::empty());

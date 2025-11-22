@@ -193,8 +193,7 @@ mod tests {
         let ke = create_key_event(KeyCode::Char('a'));
         let modal = Modal::Help;
 
-        let result =
-            restore_if_not_closed_with_option_result(&mut app, &ke, Some(false), modal);
+        let result = restore_if_not_closed_with_option_result(&mut app, &ke, Some(false), modal);
 
         assert!(matches!(app.modal, Modal::Help));
         assert!(!result);
