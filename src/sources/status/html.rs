@@ -91,6 +91,167 @@ pub(super) fn is_aur_down_in_monitors(body: &str) -> bool {
     false
 }
 
+/// What: Format AUR percentage suffix for status messages.
+///
+/// Inputs:
+/// - `body`: Raw HTML content to extract percentage from.
+///
+/// Output:
+/// - Formatted suffix string with AUR uptime percentage if available.
+fn format_aur_pct_suffix(body: &str) -> String {
+    extract_aur_today_percent(body)
+        .map(|p| format!(" — AUR today: {p}%"))
+        .unwrap_or_default()
+}
+
+/// What: Handle arch systems status when problems are detected.
+///
+/// Inputs:
+/// - `body`: Raw HTML content.
+/// - `systems_status_color`: Detected systems status color.
+/// - `aur_is_down`: Whether AUR is specifically down.
+///
+/// Output:
+/// - `Some((text, color))` if status should be returned, `None` otherwise.
+fn handle_arch_systems_status(
+    body: &str,
+    systems_status_color: ArchStatusColor,
+    aur_is_down: bool,
+) -> Option<(String, ArchStatusColor)> {
+    let aur_pct_suffix = format_aur_pct_suffix(body);
+    if aur_is_down {
+        return Some((
+            format!("Status: AUR Down{aur_pct_suffix}"),
+            ArchStatusColor::IncidentSevereToday,
+        ));
+    }
+    let text = match systems_status_color {
+        ArchStatusColor::IncidentSevereToday => {
+            format!("Some Arch systems down (see status){aur_pct_suffix}")
+        }
+        ArchStatusColor::IncidentToday => {
+            format!("Arch systems degraded (see status){aur_pct_suffix}")
+        }
+        _ => format!("Arch systems nominal{aur_pct_suffix}"),
+    };
+    Some((text, systems_status_color))
+}
+
+/// What: Check if outage announcement is for today's date.
+///
+/// Inputs:
+/// - `body`: Raw HTML content.
+/// - `outage_pos`: Position where outage key was found.
+///
+/// Output:
+/// - `true` if outage is for today, `false` otherwise.
+fn is_outage_today(body: &str, outage_pos: usize) -> bool {
+    let start = outage_pos.saturating_sub(220);
+    let region = &body[start..std::cmp::min(body.len(), outage_pos + 220)];
+    let months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    for m in &months {
+        if let Some(mi) = region.find(m) {
+            let mut idx = mi + m.len();
+            let rbytes = region.as_bytes();
+            while idx < region.len() && (rbytes[idx] == b' ' || rbytes[idx] == b',') {
+                idx += 1;
+            }
+            let day_start = idx;
+            while idx < region.len() && rbytes[idx].is_ascii_digit() {
+                idx += 1;
+            }
+            if idx == day_start {
+                continue;
+            }
+            let day_s = &region[day_start..idx];
+            while idx < region.len() && (rbytes[idx] == b' ' || rbytes[idx] == b',') {
+                idx += 1;
+            }
+            let year_start = idx;
+            let mut count = 0;
+            while idx < region.len() && rbytes[idx].is_ascii_digit() && count < 4 {
+                idx += 1;
+                count += 1;
+            }
+            if count == 4
+                && let (Ok(day), Some((ty, tm, td))) =
+                    (day_s.trim().parse::<u32>(), today_ymd_utc())
+            {
+                let month_idx = months
+                    .iter()
+                    .position(|mm| *mm == *m)
+                    .expect("month should be found in months array since it came from there")
+                    as u32
+                    + 1;
+                let year_s = &region[year_start..(year_start + 4)];
+                return tm == month_idx && td == day && ty.to_string() == year_s;
+            }
+            break;
+        }
+    }
+    false
+}
+
+/// What: Handle outage announcement parsing.
+///
+/// Inputs:
+/// - `body`: Raw HTML content.
+/// - `lowered`: Lowercased body.
+/// - `outage_pos`: Position where outage key was found.
+/// - `aur_pct_suffix`: AUR percentage suffix.
+/// - `aur_pct_opt`: Optional AUR percentage.
+/// - `final_color`: Final color determined from other sources.
+/// - `has_all_ok`: Whether "all systems operational" text is present.
+///
+/// Output:
+/// - `Some((text, color))` if outage should be returned, `None` otherwise.
+fn handle_outage_announcement(
+    body: &str,
+    _lowered: &str,
+    outage_pos: usize,
+    aur_pct_suffix: &str,
+    aur_pct_opt: Option<u32>,
+    final_color: Option<ArchStatusColor>,
+    has_all_ok: bool,
+) -> Option<(String, ArchStatusColor)> {
+    if is_outage_today(body, outage_pos) {
+        let forced_color = match aur_pct_opt {
+            Some(p) if p < 90 => ArchStatusColor::IncidentSevereToday,
+            _ => ArchStatusColor::IncidentToday,
+        };
+        return Some((
+            format!("AUR outage (see status){aur_pct_suffix}"),
+            severity_max(
+                forced_color,
+                final_color.unwrap_or(ArchStatusColor::IncidentToday),
+            ),
+        ));
+    }
+    if has_all_ok {
+        return Some((
+            format!("All systems operational{aur_pct_suffix}"),
+            final_color.unwrap_or(ArchStatusColor::IncidentToday),
+        ));
+    }
+    Some((
+        format!("Arch systems nominal{aur_pct_suffix}"),
+        final_color.unwrap_or(ArchStatusColor::IncidentToday),
+    ))
+}
+
 /// Parse a status message and color from the HTML of a status page.
 ///
 /// Inputs:
@@ -102,60 +263,31 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
     let lowered = body.to_lowercase();
     let has_all_ok = lowered.contains("all systems operational");
 
-    // Check for "Status: Arch systems..." with "Some Systems down" or "Down"
-    // This must be checked FIRST as it represents the overall system status
     let arch_systems_status_color = extract_arch_systems_status_color(body);
-
-    // Check if AUR specifically shows "Down" status - this should be prioritized
     let aur_is_down = is_aur_down_in_monitors(body);
 
-    // If arch systems status shows a problem, check if AUR is specifically down
     if let Some(systems_status_color) = arch_systems_status_color
         && matches!(
             systems_status_color,
             ArchStatusColor::IncidentToday | ArchStatusColor::IncidentSevereToday
         )
     {
-        let aur_pct_opt = extract_aur_today_percent(body);
-        let aur_pct_suffix = aur_pct_opt
-            .map(|p| format!(" — AUR today: {p}%"))
-            .unwrap_or_default();
-
-        // If AUR is specifically down, show AUR-specific message
-        if aur_is_down {
-            let text = format!("Status: AUR Down{aur_pct_suffix}");
-            return (text, ArchStatusColor::IncidentSevereToday);
+        if let Some(result) = handle_arch_systems_status(body, systems_status_color, aur_is_down) {
+            return result;
         }
-
-        // Otherwise show generic systems down message
-        let text = match systems_status_color {
-            ArchStatusColor::IncidentSevereToday => {
-                format!("Some Arch systems down (see status){aur_pct_suffix}")
-            }
-            ArchStatusColor::IncidentToday => {
-                format!("Arch systems degraded (see status){aur_pct_suffix}")
-            }
-            _ => format!("Arch systems nominal{aur_pct_suffix}"),
-        };
-        return (text, systems_status_color);
     }
 
-    // Also check if AUR is down even if overall status doesn't show problems
     if aur_is_down {
-        let aur_pct_opt = extract_aur_today_percent(body);
-        let aur_pct_suffix = aur_pct_opt
-            .map(|p| format!(" — AUR today: {p}%"))
-            .unwrap_or_default();
-        let text = format!("Status: AUR Down{aur_pct_suffix}");
-        return (text, ArchStatusColor::IncidentSevereToday);
+        let aur_pct_suffix = format_aur_pct_suffix(body);
+        return (
+            format!("Status: AUR Down{aur_pct_suffix}"),
+            ArchStatusColor::IncidentSevereToday,
+        );
     }
 
-    // Try to extract today's AUR uptime percentage from the Monitors/90-day uptime section
     let aur_pct_opt = extract_aur_today_percent(body);
-    let aur_pct_suffix = aur_pct_opt
-        .map(|p| format!(" — AUR today: {p}%"))
-        .unwrap_or_default();
-    let aur_color_from_pct = aur_pct_opt.map(|p| {
+    let aur_pct_suffix = format_aur_pct_suffix(body);
+    let aur_color_from_pct = aur_pct_opt.map(|p: u32| {
         if p > 95 {
             ArchStatusColor::Operational
         } else if p >= 90 {
@@ -164,13 +296,9 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
             ArchStatusColor::IncidentSevereToday
         }
     });
-    // Prefer the SVG rect color for today's cell if present (authoritative UI color)
     let aur_color_from_rect = extract_aur_today_rect_color(body);
-
-    // Check status updates for today's date and keywords
     let status_update_color = extract_status_updates_today_color(body);
 
-    // Prioritize: arch systems status > rect color > status updates > percentage > default
     let final_color = arch_systems_status_color
         .or(aur_color_from_rect)
         .or(status_update_color)
@@ -178,91 +306,19 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
 
     let outage_key = "the aur is currently experiencing an outage";
     if let Some(pos) = lowered.find(outage_key) {
-        let start = pos.saturating_sub(220);
-        let region = &body[start..std::cmp::min(body.len(), pos + 220)];
-        let months = [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-        ];
-        let mut is_today = false;
-        'outer: for m in &months {
-            if let Some(mi) = region.find(m) {
-                let mut idx = mi + m.len();
-                let rbytes = region.as_bytes();
-                while idx < region.len() && (rbytes[idx] == b' ' || rbytes[idx] == b',') {
-                    idx += 1;
-                }
-                let day_start = idx;
-                while idx < region.len() && rbytes[idx].is_ascii_digit() {
-                    idx += 1;
-                }
-                if idx == day_start {
-                    continue;
-                }
-                let day_s = &region[day_start..idx];
-                while idx < region.len() && (rbytes[idx] == b' ' || rbytes[idx] == b',') {
-                    idx += 1;
-                }
-                let year_start = idx;
-                let mut count = 0;
-                while idx < region.len() && rbytes[idx].is_ascii_digit() && count < 4 {
-                    idx += 1;
-                    count += 1;
-                }
-                if count == 4
-                    && let (Ok(day), Some((ty, tm, td))) =
-                        (day_s.trim().parse::<u32>(), today_ymd_utc())
-                {
-                    let month_idx =
-                        months.iter().position(|mm| *mm == *m).expect(
-                            "month should be found in months array since it came from there",
-                        ) as u32
-                            + 1;
-                    let year_s = &region[year_start..(year_start + 4)];
-                    is_today = tm == month_idx && td == day && ty.to_string() == year_s;
-                }
-                break 'outer;
-            }
+        if let Some(result) = handle_outage_announcement(
+            body,
+            &lowered,
+            pos,
+            &aur_pct_suffix,
+            aur_pct_opt,
+            final_color,
+            has_all_ok,
+        ) {
+            return result;
         }
-
-        if is_today {
-            // During an outage today, force at least yellow; use red only for <90%
-            let forced_color = match aur_pct_opt {
-                Some(p) if p < 90 => ArchStatusColor::IncidentSevereToday,
-                _ => ArchStatusColor::IncidentToday,
-            };
-            return (
-                format!("AUR outage (see status){aur_pct_suffix}"),
-                severity_max(
-                    forced_color,
-                    final_color.unwrap_or(ArchStatusColor::IncidentToday),
-                ),
-            );
-        }
-        // Outage announcement present but not today - still check visual indicators
-        if has_all_ok {
-            return (
-                format!("All systems operational{aur_pct_suffix}"),
-                final_color.unwrap_or(ArchStatusColor::IncidentToday),
-            );
-        }
-        return (
-            format!("Arch systems nominal{aur_pct_suffix}"),
-            final_color.unwrap_or(ArchStatusColor::IncidentToday),
-        );
     }
 
-    // If rect color shows a problem, prioritize it even if text says "operational"
     if let Some(rect_color) = aur_color_from_rect
         && matches!(
             rect_color,
@@ -277,7 +333,6 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
         return (text, rect_color);
     }
 
-    // Check status updates for today
     if let Some(update_color) = status_update_color
         && matches!(
             update_color,

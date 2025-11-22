@@ -112,6 +112,187 @@ pub fn sync_dependencies(
     }
 }
 
+/// What: Filter cached files to match current items.
+///
+/// Inputs:
+/// - `app`: Application state with cached files
+/// - `item_names`: Set of current package names
+///
+/// Output:
+/// - Vector of matching cached files.
+fn filter_cached_files(
+    app: &AppState,
+    item_names: &std::collections::HashSet<String>,
+) -> Vec<PackageFileInfo> {
+    app.install_list_files
+        .iter()
+        .filter(|file_info| item_names.contains(&file_info.name))
+        .cloned()
+        .collect()
+}
+
+/// What: Log detailed cache lookup information for debugging.
+///
+/// Inputs:
+/// - `item_names`: Set of current package names
+/// - `app`: Application state with cached files
+/// - `cached_files`: Filtered cached files
+///
+/// Output:
+/// - None (logs to tracing).
+fn log_cache_lookup(
+    item_names: &std::collections::HashSet<String>,
+    app: &AppState,
+    cached_files: &[PackageFileInfo],
+) {
+    if item_names.is_empty() {
+        return;
+    }
+    let cache_package_names: Vec<String> = app
+        .install_list_files
+        .iter()
+        .map(|f| f.name.clone())
+        .collect();
+    let missing_from_cache: Vec<String> = item_names
+        .iter()
+        .filter(|item_name| !cache_package_names.contains(item_name))
+        .cloned()
+        .collect();
+    if !missing_from_cache.is_empty() {
+        tracing::debug!(
+            "[UI] sync_files: Cache lookup - items={:?}, cache_has={:?}, missing_from_cache={:?}, matched={:?}",
+            item_names.iter().collect::<Vec<_>>(),
+            cache_package_names,
+            missing_from_cache,
+            cached_files.iter().map(|f| &f.name).collect::<Vec<_>>()
+        );
+    }
+}
+
+/// What: Build complete file info list including empty entries for missing packages.
+///
+/// Inputs:
+/// - `items`: Current packages
+/// - `cached_files_map`: Map of cached files by package name
+///
+/// Output:
+/// - Complete file info list with all items represented.
+fn build_complete_file_info(
+    items: &[PackageItem],
+    cached_files_map: &std::collections::HashMap<String, PackageFileInfo>,
+) -> Vec<PackageFileInfo> {
+    items
+        .iter()
+        .map(|item| {
+            cached_files_map
+                .get(&item.name)
+                .cloned()
+                .unwrap_or_else(|| {
+                    tracing::debug!(
+                        "[UI] sync_files: Creating empty entry for '{}' (not found in cache map)",
+                        item.name
+                    );
+                    PackageFileInfo {
+                        name: item.name.clone(),
+                        files: Vec::new(),
+                        total_count: 0,
+                        new_count: 0,
+                        changed_count: 0,
+                        removed_count: 0,
+                        config_count: 0,
+                        pacnew_candidates: 0,
+                        pacsave_candidates: 0,
+                    }
+                })
+        })
+        .collect()
+}
+
+/// What: Check if file info needs to be updated.
+///
+/// Inputs:
+/// - `file_info`: Current file info in modal
+/// - `items`: Current packages
+/// - `complete_file_info`: Complete file info to compare
+///
+/// Output:
+/// - `true` if update is needed, `false` otherwise.
+fn should_update_file_info(
+    file_info: &[PackageFileInfo],
+    items: &[PackageItem],
+    complete_file_info: &[PackageFileInfo],
+) -> bool {
+    file_info.is_empty()
+        || file_info.len() != items.len()
+        || complete_file_info.iter().any(|new_info| {
+            !file_info.iter().any(|old_info| {
+                old_info.name == new_info.name && old_info.total_count == new_info.total_count
+            })
+        })
+}
+
+/// What: Apply file info update to modal.
+///
+/// Inputs:
+/// - `file_info`: Mutable reference to file info in modal
+/// - `file_selected`: Mutable reference to selected index
+/// - `complete_file_info`: Complete file info to apply
+/// - `cached_files`: Cached files for logging
+///
+/// Output:
+/// - Updates modal state.
+fn apply_file_info_update(
+    file_info: &mut Vec<PackageFileInfo>,
+    file_selected: &mut usize,
+    complete_file_info: Vec<PackageFileInfo>,
+    cached_files: &[PackageFileInfo],
+) {
+    let old_file_info_len = file_info.len();
+    let missing_count = complete_file_info
+        .iter()
+        .filter(|f| f.total_count == 0)
+        .count();
+    tracing::info!(
+        "[UI] sync_files: Found {} cached file entries, {} missing (creating empty entries), modal had {}, updating...",
+        cached_files.len(),
+        missing_count,
+        old_file_info_len
+    );
+    for file_info_entry in &complete_file_info {
+        if file_info_entry.total_count > 0 {
+            tracing::info!(
+                "[UI] sync_files: Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
+                file_info_entry.name,
+                file_info_entry.total_count,
+                file_info_entry.new_count,
+                file_info_entry.changed_count,
+                file_info_entry.removed_count,
+                file_info_entry.config_count
+            );
+        } else {
+            tracing::debug!(
+                "[UI] sync_files: Package '{}' - no file info yet (empty entry)",
+                file_info_entry.name
+            );
+        }
+    }
+    tracing::debug!(
+        "[UI] sync_files: Syncing {} file infos ({} with data, {} empty) to Preflight modal",
+        complete_file_info.len(),
+        cached_files.len(),
+        missing_count
+    );
+    *file_info = complete_file_info;
+    if *file_selected >= file_info.len() {
+        *file_selected = 0;
+    }
+    tracing::info!(
+        "[UI] sync_files: Successfully synced, modal now has {} file entries (was {})",
+        file_info.len(),
+        old_file_info_len
+    );
+}
+
 /// What: Synchronize file information from app cache to preflight modal.
 ///
 /// Inputs:
@@ -139,71 +320,16 @@ pub fn sync_files(
         return;
     }
 
-    // Check if we have cached files from app state that match the current items
     let item_names: std::collections::HashSet<String> =
         items.iter().map(|i| i.name.clone()).collect();
-    let cached_files: Vec<PackageFileInfo> = app
-        .install_list_files
-        .iter()
-        .filter(|file_info| item_names.contains(&file_info.name))
-        .cloned()
-        .collect();
+    let cached_files = filter_cached_files(app, &item_names);
+    log_cache_lookup(&item_names, app, &cached_files);
 
-    // Log detailed cache lookup information for debugging
-    if !item_names.is_empty() {
-        let cache_package_names: Vec<String> = app
-            .install_list_files
-            .iter()
-            .map(|f| f.name.clone())
-            .collect();
-        let missing_from_cache: Vec<String> = item_names
-            .iter()
-            .filter(|item_name| !cache_package_names.contains(item_name))
-            .cloned()
-            .collect();
-        if !missing_from_cache.is_empty() {
-            tracing::debug!(
-                "[UI] sync_files: Cache lookup - items={:?}, cache_has={:?}, missing_from_cache={:?}, matched={:?}",
-                item_names.iter().collect::<Vec<_>>(),
-                cache_package_names,
-                missing_from_cache,
-                cached_files.iter().map(|f| &f.name).collect::<Vec<_>>()
-            );
-        }
-    }
-
-    // Create a map of cached files by name for quick lookup
     let cached_files_map: std::collections::HashMap<String, PackageFileInfo> = cached_files
         .iter()
         .map(|f| (f.name.clone(), f.clone()))
         .collect();
-
-    // Build complete file_info list: include all items, creating empty entries for missing packages
-    let complete_file_info: Vec<PackageFileInfo> = items
-        .iter()
-        .map(|item| {
-            cached_files_map
-                .get(&item.name)
-                .cloned()
-                .unwrap_or_else(|| {
-                    tracing::debug!(
-                        "[UI] sync_files: Creating empty entry for '{}' (not found in cache map)",
-                        item.name
-                    );
-                    PackageFileInfo {
-                        name: item.name.clone(),
-                        files: Vec::new(),
-                        total_count: 0,
-                        new_count: 0,
-                        changed_count: 0,
-                        removed_count: 0,
-                        config_count: 0,
-                        pacnew_candidates: 0,
-                        pacsave_candidates: 0,
-                    }
-                })
-        })
-        .collect();
+    let complete_file_info = build_complete_file_info(items, &cached_files_map);
 
     tracing::debug!(
         "[UI] sync_files: items={}, cache_size={}, cached_matching={}, modal_size={}, complete={}, resolving={}/{}",
@@ -216,86 +342,26 @@ pub fn sync_files(
         app.files_resolving
     );
 
-    // Sync results from background resolution if available
-    let old_file_info_len = file_info.len();
-    // Update if:
-    // 1. We have complete file info (all items represented)
-    // 2. Modal is empty OR modal size doesn't match items count OR cached files changed
-    let should_update = file_info.is_empty()
-        || file_info.len() != items.len()
-        || complete_file_info.iter().any(|new_info| {
-            !file_info.iter().any(|old_info| {
-                old_info.name == new_info.name && old_info.total_count == new_info.total_count
-            })
-        });
-
-    if should_update {
-        let missing_count = complete_file_info
-            .iter()
-            .filter(|f| f.total_count == 0)
-            .count();
-        tracing::info!(
-            "[UI] sync_files: Found {} cached file entries, {} missing (creating empty entries), modal had {}, updating...",
-            cached_files.len(),
-            missing_count,
-            old_file_info_len
-        );
-        for file_info_entry in &complete_file_info {
-            if file_info_entry.total_count > 0 {
-                tracing::info!(
-                    "[UI] sync_files: Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
-                    file_info_entry.name,
-                    file_info_entry.total_count,
-                    file_info_entry.new_count,
-                    file_info_entry.changed_count,
-                    file_info_entry.removed_count,
-                    file_info_entry.config_count
-                );
-            } else {
-                tracing::debug!(
-                    "[UI] sync_files: Package '{}' - no file info yet (empty entry)",
-                    file_info_entry.name
-                );
-            }
-        }
-        tracing::debug!(
-            "[UI] sync_files: Syncing {} file infos ({} with data, {} empty) to Preflight modal",
-            complete_file_info.len(),
-            cached_files.len(),
-            missing_count
-        );
-        *file_info = complete_file_info;
-        if *file_selected >= file_info.len() {
-            *file_selected = 0;
-        }
-        tracing::info!(
-            "[UI] sync_files: Successfully synced, modal now has {} file entries (was {})",
-            file_info.len(),
-            old_file_info_len
-        );
+    if should_update_file_info(file_info, items, &complete_file_info) {
+        apply_file_info_update(file_info, file_selected, complete_file_info, &cached_files);
     } else {
-        // Check if background resolution is in progress
         if app.preflight_files_resolving || app.files_resolving {
-            // Background resolution in progress - UI will show loading state
             tracing::debug!(
                 "[UI] sync_files: Background resolution in progress, items={:?}",
                 items.iter().map(|i| &i.name).collect::<Vec<_>>()
             );
         } else if cached_files.is_empty() {
-            // No cached files available and not resolving
             tracing::debug!(
                 "[UI] sync_files: No cached files available and not resolving, items={:?}",
                 items.iter().map(|i| &i.name).collect::<Vec<_>>()
             );
         } else {
-            // Files are already synced to modal
             tracing::debug!(
                 "[UI] sync_files: File info already synced (modal has {} entries, cache has {} matching), no update needed",
                 file_info.len(),
                 cached_files.len()
             );
         }
-        // If no cached files available, resolution will be triggered by event handlers when user navigates to Files tab
         tracing::debug!(
             "[UI] sync_files: No update needed, file_info already in sync (modal={}, items={}, complete={})",
             file_info.len(),
