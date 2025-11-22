@@ -41,7 +41,10 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
         i18n::t_fmt(
             app,
             "app.results.status_with_key",
-            &[&app.arch_status_text, &key_label_opt.expect("key_label_opt should be Some when show_key is true")],
+            &[
+                &app.arch_status_text,
+                &key_label_opt.expect("key_label_opt should be Some when show_key is true"),
+            ],
         )
     } else {
         format!(

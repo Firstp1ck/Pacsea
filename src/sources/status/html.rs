@@ -223,12 +223,11 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
                     && let (Ok(day), Some((ty, tm, td))) =
                         (day_s.trim().parse::<u32>(), today_ymd_utc())
                 {
-                    let month_idx = months
-                        .iter()
-                        .position(|mm| *mm == *m)
-                        .expect("month should be found in months array since it came from there")
-                        as u32
-                        + 1;
+                    let month_idx =
+                        months.iter().position(|mm| *mm == *m).expect(
+                            "month should be found in months array since it came from there",
+                        ) as u32
+                            + 1;
                     let year_s = &region[year_start..(year_start + 4)];
                     is_today = tm == month_idx && td == day && ty.to_string() == year_s;
                 }
