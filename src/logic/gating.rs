@@ -122,14 +122,16 @@ mod tests {
     /// Details:
     /// - Validates transition between restrictive and radius-based gating policies.
     fn allowed_only_selected_and_ring() {
-        let mut app = crate::state::AppState::default();
-        app.results = vec![
-            item_official("a", "core"),
-            item_official("b", "extra"),
-            item_official("c", "extra"),
-            item_official("d", "other"),
-        ];
-        app.selected = 1;
+        let app = crate::state::AppState {
+            results: vec![
+                item_official("a", "core"),
+                item_official("b", "extra"),
+                item_official("c", "extra"),
+                item_official("d", "other"),
+            ],
+            selected: 1,
+            ..Default::default()
+        };
         set_allowed_only_selected(&app);
         assert!(is_allowed("b"));
         assert!(!is_allowed("a") || !is_allowed("c") || !is_allowed("d"));

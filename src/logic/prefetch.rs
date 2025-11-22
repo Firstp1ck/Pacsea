@@ -106,13 +106,15 @@ mod tests {
     /// - Toggles `set_allowed_only_selected` and `set_allowed_ring`, updating the cache between passes to target specific neighbours.
     async fn prefetch_respects_allowed_and_cache() {
         let _guard = crate::global_test_mutex_lock();
-        let mut app = AppState::default();
-        app.results = vec![
-            item_official("a", "core"),
-            item_official("b", "extra"),
-            item_official("c", "extra"),
-        ];
-        app.selected = 1;
+        let mut app = AppState {
+            results: vec![
+                item_official("a", "core"),
+                item_official("b", "extra"),
+                item_official("c", "extra"),
+            ],
+            selected: 1,
+            ..Default::default()
+        };
         // Disallow b/c except selected, and cache one neighbor
         crate::logic::set_allowed_only_selected(&app);
         app.details_cache.insert(

@@ -96,11 +96,13 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState::default();
-        app.show_recent_pane = true;
-        app.show_install_pane = true;
-        app.focus = crate::state::Focus::Search;
-        app.input = "hello".into();
+        let mut app = crate::state::AppState {
+            show_recent_pane: true,
+            show_install_pane: true,
+            focus: crate::state::Focus::Search,
+            input: "hello".into(),
+            ..Default::default()
+        };
 
         term.draw(|f| {
             let area = f.area();
@@ -136,12 +138,14 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState::default();
-        app.show_recent_pane = true;
-        app.show_install_pane = true;
-        app.installed_only_mode = true;
-        app.layout_left_pct = 20;
-        app.layout_right_pct = 30; // Should become 45 (30 * 1.5) if space allows
+        let mut app = crate::state::AppState {
+            show_recent_pane: true,
+            show_install_pane: true,
+            installed_only_mode: true,
+            layout_left_pct: 20,
+            layout_right_pct: 30, // Should become 45 (30 * 1.5) if space allows
+            ..Default::default()
+        };
 
         term.draw(|f| {
             let area = f.area();
@@ -169,11 +173,13 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState::default();
-        app.show_recent_pane = false;
-        app.show_install_pane = false;
-        app.focus = crate::state::Focus::Search;
-        app.input = "test".into();
+        let mut app = crate::state::AppState {
+            show_recent_pane: false,
+            show_install_pane: false,
+            focus: crate::state::Focus::Search,
+            input: "test".into(),
+            ..Default::default()
+        };
 
         term.draw(|f| {
             let area = f.area();
@@ -201,9 +207,11 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(0, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState::default();
-        app.show_recent_pane = true;
-        app.show_install_pane = true;
+        let mut app = crate::state::AppState {
+            show_recent_pane: true,
+            show_install_pane: true,
+            ..Default::default()
+        };
 
         term.draw(|f| {
             let area = f.area();
@@ -229,9 +237,11 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState::default();
-        app.show_install_pane = true;
-        app.focus = crate::state::Focus::Install;
+        let mut app = crate::state::AppState {
+            show_install_pane: true,
+            focus: crate::state::Focus::Install,
+            ..Default::default()
+        };
 
         // Hide install pane
         app.show_install_pane = false;

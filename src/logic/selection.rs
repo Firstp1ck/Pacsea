@@ -131,18 +131,20 @@ mod tests {
     /// Details:
     /// - Uses a timeout on the receiver to assert the async request is produced and verifies placeholder data resets when returning to the AUR result.
     async fn move_sel_cached_clamps_and_requests_details() {
-        let mut app = crate::state::AppState::default();
-        app.results = vec![
-            crate::state::PackageItem {
-                name: "aur1".into(),
-                version: "1".into(),
-                description: String::new(),
-                source: crate::state::Source::Aur,
-                popularity: None,
-            },
-            item_official("pkg2", "core"),
-        ];
-        app.selected = 0;
+        let mut app = crate::state::AppState {
+            results: vec![
+                crate::state::PackageItem {
+                    name: "aur1".into(),
+                    version: "1".into(),
+                    description: String::new(),
+                    source: crate::state::Source::Aur,
+                    popularity: None,
+                },
+                item_official("pkg2", "core"),
+            ],
+            selected: 0,
+            ..Default::default()
+        };
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         move_sel_cached(&mut app, 1, &tx);
@@ -210,16 +212,18 @@ mod tests {
     /// - Simulates a large positive index jump and ensures gating functions mark the correct state and
     ///   enforce selection-only access.
     fn fast_scroll_sets_gating_and_defers_ring() {
-        let mut app = crate::state::AppState::default();
-        app.results = vec![
-            item_official("a", "core"),
-            item_official("b", "extra"),
-            item_official("c", "extra"),
-            item_official("d", "extra"),
-            item_official("e", "extra"),
-            item_official("f", "extra"),
-            item_official("g", "extra"),
-        ];
+        let mut app = crate::state::AppState {
+            results: vec![
+                item_official("a", "core"),
+                item_official("b", "extra"),
+                item_official("c", "extra"),
+                item_official("d", "extra"),
+                item_official("e", "extra"),
+                item_official("f", "extra"),
+                item_official("g", "extra"),
+            ],
+            ..Default::default()
+        };
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel::<crate::state::PackageItem>();
         move_sel_cached(&mut app, 6, &tx);
         assert!(app.need_ring_prefetch);
