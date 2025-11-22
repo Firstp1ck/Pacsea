@@ -13,9 +13,9 @@
 /// - On Manjaro (detected via /etc/os-release), ensures pacman-mirrors exists, then:
 ///   - Worldwide: `pacman-mirrors --fasttrack {count}` followed by `pacman -Syy`
 ///   - Countries: `pacman-mirrors --method rank --country '{countries}'` followed by `pacman -Syy`
-/// - On Artix (detected via /etc/os-release), checks for rate-mirrors and AUR helper (yay/paru), prompts for installation if needed, creates backup of mirrorlist, then runs rate-mirrors with country filtering using --entry-country option (only one country allowed, global option must come before the artix command).
-/// - On EndeavourOS, ensures `eos-rankmirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
-/// - On CachyOS, ensures `cachyos-rate-mirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
+/// - On `Artix` (detected via /etc/os-release), checks for rate-mirrors and `AUR` helper (`yay`/`paru`), prompts for installation if needed, creates backup of mirrorlist, then runs rate-mirrors with country filtering using --entry-country option (only one country allowed, global option must come before the artix command).
+/// - On `EndeavourOS`, ensures `eos-rankmirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
+/// - On `CachyOS`, ensures `cachyos-rate-mirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
 /// - Otherwise, attempts to use `reflector` to write `/etc/pacman.d/mirrorlist`; if not found, prints a notice.
 pub fn mirror_update_command(countries: &str, count: u16) -> String {
     if countries.eq("Worldwide") {

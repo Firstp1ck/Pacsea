@@ -105,7 +105,7 @@ fn handle_options_installed_only_toggle(
 /// - `app`: Mutable application state
 ///
 /// Details:
-/// - Opens SystemUpdate modal with default settings.
+/// - Opens `SystemUpdate` modal with default settings.
 fn handle_options_system_update(app: &mut AppState) {
     let countries = vec![
         "Worldwide".to_string(),
@@ -187,7 +187,7 @@ fn handle_options_news(app: &mut AppState) {
 /// - `app`: Mutable application state
 ///
 /// Details:
-/// - Builds optional dependencies rows and opens OptionalDeps modal.
+/// - Builds optional dependencies rows and opens `OptionalDeps` modal.
 fn handle_options_optional_deps(app: &mut AppState) {
     let rows = crate::events::mouse::menu_options::build_optional_deps_rows(app);
     app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
@@ -225,13 +225,13 @@ fn handle_panels_menu_selection(idx: usize, app: &mut AppState) {
     }
 }
 
-/// What: Normalize BackTab modifiers so that SHIFT modifier does not affect matching across terminals.
+/// What: Normalize `BackTab` modifiers so that `SHIFT` modifier does not affect matching across terminals.
 ///
 /// Inputs:
 /// - `ke`: Key event from crossterm
 ///
 /// Output:
-/// - Normalized modifiers (empty for BackTab, original modifiers otherwise)
+/// - Normalized modifiers (empty for `BackTab`, original modifiers otherwise)
 ///
 /// Details:
 /// - BackTab normalization ensures consistent keybind matching across different terminal emulators.
@@ -249,7 +249,7 @@ fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
 /// - `ke`: Key event from crossterm
 ///
 /// Output:
-/// - Tuple of (KeyCode, KeyModifiers) suitable for matching against KeyChord lists
+/// - Tuple of (`KeyCode`, `KeyModifiers`) suitable for matching against `KeyChord` lists
 ///
 /// Details:
 /// - Normalizes BackTab modifiers before creating the chord.
@@ -267,7 +267,7 @@ fn create_key_chord(ke: &KeyEvent) -> (KeyCode, KeyModifiers) {
 /// - `true` if the key event matches any chord in the list, `false` otherwise
 ///
 /// Details:
-/// - Normalizes BackTab modifiers before matching.
+/// - Normalizes `BackTab` modifiers before matching.
 fn matches_keybind(ke: &KeyEvent, chords: &[crate::theme::KeyChord]) -> bool {
     let chord = create_key_chord(ke);
     chords.iter().any(|c| (c.code, c.mods) == chord)

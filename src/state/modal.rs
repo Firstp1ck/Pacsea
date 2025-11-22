@@ -34,7 +34,7 @@ pub enum PreflightTab {
     Sandbox,
 }
 
-/// Removal cascade strategy for pacman operations.
+/// Removal cascade strategy for `pacman` operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CascadeMode {
     /// `pacman -R` – remove targets only.
@@ -46,7 +46,7 @@ pub enum CascadeMode {
 }
 
 impl CascadeMode {
-    /// Return the pacman flag sequence corresponding to this cascade mode.
+    /// Return the `pacman` flag sequence corresponding to this `CascadeMode`.
     pub const fn flag(self) -> &'static str {
         match self {
             CascadeMode::Basic => "-R",
@@ -55,7 +55,7 @@ impl CascadeMode {
         }
     }
 
-    /// Short text describing the effect of this mode.
+    /// Short text describing the effect of this `CascadeMode`.
     pub const fn description(self) -> &'static str {
         match self {
             CascadeMode::Basic => "targets only",
@@ -64,12 +64,12 @@ impl CascadeMode {
         }
     }
 
-    /// Whether this mode allows removal when dependents exist.
+    /// Whether this `CascadeMode` allows removal when dependents exist.
     pub const fn allows_dependents(self) -> bool {
         !matches!(self, CascadeMode::Basic)
     }
 
-    /// Cycle to the next cascade mode.
+    /// Cycle to the next `CascadeMode`.
     pub const fn next(self) -> Self {
         match self {
             CascadeMode::Basic => CascadeMode::Cascade,
@@ -139,7 +139,7 @@ pub enum DependencySource {
     Local,
 }
 
-/// What: Restart preference applied to an impacted systemd service.
+/// What: Restart preference applied to an impacted `systemd` service.
 ///
 /// Inputs:
 /// - Assigned automatically from heuristics or by user toggles within the Services tab.
@@ -157,7 +157,7 @@ pub enum ServiceRestartDecision {
     Defer,
 }
 
-/// What: Aggregated information about a systemd unit affected by the pending operation.
+/// What: Aggregated information about a `systemd` unit affected by the pending operation.
 ///
 /// Inputs:
 /// - Populated by the service impact resolver which correlates package file lists and
