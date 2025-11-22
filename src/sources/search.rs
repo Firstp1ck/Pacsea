@@ -65,10 +65,10 @@ mod tests {
                 .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).expect("failed to create test root directory");
         let mut bin = root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("failed to create test bin directory");
         let mut curl = bin.clone();
         curl.push("curl");
         let script = r#"#!/usr/bin/env bash
@@ -81,13 +81,16 @@ else
   exit 22
 fi
 "#;
-        std::fs::write(&curl, script.as_bytes()).unwrap();
+        std::fs::write(&curl, script.as_bytes()).expect("failed to write test curl script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&curl).unwrap().permissions();
+            let mut perm = std::fs::metadata(&curl)
+                .expect("failed to read test curl script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&curl, perm).unwrap();
+            std::fs::set_permissions(&curl, perm)
+                .expect("failed to set test curl script permissions");
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe {

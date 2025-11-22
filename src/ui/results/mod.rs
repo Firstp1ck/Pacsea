@@ -274,7 +274,7 @@ mod tests {
     fn results_sets_title_button_rects_and_status_rect() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 20);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -294,7 +294,7 @@ mod tests {
             let area = f.area();
             render_results(f, &mut app, area);
         })
-        .unwrap();
+        .expect("failed to draw test terminal");
 
         assert!(app.sort_button_rect.is_some());
         assert!(app.options_button_rect.is_some());

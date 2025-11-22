@@ -231,7 +231,11 @@ mod tests {
                 {"name": "foo", "repo": "core", "arch": "x86_64", "version": "1", "description": ""}
             ]
         });
-        std::fs::write(&path, serde_json::to_string(&idx_json).unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            serde_json::to_string(&idx_json).expect("failed to serialize index JSON"),
+        )
+        .expect("failed to write index JSON file");
         let items = super::all_official_or_fetch(&path).await;
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "foo");

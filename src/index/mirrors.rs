@@ -668,7 +668,7 @@ mod tests {
                 .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&repo_dir).unwrap();
+        std::fs::create_dir_all(&repo_dir).expect("failed to create test repo directory");
 
         let old_path = std::env::var("PATH").unwrap_or_default();
         struct PathGuard {
@@ -694,10 +694,10 @@ mod tests {
                 .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&shim_root).unwrap();
+        std::fs::create_dir_all(&shim_root).expect("failed to create test shim root directory");
         let mut bin = shim_root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("failed to create test bin directory");
         let mut script = bin.clone();
         script.push("curl");
         let body = r#"#!/usr/bin/env bash
@@ -710,13 +710,16 @@ EOF
 fi
 exit 1
 "#;
-        std::fs::write(&script, body).unwrap();
+        std::fs::write(&script, body).expect("failed to write test curl script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            let mut perm = std::fs::metadata(&script)
+                .expect("failed to read test curl script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&script, perm).unwrap();
+            std::fs::set_permissions(&script, perm)
+                .expect("failed to set test curl script permissions");
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe {
@@ -730,7 +733,8 @@ exit 1
         assert!(raw_json_path.exists());
         assert!(mirrorlist_path.exists());
 
-        let mirrorlist_body = std::fs::read_to_string(&mirrorlist_path).unwrap();
+        let mirrorlist_body =
+            std::fs::read_to_string(&mirrorlist_path).expect("failed to read test mirrorlist file");
         assert!(mirrorlist_body.contains("https://fast.example/$repo/os/$arch"));
         assert!(!mirrorlist_body.contains("slow.example"));
         assert!(!mirrorlist_body.contains("inactive.example"));
@@ -788,10 +792,10 @@ exit 1
                 .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&shim_root).unwrap();
+        std::fs::create_dir_all(&shim_root).expect("failed to create test shim root directory");
         let mut bin = shim_root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("failed to create test bin directory");
         let mut script = bin.clone();
         script.push("curl");
         let body = r#"#!/usr/bin/env bash
@@ -821,13 +825,16 @@ EOF
 fi
 exit 1
 "#;
-        std::fs::write(&script, body).unwrap();
+        std::fs::write(&script, body).expect("failed to write test curl script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            let mut perm = std::fs::metadata(&script)
+                .expect("failed to read test curl script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&script, perm).unwrap();
+            std::fs::set_permissions(&script, perm)
+                .expect("failed to set test curl script permissions");
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe {
@@ -856,7 +863,7 @@ exit 1
         names.sort();
         assert_eq!(names, vec!["core-pkg".to_string(), "extra-pkg".to_string()]);
 
-        let body = std::fs::read_to_string(&persist_path).unwrap();
+        let body = std::fs::read_to_string(&persist_path).expect("failed to read test index file");
         assert!(body.contains("\"core-pkg\""));
         assert!(body.contains("\"extra-pkg\""));
 

@@ -427,7 +427,7 @@ mod tests {
         let runner = MockRunner::default();
         let result = fetch_aur_metadata(&runner, "nonexistent-package", Some("1.0.0"));
         assert!(result.is_ok());
-        let meta = result.unwrap();
+        let meta = result.expect("fetch_aur_metadata should succeed for nonexistent package");
         assert_eq!(meta.download_size, None);
         assert_eq!(meta.install_size, None);
     }
@@ -446,9 +446,9 @@ mod tests {
     fn test_extract_aur_package_sizes() {
         // Create a temporary file for testing
         let temp_dir = std::env::temp_dir().join(format!("pacsea_test_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::create_dir_all(&temp_dir).expect("failed to create test temp directory");
         let pkg_path = temp_dir.join("test-1.0.0-1-x86_64.pkg.tar.zst");
-        std::fs::write(&pkg_path, b"fake package data").unwrap();
+        std::fs::write(&pkg_path, b"fake package data").expect("failed to write test package file");
 
         // Set up mock response using the actual temp file path
         let mut responses = HashMap::new();
@@ -464,7 +464,7 @@ mod tests {
 
         let result = extract_aur_package_sizes(&runner, &pkg_path);
         assert!(result.is_ok());
-        let meta = result.unwrap();
+        let meta = result.expect("extract_aur_package_sizes should succeed");
 
         // Download size should be the file size (17 bytes in this case)
         assert_eq!(meta.download_size, Some(17));

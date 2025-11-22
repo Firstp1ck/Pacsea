@@ -458,7 +458,7 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
 
         let backend = TestBackend::new(120, 40);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
         let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         // Seed minimal data to exercise all three sections
@@ -478,7 +478,7 @@ mod tests {
         term.draw(|f| {
             super::ui(f, &mut app);
         })
-        .unwrap();
+        .expect("failed to draw test terminal");
 
         // Expect rects set by sub-renderers
         assert!(app.results_rect.is_some());
@@ -495,7 +495,7 @@ mod tests {
         term.draw(|f| {
             super::ui(f, &mut app);
         })
-        .unwrap();
+        .expect("failed to draw test terminal second time");
 
         // Verify rects are still set after second render
         assert!(app.results_rect.is_some());

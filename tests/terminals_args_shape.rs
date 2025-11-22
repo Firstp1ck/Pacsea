@@ -12,10 +12,13 @@ fn write_fake(term_name: &str, dir: &std::path::Path) -> (std::path::PathBuf, st
     let mut term_path = dir.to_path_buf();
     term_path.push(term_name);
     let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
-    std::fs::write(&term_path, script.as_bytes()).unwrap();
-    let mut perms = std::fs::metadata(&term_path).unwrap().permissions();
+    std::fs::write(&term_path, script.as_bytes()).expect("failed to write test terminal script");
+    let mut perms = std::fs::metadata(&term_path)
+        .expect("failed to read test terminal script metadata")
+        .permissions();
     perms.set_mode(0o755);
-    std::fs::set_permissions(&term_path, perms).unwrap();
+    std::fs::set_permissions(&term_path, perms)
+        .expect("failed to set test terminal script permissions");
     (term_path, out_path)
 }
 

@@ -324,7 +324,7 @@ mod tests {
     #[test]
     fn search_handles_empty_input() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -337,7 +337,7 @@ mod tests {
             let area = f.area();
             render_search(f, &mut app, area);
         })
-        .unwrap();
+        .expect("failed to draw test terminal");
 
         // Should handle empty input without panic
     }

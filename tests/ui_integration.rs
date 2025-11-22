@@ -135,8 +135,10 @@ fn create_test_backend_size(width: u16, height: u16) -> TestBackend {
 
 /// Render UI to a TestBackend and return the terminal for assertions.
 fn render_ui_to_backend(backend: TestBackend, app: &mut AppState) -> Terminal<TestBackend> {
-    let mut terminal = Terminal::new(backend).unwrap();
-    terminal.draw(|f| ui::ui(f, app)).unwrap();
+    let mut terminal = Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|f| ui::ui(f, app))
+        .expect("failed to draw test terminal");
     terminal
 }
 
@@ -706,12 +708,16 @@ fn test_ui_resize_handling() {
     app.list_state.select(Some(0));
 
     // Render at initial size
-    let mut terminal = Terminal::new(backend).unwrap();
-    terminal.draw(|f| ui::ui(f, &mut app)).unwrap();
+    let mut terminal = Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|f| ui::ui(f, &mut app))
+        .expect("failed to draw test terminal");
 
     // Resize and render again
     terminal.backend_mut().resize(120, 40);
-    terminal.draw(|f| ui::ui(f, &mut app)).unwrap();
+    terminal
+        .draw(|f| ui::ui(f, &mut app))
+        .expect("failed to draw test terminal after resize");
 
     // Verify resize worked
     let buffer = terminal.backend().buffer();

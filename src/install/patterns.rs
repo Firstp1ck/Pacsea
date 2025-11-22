@@ -322,7 +322,7 @@ mod tests {
         let config_dir = crate::theme::config_dir();
         let pattern_path = config_dir.join("pattern.conf");
         let body = "[critical]\nfoo\n\n[high]\nbar\n\n[medium]\nmid\n\n[low]\nlo\n";
-        fs::write(&pattern_path, body).unwrap();
+        fs::write(&pattern_path, body).expect("failed to write test pattern config file");
 
         let loaded = super::load();
         assert_eq!(loaded.critical, "foo");
