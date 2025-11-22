@@ -379,8 +379,7 @@ hu-HU:
           install_list: "  • Telepítési lista:  "
           import: " Importálás"
           export: " Exportálás"
-          # TODO: Translate to Hungarian
-          updates: " Open Available updates"
+          updates: " Elérhető frissítések megnyitása"
       news:
         title: " Hírek "
         heading: "Arch Linux hírek"
