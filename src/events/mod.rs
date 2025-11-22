@@ -139,7 +139,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         fs::create_dir_all(&dir).expect("create test directory");
@@ -148,10 +148,10 @@ mod tests {
         let mut term_path = dir.clone();
         term_path.push("xfce4-terminal");
         let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
-        fs::write(&term_path, script.as_bytes()).unwrap();
-        let mut perms = fs::metadata(&term_path).unwrap().permissions();
+        fs::write(&term_path, script.as_bytes()).expect("Failed to write test terminal script");
+        let mut perms = fs::metadata(&term_path).expect("Failed to read test terminal script metadata").permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&term_path, perms).unwrap();
+        fs::set_permissions(&term_path, perms).expect("Failed to set test terminal script permissions");
         let orig_path = std::env::var_os("PATH");
         // Prepend our fake terminal directory to PATH to ensure xfce4-terminal is found first
         let combined_path = match std::env::var("PATH") {
@@ -277,7 +277,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
@@ -286,10 +286,10 @@ mod tests {
         let make_exec = |name: &str| {
             let mut p = dir.clone();
             p.push(name);
-            fs::write(&p, b"#!/bin/sh\nexit 0\n").unwrap();
-            let mut perms = fs::metadata(&p).unwrap().permissions();
+            fs::write(&p, b"#!/bin/sh\nexit 0\n").expect("Failed to write test executable stub");
+            let mut perms = fs::metadata(&p).expect("Failed to read test executable stub metadata").permissions();
             perms.set_mode(0o755);
-            fs::set_permissions(&p, perms).unwrap();
+            fs::set_permissions(&p, perms).expect("Failed to set test executable stub permissions");
         };
 
         // Present nvim and kitty on PATH
@@ -442,7 +442,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);

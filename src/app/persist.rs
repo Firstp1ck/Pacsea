@@ -242,7 +242,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         app.cache_path = path.clone();
@@ -256,7 +256,7 @@ mod tests {
         app.cache_dirty = true;
         maybe_flush_cache(&mut app);
         assert!(!app.cache_dirty);
-        let body = std::fs::read_to_string(&app.cache_path).unwrap();
+        let body = std::fs::read_to_string(&app.cache_path).expect("Failed to read test cache file");
         assert!(body.contains("ripgrep"));
         let _ = std::fs::remove_file(&app.cache_path);
     }
@@ -280,7 +280,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         app.recent_path = path.clone();
@@ -288,7 +288,7 @@ mod tests {
         app.recent_dirty = true;
         maybe_flush_recent(&mut app);
         assert!(!app.recent_dirty);
-        let body = std::fs::read_to_string(&app.recent_path).unwrap();
+        let body = std::fs::read_to_string(&app.recent_path).expect("Failed to read test recent file");
         assert!(body.contains("rg") && body.contains("fd"));
         let _ = std::fs::remove_file(&app.recent_path);
     }
@@ -312,7 +312,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         app.install_path = path.clone();
@@ -331,7 +331,7 @@ mod tests {
         // Simulate time passing by clearing last_install_change
         app.last_install_change = None;
         maybe_flush_install(&mut app);
-        let body = std::fs::read_to_string(&app.install_path).unwrap();
+        let body = std::fs::read_to_string(&app.install_path).expect("Failed to read test install file");
         assert!(body.contains("rg"));
         let _ = std::fs::remove_file(&app.install_path);
     }
@@ -355,7 +355,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         app.deps_cache_path = path.clone();
@@ -384,7 +384,7 @@ mod tests {
         app.deps_cache_dirty = true;
         maybe_flush_deps_cache(&mut app);
         assert!(!app.deps_cache_dirty);
-        let body = std::fs::read_to_string(&app.deps_cache_path).unwrap();
+        let body = std::fs::read_to_string(&app.deps_cache_path).expect("Failed to read test deps cache file");
         assert!(body.contains("gcc-libs"));
         let _ = std::fs::remove_file(&app.deps_cache_path);
     }
@@ -408,11 +408,11 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         app.deps_cache_path = path.clone();
-        std::fs::write(&app.deps_cache_path, "stale").unwrap();
+        std::fs::write(&app.deps_cache_path, "stale").expect("Failed to write test deps cache file");
         app.deps_cache_dirty = true;
         app.install_list.clear();
 
@@ -441,7 +441,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         app.files_cache_path = path.clone();
@@ -473,7 +473,7 @@ mod tests {
         app.files_cache_dirty = true;
         maybe_flush_files_cache(&mut app);
         assert!(!app.files_cache_dirty);
-        let body = std::fs::read_to_string(&app.files_cache_path).unwrap();
+        let body = std::fs::read_to_string(&app.files_cache_path).expect("Failed to read test files cache file");
         assert!(body.contains("/usr/bin/rg"));
         let _ = std::fs::remove_file(&app.files_cache_path);
     }
@@ -497,11 +497,11 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         app.files_cache_path = path.clone();
-        std::fs::write(&app.files_cache_path, "stale").unwrap();
+        std::fs::write(&app.files_cache_path, "stale").expect("Failed to write test files cache file");
         app.files_cache_dirty = true;
         app.install_list.clear();
 
@@ -530,7 +530,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         app.news_read_path = path.clone();
@@ -539,7 +539,7 @@ mod tests {
         app.news_read_dirty = true;
         maybe_flush_news_read(&mut app);
         assert!(!app.news_read_dirty);
-        let body = std::fs::read_to_string(&app.news_read_path).unwrap();
+        let body = std::fs::read_to_string(&app.news_read_path).expect("Failed to read test news read file");
         assert!(body.contains("archlinux.org/news"));
         let _ = std::fs::remove_file(&app.news_read_path);
     }

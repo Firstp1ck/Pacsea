@@ -301,7 +301,7 @@ mod tests {
     #[test]
     fn install_renders_and_records_rect() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.push(crate::state::PackageItem {
@@ -316,7 +316,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render install pane");
 
         assert!(app.install_rect.is_some());
         assert!(app.install_import_rect.is_some());
@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn install_renders_buttons_with_correct_rects() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
@@ -344,7 +344,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render install pane buttons");
 
         let import_rect = app.install_import_rect.unwrap();
         let export_rect = app.install_export_rect.unwrap();
@@ -371,7 +371,7 @@ mod tests {
     #[test]
     fn install_renders_with_selection() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.push(crate::state::PackageItem {
@@ -394,7 +394,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render install pane with selection");
 
         // Should render without panic with selection
         assert!(app.install_rect.is_some());
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn install_renders_with_focus_styling() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
@@ -423,7 +423,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render unfocused install pane");
         let unfocused_import_rect = app.install_import_rect;
 
         // Render focused
@@ -432,7 +432,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render focused install pane");
         let focused_import_rect = app.install_import_rect;
 
         // Rects should be the same position, but styling differs
@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn install_handles_empty_list() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.clear();
@@ -461,7 +461,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render empty install pane");
 
         // Should render empty list without panic
         assert!(app.install_rect.is_some());

@@ -237,7 +237,8 @@ mod tests {
     /// Details:
     /// - Redirects `HOME`, guards with the theme mutex, and removes the temp directory after assertions.
     fn load_returns_defaults_when_config_missing() {
-        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let _guard = crate::theme::test_mutex().lock()
+            .expect("Test mutex poisoned");
         use std::fs;
         use std::path::PathBuf;
 
@@ -247,7 +248,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
@@ -293,7 +294,8 @@ mod tests {
     /// Details:
     /// - Writes `pattern.conf` under Pacsea's config directory, then restores environment variables and removes artifacts.
     fn load_reads_pattern_conf_overrides() {
-        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let _guard = crate::theme::test_mutex().lock()
+            .expect("Test mutex poisoned");
         use std::fs;
         use std::path::PathBuf;
 
@@ -303,7 +305,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);

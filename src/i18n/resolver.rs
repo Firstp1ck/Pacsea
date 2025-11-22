@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn test_load_fallbacks() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
         let yaml_content = r"
@@ -439,7 +439,7 @@ fallbacks:
   de: de-DE
   fr: fr-FR
 ";
-        fs::write(&config_path, yaml_content).unwrap();
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         let fallbacks = load_fallbacks(&config_path);
         assert_eq!(fallbacks.get("de-CH"), Some(&"de-DE".to_string()));
@@ -449,7 +449,7 @@ fallbacks:
 
     #[test]
     fn test_load_default_locale() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
         let yaml_content = r"
@@ -457,7 +457,7 @@ default_locale: de-DE
 fallbacks:
   de-CH: de-DE
 ";
-        fs::write(&config_path, yaml_content).unwrap();
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         let default = load_default_locale(&config_path);
         assert_eq!(default, "de-DE");
@@ -465,14 +465,14 @@ fallbacks:
 
     #[test]
     fn test_load_default_locale_missing() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
         let yaml_content = r"
 fallbacks:
   de-CH: de-DE
 ";
-        fs::write(&config_path, yaml_content).unwrap();
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         let default = load_default_locale(&config_path);
         assert_eq!(default, "en-US"); // Should default to en-US
@@ -480,7 +480,7 @@ fallbacks:
 
     #[test]
     fn test_resolve_locale_with_settings() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
         let yaml_content = r"
@@ -488,7 +488,7 @@ default_locale: en-US
 fallbacks:
   de-CH: de-DE
 ";
-        fs::write(&config_path, yaml_content).unwrap();
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         // Test with explicit locale from settings
         // de-CH -> de-DE -> (no fallback) -> en-US (default)
@@ -507,7 +507,7 @@ fallbacks:
 
     #[test]
     fn test_resolve_locale_empty_settings() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
         let yaml_content = r"
@@ -515,7 +515,7 @@ default_locale: en-US
 fallbacks:
   de-CH: de-DE
 ";
-        fs::write(&config_path, yaml_content).unwrap();
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         // Test with empty settings (should auto-detect or use default)
         let result = resolve_locale("", &config_path);

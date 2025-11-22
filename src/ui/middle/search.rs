@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn search_renders_and_sets_cursor_when_focused() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -207,7 +207,7 @@ mod tests {
             let area = f.area();
             render_search(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render search pane");
 
         // Cursor position is set by set_cursor_position - verify rendering succeeded
         // TestBackend doesn't expose cursor position directly, but rendering
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn search_renders_without_selection_when_not_normal_mode() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -242,7 +242,7 @@ mod tests {
             let area = f.area();
             render_search(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render search pane without selection");
 
         // Should render without panic even with selection anchor set but not in normal mode
     }
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn search_renders_with_selection_in_normal_mode() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -275,7 +275,7 @@ mod tests {
             let area = f.area();
             render_search(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render search pane with selection");
 
         // Should render with selection highlighting
     }
@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn search_renders_when_unfocused() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -306,7 +306,7 @@ mod tests {
             let area = f.area();
             render_search(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render unfocused search pane");
 
         // Should render without panic with unfocused styling
     }

@@ -61,7 +61,7 @@ mod tests {
     fn modals_set_rects_and_render_variants() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(100, 28);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         // Alert
         let mut app = crate::state::AppState {
             modal: crate::state::Modal::Alert {
@@ -73,7 +73,7 @@ mod tests {
             let area = f.area();
             super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render Alert modal");
 
         // ConfirmInstall
         app.modal = crate::state::Modal::ConfirmInstall { items: vec![] };
@@ -81,7 +81,7 @@ mod tests {
             let area = f.area();
             super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render ConfirmInstall modal");
 
         // ConfirmRemove with core warn
         app.modal = crate::state::Modal::ConfirmRemove {
@@ -100,7 +100,7 @@ mod tests {
             let area = f.area();
             super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render ConfirmRemove modal");
 
         // Help
         app.modal = crate::state::Modal::Help;
@@ -108,7 +108,7 @@ mod tests {
             let area = f.area();
             super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render Help modal");
         assert!(app.help_rect.is_some());
 
         // News
@@ -124,7 +124,7 @@ mod tests {
             let area = f.area();
             super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render News modal");
         assert!(app.news_rect.is_some());
         assert!(app.news_list_rect.is_some());
     }

@@ -85,14 +85,15 @@ mod tests {
     /// Details:
     /// - Overrides `HOME` to a temp dir and restores it afterwards to avoid polluting the user environment.
     fn settings_parse_values_and_keybinds_with_defaults_on_invalid_sum() {
-        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let _guard = crate::theme::test_mutex().lock()
+            .expect("Test mutex poisoned");
         let orig_home = std::env::var_os("HOME");
         let base = std::env::temp_dir().join(format!(
             "pacsea_test_settings_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let cfg = base.join(".config").join("pacsea");
@@ -108,7 +109,7 @@ mod tests {
         .unwrap();
         // Write keybinds.conf
         let keybinds_path = cfg.join("keybinds.conf");
-        std::fs::write(&keybinds_path, "keybind_exit = Ctrl+Q\nkeybind_help = F1\n").unwrap();
+        std::fs::write(&keybinds_path, "keybind_exit = Ctrl+Q\nkeybind_help = F1\n").expect("Failed to write test keybinds file");
 
         let s = super::settings();
         // Invalid layout sum -> defaults

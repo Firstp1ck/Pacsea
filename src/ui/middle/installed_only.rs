@@ -375,7 +375,7 @@ mod tests {
     #[test]
     fn installed_only_renders_both_lists() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -399,7 +399,7 @@ mod tests {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane");
 
         assert!(app.install_rect.is_some());
         assert!(app.downgrade_rect.is_some());
@@ -421,7 +421,7 @@ mod tests {
     #[test]
     fn installed_only_hides_buttons() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -434,7 +434,7 @@ mod tests {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane without buttons");
 
         assert!(app.install_import_rect.is_none());
         assert!(app.install_export_rect.is_none());
@@ -453,7 +453,7 @@ mod tests {
     #[test]
     fn installed_only_splits_area_correctly() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -463,7 +463,7 @@ mod tests {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane with split area");
 
         let downgrade_rect = app.downgrade_rect.unwrap();
         let install_rect = app.install_rect.unwrap(); // Maps to Remove list
@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn installed_only_records_downgrade_rect() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -498,7 +498,7 @@ mod tests {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane to record downgrade rect");
 
         assert!(app.downgrade_rect.is_some());
         let (x, y, w, h) = app.downgrade_rect.unwrap();
@@ -522,7 +522,7 @@ mod tests {
     #[test]
     fn installed_only_handles_empty_lists() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
             ..Default::default()
         };
@@ -534,7 +534,7 @@ mod tests {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane with empty lists");
 
         // Should render empty lists without panic
         assert!(app.install_rect.is_some());

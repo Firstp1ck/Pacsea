@@ -252,7 +252,8 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
 
     // 2. Rate limiting: ensure minimum interval between requests
     {
-        let mut last_request = PKGBUILD_RATE_LIMITER.lock().unwrap();
+        let mut last_request = PKGBUILD_RATE_LIMITER.lock()
+            .expect("PKGBUILD rate limiter mutex poisoned");
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
             if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {

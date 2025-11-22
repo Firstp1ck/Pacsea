@@ -34,7 +34,8 @@ fn new_app() -> AppState {
 /// - Uses mock channels to satisfy handler requirements without observing downstream messages.
 /// - Sets up temporary config directory to ensure `skip_preflight = false` regardless of user config.
 fn install_enter_opens_confirm_install() {
-    let _guard = crate::theme::test_mutex().lock().unwrap();
+    let _guard = crate::theme::test_mutex().lock()
+        .expect("Test mutex poisoned");
     let orig_home = std::env::var_os("HOME");
     let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
     let base = std::env::temp_dir().join(format!(
@@ -42,7 +43,7 @@ fn install_enter_opens_confirm_install() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("System time is before UNIX epoch")
             .as_nanos()
     ));
     let cfg = base.join(".config").join("pacsea");
@@ -52,7 +53,7 @@ fn install_enter_opens_confirm_install() {
 
     // Write settings.conf with skip_preflight = false
     let settings_path = cfg.join("settings.conf");
-    std::fs::write(&settings_path, "skip_preflight = false\n").unwrap();
+    std::fs::write(&settings_path, "skip_preflight = false\n").expect("Failed to write test settings file");
 
     let mut app = new_app();
     app.install_list = vec![PackageItem {
@@ -135,7 +136,8 @@ fn install_enter_opens_confirm_install() {
 /// - Documents intent for future skip-preflight support while asserting existing flow stays intact.
 /// - Sets up temporary config directory to ensure `skip_preflight = false` regardless of user config.
 fn install_enter_bypasses_preflight_with_skip_flag() {
-    let _guard = crate::theme::test_mutex().lock().unwrap();
+    let _guard = crate::theme::test_mutex().lock()
+        .expect("Test mutex poisoned");
     let orig_home = std::env::var_os("HOME");
     let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
     let base = std::env::temp_dir().join(format!(
@@ -143,7 +145,7 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("System time is before UNIX epoch")
             .as_nanos()
     ));
     let cfg = base.join(".config").join("pacsea");
@@ -153,7 +155,7 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
 
     // Write settings.conf with skip_preflight = false
     let settings_path = cfg.join("settings.conf");
-    std::fs::write(&settings_path, "skip_preflight = false\n").unwrap();
+    std::fs::write(&settings_path, "skip_preflight = false\n").expect("Failed to write test settings file");
 
     // Verify the setting is false
     assert!(

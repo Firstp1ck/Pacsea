@@ -73,7 +73,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&home);
@@ -81,17 +81,17 @@ mod tests {
 
         // Write install log
         let names = vec!["a".to_string(), "b".to_string()];
-        super::log_installed(&names).unwrap();
+        super::log_installed(&names).expect("Failed to write install log in test");
         let mut p = crate::theme::logs_dir();
         p.push("install_log.log");
-        let body = fs::read_to_string(&p).unwrap();
+        let body = fs::read_to_string(&p).expect("Failed to read install log in test");
         assert!(body.contains(" a\n") || body.contains(" a\r\n"));
 
         // Write remove log
-        super::log_removed(&names).unwrap();
+        super::log_removed(&names).expect("Failed to write remove log in test");
         let mut pr = crate::theme::logs_dir();
         pr.push("remove_log.log");
-        let body_r = fs::read_to_string(&pr).unwrap();
+        let body_r = fs::read_to_string(&pr).expect("Failed to read remove log in test");
         assert!(body_r.contains("a\n") || body_r.contains("a\r\n"));
 
         // Cleanup env; not removing files so test artifacts may remain in tmp

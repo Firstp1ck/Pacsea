@@ -662,7 +662,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         std::fs::create_dir_all(&repo_dir).unwrap();
@@ -688,7 +688,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         std::fs::create_dir_all(&shim_root).unwrap();
@@ -720,7 +720,7 @@ exit 1
             std::env::set_var("PATH", &new_path);
         }
 
-        let mirrorlist_path = super::fetch_mirrors_to_repo_dir(&repo_dir).await.unwrap();
+        let mirrorlist_path = super::fetch_mirrors_to_repo_dir(&repo_dir).await.expect("Failed to fetch mirrors in test");
         let raw_json_path = repo_dir.join("mirrors.json");
         assert!(raw_json_path.exists());
         assert!(mirrorlist_path.exists());
@@ -738,7 +738,8 @@ exit 1
     #[tokio::test]
     /// What: Ensure Windows index refresh consumes API responses, persists, and notifies without errors.
     async fn refresh_official_index_from_arch_api_consumes_api_results_and_persists() {
-        let _guard = crate::index::test_mutex().lock().unwrap();
+        let _guard = crate::index::test_mutex().lock()
+            .expect("Test mutex poisoned");
 
         if let Ok(mut g) = super::idx().write() {
             g.pkgs.clear();
@@ -750,7 +751,7 @@ exit 1
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
 
@@ -778,7 +779,7 @@ exit 1
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         std::fs::create_dir_all(&shim_root).unwrap();

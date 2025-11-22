@@ -707,7 +707,8 @@ mod tests {
     /// Details:
     /// - Uses a mutex guard to serialise environment mutations and restores `HOME` at the end to avoid cross-test interference.
     fn app_state_default_initializes_paths_and_flags() {
-        let _guard = crate::state::test_mutex().lock().unwrap();
+        let _guard = crate::state::test_mutex().lock()
+            .expect("Test mutex poisoned");
         // Shim HOME so lists_dir() resolves under a temp dir
         let orig_home = std::env::var_os("HOME");
         let dir = std::env::temp_dir().join(format!(
@@ -715,7 +716,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = std::fs::create_dir_all(&dir);

@@ -238,7 +238,7 @@ de-DE:
       search: "Suche"
       help: "Hilfe"
 "#;
-        let result = parse_locale_yaml(yaml).unwrap();
+        let result = parse_locale_yaml(yaml).expect("Failed to parse test locale YAML");
         assert_eq!(result.get("app.titles.search"), Some(&"Suche".to_string()));
         assert_eq!(result.get("app.titles.help"), Some(&"Hilfe".to_string()));
     }
@@ -255,7 +255,7 @@ en-US:
           summary: "Summary"
           deps: "Deps"
 "#;
-        let result = parse_locale_yaml(yaml).unwrap();
+        let result = parse_locale_yaml(yaml).expect("Failed to parse test locale YAML");
         assert_eq!(
             result.get("app.modals.preflight.title_install"),
             Some(&" Preflight: Install ".to_string())
@@ -278,7 +278,7 @@ en-US:
 
     #[test]
     fn test_load_locale_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         // Create a test locale file
@@ -289,9 +289,9 @@ test-LOCALE:
     titles:
       search: "Test Search"
 "#;
-        fs::write(&locale_file, yaml_content).unwrap();
+        fs::write(&locale_file, yaml_content).expect("Failed to write test locale file");
 
-        let result = load_locale_file("test-LOCALE", locales_dir).unwrap();
+        let result = load_locale_file("test-LOCALE", locales_dir).expect("Failed to load test locale file");
         assert_eq!(
             result.get("app.titles.search"),
             Some(&"Test Search".to_string())
@@ -300,7 +300,7 @@ test-LOCALE:
 
     #[test]
     fn test_load_locale_file_not_found() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         let result = load_locale_file("nonexistent", locales_dir);
@@ -310,7 +310,7 @@ test-LOCALE:
 
     #[test]
     fn test_load_locale_file_invalid_format() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         // Test with invalid locale format
@@ -321,12 +321,12 @@ test-LOCALE:
 
     #[test]
     fn test_load_locale_file_empty() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         // Create an empty locale file
         let locale_file = locales_dir.join("empty.yml");
-        fs::write(&locale_file, "").unwrap();
+        fs::write(&locale_file, "").expect("Failed to write empty test locale file");
 
         let result = load_locale_file("empty", locales_dir);
         assert!(result.is_err());
@@ -335,7 +335,7 @@ test-LOCALE:
 
     #[test]
     fn test_locale_loader_caching() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         // Create a test locale file
@@ -346,19 +346,19 @@ cache-test:
     titles:
       search: "Cached"
 "#;
-        fs::write(&locale_file, yaml_content).unwrap();
+        fs::write(&locale_file, yaml_content).expect("Failed to write test locale file");
 
         let mut loader = LocaleLoader::new(locales_dir.to_path_buf());
 
         // First load
-        let result1 = loader.load("cache-test").unwrap();
+        let result1 = loader.load("cache-test").expect("Failed to load locale in test");
         assert_eq!(
             result1.get("app.titles.search"),
             Some(&"Cached".to_string())
         );
 
         // Second load should use cache
-        let result2 = loader.load("cache-test").unwrap();
+        let result2 = loader.load("cache-test").expect("Failed to load cached locale in test");
         assert_eq!(
             result2.get("app.titles.search"),
             Some(&"Cached".to_string())
