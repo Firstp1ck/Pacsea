@@ -253,7 +253,7 @@ fn render_empty_state(
         for pkg_name in items.iter().map(|p| &p.name) {
             let mut spans = Vec::new();
             spans.push(Span::styled(
-                format!("▶ {} ", pkg_name),
+                format!("▶ {pkg_name} "),
                 Style::default()
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
@@ -280,7 +280,7 @@ fn render_empty_state(
         for pkg_name in items.iter().map(|p| &p.name) {
             let mut spans = Vec::new();
             spans.push(Span::styled(
-                format!("▶ {} ", pkg_name),
+                format!("▶ {pkg_name} "),
                 Style::default()
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
@@ -401,7 +401,7 @@ fn render_package_header(
             .add_modifier(Modifier::BOLD)
     };
     spans.push(Span::styled(
-        format!("{} {} ", arrow_symbol, header_name),
+        format!("{arrow_symbol} {header_name} "),
         header_style,
     ));
 
@@ -412,7 +412,7 @@ fn render_package_header(
             .filter(|dep| seen_deps.insert(dep.name.as_str()))
             .count();
         spans.push(Span::styled(
-            format!("({} deps)", dep_count),
+            format!("({dep_count} deps)"),
             Style::default().fg(th.subtext1),
         ));
     } else {
@@ -452,7 +452,7 @@ fn render_dependency_item(
         DependencyStatus::Missing => ("?", th.red),
     };
     spans.push(Span::styled(
-        format!("{} ", status_icon),
+        format!("{status_icon} "),
         Style::default().fg(status_color),
     ));
 
@@ -483,7 +483,7 @@ fn render_dependency_item(
             } else {
                 th.green
             };
-            (format!(" [{}]", repo), color)
+            (format!(" [{repo}]"), color)
         }
         DependencySource::Aur => (" [AUR]".to_string(), th.yellow),
         DependencySource::Local => (" [local]".to_string(), th.overlay1),
@@ -511,13 +511,13 @@ fn render_dependency_item(
         }
         DependencyStatus::ToUpgrade { current, required } => {
             spans.push(Span::styled(
-                format!(" ({} → {})", current, required),
+                format!(" ({current} → {required})"),
                 Style::default().fg(th.yellow),
             ));
         }
         DependencyStatus::Conflict { reason } => {
             spans.push(Span::styled(
-                format!(" ({})", reason),
+                format!(" ({reason})"),
                 Style::default().fg(th.red),
             ));
         }

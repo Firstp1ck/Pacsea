@@ -51,7 +51,7 @@ pub fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
 #[cfg(not(target_os = "windows"))]
 fn add_setup_commands(cmds: &mut Vec<String>, pkg: &str) {
     // 0) Create and enter working directory; remember it for later messages
-    cmds.push(format!("pkg='{}'", pkg));
+    cmds.push(format!("pkg='{pkg}'"));
     cmds.push("echo \"[PACSEA] scan_start pkg='$pkg' ts=$(date -Ins) shell=$SHELL term=$TERM display=$DISPLAY\"".to_string());
     cmds.push("work=$(mktemp -d -t pacsea_scan_XXXXXXXX)".to_string());
     cmds.push("echo \"Pacsea: scanning AUR package '$pkg'\"".to_string());

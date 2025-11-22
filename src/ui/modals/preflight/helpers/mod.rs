@@ -35,13 +35,13 @@ pub use crate::ui::helpers::{format_bytes, format_signed_bytes};
 pub fn format_count_with_indicator(count: usize, total_items: usize, is_resolving: bool) -> String {
     if !is_resolving {
         // Resolution complete, show actual count
-        format!("{}", count)
+        format!("{count}")
     } else if count < total_items {
         // Still resolving and we have partial data
-        format!("{}...", count)
+        format!("{count}...")
     } else {
         // Resolving but count matches total (shouldn't happen, but be safe)
-        format!("{}", count)
+        format!("{count}")
     }
 }
 

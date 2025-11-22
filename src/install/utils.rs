@@ -72,7 +72,7 @@ pub fn command_on_path(cmd: &str) -> bool {
             {
                 if let Some(pathext) = std::env::var_os("PATHEXT") {
                     for ext in pathext.to_string_lossy().split(';') {
-                        let candidate = dir.join(format!("{}{}", cmd, ext));
+                        let candidate = dir.join(format!("{cmd}{ext}"));
                         if candidate.is_file() {
                             return true;
                         }

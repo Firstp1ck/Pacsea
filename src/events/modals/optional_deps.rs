@@ -136,7 +136,7 @@ fn handle_optional_deps_enter(
             echo; echo "Press any key to close..."; read -rn1 -s _)"##
             .to_string();
         let to_run = if dry_run {
-            vec![format!("echo DRY RUN: {}", cmd)]
+            vec![format!("echo DRY RUN: {cmd}")]
         } else {
             vec![cmd]
         };
@@ -161,10 +161,10 @@ fn handle_optional_deps_enter(
                 hold_tail
             )
         } else {
-            format!("sudo pacman -S --needed --noconfirm {}", pkg)
+            format!("sudo pacman -S --needed --noconfirm {pkg}")
         };
         let to_run = if dry_run {
-            vec![format!("echo DRY RUN: {}", cmd)]
+            vec![format!("echo DRY RUN: {cmd}")]
         } else {
             vec![cmd]
         };

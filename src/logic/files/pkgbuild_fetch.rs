@@ -73,7 +73,7 @@ fn find_pkgbuild_in_dir(
 /// Details:
 /// - Executes helper -G command in a temp directory and searches for PKGBUILD.
 fn try_helper_command(helper: &str, name: &str) -> Option<String> {
-    let temp_dir = std::env::temp_dir().join(format!("pacsea_pkgbuild_{}", name));
+    let temp_dir = std::env::temp_dir().join(format!("pacsea_pkgbuild_{name}"));
     let _ = std::fs::create_dir_all(&temp_dir);
 
     let output = Command::new(helper)
@@ -105,8 +105,8 @@ fn try_helper_command(helper: &str, name: &str) -> Option<String> {
 /// - Checks standard cache locations for paru and yay.
 fn try_direct_cache_paths(name: &str, home: &str) -> Option<String> {
     let cache_paths = [
-        format!("{}/.cache/paru/clone/{}/PKGBUILD", home, name),
-        format!("{}/.cache/yay/{}/PKGBUILD", home, name),
+        format!("{home}/.cache/paru/clone/{name}/PKGBUILD"),
+        format!("{home}/.cache/yay/{name}/PKGBUILD"),
     ];
 
     for path_str in cache_paths {
@@ -134,8 +134,8 @@ fn try_direct_cache_paths(name: &str, home: &str) -> Option<String> {
 /// - Searches cache directories for packages that might be in subdirectories.
 fn try_cache_subdirectories(name: &str, home: &str) -> Option<String> {
     let cache_bases = [
-        format!("{}/.cache/paru/clone", home),
-        format!("{}/.cache/yay", home),
+        format!("{home}/.cache/paru/clone"),
+        format!("{home}/.cache/yay"),
     ];
 
     for cache_base in cache_bases {
@@ -349,7 +349,7 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
     let output = Command::new("curl")
         .args(&args)
         .output()
-        .map_err(|e| format!("curl failed: {}", e))?;
+        .map_err(|e| format!("curl failed: {e}"))?;
 
     if !output.status.success() {
         return Err(format!(

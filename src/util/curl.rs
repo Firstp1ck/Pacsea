@@ -28,7 +28,7 @@ fn map_curl_error(code: Option<i32>, status: &std::process::ExitStatus) -> Strin
             6 => "Could not resolve host (DNS/network issue)".to_string(),
             7 => "Failed to connect to host (network unreachable)".to_string(),
             28 => "Operation timeout".to_string(),
-            _ => format!("curl failed with exit code {}", code),
+            _ => format!("curl failed with exit code {code}"),
         }
     } else {
         // Process was terminated by a signal or other reason
@@ -36,7 +36,7 @@ fn map_curl_error(code: Option<i32>, status: &std::process::ExitStatus) -> Strin
         {
             use std::os::unix::process::ExitStatusExt;
             if let Some(signal) = status.signal() {
-                format!("curl process terminated by signal {}", signal)
+                format!("curl process terminated by signal {signal}")
             } else {
                 format!("curl process failed: {:?}", status)
             }

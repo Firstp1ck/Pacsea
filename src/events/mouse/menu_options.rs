@@ -41,7 +41,7 @@ fn create_optional_dep_row(
     note: Option<String>,
 ) -> crate::state::types::OptionalDepRow {
     crate::state::types::OptionalDepRow {
-        label: format!("{}: {}", crate::i18n::t(app, category_key), label_suffix),
+        label: format!("{}: {label_suffix}", crate::i18n::t(app, category_key)),
         package,
         installed,
         selectable: !installed,

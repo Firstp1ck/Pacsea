@@ -92,7 +92,7 @@ fn build_update_lines(entries: &[(String, String, String)], th: &Theme) -> Updat
 
     for (name, old_version, new_version) in entries.iter() {
         // Build left pane line (old versions) - right-aligned with padding
-        let left_text = format!("{} - {}     ", name, old_version);
+        let left_text = format!("{name} - {old_version}     ");
         left_lines.push(Line::from(Span::styled(
             left_text,
             Style::default().fg(th.text),
@@ -105,7 +105,7 @@ fn build_update_lines(entries: &[(String, String, String)], th: &Theme) -> Updat
         )));
 
         // Build right pane line (new versions) with padding
-        let right_text = format!("     {} - {}", name, new_version);
+        let right_text = format!("     {name} - {new_version}");
         right_lines.push(Line::from(Span::styled(
             right_text,
             Style::default().fg(th.text),

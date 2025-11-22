@@ -261,7 +261,10 @@ fn log_empty_results_debug(v: &serde_json::Value, repo: &str, page: usize, url: 
         let response_str = serde_json::to_string_pretty(v)
             .unwrap_or_else(|_| "Failed to serialize response".to_string());
         let response_preview = if response_str.len() > 500 {
-            format!("{}...", &response_str[..500])
+            {
+                let preview = &response_str[..500];
+                format!("{preview}...")
+            }
         } else {
             response_str.clone()
         };
@@ -715,7 +718,7 @@ exit 1
             perm.set_mode(0o755);
             std::fs::set_permissions(&script, perm).unwrap();
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe {
             std::env::set_var("PATH", &new_path);
         }
@@ -823,7 +826,7 @@ exit 1
             perm.set_mode(0o755);
             std::fs::set_permissions(&script, perm).unwrap();
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe {
             std::env::set_var("PATH", &new_path);
         }

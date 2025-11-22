@@ -300,10 +300,11 @@ fn render_package_header(
             .add_modifier(Modifier::BOLD)
     };
 
+    let total_count = pkg_info.total_count;
     let mut spans = vec![
-        Span::styled(format!("{} {} ", arrow_symbol, pkg_name), header_style),
+        Span::styled(format!("{arrow_symbol} {pkg_name} "), header_style),
         Span::styled(
-            format!("({} files", pkg_info.total_count),
+            format!("({total_count} files"),
             Style::default().fg(th.subtext1),
         ),
     ];
@@ -318,32 +319,37 @@ fn render_package_header(
         ));
     }
     if pkg_info.changed_count > 0 {
+        let changed_count = pkg_info.changed_count;
         spans.push(Span::styled(
-            format!(", {} changed", pkg_info.changed_count),
+            format!(", {changed_count} changed"),
             Style::default().fg(th.yellow),
         ));
     }
     if pkg_info.removed_count > 0 {
+        let removed_count = pkg_info.removed_count;
         spans.push(Span::styled(
-            format!(", {} removed", pkg_info.removed_count),
+            format!(", {removed_count} removed"),
             Style::default().fg(th.red),
         ));
     }
     if pkg_info.config_count > 0 {
+        let config_count = pkg_info.config_count;
         spans.push(Span::styled(
-            format!(", {} config", pkg_info.config_count),
+            format!(", {config_count} config"),
             Style::default().fg(th.mauve),
         ));
     }
     if pkg_info.pacnew_candidates > 0 {
+        let pacnew_candidates = pkg_info.pacnew_candidates;
         spans.push(Span::styled(
-            format!(", {} pacnew", pkg_info.pacnew_candidates),
+            format!(", {pacnew_candidates} pacnew"),
             Style::default().fg(th.yellow),
         ));
     }
     if pkg_info.pacsave_candidates > 0 {
+        let pacsave_candidates = pkg_info.pacsave_candidates;
         spans.push(Span::styled(
-            format!(", {} pacsave", pkg_info.pacsave_candidates),
+            format!(", {pacsave_candidates} pacsave"),
             Style::default().fg(th.red),
         ));
     }

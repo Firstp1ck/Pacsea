@@ -398,7 +398,8 @@ mod tests {
         let mut fallbacks = HashMap::new();
         // Create a long chain
         for i in 0..15 {
-            fallbacks.insert(format!("loc{}", i), format!("loc{}", i + 1));
+            let next = i + 1;
+            fallbacks.insert(format!("loc{i}"), format!("loc{next}"));
         }
 
         let available_locales = std::collections::HashSet::new();

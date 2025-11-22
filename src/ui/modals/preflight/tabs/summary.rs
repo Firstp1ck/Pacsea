@@ -34,7 +34,7 @@ fn get_source_badge(source: &DependencySource) -> (String, ratatui::style::Color
             } else {
                 th.green
             };
-            (format!(" [{}]", repo), color)
+            (format!(" [{repo}]"), color)
         }
         DependencySource::Aur => (" [AUR]".to_string(), th.yellow),
         DependencySource::Local => (" [local]".to_string(), th.overlay1),
@@ -73,7 +73,7 @@ fn render_summary_data(
             Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
         )));
         for reason in &summary_data.risk_reasons {
-            let bullet = format!("  • {}", reason);
+            let bullet = format!("  • {reason}");
             lines.push(Line::from(Span::styled(
                 bullet,
                 Style::default().fg(th.subtext1),
@@ -172,8 +172,9 @@ fn render_incomplete_data_indicator(
         }
         if !resolving_parts.is_empty() {
             lines.push(Line::from(""));
+            let resolving_text = resolving_parts.join(", ");
             lines.push(Line::from(Span::styled(
-                format!("⟳ {}", resolving_parts.join(", ")),
+                format!("⟳ {resolving_text}"),
                 Style::default()
                     .fg(th.sapphire)
                     .add_modifier(Modifier::BOLD),
@@ -215,7 +216,7 @@ fn render_dependency_spans(dep: &DependencyInfo) -> Option<Vec<Span<'static>>> {
             let (source_badge, badge_color) = get_source_badge(&dep.source);
             spans.push(Span::styled(source_badge, Style::default().fg(badge_color)));
             spans.push(Span::styled(
-                format!(" ({})", reason),
+                format!(" ({reason})"),
                 Style::default().fg(th.red),
             ));
         }
@@ -223,15 +224,16 @@ fn render_dependency_spans(dep: &DependencyInfo) -> Option<Vec<Span<'static>>> {
             spans.push(Span::styled("↑ ", Style::default().fg(th.yellow)));
             spans.push(Span::styled(dep.name.clone(), Style::default().fg(th.text)));
             if !dep.version.is_empty() {
+                let dep_version = &dep.version;
                 spans.push(Span::styled(
-                    format!(" {}", dep.version),
+                    format!(" {dep_version}"),
                     Style::default().fg(th.overlay2),
                 ));
             }
             let (source_badge, badge_color) = get_source_badge(&dep.source);
             spans.push(Span::styled(source_badge, Style::default().fg(badge_color)));
             spans.push(Span::styled(
-                format!(" ({} → {})", current, required),
+                format!(" ({current} → {required})"),
                 Style::default().fg(th.yellow),
             ));
         }
@@ -390,7 +392,7 @@ fn render_install_dependencies(
             let style = Style::default()
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD);
-            lines.push(Line::from(Span::styled(format!("▶ {}", pkg_name), style)));
+            lines.push(Line::from(Span::styled(format!("▶ {pkg_name}"), style)));
         } else if let Some(dep) = dep {
             if let Some(spans) = render_dependency_spans(dep) {
                 lines.push(Line::from(spans));

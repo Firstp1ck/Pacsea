@@ -18,15 +18,15 @@ pub(crate) fn run_command(program: &str, args: &[&str], display: &str) -> Result
     let output = Command::new(program)
         .args(args)
         .output()
-        .map_err(|err| format!("failed to spawn `{}`: {}", display, err))?;
+        .map_err(|err| format!("failed to spawn `{display}`: {err}"))?;
 
     if !output.status.success() {
         return Err(format!(
-            "`{}` exited with status {}",
-            display, output.status
+            "`{display}` exited with status {}",
+            output.status
         ));
     }
 
     String::from_utf8(output.stdout)
-        .map_err(|err| format!("`{}` produced invalid UTF-8: {}", display, err))
+        .map_err(|err| format!("`{display}` produced invalid UTF-8: {err}"))
 }

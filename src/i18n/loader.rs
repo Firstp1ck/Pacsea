@@ -28,12 +28,11 @@ pub fn load_locale_file(locale: &str, locales_dir: &Path) -> Result<TranslationM
 
     if !is_valid_locale_format(locale) {
         return Err(format!(
-            "Invalid locale code format: '{}'. Expected format: language[-region] (e.g., 'en-US', 'de-DE')",
-            locale
+            "Invalid locale code format: '{locale}'. Expected format: language[-region] (e.g., 'en-US', 'de-DE')"
         ));
     }
 
-    let file_path = locales_dir.join(format!("{}.yml", locale));
+    let file_path = locales_dir.join(format!("{locale}.yml"));
 
     if !file_path.exists() {
         return Err(format!(
@@ -43,7 +42,7 @@ pub fn load_locale_file(locale: &str, locales_dir: &Path) -> Result<TranslationM
     }
 
     let contents = fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read locale file {}: {}", file_path.display(), e))?;
+        .map_err(|e| format!("Failed to read locale file {}: {e}", file_path.display()))?;
 
     if contents.trim().is_empty() {
         return Err(format!("Locale file is empty: {}", file_path.display()));
@@ -89,7 +88,7 @@ fn is_valid_locale_format(locale: &str) -> bool {
 /// - Flattens nested structure into dot-notation keys
 fn parse_locale_yaml(yaml_content: &str) -> Result<TranslationMap, String> {
     let doc: serde_norway::Value =
-        serde_norway::from_str(yaml_content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
+        serde_norway::from_str(yaml_content).map_err(|e| format!("Failed to parse YAML: {e}"))?;
 
     let mut translations = HashMap::new();
 
@@ -126,7 +125,7 @@ fn flatten_yaml_value(
                     let new_prefix = if prefix.is_empty() {
                         key_str.to_string()
                     } else {
-                        format!("{}.{}", prefix, key_str)
+                        format!("{prefix}.{key_str}")
                     };
                     flatten_yaml_value(val, &new_prefix, translations);
                 }

@@ -51,7 +51,7 @@ fn build_batch_install_command(
                 hold = hold_tail
             )
         } else {
-            format!("echo DRY RUN: nothing to install{hold}", hold = hold_tail)
+            format!("echo DRY RUN: nothing to install{hold_tail}")
         }
     } else if !aur.is_empty() {
         let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
@@ -68,7 +68,7 @@ fn build_batch_install_command(
             hold = hold_tail
         )
     } else {
-        format!("echo nothing to install{hold}", hold = hold_tail)
+        format!("echo nothing to install{hold_tail}")
     }
 }
 
@@ -96,7 +96,7 @@ fn try_spawn_terminal(
     let mut cmd = Command::new(term);
     if needs_xfce_command && term == "xfce4-terminal" {
         let quoted = shell_single_quote(cmd_str);
-        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+        cmd.arg("--command").arg(format!("bash -lc {quoted}"));
     } else {
         cmd.args(args.iter().copied()).arg(cmd_str);
     }
@@ -365,9 +365,9 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
                 .spawn();
         } else {
             let msg = if _dry_run {
-                format!("DRY RUN: install {}", names_str)
+                format!("DRY RUN: install {names_str}")
             } else {
-                format!("Install {} (not supported on Windows)", names_str)
+                format!("Install {names_str} (not supported on Windows)")
             };
             let _ = Command::new("cmd")
                 .args([

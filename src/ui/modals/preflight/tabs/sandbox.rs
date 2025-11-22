@@ -193,8 +193,9 @@ fn render_aur_package_headers(items: &[PackageItem]) -> Vec<Line<'static>> {
     for item in items.iter() {
         let is_aur = matches!(item.source, crate::state::Source::Aur);
         if is_aur {
+            let item_name = &item.name;
             lines.push(Line::from(Span::styled(
-                format!("▶ {} ", item.name),
+                format!("▶ {item_name} "),
                 Style::default()
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
@@ -551,7 +552,7 @@ fn render_package_header(
         &[&item.name, &source_str],
     );
     if !arrow_symbol.is_empty() {
-        header_text = format!("{} {}", arrow_symbol, header_text);
+        header_text = format!("{arrow_symbol} {header_text}");
     }
 
     Line::from(Span::styled(header_text, header_style))
@@ -695,9 +696,9 @@ fn render_dependency_line(
         Style::default().fg(status_color)
     };
 
-    let mut dep_line = format!("  {} {}", status_icon, dep_name);
+    let mut dep_line = format!("  {status_icon} {dep_name}");
     if let Some(ref version) = dep.installed_version {
-        dep_line.push_str(&format!(" (installed: {})", version));
+        dep_line.push_str(&format!(" (installed: {version})"));
     }
     if dep_type == "optdepends" && is_optdep_selected {
         dep_line.push_str(" [selected]");

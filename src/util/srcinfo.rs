@@ -27,9 +27,9 @@ pub fn fetch_srcinfo(name: &str, timeout_seconds: Option<u64>) -> Result<String,
     let text = if let Some(timeout) = timeout_seconds {
         let timeout_str = timeout.to_string();
         curl::curl_text_with_args(&url, &["--max-time", &timeout_str])
-            .map_err(|e| format!("curl failed: {}", e))?
+            .map_err(|e| format!("curl failed: {e}"))?
     } else {
-        curl::curl_text(&url).map_err(|e| format!("curl failed: {}", e))?
+        curl::curl_text(&url).map_err(|e| format!("curl failed: {e}"))?
     };
 
     if text.trim().is_empty() {
@@ -72,7 +72,7 @@ pub async fn fetch_srcinfo_async(client: &reqwest::Client, name: &str) -> Result
         .get(&url)
         .send()
         .await
-        .map_err(|e| format!("HTTP request failed: {}", e))?;
+        .map_err(|e| format!("HTTP request failed: {e}"))?;
 
     if !response.status().is_success() {
         return Err(format!(
@@ -84,7 +84,7 @@ pub async fn fetch_srcinfo_async(client: &reqwest::Client, name: &str) -> Result
     let text = response
         .text()
         .await
-        .map_err(|e| format!("Failed to read response body: {}", e))?;
+        .map_err(|e| format!("Failed to read response body: {e}"))?;
 
     if text.trim().is_empty() {
         return Err("Empty .SRCINFO content".to_string());

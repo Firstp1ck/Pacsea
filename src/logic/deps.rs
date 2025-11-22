@@ -79,13 +79,12 @@ fn process_conflicts(
 
         let reason = if is_installed && is_in_install_list {
             format!(
-                "conflicts with {} (installed and in install list)",
-                conflict_name
+                "conflicts with {conflict_name} (installed and in install list)"
             )
         } else if is_installed {
-            format!("conflicts with installed package {}", conflict_name)
+            format!("conflicts with installed package {conflict_name}")
         } else {
-            format!("conflicts with package {} in install list", conflict_name)
+            format!("conflicts with package {conflict_name} in install list")
         };
 
         // Add or update conflict entry for the conflicting package

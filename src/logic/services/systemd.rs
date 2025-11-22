@@ -74,7 +74,7 @@ pub(crate) fn fetch_active_service_binaries(
         match run_command(
             "systemctl",
             &["show", unit, "-p", "ExecStart"],
-            &format!("systemctl show {} -p ExecStart", unit),
+            &format!("systemctl show {unit} -p ExecStart"),
         ) {
             Ok(output) => {
                 let binaries = parse_execstart_paths(&output);

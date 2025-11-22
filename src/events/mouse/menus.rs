@@ -157,7 +157,7 @@ fn handle_export_button(app: &mut AppState) -> Option<bool> {
             tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
         }
         Err(e) => {
-            let error_msg = format!("{}", e);
+            let error_msg = format!("{e}");
             app.toast_message = Some(crate::i18n::t_fmt1(
                 app,
                 "app.toasts.export_failed",

@@ -147,8 +147,9 @@ fn render_sidebar(
 
     // Package list
     for p in items.iter().take(10) {
+        let p_name = &p.name;
         s_lines.push(Line::from(Span::styled(
-            format!("- {}", p.name),
+            format!("- {p_name}"),
             Style::default().fg(th.text),
         )));
     }

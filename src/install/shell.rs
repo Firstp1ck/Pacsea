@@ -112,7 +112,7 @@ fn try_spawn_terminal(
     let mut cmd = Command::new(term);
     if needs_xfce_command && term == "xfce4-terminal" {
         let quoted = shell_single_quote(script_exec);
-        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+        cmd.arg("--command").arg(format!("bash -lc {quoted}"));
     } else {
         cmd.args(args.iter().copied()).arg(script_exec);
     }
@@ -133,7 +133,7 @@ fn try_spawn_terminal(
             log_to_terminal_log(&format!("spawn result: ok pid={}\n", child.id()));
         }
         Err(e) => {
-            log_to_terminal_log(&format!("spawn result: err error={}\n", e));
+            log_to_terminal_log(&format!("spawn result: err error={e}\n"));
         }
     }
     res.map(|_| true)
@@ -178,7 +178,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
         p.push(format!("pacsea_scan_{}_{}.sh", std::process::id(), ts));
-        let _ = std::fs::write(&p, format!("#!/bin/bash\n{}\n", cmd_str));
+        let _ = std::fs::write(&p, format!("#!/bin/bash\n{cmd_str}\n"));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -309,7 +309,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool)
                 log_to_terminal_log(&format!("spawn result: ok pid={}\n", child.id()));
             }
             Err(e) => {
-                log_to_terminal_log(&format!("spawn result: err error={}\n", e));
+                log_to_terminal_log(&format!("spawn result: err error={e}\n"));
             }
         }
     }

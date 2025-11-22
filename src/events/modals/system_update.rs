@@ -182,7 +182,7 @@ fn handle_system_update_enter(
     }
     let to_run: Vec<String> = if dry_run {
         cmds.iter()
-            .map(|c| format!("echo DRY RUN: {}", c))
+            .map(|c| format!("echo DRY RUN: {c}"))
             .collect()
     } else {
         cmds

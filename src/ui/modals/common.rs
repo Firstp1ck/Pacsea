@@ -47,7 +47,7 @@ pub fn render_simple_list_modal(
         .block(
             Block::default()
                 .title(ratatui::text::Span::styled(
-                    format!(" {} ", box_title),
+                    format!(" {box_title} "),
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)

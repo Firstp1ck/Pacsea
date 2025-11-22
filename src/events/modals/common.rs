@@ -93,7 +93,8 @@ pub(crate) fn handle_preflight_exec(
         }
         KeyCode::Char('l') => {
             *verbose = !*verbose;
-            app.toast_message = Some(format!("Verbose: {}", if *verbose { "ON" } else { "OFF" }));
+            let verbose_status = if *verbose { "ON" } else { "OFF" };
+            app.toast_message = Some(format!("Verbose: {verbose_status}"));
         }
         // TODO: implement Logic for aborting the transaction
         KeyCode::Char('x') => {

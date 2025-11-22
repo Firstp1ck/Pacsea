@@ -89,7 +89,7 @@ fi
             perm.set_mode(0o755);
             std::fs::set_permissions(&curl, perm).unwrap();
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe {
             std::env::set_var("PATH", &new_path);
             std::env::set_var("PACSEA_FAKE_STATE_DIR", bin.to_string_lossy().to_string());

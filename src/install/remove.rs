@@ -119,7 +119,7 @@ fn try_spawn_terminal(
     let mut cmd = Command::new(term);
     if needs_xfce_command && term == "xfce4-terminal" {
         let quoted = shell_single_quote(cmd_str);
-        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+        cmd.arg("--command").arg(format!("bash -lc {quoted}"));
     } else {
         cmd.args(args.iter().copied()).arg(cmd_str);
     }
@@ -395,7 +395,7 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
             );
         } else {
             let msg = if _dry_run {
-                format!("DRY RUN: {}", cmd)
+                format!("DRY RUN: {cmd}")
             } else {
                 format!(
                     "Remove {} with pacman {flag} (not supported on Windows)",

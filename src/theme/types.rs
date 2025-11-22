@@ -203,7 +203,7 @@ impl KeyChord {
         if parts.is_empty() || matches!(self.code, KeyCode::BackTab) {
             key
         } else {
-            format!("{}+{}", parts.join("+"), key)
+            format!("{}+{key}", parts.join("+"))
         }
     }
 }

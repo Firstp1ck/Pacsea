@@ -32,7 +32,7 @@ pub(crate) fn collect_service_units_for_package(
             let output = run_command(
                 "pacman",
                 &["-Fl", package],
-                &format!("pacman -Fl {}", package),
+                &format!("pacman -Fl {package}"),
             )?;
             let units = extract_service_units_from_file_list(&output, package);
             Ok(units)
@@ -45,7 +45,7 @@ pub(crate) fn collect_service_units_for_package(
             {
                 let file_list = installed_files
                     .iter()
-                    .map(|f| format!("{} {}", package, f))
+                    .map(|f| format!("{package} {f}"))
                     .collect::<Vec<_>>()
                     .join("\n");
                 let units = extract_service_units_from_file_list(&file_list, package);

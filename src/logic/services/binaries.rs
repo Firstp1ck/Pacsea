@@ -31,7 +31,7 @@ pub(crate) fn collect_binaries_for_package(
             let output = run_command(
                 "pacman",
                 &["-Fl", package],
-                &format!("pacman -Fl {}", package),
+                &format!("pacman -Fl {package}"),
             )?;
             let binaries = extract_binaries_from_file_list(&output, package);
             Ok(binaries)
@@ -45,7 +45,7 @@ pub(crate) fn collect_binaries_for_package(
                 let binaries = extract_binaries_from_file_list(
                     &installed_files
                         .iter()
-                        .map(|f| format!("{} {}", package, f))
+                        .map(|f| format!("{package} {f}"))
                         .collect::<Vec<_>>()
                         .join("\n"),
                     package,

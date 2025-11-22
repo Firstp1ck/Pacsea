@@ -59,7 +59,7 @@ pub fn spawn_details_worker(
                                 it.name, e
                             ),
                             Source::Aur => {
-                                format!("AUR package details unavailable for {}: {}", it.name, e)
+                                format!("AUR package details unavailable for {}: {e}", it.name)
                             }
                         };
                         let _ = net_err_tx_details.send(msg);

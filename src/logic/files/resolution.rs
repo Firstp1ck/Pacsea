@@ -43,7 +43,7 @@ pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<Stri
                     if repo.is_empty() {
                         name.to_string()
                     } else {
-                        format!("{}/{}", repo, name)
+                        format!("{repo}/{name}")
                     }
                 })
                 .collect();

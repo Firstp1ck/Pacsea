@@ -281,7 +281,7 @@ pub fn open_file(path: &std::path::Path) {
                     .args([
                         "-NoProfile",
                         "-Command",
-                        &format!("Invoke-Item '{}'", path_str),
+                        &format!("Invoke-Item '{path_str}'"),
                     ])
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
@@ -345,7 +345,7 @@ pub fn open_url(_url: &str) {
                     .or_else(|_| {
                         // Fallback: try PowerShell
                         std::process::Command::new("powershell")
-                            .args(["-Command", &format!("Start-Process '{}'", url)])
+                            .args(["-Command", &format!("Start-Process '{url}'")])
                             .stdin(std::process::Stdio::null())
                             .stdout(std::process::Stdio::null())
                             .stderr(std::process::Stdio::null())

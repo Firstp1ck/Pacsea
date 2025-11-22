@@ -96,7 +96,7 @@ pub fn render_post_summary(
             .take((h as usize).saturating_sub(10))
         {
             lines.push(Line::from(Span::styled(
-                format!("- {}", s),
+                format!("- {s}"),
                 Style::default().fg(th.text),
             )));
         }

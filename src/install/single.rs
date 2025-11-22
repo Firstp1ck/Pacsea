@@ -43,7 +43,7 @@ fn try_spawn_terminal(
     let mut cmd = Command::new(term);
     if needs_xfce_command && term == "xfce4-terminal" {
         let quoted = shell_single_quote(cmd_str);
-        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+        cmd.arg("--command").arg(format!("bash -lc {quoted}"));
     } else {
         cmd.args(args.iter().copied()).arg(cmd_str);
     }

@@ -393,7 +393,7 @@ fn handle_installed_cache_polling(
                         "Configuration directories were found in your home directory:\n\n",
                     );
                     for (pkg, dir) in &found_configs {
-                        message.push_str(&format!("  {}: {}\n", pkg, dir.display()));
+                        message.push_str(&format!("  {pkg}: {}\n", dir.display()));
                     }
                     message.push_str("\nYou may want to manually remove these directories if they are no longer needed.");
                     app.modal = crate::state::Modal::Alert { message };

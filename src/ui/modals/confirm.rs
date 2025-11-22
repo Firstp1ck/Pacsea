@@ -51,8 +51,9 @@ pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: 
         )));
     } else {
         for p in items.iter().take((h as usize).saturating_sub(6)) {
+            let p_name = &p.name;
             lines.push(Line::from(Span::styled(
-                format!("- {}", p.name),
+                format!("- {p_name}"),
                 Style::default().fg(th.text),
             )));
         }
@@ -142,8 +143,9 @@ pub fn render_confirm_remove(f: &mut Frame, app: &AppState, area: Rect, items: &
         )));
     } else {
         for p in items.iter().take((h as usize).saturating_sub(6)) {
+            let p_name = &p.name;
             lines.push(Line::from(Span::styled(
-                format!("- {}", p.name),
+                format!("- {p_name}"),
                 Style::default().fg(th.text),
             )));
         }

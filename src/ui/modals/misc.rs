@@ -72,7 +72,7 @@ pub fn render_optional_deps(
         if let Some(note) = &row.note {
             segs.push(Span::raw("  "));
             segs.push(Span::styled(
-                format!("({})", note),
+                format!("({note})"),
                 Style::default().fg(th.overlay2),
             ));
         }

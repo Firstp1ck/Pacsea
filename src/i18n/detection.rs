@@ -63,9 +63,9 @@ fn parse_locale_string(locale_str: &str) -> Option<String> {
         if parts.len() == 3 {
             // Handle script variant (e.g., "zh-Hans-CN")
             let script = parts[2];
-            Some(format!("{}-{}-{}", language, script, region))
+            Some(format!("{language}-{script}-{region}"))
         } else {
-            Some(format!("{}-{}", language, region))
+            Some(format!("{language}-{region}"))
         }
     } else if parts.len() == 1 {
         // Single part locale (e.g., "en", "de") - return as-is for fallback handling

@@ -28,7 +28,7 @@ pub fn build_scan_cmds_in_dir(target_dir: &str) -> Vec<String> {
     let mut cmds: Vec<String> = Vec::new();
 
     // Basic context and logging
-    cmds.push(format!("target_dir='{}'", target_dir));
+    cmds.push(format!("target_dir='{target_dir}'"));
     cmds.push("echo \"[PACSEA] scan_start dir='$target_dir' ts=$(date -Ins) shell=$SHELL term=$TERM display=$DISPLAY\"".to_string());
     cmds.push("echo \"Pacsea: scanning directory in-place: '$target_dir'\"".to_string());
     cmds.push("cd \"$target_dir\" && { export PACSEA_DEBUG_LOG=\"$(pwd)/.pacsea_debug.log\"; exec > >(tee -a \"$PACSEA_DEBUG_LOG\") 2>&1; exec 9>>\"$PACSEA_DEBUG_LOG\"; export BASH_XTRACEFD=9; set -x; echo \"Pacsea debug: $(date) start in-place scan for '$target_dir' in $PWD\"; trap 'code=$?; echo; echo \"Pacsea debug: exit code=$code\"; echo \"Log: $PACSEA_DEBUG_LOG\"; echo \"Press any key to close...\"; read -rn1 -s _' EXIT; }".to_string());

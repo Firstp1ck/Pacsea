@@ -354,7 +354,7 @@ fn create_tab_label_span(
     tab_color: ratatui::style::Color,
 ) -> Span<'static> {
     let text = if is_active {
-        format!("[{}]", label)
+        format!("[{label}]")
     } else {
         label.to_string()
     };

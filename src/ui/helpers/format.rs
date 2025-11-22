@@ -199,9 +199,9 @@ pub fn format_bytes(value: u64) -> String {
         unit_index += 1;
     }
     if unit_index == 0 {
-        format!("{} {}", value, UNITS[unit_index])
+        format!("{value} {}", UNITS[unit_index])
     } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
+        format!("{size:.1} {}", UNITS[unit_index])
     }
 }
 
@@ -246,5 +246,5 @@ pub fn human_bytes(n: u64) -> String {
         v /= 1024.0;
         i += 1;
     }
-    format!("{:.1} {}", v, UNITS[i])
+    format!("{v:.1} {}", UNITS[i])
 }

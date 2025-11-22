@@ -143,7 +143,7 @@ mod tests {
             perm.set_mode(0o755);
             std::fs::set_permissions(&curl, perm).expect("Failed to set test curl script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
 
         let item = PackageItem {
@@ -216,7 +216,7 @@ mod tests {
             perm.set_mode(0o755);
             std::fs::set_permissions(&yay, perm).expect("Failed to set test yay script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
 
         // Set HOME to empty directory to avoid finding cached PKGBUILDs

@@ -90,21 +90,18 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
     // Determine text based on ratio, label, and service name
     let mut text = if *ratio < 90.0 {
         format!(
-            "{} outage (see status) — {} today: {:.1}%",
-            name, name, ratio
+            "{name} outage (see status) — {name} today: {ratio:.1}%"
         )
     } else if *ratio < 95.0 {
         format!(
-            "{} degraded (see status) — {} today: {:.1}%",
-            name, name, ratio
+            "{name} degraded (see status) — {name} today: {ratio:.1}%"
         )
     } else if *label == "poor" || *color_str == "red" {
         format!(
-            "{} issues detected (see status) — {} today: {:.1}%",
-            name, name, ratio
+            "{name} issues detected (see status) — {name} today: {ratio:.1}%"
         )
     } else {
-        format!("Arch systems nominal — {} today: {:.1}%", name, ratio)
+        format!("Arch systems nominal — {name} today: {ratio:.1}%")
     };
 
     // Always append AUR status in parentheses if AUR is not the worst service AND AUR has issues

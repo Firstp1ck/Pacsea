@@ -185,7 +185,7 @@ exit 0
             perm.set_mode(0o755);
             std::fs::set_permissions(&script, perm).expect("Failed to set test pacman script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
 
         let pkgs = super::fetch_official_pkg_names().await.expect("Failed to fetch official package names in test");

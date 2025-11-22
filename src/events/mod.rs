@@ -155,7 +155,7 @@ mod tests {
         let orig_path = std::env::var_os("PATH");
         // Prepend our fake terminal directory to PATH to ensure xfce4-terminal is found first
         let combined_path = match std::env::var("PATH") {
-            Ok(p) => format!("{}:{}", dir.display(), p),
+            Ok(p) => format!("{}:{p}", dir.display()),
             Err(_) => dir.display().to_string(),
         };
         unsafe {
