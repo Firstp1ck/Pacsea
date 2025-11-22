@@ -33,6 +33,10 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
 /// Output:
 /// - `Ok(())` on success; otherwise an I/O error.
 ///
+/// # Errors
+/// - Returns `Err` when the logs directory cannot be accessed or created
+/// - Returns `Err` when the log file cannot be opened or written to
+///
 /// Details:
 /// - Appends to `logs_dir/remove_log.log` without timestamps.
 pub fn log_removed(names: &[String]) -> std::io::Result<()> {

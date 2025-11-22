@@ -136,6 +136,11 @@ pub(super) fn get_available_version(name: &str) -> Option<String> {
 /// Output:
 /// - Returns the installed version string on success; otherwise an error message.
 ///
+/// # Errors
+/// - Returns `Err` when `pacman -Q` command execution fails (I/O error)
+/// - Returns `Err` when the package is not found or not installed
+/// - Returns `Err` when the version string cannot be parsed from command output
+///
 /// Details:
 /// - Normalizes versions by removing revision suffixes to facilitate requirement comparisons.
 pub fn get_installed_version(name: &str) -> Result<String, String> {

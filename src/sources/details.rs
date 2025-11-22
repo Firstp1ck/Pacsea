@@ -326,6 +326,12 @@ mod size_tests {
 ///
 /// Output:
 /// - `Ok(PackageDetails)` on success; `Err` if retrieval or parsing fails.
+///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when package details cannot be fetched from official repositories or AUR
+/// - Returns `Err` when response parsing fails (invalid JSON or missing fields)
+///
 pub async fn fetch_details(item: PackageItem) -> Result<PackageDetails> {
     match item.source.clone() {
         Source::Official { repo, arch } => fetch_official_details(repo, arch, item).await,

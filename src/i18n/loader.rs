@@ -15,6 +15,13 @@ use crate::i18n::translations::TranslationMap;
 /// Output:
 /// - `Result<TranslationMap, String>` containing translations or error
 ///
+/// # Errors
+/// - Returns `Err` when the locale code is empty or has an invalid format
+/// - Returns `Err` when the locale file does not exist in the locales directory
+/// - Returns `Err` when the locale file cannot be read (I/O error)
+/// - Returns `Err` when the locale file is empty
+/// - Returns `Err` when the YAML content cannot be parsed
+///
 /// Details:
 /// - Loads file from `locales_dir/{locale}.yml`
 /// - Parses YAML structure into nested `HashMap`
@@ -190,6 +197,9 @@ impl LocaleLoader {
     ///
     /// Output:
     /// - `Result<TranslationMap, String>` containing translations
+    ///
+    /// # Errors
+    /// - Returns `Err` when the locale file cannot be loaded (see `load_locale_file` for specific error conditions)
     ///
     /// Details:
     /// - Caches loaded translations to avoid re-reading files

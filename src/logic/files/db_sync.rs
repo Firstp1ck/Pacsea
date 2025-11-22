@@ -111,6 +111,10 @@ pub fn is_file_db_stale(max_age_days: u64) -> Option<bool> {
 /// Output:
 /// - Returns `Ok(true)` if sync was performed, `Ok(false)` if sync was skipped (fresh DB), `Err` if sync failed.
 ///
+/// # Errors
+/// - Returns `Err` when `pacman -Fy` command execution fails (I/O error)
+/// - Returns `Err` when `pacman -Fy` exits with non-zero status
+///
 /// Details:
 /// - Checks timestamp first if `force` is false, only syncing when stale.
 /// - Intended to reduce false negatives when later querying remote file lists.

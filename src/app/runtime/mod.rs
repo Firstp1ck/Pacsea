@@ -34,6 +34,11 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// Output:
 /// - `Ok(())` when the UI exits cleanly; `Err` on unrecoverable terminal or runtime errors.
 ///
+/// # Errors
+/// - Returns `Err` when terminal setup fails (e.g., unable to initialize terminal backend)
+/// - Returns `Err` when terminal restoration fails on exit
+/// - Returns `Err` when critical runtime errors occur during initialization or event loop execution
+///
 /// Details:
 /// - Config/state: Migrates legacy configs, loads settings (layout, keymap, sort), and reads
 ///   persisted files (details cache, recent queries, install list, on-disk official index).

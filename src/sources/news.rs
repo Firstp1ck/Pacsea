@@ -7,6 +7,11 @@ type Result<T> = super::Result<T>;
 /// Input: `limit` maximum number of items to return (best-effort)
 /// Output: `Ok(Vec<NewsItem>)` with date/title/url; `Err` on network or parse failures
 ///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when RSS feed cannot be fetched from Arch Linux website
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+///
 /// Details: Downloads the Arch Linux news RSS feed and iteratively parses `<item>` blocks,
 /// extracting `<title>`, `<link>`, and `<pubDate>`. The `pubDate` value is normalized to a
 /// date-only form via `strip_time_and_tz`.

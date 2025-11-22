@@ -98,6 +98,11 @@ pub fn theme() -> Theme {
 /// - `Ok(())` when the theme is reloaded successfully.
 /// - `Err(String)` with a human-readable reason when reloading fails.
 ///
+/// # Errors
+/// - Returns `Err` when no theme configuration file is found
+/// - Returns `Err` when theme file cannot be loaded or parsed
+/// - Returns `Err` when theme validation fails
+///
 /// Details:
 /// - Keeps the in-memory cache up to date so the UI can refresh without restarting Pacsea.
 /// - Returns an error if the theme file is missing or contains validation problems.

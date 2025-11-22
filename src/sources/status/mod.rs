@@ -17,6 +17,12 @@ type Result<T> = super::Result<T>;
 /// Output:
 /// - `Ok((text, color))` where `text` summarizes current status and `color` indicates severity.
 /// - `Err` on network or parse failures.
+///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when status API response cannot be fetched or parsed
+/// - Returns `Err` when task spawn fails
+///
 pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     // 1) Prefer the official Statuspage API (reliable for active incidents and component states)
     let api_url = "https://status.archlinux.org/api/v2/summary.json";

@@ -181,6 +181,10 @@ fn get_official_file_list(name: &str, repo: &str) -> Result<Vec<String>, String>
 /// Output:
 /// - Returns the list of file paths or an error when retrieval fails.
 ///
+/// # Errors
+/// - Returns `Err` when `pacman -Fl` command execution fails for official packages
+/// - Returns `Err` when file database is not synced and command fails
+///
 /// Details:
 /// - Uses `pacman -Fl` for official packages and currently returns an empty list for AUR entries.
 pub fn get_remote_file_list(name: &str, source: &Source) -> Result<Vec<String>, String> {
@@ -197,6 +201,10 @@ pub fn get_remote_file_list(name: &str, source: &Source) -> Result<Vec<String>, 
 ///
 /// Output:
 /// - Returns file paths owned by the package or an empty list when it is not installed.
+///
+/// # Errors
+/// - Returns `Err` when `pacman -Ql` command execution fails (I/O error)
+/// - Returns `Err` when `pacman -Ql` exits with non-zero status for reasons other than package not found
 ///
 /// Details:
 /// - Logs errors if the command fails for reasons other than the package being absent.

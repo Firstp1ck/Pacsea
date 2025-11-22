@@ -238,6 +238,11 @@ pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
 /// Output:
 /// - Returns PKGBUILD content as a string, or an error if fetch fails.
 ///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when PKGBUILD cannot be fetched from AUR or official repositories
+/// - Returns `Err` when rate limiting mutex is poisoned
+///
 /// Details:
 /// - First tries offline methods (yay/paru cache, yay -G, paru -G).
 /// - Then tries AUR with rate limiting (500ms between requests).
@@ -391,6 +396,10 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
 ///
 /// Output:
 /// - Returns .SRCINFO content as a string, or an error if fetch fails.
+///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when .SRCINFO cannot be fetched from AUR
 ///
 /// Details:
 /// - Downloads .SRCINFO from AUR cgit repository.

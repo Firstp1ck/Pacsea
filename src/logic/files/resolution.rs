@@ -100,6 +100,9 @@ pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<Stri
 /// Output:
 /// - Returns a `PackageFileInfo` on success or an error message.
 ///
+/// # Errors
+/// - Returns `Err` when file resolution fails for install or remove operations (see `resolve_install_files` and `resolve_remove_files`)
+///
 /// Details:
 /// - Delegates to either `resolve_install_files` or `resolve_remove_files`.
 pub fn resolve_package_files(
@@ -122,6 +125,10 @@ pub fn resolve_package_files(
 /// Output:
 /// - Returns a populated `PackageFileInfo` or an error when file lists cannot be retrieved.
 ///
+/// # Errors
+/// - Returns `Err` when remote file list retrieval fails (see `get_remote_file_list`)
+/// - Returns `Err` when installed file list retrieval fails (see `get_installed_file_list`)
+///
 /// Details:
 /// - Compares remote file listings with locally installed files and predicts potential `.pacnew` creations.
 pub fn resolve_install_files(name: &str, source: &Source) -> Result<PackageFileInfo, String> {
@@ -139,6 +146,10 @@ pub fn resolve_install_files(name: &str, source: &Source) -> Result<PackageFileI
 ///
 /// Output:
 /// - Returns a populated `PackageFileInfo`.
+///
+/// # Errors
+/// - Returns `Err` when installed file list retrieval fails (see `get_installed_file_list`)
+/// - Returns `Err` when backup files retrieval fails (see `get_backup_files`)
 ///
 /// Details:
 /// - Compares remote file listings with locally installed files and predicts potential `.pacnew` creations.
@@ -225,6 +236,10 @@ pub fn resolve_install_files_with_remote_list(
 ///
 /// Output:
 /// - Returns a `PackageFileInfo` capturing removed files and predicted `.pacsave` candidates.
+///
+/// # Errors
+/// - Returns `Err` when installed file list retrieval fails (see `get_installed_file_list`)
+/// - Returns `Err` when backup files retrieval fails (see `get_backup_files`)
 ///
 /// Details:
 /// - Reads installed file lists and backup arrays to flag configuration files requiring user attention.

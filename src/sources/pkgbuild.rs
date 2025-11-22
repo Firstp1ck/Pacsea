@@ -18,6 +18,12 @@ const PKGBUILD_MIN_INTERVAL_MS: u64 = 200; // Minimum 200ms between requests (re
 /// Output:
 /// - `Ok(String)` with PKGBUILD text when available; `Err` on network or lookup failure.
 ///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when PKGBUILD cannot be fetched from AUR or official GitLab repositories
+/// - Returns `Err` when rate limiting mutex is poisoned
+/// - Returns `Err` when task spawn fails
+///
 /// Details:
 /// - First tries offline methods (yay/paru cache) for fast loading.
 /// - Then tries network with rate limiting and timeout (10s).

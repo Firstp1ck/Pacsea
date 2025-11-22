@@ -56,6 +56,12 @@ fn map_curl_error(code: Option<i32>, status: &std::process::ExitStatus) -> Strin
 /// Output:
 /// - `Ok(Value)` on success; `Err` if curl fails or the response is not valid JSON
 ///
+/// # Errors
+/// - Returns `Err` when curl command execution fails (I/O error or curl not found)
+/// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+/// - Returns `Err` when response body cannot be parsed as JSON
+///
 /// Details:
 /// - Executes curl with appropriate flags and parses the UTF-8 body with `serde_json`.
 /// - On Windows, uses `-k` flag to skip SSL certificate verification.
@@ -121,6 +127,11 @@ pub fn curl_json(url: &str) -> Result<Value> {
 /// Output:
 /// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
 ///
+/// # Errors
+/// - Returns `Err` when curl command execution fails (I/O error or curl not found)
+/// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+///
 /// Details:
 /// - Executes curl with appropriate flags and returns the raw body as a `String`.
 /// - On Windows, uses `-k` flag to skip SSL certificate verification.
@@ -137,6 +148,11 @@ pub fn curl_text(url: &str) -> Result<String> {
 ///
 /// Output:
 /// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
+///
+/// # Errors
+/// - Returns `Err` when curl command execution fails (I/O error or curl not found)
+/// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
+/// - Returns `Err` when response body cannot be decoded as UTF-8
 ///
 /// Details:
 /// - Executes curl with appropriate flags plus extra arguments.

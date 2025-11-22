@@ -14,6 +14,10 @@ use std::process::Command;
 /// Output:
 /// - Returns a list of backup file paths or an empty list when the data cannot be retrieved.
 ///
+/// # Errors
+/// - Returns `Err` when `pacman -Qii` command execution fails for installed packages
+/// - Returns `Err` when PKGBUILD or .SRCINFO fetch fails and no fallback is available
+///
 /// Details:
 /// - Prefers querying the installed package via `pacman -Qii`; falls back to best-effort heuristics.
 #[must_use]
@@ -99,6 +103,10 @@ pub fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, Stri
 ///
 /// Output:
 /// - Returns the backup array as a vector of file paths or an empty list when not installed.
+///
+/// # Errors
+/// - Returns `Err` when `pacman -Qii` command execution fails (I/O error)
+/// - Returns `Err` when `pacman -Qii` exits with non-zero status for reasons other than package not found
 ///
 /// Details:
 /// - Parses the `Backup Files` section, handling wrapped lines to ensure complete coverage.

@@ -14,6 +14,12 @@ use crate::util::{curl, percent_encode};
 /// Output:
 /// - Returns .SRCINFO content as a string, or an error if fetch fails.
 ///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when .SRCINFO cannot be fetched from AUR
+/// - Returns `Err` when response is empty or contains HTML error page
+/// - Returns `Err` when response does not appear to be valid .SRCINFO format
+///
 /// Details:
 /// - Downloads .SRCINFO from AUR cgit repository.
 /// - Validates that the response is not empty, not HTML, and contains .SRCINFO format markers.
@@ -57,6 +63,12 @@ pub fn fetch_srcinfo(name: &str, timeout_seconds: Option<u64>) -> Result<String,
 ///
 /// Output:
 /// - Returns .SRCINFO content as a string, or an error if fetch fails.
+///
+/// # Errors
+/// - Returns `Err` when HTTP request fails (network error or client error)
+/// - Returns `Err` when HTTP response status is not successful
+/// - Returns `Err` when response body cannot be read
+/// - Returns `Err` when response is empty or contains HTML error page
 ///
 /// Details:
 /// - Uses reqwest for async fetching with built-in timeout handling.
