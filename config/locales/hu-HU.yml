@@ -645,7 +645,7 @@ hu-HU:
         log_file: "Naplófájl: {}"
         error_prefix: "Hiba: {}"
         pacman_errors:
-          target_not_found: "Nem található cél"
+          target_not_found: "nem található cél"
           failed_to_commit: "nem sikerült véglegesíteni a tranzakciót"
           failed_to_prepare: "nem sikerült felkészülni a tranzakcióra"
           error_prefix: "hiba:"
