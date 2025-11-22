@@ -289,7 +289,7 @@ mod tests {
             pacsave_candidates: 0,
         }];
 
-        handle_file_result(&mut app, files.clone(), &tick_tx);
+        handle_file_result(&mut app, files, &tick_tx);
 
         // Files should be cached
         assert_eq!(app.install_list_files.len(), 1);

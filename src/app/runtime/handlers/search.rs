@@ -381,7 +381,7 @@ mod tests {
             popularity: None,
         };
         app.details_cache
-            .insert("test-package".to_string(), cached_details.clone());
+            .insert("test-package".to_string(), cached_details);
 
         let (details_tx, mut details_rx) = mpsc::unbounded_channel();
 

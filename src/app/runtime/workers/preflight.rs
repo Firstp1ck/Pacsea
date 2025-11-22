@@ -15,7 +15,7 @@ pub fn spawn_dependency_worker(
     mut deps_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
     deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
 ) {
-    let deps_res_tx_bg = deps_res_tx.clone();
+    let deps_res_tx_bg = deps_res_tx;
     tokio::spawn(async move {
         while let Some(items) = deps_req_rx.recv().await {
             // Run blocking dependency resolution in a thread pool
@@ -55,7 +55,7 @@ pub fn spawn_file_worker(
     mut files_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
     files_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::PackageFileInfo>>,
 ) {
-    let files_res_tx_bg = files_res_tx.clone();
+    let files_res_tx_bg = files_res_tx;
     tokio::spawn(async move {
         while let Some(items) = files_req_rx.recv().await {
             // Run blocking file resolution in a thread pool
@@ -101,7 +101,7 @@ pub fn spawn_service_worker(
     mut services_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
     services_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::ServiceImpact>>,
 ) {
-    let services_res_tx_bg = services_res_tx.clone();
+    let services_res_tx_bg = services_res_tx;
     tokio::spawn(async move {
         while let Some(items) = services_req_rx.recv().await {
             // Run blocking service resolution in a thread pool
@@ -138,7 +138,7 @@ pub fn spawn_sandbox_worker(
     mut sandbox_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
     sandbox_res_tx: mpsc::UnboundedSender<Vec<crate::logic::sandbox::SandboxInfo>>,
 ) {
-    let sandbox_res_tx_bg = sandbox_res_tx.clone();
+    let sandbox_res_tx_bg = sandbox_res_tx;
     tokio::spawn(async move {
         while let Some(items) = sandbox_req_rx.recv().await {
             // Use async version for parallel HTTP fetches
@@ -181,7 +181,7 @@ pub fn spawn_summary_worker(
     )>,
     summary_res_tx: mpsc::UnboundedSender<crate::logic::preflight::PreflightSummaryOutcome>,
 ) {
-    let summary_res_tx_bg = summary_res_tx.clone();
+    let summary_res_tx_bg = summary_res_tx;
     tokio::spawn(async move {
         while let Some((items, action)) = summary_req_rx.recv().await {
             // Run blocking summary computation in a thread pool

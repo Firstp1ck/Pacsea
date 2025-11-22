@@ -542,7 +542,7 @@ mod tests {
             optdepends: vec![],
         }];
 
-        handle_sandbox_result(&mut app, sandbox_info.clone(), &tick_tx);
+        handle_sandbox_result(&mut app, sandbox_info, &tick_tx);
 
         // `SandboxInfo` should be cached
         assert_eq!(app.install_list_sandbox.len(), 1);

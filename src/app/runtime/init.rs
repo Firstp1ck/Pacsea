@@ -52,17 +52,17 @@ pub fn initialize_locale_system(
     // Resolve locale
     let resolver = crate::i18n::LocaleResolver::new(&i18n_config_path);
     let resolved_locale = resolver.resolve(locale_pref);
-    app.locale = resolved_locale.clone();
 
     tracing::info!(
         "Resolved locale: '{}' (from settings: '{}')",
-        resolved_locale,
+        &resolved_locale,
         if locale_pref.trim().is_empty() {
             "<auto-detect>"
         } else {
             locale_pref
         }
     );
+    app.locale = resolved_locale.clone();
 
     // Load translations
     let mut loader = crate::i18n::LocaleLoader::new(locales_dir);
@@ -71,7 +71,7 @@ pub fn initialize_locale_system(
     match loader.load("en-US") {
         Ok(fallback) => {
             let key_count = fallback.len();
-            app.translations_fallback = fallback.clone();
+            app.translations_fallback = fallback;
             tracing::debug!("Loaded English fallback translations ({} keys)", key_count);
         }
         Err(e) => {

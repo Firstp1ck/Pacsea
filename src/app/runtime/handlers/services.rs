@@ -134,7 +134,7 @@ mod tests {
             restart_decision: crate::state::modal::ServiceRestartDecision::Defer,
         }];
 
-        handle_service_result(&mut app, services.clone(), &tick_tx);
+        handle_service_result(&mut app, services, &tick_tx);
 
         // Services should be cached
         assert_eq!(app.install_list_services.len(), 1);

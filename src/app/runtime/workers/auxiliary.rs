@@ -383,7 +383,7 @@ fn process_qua_output(
 /// - Saves list to `~/.config/pacsea/lists/available_updates.txt`
 /// - Sends `(count, sorted_list)` via channel
 pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>) {
-    let updates_tx_once = updates_tx.clone();
+    let updates_tx_once = updates_tx;
     tokio::spawn(async move {
         let result = tokio::task::spawn_blocking(move || {
             use std::collections::HashSet;
@@ -492,8 +492,8 @@ pub fn spawn_event_thread(
     event_thread_cancelled: Arc<AtomicBool>,
 ) {
     if !headless {
-        let event_tx_for_thread = event_tx.clone();
-        let cancelled = event_thread_cancelled.clone();
+        let event_tx_for_thread = event_tx;
+        let cancelled = event_thread_cancelled;
         std::thread::spawn(move || {
             loop {
                 // Check cancellation flag first for immediate exit

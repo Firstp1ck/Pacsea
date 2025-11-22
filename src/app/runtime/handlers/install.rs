@@ -348,7 +348,7 @@ mod tests {
             is_system: false,
         }];
 
-        handle_dependency_result(&mut app, deps.clone(), &tick_tx);
+        handle_dependency_result(&mut app, deps, &tick_tx);
 
         // Dependencies should be cached
         assert_eq!(app.install_list_deps.len(), 1);

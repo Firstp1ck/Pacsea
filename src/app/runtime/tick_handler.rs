@@ -94,7 +94,7 @@ fn check_and_trigger_summary_resolution(
         crate::state::modal::PreflightAction,
     )>,
 ) {
-    if let Some((ref items, ref action)) = app.preflight_summary_items
+    if let Some((items, action)) = app.preflight_summary_items.take()
         && !app.preflight_summary_resolving
     {
         tracing::debug!(
@@ -103,7 +103,7 @@ fn check_and_trigger_summary_resolution(
             action
         );
         app.preflight_summary_resolving = true;
-        let _ = summary_req_tx.send((items.clone(), *action));
+        let _ = summary_req_tx.send((items, action));
     } else if app.preflight_summary_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering summary - items={}, preflight_summary_resolving={}",
@@ -121,7 +121,7 @@ fn check_and_trigger_deps_resolution(
     app: &mut AppState,
     deps_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
 ) {
-    if let Some(ref items) = app.preflight_deps_items
+    if let Some(items) = app.preflight_deps_items.take()
         && app.preflight_deps_resolving
         && !app.deps_resolving
     {
@@ -132,7 +132,7 @@ fn check_and_trigger_deps_resolution(
             app.deps_resolving
         );
         app.deps_resolving = true;
-        let _ = deps_req_tx.send(items.clone());
+        let _ = deps_req_tx.send(items);
     } else if app.preflight_deps_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
@@ -151,7 +151,7 @@ fn check_and_trigger_files_resolution(
     app: &mut AppState,
     files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
 ) {
-    if let Some(ref items) = app.preflight_files_items
+    if let Some(items) = app.preflight_files_items.take()
         && app.preflight_files_resolving
         && !app.files_resolving
     {
@@ -162,7 +162,7 @@ fn check_and_trigger_files_resolution(
             app.files_resolving
         );
         app.files_resolving = true;
-        let _ = files_req_tx.send(items.clone());
+        let _ = files_req_tx.send(items);
     } else if app.preflight_files_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
@@ -195,7 +195,7 @@ fn check_and_trigger_sandbox_resolution(
     app: &mut AppState,
     sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
 ) {
-    if let Some(ref items) = app.preflight_sandbox_items
+    if let Some(items) = app.preflight_sandbox_items.take()
         && app.preflight_sandbox_resolving
         && !app.sandbox_resolving
     {
@@ -206,7 +206,7 @@ fn check_and_trigger_sandbox_resolution(
             app.sandbox_resolving
         );
         app.sandbox_resolving = true;
-        let _ = sandbox_req_tx.send(items.clone());
+        let _ = sandbox_req_tx.send(items);
     } else if app.preflight_sandbox_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering sandbox - items={}, preflight_sandbox_resolving={}, sandbox_resolving={}",
@@ -387,7 +387,7 @@ fn handle_installed_cache_polling(
                 for pkg in &pending_rm {
                     let config_dirs = crate::install::check_config_directories(pkg, &home);
                     for dir in config_dirs {
-                        found_configs.push((pkg.clone(), dir));
+                        found_configs.push((pkg.to_string(), dir));
                     }
                 }
 
