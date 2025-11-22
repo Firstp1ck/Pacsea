@@ -122,7 +122,6 @@ pub fn render_preflight(
         fields.summary,
         fields.dependency_info,
         fields.file_info,
-        fields.service_info,
         *fields.services_loaded,
         fields.sandbox_info,
         *fields.sandbox_loaded,

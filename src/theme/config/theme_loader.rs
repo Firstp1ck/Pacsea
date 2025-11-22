@@ -80,9 +80,7 @@ pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, Stri
         let preferred: Vec<String> = missing.iter().map(|k| canonical_to_preferred(k)).collect();
         errors.push(format!("- Missing required keys: {}", preferred.join(", ")));
     }
-    if !errors.is_empty() {
-        Err(errors.join("\n"))
-    } else {
+    if errors.is_empty() {
         let get = |name: &str| {
             map.get(name)
                 .copied()
@@ -106,6 +104,8 @@ pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, Stri
             red: get("red"),
             lavender: get("lavender"),
         })
+    } else {
+        Err(errors.join("\n"))
     }
 }
 

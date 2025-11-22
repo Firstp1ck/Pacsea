@@ -367,7 +367,9 @@ pub fn sync_services(
     } else if service_info.is_empty() && !*services_loaded {
         // Check if cache file exists with matching signature (even if empty)
         let cache_check_start = std::time::Instant::now();
-        let cache_exists = if !items.is_empty() {
+        let cache_exists = if items.is_empty() {
+            false
+        } else {
             let signature = crate::app::services_cache::compute_signature(items);
             let result =
                 crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
@@ -380,8 +382,6 @@ pub fn sync_services(
                 );
             }
             result
-        } else {
-            false
         };
 
         if cache_exists {

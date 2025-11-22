@@ -401,12 +401,12 @@ fn handle_change_sort(
     crate::theme::save_sort_mode(app.sort_mode);
     crate::logic::sort_results_preserve_selection(app);
     // Jump selection to top and refresh details
-    if !app.results.is_empty() {
+    if app.results.is_empty() {
+        app.list_state.select(None);
+    } else {
         app.selected = 0;
         app.list_state.select(Some(0));
         utils::refresh_selected_details(app, details_tx);
-    } else {
-        app.list_state.select(None);
     }
     // Show the dropdown so the user sees the current option with a check mark
     app.sort_menu_open = true;

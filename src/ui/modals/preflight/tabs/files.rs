@@ -207,8 +207,18 @@ fn render_empty_state(
         }
     }
 
-    if !file_info.is_empty() {
-        if !unresolved_packages.is_empty() {
+    if file_info.is_empty() {
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.files.file_resolution_progress"),
+            Style::default().fg(th.subtext1),
+        )));
+    } else {
+        if unresolved_packages.is_empty() {
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.files.no_file_changes_display"),
+                Style::default().fg(th.subtext1),
+            )));
+        } else {
             lines.push(Line::from(Span::styled(
                 i18n::t_fmt1(
                     app,
@@ -235,17 +245,7 @@ fn render_empty_state(
                     Style::default().fg(th.subtext0),
                 )));
             }
-        } else {
-            lines.push(Line::from(Span::styled(
-                i18n::t(app, "app.modals.preflight.files.no_file_changes_display"),
-                Style::default().fg(th.subtext1),
-            )));
         }
-    } else {
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.files.file_resolution_progress"),
-            Style::default().fg(th.subtext1),
-        )));
     }
 
     if let Some(true) = is_stale {

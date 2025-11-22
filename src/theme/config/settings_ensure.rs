@@ -121,13 +121,13 @@ fn parse_missing_settings(
             let raw_key = parts.next().unwrap_or("");
             let skeleton_value = parts.next().unwrap_or("").trim().to_string();
             let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
-            if !have.contains(&key) {
+            if have.contains(&key) {
+                current_comment = None;
+            } else {
                 // Use value from prefs if available, otherwise use skeleton value
                 let value = get_setting_value(&key, skeleton_value, prefs);
                 let setting_line = format!("{} = {}", raw_key.trim(), value);
                 missing_settings.push((setting_line, current_comment.take()));
-            } else {
-                current_comment = None;
             }
         }
     }
@@ -245,14 +245,14 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     // Ensure keybinds file exists with skeleton if missing (best-effort)
     let kb = config_dir().join("keybinds.conf");
-    if !kb.exists() {
+    if kb.exists() {
+        // Append missing keybinds to existing file
+        ensure_keybinds_present(&kb);
+    } else {
         if let Some(dir) = kb.parent() {
             let _ = fs::create_dir_all(dir);
         }
         let _ = fs::write(kb, KEYBINDS_SKELETON_CONTENT);
-    } else {
-        // Append missing keybinds to existing file
-        ensure_keybinds_present(&kb);
     }
 }
 
@@ -322,10 +322,10 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
             let mut parts = trimmed.splitn(2, '=');
             let raw_key = parts.next().unwrap_or("");
             let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
-            if !have.contains(&key) {
-                missing_keybinds.push((trimmed.to_string(), current_comment.take()));
-            } else {
+            if have.contains(&key) {
                 current_comment = None;
+            } else {
+                missing_keybinds.push((trimmed.to_string(), current_comment.take()));
             }
         }
     }

@@ -430,10 +430,10 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             }
         })
         .collect();
-    let batched_deps_cache = if !official_packages.is_empty() {
-        batch_fetch_official_deps(&official_packages)
-    } else {
+    let batched_deps_cache = if official_packages.is_empty() {
         std::collections::HashMap::new()
+    } else {
+        batch_fetch_official_deps(&official_packages)
     };
 
     // Resolve ONLY direct dependencies (non-recursive)

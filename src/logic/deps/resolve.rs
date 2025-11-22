@@ -739,14 +739,14 @@ mod tests {
         fn drop(&mut self) {
             if let Some(ref orig) = self.original {
                 // Only restore if the original PATH was valid (not empty)
-                if !orig.is_empty() {
-                    unsafe {
-                        std::env::set_var("PATH", orig);
-                    }
-                } else {
+                if orig.is_empty() {
                     // If original was empty, restore to a default system PATH
                     unsafe {
                         std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin");
+                    }
+                } else {
+                    unsafe {
+                        std::env::set_var("PATH", orig);
                     }
                 }
             } else {

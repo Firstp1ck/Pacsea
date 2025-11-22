@@ -139,11 +139,11 @@ pub(super) fn load_cached_services(
     }
 
     // Check if cache file exists with matching signature
-    let cache_exists = if !items.is_empty() {
+    let cache_exists = if items.is_empty() {
+        false
+    } else {
         let signature = crate::app::services_cache::compute_signature(items);
         crate::app::services_cache::load_cache(services_cache_path, &signature).is_some()
-    } else {
-        false
     };
 
     if cache_exists && !install_list_services.is_empty() {

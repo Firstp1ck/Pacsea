@@ -116,22 +116,23 @@ pub fn is_file_db_stale(max_age_days: u64) -> Option<bool> {
 /// - Intended to reduce false negatives when later querying remote file lists.
 pub fn ensure_file_db_synced(force: bool, max_age_days: u64) -> Result<bool, String> {
     // Check if we need to sync
-    if !force {
+    if force {
+        tracing::debug!("Force syncing pacman file database...");
+    } else {
         if let Some(is_stale) = is_file_db_stale(max_age_days) {
-            if !is_stale {
+            if is_stale {
+                tracing::debug!(
+                    "File database is stale (older than {} days), syncing...",
+                    max_age_days
+                );
+            } else {
                 tracing::debug!("File database is fresh, skipping sync");
                 return Ok(false);
             }
-            tracing::debug!(
-                "File database is stale (older than {} days), syncing...",
-                max_age_days
-            );
         } else {
             // Can't determine timestamp, try to sync anyway
             tracing::debug!("Cannot determine file database timestamp, attempting sync...");
         }
-    } else {
-        tracing::debug!("Force syncing pacman file database...");
     }
 
     let output = Command::new("pacman")

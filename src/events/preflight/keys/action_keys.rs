@@ -204,15 +204,15 @@ pub(super) fn handle_shift_r_key(app: &mut AppState) -> bool {
             .filter(|p| matches!(p.source, crate::state::Source::Aur))
             .cloned()
             .collect();
-        if !aur_items.is_empty() {
-            app.preflight_sandbox_items = Some(aur_items);
-            app.preflight_sandbox_resolving = true;
-        } else {
+        if aur_items.is_empty() {
             app.preflight_sandbox_items = None;
             app.preflight_sandbox_resolving = false;
             if let crate::state::Modal::Preflight { sandbox_loaded, .. } = &mut app.modal {
                 *sandbox_loaded = true;
             }
+        } else {
+            app.preflight_sandbox_items = Some(aur_items);
+            app.preflight_sandbox_resolving = true;
         }
     }
 

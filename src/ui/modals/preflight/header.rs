@@ -610,7 +610,6 @@ struct TabHeaderContext<'a> {
 /// - `summary`: Summary data (for completion status).
 /// - `dependency_info`: Dependency info (for completion status).
 /// - `file_info`: File info (for completion status).
-/// - `service_info`: Service info (for completion status).
 /// - `services_loaded`: Whether services are loaded.
 /// - `sandbox_info`: Sandbox info (for completion status).
 /// - `sandbox_loaded`: Whether sandbox is loaded.
@@ -633,7 +632,6 @@ pub fn render_tab_header(
     summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
     dependency_info: &[crate::state::modal::DependencyInfo],
     file_info: &[crate::state::modal::PackageFileInfo],
-    service_info: &[crate::state::modal::ServiceImpact],
     services_loaded: bool,
     sandbox_info: &[crate::logic::sandbox::SandboxInfo],
     sandbox_loaded: bool,

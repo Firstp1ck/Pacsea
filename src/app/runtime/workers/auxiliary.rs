@@ -148,7 +148,9 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
         .output()
         .is_ok();
 
-    let has_yay = if !has_paru {
+    let has_yay = if has_paru {
+        false
+    } else {
         Command::new("yay")
             .args(["--version"])
             .stdin(Stdio::null())
@@ -156,8 +158,6 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
             .stderr(Stdio::null())
             .output()
             .is_ok()
-    } else {
-        false
     };
 
     let helper = if has_paru { "paru" } else { "yay" };

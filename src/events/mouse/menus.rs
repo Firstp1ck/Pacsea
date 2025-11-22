@@ -296,12 +296,12 @@ fn handle_sort_menu_click(
         app.sort_menu_open = false;
         app.sort_menu_auto_close_at = None;
         crate::logic::sort_results_preserve_selection(app);
-        if !app.results.is_empty() {
+        if app.results.is_empty() {
+            app.list_state.select(None);
+        } else {
             app.selected = 0;
             app.list_state.select(Some(0));
             refresh_selected_details(app, details_tx);
-        } else {
-            app.list_state.select(None);
         }
         Some(false)
     } else {

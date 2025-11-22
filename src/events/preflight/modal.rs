@@ -17,7 +17,9 @@ pub(super) fn close_preflight_modal(
     app: &mut AppState,
     service_info: &[crate::state::modal::ServiceImpact],
 ) {
-    if !service_info.is_empty() {
+    if service_info.is_empty() {
+        // No services to plan
+    } else {
         app.pending_service_plan = service_info.to_vec();
     }
     app.previous_modal = None;
@@ -64,7 +66,7 @@ pub(super) fn switch_preflight_tab(
         dependency_info,
         dep_selected,
         file_info,
-        file_selected,
+        file_selected: _file_selected,
         service_info,
         service_selected,
         services_loaded,
@@ -112,20 +114,20 @@ pub(super) fn switch_preflight_tab(
                             app.install_list_deps.len(),
                             item_names
                         );
-                        if !cached_deps.is_empty() {
-                            *dependency_info = cached_deps;
-                            *dep_selected = 0;
-                            tracing::info!(
-                                "[Preflight] switch_preflight_tab: Deps - Loaded {} deps into modal, dep_selected=0",
-                                dependency_info.len()
-                            );
-                        } else {
+                        if cached_deps.is_empty() {
                             tracing::debug!(
                                 "[Preflight] Triggering background dependency resolution for {} packages",
                                 items.len()
                             );
                             app.preflight_deps_items = Some(items.to_vec());
                             app.preflight_deps_resolving = true;
+                        } else {
+                            *dependency_info = cached_deps;
+                            *dep_selected = 0;
+                            tracing::info!(
+                                "[Preflight] switch_preflight_tab: Deps - Loaded {} deps into modal, dep_selected=0",
+                                dependency_info.len()
+                            );
                         }
                         app.remove_preflight_summary.clear();
                     }
@@ -165,14 +167,7 @@ pub(super) fn switch_preflight_tab(
                     app.install_list_files.len(),
                     item_names
                 );
-                if !cached_files.is_empty() {
-                    *file_info = cached_files;
-                    *file_selected = 0;
-                    tracing::info!(
-                        "[Preflight] switch_preflight_tab: Files - Loaded {} files into modal, file_selected=0",
-                        file_info.len()
-                    );
-                } else {
+                if cached_files.is_empty() {
                     tracing::debug!(
                         "[Preflight] Triggering background file resolution for {} packages",
                         items.len()
@@ -194,17 +189,21 @@ pub(super) fn switch_preflight_tab(
             && matches!(action, crate::state::PreflightAction::Install)
             && !app.services_resolving
         {
-            let cache_exists = if !items.is_empty() {
+            let cache_exists = if items.is_empty() {
+                false
+            } else {
                 let signature = crate::app::services_cache::compute_signature(items);
                 crate::app::services_cache::load_cache(&app.services_cache_path, &signature)
                     .is_some()
-            } else {
-                false
             };
-            if cache_exists && !app.install_list_services.is_empty() {
-                *service_info = app.install_list_services.clone();
-                *service_selected = 0;
-                *services_loaded = true;
+            if cache_exists {
+                if app.install_list_services.is_empty() {
+                    // Skip if services list is empty
+                } else {
+                    *service_info = app.install_list_services.clone();
+                    *service_selected = 0;
+                    *services_loaded = true;
+                }
             }
         }
 
@@ -223,26 +222,26 @@ pub(super) fn switch_preflight_tab(
                         .filter(|s| item_names.contains(&s.package_name))
                         .cloned()
                         .collect();
-                    if !cached_sandbox.is_empty() {
-                        *sandbox_info = cached_sandbox;
-                        *sandbox_selected = 0;
-                        *sandbox_loaded = true;
-                    } else {
+                    if cached_sandbox.is_empty() {
                         let aur_items: Vec<_> = items
                             .iter()
                             .filter(|p| matches!(p.source, crate::state::Source::Aur))
                             .cloned()
                             .collect();
-                        if !aur_items.is_empty() {
+                        if aur_items.is_empty() {
+                            *sandbox_loaded = true;
+                        } else {
                             tracing::debug!(
                                 "[Preflight] Triggering background sandbox resolution for {} AUR packages",
                                 aur_items.len()
                             );
                             app.preflight_sandbox_items = Some(aur_items);
                             app.preflight_sandbox_resolving = true;
-                        } else {
-                            *sandbox_loaded = true;
                         }
+                    } else {
+                        *sandbox_info = cached_sandbox;
+                        *sandbox_selected = 0;
+                        *sandbox_loaded = true;
                     }
                 }
                 crate::state::PreflightAction::Remove => {

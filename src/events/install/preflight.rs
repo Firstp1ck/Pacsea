@@ -120,7 +120,9 @@ fn load_cached_services(app: &AppState) -> (Vec<crate::state::modal::ServiceImpa
         Vec::new()
     };
 
-    let services_cache_loaded = if !app.install_list.is_empty() {
+    let services_cache_loaded = if app.install_list.is_empty() {
+        false
+    } else {
         let signature = crate::app::services_cache::compute_signature(&app.install_list);
         let loaded =
             crate::app::services_cache::load_cache(&app.services_cache_path, &signature).is_some();
@@ -130,8 +132,6 @@ fn load_cached_services(app: &AppState) -> (Vec<crate::state::modal::ServiceImpa
             signature.len()
         );
         loaded
-    } else {
-        false
     };
 
     let services_loaded = services_cache_loaded || !cached_services.is_empty();
@@ -211,7 +211,9 @@ fn load_cached_sandbox(
         Vec::new()
     };
 
-    let sandbox_cache_loaded = if !items.is_empty() {
+    let sandbox_cache_loaded = if items.is_empty() {
+        false
+    } else {
         let signature = crate::app::sandbox_cache::compute_signature(items);
         let cache_result =
             crate::app::sandbox_cache::load_cache(&app.sandbox_cache_path, &signature);
@@ -228,8 +230,6 @@ fn load_cached_sandbox(
             );
         }
         cache_result.is_some()
-    } else {
-        false
     };
 
     let sandbox_loaded = sandbox_cache_loaded || !cached_sandbox.is_empty();
@@ -402,7 +402,9 @@ fn trigger_background_resolution(
             cached_files.len()
         );
     }
-    if !services_loaded {
+    if services_loaded {
+        tracing::debug!("[Preflight] NOT setting preflight_services_resolving (already loaded)");
+    } else {
         if app.services_resolving {
             tracing::debug!(
                 "[Preflight] NOT setting preflight_services_resolving (global services_resolving already in progress, will reuse result)"
@@ -415,8 +417,6 @@ fn trigger_background_resolution(
             app.preflight_services_items = Some(items.to_vec());
             app.preflight_services_resolving = true;
         }
-    } else {
-        tracing::debug!("[Preflight] NOT setting preflight_services_resolving (already loaded)");
     }
     if cached_sandbox.is_empty() {
         let aur_items: Vec<_> = items
@@ -424,7 +424,9 @@ fn trigger_background_resolution(
             .filter(|p| matches!(p.source, crate::state::Source::Aur))
             .cloned()
             .collect();
-        if !aur_items.is_empty() {
+        if aur_items.is_empty() {
+            tracing::debug!("[Preflight] NOT setting preflight_sandbox_resolving (no AUR items)");
+        } else {
             if app.sandbox_resolving {
                 tracing::debug!(
                     "[Preflight] NOT setting preflight_sandbox_resolving (global sandbox_resolving already in progress, will reuse result)"
@@ -437,8 +439,6 @@ fn trigger_background_resolution(
                 app.preflight_sandbox_items = Some(aur_items);
                 app.preflight_sandbox_resolving = true;
             }
-        } else {
-            tracing::debug!("[Preflight] NOT setting preflight_sandbox_resolving (no AUR items)");
         }
     } else {
         tracing::debug!(

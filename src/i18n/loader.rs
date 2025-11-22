@@ -197,7 +197,13 @@ impl LocaleLoader {
     /// - Logs warnings for missing or invalid locale files
     #[must_use]
     pub fn load(&mut self, locale: &str) -> Result<TranslationMap, String> {
-        if !self.cache.contains_key(locale) {
+        if self.cache.contains_key(locale) {
+            Ok(self
+                .cache
+                .get(locale)
+                .expect("locale should be in cache after contains_key check")
+                .clone())
+        } else {
             match load_locale_file(locale, &self.locales_dir) {
                 Ok(translations) => {
                     let key_count = translations.len();
@@ -214,12 +220,6 @@ impl LocaleLoader {
                     Err(e)
                 }
             }
-        } else {
-            Ok(self
-                .cache
-                .get(locale)
-                .expect("locale should be in cache after contains_key check")
-                .clone())
         }
     }
 

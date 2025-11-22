@@ -38,14 +38,14 @@ pub fn resolve_locale(settings_locale: &str, i18n_config_path: &PathBuf) -> Stri
     } else {
         let trimmed = settings_locale.trim().to_string();
         // Validate locale format (basic check)
-        if !is_valid_locale_format(&trimmed) {
+        if is_valid_locale_format(&trimmed) {
+            trimmed
+        } else {
             tracing::warn!(
                 "Invalid locale format in settings.conf: '{}'. Using system locale or default.",
                 trimmed
             );
             detect_system_locale().unwrap_or_else(|| default_locale.clone())
-        } else {
-            trimmed
         }
     };
 
@@ -286,14 +286,14 @@ impl LocaleResolver {
         } else {
             let trimmed = settings_locale.trim().to_string();
             // Validate locale format (basic check)
-            if !is_valid_locale_format(&trimmed) {
+            if is_valid_locale_format(&trimmed) {
+                trimmed
+            } else {
                 tracing::warn!(
                     "Invalid locale format in settings.conf: '{}'. Using system locale or default.",
                     trimmed
                 );
                 detect_system_locale().unwrap_or_else(|| self.default_locale.clone())
-            } else {
-                trimmed
             }
         };
 

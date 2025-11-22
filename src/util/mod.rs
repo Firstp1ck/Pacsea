@@ -331,6 +331,7 @@ pub fn open_file(path: &std::path::Path) {
 /// This function spawns the command in a background thread and ignores errors.
 /// During tests, this is a no-op to avoid opening real browser windows.
 #[allow(clippy::missing_const_for_fn)]
+#[cfg_attr(test, allow(unused_variables))]
 pub fn open_url(url: &str) {
     // Skip actual spawning during tests
     #[cfg(not(test))]

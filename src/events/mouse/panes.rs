@@ -239,7 +239,9 @@ fn handle_install_scroll(
         }
     } else {
         let inds = crate::ui::helpers::filtered_install_indices(app);
-        if !inds.is_empty() {
+        if inds.is_empty() {
+            false
+        } else {
             match m.kind {
                 MouseEventKind::ScrollUp => {
                     if let Some(sel) = app.install_state.selected() {
@@ -261,8 +263,6 @@ fn handle_install_scroll(
                 }
                 _ => false,
             }
-        } else {
-            false
         }
     }
 }
