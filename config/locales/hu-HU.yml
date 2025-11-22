@@ -166,7 +166,7 @@ hu-HU:
       list_installed_packages: "Telepített csomagok listázása"
       update_system: "Rendszer frissítése"
       news: "Hírek"
-      tui_optional_deps: "A TUI nem kötelező függőségei"
+      tui_optional_deps: "A PacSea nem kötelező függőségei"
       next_pane: "Következő panel"
       focus_left: "Fókuszálás balra"
       focus_right: "Fókuszálás jobbra"
@@ -269,7 +269,7 @@ hu-HU:
         list_installed_packages: "Telepített csomagok listázása"
         update_system: "Rendszer frissítése"
         news: "Hírek"
-        tui_optional_deps: "A TUI nem kötelező függőségei"
+        tui_optional_deps: "A PacSea nem kötelező függőségei"
         
     modals:
       common:
@@ -390,7 +390,7 @@ hu-HU:
         none: "Nincsenek elérhető frissítések."
       optional_deps:
         title: " Nem kötelező függőségek "
-        heading: "A TUI nem kötelező függőségei"
+        heading: "A PacSea nem kötelező függőségei"
         markers:
           installed: "✔ telepítve"
           not_installed: "⏺ nincs telepítve"
