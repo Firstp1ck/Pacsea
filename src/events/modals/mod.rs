@@ -42,12 +42,12 @@ pub(super) fn handle_modal_key(
     // Use a temporary to avoid borrow checker issues
     let modal = std::mem::take(&mut app.modal);
     match modal {
-        Modal::Alert { .. } => handlers::handle_alert_modal(ke, app, modal),
+        Modal::Alert { .. } => handlers::handle_alert_modal(ke, app, &modal),
         Modal::PreflightExec { .. } => handlers::handle_preflight_exec_modal(ke, app, modal),
-        Modal::PostSummary { .. } => handlers::handle_post_summary_modal(ke, app, modal),
+        Modal::PostSummary { .. } => handlers::handle_post_summary_modal(ke, app, &modal),
         Modal::SystemUpdate { .. } => handlers::handle_system_update_modal(ke, app, modal),
-        Modal::ConfirmInstall { .. } => handlers::handle_confirm_install_modal(ke, app, modal),
-        Modal::ConfirmRemove { .. } => handlers::handle_confirm_remove_modal(ke, app, modal),
+        Modal::ConfirmInstall { .. } => handlers::handle_confirm_install_modal(ke, app, &modal),
+        Modal::ConfirmRemove { .. } => handlers::handle_confirm_remove_modal(ke, app, &modal),
         Modal::Help => handlers::handle_help_modal(ke, app, modal),
         Modal::News { .. } => handlers::handle_news_modal(ke, app, modal),
         Modal::Updates { .. } => handlers::handle_updates_modal(ke, app, modal),

@@ -42,7 +42,7 @@ fn add_keybind_entry(
     spans: &mut Vec<Span<'static>>,
     key_opt: Option<&KeyChord>,
     key_style: Style,
-    text: String,
+    text: &str,
     sep_style: Style,
 ) {
     if let Some(k) = key_opt {
@@ -74,7 +74,7 @@ fn add_dual_keybind_entry(
     up_opt: Option<&KeyChord>,
     down_opt: Option<&KeyChord>,
     key_style: Style,
-    text: String,
+    text: &str,
     sep_style: Style,
 ) {
     if let (Some(up), Some(dn)) = (up_opt, down_opt) {
@@ -104,7 +104,7 @@ fn add_multi_keybind_entry(
     spans: &mut Vec<Span<'static>>,
     keys: &[KeyChord],
     key_style: Style,
-    text: String,
+    text: &str,
     sep_style: Style,
 ) {
     if !keys.is_empty() {
@@ -173,42 +173,42 @@ fn build_globals_section(
         &mut spans,
         km.exit.first(),
         key_style,
-        i18n::t(app, "app.actions.exit"),
+        &i18n::t(app, "app.actions.exit"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.help_overlay.first(),
         key_style,
-        i18n::t(app, "app.actions.help"),
+        &i18n::t(app, "app.actions.help"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.reload_theme.first(),
         key_style,
-        i18n::t(app, "app.actions.reload_theme"),
+        &i18n::t(app, "app.actions.reload_theme"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.show_pkgbuild.first(),
         key_style,
-        i18n::t(app, "app.actions.show_hide_pkgbuild"),
+        &i18n::t(app, "app.actions.show_hide_pkgbuild"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.change_sort.first(),
         key_style,
-        i18n::t(app, "app.actions.change_sort_mode"),
+        &i18n::t(app, "app.actions.change_sort_mode"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.search_normal_toggle.first(),
         key_style,
-        i18n::t(app, "app.actions.insert_mode"),
+        &i18n::t(app, "app.actions.insert_mode"),
         sep_style,
     );
 
@@ -246,7 +246,7 @@ fn build_search_section(
         km.search_move_up.first(),
         km.search_move_down.first(),
         key_style,
-        i18n::t(app, "app.actions.move"),
+        &i18n::t(app, "app.actions.move"),
         sep_style,
     );
     add_dual_keybind_entry(
@@ -254,18 +254,19 @@ fn build_search_section(
         km.search_page_up.first(),
         km.search_page_down.first(),
         key_style,
-        i18n::t(app, "app.actions.move_page"),
+        &i18n::t(app, "app.actions.move_page"),
         sep_style,
     );
+    let add_text = if app.installed_only_mode {
+        i18n::t(app, "app.actions.add_to_remove")
+    } else {
+        i18n::t(app, "app.actions.add_to_install")
+    };
     add_keybind_entry(
         &mut spans,
         km.search_add.first(),
         key_style,
-        if app.installed_only_mode {
-            i18n::t(app, "app.actions.add_to_remove")
-        } else {
-            i18n::t(app, "app.actions.add_to_install")
-        },
+        &add_text,
         sep_style,
     );
     if app.installed_only_mode {
@@ -279,7 +280,7 @@ fn build_search_section(
         &mut spans,
         km.search_install.first(),
         key_style,
-        i18n::t(app, "app.actions.install"),
+        &i18n::t(app, "app.actions.install"),
         sep_style,
     );
 
@@ -305,7 +306,7 @@ fn build_right_pane_spans(
     app: &AppState,
     label: String,
     label_color: ratatui::style::Color,
-    confirm_text: String,
+    confirm_text: &str,
     key_style: Style,
     sep_style: Style,
 ) -> Vec<Span<'static>> {
@@ -317,42 +318,42 @@ fn build_right_pane_spans(
         km.install_move_up.first(),
         km.install_move_down.first(),
         key_style,
-        i18n::t(app, "app.actions.move"),
+        &i18n::t(app, "app.actions.move"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.install_confirm.first(),
         key_style,
-        confirm_text,
+        &confirm_text,
         sep_style,
     );
     add_multi_keybind_entry(
         &mut spans,
         &km.install_remove,
         key_style,
-        i18n::t(app, "app.actions.remove_from_list"),
+        &i18n::t(app, "app.actions.remove_from_list"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.install_clear.first(),
         key_style,
-        i18n::t(app, "app.actions.clear"),
+        &i18n::t(app, "app.actions.clear"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.install_find.first(),
         key_style,
-        i18n::t(app, "app.details.footer.search_hint"),
+        &i18n::t(app, "app.details.footer.search_hint"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.install_to_search.first(),
         key_style,
-        i18n::t(app, "app.actions.go_to_search"),
+        &i18n::t(app, "app.actions.go_to_search"),
         sep_style,
     );
 
@@ -397,7 +398,7 @@ fn build_install_section(
             app,
             format!("{}:", i18n::t(app, "app.headings.downgrade")),
             downgrade_color,
-            i18n::t(app, "app.details.footer.confirm_downgrade"),
+            &i18n::t(app, "app.details.footer.confirm_downgrade"),
             key_style,
             sep_style,
         );
@@ -405,7 +406,7 @@ fn build_install_section(
             app,
             format!("{}:   ", i18n::t(app, "app.headings.remove")),
             remove_color,
-            i18n::t(app, "app.details.footer.confirm_removal"),
+            &i18n::t(app, "app.details.footer.confirm_removal"),
             key_style,
             sep_style,
         );
@@ -416,7 +417,7 @@ fn build_install_section(
             app,
             format!("{}:  ", i18n::t(app, "app.headings.install")),
             install_color,
-            i18n::t(app, "app.details.footer.confirm_installation"),
+            &i18n::t(app, "app.details.footer.confirm_installation"),
             key_style,
             sep_style,
         );
@@ -455,49 +456,49 @@ fn build_recent_section(
         km.recent_move_up.first(),
         km.recent_move_down.first(),
         key_style,
-        i18n::t(app, "app.actions.move"),
+        &i18n::t(app, "app.actions.move"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_use.first(),
         key_style,
-        i18n::t(app, "app.actions.add_to_search"),
+        &i18n::t(app, "app.actions.add_to_search"),
         sep_style,
     );
     add_multi_keybind_entry(
         &mut spans,
         &km.recent_remove,
         key_style,
-        i18n::t(app, "app.actions.remove_from_list"),
+        &i18n::t(app, "app.actions.remove_from_list"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_clear.first(),
         key_style,
-        i18n::t(app, "app.actions.clear"),
+        &i18n::t(app, "app.actions.clear"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_add.first(),
         key_style,
-        i18n::t(app, "app.actions.add_first_match_to_install"),
+        &i18n::t(app, "app.actions.add_first_match_to_install"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_find.first(),
         key_style,
-        i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel"),
+        &i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_to_search.first(),
         key_style,
-        i18n::t(app, "app.actions.go_to_search"),
+        &i18n::t(app, "app.actions.go_to_search"),
         sep_style,
     );
 

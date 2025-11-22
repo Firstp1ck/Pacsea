@@ -238,10 +238,10 @@ impl HandlerConfig for DependencyHandlerConfig {
 /// - Respects cancellation flag
 pub fn handle_dependency_result(
     app: &mut AppState,
-    deps: Vec<crate::state::modal::DependencyInfo>,
+    deps: &[crate::state::modal::DependencyInfo],
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, &deps, tick_tx, &DependencyHandlerConfig);
+    handle_result(app, deps, tick_tx, &DependencyHandlerConfig);
 }
 
 #[cfg(test)]
@@ -348,7 +348,7 @@ mod tests {
             is_system: false,
         }];
 
-        handle_dependency_result(&mut app, deps, &tick_tx);
+        handle_dependency_result(&mut app, &deps, &tick_tx);
 
         // Dependencies should be cached
         assert_eq!(app.install_list_deps.len(), 1);
@@ -394,7 +394,7 @@ mod tests {
             is_system: false,
         }];
 
-        handle_dependency_result(&mut app, deps, &tick_tx);
+        handle_dependency_result(&mut app, &deps, &tick_tx);
 
         // Dependencies should not be updated when cancelled
         assert_eq!(app.install_list_deps.len(), 0);

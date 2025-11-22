@@ -17,7 +17,7 @@ use crate::state::*;
 /// - Deduplicates requests by package name
 /// - Filters out disallowed packages
 pub fn spawn_details_worker(
-    net_err_tx: mpsc::UnboundedSender<String>,
+    net_err_tx: &mpsc::UnboundedSender<String>,
     mut details_req_rx: mpsc::UnboundedReceiver<PackageItem>,
     details_res_tx: mpsc::UnboundedSender<PackageDetails>,
 ) {

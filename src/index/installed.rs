@@ -101,13 +101,6 @@ mod tests {
     /// Details:
     /// - Exercises the async refresh path, ensures PATH is restored, and verifies cache contents via helper accessors.
     async fn refresh_installed_cache_populates_cache_from_pacman_output() {
-        let _guard = crate::global_test_mutex_lock();
-
-        if let Ok(mut g) = super::installed_lock().write() {
-            g.clear();
-        }
-
-        let original_path = std::env::var("PATH").unwrap_or_default();
         struct PathGuard {
             original: String,
         }
@@ -118,6 +111,13 @@ mod tests {
                 }
             }
         }
+        let _guard = crate::global_test_mutex_lock();
+
+        if let Ok(mut g) = super::installed_lock().write() {
+            g.clear();
+        }
+
+        let original_path = std::env::var("PATH").unwrap_or_default();
         let _path_guard = PathGuard {
             original: original_path.clone(),
         };

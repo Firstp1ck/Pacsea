@@ -19,8 +19,8 @@ use crate::state::{AppState, Modal, PackageItem};
 /// Details:
 /// - Delegates to common handler and handles restoration
 /// - Returns the result from common handler to prevent event propagation when Esc is pressed
-pub(super) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
-    if let Modal::Alert { ref message } = modal {
+pub(super) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal) -> bool {
+    if let Modal::Alert { message } = modal {
         super::common::handle_alert(ke, app, message)
     } else {
         false
@@ -85,14 +85,14 @@ pub(super) fn handle_preflight_exec_modal(
 ///
 /// Details:
 /// - Delegates to common handler and restores modal if needed
-pub(super) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
+pub(super) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal) -> bool {
     if let Modal::PostSummary {
-        ref success,
-        ref changed_files,
-        ref pacnew_count,
-        ref pacsave_count,
-        ref services_pending,
-        ref snapshot_label,
+        success,
+        changed_files,
+        pacnew_count,
+        pacsave_count,
+        services_pending,
+        snapshot_label,
     } = modal
     {
         super::common::handle_post_summary(ke, app, services_pending);
@@ -184,8 +184,12 @@ pub(super) fn handle_system_update_modal(
 ///
 /// Details:
 /// - Delegates to install handler
-pub(super) fn handle_confirm_install_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
-    if let Modal::ConfirmInstall { ref items } = modal {
+pub(super) fn handle_confirm_install_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ConfirmInstall { items } = modal {
         super::install::handle_confirm_install(ke, app, items);
     }
     false
@@ -203,8 +207,8 @@ pub(super) fn handle_confirm_install_modal(ke: KeyEvent, app: &mut AppState, mod
 ///
 /// Details:
 /// - Delegates to install handler
-pub(super) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
-    if let Modal::ConfirmRemove { ref items } = modal {
+pub(super) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal) -> bool {
+    if let Modal::ConfirmRemove { items } = modal {
         super::install::handle_confirm_remove(ke, app, items);
     }
     false

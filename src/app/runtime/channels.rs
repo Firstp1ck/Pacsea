@@ -274,7 +274,7 @@ impl Channels {
 
         // Spawn background workers
         crate::app::runtime::workers::details::spawn_details_worker(
-            utility_channels.net_err_tx.clone(),
+            &utility_channels.net_err_tx,
             details_channels.req_rx,
             details_channels.res_tx.clone(),
         );
@@ -305,7 +305,7 @@ impl Channels {
         crate::app::runtime::workers::search::spawn_search_worker(
             search_channels.query_rx,
             search_channels.result_tx.clone(),
-            utility_channels.net_err_tx.clone(),
+            &utility_channels.net_err_tx,
             index_path,
         );
 

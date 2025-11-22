@@ -27,7 +27,7 @@ use crate::util::{match_rank, repo_order};
 pub fn spawn_search_worker(
     mut query_rx: mpsc::UnboundedReceiver<QueryInput>,
     search_result_tx: mpsc::UnboundedSender<SearchResults>,
-    net_err_tx: mpsc::UnboundedSender<String>,
+    net_err_tx: &mpsc::UnboundedSender<String>,
     index_path: std::path::PathBuf,
 ) {
     let net_err_tx_search = net_err_tx.clone();

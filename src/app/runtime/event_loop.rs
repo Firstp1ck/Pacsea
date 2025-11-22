@@ -49,14 +49,14 @@ fn handle_add_batch(app: &mut AppState, channels: &mut Channels, first: PackageI
 fn handle_file_result_with_logging(
     app: &mut AppState,
     channels: &mut Channels,
-    files: Vec<crate::state::modal::PackageFileInfo>,
+    files: &[crate::state::modal::PackageFileInfo],
 ) {
     tracing::debug!(
         "[Runtime] Received file result: {} entries for packages: {:?}",
         files.len(),
         files.iter().map(|f| &f.name).collect::<Vec<_>>()
     );
-    for file_info in &files {
+    for file_info in files {
         tracing::debug!(
             "[Runtime] Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
             file_info.name,
@@ -67,7 +67,7 @@ fn handle_file_result_with_logging(
             file_info.config_count
         );
     }
-    handle_file_result(app, files, &channels.tick_tx);
+    handle_file_result(app, &files, &channels.tick_tx);
 }
 
 /// What: Process one iteration of channel message handling.
@@ -86,7 +86,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
     select! {
         Some(ev) = channels.event_rx.recv() => {
             crate::events::handle_event(
-                ev,
+                &ev,
                 app,
                 &channels.query_tx,
                 &channels.details_req_tx,
@@ -122,11 +122,11 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(deps) = channels.deps_res_rx.recv() => {
-            handle_dependency_result(app, deps, &channels.tick_tx);
+            handle_dependency_result(app, &deps, &channels.tick_tx);
             false
         }
         Some(files) = channels.files_res_rx.recv() => {
-            handle_file_result_with_logging(app, channels, files);
+            handle_file_result_with_logging(app, channels, &files);
             false
         }
         Some(services) = channels.services_res_rx.recv() => {
@@ -134,7 +134,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 "[Runtime] Received service result: {} entries",
                 services.len()
             );
-            handle_service_result(app, services, &channels.tick_tx);
+            handle_service_result(app, &services, &channels.tick_tx);
             false
         }
         Some(sandbox_info) = channels.sandbox_res_rx.recv() => {
@@ -143,7 +143,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 sandbox_info.len(),
                 sandbox_info.iter().map(|s| &s.package_name).collect::<Vec<_>>()
             );
-            handle_sandbox_result(app, sandbox_info, &channels.tick_tx);
+            handle_sandbox_result(app, &sandbox_info, &channels.tick_tx);
             false
         }
         Some((pkgname, text)) = channels.pkgb_res_rx.recv() => {

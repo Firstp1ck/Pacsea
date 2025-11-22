@@ -67,7 +67,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ =
-        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -76,7 +76,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ = crate_root::events::handle_event(
-        click_menu_update,
+        &click_menu_update,
         &mut app,
         &qtx,
         &dtx,
@@ -85,7 +85,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         &pkgb_tx,
     );
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
@@ -148,7 +148,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ =
-        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -157,7 +157,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ = crate_root::events::handle_event(
-        click_menu_update,
+        &click_menu_update,
         &mut app,
         &qtx,
         &dtx,
@@ -166,7 +166,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         &pkgb_tx,
     );
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
@@ -225,7 +225,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ =
-        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -234,7 +234,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ = crate_root::events::handle_event(
-        click_menu_update,
+        &click_menu_update,
         &mut app,
         &qtx,
         &dtx,
@@ -243,7 +243,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         &pkgb_tx,
     );
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
@@ -302,7 +302,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ =
-        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -311,7 +311,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ = crate_root::events::handle_event(
-        click_menu_update,
+        &click_menu_update,
         &mut app,
         &qtx,
         &dtx,
@@ -320,7 +320,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         &pkgb_tx,
     );
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
@@ -379,7 +379,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ =
-        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -388,7 +388,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ = crate_root::events::handle_event(
-        click_menu_update,
+        &click_menu_update,
         &mut app,
         &qtx,
         &dtx,
@@ -397,7 +397,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         &pkgb_tx,
     );
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
@@ -456,7 +456,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ =
-        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -465,7 +465,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ = crate_root::events::handle_event(
-        click_menu_update,
+        &click_menu_update,
         &mut app,
         &qtx,
         &dtx,
@@ -474,7 +474,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         &pkgb_tx,
     );
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
@@ -532,7 +532,7 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ =
-        crate_root::events::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        crate_root::events::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     app.options_menu_rect = Some((5, 6, 20, 3));
     let click_menu_update = CEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -541,7 +541,7 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         modifiers: KeyModifiers::empty(),
     });
     let _ = crate_root::events::handle_event(
-        click_menu_update,
+        &click_menu_update,
         &mut app,
         &qtx,
         &dtx,
@@ -550,7 +550,7 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         &pkgb_tx,
     );
     let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-    let _ = crate_root::events::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+    let _ = crate_root::events::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();

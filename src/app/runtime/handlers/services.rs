@@ -87,10 +87,10 @@ impl HandlerConfig for ServiceHandlerConfig {
 /// - Respects cancellation flag
 pub fn handle_service_result(
     app: &mut AppState,
-    services: Vec<crate::state::modal::ServiceImpact>,
+    services: &[crate::state::modal::ServiceImpact],
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, &services, tick_tx, &ServiceHandlerConfig);
+    handle_result(app, services, tick_tx, &ServiceHandlerConfig);
 }
 
 #[cfg(test)]
@@ -134,7 +134,7 @@ mod tests {
             restart_decision: crate::state::modal::ServiceRestartDecision::Defer,
         }];
 
-        handle_service_result(&mut app, services, &tick_tx);
+        handle_service_result(&mut app, &services, &tick_tx);
 
         // Services should be cached
         assert_eq!(app.install_list_services.len(), 1);

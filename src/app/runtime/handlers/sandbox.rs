@@ -497,10 +497,10 @@ impl HandlerConfig for SandboxHandlerConfig {
 /// - Respects cancellation flag
 pub fn handle_sandbox_result(
     app: &mut AppState,
-    sandbox_info: Vec<crate::logic::sandbox::SandboxInfo>,
+    sandbox_info: &[crate::logic::sandbox::SandboxInfo],
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, &sandbox_info, tick_tx, &SandboxHandlerConfig);
+    handle_result(app, sandbox_info, tick_tx, &SandboxHandlerConfig);
 }
 
 #[cfg(test)]
@@ -542,7 +542,7 @@ mod tests {
             optdepends: vec![],
         }];
 
-        handle_sandbox_result(&mut app, sandbox_info, &tick_tx);
+        handle_sandbox_result(&mut app, &sandbox_info, &tick_tx);
 
         // `SandboxInfo` should be cached
         assert_eq!(app.install_list_sandbox.len(), 1);

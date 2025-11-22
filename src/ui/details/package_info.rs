@@ -186,7 +186,7 @@ fn calculate_button_rects(
     details_lines: &[Line],
     visible_lines: &[Line],
     scroll_offset: usize,
-    ctx: ButtonContext<'_>,
+    ctx: &ButtonContext<'_>,
     app: &mut AppState,
 ) {
     app.url_button_rect = None;
@@ -285,7 +285,7 @@ pub fn render_package_info(f: &mut Frame, app: &mut AppState, details_area: Rect
         &details_lines,
         &visible_lines,
         scroll_offset,
-        button_ctx,
+        &button_ctx,
         app,
     );
 

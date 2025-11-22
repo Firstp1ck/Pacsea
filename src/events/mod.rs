@@ -39,7 +39,7 @@ mod utils;
 /// - Supports global shortcuts (help overlay, theme reload, exit, PKGBUILD viewer toggle, change sort).
 /// - Delegates pane-specific handling to `search`, `recent`, and `install` submodules.
 pub fn handle_event(
-    ev: CEvent,
+    ev: &CEvent,
     app: &mut AppState,
     query_tx: &mpsc::UnboundedSender<QueryInput>,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
@@ -54,11 +54,11 @@ pub fn handle_event(
 
         // Handle Preflight modal first (it's the largest)
         if matches!(app.modal, crate::state::Modal::Preflight { .. }) {
-            return preflight::handle_preflight_key(ke, app);
+            return preflight::handle_preflight_key(*ke, app);
         }
 
         // Handle all other modals
-        if modals::handle_modal_key(ke, app, add_tx) {
+        if modals::handle_modal_key(*ke, app, add_tx) {
             return false;
         }
 
@@ -68,7 +68,7 @@ pub fn handle_event(
         }
 
         // Handle global shortcuts and dropdown menus
-        if let Some(should_exit) = global::handle_global_key(ke, app, details_tx, pkgb_tx) {
+        if let Some(should_exit) = global::handle_global_key(*ke, app, details_tx, pkgb_tx) {
             if should_exit {
                 return true; // Exit requested
             }
@@ -80,20 +80,20 @@ pub fn handle_event(
         // Recent pane focused
         if matches!(app.focus, Focus::Recent) {
             let should_exit =
-                recent::handle_recent_key(ke, app, query_tx, details_tx, preview_tx, add_tx);
+                recent::handle_recent_key(*ke, app, query_tx, details_tx, preview_tx, add_tx);
             return should_exit;
         }
 
         // Install pane focused
         if matches!(app.focus, Focus::Install) {
-            let should_exit = install::handle_install_key(ke, app, details_tx, preview_tx, add_tx);
+            let should_exit = install::handle_install_key(*ke, app, details_tx, preview_tx, add_tx);
             return should_exit;
         }
 
         // Search pane focused (delegated)
         if matches!(app.focus, Focus::Search) {
             let should_exit =
-                search::handle_search_key(ke, app, query_tx, details_tx, add_tx, preview_tx);
+                search::handle_search_key(*ke, app, query_tx, details_tx, add_tx, preview_tx);
             return should_exit;
         }
 
@@ -103,7 +103,7 @@ pub fn handle_event(
 
     // Mouse handling delegated
     if let CEvent::Mouse(m) = ev {
-        return mouse::handle_mouse_event(m, app, details_tx, preview_tx, add_tx, pkgb_tx);
+        return mouse::handle_mouse_event(*m, app, details_tx, preview_tx, add_tx, pkgb_tx);
     }
     false
 }
@@ -180,7 +180,7 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::empty(),
         });
-        let _ = super::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
         assert!(app.options_menu_open);
         app.options_menu_rect = Some((5, 6, 20, 3));
         let click_menu_update = CEvent::Mouse(MouseEvent {
@@ -190,7 +190,7 @@ mod tests {
             modifiers: KeyModifiers::empty(),
         });
         let _ = super::handle_event(
-            click_menu_update,
+            &click_menu_update,
             &mut app,
             &qtx,
             &dtx,
@@ -199,7 +199,7 @@ mod tests {
             &pkgb_tx,
         );
         let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-        let _ = super::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
         // Wait for file to be created with retries
         let mut attempts = 0;
         while !out_path.exists() && attempts < 50 {
@@ -271,7 +271,7 @@ mod tests {
         open_optional_deps_modal(&mut app, &channels);
 
         verify_optional_deps_rows(&app.modal);
-        teardown_test_environment(orig_path, orig_wl, dir);
+        teardown_test_environment(orig_path, orig_wl, &dir);
     }
 
     /// What: Setup test executables and environment for optional deps test.
@@ -346,8 +346,8 @@ mod tests {
             tokio::sync::mpsc::UnboundedSender<PackageItem>,
         ),
     ) {
-        let mut app = AppState::default();
         use std::collections::HashMap;
+        let mut app = AppState::default();
         let mut translations = HashMap::new();
         translations.insert(
             "app.optional_deps.categories.editor".to_string(),
@@ -407,7 +407,7 @@ mod tests {
             modifiers: KeyModifiers::empty(),
         });
         let _ = super::handle_event(
-            click_options,
+            &click_options,
             app,
             &channels.0,
             &channels.1,
@@ -422,7 +422,7 @@ mod tests {
         key_four_event.kind = KeyEventKind::Press;
         let key_four = CEvent::Key(key_four_event);
         let _ = super::handle_event(
-            key_four,
+            &key_four,
             app,
             &channels.0,
             &channels.1,
@@ -500,7 +500,7 @@ mod tests {
     fn teardown_test_environment(
         orig_path: Option<std::ffi::OsString>,
         orig_wl: Option<std::ffi::OsString>,
-        dir: std::path::PathBuf,
+        dir: &std::path::PathBuf,
     ) {
         unsafe {
             if let Some(v) = orig_path {
@@ -514,7 +514,7 @@ mod tests {
                 std::env::remove_var("WAYLAND_DISPLAY");
             }
         }
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
@@ -523,9 +523,10 @@ mod tests {
     /// - Setup: Empty PATH; set `WAYLAND_DISPLAY`
     /// - Expect: A row "Clipboard: wl-clipboard" with note "Wayland", not installed and selectable
     fn optional_deps_rows_wayland_shows_wl_clipboard() {
-        let _guard = crate::global_test_mutex_lock();
+        use std::collections::HashMap;
         use std::fs;
         use std::path::PathBuf;
+        let _guard = crate::global_test_mutex_lock();
 
         // Temp PATH directory (empty)
         let mut dir: PathBuf = std::env::temp_dir();
@@ -549,7 +550,6 @@ mod tests {
 
         let mut app = AppState::default();
         // Initialize i18n translations for optional deps
-        use std::collections::HashMap;
         let mut translations = HashMap::new();
         translations.insert(
             "app.optional_deps.categories.editor".to_string(),
@@ -587,7 +587,7 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::empty(),
         });
-        let _ = super::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
         assert!(app.options_menu_open);
 
         // Press '4' to open Optional Deps
@@ -595,7 +595,7 @@ mod tests {
             crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
         key_four_event.kind = KeyEventKind::Press;
         let key_four = CEvent::Key(key_four_event);
-        let _ = super::handle_event(key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(&key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
 
         match &app.modal {
             crate::state::Modal::OptionalDeps { rows, .. } => {

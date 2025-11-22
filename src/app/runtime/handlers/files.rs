@@ -247,10 +247,10 @@ impl HandlerConfig for FileHandlerConfig {
 /// - Respects cancellation flag
 pub fn handle_file_result(
     app: &mut AppState,
-    files: Vec<crate::state::modal::PackageFileInfo>,
+    files: &[crate::state::modal::PackageFileInfo],
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, &files, tick_tx, &FileHandlerConfig);
+    handle_result(app, files, tick_tx, &FileHandlerConfig);
 }
 
 #[cfg(test)]
@@ -289,7 +289,7 @@ mod tests {
             pacsave_candidates: 0,
         }];
 
-        handle_file_result(&mut app, files, &tick_tx);
+        handle_file_result(&mut app, &files, &tick_tx);
 
         // Files should be cached
         assert_eq!(app.install_list_files.len(), 1);

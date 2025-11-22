@@ -757,7 +757,7 @@ fn render_file_entry(
 /// - Returns a vector of lines to render.
 fn render_file_list(
     app: &AppState,
-    ctx: FileListContext,
+    ctx: &FileListContext,
     file_selected: &mut usize,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
@@ -925,6 +925,6 @@ pub fn render_files_tab(
             file_tree_expanded,
             sync_info: &sync_info,
         };
-        render_file_list(app, ctx, file_selected, content_rect)
+        render_file_list(app, &ctx, file_selected, content_rect)
     }
 }

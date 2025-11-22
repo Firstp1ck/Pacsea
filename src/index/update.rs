@@ -116,7 +116,7 @@ mod tests {
         verify_enriched_fields_preserved();
 
         // Teardown
-        teardown_test_env(old_path, tmp, root);
+        teardown_test_env(&old_path, &tmp, &root);
     }
 
     /// What: Seed the index with enriched test data.
@@ -262,9 +262,9 @@ exit 0
     ///
     /// Details:
     /// - Restores PATH and removes temporary files.
-    fn teardown_test_env(old_path: String, tmp: std::path::PathBuf, root: std::path::PathBuf) {
-        unsafe { std::env::set_var("PATH", &old_path) };
-        let _ = std::fs::remove_file(&tmp);
-        let _ = std::fs::remove_dir_all(&root);
+    fn teardown_test_env(old_path: &str, tmp: &std::path::PathBuf, root: &std::path::PathBuf) {
+        unsafe { std::env::set_var("PATH", old_path) };
+        let _ = std::fs::remove_file(tmp);
+        let _ = std::fs::remove_dir_all(root);
     }
 }

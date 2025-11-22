@@ -286,7 +286,7 @@ impl ModalRenderer for Modal {
                     do_sleuth,
                     cursor,
                 };
-                render_scan_config_modal(f, area, ctx)
+                render_scan_config_modal(f, area, &ctx)
             }
             Self::GnomeTerminalPrompt => render_gnome_terminal_prompt_modal(f, area),
             Self::VirusTotalSetup { input, cursor } => {
@@ -592,7 +592,7 @@ fn render_optional_deps_modal(
 /// Details:
 /// - Uses context struct to reduce data flow complexity by grouping related fields.
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
-fn render_scan_config_modal(f: &mut Frame, area: Rect, ctx: ScanConfigContext) -> Modal {
+fn render_scan_config_modal(f: &mut Frame, area: Rect, ctx: &ScanConfigContext) -> Modal {
     misc::render_scan_config(
         f,
         area,

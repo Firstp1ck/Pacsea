@@ -221,7 +221,7 @@ fn process_batched_dependencies(
 /// Details:
 /// - Merges status (keeps worst), version requirements (keeps more restrictive), and `required_by` lists.
 fn merge_dependency(
-    dep: DependencyInfo,
+    dep: &DependencyInfo,
     parent_name: &str,
     installed: &HashSet<String>,
     provided: &HashSet<String>,
@@ -455,7 +455,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
 
                 for dep in resolved_deps.drain(..) {
                     merge_dependency(
-                        dep,
+                        &dep,
                         &item.name,
                         &installed,
                         &provided,
