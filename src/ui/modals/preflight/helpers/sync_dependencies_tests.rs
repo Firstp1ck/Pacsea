@@ -36,8 +36,8 @@ fn test_sync_dependencies_early_return_remove() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );
@@ -74,8 +74,8 @@ fn test_sync_dependencies_early_return_wrong_tab() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );
@@ -140,8 +140,8 @@ fn test_sync_dependencies_filters_by_required_by() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );
@@ -194,8 +194,8 @@ fn test_sync_dependencies_resets_selection_on_first_load() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );
@@ -271,8 +271,8 @@ fn test_sync_dependencies_preserves_selection_on_subsequent_load() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );

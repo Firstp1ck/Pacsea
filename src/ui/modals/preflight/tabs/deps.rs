@@ -123,7 +123,7 @@ fn has_incomplete_data(
 /// - Shows different headers for install vs remove actions.
 fn render_summary_header(
     app: &AppState,
-    action: &PreflightAction,
+    action: PreflightAction,
     stats: &DepStats,
     items_count: usize,
     has_incomplete: bool,
@@ -135,7 +135,7 @@ fn render_summary_header(
         return lines;
     }
 
-    if matches!(*action, PreflightAction::Remove) {
+    if matches!(action, PreflightAction::Remove) {
         let count_text = format_count_with_indicator(stats.total, items_count, has_incomplete);
         lines.push(Line::from(Span::styled(
             i18n::t_fmt1(
@@ -233,7 +233,7 @@ fn render_summary_header(
 /// - Shows different messages for install vs remove, with error handling.
 fn render_empty_state(
     app: &AppState,
-    action: &PreflightAction,
+    action: PreflightAction,
     items: &[PackageItem],
     is_resolving: bool,
     deps_error: &Option<String>,
@@ -241,7 +241,7 @@ fn render_empty_state(
     let th = theme();
     let mut lines = Vec::new();
 
-    if !matches!(*action, PreflightAction::Install) {
+    if !matches!(action, PreflightAction::Install) {
         lines.push(Line::from(Span::styled(
             i18n::t(app, "app.modals.preflight.deps.no_deps_for_removal"),
             Style::default().fg(th.subtext1),
@@ -549,7 +549,7 @@ fn render_dependency_item(
 pub fn render_deps_tab(
     app: &AppState,
     items: &[PackageItem],
-    action: &PreflightAction,
+    action: PreflightAction,
     dependency_info: &[DependencyInfo],
     dep_selected: &mut usize,
     dep_tree_expanded: &HashSet<String>,

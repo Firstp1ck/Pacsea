@@ -12,7 +12,7 @@ use crate::state::{AppState, Modal, PreflightTab};
 /// Details:
 /// - Only applies scroll offset for Summary tab (mouse scrolling only).
 /// - Returns (0, 0) for all other tabs.
-pub const fn calculate_scroll_offset(app: &AppState, tab: &PreflightTab) -> (u16, u16) {
+pub const fn calculate_scroll_offset(app: &AppState, tab: PreflightTab) -> (u16, u16) {
     if !matches!(tab, PreflightTab::Summary) {
         return (0, 0);
     }

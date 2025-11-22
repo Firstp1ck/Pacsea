@@ -28,22 +28,22 @@ fn sync_preflight_data(app: &AppState, fields: &mut extract::PreflightFields) {
     sync::sync_dependencies(
         app,
         fields.items,
-        fields.action,
-        fields.tab,
+        *fields.action,
+        *fields.tab,
         fields.dependency_info,
         fields.dep_selected,
     );
     sync::sync_files(
         app,
         fields.items,
-        fields.tab,
+        *fields.tab,
         fields.file_info,
         fields.file_selected,
     );
     sync::sync_services(
         app,
         fields.items,
-        fields.action,
+        *fields.action,
         fields.service_info,
         fields.service_selected,
         fields.services_loaded,
@@ -51,8 +51,8 @@ fn sync_preflight_data(app: &AppState, fields: &mut extract::PreflightFields) {
     sync::sync_sandbox(
         app,
         fields.items,
-        fields.action,
-        fields.tab,
+        *fields.action,
+        *fields.tab,
         fields.sandbox_info,
         fields.sandbox_loaded,
     );
@@ -75,7 +75,7 @@ fn build_preflight_content_lines(
     let (header_chips_line, tab_header_line) = render_tab_header(
         app,
         content_rect,
-        fields.tab,
+        *fields.tab,
         fields.header_chips,
         fields.items,
         fields.summary,
@@ -91,9 +91,9 @@ fn build_preflight_content_lines(
     lines.push(Line::from(""));
     let tab_lines = tab_helpers::render_tab_content(
         app,
-        fields.tab,
+        *fields.tab,
         fields.items,
-        fields.action,
+        *fields.action,
         fields.summary,
         fields.header_chips,
         fields.dependency_info,
@@ -114,7 +114,7 @@ fn build_preflight_content_lines(
         *fields.sandbox_loaded,
         fields.sandbox_error,
         fields.selected_optdepends,
-        fields.cascade_mode,
+        *fields.cascade_mode,
         content_rect,
     );
     lines.extend(tab_lines);
@@ -175,7 +175,7 @@ pub fn render_preflight(
     let (rect, content_rect, keybinds_rect) = layout::calculate_modal_layout(area);
     f.render_widget(Clear, rect);
 
-    let title = match fields.action {
+    let title = match *fields.action {
         PreflightAction::Install => i18n::t(app, "app.modals.preflight.title_install"),
         PreflightAction::Remove => i18n::t(app, "app.modals.preflight.title_remove"),
     };
@@ -183,7 +183,7 @@ pub fn render_preflight(
     let bg_color = th.crust;
 
     let lines = build_preflight_content_lines(app, &mut fields, content_rect);
-    let scroll_offset = scroll::calculate_scroll_offset(app, fields.tab);
+    let scroll_offset = scroll::calculate_scroll_offset(app, *fields.tab);
 
     let content_widget = widget::ParagraphBuilder::new()
         .with_lines(lines)
@@ -199,8 +199,8 @@ pub fn render_preflight(
         f,
         app,
         fields.items,
-        fields.action,
-        fields.tab,
+        *fields.action,
+        *fields.tab,
         content_rect,
         keybinds_rect,
         bg_color,

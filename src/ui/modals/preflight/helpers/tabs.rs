@@ -53,9 +53,9 @@ use super::super::tabs::{
 #[allow(clippy::too_many_arguments)]
 pub fn render_tab_content(
     app: &AppState,
-    tab: &PreflightTab,
+    tab: PreflightTab,
     items: &[PackageItem],
-    action: &PreflightAction,
+    action: PreflightAction,
     summary: &Option<Box<PreflightSummaryData>>,
     header_chips: &PreflightHeaderChips,
     dependency_info: &[DependencyInfo],
@@ -76,7 +76,7 @@ pub fn render_tab_content(
     sandbox_loaded: bool,
     sandbox_error: &Option<String>,
     selected_optdepends: &HashMap<String, HashSet<String>>,
-    cascade_mode: &CascadeMode,
+    cascade_mode: CascadeMode,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
     match tab {
@@ -87,7 +87,7 @@ pub fn render_tab_content(
             summary,
             header_chips,
             dependency_info,
-            *cascade_mode,
+            cascade_mode,
             content_rect,
         ),
         PreflightTab::Deps => render_deps_tab(

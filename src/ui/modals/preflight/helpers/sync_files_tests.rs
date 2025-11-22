@@ -30,7 +30,7 @@ fn test_sync_files_early_return_wrong_tab() {
     let mut file_info = Vec::new();
     let mut file_selected = 0;
 
-    sync::sync_files(&app, &items, &tab, &mut file_info, &mut file_selected);
+    sync::sync_files(&app, &items, tab, &mut file_info, &mut file_selected);
 
     assert!(file_info.is_empty());
 }
@@ -93,7 +93,7 @@ fn test_sync_files_filters_by_package_name() {
     let mut file_info = Vec::new();
     let mut file_selected = 0;
 
-    sync::sync_files(&app, &items, &tab, &mut file_info, &mut file_selected);
+    sync::sync_files(&app, &items, tab, &mut file_info, &mut file_selected);
 
     assert_eq!(file_info.len(), 1);
     assert_eq!(file_info[0].name, "test-pkg");
@@ -139,7 +139,7 @@ fn test_sync_files_resets_selection_when_files_change() {
     let mut file_info = Vec::new();
     let mut file_selected = 5;
 
-    sync::sync_files(&app, &items, &tab, &mut file_info, &mut file_selected);
+    sync::sync_files(&app, &items, tab, &mut file_info, &mut file_selected);
 
     assert_eq!(file_selected, 0);
 }

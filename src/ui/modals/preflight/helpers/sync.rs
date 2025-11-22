@@ -23,12 +23,12 @@ use crate::state::{AppState, PackageItem};
 pub fn sync_dependencies(
     app: &AppState,
     items: &[PackageItem],
-    action: &PreflightAction,
-    tab: &PreflightTab,
+    action: PreflightAction,
+    tab: PreflightTab,
     dependency_info: &mut Vec<DependencyInfo>,
     dep_selected: &mut usize,
 ) {
-    if !matches!(*action, PreflightAction::Install) {
+    if !matches!(action, PreflightAction::Install) {
         return;
     }
 
@@ -37,8 +37,8 @@ pub fn sync_dependencies(
     // 2. On Summary tab (to show conflicts)
     // 3. Or when dependency_info is empty (first load)
     let should_sync = dependency_info.is_empty()
-        || matches!(*tab, PreflightTab::Deps)
-        || matches!(*tab, PreflightTab::Summary);
+        || matches!(tab, PreflightTab::Deps)
+        || matches!(tab, PreflightTab::Summary);
 
     if !should_sync {
         return;
@@ -312,11 +312,11 @@ fn apply_file_info_update(
 pub fn sync_files(
     app: &AppState,
     items: &[PackageItem],
-    tab: &PreflightTab,
+    tab: PreflightTab,
     file_info: &mut Vec<PackageFileInfo>,
     file_selected: &mut usize,
 ) {
-    if !matches!(*tab, PreflightTab::Files) {
+    if !matches!(tab, PreflightTab::Files) {
         return;
     }
 
@@ -391,12 +391,12 @@ pub fn sync_files(
 pub fn sync_services(
     app: &AppState,
     items: &[PackageItem],
-    action: &PreflightAction,
+    action: PreflightAction,
     service_info: &mut Vec<ServiceImpact>,
     service_selected: &mut usize,
     services_loaded: &mut bool,
 ) {
-    if !matches!(*action, PreflightAction::Install) {
+    if !matches!(action, PreflightAction::Install) {
         return;
     }
 
@@ -675,17 +675,17 @@ fn handle_remove_action(items: &[PackageItem], sandbox_loaded: &mut bool) {
 pub fn sync_sandbox(
     app: &AppState,
     items: &[PackageItem],
-    action: &PreflightAction,
-    tab: &PreflightTab,
+    action: PreflightAction,
+    tab: PreflightTab,
     sandbox_info: &mut Vec<crate::logic::sandbox::SandboxInfo>,
     sandbox_loaded: &mut bool,
 ) {
-    if matches!(*action, PreflightAction::Remove) {
+    if matches!(action, PreflightAction::Remove) {
         handle_remove_action(items, sandbox_loaded);
         return;
     }
 
-    if !matches!(*action, PreflightAction::Install) || !matches!(*tab, PreflightTab::Sandbox) {
+    if !matches!(action, PreflightAction::Install) || !matches!(tab, PreflightTab::Sandbox) {
         return;
     }
 

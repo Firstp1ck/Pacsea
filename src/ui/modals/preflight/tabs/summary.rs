@@ -1103,7 +1103,7 @@ fn render_remove_action(
 pub fn render_summary_tab(
     app: &AppState,
     items: &[PackageItem],
-    action: &PreflightAction,
+    action: PreflightAction,
     summary: &Option<Box<PreflightSummaryData>>,
     header_chips: &PreflightHeaderChips,
     dependency_info: &[DependencyInfo],
@@ -1129,7 +1129,7 @@ pub fn render_summary_tab(
         dependency_info,
     ));
 
-    match *action {
+    match action {
         PreflightAction::Install if !dependency_info.is_empty() => {
             lines.extend(render_install_dependencies(app, items, dependency_info));
         }

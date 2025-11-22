@@ -37,8 +37,8 @@ fn test_sync_sandbox_early_return_remove() {
     sync::sync_sandbox(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut sandbox_info,
         &mut sandbox_loaded,
     );
@@ -76,8 +76,8 @@ fn test_sync_sandbox_early_return_wrong_tab() {
     sync::sync_sandbox(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut sandbox_info,
         &mut sandbox_loaded,
     );

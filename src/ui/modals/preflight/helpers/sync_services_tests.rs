@@ -34,7 +34,7 @@ fn test_sync_services_early_return_remove() {
     sync::sync_services(
         &app,
         &items,
-        &action,
+        action,
         &mut service_info,
         &mut service_selected,
         &mut services_loaded,
@@ -93,7 +93,7 @@ fn test_sync_services_filters_by_providers() {
     sync::sync_services(
         &app,
         &items,
-        &action,
+        action,
         &mut service_info,
         &mut service_selected,
         &mut services_loaded,
@@ -161,7 +161,7 @@ fn test_sync_services_adjusts_selection_out_of_bounds() {
     sync::sync_services(
         &app,
         &items,
-        &action,
+        action,
         &mut service_info,
         &mut service_selected,
         &mut services_loaded,

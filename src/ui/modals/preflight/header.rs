@@ -626,7 +626,7 @@ struct TabHeaderContext<'a> {
 pub fn render_tab_header(
     app: &mut AppState,
     content_rect: Rect,
-    tab: &PreflightTab,
+    tab: PreflightTab,
     header_chips: &PreflightHeaderChips,
     items: &[crate::state::PackageItem],
     summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
@@ -637,7 +637,7 @@ pub fn render_tab_header(
     sandbox_loaded: bool,
 ) -> (Line<'static>, Line<'static>) {
     let th = theme();
-    let current_tab = *tab;
+    let current_tab = tab;
 
     // Option 1: Extract data preparation
     let (item_names, aur_items) = extract_package_sets(items);
