@@ -472,7 +472,7 @@ mod tests {
         let downgrade_width = downgrade_rect.2;
         let remove_width = install_rect.2;
         // Widths should be approximately equal (within 1 pixel due to rounding)
-        assert!((downgrade_width as i32 - remove_width as i32).abs() <= 1);
+        assert!((i32::from(downgrade_width) - i32::from(remove_width)).abs() <= 1);
     }
 
     /// What: Verify installed-only mode records downgrade rect.

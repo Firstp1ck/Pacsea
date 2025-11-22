@@ -18,7 +18,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 /// Details:
 /// - Checks if `app.modal` is `None` (indicating handler closed it)
 /// - If modal is still `None` and key doesn't match excluded keys, restores the modal
-/// - Used for modals like PreflightExec and PostSummary that exclude Esc/q or Esc/Enter/q
+/// - Used for modals like `PreflightExec` and `PostSummary` that exclude Esc/q or Esc/Enter/q
 pub(crate) fn restore_if_not_closed_with_excluded_keys(
     app: &mut AppState,
     ke: &KeyEvent,
@@ -44,7 +44,7 @@ pub(crate) fn restore_if_not_closed_with_excluded_keys(
 /// - Returns `true` if Esc was pressed and modal was closed (to stop propagation)
 ///
 /// Details:
-/// - Used for modals like SystemUpdate and OptionalDeps that return `Option<bool>`
+/// - Used for modals like `SystemUpdate` and `OptionalDeps` that return `Option<bool>`
 /// - Restores modal if handler didn't close it and Esc wasn't pressed
 /// - Esc key closes modal even if `should_stop` is `Some(false)`
 /// - When Esc closes the modal, returns `true` to stop event propagation
@@ -81,7 +81,7 @@ pub(crate) fn restore_if_not_closed_with_option_result(
 /// Details:
 /// - Checks if `app.modal` is `None` (indicating handler closed it)
 /// - If modal is still `None` and key is not Esc, restores the modal
-/// - Used for modals like ScanConfig and VirusTotalSetup that only exclude Esc
+/// - Used for modals like `ScanConfig` and `VirusTotalSetup` that only exclude Esc
 pub(crate) fn restore_if_not_closed_with_esc(app: &mut AppState, ke: &KeyEvent, modal: Modal) {
     if matches!(app.modal, Modal::None) && !matches!(ke.code, KeyCode::Esc) {
         app.modal = modal;

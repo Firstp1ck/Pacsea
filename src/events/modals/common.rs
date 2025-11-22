@@ -1,4 +1,4 @@
-//! Common modal handlers (Alert, Help, News, PreflightExec, PostSummary, GnomeTerminalPrompt).
+//! Common modal handlers (Alert, Help, News, `PreflightExec`, `PostSummary`, `GnomeTerminalPrompt`).
 
 use crossterm::event::{KeyCode, KeyEvent};
 
@@ -56,7 +56,7 @@ pub(crate) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
     }
 }
 
-/// What: Handle key events for PreflightExec modal.
+/// What: Handle key events for `PreflightExec` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -106,7 +106,7 @@ pub(crate) fn handle_preflight_exec(
     false
 }
 
-/// What: Handle key events for PostSummary modal.
+/// What: Handle key events for `PostSummary` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -232,7 +232,7 @@ pub(crate) fn handle_news(
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `entries`: Update entries list (name, old_version, new_version)
+/// - `entries`: Update entries list (name, `old_version`, `new_version`)
 /// - `scroll`: Mutable scroll offset
 ///
 /// Output:
@@ -295,7 +295,7 @@ pub(crate) fn handle_updates(
     false
 }
 
-/// What: Handle key events for GnomeTerminalPrompt modal.
+/// What: Handle key events for `GnomeTerminalPrompt` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event

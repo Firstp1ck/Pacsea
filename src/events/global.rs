@@ -234,7 +234,7 @@ fn handle_panels_menu_selection(idx: usize, app: &mut AppState) {
 /// - Normalized modifiers (empty for `BackTab`, original modifiers otherwise)
 ///
 /// Details:
-/// - BackTab normalization ensures consistent keybind matching across different terminal emulators.
+/// - `BackTab` normalization ensures consistent keybind matching across different terminal emulators.
 fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
     if matches!(ke.code, KeyCode::BackTab) {
         KeyModifiers::empty()
@@ -252,7 +252,7 @@ fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
 /// - Tuple of (`KeyCode`, `KeyModifiers`) suitable for matching against `KeyChord` lists
 ///
 /// Details:
-/// - Normalizes BackTab modifiers before creating the chord.
+/// - Normalizes `BackTab` modifiers before creating the chord.
 fn create_key_chord(ke: &KeyEvent) -> (KeyCode, KeyModifiers) {
     (ke.code, normalize_key_modifiers(ke))
 }

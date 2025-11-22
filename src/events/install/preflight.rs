@@ -148,7 +148,7 @@ fn load_cached_services(app: &AppState) -> (Vec<crate::state::modal::ServiceImpa
 /// - No return value; modifies services in place
 ///
 /// Details:
-/// - Applies saved restart decisions from pending_service_plan to services
+/// - Applies saved restart decisions from `pending_service_plan` to services
 fn restore_service_decisions(app: &AppState, services: &mut [crate::state::modal::ServiceImpact]) {
     if app.pending_service_plan.is_empty() || services.is_empty() {
         return;

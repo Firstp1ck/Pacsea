@@ -6,7 +6,7 @@ use std::io::Write;
 ///
 /// Output: `Ok(())` on success; otherwise an I/O error.
 ///
-/// Details: Writes to logs_dir/install_log.log, prefixing each name with a UTC timestamp.
+/// Details: Writes to `logs_dir/install_log.log`, prefixing each name with a UTC timestamp.
 pub fn log_installed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
     path.push("install_log.log");
@@ -34,7 +34,7 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
 /// - `Ok(())` on success; otherwise an I/O error.
 ///
 /// Details:
-/// - Appends to logs_dir/remove_log.log without timestamps.
+/// - Appends to `logs_dir/remove_log.log` without timestamps.
 pub fn log_removed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
     path.push("remove_log.log");

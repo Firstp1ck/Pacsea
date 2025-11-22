@@ -1,7 +1,7 @@
 //! Mouse event handling for Pacsea's TUI.
 //!
 //! This module delegates mouse event handling to specialized submodules:
-//! - `modals`: Modal interactions (Help, VirusTotalSetup, Preflight, News)
+//! - `modals`: Modal interactions (Help, `VirusTotalSetup`, `Preflight`, News)
 //! - `details`: Details pane interactions (URL, PKGBUILD buttons, scroll)
 //! - `menus`: Menu interactions (sort, options, config, panels, import/export)
 //! - `filters`: Filter toggle interactions

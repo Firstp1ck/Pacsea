@@ -85,7 +85,7 @@ fn build_batch_install_command(
 /// - `Ok(())` if the terminal was successfully spawned, `Err(())` otherwise
 ///
 /// Details:
-/// - Handles special cases for konsole (Wayland), gnome-console/kgx (rendering), and xfce4-terminal (command format)
+/// - Handles special cases for `konsole` (`Wayland`), `gnome-console`/`kgx` (rendering), and `xfce4-terminal` (command format)
 /// - Sets up PACSEA_TEST_OUT environment variable if present
 fn try_spawn_terminal(
     term: &str,
@@ -218,7 +218,6 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
                     }
                     Err(()) => {
                         tracing::warn!(terminal = %term, names = %names_vec.join(" "), "failed to spawn terminal, trying next");
-                        continue;
                     }
                 }
             }

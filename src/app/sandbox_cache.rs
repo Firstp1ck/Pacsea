@@ -64,12 +64,11 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<Sa
                 "loaded sandbox cache"
             );
             return Some(cache.sandbox_info);
-        } else {
+        }
             tracing::debug!(
                 path = %path.display(),
                 "sandbox cache signature mismatch, ignoring"
             );
-        }
     }
     None
 }

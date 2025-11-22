@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
 
-/// What: Handle key events for ImportHelp modal.
+/// What: Handle key events for `ImportHelp` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -33,7 +33,7 @@ pub(crate) fn handle_import_help(
     false
 }
 
-/// What: Handle Enter key in ImportHelp modal - open file picker and import packages.
+/// What: Handle Enter key in `ImportHelp` modal - open file picker and import packages.
 ///
 /// Inputs:
 /// - `add_tx`: Channel for adding packages

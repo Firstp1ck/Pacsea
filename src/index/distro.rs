@@ -30,7 +30,7 @@ pub fn is_manjaro_name_or_owner(name: &str, owner: &str) -> bool {
     name_l.starts_with("manjaro-") || owner_l.contains("manjaro")
 }
 
-/// What: Check if a repo name is an EndeavourOS repo
+/// What: Check if a repo name is an `EndeavourOS` repo
 ///
 /// Input:
 /// - `repo` repository name
@@ -45,7 +45,7 @@ pub fn is_eos_repo(repo: &str) -> bool {
     r == "eos" || r == "endeavouros"
 }
 
-/// What: Check if a repo name belongs to CachyOS
+/// What: Check if a repo name belongs to `CachyOS`
 ///
 /// Input:
 /// - `repo` repository name
@@ -109,7 +109,7 @@ pub fn is_artix_system(repo: &str) -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
-/// What: Known EndeavourOS repo names usable with pacman -Sl
+/// What: Known `EndeavourOS` repo names usable with pacman -Sl
 ///
 /// Output:
 /// - Static slice of repo names
@@ -121,7 +121,7 @@ pub fn eos_repo_names() -> &'static [&'static str] {
 }
 
 #[cfg(not(target_os = "windows"))]
-/// What: Known CachyOS repo names usable with pacman -Sl
+/// What: Known `CachyOS` repo names usable with pacman -Sl
 ///
 /// Output:
 /// - Static slice of repo names

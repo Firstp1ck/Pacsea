@@ -17,7 +17,7 @@ fn is_tool_installed(pkg: &str, bin: &str) -> bool {
     crate::index::is_installed(pkg) || crate::install::command_on_path(bin)
 }
 
-/// What: Create an OptionalDepRow with standard fields.
+/// What: Create an `OptionalDepRow` with standard fields.
 ///
 /// Inputs:
 /// - `app`: Application state for i18n
@@ -52,7 +52,7 @@ fn create_optional_dep_row(
 /// What: Find the first installed candidate from a list of (binary, package) pairs.
 ///
 /// Inputs:
-/// - `candidates`: Slice of (binary_name, package_name) tuples
+/// - `candidates`: Slice of (`binary_name`, `package_name`) tuples
 ///
 /// Output:
 /// - `Some((binary, package))` if an installed candidate is found, `None` otherwise
@@ -239,7 +239,7 @@ fn build_terminal_rows(app: &AppState, rows: &mut Vec<crate::state::types::Optio
 /// - `true` if KDE session is detected
 ///
 /// Details:
-/// - Checks KDE_FULL_SESSION, XDG_CURRENT_DESKTOP, and klipper command
+/// - Checks `KDE_FULL_SESSION`, `XDG_CURRENT_DESKTOP`, and `klipper` command
 fn is_kde_session() -> bool {
     std::env::var("KDE_FULL_SESSION").is_ok()
         || std::env::var("XDG_CURRENT_DESKTOP")
@@ -412,7 +412,7 @@ fn build_aur_helper_rows(app: &AppState, rows: &mut Vec<crate::state::types::Opt
 /// - Appends security scanner rows to the provided vector
 ///
 /// Details:
-/// - Includes ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal API, and aur-sleuth
+/// - Includes `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, `VirusTotal API`, and `aur-sleuth`
 fn build_security_scanner_rows(
     app: &AppState,
     rows: &mut Vec<crate::state::types::OptionalDepRow>,
@@ -484,8 +484,8 @@ fn build_security_scanner_rows(
                     .exists()
             })
             .unwrap_or(false);
-        let usr_local = std::path::Path::new("/usr/local/bin/aur-sleuth").exists();
-        onpath || user_local || usr_local
+        let system_local = std::path::Path::new("/usr/local/bin/aur-sleuth").exists();
+        onpath || user_local || system_local
     };
     rows.push(create_optional_dep_row(
         app,
@@ -497,26 +497,26 @@ fn build_security_scanner_rows(
     ));
 }
 
-/// Build optional dependencies rows for the OptionalDeps modal.
+/// Build optional dependencies rows for the `OptionalDeps` modal.
 ///
 /// What: Scan the system for installed editors, terminals, clipboard tools, mirror managers,
-/// AUR helpers, and security scanners, then build a list of OptionalDepRow items for display.
+/// AUR helpers, and security scanners, then build a list of `OptionalDepRow` items for display.
 ///
 /// Inputs:
 /// - `app`: Application state (used for i18n translations)
 ///
 /// Output:
-/// - Vector of `OptionalDepRow` items ready to be displayed in the OptionalDeps modal.
+/// - Vector of `OptionalDepRow` items ready to be displayed in the `OptionalDeps` modal.
 ///
 /// Details:
-/// - Editor: Shows the first installed editor found (nvim, vim, hx/helix, emacsclient/emacs, nano),
-///   or all candidates if none installed. Handles helix (hx/helix) and emacs (emacs/emacsclient) aliases.
+/// - Editor: Shows the first installed editor found (`nvim`, `vim`, `hx`/`helix`, `emacsclient`/`emacs`, `nano`),
+///   or all candidates if none installed. Handles helix (`hx`/`helix`) and emacs (`emacs`/`emacsclient`) aliases.
 /// - Terminal: Shows the first installed terminal found, or all candidates if none installed.
-/// - Clipboard: Detects KDE (Klipper), Wayland (wl-clipboard), or X11 (xclip) and shows appropriate tool.
-/// - Mirrors: Detects Manjaro (pacman-mirrors), Artix (rate-mirrors), or default (reflector).
-/// - AUR helper: Shows installed paru/yay if present, or both if neither installed.
-/// - Security scanners: Always includes ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal API setup,
-///   and aur-sleuth setup. Marks installed items as non-selectable.
+/// - Clipboard: Detects `KDE` (`Klipper`), `Wayland` (`wl-clipboard`), or `X11` (`xclip`) and shows appropriate tool.
+/// - Mirrors: Detects `Manjaro` (`pacman-mirrors`), `Artix` (`rate-mirrors`), or default (`reflector`).
+/// - AUR helper: Shows installed `paru`/`yay` if present, or both if neither installed.
+/// - Security scanners: Always includes `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, `VirusTotal API` setup,
+///   and `aur-sleuth` setup. Marks installed items as non-selectable.
 pub(crate) fn build_optional_deps_rows(app: &AppState) -> Vec<crate::state::types::OptionalDepRow> {
     let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();
 

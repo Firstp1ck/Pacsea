@@ -1,19 +1,19 @@
-//! Scan configuration and VirusTotal setup modal handling.
+//! Scan configuration and `VirusTotal` setup modal handling.
 
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::AppState;
 
-/// What: Handle key events for ScanConfig modal.
+/// What: Handle key events for `ScanConfig` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `do_clamav`: Mutable reference to ClamAV flag
+/// - `do_clamav`: Mutable reference to `ClamAV` flag
 /// - `do_trivy`: Mutable reference to Trivy flag
 /// - `do_semgrep`: Mutable reference to Semgrep flag
-/// - `do_shellcheck`: Mutable reference to Shellcheck flag
-/// - `do_virustotal`: Mutable reference to VirusTotal flag
+/// - `do_shellcheck`: Mutable reference to `Shellcheck` flag
+/// - `do_virustotal`: Mutable reference to `VirusTotal` flag
 /// - `do_custom`: Mutable reference to custom scan flag
 /// - `do_sleuth`: Mutable reference to sleuth flag
 /// - `cursor`: Mutable reference to cursor position
@@ -84,7 +84,7 @@ pub(crate) fn handle_scan_config(
     false
 }
 
-/// What: Handle key events for VirusTotalSetup modal.
+/// What: Handle key events for `VirusTotalSetup` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -161,11 +161,11 @@ pub(crate) fn handle_virustotal_setup(
 /// Inputs:
 /// - `pending_install_names`: Mutable reference to pending install names
 /// - `dry_run`: Whether to run in dry-run mode
-/// - `do_clamav`: ClamAV scan flag
+/// - `do_clamav`: `ClamAV` scan flag
 /// - `do_trivy`: Trivy scan flag
 /// - `do_semgrep`: Semgrep scan flag
-/// - `do_shellcheck`: Shellcheck scan flag
-/// - `do_virustotal`: VirusTotal scan flag
+/// - `do_shellcheck`: `Shellcheck` scan flag
+/// - `do_virustotal`: `VirusTotal` scan flag
 /// - `do_custom`: Custom scan flag
 /// - `do_sleuth`: Sleuth scan flag
 ///

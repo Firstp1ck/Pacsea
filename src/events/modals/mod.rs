@@ -28,8 +28,8 @@ use crate::state::{AppState, Modal, PackageItem};
 /// - `true` if the event is fully handled and should not propagate to other handlers; otherwise `false`.
 ///
 /// Details:
-/// - Covers Alert, PreflightExec, PostSummary, SystemUpdate, ConfirmInstall/Remove, Help, News,
-///   OptionalDeps, VirusTotalSetup, ScanConfig, ImportHelp, and other lightweight modals.
+/// - Covers Alert, `PreflightExec`, `PostSummary`, `SystemUpdate`, `ConfirmInstall`/`Remove`, Help, News,
+///   `OptionalDeps`, `VirusTotalSetup`, `ScanConfig`, `ImportHelp`, and other lightweight modals.
 /// - Each branch performs modal-specific mutations (toggles, list navigation, spawning commands) and
 ///   is responsible for clearing or restoring `app.modal` when exiting.
 /// - When a modal should block further processing this function returns `true`, allowing callers to

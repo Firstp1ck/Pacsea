@@ -60,9 +60,8 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<De
         if cached_sig == current_sig {
             tracing::info!(path = %path.display(), count = cache.dependencies.len(), "loaded dependency cache");
             return Some(cache.dependencies);
-        } else {
-            tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
         }
+        tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
     }
     None
 }

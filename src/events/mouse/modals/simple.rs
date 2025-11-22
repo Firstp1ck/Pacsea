@@ -1,4 +1,4 @@
-//! Simple modal mouse event handling (Help, VirusTotalSetup, News).
+//! Simple modal mouse event handling (Help, `VirusTotalSetup`, News).
 
 use crate::state::AppState;
 use crossterm::event::{MouseEvent, MouseEventKind};
@@ -68,9 +68,9 @@ pub(super) fn handle_help_modal(
     Some(false)
 }
 
-/// Handle mouse events for the VirusTotalSetup modal.
+/// Handle mouse events for the `VirusTotalSetup` modal.
 ///
-/// What: Process mouse interactions within the VirusTotalSetup modal dialog.
+/// What: Process mouse interactions within the `VirusTotalSetup` modal dialog.
 ///
 /// Inputs:
 /// - `_m`: Mouse event including position, button, and modifiers (unused but kept for signature consistency)
@@ -84,7 +84,7 @@ pub(super) fn handle_help_modal(
 ///
 /// Details:
 /// - Opens URL when clicking the link area.
-/// - Consumes all mouse events while VirusTotal setup modal is open.
+/// - Consumes all mouse events while `VirusTotal` setup modal is open.
 pub(super) fn handle_virustotal_modal(
     _m: MouseEvent,
     mx: u16,

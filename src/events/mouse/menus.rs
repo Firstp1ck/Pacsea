@@ -31,7 +31,7 @@ fn point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
 
 /// Handle click on Import button.
 ///
-/// What: Opens ImportHelp modal when Import button is clicked.
+/// What: Opens `ImportHelp` modal when Import button is clicked.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
@@ -410,7 +410,7 @@ fn handle_installed_only_toggle(
 
 /// Handle system update option.
 ///
-/// What: Opens SystemUpdate modal with default settings.
+/// What: Opens `SystemUpdate` modal with default settings.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
@@ -492,7 +492,7 @@ fn handle_news_option(app: &mut AppState) {
 
 /// Handle optional deps option.
 ///
-/// What: Builds optional dependencies rows and opens OptionalDeps modal.
+/// What: Builds optional dependencies rows and opens `OptionalDeps` modal.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
@@ -654,11 +654,11 @@ fn close_all_menus(app: &mut AppState) {
 ///   The boolean value indicates whether the application should exit (always `false` here).
 ///
 /// Details:
-/// - Import/Export buttons: Import opens ImportHelp modal; Export writes install list to timestamped file.
+/// - Import/Export buttons: Import opens `ImportHelp` modal; Export writes install list to timestamped file.
 /// - Arch status label: Opens status.archlinux.org URL.
 /// - Sort menu: Toggle button opens/closes sort menu; menu items change sort mode and refresh results.
-/// - Options menu: Toggle button opens/closes menu; items toggle installed-only mode, open SystemUpdate/News,
-///   or build OptionalDeps modal.
+/// - Options menu: Toggle button opens/closes menu; items toggle installed-only mode, open `SystemUpdate`/News,
+///   or build `OptionalDeps` modal.
 /// - Config menu: Toggle button opens/closes menu; items open config files in terminal editors.
 /// - Panels menu: Toggle button opens/closes menu; items toggle Recent/Install panes and keybinds footer.
 /// - Menu auto-close: Clicking outside any open menu closes it.

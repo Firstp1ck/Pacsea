@@ -27,12 +27,12 @@ pub(crate) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: Modal)
     }
 }
 
-/// What: Handle key events for PreflightExec modal, including restoration logic.
+/// What: Handle key events for `PreflightExec` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: PreflightExec modal variant
+/// - `modal`: `PreflightExec` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
@@ -73,12 +73,12 @@ pub(crate) fn handle_preflight_exec_modal(
     false
 }
 
-/// What: Handle key events for PostSummary modal, including restoration logic.
+/// What: Handle key events for `PostSummary` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: PostSummary modal variant
+/// - `modal`: `PostSummary` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
@@ -113,18 +113,18 @@ pub(crate) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal:
     false
 }
 
-/// What: Handle key events for SystemUpdate modal, including restoration logic.
+/// What: Handle key events for `SystemUpdate` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: SystemUpdate modal variant
+/// - `modal`: `SystemUpdate` modal variant
 ///
 /// Output:
 /// - `true` if event propagation should stop, otherwise `false`
 ///
 /// Details:
-/// - Delegates to system_update handler and restores modal if needed
+/// - Delegates to `system_update` handler and restores modal if needed
 pub(crate) fn handle_system_update_modal(
     ke: KeyEvent,
     app: &mut AppState,
@@ -172,12 +172,12 @@ pub(crate) fn handle_system_update_modal(
     false
 }
 
-/// What: Handle key events for ConfirmInstall modal.
+/// What: Handle key events for `ConfirmInstall` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: ConfirmInstall modal variant
+/// - `modal`: `ConfirmInstall` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
@@ -191,12 +191,12 @@ pub(crate) fn handle_confirm_install_modal(ke: KeyEvent, app: &mut AppState, mod
     false
 }
 
-/// What: Handle key events for ConfirmRemove modal.
+/// What: Handle key events for `ConfirmRemove` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: ConfirmRemove modal variant
+/// - `modal`: `ConfirmRemove` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
@@ -288,18 +288,18 @@ pub(crate) fn handle_updates_modal(ke: KeyEvent, app: &mut AppState, mut modal: 
     false
 }
 
-/// What: Handle key events for OptionalDeps modal, including restoration logic.
+/// What: Handle key events for `OptionalDeps` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: OptionalDeps modal variant
+/// - `modal`: `OptionalDeps` modal variant
 ///
 /// Output:
 /// - `true` if event propagation should stop, otherwise `false`
 ///
 /// Details:
-/// - Delegates to optional_deps handler and restores modal if needed
+/// - Delegates to `optional_deps` handler and restores modal if needed
 pub(crate) fn handle_optional_deps_modal(
     ke: KeyEvent,
     app: &mut AppState,
@@ -324,12 +324,12 @@ pub(crate) fn handle_optional_deps_modal(
     false
 }
 
-/// What: Handle key events for ScanConfig modal, including restoration logic.
+/// What: Handle key events for `ScanConfig` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: ScanConfig modal variant
+/// - `modal`: `ScanConfig` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
@@ -378,12 +378,12 @@ pub(crate) fn handle_scan_config_modal(ke: KeyEvent, app: &mut AppState, mut mod
     false
 }
 
-/// What: Handle key events for VirusTotalSetup modal, including restoration logic.
+/// What: Handle key events for `VirusTotalSetup` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: VirusTotalSetup modal variant
+/// - `modal`: `VirusTotalSetup` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
@@ -413,12 +413,12 @@ pub(crate) fn handle_virustotal_setup_modal(
     false
 }
 
-/// What: Handle key events for GnomeTerminalPrompt modal.
+/// What: Handle key events for `GnomeTerminalPrompt` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: GnomeTerminalPrompt modal variant (unit type)
+/// - `modal`: `GnomeTerminalPrompt` modal variant (unit type)
 ///
 /// Output:
 /// - `false` (never stops propagation)
@@ -434,13 +434,13 @@ pub(crate) fn handle_gnome_terminal_prompt_modal(
     false
 }
 
-/// What: Handle key events for ImportHelp modal.
+/// What: Handle key events for `ImportHelp` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
 /// - `add_tx`: Channel for adding packages
-/// - `modal`: ImportHelp modal variant (unit type)
+/// - `modal`: `ImportHelp` modal variant (unit type)
 ///
 /// Output:
 /// - `false` (never stops propagation)

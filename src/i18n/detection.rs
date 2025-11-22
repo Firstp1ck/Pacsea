@@ -11,7 +11,7 @@ use std::env;
 /// - `Option<String>` containing locale code (e.g., "de-DE") or None if not detectable
 ///
 /// Details:
-/// - Checks LC_ALL, LC_MESSAGES, and LANG environment variables in order
+/// - Checks `LC_ALL`, `LC_MESSAGES`, and `LANG` environment variables in order
 /// - Parses locale strings like "de_DE.UTF-8" -> "de-DE"
 /// - Returns None if no valid locale found
 pub fn detect_system_locale() -> Option<String> {
@@ -32,7 +32,7 @@ pub fn detect_system_locale() -> Option<String> {
 /// What: Parse a locale string from environment variables into a standardized format.
 ///
 /// Inputs:
-/// - `locale_str`: Locale string like "de_DE.UTF-8", "de-DE", "en_US.utf8"
+/// - `locale_str`: Locale string like `"de_DE.UTF-8"`, `"de-DE"`, `"en_US.utf8"`
 ///
 /// Output:
 /// - `Option<String>` with standardized format (e.g., "de-DE") or None if invalid
@@ -40,7 +40,7 @@ pub fn detect_system_locale() -> Option<String> {
 /// Details:
 /// - Converts underscores to hyphens
 /// - Removes encoding suffix (.UTF-8, .utf8, etc.)
-/// - Handles both "de_DE" and "de-DE" formats
+/// - Handles both `"de_DE"` and `"de-DE"` formats
 fn parse_locale_string(locale_str: &str) -> Option<String> {
     let trimmed = locale_str.trim();
     if trimmed.is_empty() {

@@ -137,7 +137,7 @@ pub fn find_locales_dir() -> Option<PathBuf> {
     None
 }
 
-/// What: Get a translation for a given key from AppState.
+/// What: Get a translation for a given key from `AppState`.
 ///
 /// Inputs:
 /// - `app`: AppState containing translation maps
@@ -147,7 +147,7 @@ pub fn find_locales_dir() -> Option<PathBuf> {
 /// - Translated string, or the key itself if translation not found
 ///
 /// Details:
-/// - Uses translations from AppState
+/// - Uses translations from `AppState`
 /// - Falls back to English if translation missing
 pub fn t(app: &crate::state::AppState, key: &str) -> String {
     crate::i18n::translations::translate_with_fallback(
@@ -160,7 +160,7 @@ pub fn t(app: &crate::state::AppState, key: &str) -> String {
 /// What: Get a translation with format arguments.
 ///
 /// Inputs:
-/// - `app`: AppState containing translation maps
+/// - `app`: `AppState` containing translation maps
 /// - `key`: Dot-notation key
 /// - `args`: Format arguments (as Display trait objects)
 ///
@@ -182,7 +182,7 @@ pub fn t_fmt(app: &crate::state::AppState, key: &str, args: &[&dyn std::fmt::Dis
 /// What: Get a translation with a single format argument (convenience function).
 ///
 /// Inputs:
-/// - `app`: AppState containing translation maps
+/// - `app`: `AppState` containing translation maps
 /// - `key`: Dot-notation key
 /// - `arg`: Single format argument
 ///

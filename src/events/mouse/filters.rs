@@ -228,7 +228,7 @@ fn handle_artix_dropdown_click(mx: u16, my: u16, app: &mut AppState) -> bool {
 /// Handle mouse events for filter toggles.
 ///
 /// What: Process mouse clicks on filter toggle labels in the Results title bar to enable/disable
-/// repository filters (AUR, Core, Extra, Multilib, EOS, CachyOS, Artix, Manjaro).
+/// repository filters (`AUR`, `Core`, `Extra`, `Multilib`, `EOS`, `CachyOS`, `Artix`, `Manjaro`).
 ///
 /// Inputs:
 /// - `mx`: Mouse X coordinate (column)

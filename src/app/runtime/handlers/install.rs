@@ -257,11 +257,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_add_to_install_list adds item and triggers resolutions.
+    /// What: Verify that `handle_add_to_install_list` adds item and triggers resolutions.
     ///
     /// Inputs:
     /// - App state with empty install list
-    /// - PackageItem to add
+    /// - `PackageItem` to add
     /// - Channel senders
     ///
     /// Output:
@@ -313,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_dependency_result updates cache and respects cancellation.
+    /// What: Verify that `handle_dependency_result` updates cache and respects cancellation.
     ///
     /// Inputs:
     /// - App state
@@ -360,7 +360,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_dependency_result ignores results when cancelled.
+    /// What: Verify that `handle_dependency_result` ignores results when cancelled.
     ///
     /// Inputs:
     /// - App state with cancellation flag set

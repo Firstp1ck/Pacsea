@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::{AppState, PackageItem};
 
-/// What: Handle key events for ConfirmInstall modal.
+/// What: Handle key events for `ConfirmInstall` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -35,7 +35,7 @@ pub(crate) fn handle_confirm_install(
             );
             app.modal = new_modal;
         }
-        KeyCode::Char('s') | KeyCode::Char('S') => {
+        KeyCode::Char('s' | 'S') => {
             let new_modal = handle_confirm_install_scan(&mut app.pending_install_names, items);
             app.modal = new_modal;
         }
@@ -44,7 +44,7 @@ pub(crate) fn handle_confirm_install(
     false
 }
 
-/// What: Handle key events for ConfirmRemove modal.
+/// What: Handle key events for `ConfirmRemove` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -67,7 +67,7 @@ pub(crate) fn handle_confirm_remove(
             // Cancel removal (defaults to No)
             app.modal = crate::state::Modal::None;
         }
-        KeyCode::Char('y') | KeyCode::Char('Y') => {
+        KeyCode::Char('y' | 'Y') => {
             // Explicit confirmation required - proceed with removal
             handle_confirm_remove_execute(
                 &mut app.remove_list,
@@ -135,7 +135,7 @@ fn handle_confirm_install_enter(
 /// - `pending_install_names`: Mutable reference to pending install names
 /// - `items`: Package items to scan
 ///
-/// Output: New modal state (Alert or ScanConfig)
+/// Output: New modal state (Alert or `ScanConfig`)
 ///
 /// Details:
 /// - Filters AUR packages and opens scan configuration modal

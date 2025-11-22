@@ -12,7 +12,7 @@ use super::distro::{artix_repo_names, cachyos_repo_names, eos_repo_names};
 ///   are empty for speed. The result is deduplicated by `(repo, name)`.
 ///
 /// Details:
-/// - Combines results from core, extra, multilib, EndeavourOS, CachyOS, and Artix Linux repositories before
+/// - Combines results from core, extra, multilib, `EndeavourOS`, `CachyOS`, and `Artix Linux` repositories before
 ///   sorting and deduplicating entries.
 #[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()

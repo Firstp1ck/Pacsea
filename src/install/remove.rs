@@ -3,7 +3,7 @@ use std::process::Command;
 
 use crate::state::modal::CascadeMode;
 
-/// What: Check for configuration directories in $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+/// What: Check for configuration directories in `$HOME/PACKAGE_NAME` and `$HOME/.config/PACKAGE_NAME`.
 ///
 /// Inputs:
 /// - `package_name`: Name of the package to check for config directories.
@@ -13,7 +13,7 @@ use crate::state::modal::CascadeMode;
 /// - Vector of found config directory paths.
 ///
 /// Details:
-/// - Checks both $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+/// - Checks both `$HOME/PACKAGE_NAME` and `$HOME/.config/PACKAGE_NAME`.
 /// - Only returns directories that actually exist.
 pub fn check_config_directories(package_name: &str, home: &str) -> Vec<std::path::PathBuf> {
     use std::path::PathBuf;
@@ -154,7 +154,7 @@ fn try_spawn_terminal(
 /// What: Spawn a terminal to remove all given packages with pacman.
 ///
 /// Input:
-/// - names slice of package names; dry_run prints the removal command instead of executing
+/// - names slice of package names; `dry_run` prints the removal command instead of executing
 ///
 /// Output:
 /// - Launches a terminal (or bash) to run sudo pacman -Rns for the provided names.

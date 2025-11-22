@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::i18n::translations::TranslationMap;
 
-/// What: Load a locale YAML file and parse it into a TranslationMap.
+/// What: Load a locale YAML file and parse it into a `TranslationMap`.
 ///
 /// Inputs:
 /// - `locale`: Locale code (e.g., "de-DE")
@@ -17,7 +17,7 @@ use crate::i18n::translations::TranslationMap;
 ///
 /// Details:
 /// - Loads file from `locales_dir/{locale}.yml`
-/// - Parses YAML structure into nested HashMap
+/// - Parses YAML structure into nested `HashMap`
 /// - Returns error if file not found or invalid YAML
 /// - Validates locale format before attempting to load
 pub fn load_locale_file(locale: &str, locales_dir: &Path) -> Result<TranslationMap, String> {
@@ -76,7 +76,7 @@ fn is_valid_locale_format(locale: &str) -> bool {
         && !locale.contains("--")
 }
 
-/// What: Parse YAML content into a TranslationMap.
+/// What: Parse YAML content into a `TranslationMap`.
 ///
 /// Inputs:
 /// - `yaml_content`: YAML file content as string
@@ -168,13 +168,13 @@ pub struct LocaleLoader {
 }
 
 impl LocaleLoader {
-    /// What: Create a new LocaleLoader.
+    /// What: Create a new `LocaleLoader`.
     ///
     /// Inputs:
     /// - `locales_dir`: Path to locales directory
     ///
     /// Output:
-    /// - LocaleLoader instance
+    /// - `LocaleLoader` instance
     pub fn new(locales_dir: PathBuf) -> Self {
         Self {
             locales_dir,

@@ -14,7 +14,7 @@ mod tests;
 
 pub use preflight::{open_preflight_install_modal, open_preflight_remove_modal};
 
-/// What: Handle pane_next navigation (cycles through panes).
+/// What: Handle `pane_next` navigation (cycles through panes).
 fn handle_pane_next_navigation(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,

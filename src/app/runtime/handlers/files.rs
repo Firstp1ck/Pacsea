@@ -259,7 +259,7 @@ mod tests {
     use crate::test_utils::new_app;
 
     #[test]
-    /// What: Verify that handle_file_result updates cache correctly.
+    /// What: Verify that `handle_file_result` updates cache correctly.
     ///
     /// Inputs:
     /// - App state

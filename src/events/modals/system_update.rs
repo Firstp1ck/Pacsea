@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use crate::events::distro;
 use crate::state::AppState;
 
-/// What: Handle key events for SystemUpdate modal.
+/// What: Handle key events for `SystemUpdate` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event

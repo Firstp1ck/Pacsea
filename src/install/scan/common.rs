@@ -8,7 +8,7 @@ Output:
 - Appends scan command strings to the provided vector
 
 Details:
-- Provides reusable functions for ClamAV, Trivy, Semgrep, ShellCheck, Custom patterns, VirusTotal, and aur-sleuth scans
+- Provides reusable functions for `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, Custom patterns, `VirusTotal`, and `aur-sleuth` scans
 */
 
 /// What: Add pattern environment variable exports to command vector.
@@ -29,17 +29,17 @@ pub fn add_pattern_exports(cmds: &mut Vec<String>) {
     cmds.push("if [ -z \"${PACSEA_PATTERNS_LOW:-}\" ]; then export PACSEA_PATTERNS_LOW='http_proxy=|https_proxy=|ALL_PROXY=|yes[[:space:]]+> */dev/null *&|ulimit -n [0-9]{5,}'; fi".to_string());
 }
 
-/// What: Add ClamAV scan commands to command vector.
+/// What: Add `ClamAV` scan commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
 ///
 /// Output:
-/// - Appends ClamAV scan commands to the vector.
+/// - Appends `ClamAV` scan commands to the vector.
 ///
 /// Details:
-/// - Checks for ClamAV availability and signature database before running scan.
-/// - Respects PACSEA_SCAN_DO_CLAMAV environment variable.
+/// - Checks for `ClamAV` availability and signature database before running scan.
+/// - Respects `PACSEA_SCAN_DO_CLAMAV` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_clamav_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- ClamAV scan (optional) ---'".to_string());
@@ -57,7 +57,7 @@ pub fn add_clamav_scan(cmds: &mut Vec<String>) {
 ///
 /// Details:
 /// - Attempts JSON output first, falls back to text output.
-/// - Respects PACSEA_SCAN_DO_TRIVY environment variable.
+/// - Respects `PACSEA_SCAN_DO_TRIVY` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_trivy_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Trivy filesystem scan (optional) ---'".to_string());

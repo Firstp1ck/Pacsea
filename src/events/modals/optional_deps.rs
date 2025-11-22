@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::AppState;
 
-/// What: Handle key events for OptionalDeps modal.
+/// What: Handle key events for `OptionalDeps` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -60,7 +60,7 @@ pub(crate) fn handle_optional_deps(
     }
 }
 
-/// What: Handle Enter key in OptionalDeps modal.
+/// What: Handle Enter key in `OptionalDeps` modal.
 ///
 /// Inputs:
 /// - `dry_run`: Whether to run in dry-run mode

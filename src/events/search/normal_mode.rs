@@ -126,7 +126,7 @@ fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Exports current Install List package names to config export dir.
-/// - Creates files with format: install_list_YYYYMMDD_serial.txt
+/// - Creates files with format: `install_list_YYYYMMDD_serial.txt`
 /// - Shows toast messages for success or failure.
 fn handle_export(app: &mut AppState) {
     if app.installed_only_mode {
@@ -351,7 +351,7 @@ fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
     false
 }
 
-/// What: Handle pane navigation (Left/Right arrows and pane_next).
+/// What: Handle pane navigation (Left/Right arrows and `pane_next`).
 ///
 /// Inputs:
 /// - `ke`: Key event from terminal
@@ -363,7 +363,7 @@ fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
 /// - `true` if pane navigation was handled, `false` otherwise
 ///
 /// Details:
-/// - Handles Left/Right arrow keys and configured pane_next key.
+/// - Handles Left/Right arrow keys and configured `pane_next` key.
 /// - Switches focus between panes and updates details accordingly.
 fn handle_pane_navigation(
     ke: &KeyEvent,
