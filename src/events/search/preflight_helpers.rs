@@ -163,5 +163,5 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
     } else {
         "Preflight opened".to_string()
     });
-        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
 }

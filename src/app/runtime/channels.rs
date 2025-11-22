@@ -4,7 +4,9 @@ use std::sync::atomic::AtomicBool;
 use crossterm::event::Event as CEvent;
 use tokio::sync::mpsc;
 
-use crate::state::{ArchStatusColor, NewsItem, PackageDetails, PackageItem, QueryInput, SearchResults};
+use crate::state::{
+    ArchStatusColor, NewsItem, PackageDetails, PackageItem, QueryInput, SearchResults,
+};
 
 /// What: Channel definitions for runtime communication.
 ///

@@ -237,7 +237,8 @@ mod tests {
     /// Details:
     /// - Redirects `HOME`, guards with the theme mutex, and removes the temp directory after assertions.
     fn load_returns_defaults_when_config_missing() {
-        let _guard = crate::theme::test_mutex().lock()
+        let _guard = crate::theme::test_mutex()
+            .lock()
             .expect("Test mutex poisoned");
         use std::fs;
         use std::path::PathBuf;
@@ -294,7 +295,8 @@ mod tests {
     /// Details:
     /// - Writes `pattern.conf` under Pacsea's config directory, then restores environment variables and removes artifacts.
     fn load_reads_pattern_conf_overrides() {
-        let _guard = crate::theme::test_mutex().lock()
+        let _guard = crate::theme::test_mutex()
+            .lock()
             .expect("Test mutex poisoned");
         use std::fs;
         use std::path::PathBuf;

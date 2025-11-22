@@ -287,8 +287,8 @@ fn handle_partial_match(
         );
         *modal_sandbox = partial_match;
     }
-        *sandbox_loaded = true;
-        *sandbox_error = None;
+    *sandbox_loaded = true;
+    *sandbox_error = None;
 }
 
 /// What: Handle empty sandbox result when AUR packages are expected.

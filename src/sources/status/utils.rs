@@ -510,13 +510,13 @@ mod tests {
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
 
         // Test "Down" in monitors section
-        let html_monitors_down = "<html><body><div>Monitors (default)</div><div>AUR</div><div>Down</div></body></html>";
+        let html_monitors_down =
+            "<html><body><div>Monitors (default)</div><div>AUR</div><div>Down</div></body></html>";
         let color = extract_arch_systems_status_color(html_monitors_down);
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
 
         // Test "Down" in monitors section with HTML tags
-        let html_monitors_html =
-            "<html><body><div>Monitors</div><div>>Down<</div></body></html>";
+        let html_monitors_html = "<html><body><div>Monitors</div><div>>Down<</div></body></html>";
         let color = extract_arch_systems_status_color(html_monitors_html);
         assert_eq!(color, Some(ArchStatusColor::IncidentToday));
 

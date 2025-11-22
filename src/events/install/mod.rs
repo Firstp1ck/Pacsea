@@ -63,9 +63,7 @@ fn handle_left_arrow_navigation(
             crate::state::RightPaneFocus::Remove => {
                 // Move to Downgrade subpane and keep Install focus
                 app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
-                if app.downgrade_state.selected().is_none()
-                    && !app.downgrade_list.is_empty()
-                {
+                if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
                     app.downgrade_state.select(Some(0));
                 }
                 super::utils::refresh_downgrade_details(app, details_tx);

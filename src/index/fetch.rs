@@ -181,14 +181,19 @@ exit 0
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&script).expect("Failed to read test pacman script metadata").permissions();
+            let mut perm = std::fs::metadata(&script)
+                .expect("Failed to read test pacman script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&script, perm).expect("Failed to set test pacman script permissions");
+            std::fs::set_permissions(&script, perm)
+                .expect("Failed to set test pacman script permissions");
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
 
-        let pkgs = super::fetch_official_pkg_names().await.expect("Failed to fetch official package names in test");
+        let pkgs = super::fetch_official_pkg_names()
+            .await
+            .expect("Failed to fetch official package names in test");
 
         // Cleanup PATH and temp files early
         unsafe { std::env::set_var("PATH", &old_path) };

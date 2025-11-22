@@ -128,7 +128,11 @@ mod tests {
                 .as_nanos()
         ));
         let idx_json = serde_json::json!({ "pkgs": [] });
-        std::fs::write(&path, serde_json::to_string(&idx_json).expect("Failed to serialize test index JSON")).expect("Failed to write test index file");
+        std::fs::write(
+            &path,
+            serde_json::to_string(&idx_json).expect("Failed to serialize test index JSON"),
+        )
+        .expect("Failed to write test index file");
         crate::index::load_from_disk(&path);
 
         let (notify_tx, mut notify_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
@@ -208,9 +212,12 @@ exit 0
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&script).expect("Failed to read test pacman script metadata").permissions();
+            let mut perm = std::fs::metadata(&script)
+                .expect("Failed to read test pacman script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&script, perm).expect("Failed to set test pacman script permissions");
+            std::fs::set_permissions(&script, perm)
+                .expect("Failed to set test pacman script permissions");
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };

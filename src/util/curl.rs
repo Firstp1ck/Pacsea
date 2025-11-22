@@ -148,9 +148,7 @@ pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
         .args(&args)
         .output()
         .map_err(|e| {
-            format!(
-                "curl command failed to execute: {e} (is curl installed and in PATH?)"
-            )
+            format!("curl command failed to execute: {e} (is curl installed and in PATH?)")
         })?;
     if !out.status.success() {
         let error_msg = map_curl_error(out.status.code(), &out.status);

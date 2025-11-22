@@ -65,10 +65,10 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<Sa
             );
             return Some(cache.sandbox_info);
         }
-            tracing::debug!(
-                path = %path.display(),
-                "sandbox cache signature mismatch, ignoring"
-            );
+        tracing::debug!(
+            path = %path.display(),
+            "sandbox cache signature mismatch, ignoring"
+        );
     }
     None
 }

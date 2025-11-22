@@ -65,7 +65,7 @@ mod tests {
         // Alert
         let mut app = crate::state::AppState {
             modal: crate::state::Modal::Alert {
-            message: "Test".into(),
+                message: "Test".into(),
             },
             ..Default::default()
         };

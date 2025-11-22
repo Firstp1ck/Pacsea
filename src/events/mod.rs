@@ -149,9 +149,12 @@ mod tests {
         term_path.push("xfce4-terminal");
         let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
         fs::write(&term_path, script.as_bytes()).expect("Failed to write test terminal script");
-        let mut perms = fs::metadata(&term_path).expect("Failed to read test terminal script metadata").permissions();
+        let mut perms = fs::metadata(&term_path)
+            .expect("Failed to read test terminal script metadata")
+            .permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&term_path, perms).expect("Failed to set test terminal script permissions");
+        fs::set_permissions(&term_path, perms)
+            .expect("Failed to set test terminal script permissions");
         let orig_path = std::env::var_os("PATH");
         // Prepend our fake terminal directory to PATH to ensure xfce4-terminal is found first
         let combined_path = match std::env::var("PATH") {
@@ -286,7 +289,9 @@ mod tests {
             let mut p = dir.clone();
             p.push(name);
             fs::write(&p, b"#!/bin/sh\nexit 0\n").expect("Failed to write test executable stub");
-            let mut perms = fs::metadata(&p).expect("Failed to read test executable stub metadata").permissions();
+            let mut perms = fs::metadata(&p)
+                .expect("Failed to read test executable stub metadata")
+                .permissions();
             perms.set_mode(0o755);
             fs::set_permissions(&p, perms).expect("Failed to set test executable stub permissions");
         };

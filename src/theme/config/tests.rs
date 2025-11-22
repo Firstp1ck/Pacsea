@@ -152,7 +152,8 @@ mod tests {
         );
 
         // Test 3: Verify generated skeleton file contains all required keys
-        let generated_content = fs::read_to_string(&theme_path).expect("Failed to read generated theme file");
+        let generated_content =
+            fs::read_to_string(&theme_path).expect("Failed to read generated theme file");
         let generated_keys: HashSet<String> = generated_content
             .lines()
             .filter_map(|line| {
@@ -497,7 +498,8 @@ mod tests {
         ensure_settings_keys_present(&default_prefs);
 
         assert!(settings_path.exists(), "Settings file should be created");
-        let generated_content = fs::read_to_string(settings_path).expect("Failed to read generated settings file");
+        let generated_content =
+            fs::read_to_string(settings_path).expect("Failed to read generated settings file");
         assert!(
             !generated_content.is_empty(),
             "Generated config file should not be empty"
@@ -533,7 +535,8 @@ mod tests {
         };
         ensure_settings_keys_present(&modified_prefs);
 
-        let updated_content = fs::read_to_string(settings_path).expect("Failed to read updated settings file");
+        let updated_content =
+            fs::read_to_string(settings_path).expect("Failed to read updated settings file");
         let updated_keys = extract_config_keys(&updated_content);
         assert_all_keys_present(
             &updated_keys,
@@ -623,7 +626,8 @@ mod tests {
     fn test_save_functions_persist(settings_path: &std::path::Path) {
         use std::fs;
         save_sort_mode(crate::state::SortMode::BestMatches);
-        let saved_content = fs::read_to_string(settings_path).expect("Failed to read saved settings file");
+        let saved_content =
+            fs::read_to_string(settings_path).expect("Failed to read saved settings file");
         assert_config_contains(
             &saved_content,
             "sort_mode",
@@ -632,7 +636,8 @@ mod tests {
         );
 
         save_show_recent_pane(true);
-        let saved_content2 = fs::read_to_string(settings_path).expect("Failed to read saved settings file (second read)");
+        let saved_content2 = fs::read_to_string(settings_path)
+            .expect("Failed to read saved settings file (second read)");
         assert_config_contains(
             &saved_content2,
             "show_recent_pane",
@@ -641,7 +646,8 @@ mod tests {
         );
 
         save_selected_countries("Switzerland, Austria");
-        let saved_content3 = fs::read_to_string(settings_path).expect("Failed to read saved settings file (third read)");
+        let saved_content3 = fs::read_to_string(settings_path)
+            .expect("Failed to read saved settings file (third read)");
         assert_config_contains(
             &saved_content3,
             "selected_countries",
@@ -669,7 +675,8 @@ mod tests {
     fn config_settings_comprehensive_parameter_check() {
         use std::fs;
 
-        let _guard = crate::theme::test_mutex().lock()
+        let _guard = crate::theme::test_mutex()
+            .lock()
             .expect("Test mutex poisoned");
         let (base, cfg_dir, orig_home, orig_xdg) = setup_test_environment();
 

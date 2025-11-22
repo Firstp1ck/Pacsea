@@ -290,9 +290,8 @@ fn process_checkupdates_output(
                     let installed_version = get_installed_version(&name);
 
                     // Format: "name - old_version -> name - new_version"
-                    let formatted = format!(
-                        "{name} - {installed_version} -> {name} - {new_version}"
-                    );
+                    let formatted =
+                        format!("{name} - {installed_version} -> {name} - {new_version}");
                     packages_map.insert(name.clone(), formatted);
                     packages_set.insert(name);
                 }
@@ -338,8 +337,7 @@ fn process_qua_output(
 
                     for (name, old_version, new_version) in packages {
                         // Format: "name - old_version -> name - new_version"
-                        let formatted =
-                            format!("{name} - {old_version} -> {name} - {new_version}");
+                        let formatted = format!("{name} - {old_version} -> {name} - {new_version}");
                         packages_map.insert(name.clone(), formatted);
                         packages_set.insert(name);
                     }

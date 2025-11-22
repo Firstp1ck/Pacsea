@@ -251,9 +251,12 @@ mod tests {
         term_path.push("gnome-terminal");
         let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
         fs::write(&term_path, script.as_bytes()).expect("Failed to write test terminal script");
-        let mut perms = fs::metadata(&term_path).expect("Failed to read test terminal script metadata").permissions();
+        let mut perms = fs::metadata(&term_path)
+            .expect("Failed to read test terminal script metadata")
+            .permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&term_path, perms).expect("Failed to set test terminal script permissions");
+        fs::set_permissions(&term_path, perms)
+            .expect("Failed to set test terminal script permissions");
 
         let orig_path = std::env::var_os("PATH");
         unsafe {

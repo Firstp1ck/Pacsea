@@ -73,9 +73,9 @@ fn calculate_modal_rect(area: Rect) -> Rect {
 
 /// What: Build all three line vectors for update entries in a single pass.
 ///
-    /// Inputs:
-    /// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
-    /// - `th`: Theme for styling
+/// Inputs:
+/// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
+/// - `th`: Theme for styling
 ///
 /// Output:
 /// - Returns `UpdateLines` containing left, center, and right pane lines
@@ -155,10 +155,10 @@ fn render_pane(
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-    /// - `app`: Mutable application state (records rects)
-    /// - `area`: Full screen area used to center the modal
-    /// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
-    /// - `scroll`: Scroll offset (lines) for the updates list
+/// - `app`: Mutable application state (records rects)
+/// - `area`: Full screen area used to center the modal
+/// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
+/// - `scroll`: Scroll offset (lines) for the updates list
 ///
 /// Output:
 /// - Draws the updates list with scroll support

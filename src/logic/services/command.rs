@@ -21,10 +21,7 @@ pub(crate) fn run_command(program: &str, args: &[&str], display: &str) -> Result
         .map_err(|err| format!("failed to spawn `{display}`: {err}"))?;
 
     if !output.status.success() {
-        return Err(format!(
-            "`{display}` exited with status {}",
-            output.status
-        ));
+        return Err(format!("`{display}` exited with status {}", output.status));
     }
 
     String::from_utf8(output.stdout)

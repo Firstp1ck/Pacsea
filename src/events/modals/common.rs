@@ -315,10 +315,7 @@ pub(crate) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> 
             let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
 
             if app.dry_run {
-                crate::install::spawn_shell_commands_in_terminal(&[format!(
-                    "echo DRY RUN: {cmd}",
-                    cmd
-                )]);
+                crate::install::spawn_shell_commands_in_terminal(&[format!("echo DRY RUN: {cmd}")]);
             } else {
                 crate::install::spawn_shell_commands_in_terminal(&[cmd]);
             }

@@ -89,7 +89,10 @@ pub fn handle_summary_result(
 /// What: Check and trigger summary resolution if conditions are met.
 fn check_and_trigger_summary_resolution(
     app: &mut AppState,
-    summary_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    summary_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
 ) {
     if let Some((ref items, ref action)) = app.preflight_summary_items
         && !app.preflight_summary_resolving

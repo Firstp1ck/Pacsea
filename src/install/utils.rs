@@ -174,9 +174,12 @@ mod tests {
         let mut cmd_path = dir.clone();
         cmd_path.push("mycmd");
         fs::write(&cmd_path, b"#!/bin/sh\nexit 0\n").expect("Failed to write test command script");
-        let mut perms = fs::metadata(&cmd_path).expect("Failed to read test command script metadata").permissions();
+        let mut perms = fs::metadata(&cmd_path)
+            .expect("Failed to read test command script metadata")
+            .permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&cmd_path, perms).expect("Failed to set test command script permissions");
+        fs::set_permissions(&cmd_path, perms)
+            .expect("Failed to set test command script permissions");
 
         let orig_path = std::env::var_os("PATH");
         unsafe { std::env::set_var("PATH", dir.display().to_string()) };
@@ -222,7 +225,9 @@ mod tests {
         let mut kitty = dir.clone();
         kitty.push("kitty");
         fs::write(&kitty, b"#!/bin/sh\nexit 0\n").expect("Failed to write test kitty script");
-        let mut perms = fs::metadata(&kitty).expect("Failed to read test kitty script metadata").permissions();
+        let mut perms = fs::metadata(&kitty)
+            .expect("Failed to read test kitty script metadata")
+            .permissions();
         perms.set_mode(0o755);
         fs::set_permissions(&kitty, perms).expect("Failed to set test kitty script permissions");
 

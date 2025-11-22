@@ -38,7 +38,8 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
 
     // 2. Rate limiting: ensure minimum interval between requests
     let delay = {
-        let mut last_request = PKGBUILD_RATE_LIMITER.lock()
+        let mut last_request = PKGBUILD_RATE_LIMITER
+            .lock()
             .expect("PKGBUILD rate limiter mutex poisoned");
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
@@ -115,7 +116,8 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn pkgbuild_fetches_aur_via_curl_text() {
-        let _guard = crate::sources::test_mutex().lock()
+        let _guard = crate::sources::test_mutex()
+            .lock()
             .expect("Test mutex poisoned");
         // Shim PATH with fake curl
         let old_path = std::env::var("PATH").unwrap_or_default();
@@ -139,9 +141,12 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&curl).expect("Failed to read test curl script metadata").permissions();
+            let mut perm = std::fs::metadata(&curl)
+                .expect("Failed to read test curl script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&curl, perm).expect("Failed to set test curl script permissions");
+            std::fs::set_permissions(&curl, perm)
+                .expect("Failed to set test curl script permissions");
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
@@ -153,7 +158,9 @@ mod tests {
             source: Source::Aur,
             popularity: None,
         };
-        let txt = super::fetch_pkgbuild_fast(&item).await.expect("Failed to fetch PKGBUILD in test");
+        let txt = super::fetch_pkgbuild_fast(&item)
+            .await
+            .expect("Failed to fetch PKGBUILD in test");
         assert!(txt.contains("pkgver=1"));
 
         unsafe { std::env::set_var("PATH", &old_path) };
@@ -189,9 +196,12 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&curl).expect("Failed to read test curl script metadata").permissions();
+            let mut perm = std::fs::metadata(&curl)
+                .expect("Failed to read test curl script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&curl, perm).expect("Failed to set test curl script permissions");
+            std::fs::set_permissions(&curl, perm)
+                .expect("Failed to set test curl script permissions");
         }
 
         // Create fake paru and yay that fail (to prevent get_pkgbuild_from_cache from fetching real data)
@@ -201,9 +211,12 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&paru).expect("Failed to read test paru script metadata").permissions();
+            let mut perm = std::fs::metadata(&paru)
+                .expect("Failed to read test paru script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&paru, perm).expect("Failed to set test paru script permissions");
+            std::fs::set_permissions(&paru, perm)
+                .expect("Failed to set test paru script permissions");
         }
 
         let mut yay = bin.clone();
@@ -212,9 +225,12 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&yay).expect("Failed to read test yay script metadata").permissions();
+            let mut perm = std::fs::metadata(&yay)
+                .expect("Failed to read test yay script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&yay, perm).expect("Failed to set test yay script permissions");
+            std::fs::set_permissions(&yay, perm)
+                .expect("Failed to set test yay script permissions");
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
@@ -236,7 +252,9 @@ mod tests {
                 },
                 popularity: None,
             };
-            super::fetch_pkgbuild_fast(&item).await.expect("Failed to fetch PKGBUILD in test")
+            super::fetch_pkgbuild_fast(&item)
+                .await
+                .expect("Failed to fetch PKGBUILD in test")
         });
 
         assert!(txt.contains("pkgrel=2"));

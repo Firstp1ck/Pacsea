@@ -89,8 +89,10 @@ pub fn load_cache_partial(
 
             if current_set.is_subset(&cached_set) {
                 // Filter cached results to match current selection
-                let current_names: std::collections::HashSet<&str> =
-                    current_sig.iter().map(std::string::String::as_str).collect();
+                let current_names: std::collections::HashSet<&str> = current_sig
+                    .iter()
+                    .map(std::string::String::as_str)
+                    .collect();
                 let filtered: Vec<PackageFileInfo> = cache
                     .files
                     .iter()

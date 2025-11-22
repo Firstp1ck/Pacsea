@@ -252,7 +252,8 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
 
     // 2. Rate limiting: ensure minimum interval between requests
     {
-        let mut last_request = PKGBUILD_RATE_LIMITER.lock()
+        let mut last_request = PKGBUILD_RATE_LIMITER
+            .lock()
             .expect("PKGBUILD rate limiter mutex poisoned");
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
@@ -330,10 +331,10 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
             {
                 return Ok(text);
             }
-                tracing::warn!(
-                    "GitLab main returned invalid PKGBUILD (likely HTML): first 200 chars: {:?}",
-                    text.chars().take(200).collect::<String>()
-                );
+            tracing::warn!(
+                "GitLab main returned invalid PKGBUILD (likely HTML): first 200 chars: {:?}",
+                text.chars().take(200).collect::<String>()
+            );
         }
         _ => {}
     }

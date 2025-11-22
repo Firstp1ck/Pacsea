@@ -523,8 +523,7 @@ mod tests {
         );
 
         // Test AUR Down with >down< pattern
-        let html1 =
-            "<html><body><div>Monitors</div><div>AUR</div><div>>Down<</div></body></html>";
+        let html1 = "<html><body><div>Monitors</div><div>AUR</div><div>>Down<</div></body></html>";
         assert!(is_aur_down_in_monitors(html1));
 
         // Test AUR Down with "down" pattern
@@ -533,8 +532,7 @@ mod tests {
         assert!(is_aur_down_in_monitors(html2));
 
         // Test AUR Down with 'down' pattern
-        let html3 =
-            "<html><body><div>Monitors</div><div>AUR</div><div>'Down'</div></body></html>";
+        let html3 = "<html><body><div>Monitors</div><div>AUR</div><div>'Down'</div></body></html>";
         assert!(is_aur_down_in_monitors(html3));
 
         // Test AUR Operational (should return false)

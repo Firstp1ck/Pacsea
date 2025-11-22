@@ -290,7 +290,8 @@ test-LOCALE:
 "#;
         fs::write(&locale_file, yaml_content).expect("Failed to write test locale file");
 
-        let result = load_locale_file("test-LOCALE", locales_dir).expect("Failed to load test locale file");
+        let result =
+            load_locale_file("test-LOCALE", locales_dir).expect("Failed to load test locale file");
         assert_eq!(
             result.get("app.titles.search"),
             Some(&"Test Search".to_string())
@@ -350,14 +351,18 @@ cache-test:
         let mut loader = LocaleLoader::new(locales_dir.to_path_buf());
 
         // First load
-        let result1 = loader.load("cache-test").expect("Failed to load locale in test");
+        let result1 = loader
+            .load("cache-test")
+            .expect("Failed to load locale in test");
         assert_eq!(
             result1.get("app.titles.search"),
             Some(&"Cached".to_string())
         );
 
         // Second load should use cache
-        let result2 = loader.load("cache-test").expect("Failed to load cached locale in test");
+        let result2 = loader
+            .load("cache-test")
+            .expect("Failed to load cached locale in test");
         assert_eq!(
             result2.get("app.titles.search"),
             Some(&"Cached".to_string())
