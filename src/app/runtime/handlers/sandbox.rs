@@ -2,10 +2,10 @@ use tokio::sync::mpsc;
 
 use crate::state::AppState;
 
-/// What: Log detailed dependency information for sandbox info entries.
+/// What: Log detailed dependency information for `SandboxInfo` entries.
 ///
 /// Inputs:
-/// - `sandbox_info`: Sandbox resolution results to log
+/// - `sandbox_info`: `SandboxInfo` resolution results to log
 ///
 /// Output: None (side effect: logging)
 ///
@@ -44,10 +44,10 @@ fn log_sandbox_info_details(sandbox_info: &[crate::logic::sandbox::SandboxInfo])
     }
 }
 
-/// What: Check if sandbox info is empty (all dependency vectors are empty).
+/// What: Check if `SandboxInfo` is empty (all dependency vectors are empty).
 ///
 /// Inputs:
-/// - `info`: Sandbox info to check
+/// - `info`: `SandboxInfo` to check
 ///
 /// Output: `true` if all dependency vectors are empty, `false` otherwise
 fn is_empty_sandbox(info: &crate::logic::sandbox::SandboxInfo) -> bool {
@@ -57,10 +57,10 @@ fn is_empty_sandbox(info: &crate::logic::sandbox::SandboxInfo) -> bool {
         && info.optdepends.is_empty()
 }
 
-/// What: Merge new sandbox info into existing cache, preserving valid entries.
+/// What: Merge new `SandboxInfo` into existing cache, preserving valid entries.
 ///
 /// Inputs:
-/// - `current_cache`: Current cached sandbox info
+/// - `current_cache`: Current cached `SandboxInfo`
 /// - `new_info`: New sandbox resolution results
 ///
 /// Output: Updated sandbox cache with merged entries
@@ -109,16 +109,16 @@ fn merge_sandbox_cache(
     updated_sandbox
 }
 
-/// What: Sync sandbox info to preflight modal if open.
+/// What: Sync `SandboxInfo` to preflight modal if open.
 ///
 /// Inputs:
 /// - `modal`: Preflight modal state
-/// - `sandbox_info`: Sandbox resolution results
+/// - `sandbox_info`: `SandboxInfo` resolution results
 ///
 /// Output: None (side effect: updates modal state)
 ///
 /// Details:
-/// - Filters sandbox info to match modal items
+/// - Filters `SandboxInfo` to match modal items
 /// - Handles empty results and mismatches gracefully
 /// - Sets appropriate error messages when needed
 fn sync_sandbox_to_modal(
@@ -177,13 +177,13 @@ fn sync_sandbox_to_modal(
     );
 }
 
-/// What: Sync matching sandbox info to modal.
+/// What: Sync matching `SandboxInfo` to modal.
 ///
 /// Inputs:
-/// - `modal_sandbox`: Modal sandbox info field to update
+/// - `modal_sandbox`: Modal `SandboxInfo` field to update
 /// - `sandbox_loaded`: Modal loaded flag to update
 /// - `sandbox_error`: Modal error field to update
-/// - `filtered_sandbox`: Matching sandbox info to sync
+/// - `filtered_sandbox`: Matching `SandboxInfo` to sync
 ///
 /// Output: None (side effect: updates modal fields)
 fn sync_matching_sandbox(
@@ -205,20 +205,20 @@ fn sync_matching_sandbox(
     );
 }
 
-/// What: Handle empty or mismatched sandbox info for modal sync.
+/// What: Handle empty or mismatched `SandboxInfo` for modal sync.
 ///
 /// Inputs:
 /// - `sandbox_info`: All sandbox resolution results
 /// - `item_names`: Names of items in the modal
 /// - `aur_items`: AUR items in the modal
-/// - `modal_sandbox`: Modal sandbox info field to update
+/// - `modal_sandbox`: Modal `SandboxInfo` field to update
 /// - `sandbox_loaded`: Modal loaded flag to update
 /// - `sandbox_error`: Modal error field to update
 ///
 /// Output: None (side effect: updates modal fields)
 ///
 /// Details:
-/// - Handles cases where sandbox info doesn't match modal items
+/// - Handles cases where `SandboxInfo` doesn't match modal items
 /// - Sets appropriate error messages for empty results
 fn sync_empty_or_mismatched_sandbox(
     sandbox_info: &[crate::logic::sandbox::SandboxInfo],
@@ -247,12 +247,12 @@ fn sync_empty_or_mismatched_sandbox(
     }
 }
 
-/// What: Handle partial match between sandbox info and modal items.
+/// What: Handle partial match between `SandboxInfo` and modal items.
 ///
 /// Inputs:
 /// - `sandbox_info`: All sandbox resolution results
 /// - `item_names`: Names of items in the modal
-/// - `modal_sandbox`: Modal sandbox info field to update
+/// - `modal_sandbox`: Modal `SandboxInfo` field to update
 /// - `sandbox_loaded`: Modal loaded flag to update
 /// - `sandbox_error`: Modal error field to update
 ///
@@ -487,12 +487,12 @@ impl HandlerConfig for SandboxHandlerConfig {
 ///
 /// Inputs:
 /// - `app`: Application state
-/// - `sandbox_info`: Sandbox resolution results
+/// - `sandbox_info`: `SandboxInfo` resolution results
 /// - `tick_tx`: Channel sender for tick events
 ///
 /// Details:
-/// - Updates cached sandbox info
-/// - Syncs sandbox info to preflight modal if open
+/// - Updates cached `SandboxInfo`
+/// - Syncs `SandboxInfo` to preflight modal if open
 /// - Handles empty results and errors gracefully
 /// - Respects cancellation flag
 pub fn handle_sandbox_result(
@@ -523,7 +523,7 @@ mod tests {
     /// - Sandbox resolution results
     ///
     /// Output:
-    /// - Sandbox info is cached
+    /// - `SandboxInfo` is cached
     /// - Flags are reset
     ///
     /// Details:
@@ -544,7 +544,7 @@ mod tests {
 
         handle_sandbox_result(&mut app, sandbox_info.clone(), &tick_tx);
 
-        // Sandbox info should be cached
+        // `SandboxInfo` should be cached
         assert_eq!(app.install_list_sandbox.len(), 1);
         // Flags should be reset
         assert!(!app.sandbox_resolving);

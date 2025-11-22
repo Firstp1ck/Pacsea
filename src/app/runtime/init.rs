@@ -13,7 +13,7 @@ use super::super::services_cache;
 ///
 /// Inputs:
 /// - `app`: Application state to populate with locale and translations
-/// - `locale_pref`: Locale preference from settings.conf (empty = auto-detect)
+/// - `locale_pref`: Locale preference from `settings.conf` (empty = auto-detect)
 /// - `_prefs`: Settings struct (unused but kept for future use)
 ///
 /// Output:
@@ -216,7 +216,7 @@ fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Setting
 /// Output: None (modifies app state in place)
 ///
 /// Details:
-/// - Checks if running on GNOME desktop without gnome-terminal or gnome-console/kgx
+/// - Checks if running on GNOME desktop without `gnome-terminal` or `gnome-console`/`kgx`
 /// - Sets modal to `GnomeTerminalPrompt` if terminal is missing
 fn check_gnome_terminal(app: &mut AppState, headless: bool) {
     if headless {
