@@ -20,7 +20,7 @@ const PKGBUILD_MIN_INTERVAL_MS: u64 = 500; // Minimum 500ms between requests
 /// - Returns PKGBUILD content if found, or None.
 ///
 /// Details:
-/// - First checks base_dir/PKGBUILD, then searches subdirectories.
+/// - First checks `base_dir`/`PKGBUILD`, then searches subdirectories.
 fn find_pkgbuild_in_dir(
     base_dir: &std::path::Path,
     name: &str,

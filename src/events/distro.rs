@@ -145,7 +145,7 @@ mod tests {
     /// - Command string includes the quoted country list for both Manjaro rank and reflector fallback branches.
     ///
     /// Details:
-    /// - Confirms the EndeavourOS clause still emits the reflector call with the customized country list.
+    /// - Confirms the `EndeavourOS` clause still emits the reflector call with the customized country list.
     fn mirror_update_regional_propagates_country_argument() {
         let countries = "Germany,France";
         let cmd = mirror_update_command(countries, 5);
@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Confirm EndeavourOS and CachyOS branches retain their helper invocations and fallback messaging.
+    /// What: Confirm `EndeavourOS` and `CachyOS` branches retain their helper invocations and fallback messaging.
     ///
     /// Inputs:
     /// - `countries`: `"Worldwide"` to pass through every branch without country filtering.

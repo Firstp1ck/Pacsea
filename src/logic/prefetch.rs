@@ -5,7 +5,7 @@ use crate::state::{AppState, PackageItem};
 /// What: Prefetch details for items near the current selection (alternating above/below).
 ///
 /// Inputs:
-/// - `app`: Mutable application state (results, selected, details_cache)
+/// - `app`: Mutable application state (`results`, `selected`, `details_cache`)
 /// - `details_tx`: Channel to enqueue detail requests
 ///
 /// Output:

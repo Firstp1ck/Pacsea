@@ -223,7 +223,7 @@ fn process_batched_dependencies(
 /// - Updates the `deps` map with the merged dependency.
 ///
 /// Details:
-/// - Merges status (keeps worst), version requirements (keeps more restrictive), and required_by lists.
+/// - Merges status (keeps worst), version requirements (keeps more restrictive), and `required_by` lists.
 fn merge_dependency(
     dep: DependencyInfo,
     parent_name: &str,
@@ -301,7 +301,7 @@ fn merge_dependency(
 /// - Returns a result containing a vector of `DependencyInfo` records or an error.
 ///
 /// Details:
-/// - Uses batched cache if available for official packages, otherwise calls resolve_package_deps.
+/// - Uses batched cache if available for official packages, otherwise calls `resolve_package_deps`.
 fn resolve_single_package_deps(
     item: &PackageItem,
     batched_deps_cache: &HashMap<String, Vec<String>>,

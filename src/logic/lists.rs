@@ -3,7 +3,7 @@ use crate::state::{AppState, PackageItem};
 /// What: Add a `PackageItem` to the install list if it is not already present.
 ///
 /// Inputs:
-/// - `app`: Mutable application state (install_list and selection)
+/// - `app`: Mutable application state (`install_list` and selection)
 /// - `item`: Package to add
 ///
 /// Output:
@@ -29,7 +29,7 @@ pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
 /// What: Add a `PackageItem` to the remove list if it is not already present.
 ///
 /// Inputs:
-/// - `app`: Mutable application state (remove_list and selection)
+/// - `app`: Mutable application state (`remove_list` and selection)
 /// - `item`: Package to add
 ///
 /// Output:
@@ -52,7 +52,7 @@ pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
 /// What: Add a `PackageItem` to the downgrade list if it is not already present.
 ///
 /// Inputs:
-/// - `app`: Mutable application state (downgrade_list and selection)
+/// - `app`: Mutable application state (`downgrade_list` and selection)
 /// - `item`: Package to add
 ///
 /// Output:

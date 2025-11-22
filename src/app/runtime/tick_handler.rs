@@ -545,7 +545,7 @@ mod tests {
     /// What: Verify that `handle_tick` flushes caches when called.
     ///
     /// Inputs:
-    /// - `AppState` with cache_dirty = true
+    /// - `AppState` with `cache_dirty` = true
     /// - Channel senders
     ///
     /// Output:
@@ -781,7 +781,7 @@ mod tests {
     /// What: Verify that `handle_pkgbuild_result` updates text when focused.
     ///
     /// Inputs:
-    /// - `AppState` with details_focus set
+    /// - `AppState` with `details_focus` set
     /// - `PKGBUILD` text
     ///
     /// Output:

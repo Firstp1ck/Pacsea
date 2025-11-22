@@ -17,7 +17,7 @@ use std::process::{Command, Stdio};
 /// - `names`: Package names to query (must be official packages, not local).
 ///
 /// Output:
-/// - HashMap mapping package name to its dependency list (Vec<String>).
+/// - `HashMap` mapping package name to its dependency list (`Vec<String>`).
 ///
 /// Details:
 /// - Batches queries into chunks of 50 to avoid command-line length limits.
@@ -119,7 +119,7 @@ fn should_filter_dependency(pkg_name: &str, parent_name: &str) -> bool {
         || pkg_name.contains(".so=")
 }
 
-/// What: Convert a dependency spec into a DependencyInfo record.
+/// What: Convert a dependency spec into a `DependencyInfo` record.
 ///
 /// Inputs:
 /// - `dep_spec`: Dependency specification string (may include version requirements).
@@ -168,7 +168,7 @@ fn process_dependency_spec(
     })
 }
 
-/// What: Process a list of dependency specs into DependencyInfo records.
+/// What: Process a list of dependency specs into `DependencyInfo` records.
 ///
 /// Inputs:
 /// - `dep_specs`: Vector of dependency specification strings.
@@ -178,7 +178,7 @@ fn process_dependency_spec(
 /// - `upgradable`: Set of packages flagged for upgrades.
 ///
 /// Output:
-/// - Returns a vector of DependencyInfo records (filtered).
+/// - Returns a vector of `DependencyInfo` records (filtered).
 ///
 /// Details:
 /// - Processes each dependency spec and collects valid dependencies.
@@ -206,7 +206,7 @@ fn process_dependency_specs(
 /// - `upgradable`: Set of packages flagged for upgrades.
 ///
 /// Output:
-/// - Returns a vector of DependencyInfo records or an error string.
+/// - Returns a vector of `DependencyInfo` records or an error string.
 ///
 /// Details:
 /// - Uses pacman -Qi to get dependency information for locally installed packages.
@@ -265,7 +265,7 @@ fn resolve_local_package_deps(
 /// - `upgradable`: Set of packages flagged for upgrades.
 ///
 /// Output:
-/// - Returns a vector of DependencyInfo records or an error string.
+/// - Returns a vector of `DependencyInfo` records or an error string.
 ///
 /// Details:
 /// - Uses pacman -Si to get dependency information for official packages.
@@ -448,7 +448,7 @@ fn enhance_with_srcinfo(
 /// - `upgradable`: Set of packages flagged for upgrades.
 ///
 /// Output:
-/// - Returns a vector of DependencyInfo records if PKGBUILD is found, empty vector otherwise.
+/// - Returns a vector of `DependencyInfo` records if `PKGBUILD` is found, empty vector otherwise.
 ///
 /// Details:
 /// - Attempts to use cached PKGBUILD when .SRCINFO is unavailable (offline fallback).
@@ -493,7 +493,7 @@ fn fallback_to_pkgbuild(
 /// - `upgradable`: Set of packages flagged for upgrades.
 ///
 /// Output:
-/// - Returns a vector of DependencyInfo records.
+/// - Returns a vector of `DependencyInfo` records.
 ///
 /// Details:
 /// - Tries paru/yay first, then falls back to .SRCINFO and cached PKGBUILD.

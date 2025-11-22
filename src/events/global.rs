@@ -724,7 +724,7 @@ mod tests {
     /// - Handler returns `false` and sets `app.modal` to `Modal::Help`.
     ///
     /// Details:
-    /// - Confirms BackTab normalization does not interfere with regular function keys.
+    /// - Confirms `BackTab` normalization does not interfere with regular function keys.
     fn global_help_overlay_opens_modal() {
         let mut app = new_app();
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();

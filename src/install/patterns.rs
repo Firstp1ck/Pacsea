@@ -3,7 +3,7 @@ Pattern configuration loader for the custom suspicious-patterns scan.
 
 Purpose:
 - Allow users to tune suspicious pattern categories via a simple config file:
-  $XDG_CONFIG_HOME/pacsea/pattern.conf (or $HOME/.config/pacsea/pattern.conf)
+  `$XDG_CONFIG_HOME`/pacsea/pattern.conf (or `$HOME`/.config/pacsea/pattern.conf)
 
 Format:
 - INI-like sections: [critical], [high], [medium], [low]

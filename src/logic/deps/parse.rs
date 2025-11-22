@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 /// What: Get all possible localized labels for "Depends On" field from pacman/yay/paru output.
 ///
 /// Output:
-/// - HashSet of all possible labels across all locales
+/// - `HashSet` of all possible labels across all locales
 ///
 /// Details:
 /// - Loads labels from locale files at runtime
@@ -71,7 +71,7 @@ fn get_depends_labels() -> &'static HashSet<String> {
 /// What: Get all possible localized "None" equivalents.
 ///
 /// Output:
-/// - HashSet of all possible "None" labels across all locales
+/// - `HashSet` of all possible "None" labels across all locales
 fn get_none_labels() -> &'static HashSet<String> {
     static LABELS: OnceLock<HashSet<String>> = OnceLock::new();
     LABELS.get_or_init(|| {

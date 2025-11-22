@@ -274,7 +274,7 @@ fn find_aur_package_file(name: &str, version: Option<&str>) -> Option<PathBuf> {
 /// - `pkg_path`: Path to the package file.
 ///
 /// Output:
-/// - `Ok(OfficialMetadata)` with download_size (file size) and install_size (from package metadata).
+/// - `Ok(OfficialMetadata)` with `download_size` (file size) and `install_size` (from package metadata).
 /// - `Err(CommandError)` when extraction fails.
 ///
 /// Details:

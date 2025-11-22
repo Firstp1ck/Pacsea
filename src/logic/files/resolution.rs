@@ -10,10 +10,10 @@ use std::process::Command;
 /// What: Batch fetch remote file lists for multiple official packages using `pacman -Fl`.
 ///
 /// Inputs:
-/// - `packages`: Slice of (package_name, source) tuples for official packages.
+/// - `packages`: Slice of (`package_name`, source) tuples for official packages.
 ///
 /// Output:
-/// - HashMap mapping package name to its remote file list.
+/// - `HashMap` mapping package name to its remote file list.
 ///
 /// Details:
 /// - Batches queries into chunks of 50 to avoid command-line length limits.

@@ -541,7 +541,7 @@ mod tests {
     ///
     /// Inputs:
     /// - `AppState`
-    /// - dry_run_flag = true
+    /// - `dry_run_flag` = true
     /// - headless = false
     ///
     /// Output:
@@ -549,7 +549,7 @@ mod tests {
     /// - `InitFlags` are returned
     ///
     /// Details:
-    /// - Tests that dry_run flag is properly initialized
+    /// - Tests that `dry_run` flag is properly initialized
     fn initialize_app_state_sets_dry_run_flag() {
         let mut app = new_app();
         let flags = initialize_app_state(&mut app, true, false);
@@ -565,7 +565,7 @@ mod tests {
     ///
     /// Inputs:
     /// - `AppState`
-    /// - dry_run_flag = false
+    /// - `dry_run_flag` = false
     /// - headless = false
     ///
     /// Output:
@@ -593,7 +593,7 @@ mod tests {
     ///
     /// Inputs:
     /// - `AppState` with empty install list
-    /// - `InitFlags` with needs_deps_resolution = true
+    /// - `InitFlags` with `needs_deps_resolution` = true
     /// - Channel senders
     ///
     /// Output:
@@ -637,12 +637,12 @@ mod tests {
     ///
     /// Inputs:
     /// - `AppState` with non-empty install list
-    /// - `InitFlags` with needs_deps_resolution = true
+    /// - `InitFlags` with `needs_deps_resolution` = true
     /// - Channel senders
     ///
     /// Output:
     /// - `deps_resolving` flag is set
-    /// - Request is sent to deps_req_tx
+    /// - Request is sent to `deps_req_tx`
     ///
     /// Details:
     /// - Tests that resolution is properly triggered when conditions are met

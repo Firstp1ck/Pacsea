@@ -201,7 +201,7 @@ fn process_package_item<R: CommandRunner>(
 /// - `runner`: Command execution abstraction.
 /// - `item`: Package item to fetch metadata for.
 ///
-/// Output: Tuple of (download_bytes, install_size_target), both Option.
+/// Output: Tuple of (`download_bytes`, `install_size_target`), both `Option`.
 ///
 /// Details:
 /// - For official packages: uses `pacman -Si`.
@@ -284,7 +284,7 @@ fn calculate_install_delta(
 /// - `major_bump_packages`: Mutable list to append to if major bump detected.
 /// - `any_major_bump`: Mutable flag to set if major bump detected.
 ///
-/// Output: Tuple of (notes, is_major_bump, is_downgrade).
+/// Output: Tuple of (`notes`, `is_major_bump`, `is_downgrade`).
 ///
 /// Details: Detects downgrades, major version bumps, and new installations.
 fn analyze_version_changes(
@@ -365,7 +365,7 @@ fn check_core_package(
 /// - `pacnew_candidates`: Count of packages that may produce .pacnew files.
 /// - `service_restart_units`: List of services that need restart.
 ///
-/// Output: Tuple of (risk_reasons, risk_score, risk_level).
+/// Output: Tuple of (`risk_reasons`, `risk_score`, `risk_level`).
 ///
 /// Details: Applies the risk heuristic scoring system.
 fn calculate_risk_metrics(

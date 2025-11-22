@@ -75,7 +75,7 @@ pub(crate) fn batch_fetch_installed_versions<R: CommandRunner>(
 /// - `items`: Packages to query.
 ///
 /// Output:
-/// - Vector of results, one per package (Ok(size_bytes) or Err).
+/// - Vector of results, one per package (`Ok(size_bytes)` or `Err`).
 ///
 /// Details:
 /// - Batches queries into chunks of 50 to avoid command-line length limits.
