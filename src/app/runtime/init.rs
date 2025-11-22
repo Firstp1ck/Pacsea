@@ -173,16 +173,16 @@ fn load_cache_with_signature<T>(
     }
 
     let signature = compute_signature(install_list);
-    match load_cache(cache_path, &signature) {
-        Some(cached) => (Some(cached), false),
-        None => {
+    load_cache(cache_path, &signature).map_or_else(
+        || {
             tracing::info!(
                 "{} cache missing or invalid, will trigger background resolution",
                 cache_name
             );
             (None, true)
-        }
-    }
+        },
+        |cached| (Some(cached), false),
+    )
 }
 
 /// What: Apply settings from configuration to application state.

@@ -151,18 +151,24 @@ fn flatten_yaml_value(
         }
         _ => {
             // Convert other types to string representation
-            let val_str = if let Some(s) = value.as_str() {
-                s.to_string()
-            } else if let Some(n) = value.as_i64() {
-                n.to_string()
-            } else if let Some(n) = value.as_f64() {
-                n.to_string()
-            } else if let Some(b) = value.as_bool() {
-                b.to_string()
-            } else {
-                // Fallback: serialize to YAML string
-                serde_norway::to_string(value).unwrap_or_else(|_| "".to_string())
-            };
+            let val_str = value.as_str().map_or_else(
+                || {
+                    value.as_i64().map_or_else(
+                        || {
+                            value.as_f64().map_or_else(
+                                || {
+                                    value
+                                        .as_bool()
+                                        .map_or_else(|| "".to_string(), |b| b.to_string())
+                                },
+                                |n| n.to_string(),
+                            )
+                        },
+                        |n| n.to_string(),
+                    )
+                },
+                |s| s.to_string(),
+            );
             translations.insert(prefix.to_string(), val_str);
         }
     }

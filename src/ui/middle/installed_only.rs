@@ -89,7 +89,12 @@ fn render_downgrade_list(f: &mut Frame, app: &mut AppState, area: Rect, install_
         downgrade_is_focused,
         &mut app.downgrade_state,
     );
-    app.downgrade_rect = Some((inner_rect.x, inner_rect.y, inner_rect.width, inner_rect.height));
+    app.downgrade_rect = Some((
+        inner_rect.x,
+        inner_rect.y,
+        inner_rect.width,
+        inner_rect.height,
+    ));
 }
 
 /// What: Build a styled block for a package list widget.

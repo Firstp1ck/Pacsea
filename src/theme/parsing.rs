@@ -110,13 +110,12 @@ pub(super) fn parse_color_value(s: &str) -> Option<Color> {
     if let Some(i) = t.find("//") {
         t = &t[..i];
     }
-    if let Some(i_rel) = if let Some(stripped) = t.strip_prefix('#') {
-        stripped.find('#').map(|j| j + 1)
-    } else {
-        t.find('#')
-    } {
-        t = &t[..i_rel];
-    }
+    t.strip_prefix('#')
+        .and_then(|stripped| stripped.find('#').map(|j| j + 1))
+        .or_else(|| t.find('#'))
+        .map(|i_rel| {
+            t = &t[..i_rel];
+        });
     t = t.trim();
     if t.is_empty() {
         return None;
@@ -250,13 +249,16 @@ pub(super) fn apply_override_to_map(
         errors.push(format!("- Missing value for '{key}' on line {line_no}"));
         return;
     }
-    if let Some(c) = parse_color_value(value) {
-        map.insert(canon.to_string(), c);
-    } else {
-        errors.push(format!(
-            "- Invalid color for '{key}' on line {line_no} (use #RRGGBB or R,G,B)"
-        ));
-    }
+    parse_color_value(value).map_or_else(
+        || {
+            errors.push(format!(
+                "- Invalid color for '{key}' on line {line_no} (use #RRGGBB or R,G,B)"
+            ));
+        },
+        |c| {
+            map.insert(canon.to_string(), c);
+        },
+    );
 }
 
 /// What: Suggest the canonical key closest to a potentially misspelled input.
@@ -326,13 +328,12 @@ pub(super) fn strip_inline_comment(mut s: &str) -> &str {
     if let Some(i) = s.find("//") {
         s = &s[..i];
     }
-    if let Some(i_rel) = if let Some(stripped) = s.strip_prefix('#') {
-        stripped.find('#').map(|j| j + 1)
-    } else {
-        s.find('#')
-    } {
-        s = &s[..i_rel];
-    }
+    s.strip_prefix('#')
+        .and_then(|stripped| stripped.find('#').map(|j| j + 1))
+        .or_else(|| s.find('#'))
+        .map(|i_rel| {
+            s = &s[..i_rel];
+        });
     s.trim()
 }
 

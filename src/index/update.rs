@@ -213,11 +213,12 @@ exit 0
         notify_rx: &mut tokio::sync::mpsc::UnboundedReceiver<()>,
         err_rx: &mut tokio::sync::mpsc::UnboundedReceiver<String>,
     ) {
-        let notified = tokio::time::timeout(std::time::Duration::from_millis(500), notify_rx.recv())
-            .await
-            .ok()
-            .flatten()
-            .is_some();
+        let notified =
+            tokio::time::timeout(std::time::Duration::from_millis(500), notify_rx.recv())
+                .await
+                .ok()
+                .flatten()
+                .is_some();
         assert!(notified);
         let none = tokio::time::timeout(std::time::Duration::from_millis(200), err_rx.recv())
             .await
@@ -261,11 +262,7 @@ exit 0
     ///
     /// Details:
     /// - Restores PATH and removes temporary files.
-    fn teardown_test_env(
-        old_path: String,
-        tmp: std::path::PathBuf,
-        root: std::path::PathBuf,
-    ) {
+    fn teardown_test_env(old_path: String, tmp: std::path::PathBuf, root: std::path::PathBuf) {
         unsafe { std::env::set_var("PATH", &old_path) };
         let _ = std::fs::remove_file(&tmp);
         let _ = std::fs::remove_dir_all(&root);

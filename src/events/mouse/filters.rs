@@ -276,17 +276,83 @@ pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Opti
 /// Details:
 /// - Tries each filter in order and returns immediately if one is toggled.
 fn handle_simple_filter_toggles(mx: u16, my: u16, app: &mut AppState) -> bool {
-    try_toggle_simple_filter(mx, my, app.results_filter_aur_rect, |a| a.results_filter_show_aur = !a.results_filter_show_aur, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_core_rect, |a| a.results_filter_show_core = !a.results_filter_show_core, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_extra_rect, |a| a.results_filter_show_extra = !a.results_filter_show_extra, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_multilib_rect, |a| a.results_filter_show_multilib = !a.results_filter_show_multilib, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_eos_rect, |a| a.results_filter_show_eos = !a.results_filter_show_eos, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_cachyos_rect, |a| a.results_filter_show_cachyos = !a.results_filter_show_cachyos, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_artix_omniverse_rect, |a| a.results_filter_show_artix_omniverse = !a.results_filter_show_artix_omniverse, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_artix_universe_rect, |a| a.results_filter_show_artix_universe = !a.results_filter_show_artix_universe, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_artix_lib32_rect, |a| a.results_filter_show_artix_lib32 = !a.results_filter_show_artix_lib32, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_artix_galaxy_rect, |a| a.results_filter_show_artix_galaxy = !a.results_filter_show_artix_galaxy, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_artix_world_rect, |a| a.results_filter_show_artix_world = !a.results_filter_show_artix_world, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_artix_system_rect, |a| a.results_filter_show_artix_system = !a.results_filter_show_artix_system, app)
-        || try_toggle_simple_filter(mx, my, app.results_filter_manjaro_rect, |a| a.results_filter_show_manjaro = !a.results_filter_show_manjaro, app)
+    try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_aur_rect,
+        |a| a.results_filter_show_aur = !a.results_filter_show_aur,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_core_rect,
+        |a| a.results_filter_show_core = !a.results_filter_show_core,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_extra_rect,
+        |a| a.results_filter_show_extra = !a.results_filter_show_extra,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_multilib_rect,
+        |a| a.results_filter_show_multilib = !a.results_filter_show_multilib,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_eos_rect,
+        |a| a.results_filter_show_eos = !a.results_filter_show_eos,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_cachyos_rect,
+        |a| a.results_filter_show_cachyos = !a.results_filter_show_cachyos,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_artix_omniverse_rect,
+        |a| a.results_filter_show_artix_omniverse = !a.results_filter_show_artix_omniverse,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_artix_universe_rect,
+        |a| a.results_filter_show_artix_universe = !a.results_filter_show_artix_universe,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_artix_lib32_rect,
+        |a| a.results_filter_show_artix_lib32 = !a.results_filter_show_artix_lib32,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_artix_galaxy_rect,
+        |a| a.results_filter_show_artix_galaxy = !a.results_filter_show_artix_galaxy,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_artix_world_rect,
+        |a| a.results_filter_show_artix_world = !a.results_filter_show_artix_world,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_artix_system_rect,
+        |a| a.results_filter_show_artix_system = !a.results_filter_show_artix_system,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
+        app.results_filter_manjaro_rect,
+        |a| a.results_filter_show_manjaro = !a.results_filter_show_manjaro,
+        app,
+    )
 }

@@ -169,8 +169,15 @@ pub(super) fn parse_status_api_summary(
     }
 
     // If AUR has a non-operational status, prioritize that in the text
-    let text = if let Some(state) = aur_state {
-        match state {
+    let text = aur_state.map_or_else(
+        || {
+            if indicator == "none" {
+                "All systems operational".to_string()
+            } else {
+                "Arch systems nominal".to_string()
+            }
+        },
+        |state| match state {
             "operational" => {
                 if indicator == "none" {
                     "All systems operational".to_string()
@@ -189,12 +196,8 @@ pub(super) fn parse_status_api_summary(
                     "Arch systems nominal".to_string()
                 }
             }
-        }
-    } else if indicator == "none" {
-        "All systems operational".to_string()
-    } else {
-        "Arch systems nominal".to_string()
-    };
+        },
+    );
 
     (text, color, suffix)
 }

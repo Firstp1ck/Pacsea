@@ -695,53 +695,50 @@ fn render_file_entry(
     };
 
     let highlight_bg = if is_selected { Some(th.lavender) } else { None };
-    let icon_style = if let Some(bg) = highlight_bg {
-        Style::default().fg(color).bg(bg)
-    } else {
-        Style::default().fg(color)
-    };
+    let icon_style = highlight_bg.map_or_else(
+        || Style::default().fg(color),
+        |bg| Style::default().fg(color).bg(bg),
+    );
     let mut spans = vec![Span::styled(format!("  {icon} "), icon_style)];
 
     if is_config {
-        let cfg_style = if let Some(bg) = highlight_bg {
-            Style::default().fg(th.mauve).bg(bg)
-        } else {
-            Style::default().fg(th.mauve)
-        };
+        let cfg_style = highlight_bg.map_or_else(
+            || Style::default().fg(th.mauve),
+            |bg| Style::default().fg(th.mauve).bg(bg),
+        );
         spans.push(Span::styled("⚙ ", cfg_style));
     }
 
     if predicted_pacnew {
-        let pacnew_style = if let Some(bg) = highlight_bg {
-            Style::default().fg(th.yellow).bg(bg)
-        } else {
-            Style::default().fg(th.yellow)
-        };
+        let pacnew_style = highlight_bg.map_or_else(
+            || Style::default().fg(th.yellow),
+            |bg| Style::default().fg(th.yellow).bg(bg),
+        );
         spans.push(Span::styled(
             i18n::t(app, "app.modals.preflight.files.pacnew_label"),
             pacnew_style,
         ));
     }
     if predicted_pacsave {
-        let pacsave_style = if let Some(bg) = highlight_bg {
-            Style::default().fg(th.red).bg(bg)
-        } else {
-            Style::default().fg(th.red)
-        };
+        let pacsave_style = highlight_bg.map_or_else(
+            || Style::default().fg(th.red),
+            |bg| Style::default().fg(th.red).bg(bg),
+        );
         spans.push(Span::styled(
             i18n::t(app, "app.modals.preflight.files.pacsave_label"),
             pacsave_style,
         ));
     }
 
-    let path_style = if let Some(bg) = highlight_bg {
-        Style::default()
-            .fg(th.crust)
-            .bg(bg)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(th.text)
-    };
+    let path_style = highlight_bg.map_or_else(
+        || Style::default().fg(th.text),
+        |bg| {
+            Style::default()
+                .fg(th.crust)
+                .bg(bg)
+                .add_modifier(Modifier::BOLD)
+        },
+    );
 
     spans.push(Span::styled(path.to_string(), path_style));
 

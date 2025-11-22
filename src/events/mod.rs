@@ -157,10 +157,10 @@ mod tests {
             .expect("Failed to set test terminal script permissions");
         let orig_path = std::env::var_os("PATH");
         // Prepend our fake terminal directory to PATH to ensure xfce4-terminal is found first
-        let combined_path = match std::env::var("PATH") {
-            Ok(p) => format!("{}:{p}", dir.display()),
-            Err(_) => dir.display().to_string(),
-        };
+        let combined_path = std::env::var("PATH").map_or_else(
+            |_| dir.display().to_string(),
+            |p| format!("{}:{p}", dir.display()),
+        );
         unsafe {
             std::env::set_var("PATH", combined_path);
             std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
@@ -406,14 +406,30 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::empty(),
         });
-        let _ = super::handle_event(click_options, app, &channels.0, &channels.1, &channels.2, &channels.3, &channels.4);
+        let _ = super::handle_event(
+            click_options,
+            app,
+            &channels.0,
+            &channels.1,
+            &channels.2,
+            &channels.3,
+            &channels.4,
+        );
         assert!(app.options_menu_open);
 
         let mut key_four_event =
             crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
         key_four_event.kind = KeyEventKind::Press;
         let key_four = CEvent::Key(key_four_event);
-        let _ = super::handle_event(key_four, app, &channels.0, &channels.1, &channels.2, &channels.3, &channels.4);
+        let _ = super::handle_event(
+            key_four,
+            app,
+            &channels.0,
+            &channels.1,
+            &channels.2,
+            &channels.3,
+            &channels.4,
+        );
     }
 
     /// What: Verify optional deps rows match expected state.
@@ -436,15 +452,27 @@ mod tests {
 
                 let term = find("Terminal: kitty").expect("terminal row kitty");
                 assert!(term.installed, "kitty should be marked installed");
-                assert!(!term.selectable, "installed terminal should not be selectable");
+                assert!(
+                    !term.selectable,
+                    "installed terminal should not be selectable"
+                );
 
                 let clip = find("Clipboard: xclip").expect("clipboard xclip row");
-                assert!(!clip.installed, "xclip should not appear installed by default");
-                assert!(clip.selectable, "xclip should be selectable when not installed");
+                assert!(
+                    !clip.installed,
+                    "xclip should not appear installed by default"
+                );
+                assert!(
+                    clip.selectable,
+                    "xclip should be selectable when not installed"
+                );
                 assert_eq!(clip.note.as_deref(), Some("X11"));
 
                 let mirrors = find("Mirrors: reflector").expect("reflector row");
-                assert!(!mirrors.installed, "reflector should not be installed by default");
+                assert!(
+                    !mirrors.installed,
+                    "reflector should not be installed by default"
+                );
                 assert!(mirrors.selectable, "reflector should be selectable");
 
                 let paru = find("AUR Helper: paru").expect("paru row");

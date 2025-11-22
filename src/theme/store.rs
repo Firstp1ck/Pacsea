@@ -113,10 +113,11 @@ pub fn reload_theme() -> std::result::Result<(), String> {
     };
     let new_theme = super::config::try_load_theme_with_diagnostics(&p)?;
     let lock = THEME_STORE.get_or_init(|| RwLock::new(load_initial_theme_or_exit()));
-    if let Ok(mut guard) = lock.write() {
-        *guard = new_theme;
-        Ok(())
-    } else {
-        Err("Failed to acquire theme store for writing".to_string())
-    }
+    lock.write().map_or_else(
+        |_| Err("Failed to acquire theme store for writing".to_string()),
+        |mut guard| {
+            *guard = new_theme;
+            Ok(())
+        },
+    )
 }

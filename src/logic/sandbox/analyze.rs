@@ -136,11 +136,9 @@ pub(super) fn analyze_dependencies(
 #[must_use]
 pub fn extract_package_name(dep_spec: &str) -> String {
     // Handle optdepends format: "package: description"
-    let name = if let Some(colon_pos) = dep_spec.find(':') {
-        &dep_spec[..colon_pos]
-    } else {
-        dep_spec
-    };
+    let name = dep_spec
+        .find(':')
+        .map_or_else(|| dep_spec, |colon_pos| &dep_spec[..colon_pos]);
 
     // Remove version operators: >=, <=, ==, >, <
     name.trim()

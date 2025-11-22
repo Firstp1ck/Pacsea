@@ -114,47 +114,50 @@ pub fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<Str
                     "parse_pkgbuild_deps: Detected array declaration for key='{}'",
                     key
                 );
-                let deps = if let Some(closing_paren_pos) = find_matching_closing_paren(value) {
-                    // Single-line array (may have content after closing paren): depends=('foo' 'bar') or depends+=('foo' 'bar') other_code
-                    let array_content = &value[1..closing_paren_pos];
-                    tracing::debug!("Parsing single-line {} array: {}", key, array_content);
-                    parse_array_content(array_content)
-                } else {
-                    // Multi-line array: depends=(
-                    //     'foo'
-                    //     'bar'
-                    // )
-                    tracing::debug!("Parsing multi-line {} array", key);
-                    let mut array_lines = Vec::new();
-                    // Collect lines until we find the closing parenthesis
-                    while i < lines.len() {
-                        let next_line = lines[i].trim();
-                        i += 1;
+                let deps = find_matching_closing_paren(value).map_or_else(
+                    || {
+                        // Multi-line array: depends=(
+                        //     'foo'
+                        //     'bar'
+                        // )
+                        tracing::debug!("Parsing multi-line {} array", key);
+                        let mut array_lines = Vec::new();
+                        // Collect lines until we find the closing parenthesis
+                        while i < lines.len() {
+                            let next_line = lines[i].trim();
+                            i += 1;
 
-                        // Skip empty lines and comments
-                        if next_line.is_empty() || next_line.starts_with('#') {
-                            continue;
+                            // Skip empty lines and comments
+                            if next_line.is_empty() || next_line.starts_with('#') {
+                                continue;
+                            }
+
+                            // Check if this line closes the array
+                            if next_line == ")" {
+                                break;
+                            }
+
+                            // Add this line to the array content
+                            array_lines.push(next_line);
                         }
 
-                        // Check if this line closes the array
-                        if next_line == ")" {
-                            break;
-                        }
-
-                        // Add this line to the array content
-                        array_lines.push(next_line);
-                    }
-
-                    // Parse all collected lines as array content
-                    let array_content = array_lines.join(" ");
-                    tracing::debug!(
-                        "Collected {} lines for multi-line {} array: {}",
-                        array_lines.len(),
-                        key,
-                        array_content
-                    );
-                    parse_array_content(&array_content)
-                };
+                        // Parse all collected lines as array content
+                        let array_content = array_lines.join(" ");
+                        tracing::debug!(
+                            "Collected {} lines for multi-line {} array: {}",
+                            array_lines.len(),
+                            key,
+                            array_content
+                        );
+                        parse_array_content(&array_content)
+                    },
+                    |closing_paren_pos| {
+                        // Single-line array (may have content after closing paren): depends=('foo' 'bar') or depends+=('foo' 'bar') other_code
+                        let array_content = &value[1..closing_paren_pos];
+                        tracing::debug!("Parsing single-line {} array: {}", key, array_content);
+                        parse_array_content(array_content)
+                    },
+                );
 
                 // Add dependencies to the appropriate vector (using base_key to handle both = and +=)
                 match base_key {

@@ -187,20 +187,33 @@ pub fn get_installed_version(name: &str) -> Result<String, String> {
 pub fn version_satisfies(installed: &str, requirement: &str) -> bool {
     // This is a simplified version checker
     // For production, use a proper version comparison library
-    if let Some(req_ver) = requirement.strip_prefix(">=") {
-        installed >= req_ver
-    } else if let Some(req_ver) = requirement.strip_prefix("<=") {
-        installed <= req_ver
-    } else if let Some(req_ver) = requirement.strip_prefix("=") {
-        installed == req_ver
-    } else if let Some(req_ver) = requirement.strip_prefix(">") {
-        installed > req_ver
-    } else if let Some(req_ver) = requirement.strip_prefix("<") {
-        installed < req_ver
-    } else {
-        // No version requirement, assume satisfied
-        true
-    }
+    requirement.strip_prefix(">=").map_or_else(
+        || {
+            requirement.strip_prefix("<=").map_or_else(
+                || {
+                    requirement.strip_prefix("=").map_or_else(
+                        || {
+                            requirement.strip_prefix(">").map_or_else(
+                                || {
+                                    requirement.strip_prefix("<").map_or_else(
+                                        || {
+                                            // No version requirement, assume satisfied
+                                            true
+                                        },
+                                        |req_ver| installed < req_ver,
+                                    )
+                                },
+                                |req_ver| installed > req_ver,
+                            )
+                        },
+                        |req_ver| installed == req_ver,
+                    )
+                },
+                |req_ver| installed <= req_ver,
+            )
+        },
+        |req_ver| installed >= req_ver,
+    )
 }
 
 #[cfg(test)]

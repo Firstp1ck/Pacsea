@@ -165,9 +165,9 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     };
 
     // Ensure directory exists
-    if let Some(dir) = p.parent() {
+    p.parent().map(|dir| {
         let _ = fs::create_dir_all(dir);
-    }
+    });
 
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
@@ -176,11 +176,9 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
-        if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(ToString::to_string).collect()
-        } else {
-            Vec::new()
-        }
+        fs::read_to_string(&p)
+            .map(|content| content.lines().map(ToString::to_string).collect())
+            .unwrap_or_default()
     } else {
         // File doesn't exist or is empty - start with skeleton
         Vec::new()

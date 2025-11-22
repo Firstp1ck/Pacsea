@@ -277,9 +277,8 @@ pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInf
 #[must_use]
 pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
     // Use tokio runtime handle if available, otherwise create a new runtime
-    match tokio::runtime::Handle::try_current() {
-        Ok(handle) => handle.block_on(resolve_sandbox_info_async(items)),
-        Err(_) => {
+    tokio::runtime::Handle::try_current().map_or_else(
+        |_| {
             // No runtime available, create a new one
             let rt = tokio::runtime::Runtime::new().unwrap_or_else(|e| {
                 tracing::error!(
@@ -289,6 +288,7 @@ pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
                 panic!("Cannot resolve sandbox info without tokio runtime");
             });
             rt.block_on(resolve_sandbox_info_async(items))
-        }
-    }
+        },
+        |handle| handle.block_on(resolve_sandbox_info_async(items)),
+    )
 }

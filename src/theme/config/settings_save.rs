@@ -43,11 +43,9 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
-        if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(ToString::to_string).collect()
-        } else {
-            Vec::new()
-        }
+        fs::read_to_string(&p)
+            .map(|content| content.lines().map(ToString::to_string).collect())
+            .unwrap_or_default()
     } else {
         // File doesn't exist or is empty - start with skeleton
         SETTINGS_SKELETON_CONTENT
@@ -124,11 +122,9 @@ fn save_boolean_key(key_norm: &str, value: bool) {
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
-        if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(ToString::to_string).collect()
-        } else {
-            Vec::new()
-        }
+        fs::read_to_string(&p)
+            .map(|content| content.lines().map(ToString::to_string).collect())
+            .unwrap_or_default()
     } else {
         // File doesn't exist or is empty - start with skeleton
         SETTINGS_SKELETON_CONTENT
@@ -209,11 +205,9 @@ fn save_string_key(key_norm: &str, value: &str) {
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
-        if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(ToString::to_string).collect()
-        } else {
-            Vec::new()
-        }
+        fs::read_to_string(&p)
+            .map(|content| content.lines().map(ToString::to_string).collect())
+            .unwrap_or_default()
     } else {
         // File doesn't exist or is empty - start with skeleton
         SETTINGS_SKELETON_CONTENT

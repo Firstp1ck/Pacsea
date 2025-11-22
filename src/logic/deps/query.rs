@@ -38,10 +38,10 @@ pub(super) fn get_upgradable_packages() -> HashSet<String> {
                             return None;
                         }
                         // Extract package name (everything before space or "->")
-                        line.find(' ').map_or_else(
+                        Some(line.find(' ').map_or_else(
                             || line.to_string(),
                             |space_pos| line[..space_pos].trim().to_string(),
-                        )
+                        ))
                     })
                     .collect();
                 tracing::debug!(

@@ -561,20 +561,17 @@ fn parse_key_value_output(text: &str) -> BTreeMap<String, String> {
 /// Details:
 /// - Trims surrounding whitespace before evaluating the contents to avoid spurious blank entries.
 fn split_ws_or_none(field: Option<&String>) -> Vec<String> {
-    match field {
-        Some(value) => {
-            let trimmed = value.trim();
-            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
-                Vec::new()
-            } else {
-                trimmed
-                    .split_whitespace()
-                    .map(ToString::to_string)
-                    .collect()
-            }
+    field.map_or_else(Vec::new, |value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
+            Vec::new()
+        } else {
+            trimmed
+                .split_whitespace()
+                .map(ToString::to_string)
+                .collect()
         }
-        None => Vec::new(),
-    }
+    })
 }
 
 #[cfg(test)]

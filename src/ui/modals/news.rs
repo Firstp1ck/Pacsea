@@ -115,11 +115,10 @@ fn format_news_item(
     };
     let line_text = format!("{} {}  {}", symbol, item.date, item.title);
     let (fg, bg) = compute_item_colors(is_selected, is_critical);
-    let style = if let Some(bg_color) = bg {
-        Style::default().fg(fg).bg(bg_color)
-    } else {
-        Style::default().fg(fg)
-    };
+    let style = bg.map_or_else(
+        || Style::default().fg(fg),
+        |bg_color| Style::default().fg(fg).bg(bg_color),
+    );
     Line::from(Span::styled(line_text, style))
 }
 
