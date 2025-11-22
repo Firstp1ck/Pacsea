@@ -15,7 +15,7 @@ pub(crate) use crate::util::srcinfo::fetch_srcinfo;
 /// - Parses key-value pairs from .SRCINFO format.
 /// - Handles array fields that can appear multiple times.
 /// - Filters out virtual packages (.so files).
-pub(crate) fn parse_srcinfo_deps(
+pub(super) fn parse_srcinfo_deps(
     srcinfo: &str,
 ) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
     let mut depends = Vec::new();
@@ -64,7 +64,7 @@ pub(crate) fn parse_srcinfo_deps(
 /// - Parses "conflicts" key-value pairs from .SRCINFO format.
 /// - Handles array fields that can appear multiple times.
 /// - Filters out virtual packages (.so files) and extracts package names from version constraints.
-pub(crate) fn parse_srcinfo_conflicts(srcinfo: &str) -> Vec<String> {
+pub(super) fn parse_srcinfo_conflicts(srcinfo: &str) -> Vec<String> {
     use super::parse::parse_dep_spec;
 
     let mut conflicts = Vec::new();

@@ -16,7 +16,7 @@ use crate::events::preflight::modal::switch_preflight_tab;
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_tab_switch(app: &mut AppState, direction: bool) -> bool {
+pub(super) fn handle_tab_switch(app: &mut AppState, direction: bool) -> bool {
     let (new_tab, items, action) =
         if let crate::state::Modal::Preflight {
             tab, items, action, ..
@@ -66,7 +66,7 @@ pub(crate) fn handle_tab_switch(app: &mut AppState, direction: bool) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_up_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
+pub(super) fn handle_up_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
     if *ctx.tab == crate::state::PreflightTab::Deps && !ctx.items.is_empty() {
         if *ctx.dep_selected > 0 {
             *ctx.dep_selected -= 1;
@@ -107,7 +107,7 @@ pub(crate) fn handle_up_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_down_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
+pub(super) fn handle_down_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
     if *ctx.tab == crate::state::PreflightTab::Deps && !ctx.items.is_empty() {
         let display_len =
             compute_display_items_len(ctx.items, ctx.dependency_info, ctx.dep_tree_expanded);

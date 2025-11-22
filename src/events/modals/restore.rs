@@ -19,7 +19,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 /// - Checks if `app.modal` is `None` (indicating handler closed it)
 /// - If modal is still `None` and key doesn't match excluded keys, restores the modal
 /// - Used for modals like `PreflightExec` and `PostSummary` that exclude Esc/q or Esc/Enter/q
-pub(crate) fn restore_if_not_closed_with_excluded_keys(
+pub(super) fn restore_if_not_closed_with_excluded_keys(
     app: &mut AppState,
     ke: &KeyEvent,
     excluded_keys: &[KeyCode],
@@ -48,7 +48,7 @@ pub(crate) fn restore_if_not_closed_with_excluded_keys(
 /// - Restores modal if handler didn't close it and Esc wasn't pressed
 /// - Esc key closes modal even if `should_stop` is `Some(false)`
 /// - When Esc closes the modal, returns `true` to stop event propagation
-pub(crate) fn restore_if_not_closed_with_option_result(
+pub(super) fn restore_if_not_closed_with_option_result(
     app: &mut AppState,
     ke: &KeyEvent,
     should_stop: Option<bool>,
@@ -82,7 +82,7 @@ pub(crate) fn restore_if_not_closed_with_option_result(
 /// - Checks if `app.modal` is `None` (indicating handler closed it)
 /// - If modal is still `None` and key is not Esc, restores the modal
 /// - Used for modals like `ScanConfig` and `VirusTotalSetup` that only exclude Esc
-pub(crate) fn restore_if_not_closed_with_esc(app: &mut AppState, ke: &KeyEvent, modal: Modal) {
+pub(super) fn restore_if_not_closed_with_esc(app: &mut AppState, ke: &KeyEvent, modal: Modal) {
     if matches!(app.modal, Modal::None) && !matches!(ke.code, KeyCode::Esc) {
         app.modal = modal;
     }
@@ -102,7 +102,7 @@ pub(crate) fn restore_if_not_closed_with_esc(app: &mut AppState, ke: &KeyEvent, 
 /// Details:
 /// - Used for modals like News that return a boolean indicating if propagation should stop
 /// - If result is `false` (event not fully handled) and modal is `None`, restores the modal
-pub(crate) fn restore_if_not_closed_with_bool_result(
+pub(super) fn restore_if_not_closed_with_bool_result(
     app: &mut AppState,
     result: bool,
     modal: Modal,

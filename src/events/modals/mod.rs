@@ -34,7 +34,7 @@ use crate::state::{AppState, Modal, PackageItem};
 ///   is responsible for clearing or restoring `app.modal` when exiting.
 /// - When a modal should block further processing this function returns `true`, allowing callers to
 ///   short-circuit additional event handling.
-pub(crate) fn handle_modal_key(
+pub(super) fn handle_modal_key(
     ke: KeyEvent,
     app: &mut AppState,
     add_tx: &mpsc::UnboundedSender<PackageItem>,

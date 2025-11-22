@@ -1,7 +1,7 @@
 //! Preflight modal event handling.
 
-mod display;
-mod keys;
+pub(crate) mod display;
+pub(crate) mod keys;
 mod modal;
 
 #[cfg(test)]

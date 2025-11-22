@@ -15,7 +15,7 @@ use crate::events::preflight::modal::close_preflight_modal;
 /// Details:
 /// - Runs the sync operation in a background thread to avoid blocking the UI.
 /// - If sync requires root privileges, launches a terminal with sudo command.
-pub(crate) fn handle_f_key(app: &mut AppState) -> bool {
+pub(super) fn handle_f_key(app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight { tab, .. } = &app.modal {
         if *tab != crate::state::PreflightTab::Files {
             return false;
@@ -82,7 +82,7 @@ pub(crate) fn handle_f_key(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_s_key(app: &mut AppState) -> bool {
+pub(super) fn handle_s_key(app: &mut AppState) -> bool {
     // Build AUR package name list to scan
     let names = if let crate::state::Modal::Preflight { items, .. } = &app.modal {
         items
@@ -126,7 +126,7 @@ pub(crate) fn handle_s_key(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_dry_run_key(app: &mut AppState) -> bool {
+pub(super) fn handle_dry_run_key(app: &mut AppState) -> bool {
     app.dry_run = !app.dry_run;
     let toast_key = if app.dry_run {
         "app.toasts.dry_run_enabled"
@@ -144,7 +144,7 @@ pub(crate) fn handle_dry_run_key(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_m_key(app: &mut AppState) -> bool {
+pub(super) fn handle_m_key(app: &mut AppState) -> bool {
     let mut next_mode_opt = None;
     if let crate::state::Modal::Preflight {
         action: crate::state::PreflightAction::Remove,
@@ -179,7 +179,7 @@ pub(crate) fn handle_m_key(app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Closes the modal if install/remove is triggered, but TUI remains open.
-pub(crate) fn handle_p_key(app: &mut AppState) -> bool {
+pub(super) fn handle_p_key(app: &mut AppState) -> bool {
     let mut close_modal = false;
     let new_summary: Option<Vec<crate::state::modal::ReverseRootSummary>> = None;
     let mut blocked_dep_count: Option<usize> = None;
@@ -318,7 +318,7 @@ pub(crate) fn handle_p_key(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_c_key(app: &mut AppState) -> bool {
+pub(super) fn handle_c_key(app: &mut AppState) -> bool {
     // TODO: implement Logic for creating a snapshot
     app.toast_message = Some(crate::i18n::t(app, "app.toasts.snapshot_placeholder"));
     false
@@ -334,7 +334,7 @@ pub(crate) fn handle_c_key(app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Closes the modal but keeps the TUI open.
-pub(crate) fn handle_q_key(app: &mut AppState) -> bool {
+pub(super) fn handle_q_key(app: &mut AppState) -> bool {
     let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
         service_info.clone()
     } else {
@@ -352,7 +352,7 @@ pub(crate) fn handle_q_key(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_help_key(app: &mut AppState) -> bool {
+pub(super) fn handle_help_key(app: &mut AppState) -> bool {
     let help_message = if let crate::state::Modal::Preflight { tab, .. } = &app.modal {
         if *tab == crate::state::PreflightTab::Deps {
             crate::i18n::t(app, "app.modals.preflight.help.deps_tab")

@@ -15,7 +15,7 @@ use crossterm::event::KeyModifiers;
 /// Details:
 /// - Supports function keys, navigation keys, and single printable characters.
 /// - Normalizes character keys to lowercase for consistent matching.
-pub(crate) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
+pub(super) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
     let t = s.trim();
     // Function keys
     if let Some(num) = t.strip_prefix('F').and_then(|x| x.parse::<u8>().ok()) {
@@ -61,7 +61,7 @@ pub(crate) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
 /// Details:
 /// - Recognizes Ctrl/Alt/Shift/Super modifiers in any case.
 /// - Normalizes `Shift+Tab` to the dedicated `BackTab` key code and clears modifiers.
-pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
+pub(super) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
     // Accept formats like: CTRL+R, Alt+?, Shift+Del, F1, Tab, BackTab, Super+F2
     let mut mods = KeyModifiers::empty();
     let mut key_part: Option<String> = None;
@@ -103,7 +103,7 @@ pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
 /// - Strips trailing comments beginning with `//` or secondary `#` markers.
 /// - Accepts `#RRGGBB` hex and `R,G,B` decimal triplets (0-255 per channel).
 #[allow(clippy::many_single_char_names)]
-pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
+pub(super) fn parse_color_value(s: &str) -> Option<Color> {
     // Trim and strip inline comments (support trailing "// ..." and "# ...").
     // Preserve a leading '#' for hex values by searching for '#' only after the first char.
     let mut t = s.trim();
@@ -154,7 +154,7 @@ pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
 ///
 /// Details:
 /// - Handles legacy and alternative naming schemes to preserve backwards compatibility.
-pub(crate) fn canonical_for_key(norm: &str) -> Option<&'static str> {
+pub(super) fn canonical_for_key(norm: &str) -> Option<&'static str> {
     match norm {
         // Legacy and comprehensive keys mapped to canonical names
         "base" | "background" | "background_base" => Some("base"),
@@ -187,7 +187,7 @@ pub(crate) fn canonical_for_key(norm: &str) -> Option<&'static str> {
 ///
 /// Details:
 /// - Favors descriptive names (e.g., `overlay_primary`) when available.
-pub(crate) fn canonical_to_preferred(canon: &str) -> String {
+pub(super) fn canonical_to_preferred(canon: &str) -> String {
     match canon {
         "base" => "background_base",
         "mantle" => "background_mantle",
@@ -224,7 +224,7 @@ pub(crate) fn canonical_to_preferred(canon: &str) -> String {
 ///
 /// Details:
 /// - Normalizes keys, suggests close matches, and validates color formats before inserting.
-pub(crate) fn apply_override_to_map(
+pub(super) fn apply_override_to_map(
     map: &mut std::collections::HashMap<String, Color>,
     key: &str,
     value: &str,
@@ -269,7 +269,7 @@ pub(crate) fn apply_override_to_map(
 ///
 /// Details:
 /// - Computes Levenshtein distance across the small known key set for quick suggestion hints.
-pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
+pub(super) fn nearest_key(input: &str) -> Option<&'static str> {
     // Very small domain; simple Levenshtein distance is fine
     const CANON: [&str; 16] = [
         "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
@@ -296,7 +296,7 @@ pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
 ///
 /// Details:
 /// - Uses a rolling dynamic programming table to reduce allocations while iterating.
-pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
+pub(super) fn levenshtein(a: &str, b: &str) -> usize {
     let m = b.len();
     let mut dp: Vec<usize> = (0..=m).collect();
     for (i, ca) in a.chars().enumerate() {
@@ -322,7 +322,7 @@ pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
 ///
 /// Details:
 /// - Strips trailing `//` sections and secondary `#` characters without harming leading `#RRGGBB` values.
-pub(crate) fn strip_inline_comment(mut s: &str) -> &str {
+pub(super) fn strip_inline_comment(mut s: &str) -> &str {
     if let Some(i) = s.find("//") {
         s = &s[..i];
     }

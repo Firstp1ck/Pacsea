@@ -635,7 +635,7 @@ fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
 /// - Routes configured global chords (help overlay, theme reload, exit, PKGBUILD toggle, sort cycle).
 /// - When sort mode changes it persists the preference, re-sorts results, and refreshes details.
 /// - Supports menu number shortcuts (1-9) for Options/Panels/Config dropdowns while they are open.
-pub(crate) fn handle_global_key(
+pub(super) fn handle_global_key(
     ke: KeyEvent,
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,

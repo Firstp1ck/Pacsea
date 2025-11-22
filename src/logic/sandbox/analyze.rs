@@ -16,7 +16,7 @@ use std::process::{Command, Stdio};
 ///
 /// Output:
 /// - `SandboxInfo` with dependency deltas.
-pub(crate) fn analyze_package_from_srcinfo(
+pub(super) fn analyze_package_from_srcinfo(
     package_name: &str,
     srcinfo_text: &str,
     installed: &HashSet<String>,
@@ -49,7 +49,7 @@ pub(crate) fn analyze_package_from_srcinfo(
 ///
 /// Output:
 /// - `SandboxInfo` with dependency deltas.
-pub(crate) fn analyze_package_from_pkgbuild(
+pub(super) fn analyze_package_from_pkgbuild(
     package_name: &str,
     pkgbuild_text: &str,
     installed: &HashSet<String>,
@@ -83,7 +83,7 @@ pub(crate) fn analyze_package_from_pkgbuild(
 ///
 /// Details:
 /// - Skips local packages entirely.
-pub(crate) fn analyze_dependencies(
+pub(super) fn analyze_dependencies(
     deps: &[String],
     installed: &HashSet<String>,
     provided: &HashSet<String>,
@@ -208,6 +208,6 @@ fn is_local_package(name: &str) -> bool {
 ///
 /// Output:
 /// - Set of installed package names.
-pub(crate) fn get_installed_packages() -> std::collections::HashSet<String> {
+pub(super) fn get_installed_packages() -> std::collections::HashSet<String> {
     crate::logic::deps::get_installed_packages()
 }

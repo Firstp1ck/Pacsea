@@ -24,7 +24,7 @@ use crate::state::AppState;
 /// Details:
 /// - Handles navigation, toggles, and Enter to confirm scan configuration
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn handle_scan_config(
+pub(super) fn handle_scan_config(
     ke: KeyEvent,
     app: &mut AppState,
     do_clamav: &mut bool,
@@ -97,7 +97,7 @@ pub(crate) fn handle_scan_config(
 ///
 /// Details:
 /// - Handles text input, navigation, and Enter to save API key
-pub(crate) fn handle_virustotal_setup(
+pub(super) fn handle_virustotal_setup(
     ke: KeyEvent,
     app: &mut AppState,
     input: &mut String,

@@ -17,7 +17,7 @@ use crate::events::preflight::display::build_file_display_items;
 ///
 /// Details:
 /// - Toggles expansion/collapse of dependency trees for selected package.
-pub(crate) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
     if ctx.dependency_info.is_empty() {
         return false;
     }
@@ -66,7 +66,7 @@ pub(crate) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 ///
 /// Details:
 /// - Toggles expansion/collapse of file trees for selected package.
-pub(crate) fn handle_files_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_files_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
     let display_items = build_file_display_items(ctx.items, ctx.file_info, ctx.file_tree_expanded);
     if let Some((is_header, pkg_name)) = display_items.get(ctx.file_selected)
         && *is_header
@@ -91,7 +91,7 @@ pub(crate) fn handle_files_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 /// Details:
 /// - Toggles expansion/collapse of sandbox dependency trees for selected package.
 /// - Toggles optional dependency selection when on an optdepends entry.
-pub(crate) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
     if ctx.items.is_empty() {
         return false;
     }
@@ -175,7 +175,7 @@ pub(crate) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 ///
 /// Details:
 /// - Toggles restart decision for the selected service.
-pub(crate) fn handle_services_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_services_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
     if ctx.service_info.is_empty() {
         return false;
     }
@@ -203,7 +203,7 @@ pub(crate) fn handle_services_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 /// Details:
 /// - Handles expansion/collapse logic for Deps, Files, and Sandbox tabs.
 /// - Handles service restart decision toggling in Services tab.
-pub(crate) fn handle_enter_or_space(ctx: EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_enter_or_space(ctx: EnterOrSpaceContext<'_>) -> bool {
     let mut ctx = ctx;
     match *ctx.tab {
         crate::state::PreflightTab::Deps => handle_deps_tab(&mut ctx),

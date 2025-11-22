@@ -17,7 +17,7 @@ use std::cmp::Ordering;
 /// Details:
 /// - Splits on `.` and `-`, comparing numeric segments when possible and
 ///   falling back to lexicographical comparison.
-pub(crate) fn compare_versions(a: &str, b: &str) -> Ordering {
+pub(super) fn compare_versions(a: &str, b: &str) -> Ordering {
     let a_parts: Vec<&str> = a.split(['.', '-']).collect();
     let b_parts: Vec<&str> = b.split(['.', '-']).collect();
     let len = a_parts.len().max(b_parts.len());
@@ -53,7 +53,7 @@ pub(crate) fn compare_versions(a: &str, b: &str) -> Ordering {
 ///
 /// Details:
 /// - Parses the first numeric segment (before `.`/`-`) for comparison.
-pub(crate) fn is_major_version_bump(old: &str, new: &str) -> bool {
+pub(super) fn is_major_version_bump(old: &str, new: &str) -> bool {
     match (extract_major_component(old), extract_major_component(new)) {
         (Some(old_major), Some(new_major)) => new_major > old_major,
         _ => false,

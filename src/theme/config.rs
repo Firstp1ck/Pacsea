@@ -10,7 +10,7 @@
 mod settings_ensure;
 mod settings_save;
 mod skeletons;
-mod theme_loader;
+pub(crate) mod theme_loader;
 
 #[cfg(test)]
 mod tests;

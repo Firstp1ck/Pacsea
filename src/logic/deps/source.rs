@@ -16,7 +16,7 @@ use std::process::{Command, Stdio};
 /// Details:
 /// - Prefers inspecting `pacman -Qi` metadata when the package is installed; otherwise defaults to heuristics.
 /// - Downgrades gracefully to official classifications when the repository field cannot be read.
-pub(crate) fn determine_dependency_source(
+pub(super) fn determine_dependency_source(
     name: &str,
     installed: &HashSet<String>,
 ) -> (DependencySource, bool) {
@@ -136,7 +136,7 @@ pub(crate) fn determine_dependency_source(
 ///
 /// Details:
 /// - Used to highlight packages whose removal or downgrade should be discouraged.
-pub(crate) fn is_system_package(name: &str) -> bool {
+pub(super) fn is_system_package(name: &str) -> bool {
     // List of critical system packages
     let system_packages = [
         "glibc",

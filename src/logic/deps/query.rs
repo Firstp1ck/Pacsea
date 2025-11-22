@@ -14,7 +14,7 @@ use std::process::{Command, Stdio};
 /// Details:
 /// - Trims each line from the command output and extracts the leading package token before version metadata.
 /// - Gracefully handles command failures by returning an empty set to avoid blocking dependency checks.
-pub(crate) fn get_upgradable_packages() -> HashSet<String> {
+pub(super) fn get_upgradable_packages() -> HashSet<String> {
     tracing::debug!("Running: pacman -Qu");
     let output = Command::new("pacman")
         .args(["-Qu"])

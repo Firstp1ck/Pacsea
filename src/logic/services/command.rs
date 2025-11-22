@@ -14,7 +14,7 @@ use std::process::Command;
 ///
 /// Details:
 /// - Annotates errors with the supplied `display` string for easier debugging.
-pub(crate) fn run_command(program: &str, args: &[&str], display: &str) -> Result<String, String> {
+pub(super) fn run_command(program: &str, args: &[&str], display: &str) -> Result<String, String> {
     let output = Command::new(program)
         .args(args)
         .output()

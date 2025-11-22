@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 /// Details:
 /// - Performs best-effort verification of the returned version, logging
 ///   mismatches for diagnostics.
-pub(crate) fn fetch_official_metadata<R: CommandRunner>(
+pub(super) fn fetch_official_metadata<R: CommandRunner>(
     runner: &R,
     repo: &str,
     name: &str,
@@ -70,7 +70,7 @@ pub(crate) fn fetch_official_metadata<R: CommandRunner>(
 ///
 /// Details:
 /// - Trims stdout and returns the last whitespace-separated token.
-pub(crate) fn fetch_installed_version<R: CommandRunner>(
+pub(super) fn fetch_installed_version<R: CommandRunner>(
     runner: &R,
     name: &str,
 ) -> Result<String, CommandError> {
@@ -98,7 +98,7 @@ pub(crate) fn fetch_installed_version<R: CommandRunner>(
 ///
 /// Details:
 /// - Parses the `Installed Size` field using [`parse_size_to_bytes`].
-pub(crate) fn fetch_installed_size<R: CommandRunner>(
+pub(super) fn fetch_installed_size<R: CommandRunner>(
     runner: &R,
     name: &str,
 ) -> Result<u64, CommandError> {
@@ -139,7 +139,7 @@ pub(crate) struct OfficialMetadata {
 /// Details:
 /// - Continuation lines (prefixed with a space) are appended to the previous
 ///   key's value.
-pub(crate) fn parse_pacman_key_values(output: &str) -> HashMap<String, String> {
+pub(super) fn parse_pacman_key_values(output: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     let mut last_key: Option<String> = None;
 
@@ -180,7 +180,7 @@ pub(crate) fn parse_pacman_key_values(output: &str) -> HashMap<String, String> {
 ///
 /// Details:
 /// - Supports B, KiB, MiB, GiB, and TiB units.
-pub(crate) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
+pub(super) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
     let mut parts = raw.split_whitespace();
     let number = parts.next()?.replace(',', "");
     let value = number.parse::<f64>().ok()?;
@@ -323,7 +323,7 @@ fn extract_aur_package_sizes<R: CommandRunner>(
 /// - Checks pacman cache and AUR helper caches for built package files.
 /// - Extracts sizes from found package files.
 /// - Returns None values if package file is not found (graceful degradation).
-pub(crate) fn fetch_aur_metadata<R: CommandRunner>(
+pub(super) fn fetch_aur_metadata<R: CommandRunner>(
     runner: &R,
     name: &str,
     version: Option<&str>,

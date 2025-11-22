@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 ///
 /// Details:
 /// - Prefers `$HOME/.config/pacsea/theme.conf`, then legacy `pacsea.conf`, and repeats for XDG paths.
-pub(crate) fn resolve_theme_config_path() -> Option<PathBuf> {
+pub(super) fn resolve_theme_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -38,7 +38,7 @@ pub(crate) fn resolve_theme_config_path() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Searches `$HOME` and `XDG_CONFIG_HOME` for `settings.conf`, then falls back to `pacsea.conf`.
-pub(crate) fn resolve_settings_config_path() -> Option<PathBuf> {
+pub(super) fn resolve_settings_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -65,7 +65,7 @@ pub(crate) fn resolve_settings_config_path() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Checks both `$HOME/.config/pacsea/keybinds.conf` and the legacy `pacsea.conf`, mirrored for XDG.
-pub(crate) fn resolve_keybinds_config_path() -> Option<PathBuf> {
+pub(super) fn resolve_keybinds_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();

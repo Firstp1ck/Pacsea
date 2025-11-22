@@ -22,7 +22,7 @@ use std::process::{Command, Stdio};
 /// Details:
 /// - Batches queries into chunks of 50 to avoid command-line length limits.
 /// - Parses multi-package `pacman -Si` output (packages separated by blank lines).
-pub(crate) fn batch_fetch_official_deps(names: &[&str]) -> HashMap<String, Vec<String>> {
+pub(super) fn batch_fetch_official_deps(names: &[&str]) -> HashMap<String, Vec<String>> {
     const BATCH_SIZE: usize = 50;
     let mut result_map = HashMap::new();
 
@@ -562,7 +562,7 @@ fn resolve_aur_package_deps(
 ///
 /// Details:
 /// - Invokes pacman or AUR helpers depending on source, filtering out virtual entries and self references.
-pub(crate) fn resolve_package_deps(
+pub(super) fn resolve_package_deps(
     name: &str,
     source: &Source,
     installed: &HashSet<String>,
@@ -596,7 +596,7 @@ pub(crate) fn resolve_package_deps(
 /// Details:
 /// - For official packages, uses `pacman -Si` to get conflicts.
 /// - For AUR packages, tries paru/yay first, then falls back to .SRCINFO.
-pub(crate) fn fetch_package_conflicts(name: &str, source: &Source) -> Vec<String> {
+pub(super) fn fetch_package_conflicts(name: &str, source: &Source) -> Vec<String> {
     match source {
         Source::Official { repo, .. } => {
             // Handle local packages specially - use pacman -Qi instead of -Si

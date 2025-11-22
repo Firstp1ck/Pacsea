@@ -17,7 +17,7 @@ use crate::state::AppState;
 ///
 /// Details:
 /// - Handles navigation and Enter to install/setup optional dependencies
-pub(crate) fn handle_optional_deps(
+pub(super) fn handle_optional_deps(
     ke: KeyEvent,
     app: &mut AppState,
     rows: &[crate::state::types::OptionalDepRow],

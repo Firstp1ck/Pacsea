@@ -21,7 +21,7 @@ use super::command::run_command;
 /// - For official packages: Executes `pacman -Fl <package>` and filters paths under standard binary directories.
 /// - For AUR packages: Uses installed files, paru/yay -Fl, or PKGBUILD parsing as fallback.
 /// - Includes executables from `/usr/bin`, `/usr/sbin`, `/bin`, `/sbin`, and `/usr/local/bin`.
-pub(crate) fn collect_binaries_for_package(
+pub(super) fn collect_binaries_for_package(
     package: &str,
     source: &Source,
 ) -> Result<Vec<String>, String> {
@@ -155,7 +155,7 @@ pub(crate) fn collect_binaries_for_package(
 /// Details:
 /// - Recognises executables under standard binary directories.
 /// - Filters out directories and non-executable files.
-pub(crate) fn extract_binaries_from_file_list(file_list: &str, package: &str) -> Vec<String> {
+pub(super) fn extract_binaries_from_file_list(file_list: &str, package: &str) -> Vec<String> {
     const BINARY_PREFIXES: [&str; 5] = [
         "/usr/bin/",
         "/usr/sbin/",

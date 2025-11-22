@@ -13,7 +13,7 @@ use crate::state::{AppState, PackageItem};
 ///
 /// Details:
 /// - Cancels in-flight operations, clears queues, and saves service restart decisions.
-pub(crate) fn close_preflight_modal(
+pub(super) fn close_preflight_modal(
     app: &mut AppState,
     service_info: &[crate::state::modal::ServiceImpact],
 ) {
@@ -46,7 +46,7 @@ pub(crate) fn close_preflight_modal(
 /// Details:
 /// - Handles cache loading and background resolution for each tab type.
 #[allow(clippy::cognitive_complexity)]
-pub(crate) fn switch_preflight_tab(
+pub(super) fn switch_preflight_tab(
     new_tab: crate::state::PreflightTab,
     app: &mut AppState,
     items: &[PackageItem],

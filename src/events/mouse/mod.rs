@@ -15,7 +15,7 @@ use crate::state::{AppState, PackageItem};
 mod details;
 mod filters;
 pub(crate) mod menu_options;
-mod menus;
+pub(crate) mod menus;
 mod modals;
 mod panes;
 

@@ -18,7 +18,7 @@ use crate::state::PackageItem;
 /// - Mirrors the UI logic to keep keyboard navigation in sync with rendered rows.
 /// - Counts one header per package that has dependencies; only counts individual dependencies when
 ///   that package appears in `dep_tree_expanded` and deduplicates by dependency name.
-pub(crate) fn compute_display_items_len(
+pub(super) fn compute_display_items_len(
     items: &[PackageItem],
     dependency_info: &[crate::state::modal::DependencyInfo],
     dep_tree_expanded: &HashSet<String>,
@@ -67,7 +67,7 @@ pub(crate) fn compute_display_items_len(
 /// Details:
 /// - Adds one row per package header.
 /// - Adds additional rows for each dependency when package is expanded (only for AUR packages).
-pub(crate) fn compute_sandbox_display_items_len(
+pub(super) fn compute_sandbox_display_items_len(
     items: &[PackageItem],
     sandbox_info: &[crate::logic::sandbox::SandboxInfo],
     sandbox_tree_expanded: &HashSet<String>,

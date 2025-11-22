@@ -7,7 +7,7 @@
 ///
 /// Output:
 /// - Returns a tuple of (depends, makedepends, checkdepends, optdepends) vectors.
-pub(crate) fn parse_srcinfo_deps(
+pub(super) fn parse_srcinfo_deps(
     srcinfo: &str,
 ) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
     let mut depends = Vec::new();

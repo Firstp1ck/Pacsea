@@ -17,7 +17,7 @@ use crate::state::{AppState, PackageItem};
 ///
 /// Details:
 /// - Handles Esc to close, Enter to open file picker and import packages
-pub(crate) fn handle_import_help(
+pub(super) fn handle_import_help(
     ke: KeyEvent,
     app: &mut AppState,
     add_tx: &mpsc::UnboundedSender<PackageItem>,

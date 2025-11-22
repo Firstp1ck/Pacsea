@@ -25,7 +25,7 @@ use crate::state::AppState;
 /// Details:
 /// - Handles navigation, toggles, and Enter to execute update commands
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn handle_system_update(
+pub(super) fn handle_system_update(
     ke: KeyEvent,
     app: &mut AppState,
     do_mirrors: &mut bool,

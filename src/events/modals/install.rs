@@ -16,7 +16,7 @@ use crate::state::{AppState, PackageItem};
 ///
 /// Details:
 /// - Handles Esc to close, Enter to install, s to scan
-pub(crate) fn handle_confirm_install(
+pub(super) fn handle_confirm_install(
     ke: KeyEvent,
     app: &mut AppState,
     items: &[PackageItem],
@@ -57,7 +57,7 @@ pub(crate) fn handle_confirm_install(
 /// Details:
 /// - Handles Esc/Enter to cancel (defaults to No)
 /// - Only proceeds with removal if user explicitly presses 'y' or 'Y'
-pub(crate) fn handle_confirm_remove(
+pub(super) fn handle_confirm_remove(
     ke: KeyEvent,
     app: &mut AppState,
     items: &[PackageItem],

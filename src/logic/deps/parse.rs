@@ -136,7 +136,7 @@ fn get_none_labels() -> &'static HashSet<String> {
 /// - Scans the "Depends On" line, split on whitespace, and removes `.so` patterns that represent virtual deps.
 /// - Validates that tokens look like valid package names (alphanumeric, dashes, underscores, version operators).
 /// - Filters out common words and description text that might be parsed incorrectly.
-pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
+pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
     let depends_labels = get_depends_labels();
     let none_labels = get_none_labels();
 
@@ -219,7 +219,7 @@ pub(crate) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
 /// Details:
 /// - Handles repository prefixes, download URLs, and shared-library provides while extracting canonical names.
 #[allow(dead_code)]
-pub(crate) fn parse_dependency_output(text: &str) -> Vec<String> {
+pub(super) fn parse_dependency_output(text: &str) -> Vec<String> {
     text.lines()
         .filter_map(|line| {
             let line = line.trim();
@@ -285,7 +285,7 @@ pub(crate) fn parse_dependency_output(text: &str) -> Vec<String> {
 /// Details:
 /// - Scans the "Conflicts With" line, splits on whitespace, and filters out invalid entries.
 /// - Similar to `parse_pacman_si_deps` but for conflicts field.
-pub(crate) fn parse_pacman_si_conflicts(text: &str) -> Vec<String> {
+pub(super) fn parse_pacman_si_conflicts(text: &str) -> Vec<String> {
     let none_labels = get_none_labels();
 
     for line in text.lines() {
@@ -363,7 +363,7 @@ pub(crate) fn parse_pacman_si_conflicts(text: &str) -> Vec<String> {
 ///
 /// Details:
 /// - Searches for comparison operators in precedence order to avoid mis-parsing combined expressions.
-pub(crate) fn parse_dep_spec(spec: &str) -> (String, String) {
+pub(super) fn parse_dep_spec(spec: &str) -> (String, String) {
     for op in ["<=", ">=", "=", "<", ">"] {
         if let Some(pos) = spec.find(op) {
             let name = spec[..pos].trim().to_string();

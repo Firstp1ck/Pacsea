@@ -22,7 +22,7 @@ use super::command::run_command;
 /// - Executes `pacman -Fl <package>` and filters paths under the standard
 ///   systemd directories.
 /// - For AUR packages, uses fallback methods (installed files, paru/yay -Fl).
-pub(crate) fn collect_service_units_for_package(
+pub(super) fn collect_service_units_for_package(
     package: &str,
     source: &Source,
 ) -> Result<Vec<String>, String> {
@@ -131,7 +131,7 @@ pub(crate) fn collect_service_units_for_package(
 /// - Recognises units residing under `/usr/lib/systemd/system/` or the legacy
 ///   `/lib/systemd/system/` prefixes.
 /// - Discards duplicate unit entries while preserving discovery order.
-pub(crate) fn extract_service_units_from_file_list(file_list: &str, package: &str) -> Vec<String> {
+pub(super) fn extract_service_units_from_file_list(file_list: &str, package: &str) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut units = Vec::new();
 
@@ -173,7 +173,7 @@ pub(crate) fn extract_service_units_from_file_list(file_list: &str, package: &st
 ///
 /// Details:
 /// - Supports both `/usr/lib/systemd/system` and `/lib/systemd/system` roots.
-pub(crate) fn is_service_path(path: &str) -> bool {
+pub(super) fn is_service_path(path: &str) -> bool {
     const PREFIXES: [&str; 2] = ["/usr/lib/systemd/system/", "/lib/systemd/system/"];
     PREFIXES
         .iter()

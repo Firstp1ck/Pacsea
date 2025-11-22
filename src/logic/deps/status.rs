@@ -18,7 +18,7 @@ use std::process::{Command, Stdio};
 ///
 /// Details:
 /// - Combines local database queries with helper functions to capture upgrade requirements and conflicts.
-pub(crate) fn determine_status(
+pub(super) fn determine_status(
     name: &str,
     version_req: &str,
     installed: &HashSet<String>,
@@ -99,7 +99,7 @@ pub(crate) fn determine_status(
 ///
 /// Details:
 /// - Strips revision suffixes (e.g., `-1`) so comparisons focus on the base semantic version.
-pub(crate) fn get_available_version(name: &str) -> Option<String> {
+pub(super) fn get_available_version(name: &str) -> Option<String> {
     let output = Command::new("pacman")
         .args(["-Si", name])
         .env("LC_ALL", "C")

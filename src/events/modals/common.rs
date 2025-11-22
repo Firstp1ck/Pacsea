@@ -17,7 +17,7 @@ use crate::state::AppState;
 /// Details:
 /// - Handles Enter/Esc to close, Up/Down for help scrolling
 /// - Returns `true` for Esc to prevent mode toggling in search handler
-pub(crate) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> bool {
+pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> bool {
     let is_help = message.contains("Help") || message.contains("Tab Help");
     match ke.code {
         KeyCode::Esc => {
@@ -70,7 +70,7 @@ pub(crate) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
 ///
 /// Details:
 /// - Handles Esc/q to close, Enter to show summary, l to toggle verbose, x to abort
-pub(crate) fn handle_preflight_exec(
+pub(super) fn handle_preflight_exec(
     ke: KeyEvent,
     app: &mut AppState,
     verbose: &mut bool,
@@ -119,7 +119,7 @@ pub(crate) fn handle_preflight_exec(
 ///
 /// Details:
 /// - Handles Esc/Enter/q to close, r for rollback, s for service restart
-pub(crate) fn handle_post_summary(
+pub(super) fn handle_post_summary(
     ke: KeyEvent,
     app: &mut AppState,
     services_pending: &[String],
@@ -155,7 +155,7 @@ pub(crate) fn handle_post_summary(
 /// Details:
 /// - Handles Esc/Enter to close
 /// - Returns `true` for Esc to prevent mode toggling in search handler
-pub(crate) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
+pub(super) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
     match ke.code {
         KeyCode::Esc => {
             app.modal = crate::state::Modal::None;
@@ -182,7 +182,7 @@ pub(crate) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Handles navigation, Enter to open URL, keymap shortcuts for marking read
-pub(crate) fn handle_news(
+pub(super) fn handle_news(
     ke: KeyEvent,
     app: &mut AppState,
     items: &[crate::state::NewsItem],
@@ -241,7 +241,7 @@ pub(crate) fn handle_news(
 ///
 /// Details:
 /// - Handles Esc/Enter to close, Up/Down/PageUp/PageDown for scrolling
-pub(crate) fn handle_updates(
+pub(super) fn handle_updates(
     ke: KeyEvent,
     app: &mut AppState,
     entries: &[(String, String, String)],
@@ -307,7 +307,7 @@ pub(crate) fn handle_updates(
 ///
 /// Details:
 /// - Handles Enter to install terminal, Esc to show warning
-pub(crate) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> bool {
+pub(super) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> bool {
     match ke.code {
         KeyCode::Enter => {
             // Install GNOME Terminal, then close the prompt
