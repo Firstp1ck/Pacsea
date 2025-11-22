@@ -190,7 +190,7 @@ hu-HU:
         optional_dependencies: "Nem kötelező függőségek"
         required_by: "Szükséges a következőhöz"
         optional_for: "Nem kötelező a következőkhöz"
-        conflicts_with: "Ütközik ezzel:"
+        conflicts_with: "Ütközik ezzel"
         replaces: "Cserék"
         download_size: "Letöltési méret"
         install_size: "Telepítési méret"
