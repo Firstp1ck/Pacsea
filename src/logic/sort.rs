@@ -3,7 +3,7 @@ use crate::state::{AppState, SortMode, Source};
 /// What: Apply the currently selected sorting mode to `app.results` in-place.
 ///
 /// Inputs:
-/// - `app`: Mutable application state (results, selected, input, sort_mode)
+/// - `app`: Mutable application state (`results`, `selected`, `input`, `sort_mode`)
 ///
 /// Output:
 /// - Sorts `app.results` and preserves selection by name when possible; otherwise clamps index.

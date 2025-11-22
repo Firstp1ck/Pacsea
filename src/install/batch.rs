@@ -86,7 +86,7 @@ fn build_batch_install_command(
 ///
 /// Details:
 /// - Handles special cases for `konsole` (`Wayland`), `gnome-console`/`kgx` (rendering), and `xfce4-terminal` (command format)
-/// - Sets up PACSEA_TEST_OUT environment variable if present
+/// - Sets up `PACSEA_TEST_OUT` environment variable if present
 fn try_spawn_terminal(
     term: &str,
     args: &[&str],

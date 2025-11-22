@@ -54,7 +54,7 @@ pub(crate) fn parse_active_units(systemctl_output: &str) -> BTreeSet<String> {
         .collect()
 }
 
-/// What: Fetch ExecStart binary paths for active systemd services.
+/// What: Fetch `ExecStart` binary paths for active systemd services.
 ///
 /// Inputs:
 /// - `active_units`: Set of active unit names.
@@ -63,8 +63,8 @@ pub(crate) fn parse_active_units(systemctl_output: &str) -> BTreeSet<String> {
 /// - Map from unit name to vector of binary paths used by that service.
 ///
 /// Details:
-/// - Uses `systemctl show` to get ExecStart paths for each active service.
-/// - Parses ExecStart to extract binary paths (handles paths with arguments).
+/// - Uses `systemctl show` to get `ExecStart` paths for each active service.
+/// - Parses `ExecStart` to extract binary paths (handles paths with arguments).
 pub(crate) fn fetch_active_service_binaries(
     active_units: &BTreeSet<String>,
 ) -> Result<BTreeMap<String, Vec<String>>, String> {
@@ -91,18 +91,18 @@ pub(crate) fn fetch_active_service_binaries(
     Ok(unit_to_binaries)
 }
 
-/// What: Parse ExecStart paths from `systemctl show` output.
+/// What: Parse `ExecStart` paths from `systemctl show` output.
 ///
 /// Inputs:
 /// - `systemctl_output`: Raw stdout from `systemctl show -p ExecStart`.
 ///
 /// Output:
-/// - Vector of binary paths extracted from ExecStart.
+/// - Vector of binary paths extracted from `ExecStart`.
 ///
 /// Details:
-/// - Handles ExecStart format: `ExecStart=/usr/bin/binary --args`
+/// - Handles `ExecStart` format: `ExecStart=/usr/bin/binary --args`
 /// - Extracts the binary path (first token after `ExecStart=`)
-/// - Handles multiple ExecStart entries (ExecStart, ExecStartPre, etc.)
+/// - Handles multiple `ExecStart` entries (`ExecStart`, `ExecStartPre`, etc.)
 pub(crate) fn parse_execstart_paths(systemctl_output: &str) -> Vec<String> {
     let mut binaries = Vec::new();
 

@@ -32,7 +32,7 @@ fn new_app() -> AppState {
 /// - `modifiers`: Key modifiers
 ///
 /// Output:
-/// - KeyEvent with Press kind
+/// - `KeyEvent` with Press kind
 fn key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
     let mut ke = KeyEvent::new(code, modifiers);
     ke.kind = crossterm::event::KeyEventKind::Press;
@@ -40,10 +40,10 @@ fn key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
 }
 
 #[test]
-/// What: Verify Esc key closes OptionalDeps modal and doesn't restore it.
+/// What: Verify Esc key closes `OptionalDeps` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - OptionalDeps modal with test rows
+/// - `OptionalDeps` modal with test rows
 /// - Esc key event
 ///
 /// Output:
@@ -74,10 +74,10 @@ fn optional_deps_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes SystemUpdate modal and doesn't restore it.
+/// What: Verify Esc key closes `SystemUpdate` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - SystemUpdate modal with default settings
+/// - `SystemUpdate` modal with default settings
 /// - Esc key event
 ///
 /// Output:
@@ -107,10 +107,10 @@ fn system_update_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes PreflightExec modal and doesn't restore it.
+/// What: Verify Esc key closes `PreflightExec` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - PreflightExec modal
+/// - `PreflightExec` modal
 /// - Esc key event
 ///
 /// Output:
@@ -139,10 +139,10 @@ fn preflight_exec_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify 'q' key closes PreflightExec modal and doesn't restore it.
+/// What: Verify 'q' key closes `PreflightExec` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - PreflightExec modal
+/// - `PreflightExec` modal
 /// - 'q' key event
 ///
 /// Output:
@@ -171,10 +171,10 @@ fn preflight_exec_q_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes PostSummary modal and doesn't restore it.
+/// What: Verify Esc key closes `PostSummary` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - PostSummary modal
+/// - `PostSummary` modal
 /// - Esc key event
 ///
 /// Output:
@@ -202,10 +202,10 @@ fn post_summary_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Enter key closes PostSummary modal and doesn't restore it.
+/// What: Verify Enter key closes `PostSummary` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - PostSummary modal
+/// - `PostSummary` modal
 /// - Enter key event
 ///
 /// Output:
@@ -233,10 +233,10 @@ fn post_summary_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes ScanConfig modal and doesn't restore it.
+/// What: Verify Esc key closes `ScanConfig` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - ScanConfig modal
+/// - `ScanConfig` modal
 /// - Esc key event
 ///
 /// Output:
@@ -266,10 +266,10 @@ fn scan_config_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes VirusTotalSetup modal and doesn't restore it.
+/// What: Verify Esc key closes `VirusTotalSetup` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - VirusTotalSetup modal
+/// - `VirusTotalSetup` modal
 /// - Esc key event
 ///
 /// Output:
@@ -293,10 +293,10 @@ fn virustotal_setup_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify navigation keys in OptionalDeps modal don't close it.
+/// What: Verify navigation keys in `OptionalDeps` modal don't close it.
 ///
 /// Inputs:
-/// - OptionalDeps modal with multiple rows
+/// - `OptionalDeps` modal with multiple rows
 /// - Up/Down key events
 ///
 /// Output:
@@ -353,10 +353,10 @@ fn optional_deps_navigation_preserves_modal() {
 }
 
 #[test]
-/// What: Verify navigation keys in SystemUpdate modal don't close it.
+/// What: Verify navigation keys in `SystemUpdate` modal don't close it.
 ///
 /// Inputs:
-/// - SystemUpdate modal
+/// - `SystemUpdate` modal
 /// - Up/Down key events
 ///
 /// Output:
@@ -403,10 +403,10 @@ fn system_update_navigation_preserves_modal() {
 }
 
 #[test]
-/// What: Verify unhandled keys in OptionalDeps modal don't break state.
+/// What: Verify unhandled keys in `OptionalDeps` modal don't break state.
 ///
 /// Inputs:
-/// - OptionalDeps modal
+/// - `OptionalDeps` modal
 /// - Unhandled key event (e.g., 'x')
 ///
 /// Output:
@@ -443,10 +443,10 @@ fn optional_deps_unhandled_key_preserves_modal() {
 }
 
 #[test]
-/// What: Verify unhandled keys in SystemUpdate modal don't break state.
+/// What: Verify unhandled keys in `SystemUpdate` modal don't break state.
 ///
 /// Inputs:
-/// - SystemUpdate modal
+/// - `SystemUpdate` modal
 /// - Unhandled key event (e.g., 'z')
 ///
 /// Output:
@@ -482,10 +482,10 @@ fn system_update_unhandled_key_preserves_modal() {
 }
 
 #[test]
-/// What: Verify toggle keys in SystemUpdate modal work correctly.
+/// What: Verify toggle keys in `SystemUpdate` modal work correctly.
 ///
 /// Inputs:
-/// - SystemUpdate modal
+/// - `SystemUpdate` modal
 /// - Space key event to toggle options
 ///
 /// Output:
@@ -779,17 +779,17 @@ fn alert_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes ConfirmInstall modal.
+/// What: Verify Esc key closes `ConfirmInstall` modal.
 ///
 /// Inputs:
-/// - ConfirmInstall modal with items
+/// - `ConfirmInstall` modal with items
 /// - Esc key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Esc closes ConfirmInstall modal correctly
+/// - Tests that Esc closes `ConfirmInstall` modal correctly
 fn confirm_install_esc_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ConfirmInstall {
@@ -811,7 +811,7 @@ fn confirm_install_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes ConfirmRemove modal.
+/// What: Verify Esc key closes `ConfirmRemove` modal.
 ///
 /// Inputs:
 /// - ConfirmRemove modal with items

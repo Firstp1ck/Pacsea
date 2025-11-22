@@ -1,6 +1,6 @@
 use crate::state::PackageItem;
 
-/// What: Minimal data required to populate the PostSummary modal.
+/// What: Minimal data required to populate the `PostSummary` modal.
 ///
 /// Inputs:
 /// - Populated by `compute_post_summary` after pacman inspections.
