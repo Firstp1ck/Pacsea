@@ -21,7 +21,7 @@ use crate::theme::theme;
 ///
 /// Details:
 /// - Accounts for border inset and calculates inner content dimensions.
-fn calculate_content_layout(details_area: Rect) -> (u16, u16, u16) {
+const fn calculate_content_layout(details_area: Rect) -> (u16, u16, u16) {
     let border_inset = 1u16;
     let content_x = details_area.x.saturating_add(border_inset);
     let content_y = details_area.y.saturating_add(border_inset);

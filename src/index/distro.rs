@@ -85,35 +85,35 @@ pub fn is_artix_repo(repo: &str) -> bool {
 
 /// What: Check if a repo name is the Artix omniverse repository.
 #[must_use]
-pub fn is_artix_omniverse(repo: &str) -> bool {
+pub const fn is_artix_omniverse(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("omniverse")
 }
 
 /// What: Check if a repo name is the Artix universe repository.
 #[must_use]
-pub fn is_artix_universe(repo: &str) -> bool {
+pub const fn is_artix_universe(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("universe")
 }
 
 /// What: Check if a repo name is the Artix lib32 repository.
 #[must_use]
-pub fn is_artix_lib32(repo: &str) -> bool {
+pub const fn is_artix_lib32(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("lib32")
 }
 
 /// What: Check if a repo name is the Artix galaxy repository.
 #[must_use]
-pub fn is_artix_galaxy(repo: &str) -> bool {
+pub const fn is_artix_galaxy(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("galaxy")
 }
 
 /// What: Check if a repo name is the Artix world repository.
-pub fn is_artix_world(repo: &str) -> bool {
+pub const fn is_artix_world(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("world")
 }
 
 /// What: Check if a repo name is the Artix system repository.
-pub fn is_artix_system(repo: &str) -> bool {
+pub const fn is_artix_system(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("system")
 }
 
@@ -125,7 +125,7 @@ pub fn is_artix_system(repo: &str) -> bool {
 ///
 /// Details:
 /// - Returns ["eos", "endeavouros"].
-pub fn eos_repo_names() -> &'static [&'static str] {
+pub const fn eos_repo_names() -> &'static [&'static str] {
     &["eos", "endeavouros"]
 }
 
@@ -137,7 +137,7 @@ pub fn eos_repo_names() -> &'static [&'static str] {
 ///
 /// Details:
 /// - Includes multiple generation-specific names (v3/v4) for compatibility.
-pub fn cachyos_repo_names() -> &'static [&'static str] {
+pub const fn cachyos_repo_names() -> &'static [&'static str] {
     &[
         "cachyos",
         "cachyos-core",
@@ -159,7 +159,7 @@ pub fn cachyos_repo_names() -> &'static [&'static str] {
 ///
 /// Details:
 /// - Returns the standard Artix repositories: omniverse, universe, lib32, galaxy, world, system.
-pub fn artix_repo_names() -> &'static [&'static str] {
+pub const fn artix_repo_names() -> &'static [&'static str] {
     &[
         "omniverse",
         "universe",

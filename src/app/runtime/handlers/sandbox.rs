@@ -50,7 +50,7 @@ fn log_sandbox_info_details(sandbox_info: &[crate::logic::sandbox::SandboxInfo])
 /// - `info`: `SandboxInfo` to check
 ///
 /// Output: `true` if all dependency vectors are empty, `false` otherwise
-fn is_empty_sandbox(info: &crate::logic::sandbox::SandboxInfo) -> bool {
+const fn is_empty_sandbox(info: &crate::logic::sandbox::SandboxInfo) -> bool {
     info.depends.is_empty()
         && info.makedepends.is_empty()
         && info.checkdepends.is_empty()

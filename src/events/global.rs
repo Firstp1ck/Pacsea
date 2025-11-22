@@ -235,7 +235,7 @@ fn handle_panels_menu_selection(idx: usize, app: &mut AppState) {
 ///
 /// Details:
 /// - `BackTab` normalization ensures consistent keybind matching across different terminal emulators.
-fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
+const fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
     if matches!(ke.code, KeyCode::BackTab) {
         KeyModifiers::empty()
     } else {
@@ -253,7 +253,7 @@ fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
 ///
 /// Details:
 /// - Normalizes `BackTab` modifiers before creating the chord.
-fn create_key_chord(ke: &KeyEvent) -> (KeyCode, KeyModifiers) {
+const fn create_key_chord(ke: &KeyEvent) -> (KeyCode, KeyModifiers) {
     (ke.code, normalize_key_modifiers(ke))
 }
 
@@ -340,7 +340,7 @@ fn handle_reload_theme(app: &mut AppState) -> Option<bool> {
 ///
 /// Details:
 /// - Returns exit signal when exit keybind is pressed.
-fn handle_exit() -> Option<bool> {
+const fn handle_exit() -> Option<bool> {
     Some(true)
 }
 

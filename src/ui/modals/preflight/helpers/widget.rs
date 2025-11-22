@@ -76,7 +76,7 @@ impl ParagraphBuilder {
     /// Output: Returns self for method chaining.
     ///
     /// Details: Used for scrolling content within the paragraph widget.
-    pub fn with_scroll(mut self, offset: (u16, u16)) -> Self {
+    pub const fn with_scroll(mut self, offset: (u16, u16)) -> Self {
         self.scroll_offset = offset;
         self
     }
@@ -89,7 +89,7 @@ impl ParagraphBuilder {
     /// Output: Returns self for method chaining.
     ///
     /// Details: Overrides default text color from theme.
-    pub fn with_text_color(mut self, color: ratatui::style::Color) -> Self {
+    pub const fn with_text_color(mut self, color: ratatui::style::Color) -> Self {
         self.text_color = color;
         self
     }
@@ -102,7 +102,7 @@ impl ParagraphBuilder {
     /// Output: Returns self for method chaining.
     ///
     /// Details: Overrides default background color from theme.
-    pub fn with_bg_color(mut self, color: ratatui::style::Color) -> Self {
+    pub const fn with_bg_color(mut self, color: ratatui::style::Color) -> Self {
         self.bg_color = color;
         self
     }
@@ -115,7 +115,7 @@ impl ParagraphBuilder {
     /// Output: Returns self for method chaining.
     ///
     /// Details: Overrides default border color from theme.
-    pub fn with_border_color(mut self, color: ratatui::style::Color) -> Self {
+    pub const fn with_border_color(mut self, color: ratatui::style::Color) -> Self {
         self.border_color = color;
         self
     }

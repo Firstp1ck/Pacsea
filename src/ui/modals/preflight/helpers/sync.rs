@@ -403,7 +403,7 @@ pub fn sync_services(
 ///
 /// Output:
 /// - Returns true if sandbox resolution is in progress
-fn is_sandbox_resolving(app: &AppState) -> bool {
+const fn is_sandbox_resolving(app: &AppState) -> bool {
     app.preflight_sandbox_resolving || app.sandbox_resolving
 }
 

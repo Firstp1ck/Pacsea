@@ -55,7 +55,7 @@ impl LayoutConstraints {
     ///
     /// Details:
     /// - Returns constraints with standard minimum and maximum heights for all panes.
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             min_results: 3,
             min_middle: 3,
@@ -92,7 +92,7 @@ struct LayoutHeights {
 ///
 /// Details:
 /// - Uses match expression to determine height based on available space thresholds.
-fn calculate_middle_height(
+const fn calculate_middle_height(
     available_h: u16,
     min_results_h: u16,
     constraints: &LayoutConstraints,

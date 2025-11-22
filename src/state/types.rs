@@ -127,7 +127,7 @@ impl SortMode {
     /// - Output: Static string representing the serialized value.
     /// - Details: Keeps `settings.conf` forward/backward compatible by
     ///   standardizing the keys stored on disk.
-    pub fn as_config_key(&self) -> &'static str {
+    pub const fn as_config_key(&self) -> &'static str {
         match self {
             Self::RepoThenName => "alphabetical",
             Self::AurPopularityThenOfficial => "aur_popularity",

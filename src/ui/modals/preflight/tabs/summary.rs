@@ -504,7 +504,7 @@ struct DependencyDisplayInfo {
 ///
 /// Details:
 /// - Simplifies conditional logic for bullet and color selection.
-fn get_bullet_and_color(
+const fn get_bullet_and_color(
     allows_dependents: bool,
     is_direct: bool,
     th: &crate::theme::Theme,

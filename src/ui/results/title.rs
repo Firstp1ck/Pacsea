@@ -688,7 +688,7 @@ impl LayoutState {
     /// Output: New `LayoutState` instance.
     ///
     /// Details: Initializes layout state with starting position.
-    fn new(x: u16, y: u16) -> Self {
+    const fn new(x: u16, y: u16) -> Self {
         Self { x, y }
     }
 

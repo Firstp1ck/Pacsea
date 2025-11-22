@@ -20,7 +20,7 @@ use crate::state::{AppState, PackageItem};
 /// Details:
 /// - Returns `false` if `rect` is `None`.
 /// - Checks bounds: `mx >= x && mx < x + w && my >= y && my < y + h`.
-fn is_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
+const fn is_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
     let Some((x, y, w, h)) = rect else {
         return false;
     };

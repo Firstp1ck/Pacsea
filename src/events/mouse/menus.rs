@@ -21,7 +21,7 @@ use super::menu_options;
 ///
 /// Details:
 /// - Returns `false` if rectangle is `None`
-fn point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
+const fn point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
     if let Some((x, y, w, h)) = rect {
         mx >= x && mx < x + w && my >= y && my < y + h
     } else {

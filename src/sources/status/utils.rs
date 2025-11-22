@@ -91,8 +91,8 @@ pub(super) fn extract_arch_systems_status_color(body: &str) -> Option<ArchStatus
 ///
 /// Details: Converts colors to integer ranks and returns the higher rank so callers can merge
 /// multiple heuristics without under-reporting incidents.
-pub(super) fn severity_max(a: ArchStatusColor, b: ArchStatusColor) -> ArchStatusColor {
-    fn rank(c: ArchStatusColor) -> u8 {
+pub(super) const fn severity_max(a: ArchStatusColor, b: ArchStatusColor) -> ArchStatusColor {
+    const fn rank(c: ArchStatusColor) -> u8 {
         match c {
             ArchStatusColor::None => 0,
             ArchStatusColor::Operational => 1,
@@ -170,7 +170,7 @@ pub(super) fn today_ymd_utc() -> Option<(i32, u32, u32)> {
 ///
 /// Details: Applies the standard divisible-by-4 rule with century and 400-year exceptions.
 #[inline]
-fn is_leap_year(year: i32) -> bool {
+const fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 

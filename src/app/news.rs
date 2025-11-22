@@ -60,7 +60,7 @@ pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
 }
 
-fn is_leap_year(year: i32) -> bool {
+const fn is_leap_year(year: i32) -> bool {
     // What: Determine whether a Gregorian calendar year is a leap year.
     // Inputs: `year` is a four-digit Gregorian year expressed as an i32.
     // Output: true when the year is divisible by 4 but not 100, unless divisible by 400.

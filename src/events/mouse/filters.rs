@@ -17,7 +17,7 @@ use crate::state::AppState;
 /// Details:
 /// - Returns `false` if `rect` is `None`.
 /// - Uses inclusive start and exclusive end bounds for width and height.
-fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
+const fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
     if let Some((x, y, w, h)) = rect {
         mx >= x && mx < x + w && my >= y && my < y + h
     } else {
@@ -105,7 +105,7 @@ fn toggle_all_artix_filters(app: &mut AppState) {
 ///
 /// Details:
 /// - Returns `true` when in dropdown mode (all individual filters hidden).
-fn has_hidden_artix_filters(app: &AppState) -> bool {
+const fn has_hidden_artix_filters(app: &AppState) -> bool {
     app.results_filter_artix_omniverse_rect.is_none()
         && app.results_filter_artix_universe_rect.is_none()
         && app.results_filter_artix_lib32_rect.is_none()

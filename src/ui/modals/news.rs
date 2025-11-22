@@ -211,7 +211,7 @@ fn build_news_lines(app: &AppState, items: &[NewsItem], selected: usize) -> Vec<
 /// Details:
 /// - Accounts for borders, header lines, and footer lines.
 /// - Used for mouse click detection on news items.
-fn calculate_list_rect(rect: Rect) -> (u16, u16, u16, u16) {
+const fn calculate_list_rect(rect: Rect) -> (u16, u16, u16, u16) {
     let list_inner_x = rect.x + BORDER_WIDTH;
     let list_inner_y = rect.y + BORDER_WIDTH + HEADER_LINES;
     let list_inner_w = rect.width.saturating_sub(BORDER_WIDTH * 2);

@@ -32,7 +32,7 @@ struct TabStatus {
 /// Output: Returns `TabStatus` with completion and loading flags.
 ///
 /// Details: Summary is complete if data exists.
-fn calculate_summary_status(
+const fn calculate_summary_status(
     summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
     summary_loading: bool,
 ) -> TabStatus {
@@ -131,7 +131,7 @@ fn calculate_files_status(
 /// Output: Returns `TabStatus` with completion and loading flags.
 ///
 /// Details: Services are complete if marked as loaded or if install list has services.
-fn calculate_services_status(app: &AppState, services_loaded: bool) -> TabStatus {
+const fn calculate_services_status(app: &AppState, services_loaded: bool) -> TabStatus {
     let loading = app.preflight_services_resolving || app.services_resolving;
     let complete = services_loaded || (!loading && !app.install_list_services.is_empty());
 
@@ -188,7 +188,7 @@ fn calculate_sandbox_status(
 /// Output: Returns tuple of (icon string, color).
 ///
 /// Details: Returns loading icon if loading, checkmark if complete, empty otherwise.
-fn get_status_icon(
+const fn get_status_icon(
     status: &TabStatus,
     th: &crate::theme::Theme,
 ) -> (&'static str, ratatui::style::Color) {
@@ -232,7 +232,7 @@ fn build_completion_order(statuses: &[TabStatus]) -> Vec<usize> {
 /// Output: Returns color for the highlight.
 ///
 /// Details: Uses different colors for different completion positions.
-fn get_completion_highlight_color(
+const fn get_completion_highlight_color(
     order_idx: usize,
     th: &crate::theme::Theme,
 ) -> ratatui::style::Color {
@@ -253,7 +253,7 @@ fn get_completion_highlight_color(
 /// Output: Returns true if the tab is active.
 ///
 /// Details: Maps tab indices to `PreflightTab` enum variants.
-fn is_tab_active(tab_idx: usize, current_tab: PreflightTab) -> bool {
+const fn is_tab_active(tab_idx: usize, current_tab: PreflightTab) -> bool {
     matches!(
         (tab_idx, current_tab),
         (0, PreflightTab::Summary)

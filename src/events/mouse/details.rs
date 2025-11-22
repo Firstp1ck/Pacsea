@@ -17,7 +17,7 @@ use crate::state::{AppState, PackageItem};
 ///
 /// Output:
 /// - `true` if the point is within the rectangle, `false` otherwise.
-fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
+const fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
     if let Some((x, y, w, h)) = rect {
         mx >= x && mx < x + w && my >= y && my < y + h
     } else {

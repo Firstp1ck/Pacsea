@@ -20,7 +20,7 @@ use crate::theme::{KeyChord, Theme, theme};
 ///
 /// Details:
 /// - Used to highlight active sections in the footer.
-fn get_label_color(is_focused: bool, th: &Theme) -> ratatui::style::Color {
+const fn get_label_color(is_focused: bool, th: &Theme) -> ratatui::style::Color {
     if is_focused { th.mauve } else { th.overlay1 }
 }
 

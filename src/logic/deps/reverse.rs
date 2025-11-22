@@ -245,7 +245,7 @@ impl RootRelation {
     ///
     /// Details:
     /// - Allows callers to classify dependencies as direct when the minimum depth is one.
-    fn min_depth(&self) -> usize {
+    const fn min_depth(&self) -> usize {
         self.min_depth
     }
 }
