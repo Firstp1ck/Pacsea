@@ -43,12 +43,12 @@ pub(super) fn handle_import_help(
 /// Details:
 /// - Opens file picker dialog and imports package names from selected file
 /// - During tests, this is a no-op to avoid opening real file picker dialogs
-fn handle_import_help_enter(_add_tx: &mpsc::UnboundedSender<PackageItem>) {
+fn handle_import_help_enter(add_tx: &mpsc::UnboundedSender<PackageItem>) {
     // Skip actual file picker during tests
     #[cfg(not(test))]
     {
         tracing::info!("import: Enter pressed in ImportHelp modal");
-        let add_tx_clone = _add_tx.clone();
+        let add_tx_clone = add_tx.clone();
         std::thread::spawn(move || {
             tracing::info!("import: thread started, opening file picker");
             #[cfg(target_os = "windows")]

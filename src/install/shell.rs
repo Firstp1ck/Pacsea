@@ -15,14 +15,14 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 /// Details:
 /// - Defers to `spawn_shell_commands_in_terminal_with_hold` to add the default hold tail.
 /// - During tests, this is a no-op to avoid opening real terminal windows, unless `PACSEA_TEST_OUT` is set.
-pub fn spawn_shell_commands_in_terminal(_cmds: &[String]) {
+pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
     #[cfg(test)]
     if std::env::var("PACSEA_TEST_OUT").is_err() {
         return;
     }
     // Default wrapper keeps the terminal open after commands complete
-    spawn_shell_commands_in_terminal_with_hold(_cmds, true);
+    spawn_shell_commands_in_terminal_with_hold(cmds, true);
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -153,19 +153,19 @@ fn try_spawn_terminal(
 /// - Persists the command to a temp script to avoid argument-length issues.
 /// - Prefers user-configured terminals, applies desktop-specific environment tweaks, and logs spawn attempts.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool) {
+pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
     #[cfg(test)]
     if std::env::var("PACSEA_TEST_OUT").is_err() {
         return;
     }
 
-    if _cmds.is_empty() {
+    if cmds.is_empty() {
         return;
     }
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-    let joined = _cmds.join(" && ");
-    let cmd_str = if _hold {
+    let joined = cmds.join(" && ");
+    let cmd_str = if hold {
         format!("{joined}{hold_tail}")
     } else {
         joined.clone()

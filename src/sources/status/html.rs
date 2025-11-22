@@ -224,8 +224,8 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
                         (day_s.trim().parse::<u32>(), today_ymd_utc())
                 {
                     let month_idx = months.iter().position(|mm| *mm == *m).unwrap() as u32 + 1;
-                    let _year_s = &region[year_start..(year_start + 4)];
-                    is_today = tm == month_idx && td == day && ty.to_string() == _year_s;
+                    let year_s = &region[year_start..(year_start + 4)];
+                    is_today = tm == month_idx && td == day && ty.to_string() == year_s;
                 }
                 break 'outer;
             }

@@ -633,9 +633,9 @@ pub fn render_tab_header(
     summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
     dependency_info: &[crate::state::modal::DependencyInfo],
     file_info: &[crate::state::modal::PackageFileInfo],
-    _service_info: &[crate::state::modal::ServiceImpact],
+    service_info: &[crate::state::modal::ServiceImpact],
     services_loaded: bool,
-    _sandbox_info: &[crate::logic::sandbox::SandboxInfo],
+    sandbox_info: &[crate::logic::sandbox::SandboxInfo],
     sandbox_loaded: bool,
 ) -> (Line<'static>, Line<'static>) {
     let th = theme();
@@ -656,7 +656,7 @@ pub fn render_tab_header(
         dependency_info,
         file_info,
         services_loaded,
-        _sandbox_info,
+        sandbox_info,
         sandbox_loaded,
     );
 

@@ -132,7 +132,7 @@ fn try_spawn_terminal(
 /// - Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.); falls back to `bash`
 /// - Appends a "hold" tail so the terminal remains open after command completion
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
+pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
     #[cfg(test)]
     if std::env::var("PACSEA_TEST_OUT").is_err() {
@@ -141,23 +141,23 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
 
     let mut official: Vec<String> = Vec::new();
     let mut aur: Vec<String> = Vec::new();
-    for it in _items {
+    for it in items {
         match it.source {
             Source::Official { .. } => official.push(it.name.clone()),
             Source::Aur => aur.push(it.name.clone()),
         }
     }
-    let names_vec: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
+    let names_vec: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
     tracing::info!(
-        total = _items.len(),
+        total = items.len(),
         aur_count = aur.len(),
         official_count = official.len(),
-        dry_run = _dry_run,
+        dry_run = dry_run,
         names = %names_vec.join(" "),
         "spawning install"
     );
 
-    let cmd_str = build_batch_install_command(_items, &official, &aur, _dry_run);
+    let cmd_str = build_batch_install_command(items, &official, &aur, dry_run);
 
     // Prefer GNOME Terminal when running under GNOME desktop
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
@@ -198,7 +198,7 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
         let (term, args, needs_xfce_command) = terms[idx];
         match try_spawn_terminal(term, args, needs_xfce_command, &cmd_str) {
             Ok(()) => {
-                tracing::info!(terminal = %term, total = _items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = _dry_run, names = %names_vec.join(" "), "launched terminal for install");
+                tracing::info!(terminal = %term, total = items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = dry_run, names = %names_vec.join(" "), "launched terminal for install");
                 launched = true;
             }
             Err(()) => {
@@ -212,7 +212,7 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
             if command_on_path(term) {
                 match try_spawn_terminal(term, args, *needs_xfce_command, &cmd_str) {
                     Ok(()) => {
-                        tracing::info!(terminal = %term, total = _items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = _dry_run, names = %names_vec.join(" "), "launched terminal for install");
+                        tracing::info!(terminal = %term, total = items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = dry_run, names = %names_vec.join(" "), "launched terminal for install");
                         launched = true;
                         break;
                     }
@@ -228,12 +228,12 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
         if let Err(e) = res {
             tracing::error!(error = %e, names = %names_vec.join(" "), "failed to spawn bash to run install command");
         } else {
-            tracing::info!(total = _items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = _dry_run, names = %names_vec.join(" "), "launched bash for install");
+            tracing::info!(total = items.len(), aur_count = aur.len(), official_count = official.len(), dry_run = dry_run, names = %names_vec.join(" "), "launched bash for install");
         }
     }
 
-    if !_dry_run {
-        let names: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
+    if !dry_run {
+        let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
         if !names.is_empty()
             && let Err(e) = log_installed(&names)
         {
@@ -347,16 +347,16 @@ mod tests {
 /// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the batch install with Write-Host.
 /// - Always logs install attempts when not in `dry_run` to remain consistent with Unix behaviour.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
+pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     #[cfg(not(test))]
     {
-        let mut names: Vec<String> = _items.iter().map(|p| p.name.clone()).collect();
+        let mut names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
         if names.is_empty() {
             names.push("nothing".into());
         }
         let names_str = names.join(" ");
 
-        if _dry_run && super::utils::is_powershell_available() {
+        if dry_run && super::utils::is_powershell_available() {
             // Use PowerShell to simulate the batch install operation
             let powershell_cmd = format!(
                 "Write-Host 'DRY RUN: Simulating batch install of {}' -ForegroundColor Yellow; Write-Host 'Packages: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
@@ -367,7 +367,7 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
                 .args(["-NoProfile", "-Command", &powershell_cmd])
                 .spawn();
         } else {
-            let msg = if _dry_run {
+            let msg = if dry_run {
                 format!("DRY RUN: install {names_str}")
             } else {
                 format!("Install {names_str} (not supported on Windows)")
@@ -384,7 +384,7 @@ pub fn spawn_install_all(_items: &[PackageItem], _dry_run: bool) {
                 .spawn();
         }
 
-        if !_dry_run {
+        if !dry_run {
             let _ = super::logging::log_installed(&names);
         }
     }

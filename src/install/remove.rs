@@ -163,35 +163,35 @@ fn try_spawn_terminal(
 /// Details:
 /// - Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.); falls back to bash. Appends a hold tail so the window remains open after command completion.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: CascadeMode) {
+pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
     #[cfg(test)]
     if std::env::var("PACSEA_TEST_OUT").is_err() {
         return;
     }
 
-    let names_str = _names.join(" ");
+    let names_str = names.join(" ");
     tracing::info!(
         names = %names_str,
-        total = _names.len(),
-        dry_run = _dry_run,
-        mode = ?_cascade_mode,
+        total = names.len(),
+        dry_run = dry_run,
+        mode = ?cascade_mode,
         "spawning removal"
     );
-    let flag = _cascade_mode.flag();
+    let flag = cascade_mode.flag();
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-    let cmd_str = if _dry_run {
+    let cmd_str = if dry_run {
         format!(
             "echo DRY RUN: sudo pacman {flag} --noconfirm {n}{hold}",
             flag = flag,
-            n = _names.join(" "),
+            n = names.join(" "),
             hold = hold_tail
         )
     } else {
         format!(
             "sudo pacman {flag} --noconfirm {n}{hold}",
             flag = flag,
-            n = _names.join(" "),
+            n = names.join(" "),
             hold = hold_tail
         )
     };
@@ -235,9 +235,9 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
 
     let ctx = SpawnContext {
         names_str: &names_str,
-        names_len: _names.len(),
-        dry_run: _dry_run,
-        cascade_mode: _cascade_mode,
+        names_len: names.len(),
+        dry_run: dry_run,
+        cascade_mode: cascade_mode,
     };
 
     let mut launched = false;
@@ -264,9 +264,9 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
         } else {
             tracing::info!(
                 names = %names_str,
-                total = _names.len(),
-                dry_run = _dry_run,
-                mode = ?_cascade_mode,
+                total = names.len(),
+                dry_run = dry_run,
+                mode = ?cascade_mode,
                 "launched bash for removal"
             );
         }
@@ -359,10 +359,10 @@ mod tests {
 /// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the removal with Write-Host.
 /// - Mirrors Unix logging by emitting an info trace, but performs no package operations.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: CascadeMode) {
+pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
     #[cfg(not(test))]
     {
-        let mut names = _names.to_vec();
+        let mut names = names.to_vec();
         if names.is_empty() {
             names.push("nothing".into());
         }
@@ -370,14 +370,14 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
         tracing::info!(
             names = %names_str,
             total = names.len(),
-            dry_run = _dry_run,
-            mode = ?_cascade_mode,
+            dry_run = dry_run,
+            mode = ?cascade_mode,
             "spawning removal"
         );
-        let flag = _cascade_mode.flag();
+        let flag = cascade_mode.flag();
         let cmd = format!("pacman {flag} --noconfirm {}", names.join(" "));
 
-        if _dry_run && super::utils::is_powershell_available() {
+        if dry_run && super::utils::is_powershell_available() {
             // Use PowerShell to simulate the removal operation
             let powershell_cmd = format!(
                 "Write-Host 'DRY RUN: Simulating removal of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
@@ -390,12 +390,12 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
             tracing::info!(
                 names = %names_str,
                 total = names.len(),
-                dry_run = _dry_run,
-                mode = ?_cascade_mode,
+                dry_run = dry_run,
+                mode = ?cascade_mode,
                 "launched PowerShell for removal"
             );
         } else {
-            let msg = if _dry_run {
+            let msg = if dry_run {
                 format!("DRY RUN: {cmd}")
             } else {
                 format!(
