@@ -517,8 +517,8 @@ fn installed_dependencies_are_included_in_list() {
         },
     );
     let to_install_dep = dep("libnew", &["target"]);
-    let deps = vec![installed_dep.clone(), to_install_dep.clone()];
-    let app = setup_preflight_app(PreflightTab::Deps, deps.clone(), 0, HashSet::new());
+    let deps = vec![installed_dep, to_install_dep];
+    let app = setup_preflight_app(PreflightTab::Deps, deps, 0, HashSet::new());
 
     if let Modal::Preflight {
         dependency_info, ..
@@ -557,9 +557,9 @@ fn cached_dependencies_load_on_tab_switch() {
     let mut app = AppState::default();
     let items = vec![pkg("target")];
     let cached_deps = vec![dep("libcached", &["target"])];
-    app.install_list_deps = cached_deps.clone();
+    app.install_list_deps = cached_deps;
     app.modal = Modal::Preflight {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         summary: None,
@@ -622,9 +622,9 @@ fn cached_files_load_on_tab_switch() {
     let mut app = AppState::default();
     let items = vec![pkg("target")];
     let cached_files = vec![file_info("target", 3)];
-    app.install_list_files = cached_files.clone();
+    app.install_list_files = cached_files;
     app.modal = Modal::Preflight {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         summary: None,
@@ -766,9 +766,9 @@ fn dependencies_filtered_by_required_by_on_cache_load() {
     // Create dependencies: one for "target", one for "other" package
     let deps_for_target = dep("libtarget", &["target"]);
     let deps_for_other = dep("libother", &["other"]);
-    app.install_list_deps = vec![deps_for_target.clone(), deps_for_other.clone()];
+    app.install_list_deps = vec![deps_for_target, deps_for_other];
     app.modal = Modal::Preflight {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         summary: None,
@@ -836,9 +836,9 @@ fn files_filtered_by_package_name_on_cache_load() {
     let items = vec![pkg("target")];
     let files_for_target = file_info("target", 2);
     let files_for_other = file_info("other", 3);
-    app.install_list_files = vec![files_for_target.clone(), files_for_other.clone()];
+    app.install_list_files = vec![files_for_target, files_for_other];
     app.modal = Modal::Preflight {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         summary: None,

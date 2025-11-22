@@ -358,9 +358,8 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     crate::theme::ensure_settings_keys_present(&prefs);
     apply_settings_to_app_state(app, &prefs);
 
-    // Initialize locale system (clone locale string to avoid borrow issues)
-    let locale_pref = prefs.locale.clone();
-    initialize_locale_system(app, &locale_pref, &prefs);
+    // Initialize locale system
+    initialize_locale_system(app, &prefs.locale, &prefs);
 
     check_gnome_terminal(app, headless);
 

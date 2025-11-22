@@ -542,22 +542,22 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
 
     let n_spans: Vec<Span> = vec![
         Span::styled(
-            normal_mode_label.clone(),
+            normal_mode_label,
             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
         Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
-        Span::raw(insert_mode_text.clone()),
+        Span::raw(insert_mode_text),
         Span::styled("[j / k]", key_style),
-        Span::raw(move_text.clone()),
+        Span::raw(move_text),
         Span::styled("[Ctrl+d / Ctrl+u]", key_style),
-        Span::raw(page_text.clone()),
+        Span::raw(page_text),
         Span::styled(format!("[{left_label} / {right_label}]"), key_style),
-        Span::raw(select_text_text.clone()),
+        Span::raw(select_text_text),
         Span::styled(format!("[{delete_label}]"), key_style),
-        Span::raw(delete_text_text.clone()),
+        Span::raw(delete_text_text),
         Span::styled(format!("[{clear_label}]"), key_style),
-        Span::raw(clear_input_text.clone()),
+        Span::raw(clear_input_text),
     ];
     lines.push(Line::from(n_spans));
 
@@ -575,17 +575,17 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
         if let Some(k) = km.config_menu_toggle.first() {
             second_line_spans.push(Span::raw("  •  "));
             second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_config_list_text.clone()));
+            second_line_spans.push(Span::raw(open_config_list_text));
         }
         if let Some(k) = km.options_menu_toggle.first() {
             second_line_spans.push(Span::raw("  •  "));
             second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_options_text.clone()));
+            second_line_spans.push(Span::raw(open_options_text));
         }
         if let Some(k) = km.panels_menu_toggle.first() {
             second_line_spans.push(Span::raw("  •  "));
             second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_panels_text.clone()));
+            second_line_spans.push(Span::raw(open_panels_text));
         }
     }
 
@@ -599,31 +599,31 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
         let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
         let updates_text = i18n::t(app, "app.modals.help.normal_mode.updates");
 
-        second_line_spans.push(Span::raw(install_list_text.clone()));
+        second_line_spans.push(Span::raw(install_list_text));
         if let Some(k) = km.search_normal_import.first() {
             second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(import_text.clone()));
+            second_line_spans.push(Span::raw(import_text));
             if let Some(k2) = km.search_normal_export.first() {
                 second_line_spans.push(Span::raw(", "));
                 second_line_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                second_line_spans.push(Span::raw(export_text.clone()));
+                second_line_spans.push(Span::raw(export_text));
             }
             if let Some(k3) = km.search_normal_updates.first() {
                 second_line_spans.push(Span::raw(", "));
                 second_line_spans.push(Span::styled(format!("[{}]", k3.label()), key_style));
-                second_line_spans.push(Span::raw(updates_text.clone()));
+                second_line_spans.push(Span::raw(updates_text));
             }
         } else if let Some(k) = km.search_normal_export.first() {
             second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(export_text.clone()));
+            second_line_spans.push(Span::raw(export_text));
             if let Some(k2) = km.search_normal_updates.first() {
                 second_line_spans.push(Span::raw(", "));
                 second_line_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                second_line_spans.push(Span::raw(updates_text.clone()));
+                second_line_spans.push(Span::raw(updates_text));
             }
         } else if let Some(k) = km.search_normal_updates.first() {
             second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(updates_text.clone()));
+            second_line_spans.push(Span::raw(updates_text));
         }
     }
 

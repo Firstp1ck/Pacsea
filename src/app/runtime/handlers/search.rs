@@ -137,26 +137,27 @@ pub fn handle_details_update(
     details: &PackageDetails,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
+    let details_clone = details.clone();
     if app.details_focus.as_deref() == Some(details.name.as_str()) {
-        app.details = details.clone();
+        app.details = details_clone.clone();
     }
     app.details_cache
-        .insert(details.name.clone(), details.clone());
+        .insert(details_clone.name.clone(), details_clone.clone());
     app.cache_dirty = true;
     if let Some(pos) = app.results.iter().position(|p| p.name == details.name) {
-        app.results[pos].description = details.description.clone();
-        if !details.version.is_empty() && app.results[pos].version != details.version {
-            app.results[pos].version = details.version.clone();
+        app.results[pos].description = details_clone.description;
+        if !details_clone.version.is_empty() && app.results[pos].version != details_clone.version {
+            app.results[pos].version = details_clone.version;
         }
-        if details.popularity.is_some() {
-            app.results[pos].popularity = details.popularity;
+        if details_clone.popularity.is_some() {
+            app.results[pos].popularity = details_clone.popularity;
         }
         if let crate::state::Source::Official { repo, arch } = &mut app.results[pos].source {
-            if repo.is_empty() && !details.repository.is_empty() {
-                *repo = details.repository.clone();
+            if repo.is_empty() && !details_clone.repository.is_empty() {
+                *repo = details_clone.repository;
             }
-            if arch.is_empty() && !details.architecture.is_empty() {
-                *arch = details.architecture.clone();
+            if arch.is_empty() && !details_clone.architecture.is_empty() {
+                *arch = details_clone.architecture;
             }
         }
     }

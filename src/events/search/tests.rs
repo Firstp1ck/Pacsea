@@ -416,7 +416,7 @@ fn search_insert_mode_space_adds_items() {
 
     // Test installed-only mode: should add to remove_list
     app.installed_only_mode = true;
-    app.results.push(test_item.clone());
+    app.results.push(test_item);
     app.selected = 0;
     let _ = handle_search_key(
         KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()),

@@ -146,7 +146,7 @@ pub fn handle_result<C: HandlerConfig>(
     config.log_flag_clear(app, was_preflight, cancelled);
 
     // Check if resolution is complete before clearing flags
-    let is_complete = config.is_resolution_complete(app, &results);
+    let is_complete = config.is_resolution_complete(app, results);
 
     // Only reset resolving flags if resolution is complete
     if is_complete {
@@ -175,8 +175,8 @@ pub fn handle_result<C: HandlerConfig>(
         config.stage_name()
     );
 
-    config.update_cache(app, &results);
-    config.sync_to_modal(app, &results, was_preflight);
+    config.update_cache(app, results);
+    config.sync_to_modal(app, results, was_preflight);
 
     if was_preflight {
         config.clear_preflight_items(app);

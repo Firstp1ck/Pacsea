@@ -210,7 +210,7 @@ fn handle_reload_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
     app.mouse_disabled_in_details = false;
     if let Some(item) = app.results.get(app.selected).cloned() {
         app.pkgb_reload_requested_at = Some(std::time::Instant::now());
-        app.pkgb_reload_requested_for = Some(item.name.clone());
+        app.pkgb_reload_requested_for = Some(item.name);
         app.pkgb_text = None; // Clear old PKGBUILD while loading
     }
     true

@@ -61,7 +61,7 @@ fn optional_deps_esc_closes_modal() {
         note: None,
     }];
     app.modal = crate::state::Modal::OptionalDeps {
-        rows: rows.clone(),
+        rows,
         selected: 0,
     };
 
@@ -323,7 +323,7 @@ fn optional_deps_navigation_preserves_modal() {
         },
     ];
     app.modal = crate::state::Modal::OptionalDeps {
-        rows: rows.clone(),
+        rows,
         selected: 0,
     };
 
@@ -424,7 +424,7 @@ fn optional_deps_unhandled_key_preserves_modal() {
         note: None,
     }];
     app.modal = crate::state::Modal::OptionalDeps {
-        rows: rows.clone(),
+        rows,
         selected: 0,
     };
 
@@ -550,7 +550,7 @@ fn news_esc_closes_modal() {
         },
     ];
     app.modal = crate::state::Modal::News {
-        items: items.clone(),
+        items,
         selected: 0,
     };
 
@@ -594,7 +594,7 @@ fn news_navigation_preserves_modal() {
         },
     ];
     app.modal = crate::state::Modal::News {
-        items: items.clone(),
+        items,
         selected: 0,
     };
 
@@ -667,7 +667,7 @@ fn news_enter_preserves_modal() {
         url: test_url.to_string(),
     }];
     app.modal = crate::state::Modal::News {
-        items: items.clone(),
+        items,
         selected: 0,
     };
 
@@ -708,7 +708,7 @@ fn news_unhandled_key_preserves_modal() {
         url: "https://example.com/news".to_string(),
     }];
     app.modal = crate::state::Modal::News {
-        items: items.clone(),
+        items,
         selected: 0,
     };
 

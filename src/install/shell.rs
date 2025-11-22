@@ -168,7 +168,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     let cmd_str = if hold {
         format!("{joined}{hold_tail}")
     } else {
-        joined.clone()
+        joined
     };
     // Write a temporary script to avoid terminal argument length/quoting issues
     let script_path = {
