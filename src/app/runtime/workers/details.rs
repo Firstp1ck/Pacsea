@@ -3,7 +3,7 @@ use tokio::time::{Duration, sleep};
 
 use crate::sources;
 use crate::sources::fetch_details;
-use crate::state::*;
+use crate::state::{PackageDetails, PackageItem, Source};
 
 /// What: Spawn background worker for batched package details fetching.
 ///
@@ -26,9 +26,8 @@ pub fn spawn_details_worker(
     tokio::spawn(async move {
         const DETAILS_BATCH_WINDOW_MS: u64 = 120;
         loop {
-            let first = match details_req_rx.recv().await {
-                Some(i) => i,
-                None => break,
+            let Some(first) = details_req_rx.recv().await else {
+                break;
             };
             let mut batch: Vec<PackageItem> = vec![first];
             loop {

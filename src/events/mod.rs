@@ -277,10 +277,10 @@ mod tests {
     /// Inputs: None.
     ///
     /// Output:
-    /// - Returns (temp_dir, original_path, original_wayland_display) for cleanup.
+    /// - Returns (`temp_dir`, `original_path`, `original_wayland_display`) for cleanup.
     ///
     /// Details:
-    /// - Creates nvim and kitty executables, sets PATH, clears WAYLAND_DISPLAY.
+    /// - Creates `nvim` and `kitty` executables, sets `PATH`, clears `WAYLAND_DISPLAY`.
     fn setup_test_executables() -> (
         std::path::PathBuf,
         Option<std::ffi::OsString>,
@@ -330,7 +330,7 @@ mod tests {
     /// Inputs: None.
     ///
     /// Output:
-    /// - Returns (app_state, channels tuple).
+    /// - Returns (`app_state`, `channels` tuple).
     ///
     /// Details:
     /// - Initializes translations for optional deps categories.
@@ -487,14 +487,14 @@ mod tests {
     /// What: Restore environment and cleanup test directory.
     ///
     /// Inputs:
-    /// - `orig_path`: Original PATH value to restore
-    /// - `orig_wl`: Original WAYLAND_DISPLAY value to restore
+    /// - `orig_path`: Original `PATH` value to restore
+    /// - `orig_wl`: Original `WAYLAND_DISPLAY` value to restore
     /// - `dir`: Temporary directory to remove
     ///
     /// Output: None.
     ///
     /// Details:
-    /// - Restores PATH and WAYLAND_DISPLAY, removes temp directory.
+    /// - Restores `PATH` and `WAYLAND_DISPLAY`, removes temp directory.
     fn teardown_test_environment(
         orig_path: Option<std::ffi::OsString>,
         orig_wl: Option<std::ffi::OsString>,

@@ -325,7 +325,7 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
 ///   footer instructions with dynamic state indicators.
 pub fn render_preflight_exec(
     f: &mut Frame,
-    app: &mut crate::state::AppState,
+    app: &crate::state::AppState,
     area: Rect,
     items: &[PackageItem],
     action: PreflightAction,

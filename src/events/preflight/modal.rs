@@ -96,14 +96,13 @@ fn handle_deps_tab_switch(
                     *preflight_deps_items = Some(items.to_vec());
                     *remove_preflight_summary_cleared = true;
                     return true;
-                } else {
-                    *dependency_info = cached_deps;
-                    *dep_selected = 0;
-                    tracing::info!(
-                        "[Preflight] switch_preflight_tab: Deps - Loaded {} deps into modal, dep_selected=0",
-                        dependency_info.len()
-                    );
                 }
+                *dependency_info = cached_deps;
+                *dep_selected = 0;
+                tracing::info!(
+                    "[Preflight] switch_preflight_tab: Deps - Loaded {} deps into modal, dep_selected=0",
+                    dependency_info.len()
+                );
                 *remove_preflight_summary_cleared = true;
             }
             crate::state::PreflightAction::Remove => {

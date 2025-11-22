@@ -1,4 +1,5 @@
 use crate::state::ArchStatusColor;
+use std::fmt::Write;
 
 use super::utils::{severity_max, today_ymd_utc};
 
@@ -102,7 +103,7 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
         && !aur_name.eq_ignore_ascii_case(name)
         && (*aur_ratio < 100.0 || *aur_color_str != "green")
     {
-        text.push_str(&format!(" (AUR: {aur_ratio:.1}%)"));
+        let _ = write!(text, " (AUR: {:.1}%)", aur_ratio);
     }
 
     Some((text, color))

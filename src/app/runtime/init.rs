@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::index as pkgindex;
-use crate::state::*;
+use crate::state::{AppState, PackageDetails, PackageItem};
 
 use super::super::deps_cache;
 use super::super::files_cache;
@@ -36,17 +36,14 @@ pub fn initialize_locale_system(
             .join("config")
             .join("locales")
     });
-    let i18n_config_path = match crate::i18n::find_config_file("i18n.yml") {
-        Some(path) => path,
-        None => {
-            tracing::error!(
-                "i18n config file not found in development or installed locations. Using default locale 'en-US'."
-            );
-            app.locale = "en-US".to_string();
-            app.translations = std::collections::HashMap::new();
-            app.translations_fallback = std::collections::HashMap::new();
-            return;
-        }
+    let Some(i18n_config_path) = crate::i18n::find_config_file("i18n.yml") else {
+        tracing::error!(
+            "i18n config file not found in development or installed locations. Using default locale 'en-US'."
+        );
+        app.locale = "en-US".to_string();
+        app.translations = std::collections::HashMap::new();
+        app.translations_fallback = std::collections::HashMap::new();
+        return;
     };
 
     // Resolve locale

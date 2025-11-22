@@ -643,11 +643,7 @@ fn handle_empty_sandbox_info(
 /// Output:
 /// - Updates `sandbox_loaded` if no AUR packages
 fn handle_remove_action(items: &[PackageItem], sandbox_loaded: &mut bool) {
-    let aur_items: Vec<_> = items
-        .iter()
-        .filter(|p| matches!(p.source, crate::state::Source::Aur))
-        .collect();
-    if aur_items.is_empty() {
+    if !items.iter().any(|p| matches!(p.source, crate::state::Source::Aur)) {
         tracing::debug!("[UI] sync_sandbox: Remove action, no AUR packages, marking as loaded");
         *sandbox_loaded = true;
     }

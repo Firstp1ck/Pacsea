@@ -203,7 +203,7 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
         {
             match action {
                 crate::state::PreflightAction::Install => {
-                    let mut packages = items.to_vec();
+                    let mut packages = items.clone();
                     // Add selected optional dependencies as additional packages to install
                     for (_pkg_name, optdeps) in selected_optdepends.iter() {
                         for optdep in optdeps {

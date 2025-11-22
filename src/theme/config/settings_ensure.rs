@@ -268,9 +268,8 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 /// - Appends missing keybinds with their comments in the correct sections.
 fn ensure_keybinds_present(keybinds_path: &Path) {
     // Read existing file
-    let existing_content = match fs::read_to_string(keybinds_path) {
-        Ok(content) => content,
-        Err(_) => return, // Can't read, skip
+    let Ok(existing_content) = fs::read_to_string(keybinds_path) else {
+        return; // Can't read, skip
     };
 
     // Parse existing keybinds (normalize keys like the parser does)

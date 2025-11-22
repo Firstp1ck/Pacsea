@@ -20,7 +20,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// Details:
 /// - Maps common curl exit codes (22, 6, 7, 28) to descriptive messages
 /// - Falls back to generic error message if code is unknown
-fn map_curl_error(code: Option<i32>, status: &std::process::ExitStatus) -> String {
+fn map_curl_error(code: Option<i32>, status: std::process::ExitStatus) -> String {
     if let Some(code) = code {
         match code {
             22 => "HTTP error from server (likely 502/503/504 - server temporarily unavailable)"
@@ -79,7 +79,7 @@ pub fn curl_json(url: &str) -> Result<Value> {
     }
     let out = std::process::Command::new("curl").args(&args).output()?;
     if !out.status.success() {
-        let error_msg = map_curl_error(out.status.code(), &out.status);
+        let error_msg = map_curl_error(out.status.code(), out.status);
         #[cfg(target_os = "windows")]
         {
             // On Windows, also log stderr for debugging
@@ -167,7 +167,7 @@ pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
             format!("curl command failed to execute: {e} (is curl installed and in PATH?)")
         })?;
     if !out.status.success() {
-        let error_msg = map_curl_error(out.status.code(), &out.status);
+        let error_msg = map_curl_error(out.status.code(), out.status);
         return Err(error_msg.into());
     }
     Ok(String::from_utf8(out.stdout)?)

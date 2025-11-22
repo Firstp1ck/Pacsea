@@ -21,9 +21,11 @@ use init::{initialize_app_state, trigger_initial_resolutions};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// What: Run the Pacsea TUI application end-to-end: initialize terminal and state, spawn
-/// background workers (index, search, details, status/news), drive the event loop, persist
-/// caches, and restore the terminal on exit.
+/// What: Run the Pacsea TUI application end-to-end.
+///
+/// This function initializes terminal and state, spawns background workers
+/// (index, search, details, status/news), drives the event loop, persists
+/// caches, and restores the terminal on exit.
 ///
 /// Inputs:
 /// - `dry_run_flag`: When `true`, install/remove/downgrade actions are displayed but not executed

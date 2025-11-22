@@ -400,9 +400,8 @@ mod tests {
             if !o.status.success() {
                 return;
             }
-            let s = match String::from_utf8(o.stdout) {
-                Ok(x) => x,
-                Err(_) => return,
+            let Ok(s) = String::from_utf8(o.stdout) else {
+                return;
             };
             let mut it = s.trim().split('-');
             let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {
@@ -484,9 +483,8 @@ mod tests {
             if !o.status.success() {
                 return;
             }
-            let s = match String::from_utf8(o.stdout) {
-                Ok(x) => x,
-                Err(_) => return,
+            let Ok(s) = String::from_utf8(o.stdout) else {
+                return;
             };
             let mut it = s.trim().split('-');
             let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) else {

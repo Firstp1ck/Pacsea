@@ -48,7 +48,7 @@ pub fn request_enrich_for(
             let mut cur_repo: Option<String> = None;
             let mut cur_ver: Option<String> = None;
             let mut _cur_packager: Option<String> = None;
-            for line in out.lines().chain([""].iter().copied()) {
+            for line in out.lines().chain(std::iter::once("")) {
                 let line = line.trim_end();
                 if line.is_empty() {
                     if let Some(n) = cur_name.take() {

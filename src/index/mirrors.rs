@@ -1,6 +1,7 @@
 // Windows-only module - conditionally compiled in mod.rs
 use std::fs;
-use std::io::Write;
+use std::fmt::Write;
+use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
 use tokio::task;
 
@@ -78,7 +79,7 @@ pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
         mirrorlist.push_str("# Only HTTPS and active mirrors are listed.\n");
         for base in &https_urls {
             let base = base.trim_end_matches('/');
-            mirrorlist.push_str(&format!("Server = {base}/$repo/os/$arch\n"));
+            let _ = writeln!(mirrorlist, "Server = {base}/$repo/os/$arch");
         }
         let mirrorlist_path = repo_dir.join("mirrorlist.txt");
         fs::write(&mirrorlist_path, mirrorlist.as_bytes())?;

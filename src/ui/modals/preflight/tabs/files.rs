@@ -363,13 +363,13 @@ fn render_package_header(
 /// Details:
 /// - Contains sums of all file counts from package file information.
 struct FileTotals {
-    total_files: usize,
-    total_new: usize,
-    total_changed: usize,
-    total_removed: usize,
-    total_config: usize,
-    total_pacnew: usize,
-    total_pacsave: usize,
+    files: usize,
+    new: usize,
+    changed: usize,
+    removed: usize,
+    config: usize,
+    pacnew: usize,
+    pacsave: usize,
 }
 
 /// What: Calculate file totals from package file information in a single pass.
@@ -385,22 +385,22 @@ struct FileTotals {
 fn calculate_file_totals(file_info: &[PackageFileInfo]) -> FileTotals {
     file_info.iter().fold(
         FileTotals {
-            total_files: 0,
-            total_new: 0,
-            total_changed: 0,
-            total_removed: 0,
-            total_config: 0,
-            total_pacnew: 0,
-            total_pacsave: 0,
+            files: 0,
+            new: 0,
+            changed: 0,
+            removed: 0,
+            config: 0,
+            pacnew: 0,
+            pacsave: 0,
         },
         |acc, p| FileTotals {
-            total_files: acc.total_files + p.total_count,
-            total_new: acc.total_new + p.new_count,
-            total_changed: acc.total_changed + p.changed_count,
-            total_removed: acc.total_removed + p.removed_count,
-            total_config: acc.total_config + p.config_count,
-            total_pacnew: acc.total_pacnew + p.pacnew_candidates,
-            total_pacsave: acc.total_pacsave + p.pacsave_candidates,
+            files: acc.files + p.total_count,
+            new: acc.new + p.new_count,
+            changed: acc.changed + p.changed_count,
+            removed: acc.removed + p.removed_count,
+            config: acc.config + p.config_count,
+            pacnew: acc.pacnew + p.pacnew_candidates,
+            pacsave: acc.pacsave + p.pacsave_candidates,
         },
     )
 }
@@ -425,26 +425,26 @@ fn build_summary_parts(
     has_incomplete_data: bool,
 ) -> Vec<String> {
     let total_files_text =
-        format_count_with_indicator(totals.total_files, items_len * 10, has_incomplete_data);
+        format_count_with_indicator(totals.files, items_len * 10, has_incomplete_data);
     let mut summary_parts = vec![i18n::t_fmt1(
         app,
         "app.modals.preflight.files.total",
         total_files_text,
     )];
 
-    if totals.total_new > 0 {
+    if totals.new > 0 {
         let count_text =
-            format_count_with_indicator(totals.total_new, totals.total_files, has_incomplete_data);
+            format_count_with_indicator(totals.new, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.new",
             count_text,
         ));
     }
-    if totals.total_changed > 0 {
+    if totals.changed > 0 {
         let count_text = format_count_with_indicator(
-            totals.total_changed,
-            totals.total_files,
+            totals.changed,
+            totals.files,
             has_incomplete_data,
         );
         summary_parts.push(i18n::t_fmt1(
@@ -453,10 +453,10 @@ fn build_summary_parts(
             count_text,
         ));
     }
-    if totals.total_removed > 0 {
+    if totals.removed > 0 {
         let count_text = format_count_with_indicator(
-            totals.total_removed,
-            totals.total_files,
+            totals.removed,
+            totals.files,
             has_incomplete_data,
         );
         summary_parts.push(i18n::t_fmt1(
@@ -465,10 +465,10 @@ fn build_summary_parts(
             count_text,
         ));
     }
-    if totals.total_config > 0 {
+    if totals.config > 0 {
         let count_text = format_count_with_indicator(
-            totals.total_config,
-            totals.total_files,
+            totals.config,
+            totals.files,
             has_incomplete_data,
         );
         summary_parts.push(i18n::t_fmt1(
@@ -477,18 +477,18 @@ fn build_summary_parts(
             count_text,
         ));
     }
-    if totals.total_pacnew > 0 {
+    if totals.pacnew > 0 {
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.pacnew",
-            totals.total_pacnew,
+            totals.pacnew,
         ));
     }
-    if totals.total_pacsave > 0 {
+    if totals.pacsave > 0 {
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.pacsave",
-            totals.total_pacsave,
+            totals.pacsave,
         ));
     }
 

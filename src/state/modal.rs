@@ -558,7 +558,7 @@ mod tests {
     /// Details:
     /// - Acts as a regression guard when fields or defaults change, catching compile-time or panicking construction paths.
     fn modal_default_and_variants_construct() {
-        let m: super::Modal = Default::default();
+        let m = super::Modal::default();
         matches!(m, super::Modal::None);
         let _ = super::Modal::Alert {
             message: "hi".into(),

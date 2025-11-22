@@ -1,7 +1,7 @@
 use tokio::sync::mpsc;
 
 use crate::app::runtime::handlers::common::{HandlerConfig, handle_result};
-use crate::state::*;
+use crate::state::AppState;
 
 /// What: Handler configuration for file results.
 struct FileHandlerConfig;

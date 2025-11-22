@@ -144,7 +144,7 @@ mod tests {
     /// Inputs: None.
     ///
     /// Output:
-    /// - Returns (old_path, root_dir, tmp_file) for teardown.
+    /// - Returns (`old_path`, `root_dir`, `tmp_file`) for teardown.
     ///
     /// Details:
     /// - Creates a temporary pacman script that returns test data.

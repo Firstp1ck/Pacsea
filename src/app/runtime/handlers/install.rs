@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 
 use crate::app::runtime::handlers::common::{HandlerConfig, handle_result};
 use crate::logic::add_to_install_list;
-use crate::state::*;
+use crate::state::{AppState, PackageItem};
 
 /// What: Handle add to install list event (single item).
 ///
@@ -247,6 +247,7 @@ pub fn handle_dependency_result(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::Source;
 
     /// What: Provide a baseline `AppState` for handler tests.
     ///

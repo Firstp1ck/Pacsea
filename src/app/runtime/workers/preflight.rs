@@ -1,6 +1,6 @@
 use tokio::sync::mpsc;
 
-use crate::state::*;
+use crate::state::PackageItem;
 
 /// What: Spawn background worker for dependency resolution.
 ///

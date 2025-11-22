@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::index as pkgindex;
 use crate::sources;
-use crate::state::*;
+use crate::state::{QueryInput, SearchResults};
 use crate::util::{match_rank, repo_order};
 
 /// What: Spawn background worker for search queries.
@@ -36,9 +36,8 @@ pub fn spawn_search_worker(
         const MIN_INTERVAL_MS: u64 = 300;
         let mut last_sent = Instant::now() - Duration::from_millis(MIN_INTERVAL_MS);
         loop {
-            let mut latest = match query_rx.recv().await {
-                Some(q) => q,
-                None => break,
+            let Some(mut latest) = query_rx.recv().await else {
+                break;
             };
             loop {
                 select! { Some(new_q) = query_rx.recv() => { latest = new_q; } _ = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } }

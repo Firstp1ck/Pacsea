@@ -136,9 +136,8 @@ pub(super) fn extract_service_units_from_file_list(file_list: &str, package: &st
     let mut units = Vec::new();
 
     for line in file_list.lines() {
-        let (pkg, raw_path) = match line.split_once(' ') {
-            Some(parts) => parts,
-            None => continue,
+        let Some((pkg, raw_path)) = line.split_once(' ') else {
+            continue;
         };
         if pkg != package {
             continue;

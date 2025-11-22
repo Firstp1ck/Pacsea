@@ -157,7 +157,7 @@ pub fn get_backup_files_from_installed(name: &str) -> Result<Vec<String>, String
             }
         } else if in_backup_section {
             // Continuation lines (indented)
-            if line.starts_with("    ") || line.starts_with("\t") {
+            if line.starts_with("    ") || line.starts_with('\t') {
                 for file in line.split_whitespace() {
                     backup_files.push(file.to_string());
                 }

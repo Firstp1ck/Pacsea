@@ -10,6 +10,7 @@ pub mod pacman;
 pub mod srcinfo;
 
 use serde_json::Value;
+use std::fmt::Write;
 
 /// Ensure mouse capture is enabled for the TUI.
 ///
@@ -52,7 +53,7 @@ pub fn percent_encode(input: &str) -> String {
             b' ' => out.push_str("%20"),
             _ => {
                 out.push('%');
-                out.push_str(&format!("{b:02X}"));
+                let _ = write!(out, "{b:02X}");
             }
         }
     }
@@ -194,9 +195,8 @@ pub fn match_rank(name: &str, query_lower: &str) -> u8 {
 /// account for leap seconds.
 #[must_use]
 pub fn ts_to_date(ts: Option<i64>) -> String {
-    let t = match ts {
-        Some(v) => v,
-        None => return String::new(),
+    let Some(t) = ts else {
+        return String::new();
     };
     if t < 0 {
         return t.to_string();

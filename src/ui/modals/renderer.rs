@@ -313,7 +313,7 @@ impl ModalRenderer for Modal {
 /// Details:
 /// - Uses context struct to reduce data flow complexity by grouping related fields.
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
-fn render_alert_modal(f: &mut Frame, app: &mut AppState, area: Rect, ctx: AlertContext) -> Modal {
+fn render_alert_modal(f: &mut Frame, app: &AppState, area: Rect, ctx: AlertContext) -> Modal {
     alert::render_alert(f, app, area, &ctx.message);
     Modal::Alert {
         message: ctx.message,
@@ -336,7 +336,7 @@ fn render_alert_modal(f: &mut Frame, app: &mut AppState, area: Rect, ctx: AlertC
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_confirm_install_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: ConfirmInstallContext,
 ) -> Modal {
@@ -360,7 +360,7 @@ fn render_confirm_install_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_preflight_exec_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: PreflightExecContext,
 ) -> Modal {
@@ -403,7 +403,7 @@ fn render_preflight_exec_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_post_summary_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: PostSummaryContext,
 ) -> Modal {
@@ -444,7 +444,7 @@ fn render_post_summary_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_confirm_remove_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: ConfirmRemoveContext,
 ) -> Modal {
@@ -468,7 +468,7 @@ fn render_confirm_remove_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_system_update_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: SystemUpdateContext,
 ) -> Modal {
@@ -570,7 +570,7 @@ fn render_optional_deps_modal(
     f: &mut Frame,
     area: Rect,
     ctx: OptionalDepsContext,
-    app: &mut AppState,
+    app: &AppState,
 ) -> Modal {
     misc::render_optional_deps(f, area, &ctx.rows, ctx.selected, app);
     Modal::OptionalDeps {

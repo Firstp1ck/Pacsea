@@ -143,13 +143,12 @@ fn copy_to_clipboard(text: String) -> String {
     }
 
     // Neither wl-copy nor xclip worked — report guidance
-    let hint = if std::env::var("WAYLAND_DISPLAY").is_ok() {
+    if std::env::var("WAYLAND_DISPLAY").is_ok() {
         "Clipboard tool not found. Please install 'wl-clipboard' (provides wl-copy) or 'xclip'."
             .to_string()
     } else {
         "Clipboard tool not found. Please install 'xclip' or 'wl-clipboard' (wl-copy).".to_string()
-    };
-    hint
+    }
 }
 
 /// Handle copy PKGBUILD button click.
@@ -228,7 +227,7 @@ fn handle_reload_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - `true` if the scroll was handled, `false` otherwise.
-fn handle_details_scroll(m: &MouseEvent, mx: u16, my: u16, app: &mut AppState) -> bool {
+fn handle_details_scroll(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) -> bool {
     if !is_point_in_rect(mx, my, app.details_rect) {
         return false;
     }
@@ -333,7 +332,7 @@ pub(super) fn handle_details_mouse(
     }
 
     // Handle scroll events (before click blocking)
-    if handle_details_scroll(&m, mx, my, app) {
+    if handle_details_scroll(m, mx, my, app) {
         return Some(false);
     }
 

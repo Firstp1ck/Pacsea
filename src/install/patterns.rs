@@ -150,7 +150,7 @@ fn config_path() -> PathBuf {
 /// - Recognises `[critical]`, `[high]`, `[medium]`, and `[low]` sections (case-insensitive aliases allowed).
 /// - Unrecognised sections are ignored without error.
 fn parse(content: &str, defaults: &PatternSets) -> PatternSets {
-    use Section::*;
+    use Section::{Critical, High, Low, Medium};
 
     let mut cur: Option<Section> = None;
 

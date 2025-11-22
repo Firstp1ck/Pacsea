@@ -9,7 +9,7 @@ use tokio::{
 
 use crate::index as pkgindex;
 use crate::sources;
-use crate::state::*;
+use crate::state::{ArchStatusColor, NewsItem};
 
 /// What: Spawn background workers for status, news, and tick events.
 ///

@@ -41,7 +41,10 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     // In installed-only mode, enlarge the right pane so Downgrade and Remove lists are each ~50% wider
     if app.installed_only_mode && right_pct > 0 {
         let max_right = 100u16.saturating_sub(left_pct);
-        let widened = ((right_pct as u32 * 3) / 2) as u16; // 1.5x
+        let widened = ((u32::from(right_pct) * 3) / 2)
+            .min(u32::from(u16::MAX))
+            .try_into()
+            .unwrap_or(u16::MAX); // 1.5x
         right_pct = widened.min(max_right);
     }
     let center_pct = 100u16

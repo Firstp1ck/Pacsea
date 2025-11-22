@@ -306,7 +306,7 @@ pub(super) fn levenshtein(a: &str, b: &str) -> usize {
         dp[0] = i + 1;
         for (j, cb) in b.chars().enumerate() {
             let tmp = dp[j + 1];
-            let cost = if ca == cb { 0 } else { 1 };
+            let cost = usize::from(ca != cb);
             dp[j + 1] = std::cmp::min(std::cmp::min(dp[j + 1] + 1, dp[j] + 1), prev + cost);
             prev = tmp;
         }

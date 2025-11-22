@@ -458,15 +458,12 @@ fn fallback_to_pkgbuild(
     provided: &HashSet<String>,
     upgradable: &HashSet<String>,
 ) -> Vec<DependencyInfo> {
-    let pkgbuild_text = match get_pkgbuild_from_cache(name) {
-        Some(text) => text,
-        None => {
-            tracing::debug!(
-                "No cached PKGBUILD available for {} (offline, no dependencies resolved)",
-                name
-            );
-            return Vec::new();
-        }
+    let Some(pkgbuild_text) = get_pkgbuild_from_cache(name) else {
+        tracing::debug!(
+            "No cached PKGBUILD available for {} (offline, no dependencies resolved)",
+            name
+        );
+        return Vec::new();
     };
 
     tracing::info!(

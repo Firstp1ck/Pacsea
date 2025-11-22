@@ -136,9 +136,9 @@ fn build_package_list_block(title: String, is_focused: bool) -> Block<'static> {
 ///
 /// Details:
 /// - Creates a block with title, styles the list, and renders it.
-fn render_package_list_widget<'a>(
+fn render_package_list_widget(
     f: &mut Frame,
-    items: Vec<ratatui::widgets::ListItem<'a>>,
+    items: Vec<ratatui::widgets::ListItem<'_>>,
     area: Rect,
     title_focused: String,
     title_unfocused: String,

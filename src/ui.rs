@@ -273,9 +273,10 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
         height: h,
     };
 
-    let title_text = match msg.to_lowercase().contains("news") {
-        true => i18n::t(app, "app.toasts.title_news"),
-        false => i18n::t(app, "app.toasts.title_clipboard"),
+    let title_text = if msg.to_lowercase().contains("news") {
+        i18n::t(app, "app.toasts.title_news")
+    } else {
+        i18n::t(app, "app.toasts.title_clipboard")
     };
 
     let content = Span::styled(msg.clone(), Style::default().fg(th.text));

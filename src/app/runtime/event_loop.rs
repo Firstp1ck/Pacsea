@@ -5,7 +5,11 @@ use crate::state::{AppState, Modal, PackageItem};
 use crate::ui::ui;
 
 use super::background::Channels;
-use super::handlers::*;
+use super::handlers::{
+    handle_add_to_install_list, handle_dependency_result, handle_details_update,
+    handle_file_result, handle_preview, handle_sandbox_result, handle_search_results,
+    handle_service_result,
+};
 use super::tick_handler::{
     handle_news, handle_pkgbuild_result, handle_status, handle_summary_result, handle_tick,
 };
@@ -48,7 +52,7 @@ fn handle_add_batch(app: &mut AppState, channels: &mut Channels, first: PackageI
 /// Output: None (side effect: processes files)
 fn handle_file_result_with_logging(
     app: &mut AppState,
-    channels: &mut Channels,
+    channels: &Channels,
     files: &[crate::state::modal::PackageFileInfo],
 ) {
     tracing::debug!(

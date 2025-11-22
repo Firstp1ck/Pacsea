@@ -1,4 +1,5 @@
 use crate::state::ArchStatusColor;
+use std::fmt::Write;
 
 mod api;
 mod html;
@@ -52,7 +53,7 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
             // Extract today's AUR uptime percentage (best-effort)
             let aur_pct_opt = extract_aur_today_percent(&html);
             if let Some(p) = aur_pct_opt {
-                text.push_str(&format!(" — AUR today: {p}%"));
+                let _ = write!(text, " — AUR today: {p}%");
             }
 
             // Check the visual indicator (rect color/beam) - this is authoritative for current status

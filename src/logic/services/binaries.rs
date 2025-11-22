@@ -168,9 +168,8 @@ pub(super) fn extract_binaries_from_file_list(file_list: &str, package: &str) ->
     let mut binaries = Vec::new();
 
     for line in file_list.lines() {
-        let (pkg, raw_path) = match line.split_once(' ') {
-            Some(parts) => parts,
-            None => continue,
+        let Some((pkg, raw_path)) = line.split_once(' ') else {
+            continue;
         };
         if pkg != package {
             continue;

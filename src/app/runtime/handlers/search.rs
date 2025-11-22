@@ -1,6 +1,6 @@
 use tokio::sync::mpsc;
 
-use crate::state::*;
+use crate::state::{AppState, PackageDetails, PackageItem, SearchResults, Source};
 
 /// What: Handle search results update event.
 ///

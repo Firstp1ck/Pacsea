@@ -23,7 +23,7 @@ use crate::theme::theme;
 /// Details:
 /// - Shows "> " prefix; in normal mode, highlights selected text with lavender background.
 /// - Cursor position is calculated based on caret index and character width.
-pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
+pub fn render_search(f: &mut Frame, app: &AppState, area: Rect) {
     let th = theme();
     let search_focused = matches!(app.focus, crate::state::Focus::Search);
 

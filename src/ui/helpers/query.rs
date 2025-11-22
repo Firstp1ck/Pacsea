@@ -64,9 +64,8 @@ pub fn trigger_recent_preview(
     if !matches!(app.focus, crate::state::Focus::Recent) {
         return;
     }
-    let idx = match app.history_state.selected() {
-        Some(i) => i,
-        None => return,
+    let Some(idx) = app.history_state.selected() else {
+        return;
     };
     let inds = filtered_recent_indices(app);
     if idx >= inds.len() {

@@ -67,7 +67,7 @@ pub(super) fn handle_scan_config(
         },
         KeyCode::Enter => {
             let new_modal = handle_scan_config_confirm(
-                &mut app.pending_install_names,
+                &app.pending_install_names,
                 app.dry_run,
                 *do_clamav,
                 *do_trivy,
@@ -175,7 +175,7 @@ pub(super) fn handle_virustotal_setup(
 /// - Persists scan settings and spawns AUR scans for pending packages
 #[allow(clippy::too_many_arguments)]
 fn handle_scan_config_confirm(
-    pending_install_names: &mut Option<Vec<String>>,
+    pending_install_names: &Option<Vec<String>>,
     dry_run: bool,
     do_clamav: bool,
     do_trivy: bool,

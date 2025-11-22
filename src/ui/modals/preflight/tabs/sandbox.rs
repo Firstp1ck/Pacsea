@@ -8,6 +8,7 @@ use crate::i18n;
 use crate::state::{AppState, PackageItem};
 use crate::theme::theme;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write;
 
 /// What: Type alias for sandbox display items.
 ///
@@ -698,7 +699,7 @@ fn render_dependency_line(
 
     let mut dep_line = format!("  {status_icon} {dep_name}");
     if let Some(ref version) = dep.installed_version {
-        dep_line.push_str(&format!(" (installed: {version})"));
+        let _ = write!(dep_line, " (installed: {version})");
     }
     if dep_type == "optdepends" && is_optdep_selected {
         dep_line.push_str(" [selected]");

@@ -2,6 +2,7 @@ use ratatui::prelude::Rect;
 
 use crate::state::{AppState, Focus};
 use crate::theme::KeyChord;
+use std::fmt::Write;
 
 /// What: Calculate the number of rows required for the footer/keybinds section.
 ///
@@ -74,19 +75,19 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
             {
                 line2.push_str("  •  Open Menus: ");
                 if let Some(k) = km.config_menu_toggle.first() {
-                    line2.push_str(&format!("[{}] Config", k.label()));
+                    let _ = write!(line2, "[{}] Config", k.label());
                 }
                 if let Some(k) = km.options_menu_toggle.first() {
                     if !line2.ends_with("menus: ") {
                         line2.push_str(", ");
                     }
-                    line2.push_str(&format!("[{}] Options", k.label()));
+                    let _ = write!(line2, "[{}] Options", k.label());
                 }
                 if let Some(k) = km.panels_menu_toggle.first() {
                     if !line2.ends_with("menus: ") {
                         line2.push_str(", ");
                     }
-                    line2.push_str(&format!("[{}] Panels", k.label()));
+                    let _ = write!(line2, "[{}] Panels", k.label());
                 }
             }
             // Import / Export
@@ -95,12 +96,12 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
             {
                 line2.push_str("  •  ");
                 if let Some(k) = km.search_normal_import.first() {
-                    line2.push_str(&format!("[{}] Import", k.label()));
+                    let _ = write!(line2, "[{}] Import", k.label());
                     if let Some(k2) = km.search_normal_export.first() {
-                        line2.push_str(&format!(", [{}] Export", k2.label()));
+                        let _ = write!(line2, ", [{}] Export", k2.label());
                     }
                 } else if let Some(k) = km.search_normal_export.first() {
-                    line2.push_str(&format!("[{}] Export", k.label()));
+                    let _ = write!(line2, "[{}] Export", k.label());
                 }
             }
         }

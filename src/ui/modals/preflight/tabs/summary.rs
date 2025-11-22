@@ -11,6 +11,7 @@ use crate::state::modal::{
 };
 use crate::state::{AppState, PackageItem, PreflightAction};
 use crate::theme::theme;
+use std::fmt::Write;
 
 /// What: Get source badge text and color for a dependency source.
 ///
@@ -866,24 +867,26 @@ fn render_impact_overview(app: &AppState) -> Vec<Line<'static>> {
                 &[&summary.package, &summary.total_dependents],
             );
             if summary.direct_dependents > 0 {
-                message.push_str(&format!(
+                let _ = write!(
+                    message,
                     " {}",
                     i18n::t_fmt1(
                         app,
                         "app.modals.preflight.summary.direct_singular",
                         summary.direct_dependents
                     )
-                ));
+                );
             }
             if summary.transitive_dependents > 0 {
-                message.push_str(&format!(
+                let _ = write!(
+                    message,
                     " {}",
                     i18n::t_fmt1(
                         app,
                         "app.modals.preflight.summary.transitive_singular",
                         summary.transitive_dependents
                     )
-                ));
+                );
             }
             lines.push(Line::from(Span::styled(
                 message,

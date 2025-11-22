@@ -1,10 +1,11 @@
+use std::fmt::Write;
 use std::time::Instant;
 
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 
 use crate::logic::send_query;
-use crate::state::*;
+use crate::state::{AppState, ArchStatusColor, Modal, NewsItem, PackageItem, QueryInput};
 
 use super::super::persist::{
     maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install,
@@ -281,7 +282,7 @@ fn handle_pkgbuild_reload_debounce(
     };
 
     let elapsed = requested_at.elapsed();
-    if elapsed.as_millis() < PKGBUILD_DEBOUNCE_MS as u128 {
+    if elapsed.as_millis() < u128::from(PKGBUILD_DEBOUNCE_MS) {
         return;
     }
 
@@ -383,7 +384,7 @@ fn handle_installed_cache_polling(
                         "Configuration directories were found in your home directory:\n\n",
                     );
                     for (pkg, dir) in &found_configs {
-                        message.push_str(&format!("  {pkg}: {}\n", dir.display()));
+                        let _ = writeln!(message, "  {pkg}: {}", dir.display());
                     }
                     message.push_str("\nYou may want to manually remove these directories if they are no longer needed.");
                     app.modal = crate::state::Modal::Alert { message };

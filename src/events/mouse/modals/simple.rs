@@ -90,7 +90,7 @@ pub(super) fn handle_virustotal_modal(
     mx: u16,
     my: u16,
     is_left_down: bool,
-    app: &mut AppState,
+    app: &AppState,
 ) -> bool {
     if is_left_down
         && let Some((x, y, w, h)) = app.vt_url_rect

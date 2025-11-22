@@ -372,11 +372,11 @@ fn default_global_keys(
     Vec<KeyChord>,
     Vec<KeyChord>,
 ) {
-    use KeyCode::*;
+    use KeyCode::{BackTab, Char, Left, Right, Tab};
     (
         vec![
             KeyChord {
-                code: F(1),
+                code: KeyCode::F(1),
                 mods: none,
             },
             KeyChord {
@@ -426,7 +426,7 @@ fn default_global_keys(
 /// Details:
 /// - Returns `config_menu_toggle`, `options_menu_toggle`, and `panels_menu_toggle` keys.
 fn default_dropdown_keys(shift: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>, Vec<KeyChord>) {
-    use KeyCode::*;
+    use KeyCode::Char;
     (
         vec![KeyChord {
             code: Char('c'),
@@ -466,7 +466,7 @@ fn default_search_keys(
     Vec<KeyChord>,
     Vec<KeyChord>,
 ) {
-    use KeyCode::*;
+    use KeyCode::{Backspace, Char, Down, Enter, Left, PageDown, PageUp, Right, Up};
     (
         vec![KeyChord {
             code: Up,
@@ -533,7 +533,7 @@ fn default_search_normal_keys(
     Vec<KeyChord>,
     Vec<KeyChord>,
 ) {
-    use KeyCode::*;
+    use KeyCode::{Char, Delete, Esc};
     (
         vec![KeyChord {
             code: Esc,
@@ -603,7 +603,7 @@ fn default_recent_keys(
     Vec<KeyChord>,
     Vec<KeyChord>,
 ) {
-    use KeyCode::*;
+    use KeyCode::{Char, Delete, Down, Enter, Esc, Right, Up};
     (
         vec![
             KeyChord {
@@ -686,7 +686,7 @@ fn default_install_keys(
     Vec<KeyChord>,
     Vec<KeyChord>,
 ) {
-    use KeyCode::*;
+    use KeyCode::{Char, Delete, Down, Enter, Esc, Left, Up};
     (
         vec![
             KeyChord {
@@ -753,7 +753,7 @@ fn default_install_keys(
 /// Details:
 /// - Returns `news_mark_read` and `news_mark_all_read` key bindings.
 fn default_news_keys(none: KeyModifiers, ctrl: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>) {
-    use KeyCode::*;
+    use KeyCode::Char;
     (
         vec![KeyChord {
             code: Char('r'),
