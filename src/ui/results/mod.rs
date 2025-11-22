@@ -275,9 +275,7 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 20);
         let mut term = Terminal::new(backend).expect("failed to create test terminal");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         // Seed minimal results to render
         app.results = vec![crate::state::PackageItem {

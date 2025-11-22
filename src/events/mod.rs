@@ -167,9 +167,7 @@ mod tests {
             std::env::set_var("PACSEA_TEST_HEADLESS", "1");
         }
 
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         let (qtx, _qrx) = mpsc::unbounded_channel();
         let (dtx, _drx) = mpsc::unbounded_channel();
         let (ptx, _prx) = mpsc::unbounded_channel();
@@ -310,9 +308,7 @@ mod tests {
         unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
 
         // Drive the event handler: open Options then press '4' to open Optional Deps
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         // Initialize i18n translations for optional deps
         use std::collections::HashMap;
         let mut translations = HashMap::new();
@@ -459,9 +455,7 @@ mod tests {
         let orig_wl = std::env::var_os("WAYLAND_DISPLAY");
         unsafe { std::env::set_var("WAYLAND_DISPLAY", "1") };
 
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         // Initialize i18n translations for optional deps
         use std::collections::HashMap;
         let mut translations = HashMap::new();

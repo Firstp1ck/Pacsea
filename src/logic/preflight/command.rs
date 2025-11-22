@@ -110,12 +110,12 @@ impl std::error::Error for CommandError {
 
 impl From<std::io::Error> for CommandError {
     fn from(value: std::io::Error) -> Self {
-        CommandError::Io(value)
+        Self::Io(value)
     }
 }
 
 impl From<std::string::FromUtf8Error> for CommandError {
     fn from(value: std::string::FromUtf8Error) -> Self {
-        CommandError::Utf8(value)
+        Self::Utf8(value)
     }
 }

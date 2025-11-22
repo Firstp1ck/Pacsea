@@ -19,9 +19,7 @@ use super::helpers::navigate_pane;
 /// Details:
 /// - Keeps search tests concise by centralizing the default application setup in one helper.
 fn new_app() -> AppState {
-    AppState {
-        ..Default::default()
-    }
+    Default::default()
 }
 
 #[test]

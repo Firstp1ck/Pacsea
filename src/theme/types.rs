@@ -117,7 +117,7 @@ impl Default for Settings {
     /// - Sets balanced pane layout percentages and enables all panes by default.
     /// - Enables all scan types and uses Catppuccin-inspired news glyphs.
     fn default() -> Self {
-        Settings {
+        Self {
             layout_left_pct: 20,
             layout_center_pct: 60,
             layout_right_pct: 20,
@@ -364,7 +364,7 @@ impl Default for KeyMap {
         let none = KeyModifiers::empty();
         let ctrl = KeyModifiers::CONTROL;
         let shift = KeyModifiers::SHIFT; // retained for other bindings; not used for pane switching
-        KeyMap {
+        Self {
             help_overlay: vec![
                 KeyChord {
                     code: F(1),

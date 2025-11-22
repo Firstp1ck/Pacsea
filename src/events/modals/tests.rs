@@ -20,9 +20,7 @@ use super::handle_modal_key;
 /// Details:
 /// - Provides a clean starting state for each test case
 fn new_app() -> AppState {
-    AppState {
-        ..Default::default()
-    }
+    Default::default()
 }
 
 /// What: Create a key event with Press kind.

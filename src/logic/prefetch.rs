@@ -82,9 +82,7 @@ mod tests {
     /// - Uses a short timeout to confirm no unexpected sends occur during the async loop.
     async fn prefetch_noop_on_empty_results() {
         let _guard = crate::global_test_mutex_lock();
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         let (tx, mut rx) = mpsc::unbounded_channel();
         ring_prefetch_from_selected(&mut app, &tx);
         let none = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
@@ -108,9 +106,7 @@ mod tests {
     /// - Toggles `set_allowed_only_selected` and `set_allowed_ring`, updating the cache between passes to target specific neighbours.
     async fn prefetch_respects_allowed_and_cache() {
         let _guard = crate::global_test_mutex_lock();
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.results = vec![
             item_official("a", "core"),
             item_official("b", "extra"),

@@ -672,9 +672,7 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     fn new_app() -> AppState {
-        AppState {
-            ..Default::default()
-        }
+        Default::default()
     }
 
     #[test]

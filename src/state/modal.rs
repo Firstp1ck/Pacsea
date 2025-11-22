@@ -50,9 +50,9 @@ impl CascadeMode {
     #[must_use]
     pub const fn flag(self) -> &'static str {
         match self {
-            CascadeMode::Basic => "-R",
-            CascadeMode::Cascade => "-Rs",
-            CascadeMode::CascadeWithConfigs => "-Rns",
+            Self::Basic => "-R",
+            Self::Cascade => "-Rs",
+            Self::CascadeWithConfigs => "-Rns",
         }
     }
 
@@ -60,25 +60,25 @@ impl CascadeMode {
     #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
-            CascadeMode::Basic => "targets only",
-            CascadeMode::Cascade => "remove dependents",
-            CascadeMode::CascadeWithConfigs => "dependents + configs",
+            Self::Basic => "targets only",
+            Self::Cascade => "remove dependents",
+            Self::CascadeWithConfigs => "dependents + configs",
         }
     }
 
     /// Whether this `CascadeMode` allows removal when dependents exist.
     #[must_use]
     pub const fn allows_dependents(self) -> bool {
-        !matches!(self, CascadeMode::Basic)
+        !matches!(self, Self::Basic)
     }
 
     /// Cycle to the next `CascadeMode`.
     #[must_use]
     pub const fn next(self) -> Self {
         match self {
-            CascadeMode::Basic => CascadeMode::Cascade,
-            CascadeMode::Cascade => CascadeMode::CascadeWithConfigs,
-            CascadeMode::CascadeWithConfigs => CascadeMode::Basic,
+            Self::Basic => Self::Cascade,
+            Self::Cascade => Self::CascadeWithConfigs,
+            Self::CascadeWithConfigs => Self::Basic,
         }
     }
 }
@@ -268,7 +268,7 @@ impl Default for RiskLevel {
     /// Details:
     /// - Keeps `Default` implementations for composite structs simple while biasing towards safety.
     fn default() -> Self {
-        RiskLevel::Low
+        Self::Low
     }
 }
 

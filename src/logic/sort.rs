@@ -121,9 +121,7 @@ mod tests {
     /// Details:
     /// - Ensures the UI behaviour stays predictable when users toggle sort modes after highlighting a result.
     fn sort_preserve_selection_and_best_matches() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.results = vec![
             item_aur("zzz", Some(1.0)),
             item_official("aaa", "core"),
@@ -172,9 +170,7 @@ mod tests {
     /// Details:
     /// - Captures the layered tiebreak logic to catch regressions if repo precedence changes.
     fn sort_bestmatches_tiebreak_repo_then_name() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.results = vec![
             item_official("alpha2", "extra"),
             item_official("alpha1", "extra"),
@@ -199,9 +195,7 @@ mod tests {
     /// Details:
     /// - Verifies the composite comparator remains stable for UI diffs and regression detection.
     fn sort_aur_popularity_and_official_tiebreaks() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.results = vec![
             item_aur("aurB", Some(1.0)),
             item_aur("aurA", Some(1.0)),

@@ -96,9 +96,7 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         app.show_recent_pane = true;
         app.show_install_pane = true;
         app.focus = crate::state::Focus::Search;
@@ -138,9 +136,7 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         app.show_recent_pane = true;
         app.show_install_pane = true;
         app.installed_only_mode = true;
@@ -173,9 +169,7 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         app.show_recent_pane = false;
         app.show_install_pane = false;
         app.focus = crate::state::Focus::Search;
@@ -207,9 +201,7 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(0, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         app.show_recent_pane = true;
         app.show_install_pane = true;
 
@@ -237,9 +229,7 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         app.show_install_pane = true;
         app.focus = crate::state::Focus::Install;
 

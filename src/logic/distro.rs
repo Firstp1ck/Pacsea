@@ -117,9 +117,7 @@ mod tests {
     /// Details:
     /// - Ensures the per-repository gate respects the individual boolean flags.
     fn repo_toggle_respects_individual_flags() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.results_filter_show_core = true;
         app.results_filter_show_extra = false;
         app.results_filter_show_multilib = false;
@@ -150,9 +148,7 @@ mod tests {
     /// Details:
     /// - Exercises the fallback clause guarding unfamiliar repositories.
     fn repo_toggle_unknown_only_with_full_whitelist() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.results_filter_show_core = true;
         app.results_filter_show_extra = true;
         app.results_filter_show_multilib = true;

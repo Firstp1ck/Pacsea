@@ -376,9 +376,7 @@ mod tests {
     fn installed_only_renders_both_lists() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.downgrade_list.push(crate::state::PackageItem {
             name: "downgrade-pkg".to_string(),
@@ -422,9 +420,7 @@ mod tests {
     fn installed_only_hides_buttons() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         // Set initial button rects
         app.install_import_rect = Some((10, 10, 10, 1));
@@ -454,9 +450,7 @@ mod tests {
     fn installed_only_splits_area_correctly() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
         term.draw(|f| {
@@ -493,9 +487,7 @@ mod tests {
     fn installed_only_records_downgrade_rect() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
         term.draw(|f| {
@@ -529,9 +521,7 @@ mod tests {
     fn installed_only_handles_empty_lists() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.downgrade_list.clear();
         app.remove_list.clear();

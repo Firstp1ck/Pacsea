@@ -101,9 +101,7 @@ mod tests {
     /// Details:
     /// - Exercises the guard path preventing duplicate installs and verifies the UI selection remains anchored on insert.
     fn add_to_install_list_behavior() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         add_to_install_list(&mut app, item_official("pkg1", "core"));
         add_to_install_list(&mut app, item_official("Pkg1", "core"));
         assert_eq!(app.install_list.len(), 1);
@@ -123,9 +121,7 @@ mod tests {
     /// Details:
     /// - Protects against regressions where duplicates might shift the selection or leak into the list.
     fn add_to_remove_list_behavior() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         add_to_remove_list(&mut app, item_official("pkg1", "extra"));
         add_to_remove_list(&mut app, item_official("Pkg1", "extra"));
         assert_eq!(app.remove_list.len(), 1);
@@ -144,9 +140,7 @@ mod tests {
     /// Details:
     /// - Ensures repeated downgrade requests do not reorder the cursor unexpectedly.
     fn add_to_downgrade_list_behavior() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         add_to_downgrade_list(&mut app, item_official("PkgX", "extra"));
         add_to_downgrade_list(&mut app, item_official("pkgx", "extra"));
         assert_eq!(app.downgrade_list.len(), 1);

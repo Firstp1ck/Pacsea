@@ -112,9 +112,7 @@ mod tests {
     /// - Disables AUR/extra/multilib toggles to confirm `apply_filters_and_sort_preserve_selection`
     ///   respects flags and prunes disabled repositories.
     fn apply_filters_and_preserve_selection() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.all_results = vec![
             PackageItem {
                 name: "aur1".into(),
@@ -149,9 +147,7 @@ mod tests {
     /// Details:
     /// - Confirms `CachyOS` inclusion does not implicitly re-enable `EOS` repositories.
     fn apply_filters_cachyos_and_eos_interaction() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.all_results = vec![
             PackageItem {
                 name: "cx".into(),
@@ -204,9 +200,7 @@ mod tests {
     /// - Demonstrates that enabling the remaining official toggle (`multilib`) widens acceptance to
     ///   previously filtered repos.
     fn logic_filter_unknown_official_inclusion_policy() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.all_results = vec![
             PackageItem {
                 name: "x1".into(),

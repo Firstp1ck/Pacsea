@@ -195,9 +195,7 @@ mod tests {
     fn search_renders_and_sets_cursor_when_focused() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Search;
         app.input = "hello".into();
@@ -228,9 +226,7 @@ mod tests {
     fn search_renders_without_selection_when_not_normal_mode() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Search;
         app.input = "test".into();
@@ -261,9 +257,7 @@ mod tests {
     fn search_renders_with_selection_in_normal_mode() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Search;
         app.input = "hello".into();
@@ -294,9 +288,7 @@ mod tests {
     fn search_renders_when_unfocused() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Recent;
         app.input = "test".into();
@@ -325,9 +317,7 @@ mod tests {
     fn search_handles_empty_input() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("failed to create test terminal");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Search;
         app.input = String::new();

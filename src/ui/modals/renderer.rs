@@ -178,18 +178,18 @@ trait ModalRenderer {
 impl ModalRenderer for Modal {
     fn render(self, f: &mut Frame, app: &mut AppState, area: Rect) -> Modal {
         match self {
-            Modal::Alert { message } => {
+            Self::Alert { message } => {
                 let ctx = AlertContext { message };
                 render_alert_modal(f, app, area, ctx)
             }
-            Modal::ConfirmInstall { items } => {
+            Self::ConfirmInstall { items } => {
                 let ctx = ConfirmInstallContext { items };
                 render_confirm_install_modal(f, app, area, ctx)
             }
-            Modal::Preflight { .. } => {
+            Self::Preflight { .. } => {
                 unreachable!("Preflight should be handled separately before trait dispatch")
             }
-            Modal::PreflightExec {
+            Self::PreflightExec {
                 items,
                 action,
                 tab,
@@ -209,7 +209,7 @@ impl ModalRenderer for Modal {
                 };
                 render_preflight_exec_modal(f, app, area, ctx)
             }
-            Modal::PostSummary {
+            Self::PostSummary {
                 success,
                 changed_files,
                 pacnew_count,
@@ -227,11 +227,11 @@ impl ModalRenderer for Modal {
                 };
                 render_post_summary_modal(f, app, area, ctx)
             }
-            Modal::ConfirmRemove { items } => {
+            Self::ConfirmRemove { items } => {
                 let ctx = ConfirmRemoveContext { items };
                 render_confirm_remove_modal(f, app, area, ctx)
             }
-            Modal::SystemUpdate {
+            Self::SystemUpdate {
                 do_mirrors,
                 do_pacman,
                 do_aur,
@@ -253,20 +253,20 @@ impl ModalRenderer for Modal {
                 };
                 render_system_update_modal(f, app, area, ctx)
             }
-            Modal::Help => render_help_modal(f, app, area),
-            Modal::News { items, selected } => {
+            Self::Help => render_help_modal(f, app, area),
+            Self::News { items, selected } => {
                 let ctx = NewsContext { items, selected };
                 render_news_modal(f, app, area, ctx)
             }
-            Modal::Updates { entries, scroll } => {
+            Self::Updates { entries, scroll } => {
                 let ctx = UpdatesContext { entries, scroll };
                 render_updates_modal(f, app, area, ctx)
             }
-            Modal::OptionalDeps { rows, selected } => {
+            Self::OptionalDeps { rows, selected } => {
                 let ctx = OptionalDepsContext { rows, selected };
                 render_optional_deps_modal(f, area, ctx, app)
             }
-            Modal::ScanConfig {
+            Self::ScanConfig {
                 do_clamav,
                 do_trivy,
                 do_semgrep,
@@ -288,13 +288,13 @@ impl ModalRenderer for Modal {
                 };
                 render_scan_config_modal(f, area, ctx)
             }
-            Modal::GnomeTerminalPrompt => render_gnome_terminal_prompt_modal(f, area),
-            Modal::VirusTotalSetup { input, cursor } => {
+            Self::GnomeTerminalPrompt => render_gnome_terminal_prompt_modal(f, area),
+            Self::VirusTotalSetup { input, cursor } => {
                 let ctx = VirusTotalSetupContext { input, cursor };
                 render_virustotal_setup_modal(f, app, area, ctx)
             }
-            Modal::ImportHelp => render_import_help_modal(f, area),
-            Modal::None => Modal::None,
+            Self::ImportHelp => render_import_help_modal(f, area),
+            Self::None => Self::None,
         }
     }
 }

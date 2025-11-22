@@ -129,9 +129,9 @@ impl SortMode {
     ///   standardizing the keys stored on disk.
     pub fn as_config_key(&self) -> &'static str {
         match self {
-            SortMode::RepoThenName => "alphabetical",
-            SortMode::AurPopularityThenOfficial => "aur_popularity",
-            SortMode::BestMatches => "best_matches",
+            Self::RepoThenName => "alphabetical",
+            Self::AurPopularityThenOfficial => "aur_popularity",
+            Self::BestMatches => "best_matches",
         }
     }
     /// Parse a sort mode from its settings key or legacy aliases.
@@ -144,9 +144,9 @@ impl SortMode {
     ///   earlier Pacsea releases.
     pub fn from_config_key(s: &str) -> Option<Self> {
         match s.trim().to_lowercase().as_str() {
-            "alphabetical" | "repo_then_name" | "pacman" => Some(SortMode::RepoThenName),
-            "aur_popularity" | "popularity" => Some(SortMode::AurPopularityThenOfficial),
-            "best_matches" | "relevance" => Some(SortMode::BestMatches),
+            "alphabetical" | "repo_then_name" | "pacman" => Some(Self::RepoThenName),
+            "aur_popularity" | "popularity" => Some(Self::AurPopularityThenOfficial),
+            "best_matches" | "relevance" => Some(Self::BestMatches),
             _ => None,
         }
     }

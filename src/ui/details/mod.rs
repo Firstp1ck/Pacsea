@@ -78,9 +78,7 @@ mod tests {
         let backend = TestBackend::new(80, 20);
         let mut term = Terminal::new(backend).expect("failed to create test terminal");
 
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.details = crate::state::PackageDetails {
             repository: "extra".into(),

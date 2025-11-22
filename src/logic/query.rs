@@ -39,9 +39,7 @@ mod tests {
     /// Details:
     /// - Uses a short timeout to guarantee the send occurs asynchronously.
     async fn send_query_increments_and_sends() {
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         app.input = "hello".into();
         let (tx, mut rx) = mpsc::unbounded_channel();
         send_query(&mut app, &tx);

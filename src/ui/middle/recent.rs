@@ -134,9 +134,7 @@ mod tests {
     fn recent_renders_and_records_rect_when_visible() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
         app.recent.push("package1".to_string());
@@ -173,9 +171,7 @@ mod tests {
     fn recent_clears_rect_when_hidden() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = false;
         app.recent_rect = Some((10, 10, 20, 20)); // Set initial value
@@ -203,9 +199,7 @@ mod tests {
     fn recent_clears_rect_when_area_zero_width() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
 
@@ -237,9 +231,7 @@ mod tests {
     fn recent_displays_pane_find_when_focused() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
         app.focus = crate::state::Focus::Recent;
@@ -269,9 +261,7 @@ mod tests {
     fn recent_hides_pane_find_when_unfocused() {
         let backend = TestBackend::new(100, 30);
         let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
         app.focus = crate::state::Focus::Search;

@@ -131,9 +131,7 @@ mod tests {
     /// Details:
     /// - Uses a timeout on the receiver to assert the async request is produced and verifies placeholder data resets when returning to the AUR result.
     async fn move_sel_cached_clamps_and_requests_details() {
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         app.results = vec![
             crate::state::PackageItem {
                 name: "aur1".into(),
@@ -175,9 +173,7 @@ mod tests {
     /// Details:
     /// - Confirms `move_sel_cached` short-circuits when cache contains the selected package.
     async fn move_sel_cached_uses_details_cache() {
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         let pkg = item_official("pkg", "core");
         app.results = vec![pkg.clone()];
         app.details_cache.insert(
@@ -214,9 +210,7 @@ mod tests {
     /// - Simulates a large positive index jump and ensures gating functions mark the correct state and
     ///   enforce selection-only access.
     fn fast_scroll_sets_gating_and_defers_ring() {
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         app.results = vec![
             item_official("a", "core"),
             item_official("b", "extra"),
