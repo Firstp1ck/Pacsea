@@ -27,7 +27,7 @@ pub(super) fn build_deps_display_items(
 ) -> Vec<(bool, String)> {
     // Build display items list to find which package header was clicked
     let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
-    for dep in dependency_info.iter() {
+    for dep in dependency_info {
         for req_by in &dep.required_by {
             grouped.entry(req_by.clone()).or_default().push(dep);
         }
@@ -41,7 +41,7 @@ pub(super) fn build_deps_display_items(
         if dep_tree_expanded.contains(pkg_name) {
             let mut seen_deps = HashSet::new();
             if let Some(pkg_deps) = grouped.get(pkg_name) {
-                for dep in pkg_deps.iter() {
+                for dep in pkg_deps {
                     if seen_deps.insert(dep.name.as_str()) {
                         display_items.push((false, String::new()));
                     }

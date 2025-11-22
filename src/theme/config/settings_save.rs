@@ -56,7 +56,7 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
             .collect()
     };
     let mut replaced = false;
-    for line in lines.iter_mut() {
+    for line in &mut lines {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
             continue;
@@ -137,7 +137,7 @@ fn save_boolean_key(key_norm: &str, value: bool) {
             .collect()
     };
     let mut replaced = false;
-    for line in lines.iter_mut() {
+    for line in &mut lines {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
             continue;
@@ -222,7 +222,7 @@ fn save_string_key(key_norm: &str, value: &str) {
             .collect()
     };
     let mut replaced = false;
-    for line in lines.iter_mut() {
+    for line in &mut lines {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
             continue;

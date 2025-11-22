@@ -93,7 +93,7 @@ fn parse_missing_settings(
     let mut missing_settings: Vec<(String, Option<String>)> = Vec::new();
     let mut current_comment: Option<String> = None;
 
-    for line in skeleton_lines.iter() {
+    for line in skeleton_lines {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             current_comment = None;
@@ -226,7 +226,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         lines.push(String::new());
     }
 
-    for (setting_line, comment) in missing_settings.iter() {
+    for (setting_line, comment) in &missing_settings {
         if let Some(comment) = comment {
             lines.push(comment.clone());
         }
@@ -289,7 +289,7 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
     let mut missing_keybinds: Vec<(String, Option<String>)> = Vec::new();
     let mut current_comment: Option<String> = None;
 
-    for line in skeleton_lines.iter() {
+    for line in skeleton_lines {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             current_comment = None;
@@ -340,7 +340,7 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
         new_lines.push(String::new());
     }
 
-    for (keybind_line, comment) in missing_keybinds.iter() {
+    for (keybind_line, comment) in &missing_keybinds {
         if let Some(comment) = comment {
             new_lines.push(comment.clone());
         }

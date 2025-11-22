@@ -25,7 +25,7 @@ pub(super) fn compute_display_items_len(
 ) -> usize {
     // Group dependencies by the packages that require them (same as UI code)
     let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
-    for dep in dependency_info.iter() {
+    for dep in dependency_info {
         for req_by in &dep.required_by {
             grouped.entry(req_by.clone()).or_default().push(dep);
         }
@@ -43,7 +43,7 @@ pub(super) fn compute_display_items_len(
             && let Some(pkg_deps) = grouped.get(pkg_name)
         {
             let mut seen_deps = HashSet::new();
-            for dep in pkg_deps.iter() {
+            for dep in pkg_deps {
                 if seen_deps.insert(dep.name.as_str()) {
                     count += 1;
                 }
@@ -73,7 +73,7 @@ pub(super) fn compute_sandbox_display_items_len(
     sandbox_tree_expanded: &HashSet<String>,
 ) -> usize {
     let mut count = 0;
-    for item in items.iter() {
+    for item in items {
         count += 1; // Package header
         // Add dependencies only if expanded and AUR
         if matches!(item.source, crate::state::Source::Aur)
@@ -115,7 +115,7 @@ pub(crate) fn compute_file_display_items_len(
 
     let mut count = 0;
     // Always count ALL packages from items, even if they have no file info
-    for item in items.iter() {
+    for item in items {
         count += 1; // Package header
         if file_tree_expanded.contains(&item.name) {
             // Count file rows if available
@@ -154,7 +154,7 @@ pub(crate) fn build_file_display_items(
 
     let mut display_items: Vec<(bool, String)> = Vec::new();
     // Always show ALL packages from items, even if they have no file info
-    for item in items.iter() {
+    for item in items {
         let pkg_name = &item.name;
         display_items.push((true, pkg_name.clone()));
         if file_tree_expanded.contains(pkg_name) {

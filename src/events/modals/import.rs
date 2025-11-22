@@ -109,7 +109,7 @@ fn handle_import_help_enter(_add_tx: &mpsc::UnboundedSender<PackageItem>) {
                 if let Ok(body) = std::fs::read_to_string(&path) {
                     use std::collections::HashSet;
                     let mut official_names: HashSet<String> = HashSet::new();
-                    for it in crate::index::all_official().iter() {
+                    for it in &crate::index::all_official() {
                         official_names.insert(it.name.to_lowercase());
                     }
                     let mut imported: usize = 0;

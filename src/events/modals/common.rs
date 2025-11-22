@@ -197,7 +197,7 @@ pub(super) fn handle_news(
         return false;
     }
     if crate::events::utils::matches_any(&ke, &km.news_mark_all_read) {
-        for it in items.iter() {
+        for it in items {
             app.news_read_urls.insert(it.url.clone());
         }
         app.news_read_dirty = true;

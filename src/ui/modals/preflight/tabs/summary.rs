@@ -293,7 +293,7 @@ fn render_install_dependencies(
 
     use std::collections::{HashMap, HashSet};
     let mut grouped: HashMap<String, Vec<&DependencyInfo>> = HashMap::new();
-    for dep in important_deps.iter() {
+    for dep in &important_deps {
         for req_by in &dep.required_by {
             grouped.entry(req_by.clone()).or_default().push(dep);
         }
@@ -368,7 +368,7 @@ fn render_install_dependencies(
         if let Some(pkg_deps) = grouped.get(pkg_name) {
             display_items.push((true, pkg_name.clone(), None));
             let mut seen_deps = HashSet::new();
-            for dep in pkg_deps.iter() {
+            for dep in pkg_deps {
                 if seen_deps.insert(dep.name.as_str()) {
                     display_items.push((false, String::new(), Some(*dep)));
                 }
@@ -377,7 +377,7 @@ fn render_install_dependencies(
     }
 
     // Then, show installed packages (if not already shown)
-    for installed_pkg in installed_packages.iter() {
+    for installed_pkg in &installed_packages {
         if !grouped.contains_key(&installed_pkg.name) {
             display_items.push((true, installed_pkg.name.clone(), None));
             // Add a placeholder entry to show "installed" status
@@ -387,7 +387,7 @@ fn render_install_dependencies(
     }
 
     // Render all items (no viewport - mouse scrolling handles it)
-    for (is_header, pkg_name, dep) in display_items.iter() {
+    for (is_header, pkg_name, dep) in &display_items {
         if *is_header {
             let style = Style::default()
                 .fg(th.overlay1)

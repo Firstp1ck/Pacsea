@@ -239,7 +239,7 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
         30,
         31,
     ];
-    for &len in mdays.iter() {
+    for &len in &mdays {
         if days >= len as i64 {
             days -= len as i64;
             month += 1;
@@ -459,7 +459,7 @@ pub fn today_yyyymmdd_utc() -> String {
         30,
         31,
     ];
-    for &len in mdays.iter() {
+    for &len in &mdays {
         if days >= len as i64 {
             days -= len as i64;
             month += 1;

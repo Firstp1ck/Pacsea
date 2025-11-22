@@ -322,7 +322,7 @@ fn build_display_items<'a>(
 
         if is_expanded && let Some(pkg_deps) = grouped.get(pkg_name) {
             let mut seen_deps = HashSet::new();
-            for dep in pkg_deps.iter() {
+            for dep in pkg_deps {
                 if seen_deps.insert(dep.name.as_str()) {
                     display_items.push((false, String::new(), Some(*dep)));
                 }
@@ -562,7 +562,7 @@ pub fn render_deps_tab(
     // Group dependencies by the packages that require them and deduplicate
     let mut grouped: HashMap<String, Vec<&DependencyInfo>> = HashMap::new();
     let mut unique_deps: HashMap<String, &DependencyInfo> = HashMap::new();
-    for dep in dependency_info.iter() {
+    for dep in dependency_info {
         unique_deps.entry(dep.name.clone()).or_insert(dep);
         for req_by in &dep.required_by {
             grouped.entry(req_by.clone()).or_default().push(dep);

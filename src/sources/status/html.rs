@@ -30,7 +30,7 @@ pub(super) fn is_aur_down_in_monitors(body: &str) -> bool {
         let aur_patterns = ["title=\"aur\"", "title='aur'", ">aur<", "\"aur\""];
         let mut aur_pos_opt = None;
 
-        for pattern in aur_patterns.iter() {
+        for pattern in aur_patterns {
             if let Some(pos) = monitors_window.find(pattern) {
                 aur_pos_opt = Some(pos);
                 break;
@@ -195,7 +195,7 @@ pub(super) fn parse_arch_status_from_html(body: &str) -> (String, ArchStatusColo
             "December",
         ];
         let mut is_today = false;
-        'outer: for m in months.iter() {
+        'outer: for m in &months {
             if let Some(mi) = region.find(m) {
                 let mut idx = mi + m.len();
                 let rbytes = region.as_bytes();

@@ -307,7 +307,7 @@ pub(super) fn handle_deps_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool 
                 // Count dependencies only if expanded
                 if dep_tree_expanded.contains(pkg_name) {
                     let mut seen_deps = HashSet::new();
-                    for dep in pkg_deps.iter() {
+                    for dep in pkg_deps {
                         if seen_deps.insert(dep.name.as_str()) {
                             display_len += 1;
                         }

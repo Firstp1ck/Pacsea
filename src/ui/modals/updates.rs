@@ -90,7 +90,7 @@ fn build_update_lines(entries: &[(String, String, String)], th: &Theme) -> Updat
     let mut center_lines = Vec::new();
     let mut right_lines = Vec::new();
 
-    for (name, old_version, new_version) in entries.iter() {
+    for (name, old_version, new_version) in entries {
         // Build left pane line (old versions) - right-aligned with padding
         let left_text = format!("{name} - {old_version}     ");
         left_lines.push(Line::from(Span::styled(

@@ -23,7 +23,7 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
     // Collect today's status for all monitors
     let mut monitor_statuses: Vec<(String, f64, &str, &str)> = Vec::new();
 
-    for monitor in data.iter() {
+    for monitor in data {
         let name = monitor.get("name")?.as_str()?;
         if !monitor_names.iter().any(|&n| n.eq_ignore_ascii_case(name)) {
             continue;

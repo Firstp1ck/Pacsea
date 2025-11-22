@@ -26,7 +26,7 @@ pub(super) fn extract_arch_systems_status_color(body: &str) -> Option<ArchStatus
     let status_patterns = ["status: arch systems", "status arch systems"];
 
     // Check for overall status message pattern
-    for pattern in status_patterns.iter() {
+    for pattern in status_patterns {
         if let Some(pos) = lowered.find(pattern) {
             // Check in a window around the pattern (500 chars after)
             let window_start = pos;
@@ -152,7 +152,7 @@ pub(super) fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     let mut month: u32 = 1;
     let mut day: u64 = days;
 
-    for &days_in_m in days_in_month.iter() {
+    for &days_in_m in &days_in_month {
         if day < days_in_m as u64 {
             break;
         }
@@ -416,7 +416,7 @@ pub(super) fn extract_status_updates_today_color(body: &str) -> Option<ArchStatu
 
     // Look for "Last 30 days" or "Last 7 days" or similar
     let days_patterns = ["last 30 days", "last 7 days", "last 14 days"];
-    for pattern in days_patterns.iter() {
+    for pattern in days_patterns {
         if let Some(p) = lowered[base_pos..].find(pattern) {
             base_pos += p;
             break;
@@ -465,14 +465,14 @@ pub(super) fn extract_status_updates_today_color(body: &str) -> Option<ArchStatu
     }
 
     // Check for severe keywords
-    for keyword in severe_keywords.iter() {
+    for keyword in &severe_keywords {
         if window.contains(keyword) {
             return Some(ArchStatusColor::IncidentSevereToday);
         }
     }
 
     // Check for moderate keywords
-    for keyword in moderate_keywords.iter() {
+    for keyword in &moderate_keywords {
         if window.contains(keyword) {
             return Some(ArchStatusColor::IncidentToday);
         }

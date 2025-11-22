@@ -66,7 +66,7 @@ fn handle_options_installed_only_toggle(
             .collect();
         use std::collections::HashSet;
         let official_names: HashSet<String> = items.iter().map(|p| p.name.clone()).collect();
-        for name in explicit.into_iter() {
+        for name in explicit {
             if !official_names.contains(&name) {
                 let is_eos = crate::index::is_eos_name(&name);
                 let src = if is_eos {

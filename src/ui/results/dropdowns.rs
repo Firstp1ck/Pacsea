@@ -532,7 +532,7 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
 
             // Build lines with checkmarks for enabled filters
             let mut lines: Vec<Line> = Vec::new();
-            for (text, enabled) in opts.iter() {
+            for (text, enabled) in &opts {
                 let indicator = if *enabled { "✓ " } else { "  " };
                 let pad = w
                     .saturating_sub(u16::try_from(text.len()).unwrap_or(u16::MAX))

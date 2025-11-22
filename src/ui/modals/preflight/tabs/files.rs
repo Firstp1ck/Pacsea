@@ -35,7 +35,7 @@ fn render_loading_state(
     let th = theme();
     let mut lines = Vec::new();
 
-    for item in items.iter() {
+    for item in items {
         let mut spans = Vec::new();
         spans.push(Span::styled(
             format!("▶ {} ", item.name),
@@ -105,7 +105,7 @@ fn build_display_items(
 
     let mut display_items = Vec::new();
     // Always show ALL packages from items, even if they have no file info
-    for item in items.iter() {
+    for item in items {
         let pkg_name = &item.name;
         let is_expanded = file_tree_expanded.contains(pkg_name);
         display_items.push((true, pkg_name.clone(), None)); // Package header
@@ -113,7 +113,7 @@ fn build_display_items(
         if is_expanded {
             // Show files if available
             if let Some(pkg_info) = file_info_map.get(pkg_name) {
-                for file in pkg_info.files.iter() {
+                for file in &pkg_info.files {
                     display_items.push((
                         false,
                         String::new(),
@@ -201,7 +201,7 @@ fn render_empty_state(
         .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
 
     let mut unresolved_packages = Vec::new();
-    for pkg_info in file_info.iter() {
+    for pkg_info in file_info {
         if pkg_info.files.is_empty() {
             unresolved_packages.push(pkg_info.name.clone());
         }
@@ -880,7 +880,7 @@ pub fn render_files_tab(
             "[UI] render_files_tab: Rendering {} file info entries",
             file_info.len()
         );
-        for pkg_info in file_info.iter() {
+        for pkg_info in file_info {
             tracing::info!(
                 "[UI] render_files_tab: Package '{}' - total={}, new={}, changed={}, removed={}, config={}, files={}",
                 pkg_info.name,

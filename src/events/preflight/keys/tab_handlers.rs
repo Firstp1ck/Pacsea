@@ -23,7 +23,7 @@ pub(super) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
     }
 
     let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
-    for dep in ctx.dependency_info.iter() {
+    for dep in ctx.dependency_info {
         for req_by in &dep.required_by {
             grouped.entry(req_by.clone()).or_default().push(dep);
         }
@@ -36,7 +36,7 @@ pub(super) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
             && let Some(pkg_deps) = grouped.get(pkg_name)
         {
             let mut seen_deps = HashSet::new();
-            for dep in pkg_deps.iter() {
+            for dep in pkg_deps {
                 if seen_deps.insert(dep.name.as_str()) {
                     display_items.push((false, String::new()));
                 }
@@ -98,7 +98,7 @@ pub(super) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 
     type SandboxDisplayItem = (bool, String, Option<(&'static str, String)>);
     let mut display_items: Vec<SandboxDisplayItem> = Vec::new();
-    for item in ctx.items.iter() {
+    for item in ctx.items {
         let is_aur = matches!(item.source, crate::state::Source::Aur);
         display_items.push((true, item.name.clone(), None));
         if is_aur

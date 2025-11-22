@@ -397,7 +397,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     // 1. Check conflicts against installed packages
     // 2. Check conflicts between packages in the install list
     tracing::info!("Checking conflicts for {} package(s)", items.len());
-    for item in items.iter() {
+    for item in items {
         process_conflicts(item, &root_names, &installed, &provided, &mut deps);
     }
 

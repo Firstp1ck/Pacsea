@@ -190,7 +190,7 @@ fn render_error_state(app: &AppState, error: &str) -> Vec<Line<'static>> {
 fn render_aur_package_headers(items: &[PackageItem]) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
-    for item in items.iter() {
+    for item in items {
         let is_aur = matches!(item.source, crate::state::Source::Aur);
         if is_aur {
             let item_name = &item.name;
@@ -293,7 +293,7 @@ fn build_display_items(
 ) -> Vec<SandboxDisplayItem> {
     let mut display_items = Vec::new();
 
-    for item in items.iter() {
+    for item in items {
         let is_aur = matches!(item.source, crate::state::Source::Aur);
         let is_expanded = sandbox_tree_expanded.contains(&item.name);
 

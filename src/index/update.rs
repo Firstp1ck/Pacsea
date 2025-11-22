@@ -43,7 +43,7 @@ pub async fn update_in_background(
                             old_map.insert(p.name.clone(), p);
                         }
                         let mut merged = Vec::with_capacity(new_pkgs.len());
-                        for mut p in new_pkgs.into_iter() {
+                        for mut p in new_pkgs {
                             if let Some(old) = old_map.get(&p.name) {
                                 // keep enriched data
                                 p.repo = old.repo.clone();

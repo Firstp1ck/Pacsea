@@ -214,7 +214,7 @@ fn handle_scan_config_confirm(
             "Launching AUR scans"
         );
         if dry_run {
-            for n in names.iter() {
+            for n in &names {
                 tracing::info!(package = %n, "Dry-run: spawning AUR scan terminal");
                 let msg = format!(
                     "echo DRY RUN: AUR scan {n} (clamav={do_clamav} trivy={do_trivy} semgrep={do_semgrep} shellcheck={do_shellcheck} virustotal={do_virustotal} custom={do_custom} sleuth={do_sleuth})"
@@ -222,7 +222,7 @@ fn handle_scan_config_confirm(
                 crate::install::spawn_shell_commands_in_terminal(&[msg]);
             }
         } else {
-            for n in names.iter() {
+            for n in &names {
                 tracing::info!(
                     package = %n,
                     do_clamav,

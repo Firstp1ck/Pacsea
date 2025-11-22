@@ -165,7 +165,7 @@ fn build_editor_rows(app: &AppState, rows: &mut Vec<crate::state::types::Optiona
     } else {
         // Show unique packages (avoid hx+helix duplication)
         let mut seen = std::collections::HashSet::new();
-        for (bin, pkg) in editor_candidates.iter() {
+        for (bin, pkg) in editor_candidates {
             if seen.insert(*pkg) {
                 let installed = is_editor_installed(pkg, bin);
                 rows.push(create_optional_dep_row(
@@ -216,7 +216,7 @@ fn build_terminal_rows(app: &AppState, rows: &mut Vec<crate::state::types::Optio
             None,
         ));
     } else {
-        for (bin, pkg) in term_candidates.iter() {
+        for (bin, pkg) in term_candidates {
             let installed = is_tool_installed(pkg, bin);
             rows.push(create_optional_dep_row(
                 app,

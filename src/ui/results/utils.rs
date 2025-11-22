@@ -29,7 +29,7 @@ pub fn detect_optional_repos(
     let mut artix_world = false;
     let mut artix_system = false;
     let mut manj = false;
-    for it in app.all_results.iter() {
+    for it in &app.all_results {
         if let Source::Official { repo, .. } = &it.source {
             let r = repo.to_lowercase();
             if !eos && crate::index::is_eos_repo(&r) {

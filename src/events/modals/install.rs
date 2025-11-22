@@ -145,7 +145,7 @@ fn handle_confirm_install_scan(
 ) -> crate::state::Modal {
     let list = items.to_vec();
     let mut names: Vec<String> = Vec::new();
-    for it in list.iter() {
+    for it in &list {
         if matches!(it.source, crate::state::Source::Aur) {
             names.push(it.name.clone());
         }

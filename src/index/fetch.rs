@@ -36,7 +36,7 @@ pub async fn fetch_official_pkg_names()
             .unwrap_or_default();
     // EOS/EndeavourOS: attempt both known names
     let mut eos_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in eos_repo_names().iter() {
+    for &repo in eos_repo_names() {
         let body =
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
@@ -47,7 +47,7 @@ pub async fn fetch_official_pkg_names()
     }
     // CachyOS: attempt multiple potential repo names; missing ones yield empty output
     let mut cach_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in cachyos_repo_names().iter() {
+    for &repo in cachyos_repo_names() {
         let body =
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
@@ -58,7 +58,7 @@ pub async fn fetch_official_pkg_names()
     }
     // Artix Linux: attempt all known Artix repo names; missing ones yield empty output
     let mut artix_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in artix_repo_names().iter() {
+    for &repo in artix_repo_names() {
         let body =
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
