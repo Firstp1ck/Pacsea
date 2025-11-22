@@ -20,6 +20,7 @@ use crate::i18n::translations::TranslationMap;
 /// - Parses YAML structure into nested `HashMap`
 /// - Returns error if file not found or invalid YAML
 /// - Validates locale format before attempting to load
+#[must_use]
 pub fn load_locale_file(locale: &str, locales_dir: &Path) -> Result<TranslationMap, String> {
     // Validate locale format
     if locale.is_empty() {
@@ -174,6 +175,7 @@ impl LocaleLoader {
     ///
     /// Output:
     /// - `LocaleLoader` instance
+    #[must_use]
     pub fn new(locales_dir: PathBuf) -> Self {
         Self {
             locales_dir,
@@ -193,6 +195,7 @@ impl LocaleLoader {
     /// - Caches loaded translations to avoid re-reading files
     /// - Returns cached version if available
     /// - Logs warnings for missing or invalid locale files
+    #[must_use]
     pub fn load(&mut self, locale: &str) -> Result<TranslationMap, String> {
         if !self.cache.contains_key(locale) {
             match load_locale_file(locale, &self.locales_dir) {
@@ -217,6 +220,7 @@ impl LocaleLoader {
     }
 
     /// What: Get locales directory path.
+    #[must_use]
     pub fn locales_dir(&self) -> &Path {
         &self.locales_dir
     }

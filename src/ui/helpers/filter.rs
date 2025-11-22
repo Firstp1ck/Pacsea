@@ -16,6 +16,7 @@ use crate::state::{AppState, Focus};
 /// Details:
 /// - Applies pane find filtering only when the Recent pane is focused and the finder string is
 ///   non-empty; otherwise returns the full range.
+#[must_use]
 pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
     let apply = matches!(app.focus, Focus::Recent)
         && app
@@ -51,6 +52,7 @@ pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
 /// Details:
 /// - Restricts matches to name or description substrings when the Install pane is focused and a
 ///   pane-find expression is active; otherwise surfaces all indices.
+#[must_use]
 pub fn filtered_install_indices(app: &AppState) -> Vec<usize> {
     let apply = matches!(app.focus, Focus::Install)
         && app

@@ -11,6 +11,7 @@
 /// Details:
 /// - Parses bash array syntax: `backup=('file1' 'file2' '/etc/config')`
 /// - Handles single-line and multi-line array definitions.
+#[must_use]
 pub fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
     let mut backup_files = Vec::new();
     let mut in_backup_array = false;

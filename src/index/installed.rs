@@ -32,6 +32,7 @@ pub async fn refresh_installed_cache() {
 ///
 /// Details:
 /// - Acquires a read lock and defers to `HashSet::contains`, returning false on lock poisoning.
+#[must_use]
 pub fn is_installed(name: &str) -> bool {
     installed_lock()
         .read()

@@ -14,6 +14,7 @@ use std::env;
 /// - Checks `LC_ALL`, `LC_MESSAGES`, and `LANG` environment variables in order
 /// - Parses locale strings like "de_DE.UTF-8" -> "de-DE"
 /// - Returns None if no valid locale found
+#[must_use]
 pub fn detect_system_locale() -> Option<String> {
     // Check environment variables in priority order
     let locale_vars = ["LC_ALL", "LC_MESSAGES", "LANG"];

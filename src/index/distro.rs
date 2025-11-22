@@ -10,6 +10,7 @@
 ///
 /// Details:
 /// - Compares a lowercased name with the "manjaro-" prefix.
+#[must_use]
 pub fn is_name_manjaro(name: &str) -> bool {
     name.to_lowercase().starts_with("manjaro-")
 }
@@ -24,6 +25,7 @@ pub fn is_name_manjaro(name: &str) -> bool {
 ///
 /// Details:
 /// - Lowercases both inputs and checks the prefix/substring rules.
+#[must_use]
 pub fn is_manjaro_name_or_owner(name: &str, owner: &str) -> bool {
     let name_l = name.to_lowercase();
     let owner_l = owner.to_lowercase();
@@ -40,6 +42,7 @@ pub fn is_manjaro_name_or_owner(name: &str, owner: &str) -> bool {
 ///
 /// Details:
 /// - Lowercases and matches exact names.
+#[must_use]
 pub fn is_eos_repo(repo: &str) -> bool {
     let r = repo.to_lowercase();
     r == "eos" || r == "endeavouros"
@@ -55,6 +58,7 @@ pub fn is_eos_repo(repo: &str) -> bool {
 ///
 /// Details:
 /// - Lowercases and checks the "cachyos" prefix.
+#[must_use]
 pub fn is_cachyos_repo(repo: &str) -> bool {
     let r = repo.to_lowercase();
     r.starts_with("cachyos")
@@ -70,6 +74,7 @@ pub fn is_cachyos_repo(repo: &str) -> bool {
 ///
 /// Details:
 /// - Checks against the list of Artix repositories: omniverse, universe, lib32, galaxy, world, system.
+#[must_use]
 pub fn is_artix_repo(repo: &str) -> bool {
     let r = repo.to_lowercase();
     matches!(
@@ -79,21 +84,25 @@ pub fn is_artix_repo(repo: &str) -> bool {
 }
 
 /// What: Check if a repo name is the Artix omniverse repository.
+#[must_use]
 pub fn is_artix_omniverse(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("omniverse")
 }
 
 /// What: Check if a repo name is the Artix universe repository.
+#[must_use]
 pub fn is_artix_universe(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("universe")
 }
 
 /// What: Check if a repo name is the Artix lib32 repository.
+#[must_use]
 pub fn is_artix_lib32(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("lib32")
 }
 
 /// What: Check if a repo name is the Artix galaxy repository.
+#[must_use]
 pub fn is_artix_galaxy(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("galaxy")
 }

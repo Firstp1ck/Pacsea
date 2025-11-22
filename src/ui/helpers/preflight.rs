@@ -18,6 +18,7 @@ use crate::state::AppState;
 ///   and if the corresponding resolving flag is set to true.
 /// - Also checks install list resolution (when preflight modal is not open) by checking if the package
 ///   is in `app.install_list` and any resolver is active.
+#[must_use]
 pub fn is_package_loading_preflight(app: &AppState, package_name: &str) -> bool {
     // Check summary resolution (preflight-specific)
     if app.preflight_summary_resolving

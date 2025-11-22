@@ -16,6 +16,7 @@ use std::process::Command;
 ///
 /// Details:
 /// - Prefers querying the installed package via `pacman -Qii`; falls back to best-effort heuristics.
+#[must_use]
 pub fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, String> {
     // First try: if package is installed, use pacman -Qii
     if let Ok(backup_files) = get_backup_files_from_installed(name)

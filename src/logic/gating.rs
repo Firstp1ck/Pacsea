@@ -28,6 +28,7 @@ fn allowed_set() -> &'static RwLock<HashSet<String>> {
 ///
 /// Details:
 /// - Fails open when the read lock cannot be acquired to avoid blocking UI interactions.
+#[must_use]
 pub fn is_allowed(name: &str) -> bool {
     allowed_set()
         .read()

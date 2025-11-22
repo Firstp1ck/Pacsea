@@ -12,6 +12,7 @@ use crate::state::{PackageItem, Source};
 /// Details:
 /// - Prompts for helper installation when neither `paru` nor `yay` is present.
 /// - Offers an interactive retry with `-Syy` after failures.
+#[must_use]
 pub fn aur_install_body(flags: &str, n: &str) -> String {
     format!(
         "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
@@ -69,6 +70,7 @@ pub fn aur_install_body(flags: &str, n: &str) -> String {
 /// - Detects already-installed packages to offer a reinstall prompt.
 /// - Adds a hold tail so spawned terminals remain open after completion.
 /// - Ensures pacman retries with `-Syy` when the user confirms after failure.
+#[must_use]
 pub fn build_install_command(
     item: &PackageItem,
     password: Option<&str>,

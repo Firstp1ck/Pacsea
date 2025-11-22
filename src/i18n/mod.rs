@@ -84,6 +84,7 @@ use std::path::PathBuf;
 ///   1. Development location: `CARGO_MANIFEST_DIR/config/{relative_path}` (prioritized when running from source)
 ///   2. Installed location: `/usr/share/pacsea/config/{relative_path}`
 /// - Development location is checked first to allow working with repo files during development
+#[must_use]
 pub fn find_config_file(relative_path: &str) -> Option<PathBuf> {
     // Try development location first (when running from source)
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

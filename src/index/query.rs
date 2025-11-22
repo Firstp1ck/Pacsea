@@ -13,6 +13,7 @@ use super::idx;
 ///
 /// Details:
 /// - Performs a case-insensitive substring match on package names and clones matching entries.
+#[must_use]
 pub fn search_official(query: &str) -> Vec<PackageItem> {
     let ql = query.trim().to_lowercase();
     if ql.is_empty() {
@@ -50,6 +51,7 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
 ///
 /// Details:
 /// - Clones data from the shared index under a read lock and omits popularity data.
+#[must_use]
 pub fn all_official() -> Vec<PackageItem> {
     let guard = idx().read().ok();
     let mut items = Vec::new();

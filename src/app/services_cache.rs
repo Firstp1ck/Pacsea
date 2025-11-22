@@ -28,6 +28,7 @@ pub struct ServiceCache {
 ///
 /// Details:
 /// - Clones each package name and sorts the collection alphabetically.
+#[must_use]
 pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> {
     let mut names: Vec<String> = packages.iter().map(|p| p.name.clone()).collect();
     names.sort();

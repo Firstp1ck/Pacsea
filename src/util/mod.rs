@@ -41,6 +41,7 @@ pub fn ensure_mouse_capture() {
 ///
 /// The function operates on raw bytes from the input string. Any non-ASCII bytes
 /// are hex-escaped.
+#[must_use]
 pub fn percent_encode(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for &b in input.as_bytes() {
@@ -61,6 +62,7 @@ pub fn percent_encode(input: &str) -> String {
 /// Extract a string value from a JSON object by key, defaulting to empty string.
 ///
 /// Returns `""` if the key is missing or not a string.
+#[must_use]
 pub fn s(v: &Value, key: &str) -> String {
     v.get(key)
         .and_then(Value::as_str)
@@ -71,6 +73,7 @@ pub fn s(v: &Value, key: &str) -> String {
 ///
 /// Returns `Some(String)` for the first key that maps to a JSON string, or `None`
 /// if none match.
+#[must_use]
 pub fn ss(v: &Value, keys: &[&str]) -> Option<String> {
     for k in keys {
         if let Some(s) = v.get(*k).and_then(|x| x.as_str()) {
@@ -83,6 +86,7 @@ pub fn ss(v: &Value, keys: &[&str]) -> Option<String> {
 ///
 /// Returns the first found array as `Vec<String>`, filtering out non-string elements.
 /// If no array of strings is found, returns an empty vector.
+#[must_use]
 pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
     for k in keys {
         if let Some(arr) = v.get(*k).and_then(|x| x.as_array()) {

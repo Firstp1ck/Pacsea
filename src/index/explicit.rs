@@ -35,6 +35,7 @@ pub async fn refresh_explicit_cache() {
 ///
 /// Details:
 /// - Returns an owned copy so callers can mutate the result without holding the lock.
+#[must_use]
 pub fn explicit_names() -> HashSet<String> {
     explicit_lock()
         .read()

@@ -18,6 +18,7 @@ use std::process::Command;
 /// Details:
 /// - Batches queries into chunks of 50 to avoid command-line length limits.
 /// - Parses multi-package `pacman -Fl` output (format: "<pkg> <path>" per line).
+#[must_use]
 pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<String, Vec<String>> {
     const BATCH_SIZE: usize = 50;
     let mut result_map = HashMap::new();

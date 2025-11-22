@@ -20,6 +20,7 @@ use parse_settings::parse_settings;
 ///
 /// Output:
 /// - A `Settings` value; falls back to `Settings::default()` when missing or invalid.
+#[must_use]
 pub fn settings() -> Settings {
     let mut out = Settings::default();
     // Load settings from settings.conf (or legacy pacsea.conf)

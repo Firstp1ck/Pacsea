@@ -66,6 +66,7 @@ pub struct PreflightSummaryOutcome {
 /// - Delegates to [`compute_preflight_summary_with_runner`] with
 ///   [`SystemCommandRunner`].
 /// - Metadata lookups that fail are logged and treated as best-effort.
+#[must_use]
 pub fn compute_preflight_summary(
     items: &[PackageItem],
     action: PreflightAction,

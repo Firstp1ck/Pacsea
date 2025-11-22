@@ -19,6 +19,7 @@ use crate::i18n::detection::detect_system_locale;
 /// - Priority: `settings_locale` -> system locale -> default from `i18n.yml`
 /// - Applies fallback chain from `i18n.yml` (e.g., de-CH -> de-DE -> en-US)
 /// - Validates locale format (basic check for valid locale code structure)
+#[must_use]
 pub fn resolve_locale(settings_locale: &str, i18n_config_path: &PathBuf) -> String {
     let fallbacks = load_fallbacks(i18n_config_path);
     let default_locale = load_default_locale(i18n_config_path);
@@ -262,6 +263,7 @@ impl LocaleResolver {
     ///
     /// Output:
     /// - `LocaleResolver` instance
+    #[must_use]
     pub fn new(i18n_config_path: &PathBuf) -> Self {
         Self {
             fallbacks: load_fallbacks(i18n_config_path),
@@ -277,6 +279,7 @@ impl LocaleResolver {
     ///
     /// Output:
     /// - Resolved locale code
+    #[must_use]
     pub fn resolve(&self, settings_locale: &str) -> String {
         let initial_locale = if settings_locale.trim().is_empty() {
             detect_system_locale().unwrap_or_else(|| self.default_locale.clone())

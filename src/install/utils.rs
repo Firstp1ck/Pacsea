@@ -37,6 +37,7 @@ pub fn is_powershell_available() -> bool {
 /// Details:
 /// - Accepts explicit paths (containing path separators) and honours Unix permission bits.
 /// - Falls back to scanning `PATH`, and on Windows builds respects `PATHEXT` as well.
+#[must_use]
 pub fn command_on_path(cmd: &str) -> bool {
     use std::path::Path;
 

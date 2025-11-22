@@ -55,6 +55,7 @@ pub fn get_file_db_sync_timestamp() -> Option<SystemTime> {
 ///
 /// Details:
 /// - Buckets age into three categories: green (<7 days), yellow (<30 days), red (>=30 days).
+#[must_use]
 pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
     let sync_time = get_file_db_sync_timestamp()?;
 
@@ -92,6 +93,7 @@ pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
 ///
 /// Details:
 /// - Uses `get_file_db_sync_timestamp()` to check the last sync time.
+#[must_use]
 pub fn is_file_db_stale(max_age_days: u64) -> Option<bool> {
     let sync_time = get_file_db_sync_timestamp()?;
     let now = SystemTime::now();

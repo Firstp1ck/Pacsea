@@ -13,6 +13,7 @@
 ///
 /// Details:
 /// - Skips empty lines and lines starting with `#`, `//`, or `;`
+#[must_use]
 pub fn skip_comment_or_empty(line: &str) -> bool {
     let trimmed = line.trim();
     trimmed.is_empty()
@@ -32,6 +33,7 @@ pub fn skip_comment_or_empty(line: &str) -> bool {
 /// Details:
 /// - Splits on the first `=` character
 /// - Trims whitespace from both key and value
+#[must_use]
 pub fn parse_key_value(line: &str) -> Option<(String, String)> {
     let trimmed = line.trim();
     if !trimmed.contains('=') {

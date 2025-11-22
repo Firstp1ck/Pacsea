@@ -47,6 +47,7 @@ pub enum CascadeMode {
 
 impl CascadeMode {
     /// Return the `pacman` flag sequence corresponding to this `CascadeMode`.
+    #[must_use]
     pub const fn flag(self) -> &'static str {
         match self {
             CascadeMode::Basic => "-R",
@@ -56,6 +57,7 @@ impl CascadeMode {
     }
 
     /// Short text describing the effect of this `CascadeMode`.
+    #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
             CascadeMode::Basic => "targets only",
@@ -65,11 +67,13 @@ impl CascadeMode {
     }
 
     /// Whether this `CascadeMode` allows removal when dependents exist.
+    #[must_use]
     pub const fn allows_dependents(self) -> bool {
         !matches!(self, CascadeMode::Basic)
     }
 
     /// Cycle to the next `CascadeMode`.
+    #[must_use]
     pub const fn next(self) -> Self {
         match self {
             CascadeMode::Basic => CascadeMode::Cascade,

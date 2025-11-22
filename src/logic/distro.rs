@@ -12,6 +12,7 @@
 /// Details:
 /// - Normalizes repository names and applies special-handling for EOS/CachyOS/Artix classification helpers.
 /// - Unknown repositories are only allowed when every official filter is enabled simultaneously.
+#[must_use]
 pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
     let r = repo.to_lowercase();
     if r == "core" {
@@ -70,6 +71,7 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
 /// - Distinguishes `EndeavourOS`, `CachyOS`, and `Artix Linux` repos (with specific labels for each Artix repo:
 ///   `OMNI`, `UNI`, `LIB32`, `GALAXY`, `WORLD`, `SYSTEM`), and detects `Manjaro` branding by name/owner heuristics.
 /// - Falls back to the raw repository string when no special classification matches.
+#[must_use]
 pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     let r = repo.to_lowercase();
     if crate::index::is_eos_repo(&r) {

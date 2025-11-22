@@ -15,6 +15,7 @@ use crate::state::modal::CascadeMode;
 /// Details:
 /// - Checks both `$HOME/PACKAGE_NAME` and `$HOME/.config/PACKAGE_NAME`.
 /// - Only returns directories that actually exist.
+#[must_use]
 pub fn check_config_directories(package_name: &str, home: &str) -> Vec<std::path::PathBuf> {
     use std::path::PathBuf;
     let mut found_dirs = Vec::new();
