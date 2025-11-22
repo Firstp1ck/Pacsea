@@ -540,8 +540,7 @@ mod tests {
         assert_eq!(color, ArchStatusColor::IncidentSevereToday);
         assert!(
             text.contains("Status: AUR Down"),
-            "Expected 'Status: AUR Down' but got: {}",
-            text
+            "Expected 'Status: AUR Down' but got: {text}"
         );
     }
 

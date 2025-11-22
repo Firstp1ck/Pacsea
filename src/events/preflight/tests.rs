@@ -1286,8 +1286,7 @@ fn test_all_preflight_keys_return_false() {
 
         assert!(
             !should_exit,
-            "{} should not close the TUI (returned true, expected false)",
-            key_name
+            "{key_name} should not close the TUI (returned true, expected false)"
         );
     }
 }
@@ -1351,8 +1350,7 @@ fn test_keys_return_false_on_all_tabs() {
 
         assert!(
             !should_exit,
-            "Pressing 'p' on {:?} tab should not close the TUI",
-            tab
+            "Pressing 'p' on {tab:?} tab should not close the TUI"
         );
     }
 }

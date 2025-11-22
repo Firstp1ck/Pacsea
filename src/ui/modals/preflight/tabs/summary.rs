@@ -1141,7 +1141,7 @@ pub fn render_summary_tab(
                 cascade_mode,
             ));
         }
-        _ => {
+        PreflightAction::Install => {
             if items.is_empty() {
                 lines.push(Line::from(Span::styled(
                     i18n::t(app, "app.modals.preflight.summary.no_items_selected"),

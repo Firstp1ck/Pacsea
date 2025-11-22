@@ -225,7 +225,7 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
 
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
-        .map_or(false, |v| v.to_uppercase().contains("GNOME"));
+        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
     let terms = if is_gnome {
         terms_gnome_first
     } else {

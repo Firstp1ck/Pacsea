@@ -354,7 +354,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     // Only warn if called from UI thread (not from background workers)
     // Background workers use spawn_blocking which is fine and expected
     let backtrace = std::backtrace::Backtrace::force_capture();
-    let backtrace_str = format!("{:?}", backtrace);
+    let backtrace_str = format!("{backtrace:?}");
     // Only warn if NOT in a blocking task (i.e., called from UI thread/event handlers)
     // Check for various indicators that we're in a blocking thread pool
     let is_blocking_task = backtrace_str.contains("blocking::task")

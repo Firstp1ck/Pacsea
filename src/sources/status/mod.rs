@@ -65,7 +65,7 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
                         .and_then(|arr| arr.iter().find(|c| {
                             c.get("name")
                                 .and_then(|n| n.as_str())
-                                .map_or(false, |n| n.to_lowercase().contains("aur"))
+                                .is_some_and(|n| n.to_lowercase().contains("aur"))
                         }))
                         .and_then(|c| c.get("status").and_then(|s| s.as_str())),
                     Some("operational")

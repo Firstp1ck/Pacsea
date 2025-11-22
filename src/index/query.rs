@@ -160,7 +160,7 @@ mod tests {
                 assert_eq!(repo, "core");
                 assert_eq!(arch, "x86_64");
             }
-            _ => panic!("expected Source::Official"),
+            crate::state::Source::Aur => panic!("expected Source::Official"),
         }
     }
 

@@ -214,6 +214,6 @@ pub(super) fn handle_enter_or_space(ctx: EnterOrSpaceContext<'_>) -> bool {
         crate::state::PreflightTab::Files => handle_files_tab(&mut ctx),
         crate::state::PreflightTab::Sandbox => handle_sandbox_tab(&mut ctx),
         crate::state::PreflightTab::Services => handle_services_tab(&mut ctx),
-        _ => true, // Default: close modal
+        crate::state::PreflightTab::Summary => true, // Default: close modal
     }
 }

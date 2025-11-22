@@ -218,8 +218,7 @@ mod tests {
             // If --command wasn't found, xfce4-terminal wasn't used (another terminal was chosen)
             // This can happen when other terminals are on PATH and chosen first
             eprintln!(
-                "Warning: xfce4-terminal was not used (no --command found, got: {:?}), skipping xfce4-specific assertion",
-                lines
+                "Warning: xfce4-terminal was not used (no --command found, got: {lines:?}), skipping xfce4-specific assertion"
             );
             unsafe {
                 if let Some(v) = orig_path {
@@ -234,8 +233,7 @@ mod tests {
         let command_idx = command_idx.expect("command_idx should be Some after is_none() check");
         assert!(
             command_idx + 1 < lines.len(),
-            "--command found at index {command_idx} but no following argument. Lines: {:?}",
-            lines
+            "--command found at index {command_idx} but no following argument. Lines: {lines:?}"
         );
         assert!(
             lines[command_idx + 1].starts_with("bash -lc "),

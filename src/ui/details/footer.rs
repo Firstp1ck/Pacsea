@@ -689,7 +689,7 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
                 match app.right_pane_focus {
                     RightPaneFocus::Downgrade => lines.push(d_line),
                     RightPaneFocus::Remove => lines.push(rm_line),
-                    _ => {}
+                    RightPaneFocus::Install => {}
                 }
             }
         }

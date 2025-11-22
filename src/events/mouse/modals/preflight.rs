@@ -91,7 +91,7 @@ pub(super) fn handle_preflight_modal(
                 return Some(false);
             }
         }
-        _ => {}
+        crate::state::PreflightTab::Sandbox => {}
     }
 
     // Consume all mouse events while Preflight modal is open

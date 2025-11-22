@@ -92,7 +92,7 @@ fn try_spawn_terminal(
 fn get_terminal_preferences() -> &'static [(&'static str, &'static [&'static str], bool)] {
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
-        .map_or(false, |v| v.to_uppercase().contains("GNOME"));
+        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
     if is_gnome {
         &[
             ("gnome-terminal", &["--", "bash", "-lc"], false),

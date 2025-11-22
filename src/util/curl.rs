@@ -38,7 +38,7 @@ fn map_curl_error(code: Option<i32>, status: &std::process::ExitStatus) -> Strin
             if let Some(signal) = status.signal() {
                 format!("curl process terminated by signal {signal}")
             } else {
-                format!("curl process failed: {:?}", status)
+                format!("curl process failed: {status:?}")
             }
         }
         #[cfg(not(unix))]

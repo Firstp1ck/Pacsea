@@ -778,7 +778,7 @@ fn render_display_items(
 
             // Check if this is a selected optional dependency
             let is_optdep_selected = if *dep_type == "optdepends" {
-                ctx.selected_optdepends.get(pkg_name).map_or(false, |set| {
+                ctx.selected_optdepends.get(pkg_name).is_some_and(|set| {
                     // Extract package name from dependency spec (may include version or description)
                     let pkg_name_from_dep = crate::logic::sandbox::extract_package_name(dep_name);
                     set.contains(dep_name) || set.contains(&pkg_name_from_dep)

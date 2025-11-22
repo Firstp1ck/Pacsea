@@ -255,7 +255,7 @@ fn save_string_key(key_norm: &str, value: &str) {
 /// Details:
 /// - Delegates to `save_boolean_key("show_recent_pane", value)`.
 pub fn save_show_recent_pane(value: bool) {
-    save_boolean_key("show_recent_pane", value)
+    save_boolean_key("show_recent_pane", value);
 }
 /// What: Persist the visibility flag for the Install pane.
 ///
@@ -268,7 +268,7 @@ pub fn save_show_recent_pane(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("show_install_pane", value)`.
 pub fn save_show_install_pane(value: bool) {
-    save_boolean_key("show_install_pane", value)
+    save_boolean_key("show_install_pane", value);
 }
 /// What: Persist the visibility flag for the keybinds footer.
 ///
@@ -281,7 +281,7 @@ pub fn save_show_install_pane(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("show_keybinds_footer", value)`.
 pub fn save_show_keybinds_footer(value: bool) {
-    save_boolean_key("show_keybinds_footer", value)
+    save_boolean_key("show_keybinds_footer", value);
 }
 
 /// What: Persist the comma-separated list of preferred mirror countries.
@@ -295,7 +295,7 @@ pub fn save_show_keybinds_footer(value: bool) {
 /// Details:
 /// - Delegates to `save_string_key("selected_countries", ...)`.
 pub fn save_selected_countries(value: &str) {
-    save_string_key("selected_countries", value)
+    save_string_key("selected_countries", value);
 }
 /// What: Persist the numeric limit on ranked mirrors.
 ///
@@ -308,7 +308,7 @@ pub fn save_selected_countries(value: &str) {
 /// Details:
 /// - Delegates to `save_string_key("mirror_count", value)` after converting to text.
 pub fn save_mirror_count(value: u16) {
-    save_string_key("mirror_count", &value.to_string())
+    save_string_key("mirror_count", &value.to_string());
 }
 
 /// What: Persist the `VirusTotal` API key used for scanning packages.
@@ -322,7 +322,7 @@ pub fn save_mirror_count(value: u16) {
 /// Details:
 /// - Delegates to `save_string_key("virustotal_api_key", ...)`.
 pub fn save_virustotal_api_key(value: &str) {
-    save_string_key("virustotal_api_key", value)
+    save_string_key("virustotal_api_key", value);
 }
 
 /// What: Persist the `ClamAV` scan toggle.
@@ -336,7 +336,7 @@ pub fn save_virustotal_api_key(value: &str) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_clamav", value)`.
 pub fn save_scan_do_clamav(value: bool) {
-    save_boolean_key("scan_do_clamav", value)
+    save_boolean_key("scan_do_clamav", value);
 }
 /// What: Persist the Trivy scan toggle.
 ///
@@ -349,7 +349,7 @@ pub fn save_scan_do_clamav(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_trivy", value)`.
 pub fn save_scan_do_trivy(value: bool) {
-    save_boolean_key("scan_do_trivy", value)
+    save_boolean_key("scan_do_trivy", value);
 }
 /// What: Persist the Semgrep scan toggle.
 ///
@@ -362,7 +362,7 @@ pub fn save_scan_do_trivy(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_semgrep", value)`.
 pub fn save_scan_do_semgrep(value: bool) {
-    save_boolean_key("scan_do_semgrep", value)
+    save_boolean_key("scan_do_semgrep", value);
 }
 /// What: Persist the `ShellCheck` scan toggle.
 ///
@@ -375,7 +375,7 @@ pub fn save_scan_do_semgrep(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_shellcheck", value)`.
 pub fn save_scan_do_shellcheck(value: bool) {
-    save_boolean_key("scan_do_shellcheck", value)
+    save_boolean_key("scan_do_shellcheck", value);
 }
 /// What: Persist the `VirusTotal` scan toggle.
 ///
@@ -388,7 +388,7 @@ pub fn save_scan_do_shellcheck(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_virustotal", value)`.
 pub fn save_scan_do_virustotal(value: bool) {
-    save_boolean_key("scan_do_virustotal", value)
+    save_boolean_key("scan_do_virustotal", value);
 }
 /// What: Persist the custom scan toggle.
 ///
@@ -401,7 +401,7 @@ pub fn save_scan_do_virustotal(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_custom", value)`.
 pub fn save_scan_do_custom(value: bool) {
-    save_boolean_key("scan_do_custom", value)
+    save_boolean_key("scan_do_custom", value);
 }
 
 /// What: Persist the Sleuth scan toggle.
@@ -415,5 +415,5 @@ pub fn save_scan_do_custom(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_sleuth", value)`.
 pub fn save_scan_do_sleuth(value: bool) {
-    save_boolean_key("scan_do_sleuth", value)
+    save_boolean_key("scan_do_sleuth", value);
 }

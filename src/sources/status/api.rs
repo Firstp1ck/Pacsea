@@ -33,7 +33,7 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
         if let Some(today_data) = daily_ratios.iter().find(|d| {
             d.get("date")
                 .and_then(|date| date.as_str())
-                .map_or(false, |date| date == today_str)
+                .is_some_and(|date| date == today_str)
         }) {
             let ratio_str = today_data.get("ratio")?.as_str()?;
             if let Ok(ratio) = ratio_str.parse::<f64>() {
@@ -139,7 +139,7 @@ pub(super) fn parse_status_api_summary(
         && let Some(aur_comp) = components.iter().find(|c| {
             c.get("name")
                 .and_then(|n| n.as_str())
-                .map_or(false, |n| n.to_lowercase().contains("aur"))
+                .is_some_and(|n| n.to_lowercase().contains("aur"))
         })
         && let Some(state) = aur_comp.get("status").and_then(|s| s.as_str())
     {

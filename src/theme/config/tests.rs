@@ -103,8 +103,7 @@ mod tests {
         for key in &required_keys {
             assert!(
                 skeleton_keys.contains(*key),
-                "Missing required key '{}' in theme skeleton config",
-                key
+                "Missing required key '{key}' in theme skeleton config"
             );
         }
 
@@ -174,8 +173,7 @@ mod tests {
         for key in &required_keys {
             assert!(
                 generated_keys.contains(*key),
-                "Missing required key '{}' in generated theme skeleton file",
-                key
+                "Missing required key '{key}' in generated theme skeleton file"
             );
         }
 

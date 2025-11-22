@@ -246,7 +246,7 @@ exit 0
                 assert_eq!(repo, "core");
                 assert_eq!(arch, "x86_64");
             }
-            _ => panic!("expected official"),
+            crate::state::Source::Aur => panic!("expected official"),
         }
         assert_eq!(foo.version, "0.9"); // preserved from enriched
     }

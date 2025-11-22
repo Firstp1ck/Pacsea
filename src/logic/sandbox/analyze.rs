@@ -110,9 +110,9 @@ pub(super) fn analyze_dependencies(
             };
 
             // Check if version requirement is satisfied
-            let version_satisfied = installed_version.as_ref().map_or(false, |version| {
-                crate::logic::deps::version_satisfies(version, dep_spec)
-            });
+            let version_satisfied = installed_version
+                .as_ref()
+                .is_some_and(|version| crate::logic::deps::version_satisfies(version, dep_spec));
 
             Some(DependencyDelta {
                 name: dep_spec.clone(),

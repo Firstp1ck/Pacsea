@@ -183,11 +183,11 @@ mod tests {
         apply_filters_and_sort_preserve_selection(&mut app);
         assert!(app.results.iter().any(|p| match &p.source {
             Source::Official { repo, .. } => repo.to_lowercase().starts_with("cachyos"),
-            _ => false,
+            Source::Aur => false,
         }));
         assert!(app.results.iter().all(|p| match &p.source {
             Source::Official { repo, .. } => !repo.eq_ignore_ascii_case("endeavouros"),
-            _ => true,
+            Source::Aur => true,
         }));
     }
 
@@ -229,14 +229,14 @@ mod tests {
         apply_filters_and_sort_preserve_selection(&mut app);
         assert!(app.results.iter().all(|p| match &p.source {
             Source::Official { repo, .. } => repo.eq_ignore_ascii_case("core"),
-            _ => false,
+            Source::Aur => false,
         }));
 
         app.results_filter_show_multilib = true;
         apply_filters_and_sort_preserve_selection(&mut app);
         assert!(app.results.iter().any(|p| match &p.source {
             Source::Official { repo, .. } => repo.eq_ignore_ascii_case("weirdrepo"),
-            _ => false,
+            Source::Aur => false,
         }));
     }
 }

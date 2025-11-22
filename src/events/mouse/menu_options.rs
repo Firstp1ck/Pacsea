@@ -473,7 +473,7 @@ fn build_security_scanner_rows(
     let sleuth_installed = {
         let onpath = crate::install::command_on_path("aur-sleuth");
         let home = std::env::var("HOME").ok();
-        let user_local = home.as_deref().map_or(false, |h| {
+        let user_local = home.as_deref().is_some_and(|h| {
             std::path::Path::new(h)
                 .join(".local/bin/aur-sleuth")
                 .exists()

@@ -152,7 +152,7 @@ fn try_cache_subdirectories(name: &str, home: &str) -> Option<String> {
             let matches_name = path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .map_or(false, |n| n.contains(name));
+                .is_some_and(|n| n.contains(name));
 
             if !matches_name {
                 continue;
@@ -298,7 +298,7 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
             // If AUR returns 502 (Bad Gateway), don't try GitLab fallback
             // GitLab should only be used for official packages, not AUR packages
             // AUR 502 indicates a temporary AUR server issue, not that the package doesn't exist in AUR
-            output.status.code().map_or(false, |code| code == 22)
+            output.status.code().is_some_and(|code| code == 22)
         }
         _ => false,
     };

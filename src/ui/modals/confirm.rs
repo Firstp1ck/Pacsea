@@ -127,7 +127,7 @@ pub fn render_confirm_remove(f: &mut Frame, app: &AppState, area: Rect, items: &
     // Warn explicitly if any core packages are present
     let has_core = items.iter().any(|p| match &p.source {
         crate::state::Source::Official { repo, .. } => repo.eq_ignore_ascii_case("core"),
-        _ => false,
+        crate::state::Source::Aur => false,
     });
     if has_core {
         lines.push(Line::from(Span::styled(

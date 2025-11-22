@@ -119,8 +119,7 @@ fn try_spawn_terminal(
     configure_terminal_env(&mut cmd, term, is_wayland);
     let cmd_len = cmd_str.len();
     log_to_terminal_log(&format!(
-        "spawn term={} args={:?} xfce_mode={} cmd_len={}\n",
-        term, args, needs_xfce_command, cmd_len
+        "spawn term={term} args={args:?} xfce_mode={needs_xfce_command} cmd_len={cmd_len}\n"
     ));
     if detach_stdio {
         cmd.stdin(std::process::Stdio::null())
@@ -184,7 +183,7 @@ fn persist_command_to_log(cmd_str: &str) {
     if let Some(parent) = lp.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&lp, format!("{cmd}\n", cmd = cmd_str));
+    let _ = std::fs::write(&lp, format!("{cmd_str}\n"));
 }
 
 #[cfg(not(target_os = "windows"))]

@@ -152,7 +152,7 @@ pub fn get_installed_version(name: &str) -> Result<String, String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| format!("pacman -Q failed: {}", e))?;
+        .map_err(|e| format!("pacman -Q failed: {e}"))?;
 
     if !output.status.success() {
         return Err("Package not found".to_string());

@@ -1043,7 +1043,7 @@ fn record_right_aligned_button_rects(
 ///   controls cannot fit in the available width.
 /// - Extracts values from context and delegates to `record_title_rects`.
 pub fn record_title_rects_from_context(app: &mut AppState, ctx: &RenderContext, area: Rect) {
-    record_title_rects(app, area, &ctx.optional_repos)
+    record_title_rects(app, area, &ctx.optional_repos);
 }
 
 /// What: Record clickable rectangles for title bar controls.

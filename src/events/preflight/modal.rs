@@ -417,7 +417,7 @@ pub(super) fn switch_preflight_tab(
                     &mut preflight_sandbox_resolving,
                 );
             }
-            _ => {}
+            crate::state::PreflightTab::Summary => {}
         }
     }
 

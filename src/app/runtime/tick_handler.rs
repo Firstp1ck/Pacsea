@@ -325,7 +325,7 @@ fn handle_installed_cache_polling(
         return;
     }
 
-    let should_poll = app.next_installed_refresh_at.map_or(true, |t| now >= t);
+    let should_poll = app.next_installed_refresh_at.is_none_or(|t| now >= t);
     if !should_poll {
         return;
     }
