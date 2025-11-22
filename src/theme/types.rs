@@ -158,6 +158,7 @@ pub struct KeyChord {
 
 impl KeyChord {
     /// Return a short display label such as "Ctrl+R", "F1", "Shift+Del", "+/ ?".
+    #[must_use]
     pub fn label(&self) -> String {
         let mut parts: Vec<&'static str> = Vec::new();
         if self.mods.contains(KeyModifiers::CONTROL) {

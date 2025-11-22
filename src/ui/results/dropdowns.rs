@@ -66,9 +66,7 @@ fn calculate_menu_rect(
 ) -> (Rect, (u16, u16, u16, u16)) {
     let rect_w = menu_width.saturating_add(2);
     let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
-    let button_x = button_rect
-        .map(|(x, _, _, _)| x)
-        .unwrap_or(max_x);
+    let button_x = button_rect.map(|(x, _, _, _)| x).unwrap_or(max_x);
     let menu_x = button_x.min(max_x);
     let menu_y = results_area.y.saturating_add(1);
     let rect = Rect {
@@ -77,7 +75,12 @@ fn calculate_menu_rect(
         width: rect_w,
         height: menu_height,
     };
-    let inner_rect = (rect.x + 1, rect.y + 1, menu_width, menu_height.saturating_sub(2));
+    let inner_rect = (
+        rect.x + 1,
+        rect.y + 1,
+        menu_width,
+        menu_height.saturating_sub(2),
+    );
     (rect, inner_rect)
 }
 

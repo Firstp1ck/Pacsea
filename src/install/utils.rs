@@ -126,6 +126,7 @@ pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Opt
 ///
 /// Details:
 /// - Returns `''` for empty input so the shell treats it as an empty argument.
+#[must_use]
 pub fn shell_single_quote(s: &str) -> String {
     if s.is_empty() {
         return "''".to_string();

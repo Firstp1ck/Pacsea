@@ -190,6 +190,7 @@ pub(crate) fn join(list: &[String]) -> String {
 ///
 /// Details:
 /// - Uses binary units (KiB, MiB, GiB, etc.) and shows integer for bytes < 1024, otherwise 1 decimal place.
+#[must_use]
 pub fn format_bytes(value: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
     let mut size = value as f64;
@@ -215,6 +216,7 @@ pub fn format_bytes(value: u64) -> String {
 ///
 /// Details:
 /// - Uses `format_bytes` for magnitude and adds +/- prefix based on sign.
+#[must_use]
 pub fn format_signed_bytes(value: i64) -> String {
     if value == 0 {
         return "0 B".to_string();
@@ -238,6 +240,7 @@ pub fn format_signed_bytes(value: i64) -> String {
 /// Details:
 /// - Iteratively divides by 1024 up to PiB, retaining one decimal place for readability.
 /// - Always shows decimal place (unlike `format_bytes` which shows integer for bytes < 1024).
+#[must_use]
 pub fn human_bytes(n: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
     let mut v = n as f64;

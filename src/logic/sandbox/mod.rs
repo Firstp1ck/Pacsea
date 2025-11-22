@@ -227,6 +227,7 @@ pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInf
 ///
 /// Details:
 /// - Wraps the async version for use in blocking contexts.
+#[must_use]
 pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
     // Use tokio runtime handle if available, otherwise create a new runtime
     match tokio::runtime::Handle::try_current() {

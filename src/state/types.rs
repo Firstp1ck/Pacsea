@@ -127,6 +127,7 @@ impl SortMode {
     /// - Output: Static string representing the serialized value.
     /// - Details: Keeps `settings.conf` forward/backward compatible by
     ///   standardizing the keys stored on disk.
+    #[must_use]
     pub const fn as_config_key(&self) -> &'static str {
         match self {
             Self::RepoThenName => "alphabetical",
@@ -142,6 +143,7 @@ impl SortMode {
     ///   unrecognized keys.
     /// - Details: Accepts historical aliases to maintain compatibility with
     ///   earlier Pacsea releases.
+    #[must_use]
     pub fn from_config_key(s: &str) -> Option<Self> {
         match s.trim().to_lowercase().as_str() {
             "alphabetical" | "repo_then_name" | "pacman" => Some(Self::RepoThenName),

@@ -108,11 +108,13 @@ pub const fn is_artix_galaxy(repo: &str) -> bool {
 }
 
 /// What: Check if a repo name is the Artix world repository.
+#[must_use]
 pub const fn is_artix_world(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("world")
 }
 
 /// What: Check if a repo name is the Artix system repository.
+#[must_use]
 pub const fn is_artix_system(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("system")
 }
@@ -180,6 +182,7 @@ pub const fn artix_repo_names() -> &'static [&'static str] {
 ///
 /// Details:
 /// - Used when reconstructing installed-only items not present in the official index.
+#[must_use]
 pub fn is_eos_name(name: &str) -> bool {
     name.to_lowercase().contains("eos-")
 }

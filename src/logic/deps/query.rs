@@ -166,6 +166,7 @@ fn check_if_provided(name: &str, _installed: &HashSet<String>) -> Option<String>
 /// Details:
 /// - This function is kept for API compatibility but no longer builds the full provides set.
 /// - Provides are now checked on-demand using `check_if_provided()` for better performance.
+#[must_use]
 pub fn get_provided_packages(_installed: &HashSet<String>) -> HashSet<String> {
     // Return empty set - provides are now checked lazily on-demand
     // This avoids querying all installed packages upfront, which was very slow
@@ -186,6 +187,7 @@ pub fn get_provided_packages(_installed: &HashSet<String>) -> HashSet<String> {
 /// - First checks if the package is directly installed.
 /// - Then lazily checks if it's provided by any installed package using `pacman -Qqo`.
 /// - This handles cases like `rustup` providing `rust` efficiently without querying all packages upfront.
+#[must_use]
 pub fn is_package_installed_or_provided(
     name: &str,
     installed: &HashSet<String>,

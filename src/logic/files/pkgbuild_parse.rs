@@ -126,6 +126,7 @@ pub fn parse_backup_array_content(content: &str, backup_files: &mut Vec<String>)
 /// Details:
 /// - Parses key-value pairs: `backup = file1`
 /// - Handles multiple backup entries.
+#[must_use]
 pub fn parse_backup_from_srcinfo(srcinfo: &str) -> Vec<String> {
     let mut backup_files = Vec::new();
 
@@ -163,6 +164,7 @@ pub fn parse_backup_from_srcinfo(srcinfo: &str) -> Vec<String> {
 /// - Handles common patterns like `install -Dm755`, `cp`, `mkdir -p`, etc.
 /// - Extracts paths from `package()` functions that use `install` commands.
 /// - This is a best-effort heuristic and may not capture all files.
+#[must_use]
 pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<String> {
     let mut files = Vec::new();
     let mut in_package_function = false;

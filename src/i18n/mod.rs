@@ -113,6 +113,7 @@ pub fn find_config_file(relative_path: &str) -> Option<PathBuf> {
 ///   1. Development location: `CARGO_MANIFEST_DIR/config/locales` (prioritized when running from source)
 ///   2. Installed location: `/usr/share/pacsea/locales`
 /// - Development location is checked first to allow working with repo files during development
+#[must_use]
 pub fn find_locales_dir() -> Option<PathBuf> {
     // Try development location first (when running from source)
     // Note: locales are in config/locales/ in the dev environment
@@ -150,6 +151,7 @@ pub fn find_locales_dir() -> Option<PathBuf> {
 /// Details:
 /// - Uses translations from `AppState`
 /// - Falls back to English if translation missing
+#[must_use]
 pub fn t(app: &crate::state::AppState, key: &str) -> String {
     crate::i18n::translations::translate_with_fallback(
         key,

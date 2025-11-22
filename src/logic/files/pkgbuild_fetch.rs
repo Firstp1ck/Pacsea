@@ -211,6 +211,7 @@ fn try_cache_subdirectories(name: &str, home: &str) -> Option<String> {
 /// Details:
 /// - Checks yay cache (~/.cache/yay) and paru cache (~/.cache/paru).
 /// - Also tries using `yay -G` or `paru -G` commands.
+#[must_use]
 pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
     // Try helper commands first (fastest, uses helper's cache)
     if let Some(text) = try_helper_command("paru", name) {

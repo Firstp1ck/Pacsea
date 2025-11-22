@@ -133,6 +133,7 @@ pub(super) fn analyze_dependencies(
 ///
 /// Output:
 /// - Package name without version requirements or description.
+#[must_use]
 pub fn extract_package_name(dep_spec: &str) -> String {
     // Handle optdepends format: "package: description"
     let name = if let Some(colon_pos) = dep_spec.find(':') {

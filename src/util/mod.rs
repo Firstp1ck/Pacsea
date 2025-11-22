@@ -107,6 +107,7 @@ pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
 /// - String that parses as `u64`
 ///
 /// Returns `None` if no usable value is found.
+#[must_use]
 pub fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
     for k in keys {
         if let Some(n) = v.get(*k) {
@@ -141,6 +142,7 @@ use crate::state::Source;
 /// - `extra` => 1
 /// - other official repos => 2
 /// - AUR => 3
+#[must_use]
 pub fn repo_order(src: &Source) -> u8 {
     match src {
         Source::Official { repo, .. } => {
@@ -165,6 +167,7 @@ pub fn repo_order(src: &Source) -> u8 {
 /// - 1: prefix match (`starts_with`)
 /// - 2: substring match (`contains`)
 /// - 3: no match
+#[must_use]
 pub fn match_rank(name: &str, query_lower: &str) -> u8 {
     let n = name.to_lowercase();
     if !query_lower.is_empty() {
@@ -189,6 +192,7 @@ pub fn match_rank(name: &str, query_lower: &str) -> u8 {
 ///
 /// This implementation performs a simple conversion using loops and does not
 /// account for leap seconds.
+#[must_use]
 pub fn ts_to_date(ts: Option<i64>) -> String {
     let t = match ts {
         Some(v) => v,
@@ -397,6 +401,7 @@ pub fn open_url(url: &str) {
 /// - Windows: Adds `-k` to skip SSL verification
 /// - Adds User-Agent header to avoid being blocked by APIs
 /// - Appends `extra_args` and `url` at the end
+#[must_use]
 pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
     let mut args = vec!["-sSLf".to_string()];
 
@@ -425,6 +430,7 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
 ///
 /// This uses a simple conversion from Unix epoch seconds to a UTC calendar date,
 /// matching the same leap-year logic as `ts_to_date`.
+#[must_use]
 pub fn today_yyyymmdd_utc() -> String {
     let secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(dur) => dur.as_secs() as i64,

@@ -155,6 +155,7 @@ fn home_config_dir() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Prefers `$HOME/.config/pacsea`, falling back to `XDG_CONFIG_HOME/pacsea` when necessary.
+#[must_use]
 pub fn config_dir() -> PathBuf {
     // Prefer HOME ~/.config/pacsea first
     if let Some(dir) = home_config_dir() {
@@ -177,6 +178,7 @@ pub fn config_dir() -> PathBuf {
 ///
 /// Details:
 /// - Builds upon `config_dir()` and ensures a stable location for log files.
+#[must_use]
 pub fn logs_dir() -> PathBuf {
     let base = config_dir();
     let dir = base.join("logs");
@@ -194,6 +196,7 @@ pub fn logs_dir() -> PathBuf {
 ///
 /// Details:
 /// - Builds upon `config_dir()` and ensures storage for exported package lists.
+#[must_use]
 pub fn lists_dir() -> PathBuf {
     let base = config_dir();
     let dir = base.join("lists");

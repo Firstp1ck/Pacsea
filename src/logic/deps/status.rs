@@ -183,6 +183,7 @@ pub fn get_installed_version(name: &str) -> Result<String, String> {
 ///
 /// Details:
 /// - Uses straightforward string comparisons rather than full semantic version parsing, matching pacman's format.
+#[must_use]
 pub fn version_satisfies(installed: &str, requirement: &str) -> bool {
     // This is a simplified version checker
     // For production, use a proper version comparison library
