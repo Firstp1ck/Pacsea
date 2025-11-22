@@ -50,7 +50,7 @@ mod tests {
     /// What: Render each modal variant to ensure layout rects and state assignments succeed without panic.
     ///
     /// Inputs:
-    /// - Iterates through Alert, ConfirmInstall, ConfirmRemove (core item), Help, and News variants.
+    /// - Iterates through Alert, `ConfirmInstall`, `ConfirmRemove` (core item), Help, and News variants.
     ///
     /// Output:
     /// - Rendering completes without error, with Help and News variants setting their associated rectangles.

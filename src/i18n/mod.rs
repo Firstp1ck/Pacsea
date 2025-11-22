@@ -140,7 +140,7 @@ pub fn find_locales_dir() -> Option<PathBuf> {
 /// What: Get a translation for a given key from `AppState`.
 ///
 /// Inputs:
-/// - `app`: AppState containing translation maps
+/// - `app`: `AppState` containing translation maps
 /// - `key`: Dot-notation key (e.g., "app.titles.search")
 ///
 /// Output:

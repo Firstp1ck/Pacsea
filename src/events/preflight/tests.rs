@@ -702,7 +702,7 @@ fn installed_dependencies_counted_in_display_length() {
 }
 
 #[test]
-/// What: Verify that files are correctly displayed when file_info is populated.
+/// What: Verify that files are correctly displayed when `file_info` is populated.
 ///
 /// Inputs:
 /// - Preflight modal with `file_info` containing files for a package.
@@ -729,7 +729,7 @@ fn files_displayed_when_file_info_populated() {
 }
 
 #[test]
-/// What: Verify that empty file_info shows correct empty state.
+/// What: Verify that empty `file_info` shows correct empty state.
 ///
 /// Inputs:
 /// - Preflight modal with empty `file_info` but packages in items.

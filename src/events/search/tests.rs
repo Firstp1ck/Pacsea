@@ -371,7 +371,7 @@ fn helpers_navigate_pane_directions() {
 /// - Press Space with a selected item in normal and installed-only modes.
 ///
 /// Output:
-/// - Items are sent to add_tx in normal mode, or added to remove_list in installed-only mode.
+/// - Items are sent to `add_tx` in normal mode, or added to `remove_list` in installed-only mode.
 ///
 /// Details:
 /// - Validates that Space correctly routes items based on `installed_only_mode` flag.

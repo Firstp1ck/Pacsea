@@ -823,7 +823,7 @@ invalid_line_without_equals
     /// - Correctly parses and assigns news keybinds to settings.
     ///
     /// Details:
-    /// - Tests parsing of news_mark_read and news_mark_all_read keybinds.
+    /// - Tests parsing of `news_mark_read` and `news_mark_all_read` keybinds.
     /// - Verifies that both keybinds are loaded correctly.
     fn test_parse_news_keybinds() {
         let mut settings = Settings::default();

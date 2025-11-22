@@ -426,9 +426,9 @@ mod tests {
     }
 
     #[test]
-    /// What: Optional Deps shows Wayland clipboard (wl-clipboard) when WAYLAND_DISPLAY is set
+    /// What: Optional Deps shows Wayland clipboard (`wl-clipboard`) when `WAYLAND_DISPLAY` is set
     ///
-    /// - Setup: Empty PATH; set WAYLAND_DISPLAY
+    /// - Setup: Empty PATH; set `WAYLAND_DISPLAY`
     /// - Expect: A row "Clipboard: wl-clipboard" with note "Wayland", not installed and selectable
     fn optional_deps_rows_wayland_shows_wl_clipboard() {
         let _guard = crate::global_test_mutex_lock();

@@ -1,14 +1,14 @@
-//! Unit tests for sync_services function.
+//! Unit tests for `sync_services` function.
 
 use super::sync;
 use crate::state::AppState;
 use crate::state::modal::{PreflightAction, ServiceImpact, ServiceRestartDecision};
 use crate::state::{PackageItem, Source};
 
-/// What: Test sync_services early return for Remove action.
+/// What: Test `sync_services` early return for Remove action.
 ///
 /// Inputs:
-/// - `action`: PreflightAction::Remove
+/// - `action`: `PreflightAction::Remove`
 /// - `service_info`: Empty vector
 ///
 /// Output:
@@ -44,10 +44,10 @@ fn test_sync_services_early_return_remove() {
     assert!(!services_loaded);
 }
 
-/// What: Test sync_services filters services by providers.
+/// What: Test `sync_services` filters services by providers.
 ///
 /// Inputs:
-/// - `app`: AppState with cached service info
+/// - `app`: `AppState` with cached service info
 /// - `items`: Packages that provide services
 ///
 /// Output:
@@ -104,7 +104,7 @@ fn test_sync_services_filters_by_providers() {
     assert!(services_loaded);
 }
 
-/// What: Test sync_services adjusts selection when out of bounds.
+/// What: Test `sync_services` adjusts selection when out of bounds.
 ///
 /// Inputs:
 /// - `service_info`: 3 services

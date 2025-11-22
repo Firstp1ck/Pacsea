@@ -267,7 +267,7 @@ mod tests {
     /// What: Initialize minimal English translations for install tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with install-related translations

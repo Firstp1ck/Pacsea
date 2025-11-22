@@ -111,7 +111,7 @@ pub struct AppState {
     pub search_normal_mode: bool,
 
     /// Caret position (in characters) within the `Search` input.
-    /// Always clamped to the range 0..=input.chars().count().
+    /// Always clamped to the range 0..=`input.chars().count()`.
     pub search_caret: usize,
     /// Selection anchor (in characters) for the Search input when selecting text.
     /// When `None`, no selection is active. When `Some(i)`, the selected range is

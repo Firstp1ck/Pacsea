@@ -220,7 +220,7 @@ mod tests {
     /// Inputs: None
     ///
     /// Output:
-    /// - HashSet of expected Settings key names.
+    /// - `HashSet` of expected Settings key names.
     ///
     /// Details:
     /// - Returns the list of all expected Settings keys (excluding keymap which is in keybinds.conf).
@@ -399,7 +399,7 @@ mod tests {
     /// What: Restore original environment variables.
     ///
     /// Inputs:
-    /// - Original HOME and XDG_CONFIG_HOME values.
+    /// - Original HOME and `XDG_CONFIG_HOME` values.
     ///
     /// Output: None
     ///
@@ -428,7 +428,7 @@ mod tests {
     /// Inputs: None
     ///
     /// Output:
-    /// - Tuple of (base directory, config directory, original HOME, original XDG_CONFIG_HOME)
+    /// - Tuple of (base directory, config directory, original HOME, original `XDG_CONFIG_HOME`)
     ///
     /// Details:
     /// - Creates temporary directory structure and sets environment variables for isolated testing.
@@ -482,7 +482,7 @@ mod tests {
     /// Output: None (panics on failure)
     ///
     /// Details:
-    /// - Verifies that calling ensure_settings_keys_present creates a config file with all required keys.
+    /// - Verifies that calling `ensure_settings_keys_present` creates a config file with all required keys.
     fn test_missing_config_generation(
         settings_path: &std::path::Path,
         expected_keys: &std::collections::HashSet<&str>,
@@ -515,7 +515,7 @@ mod tests {
     /// Output: None (panics on failure)
     ///
     /// Details:
-    /// - Creates a minimal config and verifies that ensure_settings_keys_present adds missing keys while preserving existing ones.
+    /// - Creates a minimal config and verifies that `ensure_settings_keys_present` adds missing keys while preserving existing ones.
     fn test_missing_keys_added(
         settings_path: &std::path::Path,
         expected_keys: &std::collections::HashSet<&str>,

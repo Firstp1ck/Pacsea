@@ -1,14 +1,14 @@
-//! Unit tests for sync_files function.
+//! Unit tests for `sync_files` function.
 
 use super::sync;
 use crate::state::AppState;
 use crate::state::modal::{FileChange, FileChangeType, PackageFileInfo, PreflightTab};
 use crate::state::{PackageItem, Source};
 
-/// What: Test sync_files early return when not on Files tab.
+/// What: Test `sync_files` early return when not on Files tab.
 ///
 /// Inputs:
-/// - `tab`: PreflightTab::Summary
+/// - `tab`: `PreflightTab::Summary`
 /// - `file_info`: Empty vector
 ///
 /// Output:
@@ -35,10 +35,10 @@ fn test_sync_files_early_return_wrong_tab() {
     assert!(file_info.is_empty());
 }
 
-/// What: Test sync_files filters files by package name.
+/// What: Test `sync_files` filters files by package name.
 ///
 /// Inputs:
-/// - `app`: AppState with cached file info
+/// - `app`: `AppState` with cached file info
 /// - `items`: Packages to filter by
 ///
 /// Output:
@@ -100,7 +100,7 @@ fn test_sync_files_filters_by_package_name() {
     assert_eq!(file_selected, 0);
 }
 
-/// What: Test sync_files resets selection when files change.
+/// What: Test `sync_files` resets selection when files change.
 ///
 /// Inputs:
 /// - `file_info`: Empty

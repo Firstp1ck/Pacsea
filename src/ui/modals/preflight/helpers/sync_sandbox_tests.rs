@@ -1,14 +1,14 @@
-//! Unit tests for sync_sandbox function.
+//! Unit tests for `sync_sandbox` function.
 
 use super::sync;
 use crate::state::AppState;
 use crate::state::modal::{PreflightAction, PreflightTab};
 use crate::state::{PackageItem, Source};
 
-/// What: Test sync_sandbox early return for Remove action.
+/// What: Test `sync_sandbox` early return for Remove action.
 ///
 /// Inputs:
-/// - `action`: PreflightAction::Remove
+/// - `action`: `PreflightAction::Remove`
 /// - `sandbox_info`: Empty vector
 ///
 /// Output:
@@ -47,10 +47,10 @@ fn test_sync_sandbox_early_return_remove() {
     assert!(sandbox_loaded);
 }
 
-/// What: Test sync_sandbox early return when not on Sandbox tab.
+/// What: Test `sync_sandbox` early return when not on Sandbox tab.
 ///
 /// Inputs:
-/// - `tab`: PreflightTab::Summary
+/// - `tab`: `PreflightTab::Summary`
 /// - `sandbox_info`: Empty vector
 ///
 /// Output:

@@ -537,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that `initialize_app_state` sets dry_run flag correctly.
+    /// What: Verify that `initialize_app_state` sets `dry_run` flag correctly.
     ///
     /// Inputs:
     /// - `AppState`

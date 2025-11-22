@@ -146,7 +146,7 @@ static GLOBAL_TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync:
 ///
 /// Details:
 /// - Lazily initializes a global `Mutex` via `OnceLock` for cross-test coordination.
-/// - All tests that modify PATH, WAYLAND_DISPLAY, or other global environment variables should use this mutex.
+/// - All tests that modify PATH, `WAYLAND_DISPLAY`, or other global environment variables should use this mutex.
 /// - This ensures tests run serially even when --test-threads=1 is used, preventing race conditions.
 /// - Handles poisoned mutexes gracefully by recovering from panics in previous tests.
 pub fn global_test_mutex() -> &'static std::sync::Mutex<()> {

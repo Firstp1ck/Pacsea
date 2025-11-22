@@ -224,7 +224,7 @@ fi)"#.to_string());
 /// - Appends `VirusTotal` lookup commands to the vector.
 ///
 /// Details:
-/// - Looks up SHA256 hashes of `PKGBUILD` and `src` files in `VirusTotal`.
+/// - Looks up `SHA256` hashes of `PKGBUILD` and `src` files in `VirusTotal`.
 /// - Requires `VT_API_KEY` environment variable or config setting.
 /// - Respects `PACSEA_SCAN_DO_VIRUSTOTAL` environment variable.
 #[cfg(not(target_os = "windows"))]

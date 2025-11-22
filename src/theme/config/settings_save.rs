@@ -317,7 +317,7 @@ pub fn save_mirror_count(value: u16) {
     save_string_key("mirror_count", &value.to_string())
 }
 
-/// What: Persist the VirusTotal API key used for scanning packages.
+/// What: Persist the `VirusTotal` API key used for scanning packages.
 ///
 /// Inputs:
 /// - `value`: API key string supplied by the user.
@@ -331,10 +331,10 @@ pub fn save_virustotal_api_key(value: &str) {
     save_string_key("virustotal_api_key", value)
 }
 
-/// What: Persist the ClamAV scan toggle.
+/// What: Persist the `ClamAV` scan toggle.
 ///
 /// Inputs:
-/// - `value`: Whether ClamAV scans should run by default.
+/// - `value`: Whether `ClamAV` scans should run by default.
 ///
 /// Output:
 /// - None.
@@ -370,10 +370,10 @@ pub fn save_scan_do_trivy(value: bool) {
 pub fn save_scan_do_semgrep(value: bool) {
     save_boolean_key("scan_do_semgrep", value)
 }
-/// What: Persist the ShellCheck scan toggle.
+/// What: Persist the `ShellCheck` scan toggle.
 ///
 /// Inputs:
-/// - `value`: Whether ShellCheck scans should run by default.
+/// - `value`: Whether `ShellCheck` scans should run by default.
 ///
 /// Output:
 /// - None.
@@ -383,10 +383,10 @@ pub fn save_scan_do_semgrep(value: bool) {
 pub fn save_scan_do_shellcheck(value: bool) {
     save_boolean_key("scan_do_shellcheck", value)
 }
-/// What: Persist the VirusTotal scan toggle.
+/// What: Persist the `VirusTotal` scan toggle.
 ///
 /// Inputs:
-/// - `value`: Whether VirusTotal scans should run by default.
+/// - `value`: Whether `VirusTotal` scans should run by default.
 ///
 /// Output:
 /// - None.

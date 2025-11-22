@@ -9,9 +9,9 @@ use crate::theme::types::Settings;
 /// - None (modifies `settings` in-place).
 ///
 /// Details:
-/// - Ensures mirror_count is between 1 and 200 (defaults to 20 if 0).
-/// - Normalizes selected_countries by trimming and formatting comma-separated values.
-/// - Trims whitespace from VirusTotal API key.
+/// - Ensures `mirror_count` is between 1 and 200 (defaults to 20 if 0).
+/// - Normalizes `selected_countries` by trimming and formatting comma-separated values.
+/// - Trims whitespace from `VirusTotal` API key.
 pub fn normalize(settings: &mut Settings) {
     // Normalize mirror settings parsed from settings.conf
     if settings.mirror_count == 0 {
