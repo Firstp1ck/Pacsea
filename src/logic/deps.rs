@@ -124,7 +124,7 @@ fn process_conflicts(
         // in the UI as having a conflict
         if is_in_install_list {
             let reverse_reason =
-                format!("conflicts with package {} in install list", conflict_name);
+                format!("conflicts with package {conflict_name} in install list");
             let current_entry = deps.entry(item.name.clone()).or_insert_with(|| {
                 // Determine source for current package
                 let (dep_source, is_core) =

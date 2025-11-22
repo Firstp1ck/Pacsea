@@ -227,7 +227,7 @@ fn resolve_local_package_deps(
         .output()
         .map_err(|e| {
             tracing::error!("Failed to execute pacman -Qi {}: {}", name, e);
-            format!("pacman -Qi failed: {}", e)
+            format!("pacman -Qi failed: {e}")
         })?;
 
     if !output.status.success() {
@@ -287,7 +287,7 @@ fn resolve_official_package_deps(
         .output()
         .map_err(|e| {
             tracing::error!("Failed to execute pacman -Si {}: {}", name, e);
-            format!("pacman -Si failed: {}", e)
+            format!("pacman -Si failed: {e}")
         })?;
 
     if !output.status.success() {
@@ -298,7 +298,7 @@ fn resolve_official_package_deps(
             output.status.code(),
             stderr
         );
-        return Err(format!("pacman -Si failed for {}: {}", name, stderr));
+        return Err(format!("pacman -Si failed for {name}: {stderr}"));
     }
 
     let text = String::from_utf8_lossy(&output.stdout);

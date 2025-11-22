@@ -233,8 +233,7 @@ mod tests {
         let command_idx = command_idx.unwrap();
         assert!(
             command_idx + 1 < lines.len(),
-            "--command found at index {} but no following argument. Lines: {:?}",
-            command_idx,
+            "--command found at index {command_idx} but no following argument. Lines: {:?}",
             lines
         );
         assert!(
@@ -404,7 +403,7 @@ mod tests {
                 assert!(!yay.installed);
                 assert!(yay.selectable);
             }
-            other => panic!("Expected OptionalDeps modal, got {:?}", other),
+            other => panic!("Expected OptionalDeps modal, got {other:?}"),
         }
 
         // Restore environment
@@ -522,7 +521,7 @@ mod tests {
                     "xclip should not be listed on Wayland"
                 );
             }
-            other => panic!("Expected OptionalDeps modal, got {:?}", other),
+            other => panic!("Expected OptionalDeps modal, got {other:?}"),
         }
 
         // Restore env and cleanup

@@ -166,7 +166,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool)
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
     let joined = _cmds.join(" && ");
     let cmd_str = if _hold {
-        format!("{joined}{hold}", hold = hold_tail)
+        format!("{joined}{hold_tail}")
     } else {
         joined.clone()
     };
@@ -370,7 +370,7 @@ mod tests {
         }
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
-        assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+        assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
         assert_eq!(lines[0], "--");
         assert_eq!(lines[1], "bash");
         assert_eq!(lines[2], "-lc");

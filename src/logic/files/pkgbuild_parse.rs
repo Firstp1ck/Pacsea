@@ -230,7 +230,10 @@ pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<S
                         path.remove(0);
                     }
                     if !path.is_empty() {
-                        files.push(format!("/{}", path));
+                        {
+                            let path_str = &path;
+                            files.push(format!("/{path_str}"));
+                        }
                     }
                 }
             } else if trimmed.contains("cp") && trimmed.contains("$pkgdir") {
@@ -253,7 +256,10 @@ pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<S
                         path.remove(0);
                     }
                     if !path.is_empty() {
-                        files.push(format!("/{}", path));
+                        {
+                            let path_str = &path;
+                            files.push(format!("/{path_str}"));
+                        }
                     }
                 }
             }
@@ -267,8 +273,8 @@ pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<S
     // If we didn't find any files, try to infer common paths based on package name
     if files.is_empty() {
         // Common default paths for AUR packages
-        files.push(format!("/usr/bin/{}", pkgname));
-        files.push(format!("/usr/share/{}", pkgname));
+        files.push(format!("/usr/bin/{pkgname}"));
+        files.push(format!("/usr/share/{pkgname}"));
     }
 
     files

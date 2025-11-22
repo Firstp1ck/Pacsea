@@ -109,7 +109,7 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
         && !aur_name.eq_ignore_ascii_case(name)
         && (*aur_ratio < 100.0 || *aur_color_str != "green")
     {
-        text.push_str(&format!(" (AUR: {:.1}%)", aur_ratio));
+        text.push_str(&format!(" (AUR: {aur_ratio:.1}%)"));
     }
 
     Some((text, color))

@@ -276,7 +276,7 @@ mod tests {
 
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
-        assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+        assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
         assert_eq!(lines[0], "--");
         assert_eq!(lines[1], "bash");
         assert_eq!(lines[2], "-lc");

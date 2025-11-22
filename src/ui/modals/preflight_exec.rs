@@ -247,13 +247,15 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
     let mut spans = Vec::new();
 
     // Package count chip
-    let pkg_text = if chips.aur_count > 0 {
-        format!("{} ({} AUR)", chips.package_count, chips.aur_count)
+    let package_count = chips.package_count;
+    let aur_count = chips.aur_count;
+    let pkg_text = if aur_count > 0 {
+        format!("{package_count} ({aur_count} AUR)")
     } else {
-        format!("{}", chips.package_count)
+        format!("{package_count}")
     };
     spans.push(Span::styled(
-        format!("[{}]", pkg_text),
+        format!("[{pkg_text}]"),
         Style::default()
             .fg(th.sapphire)
             .add_modifier(Modifier::BOLD),

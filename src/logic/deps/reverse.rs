@@ -401,14 +401,14 @@ fn convert_entry(name: String, entry: AggregatedEntry) -> DependencyInfo {
         parents.sort();
 
         if depth <= 1 {
-            reason_parts.push(format!("requires {}", root));
+            reason_parts.push(format!("requires {root}"));
         } else {
             let via = if parents.is_empty() {
                 "unknown".to_string()
             } else {
                 parents.join(", ")
             };
-            reason_parts.push(format!("blocks {} (depth {} via {})", root, depth, via));
+            reason_parts.push(format!("blocks {root} (depth {depth} via {via})"));
         }
     }
 
@@ -478,7 +478,7 @@ fn fetch_pkg_info(name: &str) -> Result<PkgInfo, String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| format!("pacman -Qi {} failed: {}", name, e))?;
+        .map_err(|e| format!("pacman -Qi {name} failed: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

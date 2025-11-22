@@ -110,7 +110,7 @@ pub fn get_backup_files_from_installed(name: &str) -> Result<Vec<String>, String
         .output()
         .map_err(|e| {
             tracing::error!("Failed to execute pacman -Qii {}: {}", name, e);
-            format!("pacman -Qii failed: {}", e)
+            format!("pacman -Qii failed: {e}")
         })?;
 
     if !output.status.success() {
@@ -126,7 +126,7 @@ pub fn get_backup_files_from_installed(name: &str) -> Result<Vec<String>, String
             output.status.code(),
             stderr
         );
-        return Err(format!("pacman -Qii failed for {}: {}", name, stderr));
+        return Err(format!("pacman -Qii failed for {name}: {stderr}"));
     }
 
     let text = String::from_utf8_lossy(&output.stdout);

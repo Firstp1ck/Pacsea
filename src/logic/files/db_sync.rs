@@ -137,14 +137,14 @@ pub fn ensure_file_db_synced(force: bool, max_age_days: u64) -> Result<bool, Str
         .env("LC_ALL", "C")
         .env("LANG", "C")
         .output()
-        .map_err(|e| format!("Failed to execute pacman -Fy: {}", e))?;
+        .map_err(|e| format!("Failed to execute pacman -Fy: {e}"))?;
 
     if output.status.success() {
         tracing::debug!("File database sync successful");
         Ok(true)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let error_msg = format!("File database sync failed: {}", stderr);
+        let error_msg = format!("File database sync failed: {stderr}");
         tracing::warn!("{}", error_msg);
         Err(error_msg)
     }

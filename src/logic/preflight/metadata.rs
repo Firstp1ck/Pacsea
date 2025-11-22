@@ -236,8 +236,8 @@ fn find_aur_package_file(name: &str, version: Option<&str>) -> Option<PathBuf> {
     // Try AUR helper caches
     if let Ok(home) = std::env::var("HOME") {
         let cache_paths = [
-            format!("{}/.cache/paru/clone/{}", home, name),
-            format!("{}/.cache/yay/{}", home, name),
+            format!("{home}/.cache/paru/clone/{name}"),
+            format!("{home}/.cache/yay/{name}"),
         ];
 
         for cache_base in cache_paths {

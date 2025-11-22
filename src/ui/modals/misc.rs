@@ -137,7 +137,7 @@ pub fn render_scan_config(
         let mark = if *checked { "[x]" } else { "[ ]" };
         let mut spans: Vec<Span> = Vec::new();
         spans.push(Span::styled(
-            format!("{} ", mark),
+            format!("{mark} "),
             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
         ));
         let style = if i == cursor {
@@ -289,7 +289,7 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
             Style::default().fg(th.subtext1),
         )),
         Line::from(Span::styled(
-            format!("API key: {}", shown),
+            format!("API key: {shown}"),
             Style::default().fg(th.text),
         )),
         Line::from(""),

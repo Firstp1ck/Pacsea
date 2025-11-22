@@ -576,7 +576,7 @@ fn render_missing_package_header(
             .add_modifier(Modifier::BOLD)
     };
     let spans = vec![
-        Span::styled(format!("{} {} ", arrow_symbol, pkg_name), header_style),
+        Span::styled(format!("{arrow_symbol} {pkg_name} "), header_style),
         Span::styled("(0 files)", Style::default().fg(th.subtext1)),
     ];
     Line::from(spans)
@@ -700,7 +700,7 @@ fn render_file_entry(
     } else {
         Style::default().fg(color)
     };
-    let mut spans = vec![Span::styled(format!("  {} ", icon), icon_style)];
+    let mut spans = vec![Span::styled(format!("  {icon} "), icon_style)];
 
     if is_config {
         let cfg_style = if let Some(bg) = highlight_bg {

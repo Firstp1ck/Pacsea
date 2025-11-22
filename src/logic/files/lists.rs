@@ -135,7 +135,7 @@ fn get_official_file_list(name: &str, repo: &str) -> Result<Vec<String>, String>
     let spec = if repo.is_empty() {
         name.to_string()
     } else {
-        format!("{}/{}", repo, name)
+        format!("{repo}/{name}")
     };
 
     let output = Command::new("pacman")
@@ -145,7 +145,7 @@ fn get_official_file_list(name: &str, repo: &str) -> Result<Vec<String>, String>
         .output()
         .map_err(|e| {
             tracing::error!("Failed to execute pacman -Fl {}: {}", spec, e);
-            format!("pacman -Fl failed: {}", e)
+            format!("pacman -Fl failed: {e}")
         })?;
 
     if !output.status.success() {
@@ -164,7 +164,7 @@ fn get_official_file_list(name: &str, repo: &str) -> Result<Vec<String>, String>
             output.status.code(),
             stderr
         );
-        return Err(format!("pacman -Fl failed for {}: {}", spec, stderr));
+        return Err(format!("pacman -Fl failed for {spec}: {stderr}"));
     }
 
     let files = parse_file_list_from_output(&output.stdout);
@@ -209,7 +209,7 @@ pub fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
         .output()
         .map_err(|e| {
             tracing::error!("Failed to execute pacman -Ql {}: {}", name, e);
-            format!("pacman -Ql failed: {}", e)
+            format!("pacman -Ql failed: {e}")
         })?;
 
     if !output.status.success() {
@@ -225,7 +225,7 @@ pub fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
             output.status.code(),
             stderr
         );
-        return Err(format!("pacman -Ql failed for {}: {}", name, stderr));
+        return Err(format!("pacman -Ql failed for {name}: {stderr}"));
     }
 
     let files = parse_file_list_from_output(&output.stdout);

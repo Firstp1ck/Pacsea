@@ -316,7 +316,7 @@ pub(crate) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> 
 
             if app.dry_run {
                 crate::install::spawn_shell_commands_in_terminal(&[format!(
-                    "echo DRY RUN: {}",
+                    "echo DRY RUN: {cmd}",
                     cmd
                 )]);
             } else {
