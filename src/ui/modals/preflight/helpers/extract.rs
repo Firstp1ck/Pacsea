@@ -6,7 +6,7 @@ use crate::state::modal::{
 use crate::state::{Modal, PackageItem};
 use std::collections::{HashMap, HashSet};
 
-/// What: Holds all extracted fields from Modal::Preflight variant.
+/// What: Holds all extracted fields from `Modal::Preflight` variant.
 ///
 /// Inputs: None (struct definition).
 ///
@@ -42,7 +42,7 @@ pub struct PreflightFields<'a> {
     pub cascade_mode: &'a CascadeMode,
 }
 
-/// What: Extract all fields from Modal::Preflight variant into a struct.
+/// What: Extract all fields from `Modal::Preflight` variant into a struct.
 ///
 /// Inputs:
 /// - `modal`: Mutable reference to Modal enum.

@@ -225,7 +225,7 @@ pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
     f.render_widget(boxw, rect);
 }
 
-/// What: Render the VirusTotal API setup modal with clickable URL and current input preview.
+/// What: Render the `VirusTotal` API setup modal with clickable URL and current input preview.
 ///
 /// Inputs:
 /// - `f`: Frame to render into

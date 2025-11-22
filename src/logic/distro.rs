@@ -174,7 +174,7 @@ mod tests {
     /// What: Confirm label helper emits ecosystem-specific aliases for recognised repositories.
     ///
     /// Inputs:
-    /// - Repository/name permutations covering EndeavourOS, CachyOS, Artix Linux (with specific repo labels), Manjaro, and a generic repo.
+    /// - Repository/name permutations covering `EndeavourOS`, `CachyOS`, `Artix Linux` (with specific repo labels), `Manjaro`, and a generic repo.
     ///
     /// Output:
     /// - Labels reduce to `EOS`, `CachyOS`, `OMNI`, `UNI` (for specific Artix repos), `Manjaro`, and the original repo name respectively.

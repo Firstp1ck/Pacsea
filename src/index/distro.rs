@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Confirm repo heuristics for EOS and CachyOS.
+    /// What: Confirm repo heuristics for `EOS` and `CachyOS`.
     ///
     /// Inputs:
     /// - Various repo strings spanning expected matches and misses.

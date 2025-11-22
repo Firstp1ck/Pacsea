@@ -18,7 +18,7 @@ use crate::theme::theme;
 /// - `source`: The dependency source.
 ///
 /// Output:
-/// - Returns a tuple of (badge_text, color).
+/// - Returns a tuple of (`badge_text`, `color`).
 ///
 /// Details:
 /// - Formats repository names, AUR, and local sources with appropriate colors.
@@ -417,10 +417,10 @@ const CASCADE_PREVIEW_MAX: usize = 8;
 ///
 /// Inputs:
 /// - `removal_targets`: Set of package names to be removed (lowercase).
-/// - `allows_dependents`: Cached value of cascade_mode.allows_dependents().
+/// - `allows_dependents`: Cached value of `cascade_mode.allows_dependents()`.
 ///
 /// Output:
-/// - Returns a CascadeRenderingContext struct.
+/// - Returns a `CascadeRenderingContext` struct.
 ///
 /// Details:
 /// - Groups related data to reduce parameter passing and variable scope.
@@ -437,10 +437,10 @@ impl CascadeRenderingContext {
     /// - `cascade_mode`: Removal cascade mode.
     ///
     /// Output:
-    /// - Returns a CascadeRenderingContext.
+    /// - Returns a `CascadeRenderingContext`.
     ///
     /// Details:
-    /// - Pre-computes removal targets and allows_dependents flag.
+    /// - Pre-computes removal targets and `allows_dependents` flag.
     fn new(items: &[PackageItem], cascade_mode: CascadeMode) -> Self {
         let removal_targets: std::collections::HashSet<String> = items
             .iter()
@@ -462,7 +462,7 @@ impl CascadeRenderingContext {
     /// - Returns true if dependency is directly dependent.
     ///
     /// Details:
-    /// - Checks if any parent in depends_on is in removal_targets.
+    /// - Checks if any parent in `depends_on` is in `removal_targets`.
     fn is_direct_dependent(&self, dep: &DependencyInfo) -> bool {
         dep.depends_on
             .iter()
@@ -479,7 +479,7 @@ impl CascadeRenderingContext {
 /// - `roots`: Formatted string of packages that require this dependency.
 ///
 /// Output:
-/// - Returns a DependencyDisplayInfo struct.
+/// - Returns a `DependencyDisplayInfo` struct.
 ///
 /// Details:
 /// - Groups all display-related data for a dependency.
@@ -498,7 +498,7 @@ struct DependencyDisplayInfo {
 /// - `th`: Theme colors.
 ///
 /// Output:
-/// - Returns a tuple of (bullet, name_color).
+/// - Returns a tuple of (`bullet`, `name_color`).
 ///
 /// Details:
 /// - Simplifies conditional logic for bullet and color selection.
@@ -557,11 +557,11 @@ fn get_dependency_detail(app: &AppState, status: &DependencyStatus) -> String {
 /// - `is_direct`: Pre-computed flag indicating if dependency is directly dependent.
 ///
 /// Output:
-/// - Returns DependencyDisplayInfo.
+/// - Returns `DependencyDisplayInfo`.
 ///
 /// Details:
 /// - Prepares all display data for a dependency in one place.
-/// - Uses pre-computed is_direct to avoid recalculation.
+/// - Uses pre-computed `is_direct` to avoid recalculation.
 fn build_dependency_display_info(
     app: &AppState,
     dep: &DependencyInfo,
@@ -662,7 +662,7 @@ fn render_cascade_mode_header(app: &AppState, cascade_mode: CascadeMode) -> Vec<
 /// What: Render removal plan command.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n and dry_run flag.
+/// - `app`: Application state for i18n and `dry_run` flag.
 /// - `items`: Packages to remove.
 /// - `cascade_mode`: Removal cascade mode.
 ///
@@ -774,7 +774,7 @@ fn render_dependent_summary(
 /// What: Render removal impact overview.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n and remove_preflight_summary.
+/// - `app`: Application state for i18n and `remove_preflight_summary`.
 ///
 /// Output:
 /// - Returns a vector of lines to render.
@@ -864,10 +864,10 @@ fn get_impact_header(app: &AppState, allows_dependents: bool) -> (String, Style)
 /// - `ctx`: Cascade rendering context.
 ///
 /// Output:
-/// - Returns sorted vector of cascade candidates with is_direct flag.
+/// - Returns sorted vector of cascade candidates with `is_direct` flag.
 ///
 /// Details:
-/// - Prepares cascade candidates with pre-computed is_direct flag to avoid recomputation.
+/// - Prepares cascade candidates with pre-computed `is_direct` flag to avoid recomputation.
 fn prepare_cascade_candidates<'a>(
     dependency_info: &'a [DependencyInfo],
     ctx: &CascadeRenderingContext,
@@ -884,7 +884,7 @@ fn prepare_cascade_candidates<'a>(
 ///
 /// Inputs:
 /// - `app`: Application state for i18n.
-/// - `candidates`: Prepared cascade candidates with is_direct flags.
+/// - `candidates`: Prepared cascade candidates with `is_direct` flags.
 /// - `ctx`: Cascade rendering context.
 ///
 /// Output:

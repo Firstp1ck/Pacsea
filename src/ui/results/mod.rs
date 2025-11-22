@@ -129,7 +129,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: Application state for list items and list_state
+/// - `app`: Application state for list items and `list_state`
 /// - `area`: Target rectangle for the results block
 /// - `title_spans`: Pre-built title spans
 ///
@@ -138,7 +138,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 ///
 /// Details:
 /// - Builds list items only for visible viewport to improve performance.
-/// - Mutates app.list_state during rendering.
+/// - Mutates `app.list_state` during rendering.
 fn render_list_widget(
     f: &mut Frame,
     app: &mut AppState,

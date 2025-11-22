@@ -252,7 +252,7 @@ fn get_completion_highlight_color(
 ///
 /// Output: Returns true if the tab is active.
 ///
-/// Details: Maps tab indices to PreflightTab enum variants.
+/// Details: Maps tab indices to `PreflightTab` enum variants.
 fn is_tab_active(tab_idx: usize, current_tab: PreflightTab) -> bool {
     matches!(
         (tab_idx, current_tab),
@@ -381,7 +381,7 @@ fn create_tab_label_span(
 /// - `th`: Theme reference.
 /// - `tab_rects`: Mutable reference to tab rectangles array.
 ///
-/// Output: Returns tuple of (spans for this tab, new tab_x position).
+/// Output: Returns tuple of (spans for this tab, new `tab_x` position).
 ///
 /// Details: Builds status icon and label spans, stores rectangle for mouse clicks.
 #[allow(clippy::too_many_arguments)]

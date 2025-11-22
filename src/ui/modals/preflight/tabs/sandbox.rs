@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 ///
 /// Details:
 /// - Represents a display item in the sandbox tab.
-/// - Format: (is_header, package_name, Option<(dep_type, dep_name, dep_info)>)
+/// - Format: (`is_header`, `package_name`, `Option<`(`dep_type`, `dep_name`, `dep_info`)`>`)
 type SandboxDisplayItem = (
     bool,
     String,
@@ -85,7 +85,7 @@ struct SandboxRenderData {
 /// - `ctx`: Sandbox tab context.
 ///
 /// Output:
-/// - Returns SandboxRenderState enum indicating what should be rendered.
+/// - Returns `SandboxRenderState` enum indicating what should be rendered.
 ///
 /// Details:
 /// - Centralizes state checking logic to reduce data flow complexity.
@@ -120,7 +120,7 @@ fn determine_sandbox_state(app: &AppState, ctx: &SandboxTabContext) -> SandboxRe
 /// - `sandbox_selected`: Mutable reference to selected index (for viewport calculation).
 ///
 /// Output:
-/// - Returns SandboxRenderData with pre-computed values.
+/// - Returns `SandboxRenderData` with pre-computed values.
 ///
 /// Details:
 /// - Computes display items, viewport, and other derived values once.
@@ -365,7 +365,7 @@ fn build_display_items(
 /// - `sandbox_selected`: Mutable reference to selected index (for clamping).
 ///
 /// Output:
-/// - Returns (start_idx, end_idx) viewport range.
+/// - Returns (`start_idx`, `end_idx`) viewport range.
 ///
 /// Details:
 /// - Ensures selected item is always visible.
@@ -643,7 +643,7 @@ fn render_package_header_details(
 /// - Returns optional line for section header.
 ///
 /// Details:
-/// - Returns section header line if dep_type is valid.
+/// - Returns section header line if `dep_type` is valid.
 fn render_dependency_section_header(app: &AppState, dep_type: &str) -> Option<Line<'static>> {
     let th = theme();
     let section_name = match dep_type {

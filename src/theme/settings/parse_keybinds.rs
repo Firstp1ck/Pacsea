@@ -383,7 +383,7 @@ fn apply_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Settings) {
 /// Details:
 /// - Parses all keybind_* entries from the content.
 /// - Handles both dedicated keybinds.conf format and legacy settings.conf format.
-/// - For some keybinds (recent_remove, install_remove), allows multiple bindings by checking for duplicates.
+/// - For some keybinds (`recent_remove`, `install_remove`), allows multiple bindings by checking for duplicates.
 pub fn parse_keybinds(content: &str, settings: &mut Settings) {
     for line in content.lines() {
         let trimmed = line.trim();

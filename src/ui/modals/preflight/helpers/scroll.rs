@@ -7,7 +7,7 @@ use crate::state::{AppState, Modal, PreflightTab};
 /// - `tab`: Current active tab.
 ///
 /// Output:
-/// - Returns tuple of (vertical_offset, horizontal_offset) for scrolling.
+/// - Returns tuple of (`vertical_offset`, `horizontal_offset`) for scrolling.
 ///
 /// Details:
 /// - Only applies scroll offset for Summary tab (mouse scrolling only).

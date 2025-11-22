@@ -306,7 +306,7 @@ fn render_empty_state(
 /// - `dep_tree_expanded`: Set of expanded package names.
 ///
 /// Output:
-/// - Returns vector of (is_header, header_name, optional_dep) tuples.
+/// - Returns vector of (`is_header`, `header_name`, `optional_dep`) tuples.
 ///
 /// Details:
 /// - Includes all packages even if they have no dependencies.
@@ -340,7 +340,7 @@ fn build_display_items<'a>(
 /// - `dep_selected`: Currently selected index (mutable).
 ///
 /// Output:
-/// - Returns (start_idx, end_idx) tuple for viewport range.
+/// - Returns (`start_idx`, `end_idx`) tuple for viewport range.
 ///
 /// Details:
 /// - Clamps selected index and calculates centered viewport.

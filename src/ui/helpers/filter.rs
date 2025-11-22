@@ -8,7 +8,7 @@ use crate::state::{AppState, Focus};
 /// What: Produce visible indices into `app.recent` considering pane-find when applicable.
 ///
 /// Inputs:
-/// - `app`: Application state (focus, pane_find, recent list)
+/// - `app`: Application state (focus, `pane_find`, recent list)
 ///
 /// Output:
 /// - Vector of indices in ascending order without modifying application state.
@@ -43,7 +43,7 @@ pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
 /// What: Produce visible indices into `app.install_list` with optional pane-find filtering.
 ///
 /// Inputs:
-/// - `app`: Application state (focus, pane_find, install list)
+/// - `app`: Application state (focus, `pane_find`, install list)
 ///
 /// Output:
 /// - Vector of indices in ascending order without modifying application state.

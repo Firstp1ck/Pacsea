@@ -14,7 +14,7 @@ use crate::theme::theme;
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: AppState for translations
+/// - `app`: `AppState` for translations
 /// - `area`: Full screen area used to center the modal
 /// - `items`: Packages selected for installation
 ///
@@ -93,7 +93,7 @@ pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: 
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: AppState for translations
+/// - `app`: `AppState` for translations
 /// - `area`: Full screen area used to center the modal
 /// - `items`: Packages scheduled for removal
 ///

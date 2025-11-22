@@ -23,7 +23,7 @@ static THEME_SET: std::sync::OnceLock<ThemeSet> = std::sync::OnceLock::new();
 /// - Initializes static syntax and theme sets if not already initialized.
 ///
 /// Details:
-/// - Uses OnceLock to ensure initialization happens only once.
+/// - Uses `OnceLock` to ensure initialization happens only once.
 /// - Loads bash syntax definition and a dark theme suitable for TUI.
 fn init_syntax() {
     SYNTAX_SET.get_or_init(|| {

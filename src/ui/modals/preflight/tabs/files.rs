@@ -136,7 +136,7 @@ fn build_display_items(
 ///
 /// Inputs:
 /// - `app`: Application state for i18n.
-/// - `sync_info`: Optional sync info tuple (age_days, date_str, color_category).
+/// - `sync_info`: Optional sync info tuple (`age_days`, `date_str`, `color_category`).
 ///
 /// Output:
 /// - Returns optional line and number of lines added (0 or 2).
@@ -375,7 +375,7 @@ struct FileTotals {
 /// - Returns aggregated file totals.
 ///
 /// Details:
-/// - Performs a single iteration over file_info to calculate all totals.
+/// - Performs a single iteration over `file_info` to calculate all totals.
 fn calculate_file_totals(file_info: &[PackageFileInfo]) -> FileTotals {
     file_info.iter().fold(
         FileTotals {
@@ -497,12 +497,12 @@ fn build_summary_parts(
 /// - `file_selected`: Currently selected file index (mutable, will be clamped).
 ///
 /// Output:
-/// - Returns tuple of (start_idx, end_idx) for visible range.
+/// - Returns tuple of (`start_idx`, `end_idx`) for visible range.
 ///
 /// Details:
 /// - Centers selected item when possible.
 /// - Ensures selected item is always visible.
-/// - Clamps file_selected to valid range.
+/// - Clamps `file_selected` to valid range.
 fn calculate_viewport(
     total_items: usize,
     available_height: usize,

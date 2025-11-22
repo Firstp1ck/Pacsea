@@ -23,11 +23,11 @@ pub struct ParagraphBuilder {
 }
 
 impl ParagraphBuilder {
-    /// What: Create a new ParagraphBuilder with default values.
+    /// What: Create a new `ParagraphBuilder` with default values.
     ///
     /// Inputs: None.
     ///
-    /// Output: Returns a new ParagraphBuilder instance.
+    /// Output: Returns a new `ParagraphBuilder` instance.
     ///
     /// Details: Initializes with empty lines and default colors from theme.
     pub fn new() -> Self {

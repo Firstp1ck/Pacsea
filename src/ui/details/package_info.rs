@@ -17,7 +17,7 @@ use crate::theme::theme;
 /// - `details_area`: Rect assigned to the Package Info pane content
 ///
 /// Output:
-/// - Tuple of (content_x, content_y, inner_w) representing layout dimensions.
+/// - Tuple of (`content_x`, `content_y`, `inner_w`) representing layout dimensions.
 ///
 /// Details:
 /// - Accounts for border inset and calculates inner content dimensions.
@@ -75,7 +75,7 @@ fn style_url_in_lines(
 /// - Number of rows (at least 1) the line will occupy.
 ///
 /// Details:
-/// - Handles zero-width case and calculates wrapping using div_ceil.
+/// - Handles zero-width case and calculates wrapping using `div_ceil`.
 fn calculate_wrapped_line_rows(line_len: usize, inner_w: u16) -> u16 {
     if inner_w == 0 {
         1
