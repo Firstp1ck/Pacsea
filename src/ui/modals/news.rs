@@ -136,28 +136,6 @@ fn format_news_item(
 /// - Replaces placeholders in the i18n template with actual key labels.
 fn build_footer(app: &AppState) -> Line<'static> {
     let th = theme();
-    // Debug: Log keybind state
-    tracing::debug!(
-        "news_mark_read len: {}, news_mark_all_read len: {}",
-        app.keymap.news_mark_read.len(),
-        app.keymap.news_mark_all_read.len()
-    );
-    if let Some(k) = app.keymap.news_mark_read.first() {
-        tracing::debug!(
-            "news_mark_read: code={:?}, mods={:?}, label={}",
-            k.code,
-            k.mods,
-            k.label()
-        );
-    }
-    if let Some(k) = app.keymap.news_mark_all_read.first() {
-        tracing::debug!(
-            "news_mark_all_read: code={:?}, mods={:?}, label={}",
-            k.code,
-            k.mods,
-            k.label()
-        );
-    }
     let mark_read_key = app
         .keymap
         .news_mark_read
