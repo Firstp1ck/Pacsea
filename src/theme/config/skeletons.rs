@@ -200,6 +200,10 @@ show_keybinds_footer = true\n\
 # Allowed values: insert_mode | normal_mode\n\
 # Default is insert_mode\n\
 search_startup_mode = insert_mode\n\
+# Fuzzy search mode\n\
+# When true, uses fuzzy matching (fzf-style) instead of substring search\n\
+# Default is false (normal substring search)\n\
+fuzzy_search = false\n\
 \n\
 # Results sorting\n\
 # Allowed values: alphabetical | aur_popularity | best_matches\n\
@@ -390,6 +394,10 @@ keybind_search_normal_import = Shift+I\n\
 keybind_search_normal_export = Shift+E\n\
 # Open Available Updates window\n\
 keybind_search_normal_updates = Shift+U\n\
+\n\
+# SEARCH — Fuzzy Search Toggle\n\
+# Toggle between normal substring search and fuzzy search (fzf-style)\n\
+keybind_toggle_fuzzy = CTRL+F\n\
 \n\
 # RECENT — Navigation\n\
 keybind_recent_move_up = k\n\

@@ -283,6 +283,25 @@ fn build_search_section(
         &i18n::t(app, "app.actions.install"),
         sep_style,
     );
+    // Show toggle based on search mode: toggle_normal label when fuzzy is active, toggle_fuzzy label when normal is active
+    // Both use the same keybind (toggle_fuzzy) but with different labels
+    if app.fuzzy_search_enabled {
+        add_keybind_entry(
+            &mut spans,
+            km.toggle_fuzzy.first(),
+            key_style,
+            &i18n::t(app, "app.modals.help.key_labels.toggle_normal"),
+            sep_style,
+        );
+    } else {
+        add_keybind_entry(
+            &mut spans,
+            km.toggle_fuzzy.first(),
+            key_style,
+            &i18n::t(app, "app.modals.help.key_labels.toggle_fuzzy"),
+            sep_style,
+        );
+    }
     // Show clear keybind based on mode: insert_clear for insert mode, normal_clear for normal mode
     if app.search_normal_mode {
         add_keybind_entry(

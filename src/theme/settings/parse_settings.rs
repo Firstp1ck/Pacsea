@@ -152,6 +152,10 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
                     || lv == "normal_mode"
                     || lv == "normal";
             }
+            "fuzzy_search" | "fuzzy_search_enabled" | "fuzzy_mode" => {
+                let lv = val.to_ascii_lowercase();
+                settings.fuzzy_search = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
+            }
             // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
             _ => {}
         }

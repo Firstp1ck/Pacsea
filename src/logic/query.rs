@@ -20,6 +20,7 @@ pub fn send_query(app: &mut AppState, query_tx: &mpsc::UnboundedSender<crate::st
     let _ = query_tx.send(crate::state::QueryInput {
         id,
         text: app.input.clone(),
+        fuzzy: app.fuzzy_search_enabled,
     });
 }
 
@@ -53,5 +54,6 @@ mod tests {
             .expect("query sent");
         assert_eq!(q.id, app.latest_query_id);
         assert_eq!(q.text, "hello");
+        assert!(!q.fuzzy); // Default is false
     }
 }

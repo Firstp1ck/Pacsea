@@ -73,6 +73,7 @@ pub fn spawn_search_worker(
             last_sent = Instant::now();
 
             let qtext = latest.text.clone();
+            let fuzzy_mode = latest.fuzzy;
             let sid = latest.id;
             let tx = search_result_tx.clone();
             let err_tx = net_err_tx_search.clone();
@@ -81,24 +82,91 @@ pub fn spawn_search_worker(
                 if crate::index::all_official().is_empty() {
                     let _ = crate::index::all_official_or_fetch(&ipath);
                 }
-                let mut items = pkgindex::search_official(&qtext);
+                let official_results = pkgindex::search_official(&qtext, fuzzy_mode);
                 let q_for_net = qtext.clone();
                 let (aur_items, errors) = sources::fetch_all_with_errors(q_for_net).await;
-                items.extend(aur_items);
-                let ql = qtext.trim().to_lowercase();
-                items.sort_by(|a, b| {
-                    let oa = repo_order(&a.source);
-                    let ob = repo_order(&b.source);
-                    if oa != ob {
-                        return oa.cmp(&ob);
-                    }
-                    let ra = match_rank(&a.name, &ql);
-                    let rb = match_rank(&b.name, &ql);
-                    if ra != rb {
-                        return ra.cmp(&rb);
-                    }
-                    a.name.to_lowercase().cmp(&b.name.to_lowercase())
-                });
+
+                // Collect all items with their fuzzy scores if in fuzzy mode
+                let mut items_with_scores: Vec<(crate::state::PackageItem, Option<i64>)> =
+                    official_results;
+
+                // Filter and score AUR items
+                if fuzzy_mode {
+                    // In fuzzy mode, filter AUR items by fuzzy match and keep scores
+                    // AUR API returns substring matches, but we re-filter with fuzzy matching
+                    let aur_scored: Vec<(crate::state::PackageItem, Option<i64>)> = aur_items
+                        .into_iter()
+                        .filter_map(|item| {
+                            crate::util::fuzzy_match_rank(&item.name, &qtext)
+                                .map(|score| (item, Some(score)))
+                        })
+                        .collect();
+                    items_with_scores.extend(aur_scored);
+                } else {
+                    // In normal mode, AUR API already filters by substring match
+                    // Add all AUR items with placeholder score for consistent sorting
+                    let aur_scored: Vec<(crate::state::PackageItem, Option<i64>)> = aur_items
+                        .into_iter()
+                        .map(|item| (item, Some(0))) // Placeholder score for AUR items
+                        .collect();
+                    items_with_scores.extend(aur_scored);
+                }
+
+                // Sort items based on fuzzy mode
+                if fuzzy_mode {
+                    // In fuzzy mode, sort by fuzzy score first (higher = better), then repo order
+                    items_with_scores.sort_by(|a, b| {
+                        match (a.1, b.1) {
+                            (Some(sa), Some(sb)) => {
+                                // Higher score first
+                                match sb.cmp(&sa) {
+                                    std::cmp::Ordering::Equal => {
+                                        let oa = repo_order(&a.0.source);
+                                        let ob = repo_order(&b.0.source);
+                                        if oa != ob {
+                                            return oa.cmp(&ob);
+                                        }
+                                        a.0.name.to_lowercase().cmp(&b.0.name.to_lowercase())
+                                    }
+                                    other => other,
+                                }
+                            }
+                            (Some(_), None) => std::cmp::Ordering::Less,
+                            (None, Some(_)) => std::cmp::Ordering::Greater,
+                            (None, None) => {
+                                let oa = repo_order(&a.0.source);
+                                let ob = repo_order(&b.0.source);
+                                if oa != ob {
+                                    return oa.cmp(&ob);
+                                }
+                                a.0.name.to_lowercase().cmp(&b.0.name.to_lowercase())
+                            }
+                        }
+                    });
+                } else {
+                    // Normal mode: use existing match_rank logic
+                    let ql = qtext.trim().to_lowercase();
+                    items_with_scores.sort_by(|a, b| {
+                        let oa = repo_order(&a.0.source);
+                        let ob = repo_order(&b.0.source);
+                        if oa != ob {
+                            return oa.cmp(&ob);
+                        }
+                        let ra = match_rank(&a.0.name, &ql);
+                        let rb = match_rank(&b.0.name, &ql);
+                        if ra != rb {
+                            return ra.cmp(&rb);
+                        }
+                        a.0.name.to_lowercase().cmp(&b.0.name.to_lowercase())
+                    });
+                }
+
+                // Extract items from scored tuples
+                let mut items: Vec<crate::state::PackageItem> = items_with_scores
+                    .into_iter()
+                    .map(|(item, _)| item)
+                    .collect();
+
                 // Deduplicate by package name, preferring earlier entries (official over AUR)
                 {
                     use std::collections::HashSet;

@@ -51,6 +51,8 @@ de-DE:
         clipboard: "Zwischenablage"
         aur_helper: "AUR-Helfer"
         security: "Sicherheit"
+    search_mode_fuzzy: "FUZZY"
+    search_mode_normal: "NORMAL"
 
     titles:
       search: "Suche"
@@ -370,7 +372,8 @@ de-DE:
           remove: "  Entfernen"
           clear: "  Leeren"
           clear_input: "  Eingabe leeren"
-          toggle_normal: "  Normalmodus umschalten"
+          toggle_fuzzy: "  Fuzzy-Suche umschalten"
+          toggle_normal: "  Normal Suche umschalten"
           insert_mode: "  Einfügemodus"
           select_left: "  Links auswählen"
           select_right: "  Rechts auswählen"

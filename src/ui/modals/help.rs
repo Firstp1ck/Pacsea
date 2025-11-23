@@ -281,6 +281,13 @@ fn build_search_bindings(
         km.search_insert_clear.first().copied(),
         "app.modals.help.key_labels.clear_input",
     );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.toggle_fuzzy.first().copied(),
+        "app.modals.help.key_labels.toggle_fuzzy",
+    );
 }
 
 /// What: Build search normal mode keybindings section.

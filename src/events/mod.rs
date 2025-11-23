@@ -103,7 +103,9 @@ pub fn handle_event(
 
     // Mouse handling delegated
     if let CEvent::Mouse(m) = ev {
-        return mouse::handle_mouse_event(*m, app, details_tx, preview_tx, add_tx, pkgb_tx);
+        return mouse::handle_mouse_event(
+            *m, app, details_tx, preview_tx, add_tx, pkgb_tx, query_tx,
+        );
     }
     false
 }

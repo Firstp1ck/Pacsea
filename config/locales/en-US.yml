@@ -51,6 +51,8 @@ en-US:
         clipboard: "Clipboard"
         aur_helper: "AUR Helper"
         security: "Security"
+    search_mode_fuzzy: "FUZZY"
+    search_mode_normal: "NORMAL"
 
     titles:
       search: "Search"
@@ -370,7 +372,8 @@ en-US:
           remove: "  Remove"
           clear: "  Clear"
           clear_input: "  Clear input"
-          toggle_normal: "  Toggle normal"
+          toggle_fuzzy: "  Toggle fuzzy search"
+          toggle_normal: "  Toggle normal search"
           insert_mode: "  Insert Mode"
           select_left: "  Select left"
           select_right: "  Select right"

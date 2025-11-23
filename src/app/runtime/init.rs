@@ -204,6 +204,7 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.show_install_pane = prefs.show_install_pane;
     app.show_keybinds_footer = prefs.show_keybinds_footer;
     app.search_normal_mode = prefs.search_startup_mode;
+    app.fuzzy_search_enabled = prefs.fuzzy_search;
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.

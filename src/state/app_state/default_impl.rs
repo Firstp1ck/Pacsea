@@ -105,7 +105,7 @@ impl Default for AppState {
         let (show_recent_pane, show_install_pane, show_keybinds_footer, pane_find) =
             defaults::default_ui_visibility_state();
 
-        let (search_normal_mode, search_caret, search_select_anchor) =
+        let (search_normal_mode, fuzzy_search_enabled, search_caret, search_select_anchor) =
             defaults::default_search_input_state();
 
         let (official_index_path, loading_index, details_focus) =
@@ -286,6 +286,7 @@ impl Default for AppState {
             show_keybinds_footer,
             pane_find,
             search_normal_mode,
+            fuzzy_search_enabled,
             search_caret,
             search_select_anchor,
             official_index_path,
@@ -388,6 +389,7 @@ impl Default for AppState {
             results_filter_artix_world_rect,
             results_filter_artix_system_rect,
             results_filter_manjaro_rect: None,
+            fuzzy_indicator_rect: None,
             refresh_installed_until,
             next_installed_refresh_at,
             pending_install_names,

@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::theme::config::skeletons::{
     KEYBINDS_SKELETON_CONTENT, SETTINGS_SKELETON_CONTENT, THEME_SKELETON_CONTENT,
 };
-use crate::theme::paths::{config_dir, resolve_settings_config_path};
+use crate::theme::paths::{config_dir, resolve_keybinds_config_path, resolve_settings_config_path};
 use crate::theme::types::Settings;
 
 /// What: Get the value for a setting key, preferring prefs over skeleton default.
@@ -218,40 +218,40 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     let skeleton_lines: Vec<&str> = SETTINGS_SKELETON_CONTENT.lines().collect();
     let missing_settings = parse_missing_settings(&skeleton_lines, &have, prefs);
 
-    // If no missing settings, nothing to do (unless file was just created)
-    if !created_new && missing_settings.is_empty() {
-        return;
-    }
-
-    // Append missing settings to the file
-    // Add separator and header comment for auto-added settings
-    if !created_new
-        && !lines.is_empty()
-        && !lines
-            .last()
-            .expect("lines should not be empty after is_empty() check")
-            .trim()
-            .is_empty()
-    {
-        lines.push(String::new());
-    }
-    if !missing_settings.is_empty() {
-        lines.push("# Missing settings added automatically".to_string());
-        lines.push(String::new());
-    }
-
-    for (setting_line, comment) in &missing_settings {
-        if let Some(comment) = comment {
-            lines.push(comment.clone());
+    // Update settings file if needed
+    if created_new || !missing_settings.is_empty() {
+        // Append missing settings to the file
+        // Add separator and header comment for auto-added settings
+        if !created_new
+            && !lines.is_empty()
+            && !lines
+                .last()
+                .expect("lines should not be empty after is_empty() check")
+                .trim()
+                .is_empty()
+        {
+            lines.push(String::new());
         }
-        lines.push(setting_line.clone());
-    }
+        if !missing_settings.is_empty() {
+            lines.push("# Missing settings added automatically".to_string());
+            lines.push(String::new());
+        }
 
-    let new_content = lines.join("\n");
-    let _ = fs::write(p, new_content);
+        for (setting_line, comment) in &missing_settings {
+            if let Some(comment) = comment {
+                lines.push(comment.clone());
+            }
+            lines.push(setting_line.clone());
+        }
+
+        let new_content = lines.join("\n");
+        let _ = fs::write(p, new_content);
+    }
 
     // Ensure keybinds file exists with skeleton if missing (best-effort)
-    let kb = config_dir().join("keybinds.conf");
+    // Try to use the same path resolution as reading, but fall back to config_dir if file doesn't exist yet
+    let kb = resolve_keybinds_config_path()
+        .map_or_else(|| config_dir().join("keybinds.conf"), |existing_path| existing_path);
     if kb.exists() {
         // Append missing keybinds to existing file
         ensure_keybinds_present(&kb);
@@ -259,7 +259,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         if let Some(dir) = kb.parent() {
             let _ = fs::create_dir_all(dir);
         }
-        let _ = fs::write(kb, KEYBINDS_SKELETON_CONTENT);
+        let _ = fs::write(&kb, KEYBINDS_SKELETON_CONTENT);
     }
 }
 
@@ -301,22 +301,26 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
     let skeleton_lines: Vec<&str> = KEYBINDS_SKELETON_CONTENT.lines().collect();
     let mut missing_keybinds: Vec<(String, Option<String>)> = Vec::new();
     let mut current_comment: Option<String> = None;
+    let mut current_section_header: Option<String> = None;
 
     for line in skeleton_lines {
         let trimmed = line.trim();
         if trimmed.is_empty() {
+            // Keep section header across empty lines, but clear descriptive comment
             current_comment = None;
             continue;
         }
         if trimmed.starts_with('#') {
-            // Check if this is a comment for a keybind (not a section header)
-            if !trimmed.contains("—")
-                && !trimmed.starts_with("# Pacsea")
-                && !trimmed.starts_with("# Modifiers")
+            // Check if this is a section header (contains "—" or is a special header)
+            if trimmed.contains("—")
+                || trimmed.starts_with("# Pacsea")
+                || trimmed.starts_with("# Modifiers")
             {
-                current_comment = Some(trimmed.to_string());
-            } else {
+                current_section_header = Some(trimmed.to_string());
                 current_comment = None;
+            } else {
+                // Descriptive comment for a keybind
+                current_comment = Some(trimmed.to_string());
             }
             continue;
         }
@@ -328,11 +332,25 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
             let mut parts = trimmed.splitn(2, '=');
             let raw_key = parts.next().unwrap_or("");
             let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
-            if have.contains(&key) {
-                current_comment = None;
-            } else {
-                missing_keybinds.push((trimmed.to_string(), current_comment.take()));
+            if !have.contains(&key) {
+                // Key is missing, build comment string with section header and descriptive comment
+                let mut comment_parts = Vec::new();
+                if let Some(ref section) = current_section_header {
+                    comment_parts.push(section.clone());
+                }
+                if let Some(ref desc) = current_comment {
+                    comment_parts.push(desc.clone());
+                }
+                let combined_comment = if comment_parts.is_empty() {
+                    None
+                } else {
+                    Some(comment_parts.join("\n"))
+                };
+                missing_keybinds.push((trimmed.to_string(), combined_comment));
             }
+            // Clear comments after processing keybind (whether it exists or not)
+            current_comment = None;
+            current_section_header = None;
         }
     }
 

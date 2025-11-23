@@ -319,12 +319,12 @@ pub(super) const fn default_ui_visibility_state() -> (bool, bool, bool, Option<S
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of search input mode fields: `search_normal_mode`, `search_caret`, `search_select_anchor`.
+/// - Tuple of search input mode fields: `search_normal_mode`, `fuzzy_search_enabled`, `search_caret`, `search_select_anchor`.
 ///
 /// Details:
-/// - Search starts in Insert mode with caret at position 0.
-pub(super) const fn default_search_input_state() -> (bool, usize, Option<usize>) {
-    (false, 0, None)
+/// - Search starts in Insert mode with caret at position 0, fuzzy search disabled.
+pub(super) const fn default_search_input_state() -> (bool, bool, usize, Option<usize>) {
+    (false, false, 0, None)
 }
 
 /// What: Create default index state.
