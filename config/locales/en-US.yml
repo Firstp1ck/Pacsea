@@ -76,6 +76,23 @@ en-US:
       virustotal: "VirusTotal"
       arch_linux_news: "Arch Linux News"
       system_update: "System Update"
+    arch_status:
+      aur_down: "Status: AUR Down"
+      some_systems_down: "Some Arch systems down (see status)"
+      systems_degraded: "Arch systems degraded (see status)"
+      systems_nominal: "Arch systems nominal"
+      all_systems_operational: "All systems operational"
+      aur_outage: "AUR outage (see status)"
+      aur_partial_outage: "AUR partial outage"
+      aur_rpc_degraded: "AUR RPC degraded"
+      aur_maintenance_ongoing: "AUR maintenance ongoing"
+      aur_issues_detected: "AUR issues detected (see status)"
+      aur_degraded: "AUR degraded (see status)"
+      service_outage: "{} outage (see status) — {} today: {:.1}%"
+      service_degraded: "{} degraded (see status) — {} today: {:.1}%"
+      service_issues_detected: "{} issues detected (see status) — {} today: {:.1}%"
+      systems_nominal_with_service: "Arch systems nominal — {} today: {:.1}%"
+      aur_today_suffix: " — AUR today: {}%"
 
     labels:
       open_menus: "Open Menus:"

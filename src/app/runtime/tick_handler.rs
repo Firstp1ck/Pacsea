@@ -509,13 +509,15 @@ pub fn handle_news(app: &mut AppState, todays: &[NewsItem]) {
 ///
 /// Inputs:
 /// - `app`: Application state
-/// - `txt`: Status text
+/// - `txt`: Status text (in English, will be translated)
 /// - `color`: Status color
 ///
 /// Details:
+/// - Translates status text to current locale
 /// - Updates Arch status text and color
 pub fn handle_status(app: &mut AppState, txt: String, color: ArchStatusColor) {
-    app.arch_status_text = txt;
+    use crate::sources::status::translate;
+    app.arch_status_text = translate::translate_status_text(app, &txt);
     app.arch_status_color = color;
 }
 

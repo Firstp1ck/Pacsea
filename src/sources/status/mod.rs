@@ -3,6 +3,7 @@ use std::fmt::Write;
 
 mod api;
 mod html;
+pub mod translate;
 mod utils;
 
 use api::{parse_status_api_summary, parse_uptimerobot_api};
