@@ -295,7 +295,7 @@ impl ModalRenderer for Modal {
                 let ctx = VirusTotalSetupContext { input, cursor };
                 render_virustotal_setup_modal(f, app, area, ctx)
             }
-            Self::ImportHelp => render_import_help_modal(f, area),
+            Self::ImportHelp => render_import_help_modal(f, app, area),
             Self::None => Self::None,
         }
     }
@@ -653,8 +653,8 @@ fn render_virustotal_setup_modal(
 }
 
 /// What: Render `ImportHelp` modal and return reconstructed state.
-fn render_import_help_modal(f: &mut Frame, area: Rect) -> Modal {
-    misc::render_import_help(f, area);
+fn render_import_help_modal(f: &mut Frame, app: &AppState, area: Rect) -> Modal {
+    misc::render_import_help(f, area, app);
     Modal::ImportHelp
 }
 

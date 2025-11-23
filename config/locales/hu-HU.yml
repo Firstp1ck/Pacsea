@@ -424,6 +424,22 @@ hu-HU:
         input_hint: "Írja be vagy illessze be az API-kulcsot lentebb és nyomja meg az Entert a mentéshez (Esc: a megszakításhoz):"
         api_key_label: "API-kulcs:"
         tip: "Tipp: Mentés után az ellenőrzések automatikusan lekérdezik a VirusTotalt a fájlkivonat alapján."
+      import_help:
+        # TODO: Translate import help window to Hungarian
+        title: " Import Help "
+        heading: "Import File Format"
+        description: "The import file should contain one package name per line."
+        format_label: "Format:"
+        format_one_per_line: "  • One package name per line"
+        format_blank_ignored: "  • Blank lines are ignored"
+        format_comments: "  • Lines starting with '#' are treated as comments"
+        example_label: "Example:"
+        example_firefox: "  firefox"
+        example_comment: "  # This is a comment"
+        example_vim: "  vim"
+        example_paru: "  paru"
+        hint_confirm: " confirm"
+        hint_cancel: " cancel"
       preflight:
         title_install: " Előzetes ellenőrzés: Telepítés "
         title_remove: " Előzetes ellenőrzés: Eltávolítás "

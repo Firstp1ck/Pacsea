@@ -237,7 +237,7 @@ fn handle_selection_delete(
     true
 }
 
-/// What: Handle navigation key events (j/k, Ctrl+D/U).
+/// What: Handle navigation key events (j/k, arrow keys, Ctrl+D/U).
 ///
 /// Inputs:
 /// - `ke`: Key event from terminal
@@ -248,12 +248,33 @@ fn handle_selection_delete(
 /// - `true` if navigation was handled, `false` otherwise
 ///
 /// Details:
-/// - Handles vim-like navigation: j/k for single line, Ctrl+D/U for page movement.
+/// - Handles vim-like navigation: j/k for single line, arrow keys from keymap, Ctrl+D/U for page movement.
 fn handle_navigation(
     ke: &KeyEvent,
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
+    let km = &app.keymap;
+
+    // Check keymap-based arrow keys first (works same in normal and insert mode)
+    if matches_any(ke, &km.search_move_up) {
+        move_sel_cached(app, -1, details_tx);
+        return true;
+    }
+    if matches_any(ke, &km.search_move_down) {
+        move_sel_cached(app, 1, details_tx);
+        return true;
+    }
+    if matches_any(ke, &km.search_page_up) {
+        move_sel_cached(app, -10, details_tx);
+        return true;
+    }
+    if matches_any(ke, &km.search_page_down) {
+        move_sel_cached(app, 10, details_tx);
+        return true;
+    }
+
+    // Vim-like navigation (j/k, Ctrl+D/U)
     match (ke.code, ke.modifiers) {
         (KeyCode::Char('j'), _) => {
             move_sel_cached(app, 1, details_tx);

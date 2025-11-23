@@ -242,7 +242,7 @@ mod tests {
     ///
     /// Inputs:
     /// - English status text
-    /// - AppState with translations
+    /// - `AppState` with translations
     ///
     /// Output:
     /// - Translated status text
@@ -262,7 +262,7 @@ mod tests {
     ///
     /// Inputs:
     /// - English status text with AUR percentage suffix
-    /// - AppState with translations
+    /// - `AppState` with translations
     ///
     /// Output:
     /// - Translated status text with translated suffix
