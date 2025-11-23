@@ -123,8 +123,7 @@ hu-HU:
       removing_preflight_skipped: "Eltávolítási lista (előzetes ellenőrzés kihagyva)"
       preflight_remove_list: "Előzetes ellenőrzés: Eltávolítási lista"
       theme_reloaded: "Téma újratöltve"
-      # TODO: Translate config_reloaded in Hungarian
-      config_reloaded: "Configuration reloaded"
+      config_reloaded: "Konfiguráció újratöltve"
       installing_skipped: "Telepítés (előzetes ellenőrzés kihagyva)"
       preflight_opened: "Előzetes ellenőrzés megnyitva"
       no_new_news: "Ma nincsenek új hírek"
@@ -147,8 +146,7 @@ hu-HU:
     actions:
       exit: "Kilépés"
       help: "Súgó"
-      # TODO: Translate config_reloaded in Hungarian
-      reload_config: "Reload configuration"
+      reload_config: "Konfiguráció újratöltése"
       show_hide_pkgbuild: "PKGBUILD megjelenítése/elrejtése"
       change_sort_mode: "Rendezési szempont módosítása"
       import: "Importálás"
@@ -360,8 +358,7 @@ hu-HU:
         key_labels:
           help_overlay: "Súgóréteg"
           exit: "Kilépés"
-          # TODO: Translate reload_config in Hungarian
-          reload_config: "Reload configuration"
+          reload_config: "Konfiguráció újratöltése"
           next_pane: "Következő panel"
           focus_left: "Fókuszálás balra"
           focus_right: "Fókuszálás jobbra"
@@ -379,9 +376,9 @@ hu-HU:
           remove: "  Eltávolítás"
           clear: "  Törlés"
           # TODO: Translate in Hungarian
-          clear_input: "  Clear input"
           toggle_fuzzy: "  Toggle fuzzy search"
-          toggle_normal: "  Toggle normal search"
+          toggle_normal: "  Normál mód ki-/bekapcsolása"
+          clear_input: "  Bemenet törlése"
           insert_mode: "  Beszúrás mód"
           select_left: "  Bal oldali kiválasztása"
           select_right: "  Jobb oldali kiválasztása"
@@ -434,18 +431,17 @@ hu-HU:
         api_key_label: "API-kulcs:"
         tip: "Tipp: Mentés után az ellenőrzések automatikusan lekérdezik a VirusTotalt a fájlkivonat alapján."
       import_help:
-        # TODO: Translate import help window to Hungarian
-        title: " Import Help "
-        heading: "Import File Format"
-        description: "The import file should contain one package name per line."
-        format_label: "Format:"
-        format_one_per_line: "  • One package name per line"
-        format_blank_ignored: "  • Blank lines are ignored"
-        format_comments: "  • Lines starting with '#' are treated as comments"
-        example_label: "Example:"
-        example_comment: "  # This is a comment"
-        hint_confirm: " confirm"
-        hint_cancel: " cancel"
+        title: " Importálási súgó "
+        heading: "Importálási fájl formátuma"
+        description: "Az importálási fájlnak soronként egy csomagnevet kell tartalmaznia."
+        format_label: "Formátum:"
+        format_one_per_line: "  • Soronként egy csomagnév"
+        format_blank_ignored: "  • Az üres sorok mellőzve lesznek"
+        format_comments: "  • A „#” karakterrel kezdődő sorok megjegyzésként lesznek kezelve"
+        example_label: "Például:"
+        example_comment: "  # Ez egy megjegyzés"
+        hint_confirm: " megerősítés"
+        hint_cancel: " mégse"
       preflight:
         title_install: " Előzetes ellenőrzés: Telepítés "
         title_remove: " Előzetes ellenőrzés: Eltávolítás "
