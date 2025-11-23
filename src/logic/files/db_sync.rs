@@ -68,7 +68,7 @@ pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
         sync_time
             .duration_since(SystemTime::UNIX_EPOCH)
             .ok()
-            .map(|d| d.as_secs() as i64),
+            .and_then(|d| i64::try_from(d.as_secs()).ok()),
     );
 
     // Determine color category

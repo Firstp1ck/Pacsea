@@ -8,7 +8,7 @@ use crate::state::PackageItem;
 ///
 /// Details:
 /// - Reduces function argument count to avoid clippy warnings.
-pub(crate) struct EnterOrSpaceContext<'a> {
+pub struct EnterOrSpaceContext<'a> {
     pub(crate) tab: &'a crate::state::PreflightTab,
     pub(crate) items: &'a [PackageItem],
     pub(crate) dependency_info: &'a [crate::state::modal::DependencyInfo],
@@ -31,7 +31,7 @@ pub(crate) struct EnterOrSpaceContext<'a> {
 /// - Reduces function argument count and cognitive complexity.
 /// - Contains all mutable references needed by key handlers.
 /// - Note: `app` is passed separately to avoid borrow checker issues.
-pub(crate) struct PreflightKeyContext<'a> {
+pub struct PreflightKeyContext<'a> {
     pub(crate) tab: &'a mut crate::state::PreflightTab,
     pub(crate) items: &'a [PackageItem],
     pub(crate) action: &'a crate::state::PreflightAction,

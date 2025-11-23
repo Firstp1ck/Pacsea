@@ -55,7 +55,7 @@ pub(super) fn handle_tab_switch(app: &mut AppState, direction: bool) -> bool {
         );
     }
 
-    switch_preflight_tab(new_tab, app, &items, &action);
+    switch_preflight_tab(new_tab, app, &items, action);
     false
 }
 

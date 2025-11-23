@@ -102,7 +102,7 @@ fn summary_identifies_core_major_bump() {
     );
     assert_eq!(
         outcome.summary.install_delta_bytes,
-        (5 * 1024 * 1024) as i64 - (4 * 1024 * 1024) as i64,
+        i64::from(5 * 1024 * 1024) - i64::from(4 * 1024 * 1024),
         "Install delta should reflect target minus current size"
     );
     assert!(
@@ -116,7 +116,7 @@ fn summary_identifies_core_major_bump() {
     assert_eq!(outcome.header.package_count, 1);
     assert_eq!(
         outcome.summary.packages[0].install_delta_bytes,
-        Some((5 * 1024 * 1024) as i64 - (4 * 1024 * 1024) as i64)
+        Some(i64::from(5 * 1024 * 1024) - i64::from(4 * 1024 * 1024))
     );
 }
 

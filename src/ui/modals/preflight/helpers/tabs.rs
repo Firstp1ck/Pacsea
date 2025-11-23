@@ -56,7 +56,7 @@ pub fn render_tab_content(
     tab: PreflightTab,
     items: &[PackageItem],
     action: PreflightAction,
-    summary: Option<&Box<PreflightSummaryData>>,
+    summary: Option<&PreflightSummaryData>,
     header_chips: &PreflightHeaderChips,
     dependency_info: &[DependencyInfo],
     dep_selected: &mut usize,

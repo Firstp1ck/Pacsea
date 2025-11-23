@@ -1,7 +1,7 @@
 //! Parser for AUR .SRCINFO files.
 
 // Re-export for backward compatibility
-pub(crate) use crate::util::srcinfo::fetch_srcinfo;
+pub use crate::util::srcinfo::fetch_srcinfo;
 
 /// What: Parse dependencies from .SRCINFO content.
 ///

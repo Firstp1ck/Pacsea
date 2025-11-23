@@ -648,7 +648,11 @@ mod tests {
     /// - Tests that debouncing works correctly
     fn handle_tick_processes_pkgbuild_debounce() {
         let mut app = new_app();
-        app.pkgb_reload_requested_at = Some(Instant::now() - Duration::from_millis(300));
+        app.pkgb_reload_requested_at = Some(
+            Instant::now()
+                .checked_sub(Duration::from_millis(300))
+                .unwrap_or_else(Instant::now),
+        );
         app.pkgb_reload_requested_for = Some("test-package".to_string());
         app.results = vec![crate::state::PackageItem {
             name: "test-package".to_string(),

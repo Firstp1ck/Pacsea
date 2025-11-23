@@ -18,7 +18,7 @@ use crate::theme::types::Theme;
 /// Details:
 /// - Ignores preference keys that belong to other config files for backwards compatibility.
 /// - Detects duplicates, missing required keys, and invalid color formats with precise line info.
-pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
+pub fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
     const REQUIRED: [&str; 16] = [
         "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
         "subtext0", "subtext1", "sapphire", "mauve", "green", "yellow", "red", "lavender",
@@ -120,6 +120,6 @@ pub(crate) fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, Stri
 ///
 /// Details:
 /// - Wraps [`try_load_theme_with_diagnostics`] and converts its error into `None`.
-pub(crate) fn load_theme_from_file(path: &Path) -> Option<Theme> {
+pub fn load_theme_from_file(path: &Path) -> Option<Theme> {
     try_load_theme_with_diagnostics(path).ok()
 }

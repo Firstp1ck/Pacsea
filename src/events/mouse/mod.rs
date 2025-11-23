@@ -14,8 +14,8 @@ use crate::state::{AppState, PackageItem};
 
 mod details;
 mod filters;
-pub(crate) mod menu_options;
-pub(crate) mod menus;
+pub mod menu_options;
+pub mod menus;
 mod modals;
 mod panes;
 
@@ -118,4 +118,4 @@ pub fn handle_mouse_event(
 }
 
 // Re-export for use in keyboard handlers
-pub(crate) use menus::handle_updates_button;
+pub use menus::handle_updates_button;

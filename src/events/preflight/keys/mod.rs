@@ -75,7 +75,7 @@ fn handle_keys_needing_app(ke: KeyEvent, app: &mut AppState) -> bool {
 /// - Mutates `app.modal` (and related cached fields) to close the modal, open nested dialogs, or
 ///   keep it updated with resolved dependency/file data.
 /// - Returns `false` so callers continue processing, matching existing event-loop expectations.
-pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
+pub fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
     // First, handle keys that only need ctx (no app access required)
     // This avoids borrow checker conflicts
     {

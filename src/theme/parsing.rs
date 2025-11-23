@@ -138,7 +138,11 @@ pub(super) fn parse_color_value(s: &str) -> Option<Color> {
         && g <= 255
         && b <= 255
     {
-        return Some(Color::Rgb(r as u8, g as u8, b as u8));
+        return Some(Color::Rgb(
+            u8::try_from(r).unwrap_or(255),
+            u8::try_from(g).unwrap_or(255),
+            u8::try_from(b).unwrap_or(255),
+        ));
     }
     None
 }

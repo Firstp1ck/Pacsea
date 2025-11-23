@@ -1107,7 +1107,7 @@ pub fn render_summary_tab(
     app: &AppState,
     items: &[PackageItem],
     action: PreflightAction,
-    summary: Option<&Box<PreflightSummaryData>>,
+    summary: Option<&PreflightSummaryData>,
     header_chips: &PreflightHeaderChips,
     dependency_info: &[DependencyInfo],
     cascade_mode: CascadeMode,

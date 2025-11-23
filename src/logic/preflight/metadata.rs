@@ -123,7 +123,7 @@ pub(super) fn fetch_installed_size<R: CommandRunner>(
 /// Details:
 /// - Values are `None` when the upstream output omits a field.
 #[derive(Default, Debug)]
-pub(crate) struct OfficialMetadata {
+pub struct OfficialMetadata {
     pub(crate) download_size: Option<u64>,
     pub(crate) install_size: Option<u64>,
 }

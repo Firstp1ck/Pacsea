@@ -128,13 +128,13 @@ pub(super) fn load_cached_files(
 /// - Returns `None` if services are currently being resolved, cache doesn't exist, or cached services are empty.
 pub(super) fn load_cached_services(
     items: &[PackageItem],
-    action: &crate::state::PreflightAction,
+    action: crate::state::PreflightAction,
     services_resolving: bool,
     services_cache_path: &std::path::PathBuf,
     install_list_services: &[crate::state::modal::ServiceImpact],
 ) -> Option<Vec<crate::state::modal::ServiceImpact>> {
     // Try to use cached services from app state (for install actions)
-    if !matches!(*action, crate::state::PreflightAction::Install) || services_resolving {
+    if !matches!(action, crate::state::PreflightAction::Install) || services_resolving {
         return None;
     }
 

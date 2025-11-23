@@ -511,7 +511,7 @@ fn build_security_scanner_rows(
 /// - AUR helper: Shows installed `paru`/`yay` if present, or both if neither installed.
 /// - Security scanners: Always includes `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, `VirusTotal API` setup,
 ///   and `aur-sleuth` setup. Marks installed items as non-selectable.
-pub(crate) fn build_optional_deps_rows(app: &AppState) -> Vec<crate::state::types::OptionalDepRow> {
+pub fn build_optional_deps_rows(app: &AppState) -> Vec<crate::state::types::OptionalDepRow> {
     let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();
 
     build_editor_rows(app, &mut rows);

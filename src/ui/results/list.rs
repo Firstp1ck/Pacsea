@@ -137,9 +137,9 @@ pub fn build_package_marker_item(
             let bgc = if in_install {
                 if let ratatui::style::Color::Rgb(r, g, b) = color {
                     ratatui::style::Color::Rgb(
-                        ((r as u16 * 85) / 100) as u8,
-                        ((g as u16 * 85) / 100) as u8,
-                        ((b as u16 * 85) / 100) as u8,
+                        u8::try_from((u16::from(r) * 85) / 100).unwrap_or(255),
+                        u8::try_from((u16::from(g) * 85) / 100).unwrap_or(255),
+                        u8::try_from((u16::from(b) * 85) / 100).unwrap_or(255),
                     )
                 } else {
                     color

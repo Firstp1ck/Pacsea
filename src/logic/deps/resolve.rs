@@ -115,8 +115,7 @@ fn is_command_available(cmd: &str) -> bool {
 #[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn should_filter_dependency(pkg_name: &str, parent_name: &str) -> bool {
     let pkg_lower = pkg_name.to_lowercase();
-    pkg_name
-        == parent_name
+    pkg_name == parent_name
         || pkg_lower.ends_with(".so")
         || pkg_lower.contains(".so.")
         || pkg_lower.contains(".so=")

@@ -78,7 +78,7 @@ pub(super) fn close_preflight_modal(
 /// - Loads cached dependencies if available, otherwise triggers background resolution.
 fn handle_deps_tab_switch(
     items: &[PackageItem],
-    action: &crate::state::PreflightAction,
+    action: crate::state::PreflightAction,
     params: &mut DepsTabParams<'_>,
 ) -> bool {
     tracing::debug!(
@@ -220,7 +220,7 @@ fn handle_files_tab_switch(
 /// - Loads cached service information if available and conditions are met.
 fn handle_services_tab_switch(
     items: &[PackageItem],
-    action: &crate::state::PreflightAction,
+    action: crate::state::PreflightAction,
     params: &mut ServicesTabParams<'_>,
 ) {
     if params.service_info.is_empty()
@@ -259,7 +259,7 @@ fn handle_services_tab_switch(
 /// - Loads cached sandbox information if available, otherwise triggers background resolution.
 fn handle_sandbox_tab_switch(
     items: &[PackageItem],
-    action: &crate::state::PreflightAction,
+    action: crate::state::PreflightAction,
     params: &mut SandboxTabParams<'_>,
 ) {
     if params.sandbox_info.is_empty() && !*params.sandbox_loaded {
@@ -319,7 +319,7 @@ pub(super) fn switch_preflight_tab(
     new_tab: crate::state::PreflightTab,
     app: &mut AppState,
     items: &[PackageItem],
-    action: &crate::state::PreflightAction,
+    action: crate::state::PreflightAction,
 ) {
     tracing::info!(
         "[Preflight] switch_preflight_tab: Switching to {:?}, items={}, action={:?}",

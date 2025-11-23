@@ -59,8 +59,8 @@ fn try_spawn_terminal(
                 terminal = %term,
                 names = %item_name,
                 total = 1,
-                aur_count = (src == "aur") as usize,
-                official_count = (src == "official") as usize,
+                aur_count = usize::from(src == "aur"),
+                official_count = usize::from(src == "official"),
                 dry_run,
                 "launched terminal for install"
             );
@@ -149,8 +149,8 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
     tracing::info!(
         names = %item.name,
         total = 1,
-        aur_count = (src == "aur") as usize,
-        official_count = (src == "official") as usize,
+        aur_count = usize::from(src == "aur"),
+        official_count = usize::from(src == "official"),
         dry_run = dry_run,
         uses_sudo,
         "spawning install"
@@ -159,7 +159,7 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
     let terms = get_terminal_preferences();
 
     // Try preferred path-based selection first
-    let mut launched = if let Some(idx) = choose_terminal_index_prefer_path(terms) {
+    let mut launched = choose_terminal_index_prefer_path(terms).map_or(false, |idx| {
         let (term, args, needs_xfce_command) = terms[idx];
         try_spawn_terminal(
             term,
@@ -170,9 +170,7 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
             src,
             dry_run,
         )
-    } else {
-        false
-    };
+    });
 
     // Fallback: try each terminal in order
     if !launched {
@@ -203,8 +201,8 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
             tracing::info!(
                 names = %item.name,
                 total = 1,
-                aur_count = (src == "aur") as usize,
-                official_count = (src == "official") as usize,
+                aur_count = usize::from(src == "aur"),
+                official_count = usize::from(src == "official"),
                 dry_run = dry_run,
                 "launched bash for install"
             );

@@ -16,8 +16,8 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
         .open(path)?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .ok();
+        .ok()
+        .and_then(|d| i64::try_from(d.as_secs()).ok());
     let when = crate::util::ts_to_date(now);
     for n in names {
         writeln!(f, "{when} {n}")?;

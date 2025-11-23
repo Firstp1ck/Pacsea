@@ -34,7 +34,9 @@ pub fn spawn_search_worker(
     tokio::spawn(async move {
         const DEBOUNCE_MS: u64 = 250;
         const MIN_INTERVAL_MS: u64 = 300;
-        let mut last_sent = Instant::now() - Duration::from_millis(MIN_INTERVAL_MS);
+        let mut last_sent = Instant::now()
+            .checked_sub(Duration::from_millis(MIN_INTERVAL_MS))
+            .unwrap_or_else(Instant::now);
         loop {
             let Some(mut latest) = query_rx.recv().await else {
                 break;

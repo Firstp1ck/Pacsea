@@ -56,7 +56,7 @@ fn map_syntect_color(sc: syntect::highlighting::Color, th: &Theme) -> Color {
 
     let max_rgb = r.max(g).max(b);
     let min_rgb = r.min(g).min(b);
-    let avg_rgb = (r as u16 + g as u16 + b as u16) / 3;
+    let avg_rgb = (u16::from(r) + u16::from(g) + u16::from(b)) / 3;
 
     // If color is very dark (close to black), use theme text color
     if max_rgb < 30 {

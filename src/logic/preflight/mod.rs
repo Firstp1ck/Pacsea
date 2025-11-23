@@ -257,11 +257,15 @@ fn calculate_install_delta(
     installed_size: Option<u64>,
 ) -> Option<i64> {
     match action {
-        PreflightAction::Install => install_size_target.map(|target| {
+        PreflightAction::Install => install_size_target.and_then(|target| {
             let current = installed_size.unwrap_or(0);
-            target as i64 - current as i64
+            let target_i64 = i64::try_from(target).ok()?;
+            let current_i64 = i64::try_from(current).ok()?;
+            Some(target_i64 - current_i64)
         }),
-        PreflightAction::Remove => installed_size.map(|size| -(size as i64)),
+        PreflightAction::Remove => {
+            installed_size.and_then(|size| i64::try_from(size).ok().map(|s| -s))
+        }
     }
 }
 

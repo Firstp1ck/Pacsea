@@ -102,7 +102,7 @@ pub(super) fn compute_sandbox_display_items_len(
 /// Details:
 /// - Always counts ALL packages from items, even if they have no files.
 /// - Adds one row per package header and additional rows for each file when expanded.
-pub(crate) fn compute_file_display_items_len(
+pub fn compute_file_display_items_len(
     items: &[PackageItem],
     file_info: &[crate::state::modal::PackageFileInfo],
     file_tree_expanded: &HashSet<String>,
@@ -141,7 +141,7 @@ pub(crate) fn compute_file_display_items_len(
 /// - Always shows ALL packages from items, even if they have no files.
 /// - This ensures packages that failed to resolve files (e.g., due to conflicts) are still visible.
 /// - Uses empty strings for file rows because UI draws file details from separate collections.
-pub(crate) fn build_file_display_items(
+pub fn build_file_display_items(
     items: &[PackageItem],
     file_info: &[crate::state::modal::PackageFileInfo],
     file_tree_expanded: &HashSet<String>,

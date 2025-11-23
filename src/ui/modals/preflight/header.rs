@@ -33,7 +33,7 @@ struct TabStatus {
 ///
 /// Details: Summary is complete if data exists.
 const fn calculate_summary_status(
-    summary: Option<&Box<crate::state::modal::PreflightSummaryData>>,
+    summary: Option<&crate::state::modal::PreflightSummaryData>,
     summary_loading: bool,
 ) -> TabStatus {
     TabStatus {
@@ -489,7 +489,7 @@ fn calculate_all_tab_statuses(
     app: &AppState,
     item_names: &std::collections::HashSet<String>,
     aur_items: &std::collections::HashSet<String>,
-    summary: Option<&Box<crate::state::modal::PreflightSummaryData>>,
+    summary: Option<&crate::state::modal::PreflightSummaryData>,
     dependency_info: &[crate::state::modal::DependencyInfo],
     file_info: &[crate::state::modal::PackageFileInfo],
     services_loaded: bool,
@@ -630,7 +630,7 @@ pub fn render_tab_header(
     tab: PreflightTab,
     header_chips: &PreflightHeaderChips,
     items: &[crate::state::PackageItem],
-    summary: Option<&Box<crate::state::modal::PreflightSummaryData>>,
+    summary: Option<&crate::state::modal::PreflightSummaryData>,
     dependency_info: &[crate::state::modal::DependencyInfo],
     file_info: &[crate::state::modal::PackageFileInfo],
     services_loaded: bool,

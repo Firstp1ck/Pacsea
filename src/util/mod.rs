@@ -244,8 +244,8 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
         31,
     ];
     for &len in &mdays {
-        if days >= len as i64 {
-            days -= len as i64;
+        if days >= i64::from(len) {
+            days -= i64::from(len);
             month += 1;
         } else {
             break;
@@ -435,7 +435,8 @@ pub fn today_yyyymmdd_utc() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()
-        .map_or(0, |dur| dur.as_secs() as i64); // fallback to epoch if clock is before 1970
+        .and_then(|dur| i64::try_from(dur.as_secs()).ok())
+        .unwrap_or(0); // fallback to epoch if clock is before 1970
     let mut days = secs / 86_400;
     // Derive year
     let mut year: i32 = 1970;
@@ -467,8 +468,8 @@ pub fn today_yyyymmdd_utc() -> String {
         31,
     ];
     for &len in &mdays {
-        if days >= len as i64 {
-            days -= len as i64;
+        if days >= i64::from(len) {
+            days -= i64::from(len);
             month += 1;
         } else {
             break;
