@@ -16,7 +16,7 @@ mod renderer;
 mod system_update;
 mod updates;
 
-/// What: Render modal overlays (Alert, ConfirmInstall, ConfirmRemove, SystemUpdate, Help, News).
+/// What: Render modal overlays (`Alert`, `ConfirmInstall`, `ConfirmRemove`, `SystemUpdate`, `Help`, `News`).
 ///
 /// Inputs:
 /// - `f`: Frame to render into
@@ -50,7 +50,7 @@ mod tests {
     /// What: Render each modal variant to ensure layout rects and state assignments succeed without panic.
     ///
     /// Inputs:
-    /// - Iterates through Alert, ConfirmInstall, ConfirmRemove (core item), Help, and News variants.
+    /// - Iterates through Alert, `ConfirmInstall`, `ConfirmRemove` (core item), Help, and News variants.
     ///
     /// Output:
     /// - Rendering completes without error, with Help and News variants setting their associated rectangles.
@@ -61,28 +61,27 @@ mod tests {
     fn modals_set_rects_and_render_variants() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(100, 28);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
-
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         // Alert
-        app.modal = crate::state::Modal::Alert {
-            message: "Test".into(),
+        let mut app = crate::state::AppState {
+            modal: crate::state::Modal::Alert {
+                message: "Test".into(),
+            },
+            ..Default::default()
         };
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render Alert modal");
 
         // ConfirmInstall
         app.modal = crate::state::Modal::ConfirmInstall { items: vec![] };
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render ConfirmInstall modal");
 
         // ConfirmRemove with core warn
         app.modal = crate::state::Modal::ConfirmRemove {
@@ -99,17 +98,17 @@ mod tests {
         };
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render ConfirmRemove modal");
 
         // Help
         app.modal = crate::state::Modal::Help;
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render Help modal");
         assert!(app.help_rect.is_some());
 
         // News
@@ -117,15 +116,15 @@ mod tests {
             items: vec![crate::state::NewsItem {
                 date: "2025-10-11".into(),
                 title: "Test".into(),
-                url: "".into(),
+                url: String::new(),
             }],
             selected: 0,
         };
         term.draw(|f| {
             let area = f.area();
-            super::render_modals(f, &mut app, area)
+            super::render_modals(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render News modal");
         assert!(app.news_rect.is_some());
         assert!(app.news_list_rect.is_some());
     }

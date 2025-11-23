@@ -35,13 +35,13 @@ pub use crate::ui::helpers::{format_bytes, format_signed_bytes};
 pub fn format_count_with_indicator(count: usize, total_items: usize, is_resolving: bool) -> String {
     if !is_resolving {
         // Resolution complete, show actual count
-        format!("{}", count)
+        format!("{count}")
     } else if count < total_items {
         // Still resolving and we have partial data
-        format!("{}...", count)
+        format!("{count}...")
     } else {
         // Resolving but count matches total (shouldn't happen, but be safe)
-        format!("{}", count)
+        format!("{count}")
     }
 }
 
@@ -62,13 +62,15 @@ pub fn render_header_chips(app: &AppState, chips: &PreflightHeaderChips) -> Line
     let mut spans = Vec::new();
 
     // Package count chip
-    let pkg_text = if chips.aur_count > 0 {
-        format!("{} ({} AUR)", chips.package_count, chips.aur_count)
+    let package_count = chips.package_count;
+    let aur_count = chips.aur_count;
+    let pkg_text = if aur_count > 0 {
+        format!("{package_count} ({aur_count} AUR)")
     } else {
-        format!("{}", chips.package_count)
+        format!("{package_count}")
     };
     spans.push(Span::styled(
-        format!("[{}]", pkg_text),
+        format!("[{pkg_text}]"),
         Style::default()
             .fg(th.sapphire)
             .add_modifier(Modifier::BOLD),
@@ -87,12 +89,10 @@ pub fn render_header_chips(app: &AppState, chips: &PreflightHeaderChips) -> Line
 
     // Install delta chip (always shown)
     spans.push(Span::styled(" ", Style::default()));
-    let delta_color = if chips.install_delta_bytes > 0 {
-        th.green
-    } else if chips.install_delta_bytes < 0 {
-        th.red
-    } else {
-        th.overlay1 // Neutral color for zero
+    let delta_color = match chips.install_delta_bytes.cmp(&0) {
+        std::cmp::Ordering::Greater => th.green,
+        std::cmp::Ordering::Less => th.red,
+        std::cmp::Ordering::Equal => th.overlay1, // Neutral color for zero
     };
     spans.push(Span::styled(
         i18n::t_fmt1(

@@ -2,13 +2,13 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
     prelude::Rect,
-    style::{Modifier, Style},
+    style::Style,
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, List, ListItem},
+    widgets::{Block, BorderType, Borders, List},
 };
 
 use crate::i18n;
-use crate::state::{AppState, Source};
+use crate::state::AppState;
 use crate::theme::theme;
 
 /// What: Render Downgrade and Remove lists side-by-side in installed-only mode.
@@ -62,136 +62,112 @@ pub fn render_installed_only(f: &mut Frame, app: &mut AppState, area: Rect) {
 /// Output:
 /// - Draws the downgrade list and records inner rect for mouse hit-testing.
 fn render_downgrade_list(f: &mut Frame, app: &mut AppState, area: Rect, install_focused: bool) {
-    let th = theme();
     let dg_indices: Vec<usize> = (0..app.downgrade_list.len()).collect();
     let downgrade_selected_idx = app.downgrade_state.selected();
-    let downgrade_items: Vec<ListItem> = dg_indices
-        .iter()
-        .enumerate()
-        .filter_map(|(display_idx, &i)| app.downgrade_list.get(i).map(|p| (display_idx, p)))
-        .map(|(display_idx, p)| {
-            let (src, color) = match &p.source {
-                Source::Official { repo, .. } => (repo.to_string(), th.green),
-                Source::Aur => ("AUR".to_string(), th.yellow),
-            };
-            let mut segs: Vec<Span> = Vec::new();
-
-            // Add selection indicator manually if this item is selected
-            let is_selected = downgrade_selected_idx == Some(display_idx);
-            if is_selected {
-                segs.push(Span::styled(
-                    "▶ ",
-                    Style::default()
-                        .fg(if install_focused {
-                            th.text
-                        } else {
-                            th.subtext0
-                        })
-                        .bg(if install_focused {
-                            th.surface2
-                        } else {
-                            th.base
-                        }),
-                ));
-            } else {
-                // Add spacing to align with selected items
-                segs.push(Span::raw("  "));
-            }
-
-            // Add loading indicator if package is being processed (same position and style regardless of selection)
-            if crate::ui::helpers::is_package_loading_preflight(app, &p.name) {
-                // Use explicit style that overrides highlight_style - always sapphire blue and bold
-                segs.push(Span::styled(
-                    "⟳ ",
-                    Style::default()
-                        .fg(th.sapphire)
-                        .bg(if is_selected && install_focused {
-                            th.surface2
-                        } else {
-                            th.base
-                        })
-                        .add_modifier(Modifier::BOLD),
-                ));
-            } else if !is_selected {
-                // Add spacing when not loading and not selected to maintain alignment
-                segs.push(Span::raw("  "));
-            }
-
-            if let Some(pop) = p.popularity {
-                segs.push(Span::styled(
-                    format!("Pop: {pop:.2} "),
-                    Style::default().fg(th.overlay1),
-                ));
-            }
-            segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
-            segs.push(Span::styled(
-                p.name.clone(),
-                Style::default()
-                    .fg(if install_focused {
-                        th.text
-                    } else {
-                        th.subtext0
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ));
-            segs.push(Span::styled(
-                format!("  {}", p.version),
-                Style::default().fg(if install_focused {
-                    th.overlay1
-                } else {
-                    th.surface2
-                }),
-            ));
-            ListItem::new(Line::from(segs))
-        })
-        .collect();
+    let downgrade_items = crate::ui::middle::install::build_package_list_items(
+        &dg_indices,
+        &app.downgrade_list,
+        downgrade_selected_idx,
+        install_focused
+            && matches!(
+                app.right_pane_focus,
+                crate::state::RightPaneFocus::Downgrade
+            ),
+        |name| crate::ui::helpers::is_package_loading_preflight(app, name),
+    );
     let downgrade_is_focused = install_focused
         && matches!(
             app.right_pane_focus,
             crate::state::RightPaneFocus::Downgrade
         );
-    let downgrade_title = if downgrade_is_focused {
-        i18n::t(app, "app.titles.downgrade_list_focused")
-    } else {
-        i18n::t(app, "app.titles.downgrade_list")
-    };
-    let downgrade_block = Block::default()
+    let inner_rect = render_package_list_widget(
+        f,
+        downgrade_items,
+        area,
+        i18n::t(app, "app.titles.downgrade_list_focused"),
+        i18n::t(app, "app.titles.downgrade_list"),
+        downgrade_is_focused,
+        &mut app.downgrade_state,
+    );
+    app.downgrade_rect = Some((
+        inner_rect.x,
+        inner_rect.y,
+        inner_rect.width,
+        inner_rect.height,
+    ));
+}
+
+/// What: Build a styled block for a package list widget.
+///
+/// Inputs:
+/// - `title`: Block title text
+/// - `is_focused`: Whether the list is focused
+///
+/// Output:
+/// - Styled `Block` widget ready for use in a list.
+///
+/// Details:
+/// - Applies focused/unfocused styling to title and border.
+fn build_package_list_block(title: String, is_focused: bool) -> Block<'static> {
+    let th = theme();
+    Block::default()
         .title(Line::from(vec![Span::styled(
-            downgrade_title,
-            Style::default().fg(if downgrade_is_focused {
-                th.mauve
-            } else {
-                th.overlay1
-            }),
+            title,
+            Style::default().fg(if is_focused { th.mauve } else { th.overlay1 }),
         )]))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(if downgrade_is_focused {
-            th.mauve
-        } else {
-            th.surface1
-        }));
-    let downgrade_list = List::new(downgrade_items)
+        .border_style(Style::default().fg(if is_focused { th.mauve } else { th.surface1 }))
+}
+
+/// What: Build and render a package list widget with title and styling.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `items`: List items to render
+/// - `area`: Target rectangle
+/// - `title_focused`: Title for focused state
+/// - `title_unfocused`: Title for unfocused state
+/// - `is_focused`: Whether the list is focused
+/// - `state`: List state for rendering
+///
+/// Output:
+/// - Renders the list widget and returns the inner rect.
+///
+/// Details:
+/// - Creates a block with title, styles the list, and renders it.
+fn render_package_list_widget(
+    f: &mut Frame,
+    items: Vec<ratatui::widgets::ListItem<'_>>,
+    area: Rect,
+    title_focused: String,
+    title_unfocused: String,
+    is_focused: bool,
+    state: &mut ratatui::widgets::ListState,
+) -> Rect {
+    let th = theme();
+    let title = if is_focused {
+        title_focused
+    } else {
+        title_unfocused
+    };
+    let block = build_package_list_block(title, is_focused);
+    let list = List::new(items)
         .style(
             Style::default()
-                .fg(if downgrade_is_focused {
-                    th.text
-                } else {
-                    th.subtext0
-                })
+                .fg(if is_focused { th.text } else { th.subtext0 })
                 .bg(th.base),
         )
-        .block(downgrade_block)
+        .block(block)
         .highlight_style(Style::default().fg(th.text).bg(th.surface2))
-        .highlight_symbol(""); // Empty symbol since we're adding it manually
-    f.render_stateful_widget(downgrade_list, area, &mut app.downgrade_state);
-    // Record inner Downgrade rect
-    app.downgrade_rect = Some((
-        area.x + 1,
-        area.y + 1,
-        area.width.saturating_sub(2),
-        area.height.saturating_sub(2),
-    ));
+        .highlight_symbol("");
+    f.render_stateful_widget(list, area, state);
+    Rect {
+        x: area.x + 1,
+        y: area.y + 1,
+        width: area.width.saturating_sub(2),
+        height: area.height.saturating_sub(2),
+    }
 }
 
 /// What: Render the Remove list in the right half of the installed-only pane.
@@ -205,126 +181,26 @@ fn render_downgrade_list(f: &mut Frame, app: &mut AppState, area: Rect, install_
 /// Output:
 /// - Draws the remove list.
 fn render_remove_list(f: &mut Frame, app: &mut AppState, area: Rect, install_focused: bool) {
-    let th = theme();
     let rm_indices: Vec<usize> = (0..app.remove_list.len()).collect();
     let remove_selected_idx = app.remove_state.selected();
-    let remove_items: Vec<ListItem> = rm_indices
-        .iter()
-        .enumerate()
-        .filter_map(|(display_idx, &i)| app.remove_list.get(i).map(|p| (display_idx, p)))
-        .map(|(display_idx, p)| {
-            let (src, color) = match &p.source {
-                Source::Official { repo, .. } => (repo.to_string(), th.green),
-                Source::Aur => ("AUR".to_string(), th.yellow),
-            };
-            let mut segs: Vec<Span> = Vec::new();
-
-            // Add selection indicator manually if this item is selected
-            let is_selected = remove_selected_idx == Some(display_idx);
-            if is_selected {
-                segs.push(Span::styled(
-                    "▶ ",
-                    Style::default()
-                        .fg(if install_focused {
-                            th.text
-                        } else {
-                            th.subtext0
-                        })
-                        .bg(if install_focused {
-                            th.surface2
-                        } else {
-                            th.base
-                        }),
-                ));
-            } else {
-                // Add spacing to align with selected items
-                segs.push(Span::raw("  "));
-            }
-
-            // Add loading indicator if package is being processed (same position and style regardless of selection)
-            if crate::ui::helpers::is_package_loading_preflight(app, &p.name) {
-                // Use explicit style that overrides highlight_style - always sapphire blue and bold
-                segs.push(Span::styled(
-                    "⟳ ",
-                    Style::default()
-                        .fg(th.sapphire)
-                        .bg(if is_selected && install_focused {
-                            th.surface2
-                        } else {
-                            th.base
-                        })
-                        .add_modifier(Modifier::BOLD),
-                ));
-            } else if !is_selected {
-                // Add spacing when not loading and not selected to maintain alignment
-                segs.push(Span::raw("  "));
-            }
-
-            if let Some(pop) = p.popularity {
-                segs.push(Span::styled(
-                    format!("Pop: {pop:.2} "),
-                    Style::default().fg(th.overlay1),
-                ));
-            }
-            segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
-            segs.push(Span::styled(
-                p.name.clone(),
-                Style::default()
-                    .fg(if install_focused {
-                        th.text
-                    } else {
-                        th.subtext0
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ));
-            segs.push(Span::styled(
-                format!("  {}", p.version),
-                Style::default().fg(if install_focused {
-                    th.overlay1
-                } else {
-                    th.surface2
-                }),
-            ));
-            ListItem::new(Line::from(segs))
-        })
-        .collect();
+    let remove_items = crate::ui::middle::install::build_package_list_items(
+        &rm_indices,
+        &app.remove_list,
+        remove_selected_idx,
+        install_focused && matches!(app.right_pane_focus, crate::state::RightPaneFocus::Remove),
+        |name| crate::ui::helpers::is_package_loading_preflight(app, name),
+    );
     let remove_is_focused =
         install_focused && matches!(app.right_pane_focus, crate::state::RightPaneFocus::Remove);
-    let remove_title = if remove_is_focused {
-        i18n::t(app, "app.titles.remove_list_focused")
-    } else {
-        i18n::t(app, "app.titles.remove_list")
-    };
-    let remove_block = Block::default()
-        .title(Line::from(vec![Span::styled(
-            remove_title,
-            Style::default().fg(if remove_is_focused {
-                th.mauve
-            } else {
-                th.overlay1
-            }),
-        )]))
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(if remove_is_focused {
-            th.mauve
-        } else {
-            th.surface1
-        }));
-    let remove_list = List::new(remove_items)
-        .style(
-            Style::default()
-                .fg(if remove_is_focused {
-                    th.text
-                } else {
-                    th.subtext0
-                })
-                .bg(th.base),
-        )
-        .block(remove_block)
-        .highlight_style(Style::default().fg(th.text).bg(th.surface2))
-        .highlight_symbol(""); // Empty symbol since we're adding it manually
-    f.render_stateful_widget(remove_list, area, &mut app.remove_state);
+    render_package_list_widget(
+        f,
+        remove_items,
+        area,
+        i18n::t(app, "app.titles.remove_list_focused"),
+        i18n::t(app, "app.titles.remove_list"),
+        remove_is_focused,
+        &mut app.remove_state,
+    );
 }
 
 #[cfg(test)]
@@ -335,7 +211,7 @@ mod tests {
     /// What: Initialize minimal English translations for installed-only tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with installed-only translations
@@ -375,10 +251,8 @@ mod tests {
     #[test]
     fn installed_only_renders_both_lists() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.downgrade_list.push(crate::state::PackageItem {
             name: "downgrade-pkg".to_string(),
@@ -399,7 +273,7 @@ mod tests {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane");
 
         assert!(app.install_rect.is_some());
         assert!(app.downgrade_rect.is_some());
@@ -421,10 +295,8 @@ mod tests {
     #[test]
     fn installed_only_hides_buttons() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         // Set initial button rects
         app.install_import_rect = Some((10, 10, 10, 1));
@@ -434,7 +306,7 @@ mod tests {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane without buttons");
 
         assert!(app.install_import_rect.is_none());
         assert!(app.install_export_rect.is_none());
@@ -453,26 +325,28 @@ mod tests {
     #[test]
     fn installed_only_splits_area_correctly() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
         term.draw(|f| {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane with split area");
 
-        let downgrade_rect = app.downgrade_rect.unwrap();
-        let install_rect = app.install_rect.unwrap(); // Maps to Remove list
+        let downgrade_rect = app
+            .downgrade_rect
+            .expect("downgrade_rect should be set after rendering");
+        let install_rect = app
+            .install_rect
+            .expect("install_rect should be set after rendering"); // Maps to Remove list
 
         // Both should have similar widths (accounting for borders)
         let downgrade_width = downgrade_rect.2;
         let remove_width = install_rect.2;
         // Widths should be approximately equal (within 1 pixel due to rounding)
-        assert!((downgrade_width as i32 - remove_width as i32).abs() <= 1);
+        assert!((i32::from(downgrade_width) - i32::from(remove_width)).abs() <= 1);
     }
 
     /// What: Verify installed-only mode records downgrade rect.
@@ -488,20 +362,20 @@ mod tests {
     #[test]
     fn installed_only_records_downgrade_rect() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
         term.draw(|f| {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane to record downgrade rect");
 
         assert!(app.downgrade_rect.is_some());
-        let (x, y, w, h) = app.downgrade_rect.unwrap();
+        let (x, y, w, h) = app
+            .downgrade_rect
+            .expect("downgrade_rect should be Some after is_some() check");
         // Rect should exclude borders
         assert_eq!(x, 1);
         assert_eq!(y, 1);
@@ -522,10 +396,8 @@ mod tests {
     #[test]
     fn installed_only_handles_empty_lists() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.downgrade_list.clear();
         app.remove_list.clear();
@@ -534,7 +406,7 @@ mod tests {
             let area = f.area();
             render_installed_only(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render installed-only pane with empty lists");
 
         // Should render empty lists without panic
         assert!(app.install_rect.is_some());

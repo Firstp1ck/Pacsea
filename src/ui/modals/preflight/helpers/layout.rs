@@ -9,7 +9,7 @@ use ratatui::{
 /// - `area`: Full screen area used to center the modal
 ///
 /// Output:
-/// - Returns a tuple of (modal_rect, content_rect, keybinds_rect)
+/// - Returns a tuple of (`modal_rect`, `content_rect`, `keybinds_rect`)
 ///
 /// Details:
 /// - Calculates centered modal size (max 96x32, with 6/8 pixel margins)

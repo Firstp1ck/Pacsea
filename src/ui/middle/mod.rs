@@ -41,7 +41,10 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     // In installed-only mode, enlarge the right pane so Downgrade and Remove lists are each ~50% wider
     if app.installed_only_mode && right_pct > 0 {
         let max_right = 100u16.saturating_sub(left_pct);
-        let widened = ((right_pct as u32 * 3) / 2) as u16; // 1.5x
+        let widened = ((u32::from(right_pct) * 3) / 2)
+            .min(u32::from(u16::MAX))
+            .try_into()
+            .unwrap_or(u16::MAX); // 1.5x
         right_pct = widened.min(max_right);
     }
     let center_pct = 100u16
@@ -95,20 +98,20 @@ mod tests {
     fn middle_sets_rects_and_cursor_positions() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
+            show_recent_pane: true,
+            show_install_pane: true,
+            focus: crate::state::Focus::Search,
+            input: "hello".into(),
             ..Default::default()
         };
-        app.show_recent_pane = true;
-        app.show_install_pane = true;
-        app.focus = crate::state::Focus::Search;
-        app.input = "hello".into();
 
         term.draw(|f| {
             let area = f.area();
             super::render_middle(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render middle pane");
 
         assert!(app.recent_rect.is_some());
         assert!(app.install_rect.is_some());
@@ -119,7 +122,7 @@ mod tests {
             let area = f.area();
             super::render_middle(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render middle pane");
         assert!(matches!(app.focus, crate::state::Focus::Search));
     }
 
@@ -137,21 +140,21 @@ mod tests {
     fn middle_enlarges_right_pane_in_installed_only_mode() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
+            show_recent_pane: true,
+            show_install_pane: true,
+            installed_only_mode: true,
+            layout_left_pct: 20,
+            layout_right_pct: 30, // Should become 45 (30 * 1.5) if space allows
             ..Default::default()
         };
-        app.show_recent_pane = true;
-        app.show_install_pane = true;
-        app.installed_only_mode = true;
-        app.layout_left_pct = 20;
-        app.layout_right_pct = 30; // Should become 45 (30 * 1.5) if space allows
 
         term.draw(|f| {
             let area = f.area();
             super::render_middle(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render middle pane");
 
         // Should render without panic with enlarged right pane
         assert!(app.install_rect.is_some());
@@ -172,20 +175,20 @@ mod tests {
     fn middle_reassigns_space_when_panes_hidden() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
+            show_recent_pane: false,
+            show_install_pane: false,
+            focus: crate::state::Focus::Search,
+            input: "test".into(),
             ..Default::default()
         };
-        app.show_recent_pane = false;
-        app.show_install_pane = false;
-        app.focus = crate::state::Focus::Search;
-        app.input = "test".into();
 
         term.draw(|f| {
             let area = f.area();
             super::render_middle(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render middle pane");
 
         // Recent and install rects should be None
         assert!(app.recent_rect.is_none());
@@ -206,18 +209,18 @@ mod tests {
     fn middle_handles_zero_width_area() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(0, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
+            show_recent_pane: true,
+            show_install_pane: true,
             ..Default::default()
         };
-        app.show_recent_pane = true;
-        app.show_install_pane = true;
 
         term.draw(|f| {
             let area = f.area();
             super::render_middle(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render middle pane");
 
         // Should handle zero width without panic
     }
@@ -236,12 +239,12 @@ mod tests {
     fn middle_switches_focus_when_install_hidden() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 30);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
         let mut app = crate::state::AppState {
+            show_install_pane: true,
+            focus: crate::state::Focus::Install,
             ..Default::default()
         };
-        app.show_install_pane = true;
-        app.focus = crate::state::Focus::Install;
 
         // Hide install pane
         app.show_install_pane = false;
@@ -249,7 +252,7 @@ mod tests {
             let area = f.area();
             super::render_middle(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render middle pane");
 
         assert!(matches!(app.focus, crate::state::Focus::Search));
     }

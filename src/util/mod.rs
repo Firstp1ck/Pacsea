@@ -10,6 +10,7 @@ pub mod pacman;
 pub mod srcinfo;
 
 use serde_json::Value;
+use std::fmt::Write;
 
 /// Ensure mouse capture is enabled for the TUI.
 ///
@@ -41,6 +42,7 @@ pub fn ensure_mouse_capture() {
 ///
 /// The function operates on raw bytes from the input string. Any non-ASCII bytes
 /// are hex-escaped.
+#[must_use]
 pub fn percent_encode(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for &b in input.as_bytes() {
@@ -51,7 +53,7 @@ pub fn percent_encode(input: &str) -> String {
             b' ' => out.push_str("%20"),
             _ => {
                 out.push('%');
-                out.push_str(&format!("{b:02X}"));
+                let _ = write!(out, "{b:02X}");
             }
         }
     }
@@ -61,6 +63,7 @@ pub fn percent_encode(input: &str) -> String {
 /// Extract a string value from a JSON object by key, defaulting to empty string.
 ///
 /// Returns `""` if the key is missing or not a string.
+#[must_use]
 pub fn s(v: &Value, key: &str) -> String {
     v.get(key)
         .and_then(Value::as_str)
@@ -71,6 +74,7 @@ pub fn s(v: &Value, key: &str) -> String {
 ///
 /// Returns `Some(String)` for the first key that maps to a JSON string, or `None`
 /// if none match.
+#[must_use]
 pub fn ss(v: &Value, keys: &[&str]) -> Option<String> {
     for k in keys {
         if let Some(s) = v.get(*k).and_then(|x| x.as_str()) {
@@ -83,12 +87,13 @@ pub fn ss(v: &Value, keys: &[&str]) -> Option<String> {
 ///
 /// Returns the first found array as `Vec<String>`, filtering out non-string elements.
 /// If no array of strings is found, returns an empty vector.
+#[must_use]
 pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
     for k in keys {
         if let Some(arr) = v.get(*k).and_then(|x| x.as_array()) {
             return arr
                 .iter()
-                .filter_map(|e| e.as_str().map(|s| s.to_owned()))
+                .filter_map(|e| e.as_str().map(ToOwned::to_owned))
                 .collect();
         }
     }
@@ -103,6 +108,7 @@ pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
 /// - String that parses as `u64`
 ///
 /// Returns `None` if no usable value is found.
+#[must_use]
 pub fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
     for k in keys {
         if let Some(n) = v.get(*k) {
@@ -137,6 +143,7 @@ use crate::state::Source;
 /// - `extra` => 1
 /// - other official repos => 2
 /// - AUR => 3
+#[must_use]
 pub fn repo_order(src: &Source) -> u8 {
     match src {
         Source::Official { repo, .. } => {
@@ -161,6 +168,7 @@ pub fn repo_order(src: &Source) -> u8 {
 /// - 1: prefix match (`starts_with`)
 /// - 2: substring match (`contains`)
 /// - 3: no match
+#[must_use]
 pub fn match_rank(name: &str, query_lower: &str) -> u8 {
     let n = name.to_lowercase();
     if !query_lower.is_empty() {
@@ -185,10 +193,10 @@ pub fn match_rank(name: &str, query_lower: &str) -> u8 {
 ///
 /// This implementation performs a simple conversion using loops and does not
 /// account for leap seconds.
+#[must_use]
 pub fn ts_to_date(ts: Option<i64>) -> String {
-    let t = match ts {
-        Some(v) => v,
-        None => return String::new(),
+    let Some(t) = ts else {
+        return String::new();
     };
     if t < 0 {
         return t.to_string();
@@ -202,16 +210,16 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
         days -= 1;
     }
 
-    let hour = (sod / 3600) as u32;
+    let hour = u32::try_from(sod / 3600).unwrap_or(0);
     sod %= 3600;
-    let minute = (sod / 60) as u32;
-    let second = (sod % 60) as u32;
+    let minute = u32::try_from(sod / 60).unwrap_or(0);
+    let second = u32::try_from(sod % 60).unwrap_or(0);
 
     // Convert days since 1970-01-01 to Y-M-D (UTC) using simple loops
     let mut year: i32 = 1970;
     loop {
         let leap = is_leap(year);
-        let diy = if leap { 366 } else { 365 } as i64;
+        let diy = i64::from(if leap { 366 } else { 365 });
         if days >= diy {
             days -= diy;
             year += 1;
@@ -235,15 +243,15 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
         30,
         31,
     ];
-    for &len in mdays.iter() {
-        if days >= len as i64 {
-            days -= len as i64;
+    for &len in &mdays {
+        if days >= i64::from(len) {
+            days -= i64::from(len);
             month += 1;
         } else {
             break;
         }
     }
-    let day = (days + 1) as u32;
+    let day = u32::try_from(days + 1).unwrap_or(1);
 
     format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}")
 }
@@ -259,13 +267,13 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
 ///
 /// Notes:
 /// - Follows Gregorian rule: divisible by 4 and not by 100, unless divisible by 400.
-fn is_leap(y: i32) -> bool {
+const fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
 /// Open a file in the default editor (cross-platform).
 ///
-/// On Windows, uses PowerShell's `Invoke-Item` to open files with the default application.
+/// On Windows, uses `PowerShell`'s `Invoke-Item` to open files with the default application.
 /// On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
 ///
 /// This function spawns the command in a background thread and ignores errors.
@@ -281,7 +289,7 @@ pub fn open_file(path: &std::path::Path) {
                     .args([
                         "-NoProfile",
                         "-Command",
-                        &format!("Invoke-Item '{}'", path_str),
+                        &format!("Invoke-Item '{path_str}'"),
                     ])
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
@@ -326,11 +334,13 @@ pub fn open_file(path: &std::path::Path) {
 ///
 /// This function spawns the command in a background thread and ignores errors.
 /// During tests, this is a no-op to avoid opening real browser windows.
-pub fn open_url(_url: &str) {
+#[allow(clippy::missing_const_for_fn)]
+#[cfg_attr(test, allow(unused_variables))]
+pub fn open_url(url: &str) {
     // Skip actual spawning during tests
     #[cfg(not(test))]
     {
-        let url = _url.to_string();
+        let url = url.to_string();
         std::thread::spawn(move || {
             #[cfg(target_os = "windows")]
             {
@@ -344,7 +354,7 @@ pub fn open_url(_url: &str) {
                     .or_else(|_| {
                         // Fallback: try PowerShell
                         std::process::Command::new("powershell")
-                            .args(["-Command", &format!("Start-Process '{}'", url)])
+                            .args(["-Command", &format!("Start-Process '{url}'")])
                             .stdin(std::process::Stdio::null())
                             .stdout(std::process::Stdio::null())
                             .stderr(std::process::Stdio::null())
@@ -391,6 +401,7 @@ pub fn open_url(_url: &str) {
 /// - Windows: Adds `-k` to skip SSL verification
 /// - Adds User-Agent header to avoid being blocked by APIs
 /// - Appends `extra_args` and `url` at the end
+#[must_use]
 pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
     let mut args = vec!["-sSLf".to_string()];
 
@@ -419,17 +430,19 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
 ///
 /// This uses a simple conversion from Unix epoch seconds to a UTC calendar date,
 /// matching the same leap-year logic as `ts_to_date`.
+#[must_use]
 pub fn today_yyyymmdd_utc() -> String {
-    let secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        Ok(dur) => dur.as_secs() as i64,
-        Err(_) => 0, // fallback to epoch if clock is before 1970
-    };
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|dur| i64::try_from(dur.as_secs()).ok())
+        .unwrap_or(0); // fallback to epoch if clock is before 1970
     let mut days = secs / 86_400;
     // Derive year
     let mut year: i32 = 1970;
     loop {
         let leap = is_leap(year);
-        let diy = if leap { 366 } else { 365 } as i64;
+        let diy = i64::from(if leap { 366 } else { 365 });
         if days >= diy {
             days -= diy;
             year += 1;
@@ -454,15 +467,15 @@ pub fn today_yyyymmdd_utc() -> String {
         30,
         31,
     ];
-    for &len in mdays.iter() {
-        if days >= len as i64 {
-            days -= len as i64;
+    for &len in &mdays {
+        if days >= i64::from(len) {
+            days -= i64::from(len);
             month += 1;
         } else {
             break;
         }
     }
-    let day = (days + 1) as u32;
+    let day = u32::try_from(days + 1).unwrap_or(1);
     format!("{year:04}{month:02}{day:02}")
 }
 

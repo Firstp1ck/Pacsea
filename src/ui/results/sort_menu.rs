@@ -34,14 +34,20 @@ pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u1
             i18n::t(app, "app.results.sort_menu.options.aur_popularity"),
             i18n::t(app, "app.results.sort_menu.options.best_matches"),
         ];
-        let widest = opts.iter().map(|s| s.len()).max().unwrap_or(0) as u16;
+        let widest = opts
+            .iter()
+            .map(|s| u16::try_from(s.len()).map_or(u16::MAX, |x| x))
+            .max()
+            .unwrap_or(0);
         let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
         // Place menu just under the title, aligned to button if possible
         let rect_w = w.saturating_add(2);
         let max_x = area.x + area.width.saturating_sub(rect_w);
         let menu_x = btn_x.min(max_x);
         let menu_y = area.y.saturating_add(1); // just below top border
-        let h = (opts.len() as u16) + 2; // borders
+        let h = u16::try_from(opts.len())
+            .unwrap_or(u16::MAX)
+            .saturating_add(2); // borders
         let rect = ratatui::prelude::Rect {
             x: menu_x,
             y: menu_y,

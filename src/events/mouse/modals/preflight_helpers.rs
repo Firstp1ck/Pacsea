@@ -27,7 +27,7 @@ pub(super) fn build_deps_display_items(
 ) -> Vec<(bool, String)> {
     // Build display items list to find which package header was clicked
     let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
-    for dep in dependency_info.iter() {
+    for dep in dependency_info {
         for req_by in &dep.required_by {
             grouped.entry(req_by.clone()).or_default().push(dep);
         }
@@ -41,7 +41,7 @@ pub(super) fn build_deps_display_items(
         if dep_tree_expanded.contains(pkg_name) {
             let mut seen_deps = HashSet::new();
             if let Some(pkg_deps) = grouped.get(pkg_name) {
-                for dep in pkg_deps.iter() {
+                for dep in pkg_deps {
                     if seen_deps.insert(dep.name.as_str()) {
                         display_items.push((false, String::new()));
                     }
@@ -128,22 +128,22 @@ pub(super) fn load_cached_files(
 /// - Returns `None` if services are currently being resolved, cache doesn't exist, or cached services are empty.
 pub(super) fn load_cached_services(
     items: &[PackageItem],
-    action: &crate::state::PreflightAction,
+    action: crate::state::PreflightAction,
     services_resolving: bool,
     services_cache_path: &std::path::PathBuf,
     install_list_services: &[crate::state::modal::ServiceImpact],
 ) -> Option<Vec<crate::state::modal::ServiceImpact>> {
     // Try to use cached services from app state (for install actions)
-    if !matches!(*action, crate::state::PreflightAction::Install) || services_resolving {
+    if !matches!(action, crate::state::PreflightAction::Install) || services_resolving {
         return None;
     }
 
     // Check if cache file exists with matching signature
-    let cache_exists = if !items.is_empty() {
+    let cache_exists = if items.is_empty() {
+        false
+    } else {
         let signature = crate::app::services_cache::compute_signature(items);
         crate::app::services_cache::load_cache(services_cache_path, &signature).is_some()
-    } else {
-        false
     };
 
     if cache_exists && !install_list_services.is_empty() {

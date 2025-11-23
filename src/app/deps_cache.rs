@@ -60,9 +60,8 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<De
         if cached_sig == current_sig {
             tracing::info!(path = %path.display(), count = cache.dependencies.len(), "loaded dependency cache");
             return Some(cache.dependencies);
-        } else {
-            tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
         }
+        tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
     }
     None
 }
@@ -105,7 +104,7 @@ mod tests {
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         path
@@ -165,7 +164,7 @@ mod tests {
     #[test]
     /// What: Confirm `load_cache` rejects persisted caches whose signature does not match.
     /// Inputs:
-    /// - Cache saved for ["fd", "ripgrep"] but reloaded with signature ["ripgrep", "zellij"].
+    /// - Cache saved for `["fd", "ripgrep"]` but reloaded with signature `["ripgrep", "zellij"]`.
     ///
     /// Output:
     /// - `None`.

@@ -3,7 +3,7 @@ use std::process::Command;
 
 use crate::state::modal::CascadeMode;
 
-/// What: Check for configuration directories in $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+/// What: Check for configuration directories in `$HOME/PACKAGE_NAME` and `$HOME/.config/PACKAGE_NAME`.
 ///
 /// Inputs:
 /// - `package_name`: Name of the package to check for config directories.
@@ -13,8 +13,9 @@ use crate::state::modal::CascadeMode;
 /// - Vector of found config directory paths.
 ///
 /// Details:
-/// - Checks both $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+/// - Checks both `$HOME/PACKAGE_NAME` and `$HOME/.config/PACKAGE_NAME`.
 /// - Only returns directories that actually exist.
+#[must_use]
 pub fn check_config_directories(package_name: &str, home: &str) -> Vec<std::path::PathBuf> {
     use std::path::PathBuf;
     let mut found_dirs = Vec::new();
@@ -119,7 +120,7 @@ fn try_spawn_terminal(
     let mut cmd = Command::new(term);
     if needs_xfce_command && term == "xfce4-terminal" {
         let quoted = shell_single_quote(cmd_str);
-        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+        cmd.arg("--command").arg(format!("bash -lc {quoted}"));
     } else {
         cmd.args(args.iter().copied()).arg(cmd_str);
     }
@@ -154,7 +155,7 @@ fn try_spawn_terminal(
 /// What: Spawn a terminal to remove all given packages with pacman.
 ///
 /// Input:
-/// - names slice of package names; dry_run prints the removal command instead of executing
+/// - names slice of package names; `dry_run` prints the removal command instead of executing
 ///
 /// Output:
 /// - Launches a terminal (or bash) to run sudo pacman -Rns for the provided names.
@@ -162,35 +163,35 @@ fn try_spawn_terminal(
 /// Details:
 /// - Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.); falls back to bash. Appends a hold tail so the window remains open after command completion.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: CascadeMode) {
+pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
     #[cfg(test)]
     if std::env::var("PACSEA_TEST_OUT").is_err() {
         return;
     }
 
-    let names_str = _names.join(" ");
+    let names_str = names.join(" ");
     tracing::info!(
         names = %names_str,
-        total = _names.len(),
-        dry_run = _dry_run,
-        mode = ?_cascade_mode,
+        total = names.len(),
+        dry_run = dry_run,
+        mode = ?cascade_mode,
         "spawning removal"
     );
-    let flag = _cascade_mode.flag();
+    let flag = cascade_mode.flag();
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-    let cmd_str = if _dry_run {
+    let cmd_str = if dry_run {
         format!(
             "echo DRY RUN: sudo pacman {flag} --noconfirm {n}{hold}",
             flag = flag,
-            n = _names.join(" "),
+            n = names.join(" "),
             hold = hold_tail
         )
     } else {
         format!(
             "sudo pacman {flag} --noconfirm {n}{hold}",
             flag = flag,
-            n = _names.join(" "),
+            n = names.join(" "),
             hold = hold_tail
         )
     };
@@ -224,8 +225,7 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
 
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
-        .map(|v| v.to_uppercase().contains("GNOME"))
-        .unwrap_or(false);
+        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
     let terms = if is_gnome {
         terms_gnome_first
     } else {
@@ -234,16 +234,15 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
 
     let ctx = SpawnContext {
         names_str: &names_str,
-        names_len: _names.len(),
-        dry_run: _dry_run,
-        cascade_mode: _cascade_mode,
+        names_len: names.len(),
+        dry_run,
+        cascade_mode,
     };
 
-    let mut launched = false;
-    if let Some(idx) = choose_terminal_index_prefer_path(terms) {
+    let mut launched = choose_terminal_index_prefer_path(terms).is_some_and(|idx| {
         let (term, args, needs_xfce_command) = terms[idx];
-        launched = try_spawn_terminal(term, args, needs_xfce_command, &cmd_str, &ctx);
-    }
+        try_spawn_terminal(term, args, needs_xfce_command, &cmd_str, &ctx)
+    });
 
     if !launched {
         for (term, args, needs_xfce_command) in terms {
@@ -263,9 +262,9 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
         } else {
             tracing::info!(
                 names = %names_str,
-                total = _names.len(),
-                dry_run = _dry_run,
-                mode = ?_cascade_mode,
+                total = names.len(),
+                dry_run = dry_run,
+                mode = ?cascade_mode,
                 "launched bash for removal"
             );
         }
@@ -297,7 +296,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
@@ -306,10 +305,13 @@ mod tests {
         let mut term_path = dir.clone();
         term_path.push("gnome-terminal");
         let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
-        fs::write(&term_path, script.as_bytes()).unwrap();
-        let mut perms = fs::metadata(&term_path).unwrap().permissions();
+        fs::write(&term_path, script.as_bytes()).expect("failed to write test terminal script");
+        let mut perms = fs::metadata(&term_path)
+            .expect("failed to read test terminal script metadata")
+            .permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&term_path, perms).unwrap();
+        fs::set_permissions(&term_path, perms)
+            .expect("failed to set test terminal script permissions");
 
         let orig_path = std::env::var_os("PATH");
         unsafe {
@@ -327,7 +329,7 @@ mod tests {
 
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
-        assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+        assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
         assert_eq!(lines[0], "--");
         assert_eq!(lines[1], "bash");
         assert_eq!(lines[2], "-lc");
@@ -358,10 +360,10 @@ mod tests {
 /// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the removal with Write-Host.
 /// - Mirrors Unix logging by emitting an info trace, but performs no package operations.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: CascadeMode) {
+pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
     #[cfg(not(test))]
     {
-        let mut names = _names.to_vec();
+        let mut names = names.to_vec();
         if names.is_empty() {
             names.push("nothing".into());
         }
@@ -369,14 +371,14 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
         tracing::info!(
             names = %names_str,
             total = names.len(),
-            dry_run = _dry_run,
-            mode = ?_cascade_mode,
+            dry_run = dry_run,
+            mode = ?cascade_mode,
             "spawning removal"
         );
-        let flag = _cascade_mode.flag();
+        let flag = cascade_mode.flag();
         let cmd = format!("pacman {flag} --noconfirm {}", names.join(" "));
 
-        if _dry_run && super::utils::is_powershell_available() {
+        if dry_run && super::utils::is_powershell_available() {
             // Use PowerShell to simulate the removal operation
             let powershell_cmd = format!(
                 "Write-Host 'DRY RUN: Simulating removal of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
@@ -389,13 +391,13 @@ pub fn spawn_remove_all(_names: &[String], _dry_run: bool, _cascade_mode: Cascad
             tracing::info!(
                 names = %names_str,
                 total = names.len(),
-                dry_run = _dry_run,
-                mode = ?_cascade_mode,
+                dry_run = dry_run,
+                mode = ?cascade_mode,
                 "launched PowerShell for removal"
             );
         } else {
-            let msg = if _dry_run {
-                format!("DRY RUN: {}", cmd)
+            let msg = if dry_run {
+                format!("DRY RUN: {cmd}")
             } else {
                 format!(
                     "Remove {} with pacman {flag} (not supported on Windows)",

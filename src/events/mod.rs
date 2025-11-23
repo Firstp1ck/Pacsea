@@ -39,7 +39,7 @@ mod utils;
 /// - Supports global shortcuts (help overlay, theme reload, exit, PKGBUILD viewer toggle, change sort).
 /// - Delegates pane-specific handling to `search`, `recent`, and `install` submodules.
 pub fn handle_event(
-    ev: CEvent,
+    ev: &CEvent,
     app: &mut AppState,
     query_tx: &mpsc::UnboundedSender<QueryInput>,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
@@ -54,11 +54,11 @@ pub fn handle_event(
 
         // Handle Preflight modal first (it's the largest)
         if matches!(app.modal, crate::state::Modal::Preflight { .. }) {
-            return preflight::handle_preflight_key(ke, app);
+            return preflight::handle_preflight_key(*ke, app);
         }
 
         // Handle all other modals
-        if modals::handle_modal_key(ke, app, add_tx) {
+        if modals::handle_modal_key(*ke, app, add_tx) {
             return false;
         }
 
@@ -68,7 +68,7 @@ pub fn handle_event(
         }
 
         // Handle global shortcuts and dropdown menus
-        if let Some(should_exit) = global::handle_global_key(ke, app, details_tx, pkgb_tx) {
+        if let Some(should_exit) = global::handle_global_key(*ke, app, details_tx, pkgb_tx) {
             if should_exit {
                 return true; // Exit requested
             }
@@ -80,20 +80,20 @@ pub fn handle_event(
         // Recent pane focused
         if matches!(app.focus, Focus::Recent) {
             let should_exit =
-                recent::handle_recent_key(ke, app, query_tx, details_tx, preview_tx, add_tx);
+                recent::handle_recent_key(*ke, app, query_tx, details_tx, preview_tx, add_tx);
             return should_exit;
         }
 
         // Install pane focused
         if matches!(app.focus, Focus::Install) {
-            let should_exit = install::handle_install_key(ke, app, details_tx, preview_tx, add_tx);
+            let should_exit = install::handle_install_key(*ke, app, details_tx, preview_tx, add_tx);
             return should_exit;
         }
 
         // Search pane focused (delegated)
         if matches!(app.focus, Focus::Search) {
             let should_exit =
-                search::handle_search_key(ke, app, query_tx, details_tx, add_tx, preview_tx);
+                search::handle_search_key(*ke, app, query_tx, details_tx, add_tx, preview_tx);
             return should_exit;
         }
 
@@ -103,7 +103,7 @@ pub fn handle_event(
 
     // Mouse handling delegated
     if let CEvent::Mouse(m) = ev {
-        return mouse::handle_mouse_event(m, app, details_tx, preview_tx, add_tx, pkgb_tx);
+        return mouse::handle_mouse_event(*m, app, details_tx, preview_tx, add_tx, pkgb_tx);
     }
     false
 }
@@ -139,7 +139,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         fs::create_dir_all(&dir).expect("create test directory");
@@ -148,25 +148,26 @@ mod tests {
         let mut term_path = dir.clone();
         term_path.push("xfce4-terminal");
         let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
-        fs::write(&term_path, script.as_bytes()).unwrap();
-        let mut perms = fs::metadata(&term_path).unwrap().permissions();
+        fs::write(&term_path, script.as_bytes()).expect("Failed to write test terminal script");
+        let mut perms = fs::metadata(&term_path)
+            .expect("Failed to read test terminal script metadata")
+            .permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&term_path, perms).unwrap();
+        fs::set_permissions(&term_path, perms)
+            .expect("Failed to set test terminal script permissions");
         let orig_path = std::env::var_os("PATH");
         // Prepend our fake terminal directory to PATH to ensure xfce4-terminal is found first
-        let combined_path = match std::env::var("PATH") {
-            Ok(p) => format!("{}:{}", dir.display(), p),
-            Err(_) => dir.display().to_string(),
-        };
+        let combined_path = std::env::var("PATH").map_or_else(
+            |_| dir.display().to_string(),
+            |p| format!("{}:{p}", dir.display()),
+        );
         unsafe {
             std::env::set_var("PATH", combined_path);
             std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
             std::env::set_var("PACSEA_TEST_HEADLESS", "1");
         }
 
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         let (qtx, _qrx) = mpsc::unbounded_channel();
         let (dtx, _drx) = mpsc::unbounded_channel();
         let (ptx, _prx) = mpsc::unbounded_channel();
@@ -179,7 +180,7 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::empty(),
         });
-        let _ = super::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
         assert!(app.options_menu_open);
         app.options_menu_rect = Some((5, 6, 20, 3));
         let click_menu_update = CEvent::Mouse(MouseEvent {
@@ -189,7 +190,7 @@ mod tests {
             modifiers: KeyModifiers::empty(),
         });
         let _ = super::handle_event(
-            click_menu_update,
+            &click_menu_update,
             &mut app,
             &qtx,
             &dtx,
@@ -198,7 +199,7 @@ mod tests {
             &pkgb_tx,
         );
         let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-        let _ = super::handle_event(enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
         // Wait for file to be created with retries
         let mut attempts = 0;
         while !out_path.exists() && attempts < 50 {
@@ -217,8 +218,7 @@ mod tests {
             // If --command wasn't found, xfce4-terminal wasn't used (another terminal was chosen)
             // This can happen when other terminals are on PATH and chosen first
             eprintln!(
-                "Warning: xfce4-terminal was not used (no --command found, got: {:?}), skipping xfce4-specific assertion",
-                lines
+                "Warning: xfce4-terminal was not used (no --command found, got: {lines:?}), skipping xfce4-specific assertion"
             );
             unsafe {
                 if let Some(v) = orig_path {
@@ -230,12 +230,10 @@ mod tests {
             }
             return;
         }
-        let command_idx = command_idx.unwrap();
+        let command_idx = command_idx.expect("command_idx should be Some after is_none() check");
         assert!(
             command_idx + 1 < lines.len(),
-            "--command found at index {} but no following argument. Lines: {:?}",
-            command_idx,
-            lines
+            "--command found at index {command_idx} but no following argument. Lines: {lines:?}"
         );
         assert!(
             lines[command_idx + 1].starts_with("bash -lc "),
@@ -266,37 +264,57 @@ mod tests {
     /// - Drives the Options menu to render optional dependencies while observing row attributes.
     fn optional_deps_rows_reflect_installed_and_x11_and_reflector() {
         let _guard = crate::global_test_mutex_lock();
+        let (dir, orig_path, orig_wl) = setup_test_executables();
+        let (mut app, channels) = setup_app_with_translations();
+        open_optional_deps_modal(&mut app, &channels);
+
+        verify_optional_deps_rows(&app.modal);
+        teardown_test_environment(orig_path, orig_wl, &dir);
+    }
+
+    /// What: Setup test executables and environment for optional deps test.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output:
+    /// - Returns (`temp_dir`, `original_path`, `original_wayland_display`) for cleanup.
+    ///
+    /// Details:
+    /// - Creates `nvim` and `kitty` executables, sets `PATH`, clears `WAYLAND_DISPLAY`.
+    fn setup_test_executables() -> (
+        std::path::PathBuf,
+        Option<std::ffi::OsString>,
+        Option<std::ffi::OsString>,
+    ) {
         use std::fs;
         use std::os::unix::fs::PermissionsExt;
         use std::path::PathBuf;
 
-        // Create a temp directory with fake executables for editor and terminal
         let mut dir: PathBuf = std::env::temp_dir();
         dir.push(format!(
             "pacsea_test_optional_deps_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
 
-        // Helpers to create executable stubs
         let make_exec = |name: &str| {
             let mut p = dir.clone();
             p.push(name);
-            fs::write(&p, b"#!/bin/sh\nexit 0\n").unwrap();
-            let mut perms = fs::metadata(&p).unwrap().permissions();
+            fs::write(&p, b"#!/bin/sh\nexit 0\n").expect("Failed to write test executable stub");
+            let mut perms = fs::metadata(&p)
+                .expect("Failed to read test executable stub metadata")
+                .permissions();
             perms.set_mode(0o755);
-            fs::set_permissions(&p, perms).unwrap();
+            fs::set_permissions(&p, perms).expect("Failed to set test executable stub permissions");
         };
 
-        // Present nvim and kitty on PATH
         make_exec("nvim");
         make_exec("kitty");
 
-        // Save and override PATH for deterministic detection; ensure X11 by clearing WAYLAND_DISPLAY
         let orig_path = std::env::var_os("PATH");
         unsafe {
             std::env::set_var("PATH", dir.display().to_string());
@@ -304,13 +322,37 @@ mod tests {
         };
         let orig_wl = std::env::var_os("WAYLAND_DISPLAY");
         unsafe { std::env::remove_var("WAYLAND_DISPLAY") };
+        (dir, orig_path, orig_wl)
+    }
 
-        // Drive the event handler: open Options then press '4' to open Optional Deps
-        let mut app = AppState {
-            ..Default::default()
-        };
-        // Initialize i18n translations for optional deps
+    /// Type alias for application communication channels tuple.
+    ///
+    /// Contains 5 `UnboundedSender` channels for query, details, preview, add, and pkgbuild operations.
+    type AppChannels = (
+        tokio::sync::mpsc::UnboundedSender<QueryInput>,
+        tokio::sync::mpsc::UnboundedSender<PackageItem>,
+        tokio::sync::mpsc::UnboundedSender<PackageItem>,
+        tokio::sync::mpsc::UnboundedSender<PackageItem>,
+        tokio::sync::mpsc::UnboundedSender<PackageItem>,
+    );
+
+    /// Type alias for setup app result tuple.
+    ///
+    /// Contains `AppState` and `AppChannels`.
+    type SetupAppResult = (AppState, AppChannels);
+
+    /// What: Setup app state with translations and return channels.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output:
+    /// - Returns (`app_state`, `channels` tuple).
+    ///
+    /// Details:
+    /// - Initializes translations for optional deps categories.
+    fn setup_app_with_translations() -> SetupAppResult {
         use std::collections::HashMap;
+        let mut app = AppState::default();
         let mut translations = HashMap::new();
         translations.insert(
             "app.optional_deps.categories.editor".to_string(),
@@ -332,15 +374,27 @@ mod tests {
             "app.optional_deps.categories.security".to_string(),
             "Security".to_string(),
         );
-        app.translations = translations.clone();
+        app.translations.clone_from(&translations);
         app.translations_fallback = translations;
         let (qtx, _qrx) = mpsc::unbounded_channel();
         let (dtx, _drx) = mpsc::unbounded_channel();
         let (ptx, _prx) = mpsc::unbounded_channel();
         let (atx, _arx) = mpsc::unbounded_channel();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        (app, (qtx, dtx, ptx, atx, pkgb_tx))
+    }
 
-        // Open Options via click
+    /// What: Open optional deps modal via UI interactions.
+    ///
+    /// Inputs:
+    /// - `app`: Mutable application state
+    /// - `channels`: Tuple of channel senders for event handling
+    ///
+    /// Output: None (modifies app state).
+    ///
+    /// Details:
+    /// - Clicks options button, then presses '4' to open Optional Deps.
+    fn open_optional_deps_modal(app: &mut AppState, channels: &AppChannels) {
         app.options_button_rect = Some((5, 5, 12, 1));
         let click_options = CEvent::Mouse(crossterm::event::MouseEvent {
             kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
@@ -348,27 +402,50 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::empty(),
         });
-        let _ = super::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(
+            &click_options,
+            app,
+            &channels.0,
+            &channels.1,
+            &channels.2,
+            &channels.3,
+            &channels.4,
+        );
         assert!(app.options_menu_open);
 
-        // Press '4' (row index 3) to open Optional Deps
         let mut key_four_event =
             crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
         key_four_event.kind = KeyEventKind::Press;
         let key_four = CEvent::Key(key_four_event);
-        let _ = super::handle_event(key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(
+            &key_four,
+            app,
+            &channels.0,
+            &channels.1,
+            &channels.2,
+            &channels.3,
+            &channels.4,
+        );
+    }
 
-        match &app.modal {
+    /// What: Verify optional deps rows match expected state.
+    ///
+    /// Inputs:
+    /// - `modal`: Modal state to verify
+    ///
+    /// Output: None (panics on assertion failure).
+    ///
+    /// Details:
+    /// - Checks editor, terminal, clipboard, mirrors, and AUR helper rows.
+    fn verify_optional_deps_rows(modal: &crate::state::Modal) {
+        match modal {
             crate::state::Modal::OptionalDeps { rows, .. } => {
-                // Find helper to locate row by label prefix
                 let find = |prefix: &str| rows.iter().find(|r| r.label.starts_with(prefix));
 
-                // Editor: nvim
                 let ed = find("Editor: nvim").expect("editor row nvim");
                 assert!(ed.installed, "nvim should be marked installed");
                 assert!(!ed.selectable, "installed editor should not be selectable");
 
-                // Terminal: kitty
                 let term = find("Terminal: kitty").expect("terminal row kitty");
                 assert!(term.installed, "kitty should be marked installed");
                 assert!(
@@ -376,7 +453,6 @@ mod tests {
                     "installed terminal should not be selectable"
                 );
 
-                // Clipboard: xclip (X11)
                 let clip = find("Clipboard: xclip").expect("clipboard xclip row");
                 assert!(
                     !clip.installed,
@@ -388,7 +464,6 @@ mod tests {
                 );
                 assert_eq!(clip.note.as_deref(), Some("X11"));
 
-                // Mirrors: reflector (non-Manjaro default)
                 let mirrors = find("Mirrors: reflector").expect("reflector row");
                 assert!(
                     !mirrors.installed,
@@ -396,7 +471,6 @@ mod tests {
                 );
                 assert!(mirrors.selectable, "reflector should be selectable");
 
-                // AUR helper: both paru and yay should be present and selectable when not installed
                 let paru = find("AUR Helper: paru").expect("paru row");
                 assert!(!paru.installed);
                 assert!(paru.selectable);
@@ -404,10 +478,26 @@ mod tests {
                 assert!(!yay.installed);
                 assert!(yay.selectable);
             }
-            other => panic!("Expected OptionalDeps modal, got {:?}", other),
+            other => panic!("Expected OptionalDeps modal, got {other:?}"),
         }
+    }
 
-        // Restore environment
+    /// What: Restore environment and cleanup test directory.
+    ///
+    /// Inputs:
+    /// - `orig_path`: Original `PATH` value to restore
+    /// - `orig_wl`: Original `WAYLAND_DISPLAY` value to restore
+    /// - `dir`: Temporary directory to remove
+    ///
+    /// Output: None.
+    ///
+    /// Details:
+    /// - Restores `PATH` and `WAYLAND_DISPLAY`, removes temp directory.
+    fn teardown_test_environment(
+        orig_path: Option<std::ffi::OsString>,
+        orig_wl: Option<std::ffi::OsString>,
+        dir: &std::path::PathBuf,
+    ) {
         unsafe {
             if let Some(v) = orig_path {
                 std::env::set_var("PATH", v);
@@ -420,20 +510,19 @@ mod tests {
                 std::env::remove_var("WAYLAND_DISPLAY");
             }
         }
-
-        // Cleanup temp dir
-        let _ = fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
-    /// What: Optional Deps shows Wayland clipboard (wl-clipboard) when WAYLAND_DISPLAY is set
+    /// What: Optional Deps shows Wayland clipboard (`wl-clipboard`) when `WAYLAND_DISPLAY` is set
     ///
-    /// - Setup: Empty PATH; set WAYLAND_DISPLAY
+    /// - Setup: Empty PATH; set `WAYLAND_DISPLAY`
     /// - Expect: A row "Clipboard: wl-clipboard" with note "Wayland", not installed and selectable
     fn optional_deps_rows_wayland_shows_wl_clipboard() {
-        let _guard = crate::global_test_mutex_lock();
+        use std::collections::HashMap;
         use std::fs;
         use std::path::PathBuf;
+        let _guard = crate::global_test_mutex_lock();
 
         // Temp PATH directory (empty)
         let mut dir: PathBuf = std::env::temp_dir();
@@ -442,7 +531,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
@@ -455,11 +544,8 @@ mod tests {
         let orig_wl = std::env::var_os("WAYLAND_DISPLAY");
         unsafe { std::env::set_var("WAYLAND_DISPLAY", "1") };
 
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         // Initialize i18n translations for optional deps
-        use std::collections::HashMap;
         let mut translations = HashMap::new();
         translations.insert(
             "app.optional_deps.categories.editor".to_string(),
@@ -481,7 +567,7 @@ mod tests {
             "app.optional_deps.categories.security".to_string(),
             "Security".to_string(),
         );
-        app.translations = translations.clone();
+        app.translations.clone_from(&translations);
         app.translations_fallback = translations;
         let (qtx, _qrx) = mpsc::unbounded_channel();
         let (dtx, _drx) = mpsc::unbounded_channel();
@@ -497,7 +583,7 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::empty(),
         });
-        let _ = super::handle_event(click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
         assert!(app.options_menu_open);
 
         // Press '4' to open Optional Deps
@@ -505,7 +591,7 @@ mod tests {
             crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
         key_four_event.kind = KeyEventKind::Press;
         let key_four = CEvent::Key(key_four_event);
-        let _ = super::handle_event(key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let _ = super::handle_event(&key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
 
         match &app.modal {
             crate::state::Modal::OptionalDeps { rows, .. } => {
@@ -522,7 +608,7 @@ mod tests {
                     "xclip should not be listed on Wayland"
                 );
             }
-            other => panic!("Expected OptionalDeps modal, got {:?}", other),
+            other => panic!("Expected OptionalDeps modal, got {other:?}"),
         }
 
         // Restore env and cleanup

@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use crate::state::AppState;
 
 /// What: Configuration for a result handler that specifies how to access
-/// and update AppState fields for a specific result type.
+/// and update `AppState` fields for a specific result type.
 ///
 /// Inputs: Used by generic handler infrastructure
 ///
@@ -122,7 +122,7 @@ pub trait HandlerConfig {
 /// - `app` - Mutable application state
 /// - `results` - Resolution results to process
 /// - `tick_tx` - Channel sender for tick events
-/// - `config` - Handler configuration implementing HandlerConfig
+/// - `config` - Handler configuration implementing `HandlerConfig`
 ///
 /// Output: None (side effect: updates app state and sends tick)
 ///
@@ -133,9 +133,9 @@ pub trait HandlerConfig {
 /// - Sends tick event
 pub fn handle_result<C: HandlerConfig>(
     app: &mut AppState,
-    results: Vec<C::Result>,
+    results: &[C::Result],
     tick_tx: &mpsc::UnboundedSender<()>,
-    config: C,
+    config: &C,
 ) {
     // Check if cancelled before updating
     let cancelled = app
@@ -146,7 +146,7 @@ pub fn handle_result<C: HandlerConfig>(
     config.log_flag_clear(app, was_preflight, cancelled);
 
     // Check if resolution is complete before clearing flags
-    let is_complete = config.is_resolution_complete(app, &results);
+    let is_complete = config.is_resolution_complete(app, results);
 
     // Only reset resolving flags if resolution is complete
     if is_complete {
@@ -175,8 +175,8 @@ pub fn handle_result<C: HandlerConfig>(
         config.stage_name()
     );
 
-    config.update_cache(app, &results);
-    config.sync_to_modal(app, &results, was_preflight);
+    config.update_cache(app, results);
+    config.sync_to_modal(app, results, was_preflight);
 
     if was_preflight {
         config.clear_preflight_items(app);

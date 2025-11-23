@@ -16,11 +16,20 @@ use std::fmt;
 /// - `Ok(String)` containing UTF-8 stdout on success.
 /// - `Err(CommandError)` when the invocation fails or stdout is not valid UTF-8.
 ///
+/// # Errors
+/// - Returns `Err(CommandError::Io)` when command spawning or execution fails
+/// - Returns `Err(CommandError::Utf8)` when stdout cannot be decoded as UTF-8
+/// - Returns `Err(CommandError::Failed)` when the command exits with a non-zero status
+///
 /// Details:
 /// - Implementations may stub command results to enable deterministic unit
 ///   testing.
 /// - Production code relies on [`SystemCommandRunner`].
 pub trait CommandRunner {
+    /// # Errors
+    /// - Returns `Err(CommandError::Io)` when command spawning or execution fails
+    /// - Returns `Err(CommandError::Utf8)` when stdout cannot be decoded as UTF-8
+    /// - Returns `Err(CommandError::Failed)` when the command exits with a non-zero status
     fn run(&self, program: &str, args: &[&str]) -> Result<String, CommandError>;
 }
 
@@ -30,6 +39,11 @@ pub trait CommandRunner {
 ///
 /// Output:
 /// - Executes commands on the host system and captures stdout.
+///
+/// # Errors
+/// - Returns `Err(CommandError::Io)` when command spawning or execution fails
+/// - Returns `Err(CommandError::Utf8)` when stdout cannot be decoded as UTF-8
+/// - Returns `Err(CommandError::Failed)` when the command exits with a non-zero status
 ///
 /// Details:
 /// - Errors from `std::process::Command::output` are surfaced as
@@ -43,7 +57,7 @@ impl CommandRunner for SystemCommandRunner {
         if !output.status.success() {
             return Err(CommandError::Failed {
                 program: program.to_string(),
-                args: args.iter().map(|s| s.to_string()).collect(),
+                args: args.iter().map(ToString::to_string).collect(),
                 status: output.status,
             });
         }
@@ -79,16 +93,16 @@ pub enum CommandError {
 impl fmt::Display for CommandError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CommandError::Io(err) => write!(f, "I/O error: {err}"),
-            CommandError::Utf8(err) => write!(f, "UTF-8 decoding error: {err}"),
-            CommandError::Failed {
+            Self::Io(err) => write!(f, "I/O error: {err}"),
+            Self::Utf8(err) => write!(f, "UTF-8 decoding error: {err}"),
+            Self::Failed {
                 program,
                 args,
                 status,
             } => {
                 write!(f, "{program:?} {args:?} exited with status {status}")
             }
-            CommandError::Parse { program, field } => {
+            Self::Parse { program, field } => {
                 write!(
                     f,
                     "{program} output did not contain expected field \"{field}\""
@@ -101,21 +115,21 @@ impl fmt::Display for CommandError {
 impl std::error::Error for CommandError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            CommandError::Io(err) => Some(err),
-            CommandError::Utf8(err) => Some(err),
-            CommandError::Failed { .. } | CommandError::Parse { .. } => None,
+            Self::Io(err) => Some(err),
+            Self::Utf8(err) => Some(err),
+            Self::Failed { .. } | Self::Parse { .. } => None,
         }
     }
 }
 
 impl From<std::io::Error> for CommandError {
     fn from(value: std::io::Error) -> Self {
-        CommandError::Io(value)
+        Self::Io(value)
     }
 }
 
 impl From<std::string::FromUtf8Error> for CommandError {
     fn from(value: std::string::FromUtf8Error) -> Self {
-        CommandError::Utf8(value)
+        Self::Utf8(value)
     }
 }

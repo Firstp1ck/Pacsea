@@ -84,6 +84,7 @@ use std::path::PathBuf;
 ///   1. Development location: `CARGO_MANIFEST_DIR/config/{relative_path}` (prioritized when running from source)
 ///   2. Installed location: `/usr/share/pacsea/config/{relative_path}`
 /// - Development location is checked first to allow working with repo files during development
+#[must_use]
 pub fn find_config_file(relative_path: &str) -> Option<PathBuf> {
     // Try development location first (when running from source)
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -112,6 +113,7 @@ pub fn find_config_file(relative_path: &str) -> Option<PathBuf> {
 ///   1. Development location: `CARGO_MANIFEST_DIR/config/locales` (prioritized when running from source)
 ///   2. Installed location: `/usr/share/pacsea/locales`
 /// - Development location is checked first to allow working with repo files during development
+#[must_use]
 pub fn find_locales_dir() -> Option<PathBuf> {
     // Try development location first (when running from source)
     // Note: locales are in config/locales/ in the dev environment
@@ -137,18 +139,19 @@ pub fn find_locales_dir() -> Option<PathBuf> {
     None
 }
 
-/// What: Get a translation for a given key from AppState.
+/// What: Get a translation for a given key from `AppState`.
 ///
 /// Inputs:
-/// - `app`: AppState containing translation maps
+/// - `app`: `AppState` containing translation maps
 /// - `key`: Dot-notation key (e.g., "app.titles.search")
 ///
 /// Output:
 /// - Translated string, or the key itself if translation not found
 ///
 /// Details:
-/// - Uses translations from AppState
+/// - Uses translations from `AppState`
 /// - Falls back to English if translation missing
+#[must_use]
 pub fn t(app: &crate::state::AppState, key: &str) -> String {
     crate::i18n::translations::translate_with_fallback(
         key,
@@ -160,7 +163,7 @@ pub fn t(app: &crate::state::AppState, key: &str) -> String {
 /// What: Get a translation with format arguments.
 ///
 /// Inputs:
-/// - `app`: AppState containing translation maps
+/// - `app`: `AppState` containing translation maps
 /// - `key`: Dot-notation key
 /// - `args`: Format arguments (as Display trait objects)
 ///
@@ -182,7 +185,7 @@ pub fn t_fmt(app: &crate::state::AppState, key: &str, args: &[&dyn std::fmt::Dis
 /// What: Get a translation with a single format argument (convenience function).
 ///
 /// Inputs:
-/// - `app`: AppState containing translation maps
+/// - `app`: `AppState` containing translation maps
 /// - `key`: Dot-notation key
 /// - `arg`: Single format argument
 ///

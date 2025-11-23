@@ -23,7 +23,7 @@ static THEME_SET: std::sync::OnceLock<ThemeSet> = std::sync::OnceLock::new();
 /// - Initializes static syntax and theme sets if not already initialized.
 ///
 /// Details:
-/// - Uses OnceLock to ensure initialization happens only once.
+/// - Uses `OnceLock` to ensure initialization happens only once.
 /// - Loads bash syntax definition and a dark theme suitable for TUI.
 fn init_syntax() {
     SYNTAX_SET.get_or_init(|| {
@@ -56,7 +56,7 @@ fn map_syntect_color(sc: syntect::highlighting::Color, th: &Theme) -> Color {
 
     let max_rgb = r.max(g).max(b);
     let min_rgb = r.min(g).min(b);
-    let avg_rgb = (r as u16 + g as u16 + b as u16) / 3;
+    let avg_rgb = (u16::from(r) + u16::from(g) + u16::from(b)) / 3;
 
     // If color is very dark (close to black), use theme text color
     if max_rgb < 30 {
@@ -173,8 +173,8 @@ pub fn highlight_pkgbuild(text: &str, th: &Theme) -> Vec<ratatui::text::Line<'st
         let mut spans = Vec::new();
 
         match highlighter.highlight_line(line, syntax_set) {
-            Ok(highlighted) => {
-                for (style, text) in highlighted {
+            Ok(highlighted_line) => {
+                for (style, text) in highlighted_line {
                     // Syntect's colors are already scope-based - map them to our theme colors
                     let color = map_syntect_color(style.foreground, th);
                     let mut ratatui_style = Style::default().fg(color);
@@ -225,11 +225,11 @@ mod tests {
     #[test]
     fn test_highlight_pkgbuild_basic() {
         let th = theme();
-        let pkgbuild = r#"pkgname=test
+        let pkgbuild = r"pkgname=test
 pkgver=1.0.0
 # This is a comment
 depends=('bash')
-"#;
+";
 
         let lines = highlight_pkgbuild(pkgbuild, &th);
         assert!(!lines.is_empty());

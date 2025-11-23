@@ -35,6 +35,7 @@ pub async fn refresh_explicit_cache() {
 ///
 /// Details:
 /// - Returns an owned copy so callers can mutate the result without holding the lock.
+#[must_use]
 pub fn explicit_names() -> HashSet<String> {
     explicit_lock()
         .read()
@@ -104,13 +105,6 @@ mod tests {
     /// Details:
     /// - Verifies the async refresh reads command output, updates the cache, and the cache contents persist after restoring PATH.
     async fn refresh_explicit_cache_populates_cache_from_pacman_output() {
-        let _guard = crate::global_test_mutex_lock();
-
-        if let Ok(mut g) = super::explicit_lock().write() {
-            g.clear();
-        }
-
-        let old_path = std::env::var("PATH").unwrap_or_default();
         struct PathGuard {
             original: String,
         }
@@ -121,6 +115,13 @@ mod tests {
                 }
             }
         }
+        let _guard = crate::global_test_mutex_lock();
+
+        if let Ok(mut g) = super::explicit_lock().write() {
+            g.clear();
+        }
+
+        let old_path = std::env::var("PATH").unwrap_or_default();
         let _path_guard = PathGuard {
             original: old_path.clone(),
         };
@@ -131,13 +132,13 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).expect("failed to create test root directory");
         let mut bin = root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("failed to create test bin directory");
         let mut script = bin.clone();
         script.push("pacman");
         let body = r#"#!/usr/bin/env bash
@@ -149,15 +150,18 @@ if [[ "$1" == "-Qetq" ]]; then
 fi
 exit 1
 "#;
-        std::fs::write(&script, body).unwrap();
+        std::fs::write(&script, body).expect("failed to write test pacman script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            let mut perm = std::fs::metadata(&script)
+                .expect("failed to read test pacman script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&script, perm).unwrap();
+            std::fs::set_permissions(&script, perm)
+                .expect("failed to set test pacman script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe {
             std::env::set_var("PATH", &new_path);
         }

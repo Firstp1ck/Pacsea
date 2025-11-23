@@ -17,7 +17,7 @@ use crate::state::{AppState, PackageItem};
 ///
 /// Output:
 /// - `true` if the point is within the rectangle, `false` otherwise.
-fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
+const fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
     if let Some((x, y, w, h)) = rect {
         mx >= x && mx < x + w && my >= y && my < y + h
     } else {
@@ -96,8 +96,8 @@ fn handle_pkgb_toggle_click(
 /// - `text`: The text to copy
 ///
 /// Output:
-/// - `Some(String)` with success/error message, or `None` if clipboard tool is not available.
-fn copy_to_clipboard(text: String) -> Option<String> {
+/// - `String` with success/error message.
+fn copy_to_clipboard(text: String) -> String {
     let suffix = {
         let s = crate::theme::settings().clipboard_suffix;
         if s.trim().is_empty() {
@@ -124,7 +124,7 @@ fn copy_to_clipboard(text: String) -> Option<String> {
             let _ = std::io::Write::write_all(&mut sin, payload.as_bytes());
         }
         let _ = child.wait();
-        return Some("PKGBUILD is added to the Clipboard".to_string());
+        return "PKGBUILD is added to the Clipboard".to_string();
     }
 
     // Try xclip as a generic fallback on X11
@@ -139,17 +139,16 @@ fn copy_to_clipboard(text: String) -> Option<String> {
             let _ = std::io::Write::write_all(&mut sin, payload.as_bytes());
         }
         let _ = child.wait();
-        return Some("PKGBUILD is added to the Clipboard".to_string());
+        return "PKGBUILD is added to the Clipboard".to_string();
     }
 
     // Neither wl-copy nor xclip worked — report guidance
-    let hint = if std::env::var("WAYLAND_DISPLAY").is_ok() {
+    if std::env::var("WAYLAND_DISPLAY").is_ok() {
         "Clipboard tool not found. Please install 'wl-clipboard' (provides wl-copy) or 'xclip'."
             .to_string()
     } else {
         "Clipboard tool not found. Please install 'xclip' or 'wl-clipboard' (wl-copy).".to_string()
-    };
-    Some(hint)
+    }
 }
 
 /// Handle copy PKGBUILD button click.
@@ -173,7 +172,7 @@ fn handle_copy_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
         let (tx_msg, rx_msg) = std::sync::mpsc::channel::<Option<String>>();
         std::thread::spawn(move || {
             let result = copy_to_clipboard(text);
-            let _ = tx_msg.send(result);
+            let _ = tx_msg.send(Some(result));
         });
         // Default optimistic toast; overwritten by worker if needed
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.copying_pkgbuild"));
@@ -210,7 +209,7 @@ fn handle_reload_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
     app.mouse_disabled_in_details = false;
     if let Some(item) = app.results.get(app.selected).cloned() {
         app.pkgb_reload_requested_at = Some(std::time::Instant::now());
-        app.pkgb_reload_requested_for = Some(item.name.clone());
+        app.pkgb_reload_requested_for = Some(item.name);
         app.pkgb_text = None; // Clear old PKGBUILD while loading
     }
     true
@@ -228,7 +227,8 @@ fn handle_reload_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - `true` if the scroll was handled, `false` otherwise.
-fn handle_details_scroll(m: &MouseEvent, mx: u16, my: u16, app: &mut AppState) -> bool {
+#[allow(clippy::missing_const_for_fn)]
+fn handle_details_scroll(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) -> bool {
     if !is_point_in_rect(mx, my, app.details_rect) {
         return false;
     }
@@ -333,7 +333,7 @@ pub(super) fn handle_details_mouse(
     }
 
     // Handle scroll events (before click blocking)
-    if handle_details_scroll(&m, mx, my, app) {
+    if handle_details_scroll(m, mx, my, app) {
         return Some(false);
     }
 

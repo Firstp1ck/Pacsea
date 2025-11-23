@@ -245,7 +245,7 @@ impl RootRelation {
     ///
     /// Details:
     /// - Allows callers to classify dependencies as direct when the minimum depth is one.
-    fn min_depth(&self) -> usize {
+    const fn min_depth(&self) -> usize {
         self.min_depth
     }
 }
@@ -401,14 +401,14 @@ fn convert_entry(name: String, entry: AggregatedEntry) -> DependencyInfo {
         parents.sort();
 
         if depth <= 1 {
-            reason_parts.push(format!("requires {}", root));
+            reason_parts.push(format!("requires {root}"));
         } else {
             let via = if parents.is_empty() {
                 "unknown".to_string()
             } else {
                 parents.join(", ")
             };
-            reason_parts.push(format!("blocks {} (depth {} via {})", root, depth, via));
+            reason_parts.push(format!("blocks {root} (depth {depth} via {via})"));
         }
     }
 
@@ -438,8 +438,7 @@ fn convert_entry(name: String, entry: AggregatedEntry) -> DependencyInfo {
 
     let is_core = repo
         .as_deref()
-        .map(|r| r.eq_ignore_ascii_case("core"))
-        .unwrap_or(false);
+        .is_some_and(|r| r.eq_ignore_ascii_case("core"));
     let is_system = groups
         .iter()
         .any(|g| matches!(g.as_str(), "base" | "base-devel"));
@@ -478,7 +477,7 @@ fn fetch_pkg_info(name: &str) -> Result<PkgInfo, String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| format!("pacman -Qi {} failed: {}", name, e))?;
+        .map_err(|e| format!("pacman -Qi {name} failed: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -561,17 +560,17 @@ fn parse_key_value_output(text: &str) -> BTreeMap<String, String> {
 /// Details:
 /// - Trims surrounding whitespace before evaluating the contents to avoid spurious blank entries.
 fn split_ws_or_none(field: Option<&String>) -> Vec<String> {
-    match field {
-        Some(value) => {
-            let trimmed = value.trim();
-            if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
-                Vec::new()
-            } else {
-                trimmed.split_whitespace().map(|s| s.to_string()).collect()
-            }
+    field.map_or_else(Vec::new, |value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
+            Vec::new()
+        } else {
+            trimmed
+                .split_whitespace()
+                .map(ToString::to_string)
+                .collect()
         }
-        None => Vec::new(),
-    }
+    })
 }
 
 #[cfg(test)]

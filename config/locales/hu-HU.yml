@@ -79,6 +79,24 @@ hu-HU:
       virustotal: "VirusTotal"
       arch_linux_news: "Arch Linux hírek"
       system_update: "Rendszerfrissítés"
+    arch_status:
+      # TODO: Translate Arch systems status messages to Hungarian
+      aur_down: "Status: AUR Down"
+      some_systems_down: "Some Arch systems down (see status)"
+      systems_degraded: "Arch systems degraded (see status)"
+      systems_nominal: "Arch systems nominal"
+      all_systems_operational: "All systems operational"
+      aur_outage: "AUR outage (see status)"
+      aur_partial_outage: "AUR partial outage"
+      aur_rpc_degraded: "AUR RPC degraded"
+      aur_maintenance_ongoing: "AUR maintenance ongoing"
+      aur_issues_detected: "AUR issues detected (see status)"
+      aur_degraded: "AUR degraded (see status)"
+      service_outage: "{} outage (see status) — {} today: {:.1}%"
+      service_degraded: "{} degraded (see status) — {} today: {:.1}%"
+      service_issues_detected: "{} issues detected (see status) — {} today: {:.1}%"
+      systems_nominal_with_service: "Arch systems nominal — {} today: {:.1}%"
+      aur_today_suffix: " — AUR today: {}%"
       
     labels:
       open_menus: "Menük megnyitása:"
@@ -254,9 +272,6 @@ hu-HU:
           settings: "Beállítások → settings.conf"
           theme: "Téma → theme.conf"
           keybindings: "Billentyűkötések → keybinds.conf"
-          install_list: "Telepítési lista → install_list.json"
-          installed_packages: "Telepített csomagok → installed_packages.txt"
-          recent_searches: "Legutóbbi keresések → recent_searches.json"
       panels_menu:
         show_recent: "Legutóbbi megjelenítése"
         hide_recent: "Legutóbbi elrejtése"

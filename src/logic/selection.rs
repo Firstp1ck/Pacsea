@@ -12,6 +12,10 @@ use crate::state::{AppState, PackageItem};
 /// Output:
 /// - Updates selection-related state, potentially sends detail requests, and adjusts gating flags.
 ///
+/// # Panics
+/// - Panics if `abs_delta_usize` exceeds `u32::MAX` when converting to `u32`
+/// - May panic if `app.list_state.select` is called with an invalid index (depends on the list state implementation)
+///
 /// Details:
 /// - Clamps the selection to valid bounds, refreshes placeholder metadata, and reuses cached entries.
 /// - Schedules PKGBUILD reloads when necessary and tracks scroll velocity to throttle prefetching.
@@ -24,28 +28,28 @@ pub fn move_sel_cached(
     if app.results.is_empty() {
         return;
     }
-    let len = app.results.len() as isize;
-    let mut idx = app.selected as isize + delta;
+    let len = isize::try_from(app.results.len()).unwrap_or(isize::MAX);
+    let mut idx = isize::try_from(app.selected).unwrap_or(0) + delta;
     if idx < 0 {
         idx = 0;
     }
     if idx >= len {
         idx = len - 1;
     }
-    app.selected = idx as usize;
+    app.selected = usize::try_from(idx).unwrap_or(0);
     app.list_state.select(Some(app.selected));
     if let Some(item) = app.results.get(app.selected).cloned() {
         // Focus details on the currently selected item only
         app.details_focus = Some(item.name.clone());
 
         // Update details pane immediately with a placeholder reflecting the selection
-        app.details.name = item.name.clone();
-        app.details.version = item.version.clone();
+        app.details.name.clone_from(&item.name);
+        app.details.version.clone_from(&item.version);
         app.details.description.clear();
         match &item.source {
             crate::state::Source::Official { repo, arch } => {
-                app.details.repository = repo.clone();
-                app.details.architecture = arch.clone();
+                app.details.repository.clone_from(repo);
+                app.details.architecture.clone_from(arch);
             }
             crate::state::Source::Aur => {
                 app.details.repository = "AUR".to_string();
@@ -73,12 +77,13 @@ pub fn move_sel_cached(
 
     // Debounce ring prefetch when scrolling fast (>5 items cumulatively)
     let abs_delta_usize: usize = if delta < 0 {
-        (-delta) as usize
+        usize::try_from(-delta).unwrap_or(0)
     } else {
-        delta as usize
+        usize::try_from(delta).unwrap_or(0)
     };
     if abs_delta_usize > 0 {
-        let add = abs_delta_usize.min(u32::MAX as usize) as u32;
+        let add = u32::try_from(abs_delta_usize.min(u32::MAX as usize))
+            .expect("value is bounded by u32::MAX");
         app.scroll_moves = app.scroll_moves.saturating_add(add);
     }
     if app.need_ring_prefetch {
@@ -132,19 +137,19 @@ mod tests {
     /// - Uses a timeout on the receiver to assert the async request is produced and verifies placeholder data resets when returning to the AUR result.
     async fn move_sel_cached_clamps_and_requests_details() {
         let mut app = crate::state::AppState {
+            results: vec![
+                crate::state::PackageItem {
+                    name: "aur1".into(),
+                    version: "1".into(),
+                    description: String::new(),
+                    source: crate::state::Source::Aur,
+                    popularity: None,
+                },
+                item_official("pkg2", "core"),
+            ],
+            selected: 0,
             ..Default::default()
         };
-        app.results = vec![
-            crate::state::PackageItem {
-                name: "aur1".into(),
-                version: "1".into(),
-                description: String::new(),
-                source: crate::state::Source::Aur,
-                popularity: None,
-            },
-            item_official("pkg2", "core"),
-        ];
-        app.selected = 0;
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         move_sel_cached(&mut app, 1, &tx);
@@ -175,9 +180,7 @@ mod tests {
     /// Details:
     /// - Confirms `move_sel_cached` short-circuits when cache contains the selected package.
     async fn move_sel_cached_uses_details_cache() {
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         let pkg = item_official("pkg", "core");
         app.results = vec![pkg.clone()];
         app.details_cache.insert(
@@ -215,17 +218,17 @@ mod tests {
     ///   enforce selection-only access.
     fn fast_scroll_sets_gating_and_defers_ring() {
         let mut app = crate::state::AppState {
+            results: vec![
+                item_official("a", "core"),
+                item_official("b", "extra"),
+                item_official("c", "extra"),
+                item_official("d", "extra"),
+                item_official("e", "extra"),
+                item_official("f", "extra"),
+                item_official("g", "extra"),
+            ],
             ..Default::default()
         };
-        app.results = vec![
-            item_official("a", "core"),
-            item_official("b", "extra"),
-            item_official("c", "extra"),
-            item_official("d", "extra"),
-            item_official("e", "extra"),
-            item_official("f", "extra"),
-            item_official("g", "extra"),
-        ];
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel::<crate::state::PackageItem>();
         move_sel_cached(&mut app, 6, &tx);
         assert!(app.need_ring_prefetch);

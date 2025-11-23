@@ -16,12 +16,12 @@ use std::process::{Command, Stdio};
 ///
 /// Output:
 /// - `SandboxInfo` with dependency deltas.
-pub(crate) fn analyze_package_from_srcinfo(
+pub(super) fn analyze_package_from_srcinfo(
     package_name: &str,
     srcinfo_text: &str,
     installed: &HashSet<String>,
     provided: &HashSet<String>,
-) -> Result<SandboxInfo, String> {
+) -> SandboxInfo {
     let (depends, makedepends, checkdepends, optdepends) = parse_srcinfo_deps(srcinfo_text);
 
     // Analyze each dependency against host environment
@@ -30,13 +30,13 @@ pub(crate) fn analyze_package_from_srcinfo(
     let checkdepends_delta = analyze_dependencies(&checkdepends, installed, provided);
     let optdepends_delta = analyze_dependencies(&optdepends, installed, provided);
 
-    Ok(SandboxInfo {
+    SandboxInfo {
         package_name: package_name.to_string(),
         depends: depends_delta,
         makedepends: makedepends_delta,
         checkdepends: checkdepends_delta,
         optdepends: optdepends_delta,
-    })
+    }
 }
 
 /// What: Analyze package dependencies from PKGBUILD content.
@@ -49,12 +49,12 @@ pub(crate) fn analyze_package_from_srcinfo(
 ///
 /// Output:
 /// - `SandboxInfo` with dependency deltas.
-pub(crate) fn analyze_package_from_pkgbuild(
+pub(super) fn analyze_package_from_pkgbuild(
     package_name: &str,
     pkgbuild_text: &str,
     installed: &HashSet<String>,
     provided: &HashSet<String>,
-) -> Result<SandboxInfo, String> {
+) -> SandboxInfo {
     let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild_text);
 
     // Analyze each dependency against host environment
@@ -63,13 +63,13 @@ pub(crate) fn analyze_package_from_pkgbuild(
     let checkdepends_delta = analyze_dependencies(&checkdepends, installed, provided);
     let optdepends_delta = analyze_dependencies(&optdepends, installed, provided);
 
-    Ok(SandboxInfo {
+    SandboxInfo {
         package_name: package_name.to_string(),
         depends: depends_delta,
         makedepends: makedepends_delta,
         checkdepends: checkdepends_delta,
         optdepends: optdepends_delta,
-    })
+    }
 }
 
 /// What: Analyze dependencies against the host environment.
@@ -83,7 +83,7 @@ pub(crate) fn analyze_package_from_pkgbuild(
 ///
 /// Details:
 /// - Skips local packages entirely.
-pub(crate) fn analyze_dependencies(
+pub(super) fn analyze_dependencies(
     deps: &[String],
     installed: &HashSet<String>,
     provided: &HashSet<String>,
@@ -110,11 +110,9 @@ pub(crate) fn analyze_dependencies(
             };
 
             // Check if version requirement is satisfied
-            let version_satisfied = if let Some(ref version) = installed_version {
-                crate::logic::deps::version_satisfies(version, dep_spec)
-            } else {
-                false
-            };
+            let version_satisfied = installed_version
+                .as_ref()
+                .is_some_and(|version| crate::logic::deps::version_satisfies(version, dep_spec));
 
             Some(DependencyDelta {
                 name: dep_spec.clone(),
@@ -133,13 +131,12 @@ pub(crate) fn analyze_dependencies(
 ///
 /// Output:
 /// - Package name without version requirements or description.
+#[must_use]
 pub fn extract_package_name(dep_spec: &str) -> String {
     // Handle optdepends format: "package: description"
-    let name = if let Some(colon_pos) = dep_spec.find(':') {
-        &dep_spec[..colon_pos]
-    } else {
-        dep_spec
-    };
+    let name = dep_spec
+        .find(':')
+        .map_or_else(|| dep_spec, |colon_pos| &dep_spec[..colon_pos]);
 
     // Remove version operators: >=, <=, ==, >, <
     name.trim()
@@ -208,6 +205,6 @@ fn is_local_package(name: &str) -> bool {
 ///
 /// Output:
 /// - Set of installed package names.
-pub(crate) fn get_installed_packages() -> std::collections::HashSet<String> {
+pub(super) fn get_installed_packages() -> std::collections::HashSet<String> {
     crate::logic::deps::get_installed_packages()
 }

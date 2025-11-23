@@ -12,7 +12,7 @@ use crate::state::modal::DependencyStatus;
 ///
 /// Details:
 /// - Aligns the ordering logic with UI expectations (conflicts first, installed last).
-pub(crate) fn dependency_priority(status: &DependencyStatus) -> u8 {
+pub(super) const fn dependency_priority(status: &DependencyStatus) -> u8 {
     match status {
         DependencyStatus::Conflict { .. } => 0,
         DependencyStatus::Missing => 1,

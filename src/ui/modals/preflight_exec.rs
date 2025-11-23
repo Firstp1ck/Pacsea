@@ -18,10 +18,11 @@ use crate::ui::helpers::{format_bytes, format_signed_bytes};
 /// - `f`: Frame to render into (for clearing the modal area)
 ///
 /// Output:
-/// - Returns tuple of (modal_rect, inner_rect, column_rects) where column_rects[0] is sidebar and column_rects[1] is log panel.
+/// - Returns tuple of (`modal_rect`, `inner_rect`, `column_rects`) where `column_rects[0]` is sidebar and `column_rects[1]` is log panel.
 ///
 /// Details:
 /// - Centers modal with max width of 110, calculates inner area with 1px border, and splits into 30%/70% columns.
+#[allow(clippy::many_single_char_names)]
 fn calculate_modal_layout(area: Rect, f: &mut Frame) -> (Rect, Rect, Vec<Rect>) {
     let w = area.width.saturating_sub(4).min(110);
     let h = area.height.saturating_sub(4).min(area.height);
@@ -146,8 +147,9 @@ fn render_sidebar(
 
     // Package list
     for p in items.iter().take(10) {
+        let p_name = &p.name;
         s_lines.push(Line::from(Span::styled(
-            format!("- {}", p.name),
+            format!("- {p_name}"),
             Style::default().fg(th.text),
         )));
     }
@@ -245,13 +247,15 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
     let mut spans = Vec::new();
 
     // Package count chip
-    let pkg_text = if chips.aur_count > 0 {
-        format!("{} ({} AUR)", chips.package_count, chips.aur_count)
+    let package_count = chips.package_count;
+    let aur_count = chips.aur_count;
+    let pkg_text = if aur_count > 0 {
+        format!("{package_count} ({aur_count} AUR)")
     } else {
-        format!("{}", chips.package_count)
+        format!("{package_count}")
     };
     spans.push(Span::styled(
-        format!("[{}]", pkg_text),
+        format!("[{pkg_text}]"),
         Style::default()
             .fg(th.sapphire)
             .add_modifier(Modifier::BOLD),
@@ -266,12 +270,10 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
 
     // Install delta chip (always shown)
     spans.push(Span::styled(" ", Style::default()));
-    let delta_color = if chips.install_delta_bytes > 0 {
-        th.green
-    } else if chips.install_delta_bytes < 0 {
-        th.red
-    } else {
-        th.overlay1 // Neutral color for zero
+    let delta_color = match chips.install_delta_bytes.cmp(&0) {
+        std::cmp::Ordering::Greater => th.green,
+        std::cmp::Ordering::Less => th.red,
+        std::cmp::Ordering::Equal => th.overlay1, // Neutral color for zero
     };
     spans.push(Span::styled(
         format!("[Size: {}]", format_signed_bytes(chips.install_delta_bytes)),
@@ -321,7 +323,7 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
 ///   footer instructions with dynamic state indicators.
 pub fn render_preflight_exec(
     f: &mut Frame,
-    app: &mut crate::state::AppState,
+    app: &crate::state::AppState,
     area: Rect,
     items: &[PackageItem],
     action: PreflightAction,

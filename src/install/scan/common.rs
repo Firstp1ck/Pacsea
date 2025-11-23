@@ -8,7 +8,7 @@ Output:
 - Appends scan command strings to the provided vector
 
 Details:
-- Provides reusable functions for ClamAV, Trivy, Semgrep, ShellCheck, Custom patterns, VirusTotal, and aur-sleuth scans
+- Provides reusable functions for `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, Custom patterns, `VirusTotal`, and `aur-sleuth` scans
 */
 
 /// What: Add pattern environment variable exports to command vector.
@@ -29,17 +29,17 @@ pub fn add_pattern_exports(cmds: &mut Vec<String>) {
     cmds.push("if [ -z \"${PACSEA_PATTERNS_LOW:-}\" ]; then export PACSEA_PATTERNS_LOW='http_proxy=|https_proxy=|ALL_PROXY=|yes[[:space:]]+> */dev/null *&|ulimit -n [0-9]{5,}'; fi".to_string());
 }
 
-/// What: Add ClamAV scan commands to command vector.
+/// What: Add `ClamAV` scan commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
 ///
 /// Output:
-/// - Appends ClamAV scan commands to the vector.
+/// - Appends `ClamAV` scan commands to the vector.
 ///
 /// Details:
-/// - Checks for ClamAV availability and signature database before running scan.
-/// - Respects PACSEA_SCAN_DO_CLAMAV environment variable.
+/// - Checks for `ClamAV` availability and signature database before running scan.
+/// - Respects `PACSEA_SCAN_DO_CLAMAV` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_clamav_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- ClamAV scan (optional) ---'".to_string());
@@ -57,7 +57,7 @@ pub fn add_clamav_scan(cmds: &mut Vec<String>) {
 ///
 /// Details:
 /// - Attempts JSON output first, falls back to text output.
-/// - Respects PACSEA_SCAN_DO_TRIVY environment variable.
+/// - Respects `PACSEA_SCAN_DO_TRIVY` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_trivy_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Trivy filesystem scan (optional) ---'".to_string());
@@ -74,8 +74,8 @@ pub fn add_trivy_scan(cmds: &mut Vec<String>) {
 /// - Appends Semgrep scan commands to the vector.
 ///
 /// Details:
-/// - Uses auto-config mode for Semgrep.
-/// - Respects PACSEA_SCAN_DO_SEMGREP environment variable.
+/// - Uses auto-config mode for `Semgrep`.
+/// - Respects `PACSEA_SCAN_DO_SEMGREP` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_semgrep_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Semgrep static analysis (optional) ---'".to_string());
@@ -94,7 +94,7 @@ pub fn add_semgrep_scan(cmds: &mut Vec<String>) {
 /// Details:
 /// - Searches for aur-sleuth in multiple locations.
 /// - Loads proxy settings from Pacsea config if available.
-/// - Respects PACSEA_SCAN_DO_SLEUTH environment variable.
+/// - Respects `PACSEA_SCAN_DO_SLEUTH` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_sleuth_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- aur-sleuth audit (optional) ---'".to_string());
@@ -102,17 +102,17 @@ pub fn add_sleuth_scan(cmds: &mut Vec<String>) {
     cmds.push("(if [ \"${PACSEA_SCAN_DO_SLEUTH:-1}\" = \"1\" ]; then A_SLEUTH=\"$(command -v aur-sleuth 2>/dev/null || true)\"; if [ -z \"$A_SLEUTH\" ] && [ -x \"${HOME}/.local/bin/aur-sleuth\" ]; then A_SLEUTH=\"${HOME}/.local/bin/aur-sleuth\"; fi; if [ -z \"$A_SLEUTH\" ] && [ -x \"/usr/local/bin/aur-sleuth\" ]; then A_SLEUTH=\"/usr/local/bin/aur-sleuth\"; fi; if [ -z \"$A_SLEUTH\" ] && [ -x \"/usr/bin/aur-sleuth\" ]; then A_SLEUTH=\"/usr/bin/aur-sleuth\"; fi; if [ -n \"$A_SLEUTH\" ]; then cfg=\"${XDG_CONFIG_HOME:-$HOME/.config}/pacsea/settings.conf\"; if [ -f \"$cfg\" ]; then get_key() { awk -F= -v k=\"$1\" 'tolower($0) ~ \"^[[:space:]]*\"k\"[[:space:]]*=\" {sub(/#.*/,\"\",$2); gsub(/^[[:space:]]+|[[:space:]]+$/,\"\",$2); print $2; exit }' \"$cfg\"; }; HP=$(get_key http_proxy); [ -n \"$HP\" ] && export http_proxy=\"$HP\"; XP=$(get_key https_proxy); [ -n \"$XP\" ] && export https_proxy=\"$XP\"; AP=$(get_key all_proxy); [ -n \"$AP\" ] && export ALL_PROXY=\"$AP\"; NP=$(get_key no_proxy); [ -n \"$NP\" ] && export NO_PROXY=\"$NP\"; CAB=$(get_key requests_ca_bundle); [ -n \"$CAB\" ] && export REQUESTS_CA_BUNDLE=\"$CAB\"; SCF=$(get_key ssl_cert_file); [ -n \"$SCF\" ] && export SSL_CERT_FILE=\"$SCF\"; CCB=$(get_key curl_ca_bundle); [ -n \"$CCB\" ] && export CURL_CA_BUNDLE=\"$CCB\"; PIPIDX=$(get_key pip_index_url); [ -n \"$PIPIDX\" ] && export PIP_INDEX_URL=\"$PIPIDX\"; PIPEX=$(get_key pip_extra_index_url); [ -n \"$PIPEX\" ] && export PIP_EXTRA_INDEX_URL=\"$PIPEX\"; PIPTH=$(get_key pip_trusted_host); [ -n \"$PIPTH\" ] && export PIP_TRUSTED_HOST=\"$PIPTH\"; UVCA=$(get_key uv_http_ca_certs); [ -n \"$UVCA\" ] && export UV_HTTP_CA_CERTS=\"$UVCA\"; fi; \"$A_SLEUTH\" --output plain --pkgdir . | tee ./.pacsea_sleuth.txt || echo 'aur-sleuth failed; see output above'; else echo 'aur-sleuth not found (checked PATH, ~/.local/bin, /usr/local/bin, /usr/bin)'; fi; else echo 'aur-sleuth: skipped by config'; fi)".to_string());
 }
 
-/// What: Add ShellCheck lint commands to command vector.
+/// What: Add `ShellCheck` lint commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
 ///
 /// Output:
-/// - Appends ShellCheck lint commands to the vector.
+/// - Appends `ShellCheck` lint commands to the vector.
 ///
 /// Details:
-/// - Analyzes PKGBUILD and *.install files.
-/// - Respects PACSEA_SCAN_DO_SHELLCHECK environment variable.
+/// - Analyzes `PKGBUILD` and `*.install` files.
+/// - Respects `PACSEA_SCAN_DO_SHELLCHECK` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_shellcheck_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- ShellCheck lint (optional) ---'".to_string());
@@ -120,7 +120,7 @@ pub fn add_shellcheck_scan(cmds: &mut Vec<String>) {
     cmds.push("(if [ \"${PACSEA_SCAN_DO_SHELLCHECK:-1}\" = \"1\" ]; then if command -v shellcheck >/dev/null 2>&1 || sudo pacman -Qi shellcheck >/dev/null 2>&1; then if [ -f PKGBUILD ]; then echo \"[shellcheck] Analyzing: PKGBUILD (bash, -e SC2034)\"; (shellcheck -s bash -x -e SC2034 -f json PKGBUILD > ./.pacsea_shellcheck_pkgbuild.json || shellcheck -s bash -x -e SC2034 PKGBUILD | tee ./.pacsea_shellcheck_pkgbuild.txt || true); fi; inst_files=(); while IFS= read -r -d '' f; do inst_files+=(\"$f\"); done < <(find . -maxdepth 1 -type f -name \"*.install\" -print0); if [ \"${#inst_files[@]}\" -gt 0 ]; then echo \"[shellcheck] Analyzing: ${inst_files[*]} (bash)\"; (shellcheck -s bash -x -f json \"${inst_files[@]}\" > ./.pacsea_shellcheck_install.json || shellcheck -s bash -x \"${inst_files[@]}\" | tee ./.pacsea_shellcheck_install.txt || true); fi; else echo 'ShellCheck not found; skipping'; fi; else echo 'ShellCheck: skipped by config'; fi)".to_string());
 }
 
-/// What: Add ShellCheck risk evaluation commands to command vector.
+/// What: Add `ShellCheck` risk evaluation commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
@@ -129,8 +129,8 @@ pub fn add_shellcheck_scan(cmds: &mut Vec<String>) {
 /// - Appends risk evaluation commands to the vector.
 ///
 /// Details:
-/// - Calculates risk score based on ShellCheck errors/warnings and PKGBUILD heuristics.
-/// - Respects PACSEA_SCAN_DO_SHELLCHECK environment variable.
+/// - Calculates risk score based on `ShellCheck` errors/warnings and `PKGBUILD` heuristics.
+/// - Respects `PACSEA_SCAN_DO_SHELLCHECK` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_shellcheck_risk_eval(cmds: &mut Vec<String>) {
     cmds.push("(if [ \"${PACSEA_SCAN_DO_SHELLCHECK:-1}\" = \"1\" ]; then echo -e '\\033[1;33m[⚠️ ] Risk evaluation (PKGBUILD/.install)\\033[0m'; ({ sc_err=0; sc_warn=0; sc_info=0; sc_err=$((sc_err + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '\"level\":\"error\"' | wc -l))); sc_warn=$((sc_warn + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '\"level\":\"warning\"' | wc -l))); sc_info=$((sc_info + $(cat ./.pacsea_shellcheck_pkgbuild.json ./.pacsea_shellcheck_install.json 2>/dev/null | grep -o '\"level\":\"info\"' | wc -l))); sc_err=$((sc_err + $(cat ./.pacsea_shellcheck_pkgbuild.txt ./.pacsea_shellcheck_install.txt 2>/dev/null | grep -oi 'error:' | wc -l))); sc_warn=$((sc_warn + $(cat ./.pacsea_shellcheck_pkgbuild.txt ./.pacsea_shellcheck_install.txt 2>/dev/null | grep -oi 'warning:' | wc -l))); if [ -f PKGBUILD ]; then pkgrisk=$(grep -Eoi 'curl|wget|bash -c|sudo|chown|chmod|mktemp|systemctl|useradd|groupadd|nc\\s|socat|/tmp/' PKGBUILD | wc -l); else pkgrisk=0; fi; if ls ./*.install >/dev/null 2>&1; then inst_risk=$(grep -Eoi 'post_install|pre_install|post_upgrade|pre_upgrade|systemctl|useradd|groupadd|chown|chmod|sudo|service|adduser' ./*.install | wc -l); else inst_risk=0; fi; risk=$((sc_err*5 + sc_warn*2 + sc_info + pkgrisk*3 + inst_risk*4)); tier='LOW'; if [ \"$risk\" -ge 60 ]; then tier='CRITICAL'; elif [ \"$risk\" -ge 40 ]; then tier='HIGH'; elif [ \"$risk\" -ge 20 ]; then tier='MEDIUM'; fi; { echo \"SC_ERRORS=$sc_err\"; echo \"SC_WARNINGS=$sc_warn\"; echo \"SC_INFO=$sc_info\"; echo \"PKGBUILD_HEURISTICS=$pkgrisk\"; echo \"INSTALL_HEURISTICS=$inst_risk\"; echo \"RISK_SCORE=$risk\"; echo \"RISK_TIER=$tier\"; } > ./.pacsea_shellcheck_risk.txt; echo \"Risk score: $risk ($tier)\"; } || echo 'Risk evaluation encountered an error; skipping'); else echo 'Risk Evaluation: skipped (ShellCheck disabled)'; fi)".to_string());
@@ -145,9 +145,9 @@ pub fn add_shellcheck_risk_eval(cmds: &mut Vec<String>) {
 /// - Appends custom pattern scan commands to the vector.
 ///
 /// Details:
-/// - Scans PKGBUILD, *.install, and shell files in src/ for suspicious patterns.
+/// - Scans `PKGBUILD`, `*.install`, and shell files in `src/` for suspicious patterns.
 /// - Calculates risk score based on pattern matches.
-/// - Respects PACSEA_SCAN_DO_CUSTOM environment variable.
+/// - Respects `PACSEA_SCAN_DO_CUSTOM` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_custom_pattern_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Custom suspicious patterns scan (optional) ---'".to_string());
@@ -215,18 +215,18 @@ else
 fi)"#.to_string());
 }
 
-/// What: Add VirusTotal hash lookup commands to command vector.
+/// What: Add `VirusTotal` hash lookup commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
 ///
 /// Output:
-/// - Appends VirusTotal lookup commands to the vector.
+/// - Appends `VirusTotal` lookup commands to the vector.
 ///
 /// Details:
-/// - Looks up SHA256 hashes of PKGBUILD and src files in VirusTotal.
-/// - Requires VT_API_KEY environment variable or config setting.
-/// - Respects PACSEA_SCAN_DO_VIRUSTOTAL environment variable.
+/// - Looks up `SHA256` hashes of `PKGBUILD` and `src` files in `VirusTotal`.
+/// - Requires `VT_API_KEY` environment variable or config setting.
+/// - Respects `PACSEA_SCAN_DO_VIRUSTOTAL` environment variable.
 #[cfg(not(target_os = "windows"))]
 pub fn add_virustotal_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- VirusTotal hash lookups (requires VT_API_KEY env var) ---'".to_string());

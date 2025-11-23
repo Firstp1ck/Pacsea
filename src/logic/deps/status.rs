@@ -18,7 +18,7 @@ use std::process::{Command, Stdio};
 ///
 /// Details:
 /// - Combines local database queries with helper functions to capture upgrade requirements and conflicts.
-pub(crate) fn determine_status(
+pub(super) fn determine_status(
     name: &str,
     version_req: &str,
     installed: &HashSet<String>,
@@ -81,12 +81,12 @@ pub(crate) fn determine_status(
     }
 
     // Installed and up-to-date - get actual version
-    match get_installed_version(name) {
-        Ok(version) => DependencyStatus::Installed { version },
-        Err(_) => DependencyStatus::Installed {
+    get_installed_version(name).map_or_else(
+        |_| DependencyStatus::Installed {
             version: "installed".to_string(),
         },
-    }
+        |version| DependencyStatus::Installed { version },
+    )
 }
 
 /// What: Query the repositories for the latest available version of a package.
@@ -99,7 +99,7 @@ pub(crate) fn determine_status(
 ///
 /// Details:
 /// - Strips revision suffixes (e.g., `-1`) so comparisons focus on the base semantic version.
-pub(crate) fn get_available_version(name: &str) -> Option<String> {
+pub(super) fn get_available_version(name: &str) -> Option<String> {
     let output = Command::new("pacman")
         .args(["-Si", name])
         .env("LC_ALL", "C")
@@ -136,6 +136,11 @@ pub(crate) fn get_available_version(name: &str) -> Option<String> {
 /// Output:
 /// - Returns the installed version string on success; otherwise an error message.
 ///
+/// # Errors
+/// - Returns `Err` when `pacman -Q` command execution fails (I/O error)
+/// - Returns `Err` when the package is not found or not installed
+/// - Returns `Err` when the version string cannot be parsed from command output
+///
 /// Details:
 /// - Normalizes versions by removing revision suffixes to facilitate requirement comparisons.
 pub fn get_installed_version(name: &str) -> Result<String, String> {
@@ -147,7 +152,7 @@ pub fn get_installed_version(name: &str) -> Result<String, String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| format!("pacman -Q failed: {}", e))?;
+        .map_err(|e| format!("pacman -Q failed: {e}"))?;
 
     if !output.status.success() {
         return Err("Package not found".to_string());
@@ -178,23 +183,37 @@ pub fn get_installed_version(name: &str) -> Result<String, String> {
 ///
 /// Details:
 /// - Uses straightforward string comparisons rather than full semantic version parsing, matching pacman's format.
+#[must_use]
 pub fn version_satisfies(installed: &str, requirement: &str) -> bool {
     // This is a simplified version checker
     // For production, use a proper version comparison library
-    if let Some(req_ver) = requirement.strip_prefix(">=") {
-        installed >= req_ver
-    } else if let Some(req_ver) = requirement.strip_prefix("<=") {
-        installed <= req_ver
-    } else if let Some(req_ver) = requirement.strip_prefix("=") {
-        installed == req_ver
-    } else if let Some(req_ver) = requirement.strip_prefix(">") {
-        installed > req_ver
-    } else if let Some(req_ver) = requirement.strip_prefix("<") {
-        installed < req_ver
-    } else {
-        // No version requirement, assume satisfied
-        true
-    }
+    requirement.strip_prefix(">=").map_or_else(
+        || {
+            requirement.strip_prefix("<=").map_or_else(
+                || {
+                    requirement.strip_prefix("=").map_or_else(
+                        || {
+                            requirement.strip_prefix(">").map_or_else(
+                                || {
+                                    requirement.strip_prefix("<").map_or_else(
+                                        || {
+                                            // No version requirement, assume satisfied
+                                            true
+                                        },
+                                        |req_ver| installed < req_ver,
+                                    )
+                                },
+                                |req_ver| installed > req_ver,
+                            )
+                        },
+                        |req_ver| installed == req_ver,
+                    )
+                },
+                |req_ver| installed <= req_ver,
+            )
+        },
+        |req_ver| installed >= req_ver,
+    )
 }
 
 #[cfg(test)]

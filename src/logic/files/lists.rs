@@ -135,7 +135,7 @@ fn get_official_file_list(name: &str, repo: &str) -> Result<Vec<String>, String>
     let spec = if repo.is_empty() {
         name.to_string()
     } else {
-        format!("{}/{}", repo, name)
+        format!("{repo}/{name}")
     };
 
     let output = Command::new("pacman")
@@ -145,7 +145,7 @@ fn get_official_file_list(name: &str, repo: &str) -> Result<Vec<String>, String>
         .output()
         .map_err(|e| {
             tracing::error!("Failed to execute pacman -Fl {}: {}", spec, e);
-            format!("pacman -Fl failed: {}", e)
+            format!("pacman -Fl failed: {e}")
         })?;
 
     if !output.status.success() {
@@ -164,7 +164,7 @@ fn get_official_file_list(name: &str, repo: &str) -> Result<Vec<String>, String>
             output.status.code(),
             stderr
         );
-        return Err(format!("pacman -Fl failed for {}: {}", spec, stderr));
+        return Err(format!("pacman -Fl failed for {spec}: {stderr}"));
     }
 
     let files = parse_file_list_from_output(&output.stdout);
@@ -180,6 +180,10 @@ fn get_official_file_list(name: &str, repo: &str) -> Result<Vec<String>, String>
 ///
 /// Output:
 /// - Returns the list of file paths or an error when retrieval fails.
+///
+/// # Errors
+/// - Returns `Err` when `pacman -Fl` command execution fails for official packages
+/// - Returns `Err` when file database is not synced and command fails
 ///
 /// Details:
 /// - Uses `pacman -Fl` for official packages and currently returns an empty list for AUR entries.
@@ -198,6 +202,10 @@ pub fn get_remote_file_list(name: &str, source: &Source) -> Result<Vec<String>, 
 /// Output:
 /// - Returns file paths owned by the package or an empty list when it is not installed.
 ///
+/// # Errors
+/// - Returns `Err` when `pacman -Ql` command execution fails (I/O error)
+/// - Returns `Err` when `pacman -Ql` exits with non-zero status for reasons other than package not found
+///
 /// Details:
 /// - Logs errors if the command fails for reasons other than the package being absent.
 pub fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
@@ -209,7 +217,7 @@ pub fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
         .output()
         .map_err(|e| {
             tracing::error!("Failed to execute pacman -Ql {}: {}", name, e);
-            format!("pacman -Ql failed: {}", e)
+            format!("pacman -Ql failed: {e}")
         })?;
 
     if !output.status.success() {
@@ -225,7 +233,7 @@ pub fn get_installed_file_list(name: &str) -> Result<Vec<String>, String> {
             output.status.code(),
             stderr
         );
-        return Err(format!("pacman -Ql failed for {}: {}", name, stderr));
+        return Err(format!("pacman -Ql failed for {name}: {stderr}"));
     }
 
     let files = parse_file_list_from_output(&output.stdout);

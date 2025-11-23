@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::i18n::translations::TranslationMap;
 
-/// What: Load a locale YAML file and parse it into a TranslationMap.
+/// What: Load a locale YAML file and parse it into a `TranslationMap`.
 ///
 /// Inputs:
 /// - `locale`: Locale code (e.g., "de-DE")
@@ -15,9 +15,16 @@ use crate::i18n::translations::TranslationMap;
 /// Output:
 /// - `Result<TranslationMap, String>` containing translations or error
 ///
+/// # Errors
+/// - Returns `Err` when the locale code is empty or has an invalid format
+/// - Returns `Err` when the locale file does not exist in the locales directory
+/// - Returns `Err` when the locale file cannot be read (I/O error)
+/// - Returns `Err` when the locale file is empty
+/// - Returns `Err` when the YAML content cannot be parsed
+///
 /// Details:
 /// - Loads file from `locales_dir/{locale}.yml`
-/// - Parses YAML structure into nested HashMap
+/// - Parses YAML structure into nested `HashMap`
 /// - Returns error if file not found or invalid YAML
 /// - Validates locale format before attempting to load
 pub fn load_locale_file(locale: &str, locales_dir: &Path) -> Result<TranslationMap, String> {
@@ -28,12 +35,11 @@ pub fn load_locale_file(locale: &str, locales_dir: &Path) -> Result<TranslationM
 
     if !is_valid_locale_format(locale) {
         return Err(format!(
-            "Invalid locale code format: '{}'. Expected format: language[-region] (e.g., 'en-US', 'de-DE')",
-            locale
+            "Invalid locale code format: '{locale}'. Expected format: language[-region] (e.g., 'en-US', 'de-DE')"
         ));
     }
 
-    let file_path = locales_dir.join(format!("{}.yml", locale));
+    let file_path = locales_dir.join(format!("{locale}.yml"));
 
     if !file_path.exists() {
         return Err(format!(
@@ -43,7 +49,7 @@ pub fn load_locale_file(locale: &str, locales_dir: &Path) -> Result<TranslationM
     }
 
     let contents = fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read locale file {}: {}", file_path.display(), e))?;
+        .map_err(|e| format!("Failed to read locale file {}: {e}", file_path.display()))?;
 
     if contents.trim().is_empty() {
         return Err(format!("Locale file is empty: {}", file_path.display()));
@@ -76,7 +82,7 @@ fn is_valid_locale_format(locale: &str) -> bool {
         && !locale.contains("--")
 }
 
-/// What: Parse YAML content into a TranslationMap.
+/// What: Parse YAML content into a `TranslationMap`.
 ///
 /// Inputs:
 /// - `yaml_content`: YAML file content as string
@@ -89,7 +95,7 @@ fn is_valid_locale_format(locale: &str) -> bool {
 /// - Flattens nested structure into dot-notation keys
 fn parse_locale_yaml(yaml_content: &str) -> Result<TranslationMap, String> {
     let doc: serde_norway::Value =
-        serde_norway::from_str(yaml_content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
+        serde_norway::from_str(yaml_content).map_err(|e| format!("Failed to parse YAML: {e}"))?;
 
     let mut translations = HashMap::new();
 
@@ -126,7 +132,7 @@ fn flatten_yaml_value(
                     let new_prefix = if prefix.is_empty() {
                         key_str.to_string()
                     } else {
-                        format!("{}.{}", prefix, key_str)
+                        format!("{prefix}.{key_str}")
                     };
                     flatten_yaml_value(val, &new_prefix, translations);
                 }
@@ -144,18 +150,20 @@ fn flatten_yaml_value(
         }
         _ => {
             // Convert other types to string representation
-            let val_str = if let Some(s) = value.as_str() {
-                s.to_string()
-            } else if let Some(n) = value.as_i64() {
-                n.to_string()
-            } else if let Some(n) = value.as_f64() {
-                n.to_string()
-            } else if let Some(b) = value.as_bool() {
-                b.to_string()
-            } else {
-                // Fallback: serialize to YAML string
-                serde_norway::to_string(value).unwrap_or_else(|_| "".to_string())
-            };
+            let val_str = value.as_str().map_or_else(
+                || {
+                    value.as_i64().map_or_else(
+                        || {
+                            value.as_f64().map_or_else(
+                                || value.as_bool().map_or_else(String::new, |b| b.to_string()),
+                                |n| n.to_string(),
+                            )
+                        },
+                        |n| n.to_string(),
+                    )
+                },
+                std::string::ToString::to_string,
+            );
             translations.insert(prefix.to_string(), val_str);
         }
     }
@@ -168,13 +176,14 @@ pub struct LocaleLoader {
 }
 
 impl LocaleLoader {
-    /// What: Create a new LocaleLoader.
+    /// What: Create a new `LocaleLoader`.
     ///
     /// Inputs:
     /// - `locales_dir`: Path to locales directory
     ///
     /// Output:
-    /// - LocaleLoader instance
+    /// - `LocaleLoader` instance
+    #[must_use]
     pub fn new(locales_dir: PathBuf) -> Self {
         Self {
             locales_dir,
@@ -190,12 +199,24 @@ impl LocaleLoader {
     /// Output:
     /// - `Result<TranslationMap, String>` containing translations
     ///
+    /// # Errors
+    /// - Returns `Err` when the locale file cannot be loaded (see `load_locale_file` for specific error conditions)
+    ///
+    /// # Panics
+    /// - Panics if the cache is modified between the `contains_key` check and the `get` call (should not happen in single-threaded usage)
+    ///
     /// Details:
     /// - Caches loaded translations to avoid re-reading files
     /// - Returns cached version if available
     /// - Logs warnings for missing or invalid locale files
     pub fn load(&mut self, locale: &str) -> Result<TranslationMap, String> {
-        if !self.cache.contains_key(locale) {
+        if self.cache.contains_key(locale) {
+            Ok(self
+                .cache
+                .get(locale)
+                .expect("locale should be in cache after contains_key check")
+                .clone())
+        } else {
             match load_locale_file(locale, &self.locales_dir) {
                 Ok(translations) => {
                     let key_count = translations.len();
@@ -212,12 +233,11 @@ impl LocaleLoader {
                     Err(e)
                 }
             }
-        } else {
-            Ok(self.cache.get(locale).unwrap().clone())
         }
     }
 
     /// What: Get locales directory path.
+    #[must_use]
     pub fn locales_dir(&self) -> &Path {
         &self.locales_dir
     }
@@ -238,7 +258,7 @@ de-DE:
       search: "Suche"
       help: "Hilfe"
 "#;
-        let result = parse_locale_yaml(yaml).unwrap();
+        let result = parse_locale_yaml(yaml).expect("Failed to parse test locale YAML");
         assert_eq!(result.get("app.titles.search"), Some(&"Suche".to_string()));
         assert_eq!(result.get("app.titles.help"), Some(&"Hilfe".to_string()));
     }
@@ -255,7 +275,7 @@ en-US:
           summary: "Summary"
           deps: "Deps"
 "#;
-        let result = parse_locale_yaml(yaml).unwrap();
+        let result = parse_locale_yaml(yaml).expect("Failed to parse test locale YAML");
         assert_eq!(
             result.get("app.modals.preflight.title_install"),
             Some(&" Preflight: Install ".to_string())
@@ -278,7 +298,7 @@ en-US:
 
     #[test]
     fn test_load_locale_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         // Create a test locale file
@@ -289,9 +309,10 @@ test-LOCALE:
     titles:
       search: "Test Search"
 "#;
-        fs::write(&locale_file, yaml_content).unwrap();
+        fs::write(&locale_file, yaml_content).expect("Failed to write test locale file");
 
-        let result = load_locale_file("test-LOCALE", locales_dir).unwrap();
+        let result =
+            load_locale_file("test-LOCALE", locales_dir).expect("Failed to load test locale file");
         assert_eq!(
             result.get("app.titles.search"),
             Some(&"Test Search".to_string())
@@ -300,42 +321,54 @@ test-LOCALE:
 
     #[test]
     fn test_load_locale_file_not_found() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         let result = load_locale_file("nonexistent", locales_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not found"));
+        assert!(
+            result
+                .expect_err("Expected error for nonexistent locale file")
+                .contains("not found")
+        );
     }
 
     #[test]
     fn test_load_locale_file_invalid_format() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         // Test with invalid locale format
         let result = load_locale_file("invalid-format-", locales_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Invalid locale code format"));
+        assert!(
+            result
+                .expect_err("Expected error for invalid locale format")
+                .contains("Invalid locale code format")
+        );
     }
 
     #[test]
     fn test_load_locale_file_empty() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         // Create an empty locale file
         let locale_file = locales_dir.join("empty.yml");
-        fs::write(&locale_file, "").unwrap();
+        fs::write(&locale_file, "").expect("Failed to write empty test locale file");
 
         let result = load_locale_file("empty", locales_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("empty"));
+        assert!(
+            result
+                .expect_err("Expected error for empty locale file")
+                .contains("empty")
+        );
     }
 
     #[test]
     fn test_locale_loader_caching() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let locales_dir = temp_dir.path();
 
         // Create a test locale file
@@ -346,19 +379,23 @@ cache-test:
     titles:
       search: "Cached"
 "#;
-        fs::write(&locale_file, yaml_content).unwrap();
+        fs::write(&locale_file, yaml_content).expect("Failed to write test locale file");
 
         let mut loader = LocaleLoader::new(locales_dir.to_path_buf());
 
         // First load
-        let result1 = loader.load("cache-test").unwrap();
+        let result1 = loader
+            .load("cache-test")
+            .expect("Failed to load locale in test");
         assert_eq!(
             result1.get("app.titles.search"),
             Some(&"Cached".to_string())
         );
 
         // Second load should use cache
-        let result2 = loader.load("cache-test").unwrap();
+        let result2 = loader
+            .load("cache-test")
+            .expect("Failed to load cached locale in test");
         assert_eq!(
             result2.get("app.titles.search"),
             Some(&"Cached".to_string())

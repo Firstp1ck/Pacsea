@@ -14,6 +14,121 @@ mod tests;
 
 pub use preflight::{open_preflight_install_modal, open_preflight_remove_modal};
 
+/// What: Handle `pane_next` navigation (cycles through panes).
+fn handle_pane_next_navigation(
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    preview_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
+    // Desired cycle: Search -> Downgrade -> Remove -> Recent -> Search
+    if app.installed_only_mode {
+        match app.right_pane_focus {
+            crate::state::RightPaneFocus::Downgrade => {
+                // Downgrade -> Remove (stay in Install)
+                app.right_pane_focus = crate::state::RightPaneFocus::Remove;
+                if app.remove_state.selected().is_none() && !app.remove_list.is_empty() {
+                    app.remove_state.select(Some(0));
+                }
+                refresh_remove_details(app, details_tx);
+                return;
+            }
+            crate::state::RightPaneFocus::Remove => {
+                // Remove -> Recent
+                if app.history_state.selected().is_none() && !app.recent.is_empty() {
+                    app.history_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Recent;
+                crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+                return;
+            }
+            crate::state::RightPaneFocus::Install => {}
+        }
+    }
+    // Not in installed-only: Install -> Recent
+    if app.history_state.selected().is_none() && !app.recent.is_empty() {
+        app.history_state.select(Some(0));
+    }
+    app.focus = crate::state::Focus::Recent;
+    crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+}
+
+/// What: Handle Left arrow navigation (moves focus left).
+fn handle_left_arrow_navigation(
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
+    // In installed-only mode, follow reverse: Remove -> Downgrade -> Search
+    if app.installed_only_mode {
+        match app.right_pane_focus {
+            crate::state::RightPaneFocus::Remove => {
+                // Move to Downgrade subpane and keep Install focus
+                app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
+                if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
+                    app.downgrade_state.select(Some(0));
+                }
+                super::utils::refresh_downgrade_details(app, details_tx);
+            }
+            crate::state::RightPaneFocus::Downgrade => {
+                // Downgrade -> Search
+                app.focus = crate::state::Focus::Search;
+                refresh_selected_details(app, details_tx);
+            }
+            crate::state::RightPaneFocus::Install => {
+                // Normal mode: Install -> Search
+                app.focus = crate::state::Focus::Search;
+                refresh_selected_details(app, details_tx);
+            }
+        }
+    } else {
+        // Normal mode: Install -> Search
+        app.focus = crate::state::Focus::Search;
+        refresh_selected_details(app, details_tx);
+    }
+}
+
+/// What: Handle Right arrow navigation (moves focus right).
+fn handle_right_arrow_navigation(
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    preview_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
+    // In installed-only mode, follow: Downgrade -> Remove -> Recent; else wrap to Recent
+    if app.installed_only_mode {
+        match app.right_pane_focus {
+            crate::state::RightPaneFocus::Downgrade => {
+                app.right_pane_focus = crate::state::RightPaneFocus::Remove;
+                if app.remove_state.selected().is_none() && !app.remove_list.is_empty() {
+                    app.remove_state.select(Some(0));
+                }
+                refresh_remove_details(app, details_tx);
+            }
+            crate::state::RightPaneFocus::Remove => {
+                // Wrap-around to Recent from rightmost subpane
+                if app.history_state.selected().is_none() && !app.recent.is_empty() {
+                    app.history_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Recent;
+                crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+            }
+            crate::state::RightPaneFocus::Install => {
+                // Normal Install subpane: wrap directly to Recent
+                if app.history_state.selected().is_none() && !app.recent.is_empty() {
+                    app.history_state.select(Some(0));
+                }
+                app.focus = crate::state::Focus::Recent;
+                crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+            }
+        }
+    } else {
+        // Normal mode: Install -> Recent (wrap)
+        if app.history_state.selected().is_none() && !app.recent.is_empty() {
+            app.history_state.select(Some(0));
+        }
+        app.focus = crate::state::Focus::Recent;
+        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+    }
+}
+
 /// What: Handle key events while the Install pane (right column) is focused.
 ///
 /// Inputs:
@@ -103,104 +218,13 @@ pub fn handle_install_key(
             refresh_selected_details(app, details_tx);
         }
         code if matches_any(&km.pane_next) && code == ke.code => {
-            // Desired cycle: Search -> Downgrade -> Remove -> Recent -> Search
-            if app.installed_only_mode {
-                match app.right_pane_focus {
-                    crate::state::RightPaneFocus::Downgrade => {
-                        // Downgrade -> Remove (stay in Install)
-                        app.right_pane_focus = crate::state::RightPaneFocus::Remove;
-                        if app.remove_state.selected().is_none() && !app.remove_list.is_empty() {
-                            app.remove_state.select(Some(0));
-                        }
-                        refresh_remove_details(app, details_tx);
-                        return false;
-                    }
-                    crate::state::RightPaneFocus::Remove => {
-                        // Remove -> Recent
-                        if app.history_state.selected().is_none() && !app.recent.is_empty() {
-                            app.history_state.select(Some(0));
-                        }
-                        app.focus = crate::state::Focus::Recent;
-                        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
-                        return false;
-                    }
-                    crate::state::RightPaneFocus::Install => {}
-                }
-            }
-            // Not in installed-only: Install -> Recent
-            if app.history_state.selected().is_none() && !app.recent.is_empty() {
-                app.history_state.select(Some(0));
-            }
-            app.focus = crate::state::Focus::Recent;
-            crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+            handle_pane_next_navigation(app, details_tx, preview_tx);
         }
         KeyCode::Left => {
-            // In installed-only mode, follow reverse: Remove -> Downgrade -> Search
-            if app.installed_only_mode {
-                match app.right_pane_focus {
-                    crate::state::RightPaneFocus::Remove => {
-                        // Move to Downgrade subpane and keep Install focus
-                        app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
-                        if app.downgrade_state.selected().is_none()
-                            && !app.downgrade_list.is_empty()
-                        {
-                            app.downgrade_state.select(Some(0));
-                        }
-                        super::utils::refresh_downgrade_details(app, details_tx);
-                    }
-                    crate::state::RightPaneFocus::Downgrade => {
-                        // Downgrade -> Search
-                        app.focus = crate::state::Focus::Search;
-                        refresh_selected_details(app, details_tx);
-                    }
-                    crate::state::RightPaneFocus::Install => {
-                        // Normal mode: Install -> Search
-                        app.focus = crate::state::Focus::Search;
-                        refresh_selected_details(app, details_tx);
-                    }
-                }
-            } else {
-                // Normal mode: Install -> Search
-                app.focus = crate::state::Focus::Search;
-                refresh_selected_details(app, details_tx);
-            }
+            handle_left_arrow_navigation(app, details_tx);
         }
         KeyCode::Right => {
-            // In installed-only mode, follow: Downgrade -> Remove -> Recent; else wrap to Recent
-            if app.installed_only_mode {
-                match app.right_pane_focus {
-                    crate::state::RightPaneFocus::Downgrade => {
-                        app.right_pane_focus = crate::state::RightPaneFocus::Remove;
-                        if app.remove_state.selected().is_none() && !app.remove_list.is_empty() {
-                            app.remove_state.select(Some(0));
-                        }
-                        refresh_remove_details(app, details_tx);
-                    }
-                    crate::state::RightPaneFocus::Remove => {
-                        // Wrap-around to Recent from rightmost subpane
-                        if app.history_state.selected().is_none() && !app.recent.is_empty() {
-                            app.history_state.select(Some(0));
-                        }
-                        app.focus = crate::state::Focus::Recent;
-                        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
-                    }
-                    crate::state::RightPaneFocus::Install => {
-                        // Normal Install subpane: wrap directly to Recent
-                        if app.history_state.selected().is_none() && !app.recent.is_empty() {
-                            app.history_state.select(Some(0));
-                        }
-                        app.focus = crate::state::Focus::Recent;
-                        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
-                    }
-                }
-            } else {
-                // Normal mode: Install -> Recent (wrap)
-                if app.history_state.selected().is_none() && !app.recent.is_empty() {
-                    app.history_state.select(Some(0));
-                }
-                app.focus = crate::state::Focus::Recent;
-                crate::ui::helpers::trigger_recent_preview(app, preview_tx);
-            }
+            handle_right_arrow_navigation(app, details_tx, preview_tx);
         }
         KeyCode::Delete if !ke.modifiers.contains(KeyModifiers::SHIFT) => {
             handle_delete_item(app, details_tx);

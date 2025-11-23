@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 ///
 /// Details:
 /// - Prefers `$HOME/.config/pacsea/theme.conf`, then legacy `pacsea.conf`, and repeats for XDG paths.
-pub(crate) fn resolve_theme_config_path() -> Option<PathBuf> {
+pub(super) fn resolve_theme_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -38,7 +38,7 @@ pub(crate) fn resolve_theme_config_path() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Searches `$HOME` and `XDG_CONFIG_HOME` for `settings.conf`, then falls back to `pacsea.conf`.
-pub(crate) fn resolve_settings_config_path() -> Option<PathBuf> {
+pub(super) fn resolve_settings_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -65,7 +65,7 @@ pub(crate) fn resolve_settings_config_path() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Checks both `$HOME/.config/pacsea/keybinds.conf` and the legacy `pacsea.conf`, mirrored for XDG.
-pub(crate) fn resolve_keybinds_config_path() -> Option<PathBuf> {
+pub(super) fn resolve_keybinds_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -155,6 +155,7 @@ fn home_config_dir() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Prefers `$HOME/.config/pacsea`, falling back to `XDG_CONFIG_HOME/pacsea` when necessary.
+#[must_use]
 pub fn config_dir() -> PathBuf {
     // Prefer HOME ~/.config/pacsea first
     if let Some(dir) = home_config_dir() {
@@ -177,6 +178,7 @@ pub fn config_dir() -> PathBuf {
 ///
 /// Details:
 /// - Builds upon `config_dir()` and ensures a stable location for log files.
+#[must_use]
 pub fn logs_dir() -> PathBuf {
     let base = config_dir();
     let dir = base.join("logs");
@@ -194,6 +196,7 @@ pub fn logs_dir() -> PathBuf {
 ///
 /// Details:
 /// - Builds upon `config_dir()` and ensures storage for exported package lists.
+#[must_use]
 pub fn lists_dir() -> PathBuf {
     let base = config_dir();
     let dir = base.join("lists");
@@ -215,14 +218,16 @@ mod tests {
     /// Details:
     /// - Restores the original `HOME` afterwards to avoid polluting the real configuration tree.
     fn paths_config_lists_logs_under_home() {
-        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
         let orig_home = std::env::var_os("HOME");
         let base = std::env::temp_dir().join(format!(
             "pacsea_test_paths_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = std::fs::create_dir_all(&base);

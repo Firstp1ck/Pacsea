@@ -9,7 +9,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::i18n;
 use crate::state::AppState;
-use crate::theme::theme;
+use crate::theme::{KeyChord, theme};
 
 /// What: Draw the status label on the bottom border line of the Results block.
 ///
@@ -24,6 +24,7 @@ use crate::theme::theme;
 /// Details:
 /// - Shows optional shortcut when Search normal mode is active, centers text within the border, and
 ///   colors the status dot based on [`AppState::arch_status_color`].
+#[allow(clippy::missing_const_for_fn)]
 pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 
@@ -33,7 +34,7 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
         .keymap
         .search_normal_open_status
         .first()
-        .map(|c| c.label());
+        .map(KeyChord::label);
     let show_key = matches!(app.focus, crate::state::Focus::Search)
         && app.search_normal_mode
         && key_label_opt.is_some();
@@ -41,7 +42,10 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
         i18n::t_fmt(
             app,
             "app.results.status_with_key",
-            &[&app.arch_status_text, &key_label_opt.unwrap()],
+            &[
+                &app.arch_status_text,
+                &key_label_opt.expect("key_label_opt should be Some when show_key is true"),
+            ],
         )
     } else {
         format!(
@@ -53,13 +57,13 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     let sx = area.x.saturating_add(2); // a bit of left padding after corner
     let sy = area.y.saturating_add(area.height.saturating_sub(1));
     let maxw = area.width.saturating_sub(4); // avoid right corner
-    let mut content = status_text.clone();
+    let mut content = status_text;
     // Truncate by display width, not byte length, to handle wide characters
-    if content.width() as u16 > maxw {
+    if u16::try_from(content.width()).unwrap_or(u16::MAX) > maxw {
         let mut truncated = String::new();
         let mut width_so_far = 0u16;
         for ch in content.chars() {
-            let ch_width = ch.width().unwrap_or(0) as u16;
+            let ch_width = u16::try_from(ch.width().unwrap_or(0)).unwrap_or(u16::MAX);
             if width_so_far + ch_width > maxw {
                 break;
             }
@@ -114,8 +118,8 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     ]));
     // Record clickable rect centered within the available width
     // Use Unicode display width, not byte length, to handle wide characters
-    let dot_width = dot.width() as u16;
-    let content_width = content.width() as u16;
+    let dot_width = u16::try_from(dot.width()).unwrap_or(u16::MAX);
+    let content_width = u16::try_from(content.width()).unwrap_or(u16::MAX);
     let cw = (content_width + dot_width + 1).min(maxw); // +1 for the space
     let pad_left = maxw.saturating_sub(cw) / 2;
     let start_x = sx.saturating_add(pad_left);

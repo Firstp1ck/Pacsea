@@ -30,7 +30,7 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 /// - `true` if the terminal was successfully spawned, `false` otherwise
 ///
 /// Details:
-/// - Handles xfce4-terminal special command format and sets up PACSEA_TEST_OUT environment variable if needed.
+/// - Handles `xfce4-terminal` special command format and sets up `PACSEA_TEST_OUT` environment variable if needed.
 fn try_spawn_terminal(
     term: &str,
     args: &[&str],
@@ -43,7 +43,7 @@ fn try_spawn_terminal(
     let mut cmd = Command::new(term);
     if needs_xfce_command && term == "xfce4-terminal" {
         let quoted = shell_single_quote(cmd_str);
-        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+        cmd.arg("--command").arg(format!("bash -lc {quoted}"));
     } else {
         cmd.args(args.iter().copied()).arg(cmd_str);
     }
@@ -59,8 +59,8 @@ fn try_spawn_terminal(
                 terminal = %term,
                 names = %item_name,
                 total = 1,
-                aur_count = (src == "aur") as usize,
-                official_count = (src == "official") as usize,
+                aur_count = usize::from(src == "aur"),
+                official_count = usize::from(src == "official"),
                 dry_run,
                 "launched terminal for install"
             );
@@ -82,7 +82,7 @@ fn try_spawn_terminal(
 /// What: Get the terminal preference list based on desktop environment.
 ///
 /// Input:
-/// - None (reads XDG_CURRENT_DESKTOP environment variable)
+/// - None (reads `XDG_CURRENT_DESKTOP` environment variable)
 ///
 /// Output:
 /// - Slice of terminal tuples `(name, args, needs_xfce_command)` ordered by preference
@@ -92,8 +92,7 @@ fn try_spawn_terminal(
 fn get_terminal_preferences() -> &'static [(&'static str, &'static [&'static str], bool)] {
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
-        .map(|v| v.to_uppercase().contains("GNOME"))
-        .unwrap_or(false);
+        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
     if is_gnome {
         &[
             ("gnome-terminal", &["--", "bash", "-lc"], false),
@@ -127,52 +126,51 @@ fn get_terminal_preferences() -> &'static [(&'static str, &'static [&'static str
 /// What: Spawn a terminal to install a single package.
 ///
 /// Input:
-/// - item to install; password for sudo on official installs (optional); dry_run to print instead of execute
+/// - item to install; password for sudo on official installs (optional); `dry_run` to print instead of execute
 ///
 /// Output:
-/// - Launches a terminal (or bash) running pacman/paru/yay to perform the install
+/// - Launches a terminal (or `bash`) running `pacman`/`paru`/`yay` to perform the install
 ///
 /// Details:
-/// - Prefers common terminals (GNOME Console/Terminal, kitty, alacritty, xterm, xfce4-terminal, etc.), falling back to bash. Uses pacman for official packages and paru/yay for AUR; appends a hold tail to keep the window open; logs installed names when not in dry_run.
+/// - Prefers common terminals (`GNOME Console`/`Terminal`, `kitty`, `alacritty`, `xterm`, `xfce4-terminal`, etc.), falling back to `bash`. Uses `pacman` for official packages and `paru`/`yay` for AUR; appends a hold tail to keep the window open; logs installed names when not in `dry_run`.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: bool) {
+pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
     #[cfg(test)]
     if std::env::var("PACSEA_TEST_OUT").is_err() {
         return;
     }
 
-    let (cmd_str, uses_sudo) = build_install_command(_item, _password, _dry_run);
-    let src = match _item.source {
+    let (cmd_str, uses_sudo) = build_install_command(item, password, dry_run);
+    let src = match item.source {
         Source::Official { .. } => "official",
         Source::Aur => "aur",
     };
     tracing::info!(
-        names = %_item.name,
+        names = %item.name,
         total = 1,
-        aur_count = (src == "aur") as usize,
-        official_count = (src == "official") as usize,
-        dry_run = _dry_run,
+        aur_count = usize::from(src == "aur"),
+        official_count = usize::from(src == "official"),
+        dry_run = dry_run,
         uses_sudo,
         "spawning install"
     );
 
     let terms = get_terminal_preferences();
-    let mut launched = false;
 
     // Try preferred path-based selection first
-    if let Some(idx) = choose_terminal_index_prefer_path(terms) {
+    let mut launched = choose_terminal_index_prefer_path(terms).is_some_and(|idx| {
         let (term, args, needs_xfce_command) = terms[idx];
-        launched = try_spawn_terminal(
+        try_spawn_terminal(
             term,
             args,
             needs_xfce_command,
             &cmd_str,
-            &_item.name,
+            &item.name,
             src,
-            _dry_run,
-        );
-    }
+            dry_run,
+        )
+    });
 
     // Fallback: try each terminal in order
     if !launched {
@@ -183,9 +181,9 @@ pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: boo
                     args,
                     *needs_xfce_command,
                     &cmd_str,
-                    &_item.name,
+                    &item.name,
                     src,
-                    _dry_run,
+                    dry_run,
                 );
                 if launched {
                     break;
@@ -198,21 +196,21 @@ pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: boo
     if !launched {
         let res = Command::new("bash").args(["-lc", &cmd_str]).spawn();
         if let Err(e) = res {
-            tracing::error!(error = %e, names = %_item.name, "failed to spawn bash to run install command");
+            tracing::error!(error = %e, names = %item.name, "failed to spawn bash to run install command");
         } else {
             tracing::info!(
-                names = %_item.name,
+                names = %item.name,
                 total = 1,
-                aur_count = (src == "aur") as usize,
-                official_count = (src == "official") as usize,
-                dry_run = _dry_run,
+                aur_count = usize::from(src == "aur"),
+                official_count = usize::from(src == "official"),
+                dry_run = dry_run,
                 "launched bash for install"
             );
         }
     }
 
-    if !_dry_run && let Err(e) = log_installed(std::slice::from_ref(&_item.name)) {
-        tracing::warn!(error = %e, names = %_item.name, "failed to write install audit log");
+    if !dry_run && let Err(e) = log_installed(std::slice::from_ref(&item.name)) {
+        tracing::warn!(error = %e, names = %item.name, "failed to write install audit log");
     }
 }
 
@@ -241,7 +239,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
@@ -250,10 +248,13 @@ mod tests {
         let mut term_path = dir.clone();
         term_path.push("gnome-terminal");
         let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
-        fs::write(&term_path, script.as_bytes()).unwrap();
-        let mut perms = fs::metadata(&term_path).unwrap().permissions();
+        fs::write(&term_path, script.as_bytes()).expect("Failed to write test terminal script");
+        let mut perms = fs::metadata(&term_path)
+            .expect("Failed to read test terminal script metadata")
+            .permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&term_path, perms).unwrap();
+        fs::set_permissions(&term_path, perms)
+            .expect("Failed to set test terminal script permissions");
 
         let orig_path = std::env::var_os("PATH");
         unsafe {
@@ -276,7 +277,7 @@ mod tests {
 
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
-        assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+        assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
         assert_eq!(lines[0], "--");
         assert_eq!(lines[1], "bash");
         assert_eq!(lines[2], "-lc");
@@ -307,16 +308,16 @@ mod tests {
 /// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the install with Write-Host.
 /// - Logs the install attempt when not a dry run to keep audit behaviour consistent with Unix platforms.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: bool) {
+pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     #[cfg(not(test))]
     {
-        let (cmd_str, _uses_sudo) = build_install_command(_item, _password, _dry_run);
+        let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
 
-        if _dry_run && super::utils::is_powershell_available() {
+        if dry_run && super::utils::is_powershell_available() {
             // Use PowerShell to simulate the install operation
             let powershell_cmd = format!(
                 "Write-Host 'DRY RUN: Simulating install of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
-                _item.name,
+                item.name,
                 cmd_str.replace("'", "''")
             );
             let _ = Command::new("powershell.exe")
@@ -328,8 +329,8 @@ pub fn spawn_install(_item: &PackageItem, _password: Option<&str>, _dry_run: boo
                 .spawn();
         }
 
-        if !_dry_run {
-            let _ = super::logging::log_installed(std::slice::from_ref(&_item.name));
+        if !dry_run {
+            let _ = super::logging::log_installed(std::slice::from_ref(&item.name));
         }
     }
 }

@@ -16,9 +16,10 @@ use crate::i18n::detection::detect_system_locale;
 /// - Resolved locale code (e.g., "de-DE")
 ///
 /// Details:
-/// - Priority: settings_locale -> system locale -> default from i18n.yml
-/// - Applies fallback chain from i18n.yml (e.g., de-CH -> de-DE -> en-US)
+/// - Priority: `settings_locale` -> system locale -> default from `i18n.yml`
+/// - Applies fallback chain from `i18n.yml` (e.g., de-CH -> de-DE -> en-US)
 /// - Validates locale format (basic check for valid locale code structure)
+#[must_use]
 pub fn resolve_locale(settings_locale: &str, i18n_config_path: &PathBuf) -> String {
     let fallbacks = load_fallbacks(i18n_config_path);
     let default_locale = load_default_locale(i18n_config_path);
@@ -37,14 +38,14 @@ pub fn resolve_locale(settings_locale: &str, i18n_config_path: &PathBuf) -> Stri
     } else {
         let trimmed = settings_locale.trim().to_string();
         // Validate locale format (basic check)
-        if !is_valid_locale_format(&trimmed) {
+        if is_valid_locale_format(&trimmed) {
+            trimmed
+        } else {
             tracing::warn!(
                 "Invalid locale format in settings.conf: '{}'. Using system locale or default.",
                 trimmed
             );
             detect_system_locale().unwrap_or_else(|| default_locale.clone())
-        } else {
-            trimmed
         }
     };
 
@@ -121,7 +122,7 @@ fn resolve_with_fallbacks(
         // Check if we have a fallback for this locale
         if let Some(fallback) = fallbacks.get(&current) {
             tracing::debug!("Locale '{}' has fallback: {}", current, fallback);
-            current = fallback.clone();
+            current.clone_from(fallback);
         } else {
             // No fallback defined - check if this locale is available
             if available_locales.contains(&current) {
@@ -138,15 +139,14 @@ fn resolve_with_fallbacks(
                     current
                 );
                 return current;
-            } else {
-                // Locale not available and not default, fall back to default
-                tracing::debug!(
-                    "Locale '{}' has no fallback and is not available, falling back to default: {}",
-                    current,
-                    default_locale
-                );
-                return default_locale.to_string();
             }
+            // Locale not available and not default, fall back to default
+            tracing::debug!(
+                "Locale '{}' has no fallback and is not available, falling back to default: {}",
+                current,
+                default_locale
+            );
+            return default_locale.to_string();
         }
 
         // Safety check: prevent infinite loops
@@ -176,7 +176,7 @@ fn resolve_with_fallbacks(
 /// - `config_path`: Path to config/i18n.yml
 ///
 /// Output:
-/// - HashMap mapping locale codes to their fallback locales
+/// - `HashMap` mapping locale codes to their fallback locales
 fn load_fallbacks(config_path: &PathBuf) -> HashMap<String, String> {
     let mut fallbacks = HashMap::new();
 
@@ -207,7 +207,7 @@ fn load_fallbacks(config_path: &PathBuf) -> HashMap<String, String> {
 /// - `config_path`: Path to config/i18n.yml
 ///
 /// Output:
-/// - HashSet of available locale codes
+/// - `HashSet` of available locale codes
 fn load_available_locales(config_path: &PathBuf) -> std::collections::HashSet<String> {
     let mut locales = std::collections::HashSet::new();
 
@@ -256,13 +256,14 @@ pub struct LocaleResolver {
 }
 
 impl LocaleResolver {
-    /// What: Create a new LocaleResolver by loading i18n.yml.
+    /// What: Create a new `LocaleResolver` by loading `i18n.yml`.
     ///
     /// Inputs:
     /// - `i18n_config_path`: Path to config/i18n.yml
     ///
     /// Output:
-    /// - LocaleResolver instance
+    /// - `LocaleResolver` instance
+    #[must_use]
     pub fn new(i18n_config_path: &PathBuf) -> Self {
         Self {
             fallbacks: load_fallbacks(i18n_config_path),
@@ -278,20 +279,21 @@ impl LocaleResolver {
     ///
     /// Output:
     /// - Resolved locale code
+    #[must_use]
     pub fn resolve(&self, settings_locale: &str) -> String {
         let initial_locale = if settings_locale.trim().is_empty() {
             detect_system_locale().unwrap_or_else(|| self.default_locale.clone())
         } else {
             let trimmed = settings_locale.trim().to_string();
             // Validate locale format (basic check)
-            if !is_valid_locale_format(&trimmed) {
+            if is_valid_locale_format(&trimmed) {
+                trimmed
+            } else {
                 tracing::warn!(
                     "Invalid locale format in settings.conf: '{}'. Using system locale or default.",
                     trimmed
                 );
                 detect_system_locale().unwrap_or_else(|| self.default_locale.clone())
-            } else {
-                trimmed
             }
         };
 
@@ -399,7 +401,8 @@ mod tests {
         let mut fallbacks = HashMap::new();
         // Create a long chain
         for i in 0..15 {
-            fallbacks.insert(format!("loc{}", i), format!("loc{}", i + 1));
+            let next = i + 1;
+            fallbacks.insert(format!("loc{i}"), format!("loc{next}"));
         }
 
         let available_locales = std::collections::HashSet::new();
@@ -430,17 +433,17 @@ mod tests {
 
     #[test]
     fn test_load_fallbacks() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
-        let yaml_content = r#"
+        let yaml_content = r"
 default_locale: en-US
 fallbacks:
   de-CH: de-DE
   de: de-DE
   fr: fr-FR
-"#;
-        fs::write(&config_path, yaml_content).unwrap();
+";
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         let fallbacks = load_fallbacks(&config_path);
         assert_eq!(fallbacks.get("de-CH"), Some(&"de-DE".to_string()));
@@ -450,15 +453,15 @@ fallbacks:
 
     #[test]
     fn test_load_default_locale() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
-        let yaml_content = r#"
+        let yaml_content = r"
 default_locale: de-DE
 fallbacks:
   de-CH: de-DE
-"#;
-        fs::write(&config_path, yaml_content).unwrap();
+";
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         let default = load_default_locale(&config_path);
         assert_eq!(default, "de-DE");
@@ -466,14 +469,14 @@ fallbacks:
 
     #[test]
     fn test_load_default_locale_missing() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
-        let yaml_content = r#"
+        let yaml_content = r"
 fallbacks:
   de-CH: de-DE
-"#;
-        fs::write(&config_path, yaml_content).unwrap();
+";
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         let default = load_default_locale(&config_path);
         assert_eq!(default, "en-US"); // Should default to en-US
@@ -481,15 +484,15 @@ fallbacks:
 
     #[test]
     fn test_resolve_locale_with_settings() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
-        let yaml_content = r#"
+        let yaml_content = r"
 default_locale: en-US
 fallbacks:
   de-CH: de-DE
-"#;
-        fs::write(&config_path, yaml_content).unwrap();
+";
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         // Test with explicit locale from settings
         // de-CH -> de-DE -> (no fallback) -> en-US (default)
@@ -508,15 +511,15 @@ fallbacks:
 
     #[test]
     fn test_resolve_locale_empty_settings() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to create temp directory for test");
         let config_path = temp_dir.path().join("i18n.yml");
 
-        let yaml_content = r#"
+        let yaml_content = r"
 default_locale: en-US
 fallbacks:
   de-CH: de-DE
-"#;
-        fs::write(&config_path, yaml_content).unwrap();
+";
+        fs::write(&config_path, yaml_content).expect("Failed to write test config file");
 
         // Test with empty settings (should auto-detect or use default)
         let result = resolve_locale("", &config_path);

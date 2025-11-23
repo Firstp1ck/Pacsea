@@ -21,7 +21,7 @@ use crate::state::types::PackageItem;
 /// Details:
 /// - Batches queries into chunks of 50 to avoid command-line length limits.
 /// - `pacman -Q` outputs "name version" per line, one per package.
-pub(crate) fn batch_fetch_installed_versions<R: CommandRunner>(
+pub(super) fn batch_fetch_installed_versions<R: CommandRunner>(
     runner: &R,
     items: &[PackageItem],
 ) -> Vec<Result<String, CommandError>> {
@@ -75,12 +75,12 @@ pub(crate) fn batch_fetch_installed_versions<R: CommandRunner>(
 /// - `items`: Packages to query.
 ///
 /// Output:
-/// - Vector of results, one per package (Ok(size_bytes) or Err).
+/// - Vector of results, one per package (`Ok(size_bytes)` or `Err`).
 ///
 /// Details:
 /// - Batches queries into chunks of 50 to avoid command-line length limits.
 /// - Parses multi-package `pacman -Qi` output (packages separated by blank lines).
-pub(crate) fn batch_fetch_installed_sizes<R: CommandRunner>(
+pub(super) fn batch_fetch_installed_sizes<R: CommandRunner>(
     runner: &R,
     items: &[PackageItem],
 ) -> Vec<Result<u64, CommandError>> {

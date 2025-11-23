@@ -22,6 +22,7 @@ use crate::theme::theme;
 /// Details:
 /// - Applies consistent theming (double border, mantle background) and ensures the modal fits by
 ///   clamping width/height within the supplied area.
+#[allow(clippy::many_single_char_names)]
 pub fn render_simple_list_modal(
     f: &mut Frame,
     area: Rect,
@@ -46,7 +47,7 @@ pub fn render_simple_list_modal(
         .block(
             Block::default()
                 .title(ratatui::text::Span::styled(
-                    format!(" {} ", box_title),
+                    format!(" {box_title} "),
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)

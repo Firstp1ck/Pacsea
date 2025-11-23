@@ -23,7 +23,7 @@ use crate::theme::theme;
 /// Details:
 /// - Shows "> " prefix; in normal mode, highlights selected text with lavender background.
 /// - Cursor position is calculated based on caret index and character width.
-pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
+pub fn render_search(f: &mut Frame, app: &AppState, area: Rect) {
     let th = theme();
     let search_focused = matches!(app.focus, crate::state::Focus::Search);
 
@@ -39,11 +39,11 @@ pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
     ));
     if search_focused && app.search_normal_mode {
         let caret_ci = app.search_caret;
-        let (sel_from_ci, sel_to_ci) = if let Some(anchor) = app.search_select_anchor {
-            (anchor.min(caret_ci), anchor.max(caret_ci))
-        } else {
-            (caret_ci, caret_ci)
-        };
+        let (sel_from_ci, sel_to_ci) = app
+            .search_select_anchor
+            .map_or((caret_ci, caret_ci), |anchor| {
+                (anchor.min(caret_ci), anchor.max(caret_ci))
+            });
         let cc = app.input.chars().count();
         let sel_from_ci = sel_from_ci.min(cc);
         let sel_to_ci = sel_to_ci.min(cc);
@@ -147,7 +147,7 @@ pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
         }
         ci
     } else {
-        app.input.len() as u16
+        u16::try_from(app.input.len()).unwrap_or(u16::MAX)
     };
     let x = std::cmp::min(area.x + 1 + 2 + caret_cols, right);
     let y = area.y + 1;
@@ -162,7 +162,7 @@ mod tests {
     /// What: Initialize minimal English translations for search tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with search-related translations
@@ -194,10 +194,8 @@ mod tests {
     #[test]
     fn search_renders_and_sets_cursor_when_focused() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Search;
         app.input = "hello".into();
@@ -205,9 +203,9 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
-        .unwrap();
+        .expect("Failed to render search pane");
 
         // Cursor position is set by set_cursor_position - verify rendering succeeded
         // TestBackend doesn't expose cursor position directly, but rendering
@@ -227,10 +225,8 @@ mod tests {
     #[test]
     fn search_renders_without_selection_when_not_normal_mode() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Search;
         app.input = "test".into();
@@ -240,9 +236,9 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
-        .unwrap();
+        .expect("Failed to render search pane without selection");
 
         // Should render without panic even with selection anchor set but not in normal mode
     }
@@ -260,10 +256,8 @@ mod tests {
     #[test]
     fn search_renders_with_selection_in_normal_mode() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Search;
         app.input = "hello".into();
@@ -273,9 +267,9 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
-        .unwrap();
+        .expect("Failed to render search pane with selection");
 
         // Should render with selection highlighting
     }
@@ -293,10 +287,8 @@ mod tests {
     #[test]
     fn search_renders_when_unfocused() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Recent;
         app.input = "test".into();
@@ -304,9 +296,9 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
-        .unwrap();
+        .expect("Failed to render unfocused search pane");
 
         // Should render without panic with unfocused styling
     }
@@ -324,10 +316,8 @@ mod tests {
     #[test]
     fn search_handles_empty_input() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.focus = crate::state::Focus::Search;
         app.input = String::new();
@@ -335,9 +325,9 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
-        .unwrap();
+        .expect("failed to draw test terminal");
 
         // Should handle empty input without panic
     }

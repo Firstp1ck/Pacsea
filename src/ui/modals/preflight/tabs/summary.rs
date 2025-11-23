@@ -11,6 +11,7 @@ use crate::state::modal::{
 };
 use crate::state::{AppState, PackageItem, PreflightAction};
 use crate::theme::theme;
+use std::fmt::Write;
 
 /// What: Get source badge text and color for a dependency source.
 ///
@@ -18,7 +19,7 @@ use crate::theme::theme;
 /// - `source`: The dependency source.
 ///
 /// Output:
-/// - Returns a tuple of (badge_text, color).
+/// - Returns a tuple of (`badge_text`, `color`).
 ///
 /// Details:
 /// - Formats repository names, AUR, and local sources with appropriate colors.
@@ -34,7 +35,7 @@ fn get_source_badge(source: &DependencySource) -> (String, ratatui::style::Color
             } else {
                 th.green
             };
-            (format!(" [{}]", repo), color)
+            (format!(" [{repo}]"), color)
         }
         DependencySource::Aur => (" [AUR]".to_string(), th.yellow),
         DependencySource::Local => (" [local]".to_string(), th.overlay1),
@@ -73,7 +74,7 @@ fn render_summary_data(
             Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
         )));
         for reason in &summary_data.risk_reasons {
-            let bullet = format!("  • {}", reason);
+            let bullet = format!("  • {reason}");
             lines.push(Line::from(Span::styled(
                 bullet,
                 Style::default().fg(th.subtext1),
@@ -172,8 +173,9 @@ fn render_incomplete_data_indicator(
         }
         if !resolving_parts.is_empty() {
             lines.push(Line::from(""));
+            let resolving_text = resolving_parts.join(", ");
             lines.push(Line::from(Span::styled(
-                format!("⟳ {}", resolving_parts.join(", ")),
+                format!("⟳ {resolving_text}"),
                 Style::default()
                     .fg(th.sapphire)
                     .add_modifier(Modifier::BOLD),
@@ -215,7 +217,7 @@ fn render_dependency_spans(dep: &DependencyInfo) -> Option<Vec<Span<'static>>> {
             let (source_badge, badge_color) = get_source_badge(&dep.source);
             spans.push(Span::styled(source_badge, Style::default().fg(badge_color)));
             spans.push(Span::styled(
-                format!(" ({})", reason),
+                format!(" ({reason})"),
                 Style::default().fg(th.red),
             ));
         }
@@ -223,15 +225,16 @@ fn render_dependency_spans(dep: &DependencyInfo) -> Option<Vec<Span<'static>>> {
             spans.push(Span::styled("↑ ", Style::default().fg(th.yellow)));
             spans.push(Span::styled(dep.name.clone(), Style::default().fg(th.text)));
             if !dep.version.is_empty() {
+                let dep_version = &dep.version;
                 spans.push(Span::styled(
-                    format!(" {}", dep.version),
+                    format!(" {dep_version}"),
                     Style::default().fg(th.overlay2),
                 ));
             }
             let (source_badge, badge_color) = get_source_badge(&dep.source);
             spans.push(Span::styled(source_badge, Style::default().fg(badge_color)));
             spans.push(Span::styled(
-                format!(" ({} → {})", current, required),
+                format!(" ({current} → {required})"),
                 Style::default().fg(th.yellow),
             ));
         }
@@ -240,37 +243,29 @@ fn render_dependency_spans(dep: &DependencyInfo) -> Option<Vec<Span<'static>>> {
     Some(spans)
 }
 
-/// What: Render install action dependencies (conflicts and upgrades).
+/// What: Filter installed packages from items list.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n.
-/// - `items`: Packages under review.
-/// - `dependency_info`: Dependency information.
-/// - `conflicts_selected`: Selected index in the conflicts list (for navigation).
-/// - `content_rect`: Content area rectangle.
-/// - `highlight_selection`: Whether to highlight the selected conflict (true when conflicts section is active).
+/// - `items`: List of packages to check.
 ///
 /// Output:
-/// - Returns a vector of lines to render.
-///
-/// Details:
-/// - Shows conflicts and upgrades grouped by package.
-/// - Supports viewport-based rendering for large conflict lists.
-fn render_install_dependencies(
-    app: &AppState,
-    items: &[PackageItem],
-    dependency_info: &[DependencyInfo],
-) -> Vec<Line<'static>> {
-    let th = theme();
-    let mut lines = Vec::new();
-
-    // Check which packages are already installed
-    let installed_packages: Vec<&PackageItem> = items
+/// - Vector of references to packages that are already installed.
+fn filter_installed_packages(items: &[PackageItem]) -> Vec<&PackageItem> {
+    items
         .iter()
         .filter(|item| crate::index::is_installed(&item.name))
-        .collect();
+        .collect()
+}
 
-    let important_deps: Vec<&DependencyInfo> = dependency_info
+/// What: Filter important dependencies (conflicts and upgrades).
+///
+/// Inputs:
+/// - `dependency_info`: List of dependency information.
+///
+/// Output:
+/// - Vector of references to dependencies with conflicts or upgrades.
+fn filter_important_deps(dependency_info: &[DependencyInfo]) -> Vec<&DependencyInfo> {
+    dependency_info
         .iter()
         .filter(|d| {
             matches!(
@@ -278,35 +273,45 @@ fn render_install_dependencies(
                 DependencyStatus::Conflict { .. } | DependencyStatus::ToUpgrade { .. }
             )
         })
-        .collect();
+        .collect()
+}
 
-    // If no conflicts/upgrades and no installed packages, show success message
-    if important_deps.is_empty() && installed_packages.is_empty() {
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.summary.no_conflicts_or_upgrades"),
-            Style::default().fg(th.green),
-        )));
-        return lines;
-    }
-
-    use std::collections::{HashMap, HashSet};
+/// What: Group dependencies by the packages that require them.
+///
+/// Inputs:
+/// - `important_deps`: List of important dependencies.
+///
+/// Output:
+/// - `HashMap` mapping package names to their dependencies.
+fn group_dependencies_by_package<'a>(
+    important_deps: &[&'a DependencyInfo],
+) -> std::collections::HashMap<String, Vec<&'a DependencyInfo>> {
+    use std::collections::HashMap;
     let mut grouped: HashMap<String, Vec<&DependencyInfo>> = HashMap::new();
-    for dep in important_deps.iter() {
+    for dep in important_deps {
         for req_by in &dep.required_by {
-            grouped.entry(req_by.clone()).or_default().push(dep);
+            grouped.entry(req_by.clone()).or_default().push(*dep);
         }
     }
+    grouped
+}
 
-    let conflict_count = important_deps
-        .iter()
-        .filter(|d| matches!(d.status, DependencyStatus::Conflict { .. }))
-        .count();
-    let upgrade_count = important_deps
-        .iter()
-        .filter(|d| matches!(d.status, DependencyStatus::ToUpgrade { .. }))
-        .count();
-    let installed_count = installed_packages.len();
-
+/// What: Build summary parts for conflicts, upgrades, and installed packages.
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `conflict_count`: Number of conflicts.
+/// - `upgrade_count`: Number of upgrades.
+/// - `installed_count`: Number of installed packages.
+///
+/// Output:
+/// - Vector of formatted summary strings.
+fn build_summary_parts(
+    app: &AppState,
+    conflict_count: usize,
+    upgrade_count: usize,
+    installed_count: usize,
+) -> Vec<String> {
     let mut summary_parts = Vec::new();
     if conflict_count > 0 {
         summary_parts.push(i18n::t_fmt1(
@@ -329,7 +334,89 @@ fn render_install_dependencies(
             installed_count,
         ));
     }
+    summary_parts
+}
 
+/// What: Build display items list for rendering.
+///
+/// Inputs:
+/// - `items`: List of packages.
+/// - `grouped`: Dependencies grouped by package.
+/// - `installed_packages`: List of installed packages.
+///
+/// Output:
+/// - Vector of (`is_header`, `package_name`, `optional_dependency`) tuples.
+fn build_display_items<'a>(
+    items: &[PackageItem],
+    grouped: &std::collections::HashMap<String, Vec<&'a DependencyInfo>>,
+    installed_packages: &[&PackageItem],
+) -> Vec<(bool, String, Option<&'a DependencyInfo>)> {
+    use std::collections::HashSet;
+    let mut display_items: Vec<(bool, String, Option<&DependencyInfo>)> = Vec::new();
+    for pkg_name in items.iter().map(|p| &p.name) {
+        if let Some(pkg_deps) = grouped.get(pkg_name) {
+            display_items.push((true, pkg_name.clone(), None));
+            let mut seen_deps = HashSet::new();
+            for dep in pkg_deps {
+                if seen_deps.insert(dep.name.as_str()) {
+                    display_items.push((false, String::new(), Some(*dep)));
+                }
+            }
+        }
+    }
+    for installed_pkg in installed_packages {
+        if !grouped.contains_key(&installed_pkg.name) {
+            display_items.push((true, installed_pkg.name.clone(), None));
+            display_items.push((false, installed_pkg.name.clone(), None));
+        }
+    }
+    display_items
+}
+
+/// What: Render install action dependencies (conflicts and upgrades).
+///
+/// Inputs:
+/// - `app`: Application state for i18n.
+/// - `items`: Packages under review.
+/// - `dependency_info`: Dependency information.
+///
+/// Output:
+/// - Returns a vector of lines to render.
+///
+/// Details:
+/// - Shows conflicts and upgrades grouped by package.
+/// - Displays installed packages separately.
+fn render_install_dependencies(
+    app: &AppState,
+    items: &[PackageItem],
+    dependency_info: &[DependencyInfo],
+) -> Vec<Line<'static>> {
+    let th = theme();
+    let mut lines = Vec::new();
+
+    let installed_packages = filter_installed_packages(items);
+    let important_deps = filter_important_deps(dependency_info);
+
+    if important_deps.is_empty() && installed_packages.is_empty() {
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.summary.no_conflicts_or_upgrades"),
+            Style::default().fg(th.green),
+        )));
+        return lines;
+    }
+
+    let grouped = group_dependencies_by_package(&important_deps);
+    let conflict_count = important_deps
+        .iter()
+        .filter(|d| matches!(d.status, DependencyStatus::Conflict { .. }))
+        .count();
+    let upgrade_count = important_deps
+        .iter()
+        .filter(|d| matches!(d.status, DependencyStatus::ToUpgrade { .. }))
+        .count();
+    let installed_count = installed_packages.len();
+
+    let summary_parts = build_summary_parts(app, conflict_count, upgrade_count, installed_count);
     let header_text = if conflict_count > 0 || installed_count > 0 {
         i18n::t_fmt1(
             app,
@@ -358,39 +445,15 @@ fn render_install_dependencies(
     )));
     lines.push(Line::from(""));
 
-    // Build display items list (package headers + their dependencies)
-    let mut display_items: Vec<(bool, String, Option<&DependencyInfo>)> = Vec::new();
-
-    // First, show packages with conflicts/upgrades
-    for pkg_name in items.iter().map(|p| &p.name) {
-        if let Some(pkg_deps) = grouped.get(pkg_name) {
-            display_items.push((true, pkg_name.clone(), None));
-            let mut seen_deps = HashSet::new();
-            for dep in pkg_deps.iter() {
-                if seen_deps.insert(dep.name.as_str()) {
-                    display_items.push((false, String::new(), Some(*dep)));
-                }
-            }
-        }
-    }
-
-    // Then, show installed packages (if not already shown)
-    for installed_pkg in installed_packages.iter() {
-        if !grouped.contains_key(&installed_pkg.name) {
-            display_items.push((true, installed_pkg.name.clone(), None));
-            // Add a placeholder entry to show "installed" status
-            // We'll handle this specially in the rendering loop
-            display_items.push((false, installed_pkg.name.clone(), None));
-        }
-    }
+    let display_items = build_display_items(items, &grouped, &installed_packages);
 
     // Render all items (no viewport - mouse scrolling handles it)
-    for (is_header, pkg_name, dep) in display_items.iter() {
+    for (is_header, pkg_name, dep) in &display_items {
         if *is_header {
             let style = Style::default()
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD);
-            lines.push(Line::from(Span::styled(format!("▶ {}", pkg_name), style)));
+            lines.push(Line::from(Span::styled(format!("▶ {pkg_name}"), style)));
         } else if let Some(dep) = dep {
             if let Some(spans) = render_dependency_spans(dep) {
                 lines.push(Line::from(spans));
@@ -417,10 +480,10 @@ const CASCADE_PREVIEW_MAX: usize = 8;
 ///
 /// Inputs:
 /// - `removal_targets`: Set of package names to be removed (lowercase).
-/// - `allows_dependents`: Cached value of cascade_mode.allows_dependents().
+/// - `allows_dependents`: Cached value of `cascade_mode.allows_dependents()`.
 ///
 /// Output:
-/// - Returns a CascadeRenderingContext struct.
+/// - Returns a `CascadeRenderingContext` struct.
 ///
 /// Details:
 /// - Groups related data to reduce parameter passing and variable scope.
@@ -437,10 +500,10 @@ impl CascadeRenderingContext {
     /// - `cascade_mode`: Removal cascade mode.
     ///
     /// Output:
-    /// - Returns a CascadeRenderingContext.
+    /// - Returns a `CascadeRenderingContext`.
     ///
     /// Details:
-    /// - Pre-computes removal targets and allows_dependents flag.
+    /// - Pre-computes removal targets and `allows_dependents` flag.
     fn new(items: &[PackageItem], cascade_mode: CascadeMode) -> Self {
         let removal_targets: std::collections::HashSet<String> = items
             .iter()
@@ -462,7 +525,7 @@ impl CascadeRenderingContext {
     /// - Returns true if dependency is directly dependent.
     ///
     /// Details:
-    /// - Checks if any parent in depends_on is in removal_targets.
+    /// - Checks if any parent in `depends_on` is in `removal_targets`.
     fn is_direct_dependent(&self, dep: &DependencyInfo) -> bool {
         dep.depends_on
             .iter()
@@ -479,7 +542,7 @@ impl CascadeRenderingContext {
 /// - `roots`: Formatted string of packages that require this dependency.
 ///
 /// Output:
-/// - Returns a DependencyDisplayInfo struct.
+/// - Returns a `DependencyDisplayInfo` struct.
 ///
 /// Details:
 /// - Groups all display-related data for a dependency.
@@ -498,11 +561,11 @@ struct DependencyDisplayInfo {
 /// - `th`: Theme colors.
 ///
 /// Output:
-/// - Returns a tuple of (bullet, name_color).
+/// - Returns a tuple of (`bullet`, `name_color`).
 ///
 /// Details:
 /// - Simplifies conditional logic for bullet and color selection.
-fn get_bullet_and_color(
+const fn get_bullet_and_color(
     allows_dependents: bool,
     is_direct: bool,
     th: &crate::theme::Theme,
@@ -557,11 +620,11 @@ fn get_dependency_detail(app: &AppState, status: &DependencyStatus) -> String {
 /// - `is_direct`: Pre-computed flag indicating if dependency is directly dependent.
 ///
 /// Output:
-/// - Returns DependencyDisplayInfo.
+/// - Returns `DependencyDisplayInfo`.
 ///
 /// Details:
 /// - Prepares all display data for a dependency in one place.
-/// - Uses pre-computed is_direct to avoid recalculation.
+/// - Uses pre-computed `is_direct` to avoid recalculation.
 fn build_dependency_display_info(
     app: &AppState,
     dep: &DependencyInfo,
@@ -662,7 +725,7 @@ fn render_cascade_mode_header(app: &AppState, cascade_mode: CascadeMode) -> Vec<
 /// What: Render removal plan command.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n and dry_run flag.
+/// - `app`: Application state for i18n and `dry_run` flag.
 /// - `items`: Packages to remove.
 /// - `cascade_mode`: Removal cascade mode.
 ///
@@ -774,7 +837,7 @@ fn render_dependent_summary(
 /// What: Render removal impact overview.
 ///
 /// Inputs:
-/// - `app`: Application state for i18n and remove_preflight_summary.
+/// - `app`: Application state for i18n and `remove_preflight_summary`.
 ///
 /// Output:
 /// - Returns a vector of lines to render.
@@ -804,24 +867,26 @@ fn render_impact_overview(app: &AppState) -> Vec<Line<'static>> {
                 &[&summary.package, &summary.total_dependents],
             );
             if summary.direct_dependents > 0 {
-                message.push_str(&format!(
+                let _ = write!(
+                    message,
                     " {}",
                     i18n::t_fmt1(
                         app,
                         "app.modals.preflight.summary.direct_singular",
                         summary.direct_dependents
                     )
-                ));
+                );
             }
             if summary.transitive_dependents > 0 {
-                message.push_str(&format!(
+                let _ = write!(
+                    message,
                     " {}",
                     i18n::t_fmt1(
                         app,
                         "app.modals.preflight.summary.transitive_singular",
                         summary.transitive_dependents
                     )
-                ));
+                );
             }
             lines.push(Line::from(Span::styled(
                 message,
@@ -864,10 +929,10 @@ fn get_impact_header(app: &AppState, allows_dependents: bool) -> (String, Style)
 /// - `ctx`: Cascade rendering context.
 ///
 /// Output:
-/// - Returns sorted vector of cascade candidates with is_direct flag.
+/// - Returns sorted vector of cascade candidates with `is_direct` flag.
 ///
 /// Details:
-/// - Prepares cascade candidates with pre-computed is_direct flag to avoid recomputation.
+/// - Prepares cascade candidates with pre-computed `is_direct` flag to avoid recomputation.
 fn prepare_cascade_candidates<'a>(
     dependency_info: &'a [DependencyInfo],
     ctx: &CascadeRenderingContext,
@@ -884,7 +949,7 @@ fn prepare_cascade_candidates<'a>(
 ///
 /// Inputs:
 /// - `app`: Application state for i18n.
-/// - `candidates`: Prepared cascade candidates with is_direct flags.
+/// - `candidates`: Prepared cascade candidates with `is_direct` flags.
 /// - `ctx`: Cascade rendering context.
 ///
 /// Output:
@@ -892,7 +957,7 @@ fn prepare_cascade_candidates<'a>(
 ///
 /// Details:
 /// - Renders the cascade candidates list with preview limit.
-/// - Uses pre-computed is_direct flags to avoid recalculation.
+/// - Uses pre-computed `is_direct` flags to avoid recalculation.
 fn render_cascade_candidates(
     app: &AppState,
     candidates: &[(&DependencyInfo, bool)],
@@ -1041,8 +1106,8 @@ fn render_remove_action(
 pub fn render_summary_tab(
     app: &AppState,
     items: &[PackageItem],
-    action: &PreflightAction,
-    summary: &Option<Box<PreflightSummaryData>>,
+    action: PreflightAction,
+    summary: Option<&PreflightSummaryData>,
     header_chips: &PreflightHeaderChips,
     dependency_info: &[DependencyInfo],
     cascade_mode: CascadeMode,
@@ -1067,7 +1132,7 @@ pub fn render_summary_tab(
         dependency_info,
     ));
 
-    match *action {
+    match action {
         PreflightAction::Install if !dependency_info.is_empty() => {
             lines.extend(render_install_dependencies(app, items, dependency_info));
         }
@@ -1079,7 +1144,7 @@ pub fn render_summary_tab(
                 cascade_mode,
             ));
         }
-        _ => {
+        PreflightAction::Install => {
             if items.is_empty() {
                 lines.push(Line::from(Span::styled(
                     i18n::t(app, "app.modals.preflight.summary.no_items_selected"),

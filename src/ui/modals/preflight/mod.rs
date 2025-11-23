@@ -1,4 +1,5 @@
 use ratatui::{Frame, prelude::Rect, widgets::Clear};
+use std::convert::AsRef;
 
 use crate::i18n;
 use crate::state::{AppState, PreflightAction};
@@ -15,6 +16,111 @@ use helpers::{extract, layout, scroll, sync, tabs as tab_helpers, widget};
 use ratatui::text::Line;
 
 use crate::theme::theme;
+
+/// What: Sync all preflight data from app cache to modal state.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `fields`: Preflight fields extracted from modal
+///
+/// Output:
+/// - Updates modal state with synced data.
+fn sync_preflight_data(app: &AppState, fields: &mut extract::PreflightFields) {
+    sync::sync_dependencies(
+        app,
+        fields.items,
+        *fields.action,
+        *fields.tab,
+        fields.dependency_info,
+        fields.dep_selected,
+    );
+    sync::sync_files(
+        app,
+        fields.items,
+        *fields.tab,
+        fields.file_info,
+        fields.file_selected,
+    );
+    sync::sync_services(
+        app,
+        fields.items,
+        *fields.action,
+        fields.service_info,
+        fields.service_selected,
+        fields.services_loaded,
+    );
+    sync::sync_sandbox(
+        app,
+        fields.items,
+        *fields.action,
+        *fields.tab,
+        fields.sandbox_info,
+        fields.sandbox_loaded,
+    );
+}
+
+/// What: Build content lines for preflight modal.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `fields`: Preflight fields
+/// - `content_rect`: Content area rectangle
+///
+/// Output:
+/// - Vector of lines to render.
+fn build_preflight_content_lines(
+    app: &mut AppState,
+    fields: &mut extract::PreflightFields,
+    content_rect: Rect,
+) -> Vec<Line<'static>> {
+    let (header_chips_line, tab_header_line) = render_tab_header(
+        app,
+        content_rect,
+        *fields.tab,
+        fields.header_chips,
+        fields.items,
+        fields.summary.as_ref().map(AsRef::as_ref),
+        fields.dependency_info,
+        fields.file_info,
+        *fields.services_loaded,
+        fields.sandbox_info,
+        *fields.sandbox_loaded,
+    );
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(header_chips_line);
+    lines.push(tab_header_line);
+    lines.push(Line::from(""));
+    let tab_lines = tab_helpers::render_tab_content(
+        app,
+        *fields.tab,
+        fields.items,
+        *fields.action,
+        fields.summary.as_ref().map(AsRef::as_ref),
+        fields.header_chips,
+        fields.dependency_info,
+        fields.dep_selected,
+        fields.dep_tree_expanded,
+        fields.deps_error.as_ref(),
+        fields.file_info,
+        fields.file_selected,
+        fields.file_tree_expanded,
+        fields.files_error.as_ref(),
+        fields.service_info,
+        fields.service_selected,
+        *fields.services_loaded,
+        fields.services_error.as_ref(),
+        fields.sandbox_info,
+        fields.sandbox_selected,
+        fields.sandbox_tree_expanded,
+        *fields.sandbox_loaded,
+        fields.sandbox_error.as_ref(),
+        fields.selected_optdepends,
+        *fields.cascade_mode,
+        content_rect,
+    );
+    lines.extend(tab_lines);
+    lines
+}
 
 /// What: Render the preflight modal summarizing dependency/file checks before install/remove.
 ///
@@ -37,9 +143,7 @@ pub fn render_preflight(
     modal: &mut crate::state::Modal,
 ) {
     let render_start = std::time::Instant::now();
-
-    // Extract Preflight variant, return early if not Preflight
-    let Some(fields) = extract::extract_preflight_fields(modal) else {
+    let Some(mut fields) = extract::extract_preflight_fields(modal) else {
         return;
     };
 
@@ -56,38 +160,7 @@ pub fn render_preflight(
         app.install_list_files.len()
     );
 
-    // Sync data from app cache to modal state
-    sync::sync_dependencies(
-        app,
-        fields.items,
-        fields.action,
-        fields.tab,
-        fields.dependency_info,
-        fields.dep_selected,
-    );
-    sync::sync_files(
-        app,
-        fields.items,
-        fields.tab,
-        fields.file_info,
-        fields.file_selected,
-    );
-    sync::sync_services(
-        app,
-        fields.items,
-        fields.action,
-        fields.service_info,
-        fields.service_selected,
-        fields.services_loaded,
-    );
-    sync::sync_sandbox(
-        app,
-        fields.items,
-        fields.action,
-        fields.tab,
-        fields.sandbox_info,
-        fields.sandbox_loaded,
-    );
+    sync_preflight_data(app, &mut fields);
 
     tracing::debug!(
         "[UI] render_preflight AFTER SYNC: tab={:?}, deps={}, files={}, cache_deps={}, cache_files={}, resolving_deps={}, resolving_files={}",
@@ -100,75 +173,19 @@ pub fn render_preflight(
         app.preflight_files_resolving || app.files_resolving
     );
 
-    // Calculate layout
     let (rect, content_rect, keybinds_rect) = layout::calculate_modal_layout(area);
     f.render_widget(Clear, rect);
 
-    // Prepare rendering data
-    let title = match fields.action {
+    let title = match *fields.action {
         PreflightAction::Install => i18n::t(app, "app.modals.preflight.title_install"),
         PreflightAction::Remove => i18n::t(app, "app.modals.preflight.title_remove"),
     };
     let border_color = th.lavender;
     let bg_color = th.crust;
 
-    // Render tab header
-    let (header_chips_line, tab_header_line) = render_tab_header(
-        app,
-        content_rect,
-        fields.tab,
-        fields.header_chips,
-        fields.items,
-        fields.summary,
-        fields.dependency_info,
-        fields.file_info,
-        fields.service_info,
-        *fields.services_loaded,
-        fields.sandbox_info,
-        *fields.sandbox_loaded,
-    );
+    let lines = build_preflight_content_lines(app, &mut fields, content_rect);
+    let scroll_offset = scroll::calculate_scroll_offset(app, *fields.tab);
 
-    // Build content lines
-    let mut lines: Vec<Line<'static>> = Vec::new();
-    lines.push(header_chips_line);
-    lines.push(tab_header_line);
-    lines.push(Line::from(""));
-
-    // Render tab content
-    let tab_lines = tab_helpers::render_tab_content(
-        app,
-        fields.tab,
-        fields.items,
-        fields.action,
-        fields.summary,
-        fields.header_chips,
-        fields.dependency_info,
-        fields.dep_selected,
-        fields.dep_tree_expanded,
-        fields.deps_error,
-        fields.file_info,
-        fields.file_selected,
-        fields.file_tree_expanded,
-        fields.files_error,
-        fields.service_info,
-        fields.service_selected,
-        *fields.services_loaded,
-        fields.services_error,
-        fields.sandbox_info,
-        fields.sandbox_selected,
-        fields.sandbox_tree_expanded,
-        *fields.sandbox_loaded,
-        fields.sandbox_error,
-        fields.selected_optdepends,
-        fields.cascade_mode,
-        content_rect,
-    );
-    lines.extend(tab_lines);
-
-    // Calculate scroll offset
-    let scroll_offset = scroll::calculate_scroll_offset(app, fields.tab);
-
-    // Build and render content widget
     let content_widget = widget::ParagraphBuilder::new()
         .with_lines(lines)
         .with_title(title)
@@ -179,13 +196,12 @@ pub fn render_preflight(
         .build();
     f.render_widget(content_widget, content_rect);
 
-    // Render footer
     render_footer(
         f,
         app,
         fields.items,
-        fields.action,
-        fields.tab,
+        *fields.action,
+        *fields.tab,
         content_rect,
         keybinds_rect,
         bg_color,

@@ -8,6 +8,7 @@ use crate::i18n;
 use crate::state::{AppState, PackageItem};
 use crate::theme::theme;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write;
 
 /// What: Type alias for sandbox display items.
 ///
@@ -17,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 ///
 /// Details:
 /// - Represents a display item in the sandbox tab.
-/// - Format: (is_header, package_name, Option<(dep_type, dep_name, dep_info)>)
+/// - Format: (`is_header`, `package_name`, `Option<`(`dep_type`, `dep_name`, `dep_info`)`>`)
 type SandboxDisplayItem = (
     bool,
     String,
@@ -40,7 +41,7 @@ pub struct SandboxTabContext<'a> {
     pub sandbox_info: &'a [crate::logic::sandbox::SandboxInfo],
     pub sandbox_tree_expanded: &'a HashSet<String>,
     pub sandbox_loaded: bool,
-    pub sandbox_error: &'a Option<String>,
+    pub sandbox_error: Option<&'a String>,
     pub selected_optdepends: &'a HashMap<String, HashSet<String>>,
     pub content_rect: Rect,
 }
@@ -85,7 +86,7 @@ struct SandboxRenderData {
 /// - `ctx`: Sandbox tab context.
 ///
 /// Output:
-/// - Returns SandboxRenderState enum indicating what should be rendered.
+/// - Returns `SandboxRenderState` enum indicating what should be rendered.
 ///
 /// Details:
 /// - Centralizes state checking logic to reduce data flow complexity.
@@ -102,7 +103,7 @@ fn determine_sandbox_state(app: &AppState, ctx: &SandboxTabContext) -> SandboxRe
     }
 
     // Handle error/loading/analyzing states
-    if let Some(err) = ctx.sandbox_error.as_ref() {
+    if let Some(err) = ctx.sandbox_error {
         return SandboxRenderState::Error(err.clone());
     } else if app.preflight_sandbox_resolving || app.sandbox_resolving {
         return SandboxRenderState::Loading;
@@ -120,7 +121,7 @@ fn determine_sandbox_state(app: &AppState, ctx: &SandboxTabContext) -> SandboxRe
 /// - `sandbox_selected`: Mutable reference to selected index (for viewport calculation).
 ///
 /// Output:
-/// - Returns SandboxRenderData with pre-computed values.
+/// - Returns `SandboxRenderData` with pre-computed values.
 ///
 /// Details:
 /// - Computes display items, viewport, and other derived values once.
@@ -190,11 +191,12 @@ fn render_error_state(app: &AppState, error: &str) -> Vec<Line<'static>> {
 fn render_aur_package_headers(items: &[PackageItem]) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
-    for item in items.iter() {
+    for item in items {
         let is_aur = matches!(item.source, crate::state::Source::Aur);
         if is_aur {
+            let item_name = &item.name;
             lines.push(Line::from(Span::styled(
-                format!("▶ {} ", item.name),
+                format!("▶ {item_name} "),
                 Style::default()
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
@@ -292,7 +294,7 @@ fn build_display_items(
 ) -> Vec<SandboxDisplayItem> {
     let mut display_items = Vec::new();
 
-    for item in items.iter() {
+    for item in items {
         let is_aur = matches!(item.source, crate::state::Source::Aur);
         let is_expanded = sandbox_tree_expanded.contains(&item.name);
 
@@ -365,7 +367,7 @@ fn build_display_items(
 /// - `sandbox_selected`: Mutable reference to selected index (for clamping).
 ///
 /// Output:
-/// - Returns (start_idx, end_idx) viewport range.
+/// - Returns (`start_idx`, `end_idx`) viewport range.
 ///
 /// Details:
 /// - Ensures selected item is always visible.
@@ -551,7 +553,7 @@ fn render_package_header(
         &[&item.name, &source_str],
     );
     if !arrow_symbol.is_empty() {
-        header_text = format!("{} {}", arrow_symbol, header_text);
+        header_text = format!("{arrow_symbol} {header_text}");
     }
 
     Line::from(Span::styled(header_text, header_style))
@@ -643,7 +645,7 @@ fn render_package_header_details(
 /// - Returns optional line for section header.
 ///
 /// Details:
-/// - Returns section header line if dep_type is valid.
+/// - Returns section header line if `dep_type` is valid.
 fn render_dependency_section_header(app: &AppState, dep_type: &str) -> Option<Line<'static>> {
     let th = theme();
     let section_name = match dep_type {
@@ -695,9 +697,9 @@ fn render_dependency_line(
         Style::default().fg(status_color)
     };
 
-    let mut dep_line = format!("  {} {}", status_icon, dep_name);
+    let mut dep_line = format!("  {status_icon} {dep_name}");
     if let Some(ref version) = dep.installed_version {
-        dep_line.push_str(&format!(" (installed: {})", version));
+        let _ = write!(dep_line, " (installed: {version})");
     }
     if dep_type == "optdepends" && is_optdep_selected {
         dep_line.push_str(" [selected]");
@@ -777,15 +779,11 @@ fn render_display_items(
 
             // Check if this is a selected optional dependency
             let is_optdep_selected = if *dep_type == "optdepends" {
-                ctx.selected_optdepends
-                    .get(pkg_name)
-                    .map(|set| {
-                        // Extract package name from dependency spec (may include version or description)
-                        let pkg_name_from_dep =
-                            crate::logic::sandbox::extract_package_name(dep_name);
-                        set.contains(dep_name) || set.contains(&pkg_name_from_dep)
-                    })
-                    .unwrap_or(false)
+                ctx.selected_optdepends.get(pkg_name).is_some_and(|set| {
+                    // Extract package name from dependency spec (may include version or description)
+                    let pkg_name_from_dep = crate::logic::sandbox::extract_package_name(dep_name);
+                    set.contains(dep_name) || set.contains(&pkg_name_from_dep)
+                })
             } else {
                 false
             };

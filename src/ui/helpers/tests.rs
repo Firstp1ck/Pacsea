@@ -2,20 +2,14 @@
 
 use super::*;
 
-/// What: Initialize minimal English translations for tests.
+/// What: Initialize details field translations for tests.
 ///
 /// Inputs:
-/// - `app`: AppState to populate with translations
+/// - `translations`: Mutable reference to translations map.
 ///
 /// Output:
-/// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
-///
-/// Details:
-/// - Sets up only the translations needed for tests to pass
-fn init_test_translations(app: &mut crate::state::AppState) {
-    use std::collections::HashMap;
-    let mut translations = HashMap::new();
-    // Details fields
+/// - Adds details field translations to the map.
+fn init_details_translations(translations: &mut std::collections::HashMap<String, String>) {
     translations.insert(
         "app.details.fields.repository".to_string(),
         "Repository".to_string(),
@@ -98,7 +92,16 @@ fn init_test_translations(app: &mut crate::state::AppState) {
         "Hide PKGBUILD".to_string(),
     );
     translations.insert("app.details.url_label".to_string(), "URL:".to_string());
-    // Results
+}
+
+/// What: Initialize results translations for tests.
+///
+/// Inputs:
+/// - `translations`: Mutable reference to translations map.
+///
+/// Output:
+/// - Adds results translations to the map.
+fn init_results_translations(translations: &mut std::collections::HashMap<String, String>) {
     translations.insert("app.results.title".to_string(), "Results".to_string());
     translations.insert("app.results.buttons.sort".to_string(), "Sort".to_string());
     translations.insert(
@@ -154,10 +157,39 @@ fn init_test_translations(app: &mut crate::state::AppState) {
         "app.results.filters.manjaro".to_string(),
         "Manjaro".to_string(),
     );
+}
+
+/// What: Initialize minimal English translations for tests.
+///
+/// Inputs:
+/// - `app`: `AppState` to populate with translations
+///
+/// Output:
+/// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
+///
+/// Details:
+/// - Sets up only the translations needed for tests to pass
+fn init_test_translations(app: &mut crate::state::AppState) {
+    use std::collections::HashMap;
+    let mut translations = HashMap::new();
+    init_details_translations(&mut translations);
+    init_results_translations(&mut translations);
     app.translations = translations.clone();
     app.translations_fallback = translations;
 }
 
+/// What: Create a test `PackageItem` for an official repository package.
+///
+/// Inputs:
+/// - `name`: Package name
+/// - `repo`: Repository name (e.g., "extra", "core")
+///
+/// Output:
+/// - Returns a `PackageItem` with default test values for an official package.
+///
+/// Details:
+/// - Sets version to "1.0", creates a default description, and sets architecture to `x86_64`.
+/// - Used in tests to create mock official packages.
 fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
     crate::state::PackageItem {
         name: name.to_string(),
@@ -183,9 +215,7 @@ fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
 /// Details:
 /// - Covers the case-insensitive dedupe path plus button label toggling when PKGBUILD visibility flips.
 fn filtered_indices_and_details_lines() {
-    let mut app = crate::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate::state::AppState::default();
     init_test_translations(&mut app);
     app.recent = vec!["alpha".into(), "bravo".into(), "charlie".into()];
     assert_eq!(filtered_recent_indices(&app), vec![0, 1, 2]);
@@ -234,19 +264,23 @@ fn filtered_indices_and_details_lines() {
     let th = crate::theme::theme();
     let lines = format_details_lines(&app, 80, &th);
     assert!(
-        lines.last().unwrap().spans[0]
+        lines
+            .last()
+            .expect("lines should not be empty in test")
+            .spans[0]
             .content
             .contains("Show PKGBUILD")
     );
-    let mut app2 = crate::state::AppState {
-        ..Default::default()
-    };
+    let mut app2 = crate::state::AppState::default();
     init_test_translations(&mut app2);
     app2.details = app.details.clone();
     app2.pkgb_visible = true;
     let lines2 = format_details_lines(&app2, 80, &th);
     assert!(
-        lines2.last().unwrap().spans[0]
+        lines2
+            .last()
+            .expect("lines2 should not be empty in test")
+            .spans[0]
             .content
             .contains("Hide PKGBUILD")
     );
@@ -264,9 +298,7 @@ fn filtered_indices_and_details_lines() {
 /// Details:
 /// - Confirms string composition matches UI expectations for optional fields.
 fn details_lines_sizes_and_lists() {
-    let mut app = crate::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate::state::AppState::default();
     init_test_translations(&mut app);
     app.details = crate::state::PackageDetails {
         repository: "extra".into(),
@@ -305,7 +337,7 @@ fn details_lines_sizes_and_lists() {
     assert!(lines.iter().any(|l| {
         l.spans
             .iter()
-            .any(|s| s.content.contains("Licences") || s.content.contains("-"))
+            .any(|s| s.content.contains("Licences") || s.content.contains('-'))
     }));
     assert!(
         lines
@@ -327,9 +359,7 @@ fn details_lines_sizes_and_lists() {
 /// Details:
 /// - Applies a short timeout for each check to guard against unexpected asynchronous sends.
 async fn trigger_recent_preview_noop_when_not_recent_or_invalid() {
-    let mut app = crate::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate::state::AppState::default();
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     app.focus = crate::state::Focus::Search;
     trigger_recent_preview(&app, &tx);

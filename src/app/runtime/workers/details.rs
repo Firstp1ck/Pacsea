@@ -3,7 +3,7 @@ use tokio::time::{Duration, sleep};
 
 use crate::sources;
 use crate::sources::fetch_details;
-use crate::state::*;
+use crate::state::{PackageDetails, PackageItem, Source};
 
 /// What: Spawn background worker for batched package details fetching.
 ///
@@ -17,34 +17,33 @@ use crate::state::*;
 /// - Deduplicates requests by package name
 /// - Filters out disallowed packages
 pub fn spawn_details_worker(
-    net_err_tx: mpsc::UnboundedSender<String>,
+    net_err_tx: &mpsc::UnboundedSender<String>,
     mut details_req_rx: mpsc::UnboundedReceiver<PackageItem>,
     details_res_tx: mpsc::UnboundedSender<PackageDetails>,
 ) {
+    use std::collections::HashSet;
     let net_err_tx_details = net_err_tx.clone();
     tokio::spawn(async move {
         const DETAILS_BATCH_WINDOW_MS: u64 = 120;
         loop {
-            let first = match details_req_rx.recv().await {
-                Some(i) => i,
-                None => break,
+            let Some(first) = details_req_rx.recv().await else {
+                break;
             };
             let mut batch: Vec<PackageItem> = vec![first];
             loop {
                 tokio::select! {
                     Some(next) = details_req_rx.recv() => { batch.push(next); }
-                    _ = sleep(Duration::from_millis(DETAILS_BATCH_WINDOW_MS)) => { break; }
+                    () = sleep(Duration::from_millis(DETAILS_BATCH_WINDOW_MS)) => { break; }
                 }
             }
-            use std::collections::HashSet;
             let mut seen: HashSet<String> = HashSet::new();
             let mut ordered: Vec<PackageItem> = Vec::with_capacity(batch.len());
-            for it in batch.into_iter() {
+            for it in batch {
                 if seen.insert(it.name.clone()) {
                     ordered.push(it);
                 }
             }
-            for it in ordered.into_iter() {
+            for it in ordered {
                 if !crate::logic::is_allowed(&it.name) {
                     continue;
                 }
@@ -59,7 +58,7 @@ pub fn spawn_details_worker(
                                 it.name, e
                             ),
                             Source::Aur => {
-                                format!("AUR package details unavailable for {}: {}", it.name, e)
+                                format!("AUR package details unavailable for {}: {e}", it.name)
                             }
                         };
                         let _ = net_err_tx_details.send(msg);

@@ -8,8 +8,98 @@ use ratatui::{
 use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
-use crate::state::{AppState, Source};
+use crate::state::{AppState, PackageItem, Source};
 use crate::theme::theme;
+
+/// What: Build list items for a package list with selection and loading indicators.
+///
+/// Inputs:
+/// - `indices`: Display indices into the package list
+/// - `packages`: Full package list
+/// - `selected_idx`: Currently selected display index
+/// - `focused`: Whether the pane is focused
+/// - `app`: Application state for loading checks
+///
+/// Output:
+/// - Vector of `ListItem` widgets ready for rendering
+///
+/// Details:
+/// - Adds selection indicator, loading indicator, popularity, source, name, and version.
+pub(super) fn build_package_list_items<'a, F>(
+    indices: &[usize],
+    packages: &'a [PackageItem],
+    selected_idx: Option<usize>,
+    focused: bool,
+    is_loading: F,
+) -> Vec<ListItem<'a>>
+where
+    F: Fn(&str) -> bool,
+{
+    let th = theme();
+    indices
+        .iter()
+        .enumerate()
+        .filter_map(|(display_idx, &i)| packages.get(i).map(|p| (display_idx, p)))
+        .map(|(display_idx, p)| {
+            let (src, color) = match &p.source {
+                Source::Official { repo, .. } => (repo.to_string(), th.green),
+                Source::Aur => ("AUR".to_string(), th.yellow),
+            };
+            let mut segs: Vec<Span> = Vec::new();
+
+            // Add selection indicator manually if this item is selected
+            let is_selected = selected_idx == Some(display_idx);
+            if is_selected {
+                segs.push(Span::styled(
+                    "▶ ",
+                    Style::default()
+                        .fg(if focused { th.text } else { th.subtext0 })
+                        .bg(if focused { th.surface2 } else { th.base }),
+                ));
+            } else {
+                // Add spacing to align with selected items
+                segs.push(Span::raw("  "));
+            }
+
+            // Add loading indicator if package is being processed
+            if is_loading(&p.name) {
+                segs.push(Span::styled(
+                    "⟳ ",
+                    Style::default()
+                        .fg(th.sapphire)
+                        .bg(if is_selected && focused {
+                            th.surface2
+                        } else {
+                            th.base
+                        })
+                        .add_modifier(Modifier::BOLD),
+                ));
+            } else {
+                // Add spacing when not loading to maintain alignment
+                segs.push(Span::raw("  "));
+            }
+
+            if let Some(pop) = p.popularity {
+                segs.push(Span::styled(
+                    format!("Pop: {pop:.2} "),
+                    Style::default().fg(th.overlay1),
+                ));
+            }
+            segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
+            segs.push(Span::styled(
+                p.name.clone(),
+                Style::default()
+                    .fg(if focused { th.text } else { th.subtext0 })
+                    .add_modifier(Modifier::BOLD),
+            ));
+            segs.push(Span::styled(
+                format!("  {}", p.version),
+                Style::default().fg(if focused { th.overlay1 } else { th.surface2 }),
+            ));
+            ListItem::new(Line::from(segs))
+        })
+        .collect()
+}
 
 /// What: Render the normal Install list (single right pane) with Import/Export buttons.
 ///
@@ -31,87 +121,13 @@ pub fn render_install(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Normal Install List (single right pane)
     let indices: Vec<usize> = crate::ui::helpers::filtered_install_indices(app);
     let selected_idx = app.install_state.selected();
-    let install_items: Vec<ListItem> = indices
-        .iter()
-        .enumerate()
-        .filter_map(|(display_idx, &i)| app.install_list.get(i).map(|p| (display_idx, p)))
-        .map(|(display_idx, p)| {
-            let (src, color) = match &p.source {
-                Source::Official { repo, .. } => (repo.to_string(), th.green),
-                Source::Aur => ("AUR".to_string(), th.yellow),
-            };
-            let mut segs: Vec<Span> = Vec::new();
-
-            // Add selection indicator manually if this item is selected
-            let is_selected = selected_idx == Some(display_idx);
-            if is_selected {
-                segs.push(Span::styled(
-                    "▶ ",
-                    Style::default()
-                        .fg(if install_focused {
-                            th.text
-                        } else {
-                            th.subtext0
-                        })
-                        .bg(if install_focused {
-                            th.surface2
-                        } else {
-                            th.base
-                        }),
-                ));
-            } else {
-                // Add spacing to align with selected items
-                segs.push(Span::raw("  "));
-            }
-
-            // Add loading indicator if package is being processed (same position and style regardless of selection)
-            if crate::ui::helpers::is_package_loading_preflight(app, &p.name) {
-                // Use explicit style that overrides highlight_style - always sapphire blue and bold
-                // Match background to selection state so it blends properly
-                segs.push(Span::styled(
-                    "⟳ ",
-                    Style::default()
-                        .fg(th.sapphire)
-                        .bg(if is_selected && install_focused {
-                            th.surface2
-                        } else {
-                            th.base
-                        })
-                        .add_modifier(Modifier::BOLD),
-                ));
-            } else {
-                // Add spacing when not loading to maintain alignment (same width as "⟳ ")
-                segs.push(Span::raw("  "));
-            }
-
-            if let Some(pop) = p.popularity {
-                segs.push(Span::styled(
-                    format!("Pop: {pop:.2} "),
-                    Style::default().fg(th.overlay1),
-                ));
-            }
-            segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
-            segs.push(Span::styled(
-                p.name.clone(),
-                Style::default()
-                    .fg(if install_focused {
-                        th.text
-                    } else {
-                        th.subtext0
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ));
-            segs.push(Span::styled(
-                format!("  {}", p.version),
-                Style::default().fg(if install_focused {
-                    th.overlay1
-                } else {
-                    th.surface2
-                }),
-            ));
-            ListItem::new(Line::from(segs))
-        })
-        .collect();
+    let install_items = build_package_list_items(
+        &indices,
+        &app.install_list,
+        selected_idx,
+        install_focused,
+        |name| crate::ui::helpers::is_package_loading_preflight(app, name),
+    );
     let title_text = if install_focused {
         i18n::t(app, "app.titles.install_list_focused")
     } else {
@@ -196,7 +212,7 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
 
     // Import button on the far right
     // Use Unicode display width, not byte length, to handle wide characters
-    let import_w = import_label.width() as u16;
+    let import_w = u16::try_from(import_label.width()).unwrap_or(u16::MAX);
     let import_sx = area.x + 1 + inner_w.saturating_sub(import_w);
     let import_rect = Rect {
         x: import_sx,
@@ -210,10 +226,10 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
         .next()
         .map(|c| c.to_string())
         .unwrap_or_default();
-    let import_rest = import_label.chars().skip(1).collect::<String>();
+    let import_suffix = import_label.chars().skip(1).collect::<String>();
     let import_line = Paragraph::new(Line::from(vec![
         Span::styled(import_first_char, style.add_modifier(Modifier::UNDERLINED)),
-        Span::styled(import_rest, style),
+        Span::styled(import_suffix, style),
     ]));
     app.install_import_rect = Some((
         import_rect.x,
@@ -225,7 +241,7 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
 
     // Export button to the left of Import with 2 spaces gap
     let gap: u16 = 2;
-    let export_w = export_label.width() as u16;
+    let export_w = u16::try_from(export_label.width()).unwrap_or(u16::MAX);
     let export_max_w = inner_w;
     let export_right = import_rect.x.saturating_sub(gap);
     let export_sx = if export_w > export_right.saturating_sub(area.x + 1) {
@@ -245,10 +261,10 @@ fn render_buttons(f: &mut Frame, app: &mut AppState, area: Rect, install_focused
         .next()
         .map(|c| c.to_string())
         .unwrap_or_default();
-    let export_rest = export_label.chars().skip(1).collect::<String>();
+    let export_suffix = export_label.chars().skip(1).collect::<String>();
     let export_line = Paragraph::new(Line::from(vec![
         Span::styled(export_first_char, style.add_modifier(Modifier::UNDERLINED)),
-        Span::styled(export_rest, style),
+        Span::styled(export_suffix, style),
     ]));
     app.install_export_rect = Some((
         export_rect.x,
@@ -267,7 +283,7 @@ mod tests {
     /// What: Initialize minimal English translations for install tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with install-related translations
@@ -301,10 +317,8 @@ mod tests {
     #[test]
     fn install_renders_and_records_rect() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.push(crate::state::PackageItem {
             name: "test-package".to_string(),
@@ -318,7 +332,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render install pane");
 
         assert!(app.install_rect.is_some());
         assert!(app.install_import_rect.is_some());
@@ -338,20 +352,22 @@ mod tests {
     #[test]
     fn install_renders_buttons_with_correct_rects() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
         term.draw(|f| {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render install pane buttons");
 
-        let import_rect = app.install_import_rect.unwrap();
-        let export_rect = app.install_export_rect.unwrap();
+        let import_rect = app
+            .install_import_rect
+            .expect("install_import_rect should be set after rendering");
+        let export_rect = app
+            .install_export_rect
+            .expect("install_export_rect should be set after rendering");
 
         // Import should be to the right of Export
         assert!(import_rect.0 > export_rect.0);
@@ -375,10 +391,8 @@ mod tests {
     #[test]
     fn install_renders_with_selection() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.push(crate::state::PackageItem {
             name: "package1".to_string(),
@@ -400,7 +414,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render install pane with selection");
 
         // Should render without panic with selection
         assert!(app.install_rect.is_some());
@@ -419,10 +433,8 @@ mod tests {
     #[test]
     fn install_renders_with_focus_styling() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
 
         // Render unfocused
@@ -431,7 +443,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render unfocused install pane");
         let unfocused_import_rect = app.install_import_rect;
 
         // Render focused
@@ -440,7 +452,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render focused install pane");
         let focused_import_rect = app.install_import_rect;
 
         // Rects should be the same position, but styling differs
@@ -460,10 +472,8 @@ mod tests {
     #[test]
     fn install_handles_empty_list() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.install_list.clear();
 
@@ -471,7 +481,7 @@ mod tests {
             let area = f.area();
             render_install(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render empty install pane");
 
         // Should render empty list without panic
         assert!(app.install_rect.is_some());

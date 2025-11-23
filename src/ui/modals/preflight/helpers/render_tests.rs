@@ -1,14 +1,14 @@
-//! Unit tests for render_header_chips function.
+//! Unit tests for `render_header_chips` function.
 
 use super::render_header_chips;
 use crate::state::AppState;
 use crate::state::modal::{PreflightHeaderChips, RiskLevel};
 
-/// What: Test render_header_chips with minimal data.
+/// What: Test `render_header_chips` with minimal data.
 ///
 /// Inputs:
-/// - `app`: Default AppState
-/// - `chips`: Minimal PreflightHeaderChips with zero values
+/// - `app`: Default `AppState`
+/// - `chips`: Minimal `PreflightHeaderChips` with zero values
 ///
 /// Output:
 /// - Returns a Line containing styled spans
@@ -30,11 +30,11 @@ fn test_render_header_chips_minimal() {
     assert!(!line.spans.is_empty());
 }
 
-/// What: Test render_header_chips with AUR packages.
+/// What: Test `render_header_chips` with AUR packages.
 ///
 /// Inputs:
-/// - `app`: Default AppState
-/// - `chips`: PreflightHeaderChips with AUR count > 0
+/// - `app`: Default `AppState`
+/// - `chips`: `PreflightHeaderChips` with AUR count > 0
 ///
 /// Output:
 /// - Returns a Line containing AUR package count in chips
@@ -47,8 +47,8 @@ fn test_render_header_chips_with_aur() {
     let chips = PreflightHeaderChips {
         package_count: 5,
         aur_count: 2,
-        download_bytes: 1048576,
-        install_delta_bytes: 512000,
+        download_bytes: 1_048_576,
+        install_delta_bytes: 512_000,
         risk_level: RiskLevel::Medium,
         risk_score: 5,
     };
@@ -61,14 +61,14 @@ fn test_render_header_chips_with_aur() {
         .map(|s| s.content.as_ref())
         .collect::<String>();
     // The AUR count should be included in the package count chip
-    assert!(line_text.contains("5") || line_text.contains("2"));
+    assert!(line_text.contains('5') || line_text.contains('2'));
 }
 
-/// What: Test render_header_chips with positive install delta.
+/// What: Test `render_header_chips` with positive install delta.
 ///
 /// Inputs:
-/// - `app`: Default AppState
-/// - `chips`: PreflightHeaderChips with positive install_delta_bytes
+/// - `app`: Default `AppState`
+/// - `chips`: `PreflightHeaderChips` with positive `install_delta_bytes`
 ///
 /// Output:
 /// - Returns a Line with green delta color
@@ -82,7 +82,7 @@ fn test_render_header_chips_positive_delta() {
         package_count: 1,
         aur_count: 0,
         download_bytes: 0,
-        install_delta_bytes: 1048576, // Positive
+        install_delta_bytes: 1_048_576, // Positive
         risk_level: RiskLevel::Low,
         risk_score: 1,
     };
@@ -90,11 +90,11 @@ fn test_render_header_chips_positive_delta() {
     assert!(!line.spans.is_empty());
 }
 
-/// What: Test render_header_chips with negative install delta.
+/// What: Test `render_header_chips` with negative install delta.
 ///
 /// Inputs:
-/// - `app`: Default AppState
-/// - `chips`: PreflightHeaderChips with negative install_delta_bytes
+/// - `app`: Default `AppState`
+/// - `chips`: `PreflightHeaderChips` with negative `install_delta_bytes`
 ///
 /// Output:
 /// - Returns a Line with red delta color
@@ -108,7 +108,7 @@ fn test_render_header_chips_negative_delta() {
         package_count: 1,
         aur_count: 0,
         download_bytes: 0,
-        install_delta_bytes: -1048576, // Negative
+        install_delta_bytes: -1_048_576, // Negative
         risk_level: RiskLevel::Low,
         risk_score: 1,
     };
@@ -116,11 +116,11 @@ fn test_render_header_chips_negative_delta() {
     assert!(!line.spans.is_empty());
 }
 
-/// What: Test render_header_chips with zero install delta.
+/// What: Test `render_header_chips` with zero install delta.
 ///
 /// Inputs:
-/// - `app`: Default AppState
-/// - `chips`: PreflightHeaderChips with zero install_delta_bytes
+/// - `app`: Default `AppState`
+/// - `chips`: `PreflightHeaderChips` with zero `install_delta_bytes`
 ///
 /// Output:
 /// - Returns a Line with neutral delta color
@@ -142,11 +142,11 @@ fn test_render_header_chips_zero_delta() {
     assert!(!line.spans.is_empty());
 }
 
-/// What: Test render_header_chips with different risk levels.
+/// What: Test `render_header_chips` with different risk levels.
 ///
 /// Inputs:
-/// - `app`: Default AppState
-/// - `chips`: PreflightHeaderChips with Low, Medium, and High risk levels
+/// - `app`: Default `AppState`
+/// - `chips`: `PreflightHeaderChips` with Low, Medium, and High risk levels
 ///
 /// Output:
 /// - Returns Lines with appropriate risk colors

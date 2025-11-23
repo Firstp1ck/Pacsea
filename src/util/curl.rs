@@ -20,32 +20,32 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// Details:
 /// - Maps common curl exit codes (22, 6, 7, 28) to descriptive messages
 /// - Falls back to generic error message if code is unknown
-fn map_curl_error(code: Option<i32>, status: &std::process::ExitStatus) -> String {
-    if let Some(code) = code {
-        match code {
+fn map_curl_error(code: Option<i32>, status: std::process::ExitStatus) -> String {
+    code.map_or_else(
+        || {
+            // Process was terminated by a signal or other reason
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::ExitStatusExt;
+                status.signal().map_or_else(
+                    || format!("curl process failed: {status:?}"),
+                    |signal| format!("curl process terminated by signal {signal}"),
+                )
+            }
+            #[cfg(not(unix))]
+            {
+                format!("curl process failed: {:?}", status)
+            }
+        },
+        |code| match code {
             22 => "HTTP error from server (likely 502/503/504 - server temporarily unavailable)"
                 .to_string(),
             6 => "Could not resolve host (DNS/network issue)".to_string(),
             7 => "Failed to connect to host (network unreachable)".to_string(),
             28 => "Operation timeout".to_string(),
-            _ => format!("curl failed with exit code {}", code),
-        }
-    } else {
-        // Process was terminated by a signal or other reason
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::ExitStatusExt;
-            if let Some(signal) = status.signal() {
-                format!("curl process terminated by signal {}", signal)
-            } else {
-                format!("curl process failed: {:?}", status)
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            format!("curl process failed: {:?}", status)
-        }
-    }
+            _ => format!("curl failed with exit code {code}"),
+        },
+    )
 }
 
 /// What: Fetch JSON from a URL using curl and parse into `serde_json::Value`.
@@ -55,6 +55,12 @@ fn map_curl_error(code: Option<i32>, status: &std::process::ExitStatus) -> Strin
 ///
 /// Output:
 /// - `Ok(Value)` on success; `Err` if curl fails or the response is not valid JSON
+///
+/// # Errors
+/// - Returns `Err` when curl command execution fails (I/O error or curl not found)
+/// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+/// - Returns `Err` when response body cannot be parsed as JSON
 ///
 /// Details:
 /// - Executes curl with appropriate flags and parses the UTF-8 body with `serde_json`.
@@ -73,7 +79,7 @@ pub fn curl_json(url: &str) -> Result<Value> {
     }
     let out = std::process::Command::new("curl").args(&args).output()?;
     if !out.status.success() {
-        let error_msg = map_curl_error(out.status.code(), &out.status);
+        let error_msg = map_curl_error(out.status.code(), out.status);
         #[cfg(target_os = "windows")]
         {
             // On Windows, also log stderr for debugging
@@ -121,6 +127,11 @@ pub fn curl_json(url: &str) -> Result<Value> {
 /// Output:
 /// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
 ///
+/// # Errors
+/// - Returns `Err` when curl command execution fails (I/O error or curl not found)
+/// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+///
 /// Details:
 /// - Executes curl with appropriate flags and returns the raw body as a `String`.
 /// - On Windows, uses `-k` flag to skip SSL certificate verification.
@@ -138,6 +149,11 @@ pub fn curl_text(url: &str) -> Result<String> {
 /// Output:
 /// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
 ///
+/// # Errors
+/// - Returns `Err` when curl command execution fails (I/O error or curl not found)
+/// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+///
 /// Details:
 /// - Executes curl with appropriate flags plus extra arguments.
 /// - On Windows, uses `-k` flag to skip SSL certificate verification.
@@ -148,13 +164,10 @@ pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
         .args(&args)
         .output()
         .map_err(|e| {
-            format!(
-                "curl command failed to execute: {} (is curl installed and in PATH?)",
-                e
-            )
+            format!("curl command failed to execute: {e} (is curl installed and in PATH?)")
         })?;
     if !out.status.success() {
-        let error_msg = map_curl_error(out.status.code(), &out.status);
+        let error_msg = map_curl_error(out.status.code(), out.status);
         return Err(error_msg.into());
     }
     Ok(String::from_utf8(out.stdout)?)

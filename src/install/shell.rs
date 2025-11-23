@@ -14,15 +14,15 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 ///
 /// Details:
 /// - Defers to `spawn_shell_commands_in_terminal_with_hold` to add the default hold tail.
-/// - During tests, this is a no-op to avoid opening real terminal windows, unless PACSEA_TEST_OUT is set.
-pub fn spawn_shell_commands_in_terminal(_cmds: &[String]) {
+/// - During tests, this is a no-op to avoid opening real terminal windows, unless `PACSEA_TEST_OUT` is set.
+pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
     #[cfg(test)]
     if std::env::var("PACSEA_TEST_OUT").is_err() {
         return;
     }
     // Default wrapper keeps the terminal open after commands complete
-    spawn_shell_commands_in_terminal_with_hold(_cmds, true);
+    spawn_shell_commands_in_terminal_with_hold(cmds, true);
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -63,9 +63,9 @@ fn log_to_terminal_log(message: &str) {
 /// - Modifies the command with appropriate environment variables.
 ///
 /// Details:
-/// - Sets PACSEA_TEST_OUT if present in environment.
-/// - Suppresses Konsole Wayland warnings on Wayland.
-/// - Forces software rendering for GNOME Console and kgx.
+/// - Sets `PACSEA_TEST_OUT` if present in environment.
+/// - Suppresses `Konsole` `Wayland` warnings on `Wayland`.
+/// - Forces software rendering for `GNOME Console` and `kgx`.
 fn configure_terminal_env(cmd: &mut Command, term: &str, is_wayland: bool) {
     if let Ok(p) = std::env::var("PACSEA_TEST_OUT") {
         if let Some(parent) = std::path::Path::new(&p).parent() {
@@ -112,15 +112,14 @@ fn try_spawn_terminal(
     let mut cmd = Command::new(term);
     if needs_xfce_command && term == "xfce4-terminal" {
         let quoted = shell_single_quote(script_exec);
-        cmd.arg("--command").arg(format!("bash -lc {}", quoted));
+        cmd.arg("--command").arg(format!("bash -lc {quoted}"));
     } else {
         cmd.args(args.iter().copied()).arg(script_exec);
     }
     configure_terminal_env(&mut cmd, term, is_wayland);
     let cmd_len = cmd_str.len();
     log_to_terminal_log(&format!(
-        "spawn term={} args={:?} xfce_mode={} cmd_len={}\n",
-        term, args, needs_xfce_command, cmd_len
+        "spawn term={term} args={args:?} xfce_mode={needs_xfce_command} cmd_len={cmd_len}\n"
     ));
     if detach_stdio {
         cmd.stdin(std::process::Stdio::null())
@@ -133,82 +132,73 @@ fn try_spawn_terminal(
             log_to_terminal_log(&format!("spawn result: ok pid={}\n", child.id()));
         }
         Err(e) => {
-            log_to_terminal_log(&format!("spawn result: err error={}\n", e));
+            log_to_terminal_log(&format!("spawn result: err error={e}\n"));
         }
     }
     res.map(|_| true)
 }
 
 #[cfg(not(target_os = "windows"))]
-/// What: Spawn a terminal to execute shell commands and optionally append a hold tail.
+/// What: Create a temporary script file with the command string.
 ///
 /// Input:
-/// - `cmds`: Ordered list of shell snippets to execute.
-/// - `hold`: When `true`, keeps the terminal open after command completion.
+/// - `cmd_str`: The command string to write to the script.
 ///
 /// Output:
-/// - Launches a terminal (or `bash`) running a temporary script that encapsulates the commands.
+/// - Path to the created temporary script file.
 ///
 /// Details:
-/// - Persists the command to a temp script to avoid argument-length issues.
-/// - Prefers user-configured terminals, applies desktop-specific environment tweaks, and logs spawn attempts.
-/// - During tests, this is a no-op to avoid opening real terminal windows.
-pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool) {
-    // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
-    #[cfg(test)]
-    if std::env::var("PACSEA_TEST_OUT").is_err() {
-        return;
-    }
-
-    if _cmds.is_empty() {
-        return;
-    }
-    let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-    let joined = _cmds.join(" && ");
-    let cmd_str = if _hold {
-        format!("{joined}{hold}", hold = hold_tail)
-    } else {
-        joined.clone()
-    };
-    // Write a temporary script to avoid terminal argument length/quoting issues
-    let script_path = {
-        let mut p = std::env::temp_dir();
-        let ts = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        p.push(format!("pacsea_scan_{}_{}.sh", std::process::id(), ts));
-        let _ = std::fs::write(&p, format!("#!/bin/bash\n{}\n", cmd_str));
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Ok(meta) = std::fs::metadata(&p) {
-                let mut perms = meta.permissions();
-                perms.set_mode(0o700);
-                let _ = std::fs::set_permissions(&p, perms);
-            }
-        }
-        p
-    };
-    let script_path_str = script_path.to_string_lossy().to_string();
-    let script_exec = format!("bash {}", shell_single_quote(&script_path_str));
-
-    // Persist the full command for debugging/repro
+/// - Creates a bash script with executable permissions.
+fn create_temp_script(cmd_str: &str) -> std::path::PathBuf {
+    let mut p = std::env::temp_dir();
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    p.push(format!("pacsea_scan_{}_{}.sh", std::process::id(), ts));
+    let _ = std::fs::write(&p, format!("#!/bin/bash\n{cmd_str}\n"));
+    #[cfg(unix)]
     {
-        let mut lp = crate::theme::logs_dir();
-        lp.push("last_terminal_cmd.log");
-        if let Some(parent) = lp.parent() {
-            let _ = std::fs::create_dir_all(parent);
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(&p) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o700);
+            let _ = std::fs::set_permissions(&p, perms);
         }
-        let _ = std::fs::write(&lp, format!("{cmd}\n", cmd = &cmd_str));
     }
+    p
+}
 
-    // Prefer GNOME Terminal when running under GNOME desktop
-    let desktop_env = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
-    let is_gnome = desktop_env.to_uppercase().contains("GNOME");
-    let is_wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
+#[cfg(not(target_os = "windows"))]
+/// What: Persist the command string to a log file for debugging.
+///
+/// Input:
+/// - `cmd_str`: The command string to log.
+///
+/// Output:
+/// - None (writes to log file).
+fn persist_command_to_log(cmd_str: &str) {
+    let mut lp = crate::theme::logs_dir();
+    lp.push("last_terminal_cmd.log");
+    if let Some(parent) = lp.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(&lp, format!("{cmd_str}\n"));
+}
 
-    // (binary, args, needs_xfce_command)
+#[cfg(not(target_os = "windows"))]
+/// What: Build the list of terminal candidates with preference ordering.
+///
+/// Input:
+/// - `is_gnome`: Whether running under GNOME desktop.
+///
+/// Output:
+/// - Vector of terminal candidates with (`name`, `args`, `needs_xfce_command`) tuples.
+///
+/// Details:
+/// - Prioritizes GNOME terminals when under GNOME, otherwise uses default order.
+/// - Moves user-preferred terminal to the front if configured.
+fn build_terminal_candidates(is_gnome: bool) -> Vec<(&'static str, &'static [&'static str], bool)> {
     let terms_gnome_first: &[(&str, &[&str], bool)] = &[
         ("gnome-terminal", &["--", "bash", "-lc"], false),
         ("gnome-console", &["--", "bash", "-lc"], false),
@@ -218,7 +208,6 @@ pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool)
         ("kitty", &["bash", "-lc"], false),
         ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
-        // For xfce4-terminal, use --command "bash -lc '<cmd>'" to avoid -lc being parsed by terminal
         ("xfce4-terminal", &[], true),
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
@@ -232,12 +221,10 @@ pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool)
         ("gnome-console", &["--", "bash", "-lc"], false),
         ("kgx", &["--", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
-        // For xfce4-terminal, use --command "bash -lc '<cmd>'" to avoid -lc being parsed by terminal
         ("xfce4-terminal", &[], true),
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
     ];
-    // Build terminal candidates and optionally prioritize user-preferred terminal
     let mut terms_owned: Vec<(&str, &[&str], bool)> = if is_gnome {
         terms_gnome_first.to_vec()
     } else {
@@ -255,8 +242,100 @@ pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool)
         let entry = terms_owned.remove(pos);
         terms_owned.insert(0, entry);
     }
+    terms_owned
+}
 
-    // Log environment context once per invocation
+#[cfg(not(target_os = "windows"))]
+/// What: Attempt to spawn a terminal from the candidates list.
+///
+/// Input:
+/// - `terms_owned`: List of terminal candidates.
+/// - `script_exec`: Script execution command string.
+/// - `cmd_str`: Full command string for logging.
+/// - `is_wayland`: Whether running under Wayland.
+///
+/// Output:
+/// - `true` if a terminal was successfully spawned, `false` otherwise.
+fn attempt_terminal_spawn(
+    terms_owned: &[(&str, &[&str], bool)],
+    script_exec: &str,
+    cmd_str: &str,
+    is_wayland: bool,
+) -> bool {
+    if let Some(idx) = choose_terminal_index_prefer_path(terms_owned) {
+        let (term, args, needs_xfce_command) = terms_owned[idx];
+        return try_spawn_terminal(
+            term,
+            args,
+            needs_xfce_command,
+            script_exec,
+            cmd_str,
+            is_wayland,
+            true,
+        )
+        .unwrap_or(false);
+    }
+    for (term, args, needs_xfce_command) in terms_owned.iter().copied() {
+        if command_on_path(term)
+            && try_spawn_terminal(
+                term,
+                args,
+                needs_xfce_command,
+                script_exec,
+                cmd_str,
+                is_wayland,
+                false,
+            )
+            .unwrap_or(false)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Spawn a terminal to execute shell commands and optionally append a hold tail.
+///
+/// Input:
+/// - `cmds`: Ordered list of shell snippets to execute.
+/// - `hold`: When `true`, keeps the terminal open after command completion.
+///
+/// Output:
+/// - Launches a terminal (or `bash`) running a temporary script that encapsulates the commands.
+///
+/// Details:
+/// - Persists the command to a temp script to avoid argument-length issues.
+/// - Prefers user-configured terminals, applies desktop-specific environment tweaks, and logs spawn attempts.
+/// - During tests, this is a no-op to avoid opening real terminal windows.
+pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
+    // Skip actual spawning during tests unless PACSEA_TEST_OUT is set (indicates a test with fake terminal)
+    #[cfg(test)]
+    if std::env::var("PACSEA_TEST_OUT").is_err() {
+        return;
+    }
+
+    if cmds.is_empty() {
+        return;
+    }
+    let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
+    let joined = cmds.join(" && ");
+    let cmd_str = if hold {
+        format!("{joined}{hold_tail}")
+    } else {
+        joined
+    };
+    let script_path = create_temp_script(&cmd_str);
+    let script_path_str = script_path.to_string_lossy().to_string();
+    let script_exec = format!("bash {}", shell_single_quote(&script_path_str));
+
+    persist_command_to_log(&cmd_str);
+
+    let desktop_env = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    let is_gnome = desktop_env.to_uppercase().contains("GNOME");
+    let is_wayland = std::env::var_os("WAYLAND_DISPLAY").is_some();
+    let terms_owned = build_terminal_candidates(is_gnome);
+
     log_to_terminal_log(&format!(
         "env desktop={} wayland={} script={} cmd_len={}\n",
         desktop_env,
@@ -265,38 +344,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool)
         cmd_str.len()
     ));
 
-    let mut launched = false;
-    if let Some(idx) = choose_terminal_index_prefer_path(&terms_owned) {
-        let (term, args, needs_xfce_command) = terms_owned[idx];
-        launched = try_spawn_terminal(
-            term,
-            args,
-            needs_xfce_command,
-            &script_exec,
-            &cmd_str,
-            is_wayland,
-            true,
-        )
-        .unwrap_or(false);
-    } else {
-        for (term, args, needs_xfce_command) in terms_owned.iter().copied() {
-            if command_on_path(term)
-                && try_spawn_terminal(
-                    term,
-                    args,
-                    needs_xfce_command,
-                    &script_exec,
-                    &cmd_str,
-                    is_wayland,
-                    false,
-                )
-                .unwrap_or(false)
-            {
-                launched = true;
-                break;
-            }
-        }
-    }
+    let launched = attempt_terminal_spawn(&terms_owned, &script_exec, &cmd_str, is_wayland);
     if !launched {
         log_to_terminal_log(&format!(
             "spawn term=bash args={:?} cmd_len={}\n",
@@ -309,7 +357,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(_cmds: &[String], _hold: bool)
                 log_to_terminal_log(&format!("spawn result: ok pid={}\n", child.id()));
             }
             Err(e) => {
-                log_to_terminal_log(&format!("spawn result: err error={}\n", e));
+                log_to_terminal_log(&format!("spawn result: err error={e}\n"));
             }
         }
     }
@@ -340,7 +388,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         fs::create_dir_all(&dir).expect("create test directory");
@@ -349,10 +397,13 @@ mod tests {
         let mut term_path = dir.clone();
         term_path.push("gnome-terminal");
         let script = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
-        fs::write(&term_path, script.as_bytes()).unwrap();
-        let mut perms = fs::metadata(&term_path).unwrap().permissions();
+        fs::write(&term_path, script.as_bytes()).expect("failed to write test terminal script");
+        let mut perms = fs::metadata(&term_path)
+            .expect("failed to read test terminal script metadata")
+            .permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&term_path, perms).unwrap();
+        fs::set_permissions(&term_path, perms)
+            .expect("failed to set test terminal script permissions");
 
         let orig_path = std::env::var_os("PATH");
         unsafe {
@@ -370,7 +421,7 @@ mod tests {
         }
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();
-        assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+        assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
         assert_eq!(lines[0], "--");
         assert_eq!(lines[1], "bash");
         assert_eq!(lines[2], "-lc");

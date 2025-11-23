@@ -3,7 +3,7 @@ Pattern configuration loader for the custom suspicious-patterns scan.
 
 Purpose:
 - Allow users to tune suspicious pattern categories via a simple config file:
-  $XDG_CONFIG_HOME/pacsea/pattern.conf (or $HOME/.config/pacsea/pattern.conf)
+  `$XDG_CONFIG_HOME`/pacsea/pattern.conf (or `$HOME`/.config/pacsea/pattern.conf)
 
 Format:
 - INI-like sections: [critical], [high], [medium], [low]
@@ -66,13 +66,13 @@ impl Default for PatternSets {
     fn default() -> Self {
         // Defaults intentionally mirror the scanner's built-in bash ERE sets.
         // These are intended for grep -E (ERE) within bash, not Rust regex compilation.
-        let critical = r#"(/dev/(tcp|udp)/|bash -i *>& *[^ ]*/dev/(tcp|udp)/[0-9]+|exec [0-9]{2,}<>/dev/(tcp|udp)/|rm -rf[[:space:]]+/|dd if=/dev/zero of=/dev/sd[a-z]|[>]{1,2}[[:space:]]*/dev/sd[a-z]|: *\(\) *\{ *: *\| *: *& *\};:|/etc/sudoers([[:space:]>]|$)|echo .*[>]{2}.*(/etc/sudoers|/root/.ssh/authorized_keys)|/etc/ld\.so\.preload|LD_PRELOAD=|authorized_keys.*[>]{2}|ssh-rsa [A-Za-z0-9+/=]+.*[>]{2}.*authorized_keys|curl .*(169\.254\.169\.254))"#.to_string();
+        let critical = r"(/dev/(tcp|udp)/|bash -i *>& *[^ ]*/dev/(tcp|udp)/[0-9]+|exec [0-9]{2,}<>/dev/(tcp|udp)/|rm -rf[[:space:]]+/|dd if=/dev/zero of=/dev/sd[a-z]|[>]{1,2}[[:space:]]*/dev/sd[a-z]|: *\(\) *\{ *: *\| *: *& *\};:|/etc/sudoers([[:space:]>]|$)|echo .*[>]{2}.*(/etc/sudoers|/root/.ssh/authorized_keys)|/etc/ld\.so\.preload|LD_PRELOAD=|authorized_keys.*[>]{2}|ssh-rsa [A-Za-z0-9+/=]+.*[>]{2}.*authorized_keys|curl .*(169\.254\.169\.254))".to_string();
 
-        let high = r#"(eval|base64 -d|wget .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|curl .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|sudo[[:space:]]|chattr[[:space:]]|useradd|adduser|groupadd|systemctl|service[[:space:]]|crontab|/etc/cron\.|[>]{2}.*(\.bashrc|\.bash_profile|/etc/profile|\.zshrc)|cat[[:space:]]+/etc/shadow|cat[[:space:]]+~/.ssh/id_rsa|cat[[:space:]]+~/.bash_history|systemctl stop (auditd|rsyslog)|service (auditd|rsyslog) stop|scp .*@|curl -F|nc[[:space:]].*<|tar -czv?f|zip -r)"#.to_string();
+        let high = r"(eval|base64 -d|wget .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|curl .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|sudo[[:space:]]|chattr[[:space:]]|useradd|adduser|groupadd|systemctl|service[[:space:]]|crontab|/etc/cron\.|[>]{2}.*(\.bashrc|\.bash_profile|/etc/profile|\.zshrc)|cat[[:space:]]+/etc/shadow|cat[[:space:]]+~/.ssh/id_rsa|cat[[:space:]]+~/.bash_history|systemctl stop (auditd|rsyslog)|service (auditd|rsyslog) stop|scp .*@|curl -F|nc[[:space:]].*<|tar -czv?f|zip -r)".to_string();
 
-        let medium = r#"(whoami|uname -a|hostname|id|groups|nmap|netstat -anp|ss -anp|ifconfig|ip addr|arp -a|grep -ri .*secret|find .*-name.*(password|\.key)|env[[:space:]]*\|[[:space:]]*grep -i pass|wget https?://|curl https?://)"#.to_string();
+        let medium = r"(whoami|uname -a|hostname|id|groups|nmap|netstat -anp|ss -anp|ifconfig|ip addr|arp -a|grep -ri .*secret|find .*-name.*(password|\.key)|env[[:space:]]*\|[[:space:]]*grep -i pass|wget https?://|curl https?://)".to_string();
 
-        let low = r#"(http_proxy=|https_proxy=|ALL_PROXY=|yes[[:space:]]+> */dev/null *&|ulimit -n [0-9]{5,})"#.to_string();
+        let low = r"(http_proxy=|https_proxy=|ALL_PROXY=|yes[[:space:]]+> */dev/null *&|ulimit -n [0-9]{5,})".to_string();
 
         Self {
             critical,
@@ -108,14 +108,11 @@ pub fn load() -> PatternSets {
     let mut out = PatternSets::default();
     let path = config_path();
 
-    match fs::read_to_string(&path) {
-        Ok(content) => {
-            let parsed = parse(&content, &out);
-            out = parsed;
-        }
-        Err(_) => {
-            // Keep defaults when missing/unreadable
-        }
+    if let Ok(content) = fs::read_to_string(&path) {
+        let parsed = parse(&content, &out);
+        out = parsed;
+    } else {
+        // Keep defaults when missing/unreadable
     }
     out
 }
@@ -150,7 +147,7 @@ fn config_path() -> PathBuf {
 /// - Recognises `[critical]`, `[high]`, `[medium]`, and `[low]` sections (case-insensitive aliases allowed).
 /// - Unrecognised sections are ignored without error.
 fn parse(content: &str, defaults: &PatternSets) -> PatternSets {
-    use Section::*;
+    use Section::{Critical, High, Low, Medium};
 
     let mut cur: Option<Section> = None;
 
@@ -237,9 +234,11 @@ mod tests {
     /// Details:
     /// - Redirects `HOME`, guards with the theme mutex, and removes the temp directory after assertions.
     fn load_returns_defaults_when_config_missing() {
-        let _guard = crate::theme::test_mutex().lock().unwrap();
         use std::fs;
         use std::path::PathBuf;
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
 
         let mut dir: PathBuf = std::env::temp_dir();
         dir.push(format!(
@@ -247,7 +246,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
@@ -293,9 +292,11 @@ mod tests {
     /// Details:
     /// - Writes `pattern.conf` under Pacsea's config directory, then restores environment variables and removes artifacts.
     fn load_reads_pattern_conf_overrides() {
-        let _guard = crate::theme::test_mutex().lock().unwrap();
         use std::fs;
         use std::path::PathBuf;
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
 
         let mut dir: PathBuf = std::env::temp_dir();
         dir.push(format!(
@@ -303,7 +304,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
@@ -318,7 +319,7 @@ mod tests {
         let config_dir = crate::theme::config_dir();
         let pattern_path = config_dir.join("pattern.conf");
         let body = "[critical]\nfoo\n\n[high]\nbar\n\n[medium]\nmid\n\n[low]\nlo\n";
-        fs::write(&pattern_path, body).unwrap();
+        fs::write(&pattern_path, body).expect("failed to write test pattern config file");
 
         let loaded = super::load();
         assert_eq!(loaded.critical, "foo");
@@ -375,7 +376,7 @@ mod tests {
     /// - Verifies each severity bucket independently to catch regressions in join order.
     fn parse_joins_lines_with_or() {
         let d = PatternSets::default();
-        let cfg = r#"
+        let cfg = r"
             [critical]
             a
             b
@@ -391,7 +392,7 @@ mod tests {
             [low]
             l1
             l2
-        "#;
+        ";
         let p = parse(cfg, &d);
         assert_eq!(p.critical, "a|b|c");
         assert_eq!(p.high, "foo|bar");
@@ -412,7 +413,7 @@ mod tests {
     /// - Confirms default fallback remains for untouched severities while demonstrating indentation trimming for `low`.
     fn parse_handles_comments_and_whitespace() {
         let d = PatternSets::default();
-        let cfg = r#"
+        let cfg = r"
             # comment
             ; also comment
             // yet another
@@ -429,7 +430,7 @@ mod tests {
 
             [low]
                 l1
-        "#;
+            ";
         let p = parse(cfg, &d);
         assert_eq!(p.critical, "a|b");
         assert_eq!(p.high, "foo");

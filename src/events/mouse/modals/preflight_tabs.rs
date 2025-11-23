@@ -66,7 +66,8 @@ pub(super) fn handle_deps_tab_click(mx: u16, my: u16, app: &mut AppState) -> boo
         let list_clicked_row = clicked_row - list_start_offset;
 
         // Calculate scroll position to find actual index
-        let available_height = content_h.saturating_sub(list_start_offset as u16) as usize;
+        let available_height =
+            content_h.saturating_sub(u16::try_from(list_start_offset).unwrap_or(u16::MAX)) as usize;
         let start_idx = (*dep_selected)
             .saturating_sub(available_height / 2)
             .min(display_items.len().saturating_sub(available_height));
@@ -156,7 +157,8 @@ pub(super) fn handle_files_tab_click(mx: u16, my: u16, app: &mut AppState) -> bo
         // Calculate scroll position to find actual index
         let total_items = display_items.len();
         let file_selected_clamped = (*file_selected).min(total_items.saturating_sub(1));
-        let available_height = content_h.saturating_sub(list_start_offset as u16) as usize;
+        let available_height =
+            content_h.saturating_sub(u16::try_from(list_start_offset).unwrap_or(u16::MAX)) as usize;
         let (start_idx, _end_idx) = if total_items <= available_height {
             (0, total_items)
         } else {
@@ -230,7 +232,8 @@ pub(super) fn handle_services_tab_click(mx: u16, my: u16, app: &mut AppState) ->
         }
 
         let list_clicked_row = clicked_row_offset - list_start_offset;
-        let available_height = content_h.saturating_sub(list_start_offset as u16) as usize;
+        let available_height =
+            content_h.saturating_sub(u16::try_from(list_start_offset).unwrap_or(u16::MAX)) as usize;
         let total_items = service_info.len();
         if total_items == 0 {
             return false;
@@ -304,7 +307,7 @@ pub(super) fn handle_deps_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool 
                 // Count dependencies only if expanded
                 if dep_tree_expanded.contains(pkg_name) {
                     let mut seen_deps = HashSet::new();
-                    for dep in pkg_deps.iter() {
+                    for dep in pkg_deps {
                         if seen_deps.insert(dep.name.as_str()) {
                             display_len += 1;
                         }
@@ -395,6 +398,7 @@ pub(super) fn handle_files_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool
 ///
 /// Details:
 /// - Increments/decrements scroll offset for the entire Summary tab content.
+#[allow(clippy::missing_const_for_fn)]
 pub(super) fn handle_summary_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight { summary_scroll, .. } = &mut app.modal {
         match m.kind {
@@ -427,6 +431,7 @@ pub(super) fn handle_summary_tab_scroll(m: MouseEvent, app: &mut AppState) -> bo
 ///
 /// Details:
 /// - Handles scroll up/down to move selection.
+#[allow(clippy::missing_const_for_fn)]
 pub(super) fn handle_services_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight {
         service_info,

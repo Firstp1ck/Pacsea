@@ -1,6 +1,8 @@
 use ratatui::prelude::Rect;
 
 use crate::state::{AppState, Focus};
+use crate::theme::KeyChord;
+use std::fmt::Write;
 
 /// What: Calculate the number of rows required for the footer/keybinds section.
 ///
@@ -27,33 +29,27 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
         let toggle_label = km
             .search_normal_toggle
             .first()
-            .map(|c| c.label())
-            .unwrap_or_else(|| "Esc".to_string());
+            .map_or_else(|| "Esc".to_string(), KeyChord::label);
         let insert_label = km
             .search_normal_insert
             .first()
-            .map(|c| c.label())
-            .unwrap_or_else(|| "i".to_string());
+            .map_or_else(|| "i".to_string(), KeyChord::label);
         let left_label = km
             .search_normal_select_left
             .first()
-            .map(|c| c.label())
-            .unwrap_or_else(|| "h".to_string());
+            .map_or_else(|| "h".to_string(), KeyChord::label);
         let right_label = km
             .search_normal_select_right
             .first()
-            .map(|c| c.label())
-            .unwrap_or_else(|| "l".to_string());
+            .map_or_else(|| "l".to_string(), KeyChord::label);
         let delete_label = km
             .search_normal_delete
             .first()
-            .map(|c| c.label())
-            .unwrap_or_else(|| "d".to_string());
+            .map_or_else(|| "d".to_string(), KeyChord::label);
         let clear_label = km
             .search_normal_clear
             .first()
-            .map(|c| c.label())
-            .unwrap_or_else(|| "Shift+Del".to_string());
+            .map_or_else(|| "Shift+Del".to_string(), KeyChord::label);
 
         let line1 = format!(
             "Normal Mode (Focused Search Window):  [{toggle_label}/{insert_label}] Insert Mode, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text, [{clear_label}] Clear input"
@@ -73,19 +69,19 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
             {
                 line2.push_str("  •  Open Menus: ");
                 if let Some(k) = km.config_menu_toggle.first() {
-                    line2.push_str(&format!("[{}] Config", k.label()));
+                    let _ = write!(line2, "[{}] Config", k.label());
                 }
                 if let Some(k) = km.options_menu_toggle.first() {
                     if !line2.ends_with("menus: ") {
                         line2.push_str(", ");
                     }
-                    line2.push_str(&format!("[{}] Options", k.label()));
+                    let _ = write!(line2, "[{}] Options", k.label());
                 }
                 if let Some(k) = km.panels_menu_toggle.first() {
                     if !line2.ends_with("menus: ") {
                         line2.push_str(", ");
                     }
-                    line2.push_str(&format!("[{}] Panels", k.label()));
+                    let _ = write!(line2, "[{}] Panels", k.label());
                 }
             }
             // Import / Export
@@ -94,21 +90,21 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
             {
                 line2.push_str("  •  ");
                 if let Some(k) = km.search_normal_import.first() {
-                    line2.push_str(&format!("[{}] Import", k.label()));
+                    let _ = write!(line2, "[{}] Import", k.label());
                     if let Some(k2) = km.search_normal_export.first() {
-                        line2.push_str(&format!(", [{}] Export", k2.label()));
+                        let _ = write!(line2, ", [{}] Export", k2.label());
                     }
                 } else if let Some(k) = km.search_normal_export.first() {
-                    line2.push_str(&format!("[{}] Export", k.label()));
+                    let _ = write!(line2, "[{}] Export", k.label());
                 }
             }
         }
         let w = if footer_w == 0 { 1 } else { footer_w };
-        let rows1 = ((line1.len() as u16).div_ceil(w)).max(1);
+        let rows1 = (u16::try_from(line1.len()).unwrap_or(u16::MAX).div_ceil(w)).max(1);
         let rows2 = if line2.is_empty() {
             0
         } else {
-            ((line2.len() as u16).div_ceil(w)).max(1)
+            (u16::try_from(line2.len()).unwrap_or(u16::MAX).div_ceil(w)).max(1)
         };
         rows1 + rows2
     } else {

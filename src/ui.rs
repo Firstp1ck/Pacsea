@@ -55,7 +55,7 @@ impl LayoutConstraints {
     ///
     /// Details:
     /// - Returns constraints with standard minimum and maximum heights for all panes.
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             min_results: 3,
             min_middle: 3,
@@ -92,7 +92,7 @@ struct LayoutHeights {
 ///
 /// Details:
 /// - Uses match expression to determine height based on available space thresholds.
-fn calculate_middle_height(
+const fn calculate_middle_height(
     available_h: u16,
     min_results_h: u16,
     constraints: &LayoutConstraints,
@@ -251,13 +251,16 @@ fn calculate_layout_heights(available_h: u16) -> LayoutHeights {
 /// Details:
 /// - Positions toast in bottom-right corner with appropriate sizing.
 /// - Uses match expression to determine toast title based on message content.
+#[allow(clippy::many_single_char_names)]
 fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
     let Some(msg) = &app.toast_message else {
         return;
     };
 
     let th = theme();
-    let inner_w = (msg.len() as u16).min(area.width.saturating_sub(4));
+    let inner_w = u16::try_from(msg.len())
+        .unwrap_or(u16::MAX)
+        .min(area.width.saturating_sub(4));
     let w = inner_w.saturating_add(2 + 2);
     let h: u16 = 3;
     let x = area.x + area.width.saturating_sub(w).saturating_sub(1);
@@ -270,9 +273,10 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
         height: h,
     };
 
-    let title_text = match msg.to_lowercase().contains("news") {
-        true => i18n::t(app, "app.toasts.title_news"),
-        false => i18n::t(app, "app.toasts.title_clipboard"),
+    let title_text = if msg.to_lowercase().contains("news") {
+        i18n::t(app, "app.toasts.title_news")
+    } else {
+        i18n::t(app, "app.toasts.title_clipboard")
     };
 
     let content = Span::styled(msg.clone(), Style::default().fg(th.text));
@@ -305,14 +309,13 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
 /// - Keeps results selection centered by adjusting list offset.
 /// - Computes and records clickable rects (URL, Sort/Filters, Options/Config/Panels, status label).
 pub fn ui(f: &mut Frame, app: &mut AppState) {
+    const UPDATES_H: u16 = 1;
     let th = theme();
     let area = f.area();
 
     // Background
     let bg = Block::default().style(Style::default().bg(th.base));
     f.render_widget(bg, area);
-
-    const UPDATES_H: u16 = 1;
     let available_h = area.height.saturating_sub(UPDATES_H);
     let layout = calculate_layout_heights(available_h);
 
@@ -367,7 +370,7 @@ mod tests {
     /// What: Initialize minimal English translations for tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
@@ -455,10 +458,8 @@ mod tests {
         use ratatui::{Terminal, backend::TestBackend};
 
         let backend = TestBackend::new(120, 40);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         // Seed minimal data to exercise all three sections
         app.results = vec![crate::state::PackageItem {
@@ -477,7 +478,7 @@ mod tests {
         term.draw(|f| {
             super::ui(f, &mut app);
         })
-        .unwrap();
+        .expect("failed to draw test terminal");
 
         // Expect rects set by sub-renderers
         assert!(app.results_rect.is_some());
@@ -494,7 +495,7 @@ mod tests {
         term.draw(|f| {
             super::ui(f, &mut app);
         })
-        .unwrap();
+        .expect("failed to draw test terminal second time");
 
         // Verify rects are still set after second render
         assert!(app.results_rect.is_some());

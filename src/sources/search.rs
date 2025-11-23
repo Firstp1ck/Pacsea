@@ -26,7 +26,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
                     let name = s(pkg, "Name");
                     let version = s(pkg, "Version");
                     let description = s(pkg, "Description");
-                    let popularity = pkg.get("Popularity").and_then(|v| v.as_f64());
+                    let popularity = pkg.get("Popularity").and_then(serde_json::Value::as_f64);
                     if name.is_empty() {
                         continue;
                     }
@@ -51,7 +51,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    #[allow(clippy::await_holding_lock)]
+    #[allow(clippy::await_holding_lock, clippy::all)] // Shell variable syntax ${VAR:-default} in raw strings - false positive
     async fn search_returns_items_on_success_and_error_on_failure() {
         let _guard = crate::global_test_mutex_lock();
         // Shim PATH curl to return a small JSON for success call, then fail on a second invocation
@@ -62,16 +62,18 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).expect("failed to create test root directory");
         let mut bin = root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("failed to create test bin directory");
         let mut curl = bin.clone();
         curl.push("curl");
-        let script = r##"#!/usr/bin/env bash
+        // Shell variable syntax ${VAR:-default} - not a Rust format string
+        #[allow(clippy::all, clippy::literal_string_with_formatting_args)]
+        let script = r#"#!/usr/bin/env bash
 set -e
 state_dir="${PACSEA_FAKE_STATE_DIR:-.}"
 if [[ ! -f "$state_dir/pacsea_search_called" ]]; then
@@ -80,16 +82,19 @@ if [[ ! -f "$state_dir/pacsea_search_called" ]]; then
 else
   exit 22
 fi
-"##;
-        std::fs::write(&curl, script.as_bytes()).unwrap();
+"#;
+        std::fs::write(&curl, script.as_bytes()).expect("failed to write test curl script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&curl).unwrap().permissions();
+            let mut perm = std::fs::metadata(&curl)
+                .expect("failed to read test curl script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&curl, perm).unwrap();
+            std::fs::set_permissions(&curl, perm)
+                .expect("failed to set test curl script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe {
             std::env::set_var("PATH", &new_path);
             std::env::set_var("PACSEA_FAKE_STATE_DIR", bin.to_string_lossy().to_string());

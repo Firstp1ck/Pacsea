@@ -68,7 +68,10 @@ pub fn byte_index_for_char(s: &str, ci: usize) -> usize {
     if ci >= cc {
         return s.len();
     }
-    s.char_indices().map(|(i, _)| i).nth(ci).unwrap_or(s.len())
+    s.char_indices()
+        .map(|(i, _)| i)
+        .nth(ci)
+        .map_or(s.len(), |i| i)
 }
 
 /// What: Advance selection in the Recent pane to the next/previous match of the pane-find pattern.
@@ -194,13 +197,13 @@ pub fn refresh_install_details(
         app.details_focus = Some(item.name.clone());
 
         // Provide an immediate placeholder reflecting the selection
-        app.details.name = item.name.clone();
-        app.details.version = item.version.clone();
+        app.details.name.clone_from(&item.name);
+        app.details.version.clone_from(&item.version);
         app.details.description.clear();
         match &item.source {
             crate::state::Source::Official { repo, arch } => {
-                app.details.repository = repo.clone();
-                app.details.architecture = arch.clone();
+                app.details.repository.clone_from(repo);
+                app.details.architecture.clone_from(arch);
             }
             crate::state::Source::Aur => {
                 app.details.repository = "AUR".to_string();
@@ -234,13 +237,13 @@ pub fn refresh_remove_details(app: &mut AppState, details_tx: &mpsc::UnboundedSe
         // Reset scroll when package changes
         app.details_scroll = 0;
         app.details_focus = Some(item.name.clone());
-        app.details.name = item.name.clone();
-        app.details.version = item.version.clone();
+        app.details.name.clone_from(&item.name);
+        app.details.version.clone_from(&item.version);
         app.details.description.clear();
         match &item.source {
             crate::state::Source::Official { repo, arch } => {
-                app.details.repository = repo.clone();
-                app.details.architecture = arch.clone();
+                app.details.repository.clone_from(repo);
+                app.details.architecture.clone_from(arch);
             }
             crate::state::Source::Aur => {
                 app.details.repository = "AUR".to_string();
@@ -276,13 +279,13 @@ pub fn refresh_downgrade_details(
         // Reset scroll when package changes
         app.details_scroll = 0;
         app.details_focus = Some(item.name.clone());
-        app.details.name = item.name.clone();
-        app.details.version = item.version.clone();
+        app.details.name.clone_from(&item.name);
+        app.details.version.clone_from(&item.version);
         app.details.description.clear();
         match &item.source {
             crate::state::Source::Official { repo, arch } => {
-                app.details.repository = repo.clone();
-                app.details.architecture = arch.clone();
+                app.details.repository.clone_from(repo);
+                app.details.architecture.clone_from(arch);
             }
             crate::state::Source::Aur => {
                 app.details.repository = "AUR".to_string();
@@ -312,9 +315,7 @@ mod tests {
     /// Details:
     /// - Centralizes setup so each test starts from a clean copy without repeated boilerplate.
     fn new_app() -> AppState {
-        AppState {
-            ..Default::default()
-        }
+        AppState::default()
     }
 
     #[test]

@@ -66,6 +66,7 @@ pub struct PreflightSummaryOutcome {
 /// - Delegates to [`compute_preflight_summary_with_runner`] with
 ///   [`SystemCommandRunner`].
 /// - Metadata lookups that fail are logged and treated as best-effort.
+#[must_use]
 pub fn compute_preflight_summary(
     items: &[PackageItem],
     action: PreflightAction,
@@ -163,7 +164,7 @@ fn process_package_item<R: CommandRunner>(
     }
 
     let (notes, is_major_bump, is_downgrade) = analyze_version_changes(
-        &installed_version,
+        installed_version.as_ref(),
         &item.version,
         action,
         item.name.clone(),
@@ -201,7 +202,7 @@ fn process_package_item<R: CommandRunner>(
 /// - `runner`: Command execution abstraction.
 /// - `item`: Package item to fetch metadata for.
 ///
-/// Output: Tuple of (download_bytes, install_size_target), both Option.
+/// Output: Tuple of (`download_bytes`, `install_size_target`), both `Option`.
 ///
 /// Details:
 /// - For official packages: uses `pacman -Si`.
@@ -225,27 +226,17 @@ fn fetch_package_metadata<R: CommandRunner>(
             }
         }
         Source::Aur => {
-            match metadata::fetch_aur_metadata(runner, &item.name, Some(item.version.as_str())) {
-                Ok(meta) => {
-                    if meta.download_size.is_some() || meta.install_size.is_some() {
-                        tracing::debug!(
-                            "Preflight summary: found AUR package sizes for {}: DL={:?}, Install={:?}",
-                            item.name,
-                            meta.download_size,
-                            meta.install_size
-                        );
-                    }
-                    (meta.download_size, meta.install_size)
-                }
-                Err(err) => {
-                    tracing::debug!(
-                        "Preflight summary: failed to fetch AUR metadata for {}: {}",
-                        item.name,
-                        err
-                    );
-                    (None, None)
-                }
+            let meta =
+                metadata::fetch_aur_metadata(runner, &item.name, Some(item.version.as_str()));
+            if meta.download_size.is_some() || meta.install_size.is_some() {
+                tracing::debug!(
+                    "Preflight summary: found AUR package sizes for {}: DL={:?}, Install={:?}",
+                    item.name,
+                    meta.download_size,
+                    meta.install_size
+                );
             }
+            (meta.download_size, meta.install_size)
         }
     }
 }
@@ -266,11 +257,15 @@ fn calculate_install_delta(
     installed_size: Option<u64>,
 ) -> Option<i64> {
     match action {
-        PreflightAction::Install => install_size_target.map(|target| {
+        PreflightAction::Install => install_size_target.and_then(|target| {
             let current = installed_size.unwrap_or(0);
-            target as i64 - current as i64
+            let target_i64 = i64::try_from(target).ok()?;
+            let current_i64 = i64::try_from(current).ok()?;
+            Some(target_i64 - current_i64)
         }),
-        PreflightAction::Remove => installed_size.map(|size| -(size as i64)),
+        PreflightAction::Remove => {
+            installed_size.and_then(|size| i64::try_from(size).ok().map(|s| -s))
+        }
     }
 }
 
@@ -284,11 +279,11 @@ fn calculate_install_delta(
 /// - `major_bump_packages`: Mutable list to append to if major bump detected.
 /// - `any_major_bump`: Mutable flag to set if major bump detected.
 ///
-/// Output: Tuple of (notes, is_major_bump, is_downgrade).
+/// Output: Tuple of (`notes`, `is_major_bump`, `is_downgrade`).
 ///
 /// Details: Detects downgrades, major version bumps, and new installations.
 fn analyze_version_changes(
-    installed_version: &Option<String>,
+    installed_version: Option<&String>,
     target_version: &str,
     action: PreflightAction,
     package_name: String,
@@ -365,7 +360,7 @@ fn check_core_package(
 /// - `pacnew_candidates`: Count of packages that may produce .pacnew files.
 /// - `service_restart_units`: List of services that need restart.
 ///
-/// Output: Tuple of (risk_reasons, risk_score, risk_level).
+/// Output: Tuple of (`risk_reasons`, `risk_score`, `risk_level`).
 ///
 /// Details: Applies the risk heuristic scoring system.
 fn calculate_risk_metrics(
@@ -525,7 +520,7 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
     };
 
     let elapsed = start_time.elapsed();
-    let duration_ms = elapsed.as_millis() as u64;
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
         stage = "summary",
         item_count = items.len(),

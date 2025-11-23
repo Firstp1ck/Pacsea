@@ -21,7 +21,7 @@ use super::menu_options;
 ///
 /// Details:
 /// - Returns `false` if rectangle is `None`
-fn point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
+const fn point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
     if let Some((x, y, w, h)) = rect {
         mx >= x && mx < x + w && my >= y && my < y + h
     } else {
@@ -31,16 +31,16 @@ fn point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
 
 /// Handle click on Import button.
 ///
-/// What: Opens ImportHelp modal when Import button is clicked.
+/// What: Opens `ImportHelp` modal when Import button is clicked.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_import_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+fn handle_import_button(app: &mut AppState) -> bool {
     app.modal = crate::state::Modal::ImportHelp;
-    Some(false)
+    false
 }
 
 /// Handle click on Updates button.
@@ -51,12 +51,12 @@ fn handle_import_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
+/// - `false` if handled
 ///
 /// Details:
 /// - Loads updates from `~/.config/pacsea/lists/available_updates.txt`
 /// - Opens Updates modal with scroll support
-pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
+pub fn handle_updates_button(app: &mut AppState) -> bool {
     let updates_file = crate::theme::lists_dir().join("available_updates.txt");
 
     // Load updates from file and parse into structured format
@@ -72,30 +72,24 @@ pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
                             None
                         } else {
                             // Parse format: "name - old_version -> name - new_version"
-                            if let Some(arrow_pos) = trimmed.find(" -> ") {
+                            trimmed.find(" -> ").and_then(|arrow_pos| {
                                 let before_arrow = trimmed[..arrow_pos].trim();
                                 let after_arrow = trimmed[arrow_pos + 4..].trim();
 
                                 // Parse "name - old_version" from before_arrow
-                                if let Some(dash_pos) = before_arrow.rfind(" - ") {
+                                before_arrow.rfind(" - ").and_then(|dash_pos| {
                                     let name = before_arrow[..dash_pos].trim().to_string();
                                     let old_version =
                                         before_arrow[dash_pos + 3..].trim().to_string();
 
                                     // Parse "name - new_version" from after_arrow
-                                    if let Some(dash_pos) = after_arrow.rfind(" - ") {
+                                    after_arrow.rfind(" - ").map(|dash_pos| {
                                         let new_version =
                                             after_arrow[dash_pos + 3..].trim().to_string();
-                                        Some((name, old_version, new_version))
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
+                                        (name, old_version, new_version)
+                                    })
+                                })
+                            })
                         }
                     })
                     .collect::<Vec<(String, String, String)>>()
@@ -106,7 +100,7 @@ pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
     };
 
     app.modal = crate::state::Modal::Updates { entries, scroll: 0 };
-    Some(false)
+    false
 }
 
 /// Handle click on Export button.
@@ -117,17 +111,17 @@ pub(crate) fn handle_updates_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
+/// - `false` if handled
 ///
 /// Details:
 /// - Shows toast message if list is empty or export fails
-fn handle_export_button(app: &mut AppState) -> Option<bool> {
+fn handle_export_button(app: &mut AppState) -> bool {
     let mut names: Vec<String> = app.install_list.iter().map(|p| p.name.clone()).collect();
     names.sort();
     if names.is_empty() {
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.install_list_empty"));
         app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
-        return Some(false);
+        return false;
     }
     let export_dir = crate::theme::config_dir().join("export");
     let _ = std::fs::create_dir_all(&export_dir);
@@ -146,7 +140,7 @@ fn handle_export_button(app: &mut AppState) -> Option<bool> {
     };
     let body = names.join("\n");
     match std::fs::write(&file_path, body) {
-        Ok(_) => {
+        Ok(()) => {
             app.toast_message = Some(crate::i18n::t_fmt1(
                 app,
                 "app.toasts.exported_to",
@@ -157,7 +151,7 @@ fn handle_export_button(app: &mut AppState) -> Option<bool> {
             tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
         }
         Err(e) => {
-            let error_msg = format!("{}", e);
+            let error_msg = format!("{e}");
             app.toast_message = Some(crate::i18n::t_fmt1(
                 app,
                 "app.toasts.export_failed",
@@ -168,7 +162,7 @@ fn handle_export_button(app: &mut AppState) -> Option<bool> {
             tracing::error!(error = %e, path = %file_path.display().to_string(), "export: failed to write install list");
         }
     }
-    Some(false)
+    false
 }
 
 /// Handle click on Arch status label.
@@ -176,10 +170,10 @@ fn handle_export_button(app: &mut AppState) -> Option<bool> {
 /// What: Opens status.archlinux.org URL in browser.
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_arch_status() -> Option<bool> {
+/// - `false` if handled
+fn handle_arch_status() -> bool {
     crate::util::open_url("https://status.archlinux.org");
-    Some(false)
+    false
 }
 
 /// Handle click on sort menu button.
@@ -190,8 +184,8 @@ fn handle_arch_status() -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_sort_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+fn handle_sort_button(app: &mut AppState) -> bool {
     app.sort_menu_open = !app.sort_menu_open;
     if app.sort_menu_open {
         app.sort_menu_auto_close_at =
@@ -199,7 +193,7 @@ fn handle_sort_button(app: &mut AppState) -> Option<bool> {
     } else {
         app.sort_menu_auto_close_at = None;
     }
-    Some(false)
+    false
 }
 
 /// Handle click on options menu button.
@@ -210,15 +204,16 @@ fn handle_sort_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_options_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+#[allow(clippy::missing_const_for_fn)]
+fn handle_options_button(app: &mut AppState) -> bool {
     app.options_menu_open = !app.options_menu_open;
     if app.options_menu_open {
         app.panels_menu_open = false;
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
     }
-    Some(false)
+    false
 }
 
 /// Handle click on config menu button.
@@ -229,14 +224,15 @@ fn handle_options_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_config_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+#[allow(clippy::missing_const_for_fn)]
+fn handle_config_button(app: &mut AppState) -> bool {
     app.config_menu_open = !app.config_menu_open;
     if app.config_menu_open {
         app.options_menu_open = false;
         app.panels_menu_open = false;
     }
-    Some(false)
+    false
 }
 
 /// Handle click on panels menu button.
@@ -247,15 +243,16 @@ fn handle_config_button(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if handled, `None` otherwise
-fn handle_panels_button(app: &mut AppState) -> Option<bool> {
+/// - `false` if handled
+#[allow(clippy::missing_const_for_fn)]
+fn handle_panels_button(app: &mut AppState) -> bool {
     app.panels_menu_open = !app.panels_menu_open;
     if app.panels_menu_open {
         app.options_menu_open = false;
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
     }
-    Some(false)
+    false
 }
 
 /// Handle click inside sort menu.
@@ -296,12 +293,12 @@ fn handle_sort_menu_click(
         app.sort_menu_open = false;
         app.sort_menu_auto_close_at = None;
         crate::logic::sort_results_preserve_selection(app);
-        if !app.results.is_empty() {
+        if app.results.is_empty() {
+            app.list_state.select(None);
+        } else {
             app.selected = 0;
             app.list_state.select(Some(0));
             refresh_selected_details(app, details_tx);
-        } else {
-            app.list_state.select(None);
         }
         Some(false)
     } else {
@@ -335,7 +332,7 @@ fn handle_options_menu_click(
             2 => handle_news_option(app),
             3 => handle_optional_deps_option(app),
             _ => return None,
-        };
+        }
         app.options_menu_open = false;
         Some(false)
     } else {
@@ -357,6 +354,7 @@ fn handle_installed_only_toggle(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) {
+    use std::collections::HashSet;
     if app.installed_only_mode {
         if let Some(prev) = app.results_backup_for_toggle.take() {
             app.all_results = prev;
@@ -372,9 +370,8 @@ fn handle_installed_only_toggle(
             .into_iter()
             .filter(|p| explicit.contains(&p.name))
             .collect();
-        use std::collections::HashSet;
         let official_names: HashSet<String> = items.iter().map(|p| p.name.clone()).collect();
-        for name in explicit.into_iter() {
+        for name in explicit {
             if !official_names.contains(&name) {
                 let is_eos = crate::index::is_eos_name(&name);
                 let src = if is_eos {
@@ -410,7 +407,7 @@ fn handle_installed_only_toggle(
 
 /// Handle system update option.
 ///
-/// What: Opens SystemUpdate modal with default settings.
+/// What: Opens `SystemUpdate` modal with default settings.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
@@ -433,8 +430,7 @@ fn handle_system_update_option(app: &mut AppState) {
             .selected_countries
             .split(',')
             .next()
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "Worldwide".to_string());
+            .map_or_else(|| "Worldwide".to_string(), |s| s.trim().to_string());
         countries.iter().position(|c| c == &sel).unwrap_or(0)
     };
     app.modal = crate::state::Modal::SystemUpdate {
@@ -492,7 +488,7 @@ fn handle_news_option(app: &mut AppState) {
 
 /// Handle optional deps option.
 ///
-/// What: Builds optional dependencies rows and opens OptionalDeps modal.
+/// What: Builds optional dependencies rows and opens `OptionalDeps` modal.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
@@ -514,30 +510,17 @@ fn handle_optional_deps_option(app: &mut AppState) {
 /// - `Some(false)` if handled, `None` otherwise
 ///
 /// Details:
-/// - Exports installed packages list if row 4 is clicked
 fn handle_config_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.config_menu_rect {
         let row = my.saturating_sub(y) as usize;
         let settings_path = crate::theme::config_dir().join("settings.conf");
         let theme_path = crate::theme::config_dir().join("theme.conf");
         let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-        let install_path = app.install_path.clone();
-        let recent_path = app.recent_path.clone();
-        let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
-        if row == 4 {
-            let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-            names.sort();
-            let body = names.join("\n");
-            let _ = std::fs::write(&installed_list_path, body);
-        }
 
         let target = match row {
             0 => settings_path,
             1 => theme_path,
             2 => keybinds_path,
-            3 => install_path,
-            4 => installed_list_path,
-            5 => recent_path,
             _ => {
                 app.config_menu_open = false;
                 app.artix_filter_menu_open = false;
@@ -622,6 +605,7 @@ fn handle_panels_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<boo
 ///
 /// Inputs:
 /// - `app`: Mutable application state
+#[allow(clippy::missing_const_for_fn)]
 fn close_all_menus(app: &mut AppState) {
     if app.sort_menu_open {
         app.sort_menu_open = false;
@@ -654,11 +638,11 @@ fn close_all_menus(app: &mut AppState) {
 ///   The boolean value indicates whether the application should exit (always `false` here).
 ///
 /// Details:
-/// - Import/Export buttons: Import opens ImportHelp modal; Export writes install list to timestamped file.
+/// - Import/Export buttons: Import opens `ImportHelp` modal; Export writes install list to timestamped file.
 /// - Arch status label: Opens status.archlinux.org URL.
 /// - Sort menu: Toggle button opens/closes sort menu; menu items change sort mode and refresh results.
-/// - Options menu: Toggle button opens/closes menu; items toggle installed-only mode, open SystemUpdate/News,
-///   or build OptionalDeps modal.
+/// - Options menu: Toggle button opens/closes menu; items toggle installed-only mode, open `SystemUpdate`/News,
+///   or build `OptionalDeps` modal.
 /// - Config menu: Toggle button opens/closes menu; items open config files in terminal editors.
 /// - Panels menu: Toggle button opens/closes menu; items toggle Recent/Install panes and keybinds footer.
 /// - Menu auto-close: Clicking outside any open menu closes it.
@@ -670,28 +654,28 @@ pub(super) fn handle_menus_mouse(
 ) -> Option<bool> {
     // Check button clicks first
     if point_in_rect(mx, my, app.updates_button_rect) {
-        return handle_updates_button(app);
+        return Some(handle_updates_button(app));
     }
     if point_in_rect(mx, my, app.install_import_rect) {
-        return handle_import_button(app);
+        return Some(handle_import_button(app));
     }
     if point_in_rect(mx, my, app.install_export_rect) {
-        return handle_export_button(app);
+        return Some(handle_export_button(app));
     }
     if point_in_rect(mx, my, app.arch_status_rect) {
-        return handle_arch_status();
+        return Some(handle_arch_status());
     }
     if point_in_rect(mx, my, app.sort_button_rect) {
-        return handle_sort_button(app);
+        return Some(handle_sort_button(app));
     }
     if point_in_rect(mx, my, app.options_button_rect) {
-        return handle_options_button(app);
+        return Some(handle_options_button(app));
     }
     if point_in_rect(mx, my, app.config_button_rect) {
-        return handle_config_button(app);
+        return Some(handle_config_button(app));
     }
     if point_in_rect(mx, my, app.panels_button_rect) {
-        return handle_panels_button(app);
+        return Some(handle_panels_button(app));
     }
 
     // Check menu clicks if menus are open

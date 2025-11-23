@@ -1,5 +1,5 @@
 /// Skeleton configuration file content with default color values.
-pub(crate) const THEME_SKELETON_CONTENT: &str = "# Pacsea theme configuration\n\
+pub const THEME_SKELETON_CONTENT: &str = "# Pacsea theme configuration\n\
 #\n\
 # Format: key = value\n\
 # Value formats supported:\n\
@@ -185,7 +185,7 @@ semantic_error = #f38ba8\n\
 #-----------------------------------------------------------------------------------------------------------------------\n";
 
 /// Standalone settings skeleton used when initializing a separate settings.conf
-pub(crate) const SETTINGS_SKELETON_CONTENT: &str = "# Pacsea settings configuration\n\
+pub const SETTINGS_SKELETON_CONTENT: &str = "# Pacsea settings configuration\n\
 # Layout percentages for the middle row panes (must sum to 100)\n\
 layout_left_pct = 20\n\
 layout_center_pct = 60\n\
@@ -329,7 +329,7 @@ package_marker = front
 locale = \n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
-pub(crate) const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\
+pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\
 # Modifiers can be one of: SUPER, CTRL, SHIFT, ALT.\n\
 \n\
 # GLOBAL — App\n\

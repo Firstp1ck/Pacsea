@@ -7,7 +7,7 @@ use crate::ui::modals::{
     updates,
 };
 
-/// What: Context struct grouping PreflightExec modal fields to reduce data flow complexity.
+/// What: Context struct grouping `PreflightExec` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
 ///
@@ -24,13 +24,14 @@ struct PreflightExecContext {
     header_chips: PreflightHeaderChips,
 }
 
-/// What: Context struct grouping SystemUpdate modal fields to reduce data flow complexity.
+/// What: Context struct grouping `SystemUpdate` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
 ///
 /// Output: Groups related fields together for passing to render functions.
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+#[allow(clippy::struct_excessive_bools)]
 struct SystemUpdateContext {
     do_mirrors: bool,
     do_pacman: bool,
@@ -42,7 +43,7 @@ struct SystemUpdateContext {
     cursor: usize,
 }
 
-/// What: Context struct grouping PostSummary modal fields to reduce data flow complexity.
+/// What: Context struct grouping `PostSummary` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
 ///
@@ -58,13 +59,14 @@ struct PostSummaryContext {
     snapshot_label: Option<String>,
 }
 
-/// What: Context struct grouping ScanConfig modal fields to reduce data flow complexity.
+/// What: Context struct grouping `ScanConfig` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
 ///
 /// Output: Groups related fields together for passing to render functions.
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+#[allow(clippy::struct_excessive_bools)]
 struct ScanConfigContext {
     do_clamav: bool,
     do_trivy: bool,
@@ -87,7 +89,7 @@ struct AlertContext {
     message: String,
 }
 
-/// What: Context struct grouping ConfirmInstall modal fields to reduce data flow complexity.
+/// What: Context struct grouping `ConfirmInstall` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
 ///
@@ -98,7 +100,7 @@ struct ConfirmInstallContext {
     items: Vec<crate::state::PackageItem>,
 }
 
-/// What: Context struct grouping ConfirmRemove modal fields to reduce data flow complexity.
+/// What: Context struct grouping `ConfirmRemove` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
 ///
@@ -133,7 +135,7 @@ struct UpdatesContext {
     scroll: u16,
 }
 
-/// What: Context struct grouping OptionalDeps modal fields to reduce data flow complexity.
+/// What: Context struct grouping `OptionalDeps` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
 ///
@@ -145,7 +147,7 @@ struct OptionalDepsContext {
     selected: usize,
 }
 
-/// What: Context struct grouping VirusTotalSetup modal fields to reduce data flow complexity.
+/// What: Context struct grouping `VirusTotalSetup` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
 ///
@@ -178,18 +180,18 @@ trait ModalRenderer {
 impl ModalRenderer for Modal {
     fn render(self, f: &mut Frame, app: &mut AppState, area: Rect) -> Modal {
         match self {
-            Modal::Alert { message } => {
+            Self::Alert { message } => {
                 let ctx = AlertContext { message };
                 render_alert_modal(f, app, area, ctx)
             }
-            Modal::ConfirmInstall { items } => {
+            Self::ConfirmInstall { items } => {
                 let ctx = ConfirmInstallContext { items };
                 render_confirm_install_modal(f, app, area, ctx)
             }
-            Modal::Preflight { .. } => {
+            Self::Preflight { .. } => {
                 unreachable!("Preflight should be handled separately before trait dispatch")
             }
-            Modal::PreflightExec {
+            Self::PreflightExec {
                 items,
                 action,
                 tab,
@@ -209,7 +211,7 @@ impl ModalRenderer for Modal {
                 };
                 render_preflight_exec_modal(f, app, area, ctx)
             }
-            Modal::PostSummary {
+            Self::PostSummary {
                 success,
                 changed_files,
                 pacnew_count,
@@ -227,11 +229,11 @@ impl ModalRenderer for Modal {
                 };
                 render_post_summary_modal(f, app, area, ctx)
             }
-            Modal::ConfirmRemove { items } => {
+            Self::ConfirmRemove { items } => {
                 let ctx = ConfirmRemoveContext { items };
                 render_confirm_remove_modal(f, app, area, ctx)
             }
-            Modal::SystemUpdate {
+            Self::SystemUpdate {
                 do_mirrors,
                 do_pacman,
                 do_aur,
@@ -253,20 +255,20 @@ impl ModalRenderer for Modal {
                 };
                 render_system_update_modal(f, app, area, ctx)
             }
-            Modal::Help => render_help_modal(f, app, area),
-            Modal::News { items, selected } => {
+            Self::Help => render_help_modal(f, app, area),
+            Self::News { items, selected } => {
                 let ctx = NewsContext { items, selected };
                 render_news_modal(f, app, area, ctx)
             }
-            Modal::Updates { entries, scroll } => {
+            Self::Updates { entries, scroll } => {
                 let ctx = UpdatesContext { entries, scroll };
                 render_updates_modal(f, app, area, ctx)
             }
-            Modal::OptionalDeps { rows, selected } => {
+            Self::OptionalDeps { rows, selected } => {
                 let ctx = OptionalDepsContext { rows, selected };
                 render_optional_deps_modal(f, area, ctx, app)
             }
-            Modal::ScanConfig {
+            Self::ScanConfig {
                 do_clamav,
                 do_trivy,
                 do_semgrep,
@@ -286,15 +288,15 @@ impl ModalRenderer for Modal {
                     do_sleuth,
                     cursor,
                 };
-                render_scan_config_modal(f, area, ctx)
+                render_scan_config_modal(f, area, &ctx)
             }
-            Modal::GnomeTerminalPrompt => render_gnome_terminal_prompt_modal(f, area),
-            Modal::VirusTotalSetup { input, cursor } => {
+            Self::GnomeTerminalPrompt => render_gnome_terminal_prompt_modal(f, area),
+            Self::VirusTotalSetup { input, cursor } => {
                 let ctx = VirusTotalSetupContext { input, cursor };
                 render_virustotal_setup_modal(f, app, area, ctx)
             }
-            Modal::ImportHelp => render_import_help_modal(f, area),
-            Modal::None => Modal::None,
+            Self::ImportHelp => render_import_help_modal(f, area),
+            Self::None => Self::None,
         }
     }
 }
@@ -313,20 +315,20 @@ impl ModalRenderer for Modal {
 /// Details:
 /// - Uses context struct to reduce data flow complexity by grouping related fields.
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
-fn render_alert_modal(f: &mut Frame, app: &mut AppState, area: Rect, ctx: AlertContext) -> Modal {
+fn render_alert_modal(f: &mut Frame, app: &AppState, area: Rect, ctx: AlertContext) -> Modal {
     alert::render_alert(f, app, area, &ctx.message);
     Modal::Alert {
         message: ctx.message,
     }
 }
 
-/// What: Render ConfirmInstall modal and return reconstructed state.
+/// What: Render `ConfirmInstall` modal and return reconstructed state.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `app`: Mutable application state
 /// - `area`: Full available area
-/// - `ctx`: Context struct containing all ConfirmInstall fields (taken by value)
+/// - `ctx`: Context struct containing all `ConfirmInstall` fields (taken by value)
 ///
 /// Output:
 /// - Returns the reconstructed Modal
@@ -336,7 +338,7 @@ fn render_alert_modal(f: &mut Frame, app: &mut AppState, area: Rect, ctx: AlertC
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_confirm_install_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: ConfirmInstallContext,
 ) -> Modal {
@@ -344,13 +346,13 @@ fn render_confirm_install_modal(
     Modal::ConfirmInstall { items: ctx.items }
 }
 
-/// What: Render PreflightExec modal and return reconstructed state.
+/// What: Render `PreflightExec` modal and return reconstructed state.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `app`: Mutable application state
 /// - `area`: Full available area
-/// - `ctx`: Context struct containing all PreflightExec fields (taken by value)
+/// - `ctx`: Context struct containing all `PreflightExec` fields (taken by value)
 ///
 /// Output:
 /// - Returns the reconstructed Modal
@@ -360,7 +362,7 @@ fn render_confirm_install_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_preflight_exec_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: PreflightExecContext,
 ) -> Modal {
@@ -387,13 +389,13 @@ fn render_preflight_exec_modal(
     }
 }
 
-/// What: Render PostSummary modal and return reconstructed state.
+/// What: Render `PostSummary` modal and return reconstructed state.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `app`: Mutable application state
 /// - `area`: Full available area
-/// - `ctx`: Context struct containing all PostSummary fields (taken by value)
+/// - `ctx`: Context struct containing all `PostSummary` fields (taken by value)
 ///
 /// Output:
 /// - Returns the reconstructed Modal
@@ -403,7 +405,7 @@ fn render_preflight_exec_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_post_summary_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: PostSummaryContext,
 ) -> Modal {
@@ -428,13 +430,13 @@ fn render_post_summary_modal(
     }
 }
 
-/// What: Render ConfirmRemove modal and return reconstructed state.
+/// What: Render `ConfirmRemove` modal and return reconstructed state.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `app`: Mutable application state
 /// - `area`: Full available area
-/// - `ctx`: Context struct containing all ConfirmRemove fields (taken by value)
+/// - `ctx`: Context struct containing all `ConfirmRemove` fields (taken by value)
 ///
 /// Output:
 /// - Returns the reconstructed Modal
@@ -444,7 +446,7 @@ fn render_post_summary_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_confirm_remove_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: ConfirmRemoveContext,
 ) -> Modal {
@@ -452,13 +454,13 @@ fn render_confirm_remove_modal(
     Modal::ConfirmRemove { items: ctx.items }
 }
 
-/// What: Render SystemUpdate modal and return reconstructed state.
+/// What: Render `SystemUpdate` modal and return reconstructed state.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `app`: Mutable application state
 /// - `area`: Full available area
-/// - `ctx`: Context struct containing all SystemUpdate fields (taken by value)
+/// - `ctx`: Context struct containing all `SystemUpdate` fields (taken by value)
 ///
 /// Output:
 /// - Returns the reconstructed Modal
@@ -468,7 +470,7 @@ fn render_confirm_remove_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_system_update_modal(
     f: &mut Frame,
-    app: &mut AppState,
+    app: &AppState,
     area: Rect,
     ctx: SystemUpdateContext,
 ) -> Modal {
@@ -552,12 +554,12 @@ fn render_updates_modal(
     }
 }
 
-/// What: Render OptionalDeps modal and return reconstructed state.
+/// What: Render `OptionalDeps` modal and return reconstructed state.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `area`: Full available area
-/// - `ctx`: Context struct containing all OptionalDeps fields (taken by value)
+/// - `ctx`: Context struct containing all `OptionalDeps` fields (taken by value)
 /// - `app`: Mutable application state
 ///
 /// Output:
@@ -570,7 +572,7 @@ fn render_optional_deps_modal(
     f: &mut Frame,
     area: Rect,
     ctx: OptionalDepsContext,
-    app: &mut AppState,
+    app: &AppState,
 ) -> Modal {
     misc::render_optional_deps(f, area, &ctx.rows, ctx.selected, app);
     Modal::OptionalDeps {
@@ -579,12 +581,12 @@ fn render_optional_deps_modal(
     }
 }
 
-/// What: Render ScanConfig modal and return reconstructed state.
+/// What: Render `ScanConfig` modal and return reconstructed state.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `area`: Full available area
-/// - `ctx`: Context struct containing all ScanConfig fields (taken by value)
+/// - `ctx`: Context struct containing all `ScanConfig` fields (taken by value)
 ///
 /// Output:
 /// - Returns the reconstructed Modal
@@ -592,7 +594,7 @@ fn render_optional_deps_modal(
 /// Details:
 /// - Uses context struct to reduce data flow complexity by grouping related fields.
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
-fn render_scan_config_modal(f: &mut Frame, area: Rect, ctx: ScanConfigContext) -> Modal {
+fn render_scan_config_modal(f: &mut Frame, area: Rect, ctx: &ScanConfigContext) -> Modal {
     misc::render_scan_config(
         f,
         area,
@@ -617,19 +619,19 @@ fn render_scan_config_modal(f: &mut Frame, area: Rect, ctx: ScanConfigContext) -
     }
 }
 
-/// What: Render GnomeTerminalPrompt modal and return reconstructed state.
+/// What: Render `GnomeTerminalPrompt` modal and return reconstructed state.
 fn render_gnome_terminal_prompt_modal(f: &mut Frame, area: Rect) -> Modal {
     misc::render_gnome_terminal_prompt(f, area);
     Modal::GnomeTerminalPrompt
 }
 
-/// What: Render VirusTotalSetup modal and return reconstructed state.
+/// What: Render `VirusTotalSetup` modal and return reconstructed state.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `app`: Mutable application state
 /// - `area`: Full available area
-/// - `ctx`: Context struct containing all VirusTotalSetup fields (taken by value)
+/// - `ctx`: Context struct containing all `VirusTotalSetup` fields (taken by value)
 ///
 /// Output:
 /// - Returns the reconstructed Modal
@@ -650,7 +652,7 @@ fn render_virustotal_setup_modal(
     }
 }
 
-/// What: Render ImportHelp modal and return reconstructed state.
+/// What: Render `ImportHelp` modal and return reconstructed state.
 fn render_import_help_modal(f: &mut Frame, area: Rect) -> Modal {
     misc::render_import_help(f, area);
     Modal::ImportHelp

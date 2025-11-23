@@ -73,7 +73,7 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     // Calculate clickable rectangle: only the button text width, centered
     // Use Unicode display width, not byte length, to handle wide characters
-    let button_width = button_text.width() as u16;
+    let button_width = u16::try_from(button_text.width()).unwrap_or(u16::MAX);
     let button_x = area
         .x
         .saturating_add(area.width.saturating_sub(button_width) / 2);

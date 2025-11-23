@@ -16,6 +16,7 @@ struct MockRunner {
 }
 
 impl MockRunner {
+    #[allow(clippy::missing_const_for_fn)]
     fn with(responses: MockResponseMap) -> Self {
         Self {
             responses: Mutex::new(responses),
@@ -27,13 +28,13 @@ impl CommandRunner for MockRunner {
     fn run(&self, program: &str, args: &[&str]) -> Result<String, CommandError> {
         let key = (
             program.to_string(),
-            args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            args.iter().map(ToString::to_string).collect::<Vec<_>>(),
         );
         let mut guard = self.responses.lock().expect("poisoned responses mutex");
         guard.remove(&key).unwrap_or_else(|| {
             Err(CommandError::Failed {
                 program: program.to_string(),
-                args: args.iter().map(|s| s.to_string()).collect(),
+                args: args.iter().map(ToString::to_string).collect(),
                 status: std::process::ExitStatus::from_raw(1),
             })
         })
@@ -102,7 +103,7 @@ fn summary_identifies_core_major_bump() {
     );
     assert_eq!(
         outcome.summary.install_delta_bytes,
-        (5 * 1024 * 1024) as i64 - (4 * 1024 * 1024) as i64,
+        i64::from(5 * 1024 * 1024) - i64::from(4 * 1024 * 1024),
         "Install delta should reflect target minus current size"
     );
     assert!(
@@ -116,7 +117,7 @@ fn summary_identifies_core_major_bump() {
     assert_eq!(outcome.header.package_count, 1);
     assert_eq!(
         outcome.summary.packages[0].install_delta_bytes,
-        Some((5 * 1024 * 1024) as i64 - (4 * 1024 * 1024) as i64)
+        Some(i64::from(5 * 1024 * 1024) - i64::from(4 * 1024 * 1024))
     );
 }
 

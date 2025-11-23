@@ -17,7 +17,7 @@ use crate::state::AppState;
 /// Details:
 /// - Returns `false` if `rect` is `None`.
 /// - Uses inclusive start and exclusive end bounds for width and height.
-fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
+const fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) -> bool {
     if let Some((x, y, w, h)) = rect {
         mx >= x && mx < x + w && my >= y && my < y + h
     } else {
@@ -105,7 +105,7 @@ fn toggle_all_artix_filters(app: &mut AppState) {
 ///
 /// Details:
 /// - Returns `true` when in dropdown mode (all individual filters hidden).
-fn has_hidden_artix_filters(app: &AppState) -> bool {
+const fn has_hidden_artix_filters(app: &AppState) -> bool {
     app.results_filter_artix_omniverse_rect.is_none()
         && app.results_filter_artix_universe_rect.is_none()
         && app.results_filter_artix_lib32_rect.is_none()
@@ -153,6 +153,7 @@ fn handle_artix_main_filter_click(mx: u16, my: u16, app: &mut AppState) -> bool 
 ///
 /// Details:
 /// - The main Artix filter is enabled if at least one individual Artix filter is enabled.
+#[allow(clippy::missing_const_for_fn)]
 fn update_main_artix_filter_state(app: &mut AppState) {
     app.results_filter_show_artix = app.results_filter_show_artix_omniverse
         || app.results_filter_show_artix_universe
@@ -228,7 +229,7 @@ fn handle_artix_dropdown_click(mx: u16, my: u16, app: &mut AppState) -> bool {
 /// Handle mouse events for filter toggles.
 ///
 /// What: Process mouse clicks on filter toggle labels in the Results title bar to enable/disable
-/// repository filters (AUR, Core, Extra, Multilib, EOS, CachyOS, Artix, Manjaro).
+/// repository filters (`AUR`, `Core`, `Extra`, `Multilib`, `EOS`, `CachyOS`, `Artix`, `Manjaro`).
 ///
 /// Inputs:
 /// - `mx`: Mouse X coordinate (column)
@@ -257,123 +258,102 @@ pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Opti
     }
 
     // Handle simple filters
-    if try_toggle_simple_filter(
+    if handle_simple_filter_toggles(mx, my, app) {
+        return Some(false);
+    }
+    None
+}
+
+/// What: Try toggling all simple filters in sequence.
+///
+/// Inputs:
+/// - `mx`: Mouse X coordinate (column)
+/// - `my`: Mouse Y coordinate (row)
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if any filter was toggled, `false` otherwise.
+///
+/// Details:
+/// - Tries each filter in order and returns immediately if one is toggled.
+fn handle_simple_filter_toggles(mx: u16, my: u16, app: &mut AppState) -> bool {
+    try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_aur_rect,
         |a| a.results_filter_show_aur = !a.results_filter_show_aur,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_core_rect,
         |a| a.results_filter_show_core = !a.results_filter_show_core,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_extra_rect,
         |a| a.results_filter_show_extra = !a.results_filter_show_extra,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_multilib_rect,
         |a| a.results_filter_show_multilib = !a.results_filter_show_multilib,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_eos_rect,
         |a| a.results_filter_show_eos = !a.results_filter_show_eos,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_cachyos_rect,
         |a| a.results_filter_show_cachyos = !a.results_filter_show_cachyos,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_artix_omniverse_rect,
         |a| a.results_filter_show_artix_omniverse = !a.results_filter_show_artix_omniverse,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_artix_universe_rect,
         |a| a.results_filter_show_artix_universe = !a.results_filter_show_artix_universe,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_artix_lib32_rect,
         |a| a.results_filter_show_artix_lib32 = !a.results_filter_show_artix_lib32,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_artix_galaxy_rect,
         |a| a.results_filter_show_artix_galaxy = !a.results_filter_show_artix_galaxy,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_artix_world_rect,
         |a| a.results_filter_show_artix_world = !a.results_filter_show_artix_world,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_artix_system_rect,
         |a| a.results_filter_show_artix_system = !a.results_filter_show_artix_system,
         app,
-    ) {
-        return Some(false);
-    }
-    if try_toggle_simple_filter(
+    ) || try_toggle_simple_filter(
         mx,
         my,
         app.results_filter_manjaro_rect,
         |a| a.results_filter_show_manjaro = !a.results_filter_show_manjaro,
         app,
-    ) {
-        return Some(false);
-    }
-
-    None
+    )
 }

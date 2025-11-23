@@ -27,6 +27,7 @@ use crate::theme::theme;
 /// Details:
 /// - Colors border based on success, truncates service lines to fit, and advertises rollback/service
 ///   restart shortcuts.
+#[allow(clippy::many_single_char_names)]
 pub fn render_post_summary(
     f: &mut Frame,
     app: &AppState,
@@ -95,7 +96,7 @@ pub fn render_post_summary(
             .take((h as usize).saturating_sub(10))
         {
             lines.push(Line::from(Span::styled(
-                format!("- {}", s),
+                format!("- {s}"),
                 Style::default().fg(th.text),
             )));
         }

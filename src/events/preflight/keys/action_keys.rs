@@ -19,7 +19,7 @@ use crate::events::preflight::modal::close_preflight_modal;
 ///
 /// Details:
 /// - Closes the preflight modal but keeps the TUI open.
-pub(crate) fn handle_esc_key(app: &mut AppState) -> bool {
+pub(super) fn handle_esc_key(app: &mut AppState) -> bool {
     let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
         service_info.clone()
     } else {
@@ -40,7 +40,7 @@ pub(crate) fn handle_esc_key(app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - May close the modal if action requires it, but TUI remains open.
-pub(crate) fn handle_enter_key(app: &mut AppState) -> bool {
+pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
     let should_close = if let crate::state::Modal::Preflight {
         tab,
         items,
@@ -99,7 +99,7 @@ pub(crate) fn handle_enter_key(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_space_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
+pub(super) fn handle_space_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
     handle_enter_or_space(EnterOrSpaceContext {
         tab: ctx.tab,
         items: ctx.items,
@@ -126,7 +126,7 @@ pub(crate) fn handle_space_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_shift_r_key(app: &mut AppState) -> bool {
+pub(super) fn handle_shift_r_key(app: &mut AppState) -> bool {
     tracing::info!("Shift+R pressed: Re-running all preflight analyses");
 
     let (items, action) = if let crate::state::Modal::Preflight { items, action, .. } = &app.modal {
@@ -204,15 +204,15 @@ pub(crate) fn handle_shift_r_key(app: &mut AppState) -> bool {
             .filter(|p| matches!(p.source, crate::state::Source::Aur))
             .cloned()
             .collect();
-        if !aur_items.is_empty() {
-            app.preflight_sandbox_items = Some(aur_items);
-            app.preflight_sandbox_resolving = true;
-        } else {
+        if aur_items.is_empty() {
             app.preflight_sandbox_items = None;
             app.preflight_sandbox_resolving = false;
             if let crate::state::Modal::Preflight { sandbox_loaded, .. } = &mut app.modal {
                 *sandbox_loaded = true;
             }
+        } else {
+            app.preflight_sandbox_items = Some(aur_items);
+            app.preflight_sandbox_resolving = true;
         }
     }
 
@@ -228,7 +228,7 @@ pub(crate) fn handle_shift_r_key(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_r_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
+pub(super) fn handle_r_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
     if *ctx.tab == crate::state::PreflightTab::Services && !ctx.service_info.is_empty() {
         // Toggle restart decision for selected service (only if no error)
         if *ctx.service_selected >= ctx.service_info.len() {
@@ -267,7 +267,7 @@ pub(crate) fn handle_r_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_d_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
+pub(super) fn handle_d_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
     if *ctx.tab == crate::state::PreflightTab::Services && !ctx.service_info.is_empty() {
         if *ctx.service_selected >= ctx.service_info.len() {
             *ctx.service_selected = ctx.service_info.len().saturating_sub(1);
@@ -286,7 +286,7 @@ pub(crate) fn handle_d_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
 ///
 /// Output:
 /// - Always returns `false`.
-pub(crate) fn handle_a_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
+pub(super) fn handle_a_key(ctx: &mut PreflightKeyContext<'_>) -> bool {
     if *ctx.tab == crate::state::PreflightTab::Deps && !ctx.dependency_info.is_empty() {
         let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> =
             HashMap::new();

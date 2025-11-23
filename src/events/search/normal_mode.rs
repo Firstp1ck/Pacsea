@@ -20,7 +20,7 @@ use crate::events::utils::{byte_index_for_char, char_count, refresh_install_deta
 ///
 /// Details:
 /// - Opens the selected config file in a terminal editor.
-/// - Handles settings, theme, keybinds, install list, installed list, and recent paths.
+/// - Handles settings, theme, and keybinds.
 fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool {
     if !app.config_menu_open {
         return false;
@@ -29,24 +29,11 @@ fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool 
     let settings_path = crate::theme::config_dir().join("settings.conf");
     let theme_path = crate::theme::config_dir().join("theme.conf");
     let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-    let install_path = app.install_path.clone();
-    let recent_path = app.recent_path.clone();
-    let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
-
-    if idx == 4 {
-        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-        names.sort();
-        let body = names.join("\n");
-        let _ = std::fs::write(&installed_list_path, body);
-    }
 
     let target = match idx {
         0 => settings_path,
         1 => theme_path,
         2 => keybinds_path,
-        3 => install_path,
-        4 => installed_list_path,
-        5 => recent_path,
         _ => {
             app.config_menu_open = false;
             return false;
@@ -126,7 +113,7 @@ fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Exports current Install List package names to config export dir.
-/// - Creates files with format: install_list_YYYYMMDD_serial.txt
+/// - Creates files with format: `install_list_YYYYMMDD_serial.txt`
 /// - Shows toast messages for success or failure.
 fn handle_export(app: &mut AppState) {
     if app.installed_only_mode {
@@ -160,7 +147,7 @@ fn handle_export(app: &mut AppState) {
 
     let body = names.join("\n");
     match std::fs::write(&file_path, body) {
-        Ok(_) => {
+        Ok(()) => {
             app.toast_message = Some(crate::i18n::t_fmt1(
                 app,
                 "app.toasts.exported_to",
@@ -171,7 +158,7 @@ fn handle_export(app: &mut AppState) {
             tracing::info!(path = %file_path.display().to_string(), count = names.len(), "export: wrote install list");
         }
         Err(e) => {
-            let error_msg = format!("{}", e);
+            let error_msg = format!("{e}");
             app.toast_message = Some(crate::i18n::t_fmt1(
                 app,
                 "app.toasts.export_failed",
@@ -202,8 +189,12 @@ fn handle_selection_move(app: &mut AppState, direction: isize) {
     }
 
     let cc = char_count(&app.input);
-    let cur = app.search_caret as isize + direction;
-    let new_ci = if cur < 0 { 0 } else { cur as usize };
+    let cur = isize::try_from(app.search_caret).unwrap_or(0) + direction;
+    let new_ci = if cur < 0 {
+        0
+    } else {
+        usize::try_from(cur).unwrap_or(0)
+    };
     app.search_caret = new_ci.min(cc);
 }
 
@@ -351,7 +342,7 @@ fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
     false
 }
 
-/// What: Handle pane navigation (Left/Right arrows and pane_next).
+/// What: Handle pane navigation (Left/Right arrows and `pane_next`).
 ///
 /// Inputs:
 /// - `ke`: Key event from terminal
@@ -363,7 +354,7 @@ fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
 /// - `true` if pane navigation was handled, `false` otherwise
 ///
 /// Details:
-/// - Handles Left/Right arrow keys and configured pane_next key.
+/// - Handles Left/Right arrow keys and configured `pane_next` key.
 /// - Switches focus between panes and updates details accordingly.
 fn handle_pane_navigation(
     ke: &KeyEvent,

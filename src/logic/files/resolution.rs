@@ -10,14 +10,15 @@ use std::process::Command;
 /// What: Batch fetch remote file lists for multiple official packages using `pacman -Fl`.
 ///
 /// Inputs:
-/// - `packages`: Slice of (package_name, source) tuples for official packages.
+/// - `packages`: Slice of (`package_name`, source) tuples for official packages.
 ///
 /// Output:
-/// - HashMap mapping package name to its remote file list.
+/// - `HashMap` mapping package name to its remote file list.
 ///
 /// Details:
 /// - Batches queries into chunks of 50 to avoid command-line length limits.
 /// - Parses multi-package `pacman -Fl` output (format: "<pkg> <path>" per line).
+#[must_use]
 pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<String, Vec<String>> {
     const BATCH_SIZE: usize = 50;
     let mut result_map = HashMap::new();
@@ -27,7 +28,7 @@ pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<Stri
     for (name, source) in packages {
         if let Source::Official { repo, .. } = source {
             let repo_key = if repo.is_empty() {
-                "".to_string()
+                String::new()
             } else {
                 repo.clone()
             };
@@ -41,15 +42,15 @@ pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<Stri
                 .iter()
                 .map(|name| {
                     if repo.is_empty() {
-                        name.to_string()
+                        (*name).to_string()
                     } else {
-                        format!("{}/{}", repo, name)
+                        format!("{repo}/{name}")
                     }
                 })
                 .collect();
 
             let mut args = vec!["-Fl"];
-            args.extend(specs.iter().map(|s| s.as_str()));
+            args.extend(specs.iter().map(String::as_str));
 
             match Command::new("pacman")
                 .args(&args)
@@ -99,6 +100,9 @@ pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<Stri
 /// Output:
 /// - Returns a `PackageFileInfo` on success or an error message.
 ///
+/// # Errors
+/// - Returns `Err` when file resolution fails for install or remove operations (see `resolve_install_files` and `resolve_remove_files`)
+///
 /// Details:
 /// - Delegates to either `resolve_install_files` or `resolve_remove_files`.
 pub fn resolve_package_files(
@@ -121,6 +125,10 @@ pub fn resolve_package_files(
 /// Output:
 /// - Returns a populated `PackageFileInfo` or an error when file lists cannot be retrieved.
 ///
+/// # Errors
+/// - Returns `Err` when remote file list retrieval fails (see `get_remote_file_list`)
+/// - Returns `Err` when installed file list retrieval fails (see `get_installed_file_list`)
+///
 /// Details:
 /// - Compares remote file listings with locally installed files and predicts potential `.pacnew` creations.
 pub fn resolve_install_files(name: &str, source: &Source) -> Result<PackageFileInfo, String> {
@@ -139,6 +147,10 @@ pub fn resolve_install_files(name: &str, source: &Source) -> Result<PackageFileI
 /// Output:
 /// - Returns a populated `PackageFileInfo`.
 ///
+/// # Errors
+/// - Returns `Err` when installed file list retrieval fails (see `get_installed_file_list`)
+/// - Returns `Err` when backup files retrieval fails (see `get_backup_files`)
+///
 /// Details:
 /// - Compares remote file listings with locally installed files and predicts potential `.pacnew` creations.
 pub fn resolve_install_files_with_remote_list(
@@ -149,7 +161,7 @@ pub fn resolve_install_files_with_remote_list(
     // Get installed file list (if package is already installed)
     let installed_files = get_installed_file_list(name).unwrap_or_default();
 
-    let installed_set: HashSet<&str> = installed_files.iter().map(|s| s.as_str()).collect();
+    let installed_set: HashSet<&str> = installed_files.iter().map(String::as_str).collect();
 
     let mut file_changes = Vec::new();
     let mut new_count = 0;
@@ -159,7 +171,7 @@ pub fn resolve_install_files_with_remote_list(
 
     // Get backup files for this package (for pacnew/pacsave prediction)
     let backup_files = get_backup_files(name, source).unwrap_or_default();
-    let backup_set: HashSet<&str> = backup_files.iter().map(|s| s.as_str()).collect();
+    let backup_set: HashSet<&str> = backup_files.iter().map(String::as_str).collect();
 
     for path in remote_files {
         let is_config = path.starts_with("/etc/");
@@ -225,6 +237,10 @@ pub fn resolve_install_files_with_remote_list(
 /// Output:
 /// - Returns a `PackageFileInfo` capturing removed files and predicted `.pacsave` candidates.
 ///
+/// # Errors
+/// - Returns `Err` when installed file list retrieval fails (see `get_installed_file_list`)
+/// - Returns `Err` when backup files retrieval fails (see `get_backup_files`)
+///
 /// Details:
 /// - Reads installed file lists and backup arrays to flag configuration files requiring user attention.
 pub fn resolve_remove_files(name: &str) -> Result<PackageFileInfo, String> {
@@ -244,7 +260,7 @@ pub fn resolve_remove_files(name: &str) -> Result<PackageFileInfo, String> {
         },
     )
     .unwrap_or_default();
-    let backup_set: HashSet<&str> = backup_files.iter().map(|s| s.as_str()).collect();
+    let backup_set: HashSet<&str> = backup_files.iter().map(String::as_str).collect();
 
     for path in installed_files {
         let is_config = path.starts_with("/etc/");

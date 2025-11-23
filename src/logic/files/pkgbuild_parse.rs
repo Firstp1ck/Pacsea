@@ -11,6 +11,7 @@
 /// Details:
 /// - Parses bash array syntax: `backup=('file1' 'file2' '/etc/config')`
 /// - Handles single-line and multi-line array definitions.
+#[must_use]
 pub fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
     let mut backup_files = Vec::new();
     let mut in_backup_array = false;
@@ -125,6 +126,7 @@ pub fn parse_backup_array_content(content: &str, backup_files: &mut Vec<String>)
 /// Details:
 /// - Parses key-value pairs: `backup = file1`
 /// - Handles multiple backup entries.
+#[must_use]
 pub fn parse_backup_from_srcinfo(srcinfo: &str) -> Vec<String> {
     let mut backup_files = Vec::new();
 
@@ -162,6 +164,7 @@ pub fn parse_backup_from_srcinfo(srcinfo: &str) -> Vec<String> {
 /// - Handles common patterns like `install -Dm755`, `cp`, `mkdir -p`, etc.
 /// - Extracts paths from `package()` functions that use `install` commands.
 /// - This is a best-effort heuristic and may not capture all files.
+#[must_use]
 pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<String> {
     let mut files = Vec::new();
     let mut in_package_function = false;
@@ -230,7 +233,10 @@ pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<S
                         path.remove(0);
                     }
                     if !path.is_empty() {
-                        files.push(format!("/{}", path));
+                        {
+                            let path_str = &path;
+                            files.push(format!("/{path_str}"));
+                        }
                     }
                 }
             } else if trimmed.contains("cp") && trimmed.contains("$pkgdir") {
@@ -253,7 +259,10 @@ pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<S
                         path.remove(0);
                     }
                     if !path.is_empty() {
-                        files.push(format!("/{}", path));
+                        {
+                            let path_str = &path;
+                            files.push(format!("/{path_str}"));
+                        }
                     }
                 }
             }
@@ -267,8 +276,8 @@ pub fn parse_install_paths_from_pkgbuild(pkgbuild: &str, pkgname: &str) -> Vec<S
     // If we didn't find any files, try to infer common paths based on package name
     if files.is_empty() {
         // Common default paths for AUR packages
-        files.push(format!("/usr/bin/{}", pkgname));
-        files.push(format!("/usr/share/{}", pkgname));
+        files.push(format!("/usr/bin/{pkgname}"));
+        files.push(format!("/usr/share/{pkgname}"));
     }
 
     files

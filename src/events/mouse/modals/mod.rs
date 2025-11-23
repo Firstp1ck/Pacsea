@@ -1,4 +1,4 @@
-//! Modal mouse event handling (Help, VirusTotalSetup, Preflight, News).
+//! Modal mouse event handling (Help, `VirusTotalSetup`, `Preflight`, News).
 
 use crate::state::AppState;
 use crossterm::event::MouseEvent;
@@ -10,7 +10,7 @@ mod simple;
 
 /// Handle mouse events for modals.
 ///
-/// What: Process mouse interactions within modal dialogs (Help, VirusTotalSetup, Preflight, News).
+/// What: Process mouse interactions within modal dialogs (Help, `VirusTotalSetup`, `Preflight`, News).
 ///
 /// Inputs:
 /// - `m`: Mouse event including position, button, and modifiers
@@ -25,7 +25,7 @@ mod simple;
 ///
 /// Details:
 /// - Help modal: Supports scrolling within content area and closes on outside click.
-/// - VirusTotalSetup modal: Opens URL when clicking the link area; consumes all other events.
+/// - `VirusTotalSetup` modal: Opens URL when clicking the link area; consumes all other events.
 /// - Preflight modal: Handles tab clicks, package group header toggles, service restart decisions,
 ///   and scroll navigation for Deps/Files/Services tabs.
 /// - News modal: Handles item selection, URL opening, and scroll navigation; closes on outside click.
@@ -37,10 +37,14 @@ pub(super) fn handle_modal_mouse(
     app: &mut AppState,
 ) -> Option<bool> {
     match &mut app.modal {
-        crate::state::Modal::Help => simple::handle_help_modal(m, mx, my, is_left_down, app),
-        crate::state::Modal::VirusTotalSetup { .. } => {
-            simple::handle_virustotal_modal(m, mx, my, is_left_down, app)
-        }
+        crate::state::Modal::Help => Some(simple::handle_help_modal(m, mx, my, is_left_down, app)),
+        crate::state::Modal::VirusTotalSetup { .. } => Some(simple::handle_virustotal_modal(
+            m,
+            mx,
+            my,
+            is_left_down,
+            app,
+        )),
         crate::state::Modal::Preflight { .. } => {
             preflight::handle_preflight_modal(m, mx, my, is_left_down, app)
         }

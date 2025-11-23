@@ -22,10 +22,10 @@ Details:
 ///
 /// Details:
 /// - Clones `https://aur.archlinux.org/<pkg>.git` and runs `makepkg -o` (download sources only).
-/// - Optionally runs ClamAV, Trivy filesystem, and Semgrep scans.
-/// - Performs VirusTotal hash lookups for PKGBUILD/src files when `VT_API_KEY` is provided via environment or Pacsea settings.
+/// - Optionally runs `ClamAV`, `Trivy` filesystem, and `Semgrep` scans.
+/// - Performs `VirusTotal` hash lookups for `PKGBUILD`/`src` files when `VT_API_KEY` is provided via environment or Pacsea settings.
 #[cfg(not(target_os = "windows"))]
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 pub fn spawn_aur_scan_for_with_config(
     pkg: &str,
     do_clamav: bool,

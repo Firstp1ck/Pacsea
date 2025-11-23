@@ -32,23 +32,24 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
         let mut p = dir.clone();
         p.push("theme.conf");
         let content = "base=#000000\nmantle=#000000\ncrust=#000000\nsurface1=#000000\nsurface2=#000000\noverlay1=#000000\noverlay2=#000000\ntext=#000000\nsubtext0=#000000\nsubtext1=#000000\nsapphire=#000000\nmauve=#000000\ngreen=#000000\nyellow=#000000\nred=#000000\nlavender=#000000\n";
-        fs::write(&p, content).unwrap();
+        fs::write(&p, content).expect("Failed to write test theme file");
         let t = try_load_theme_with_diagnostics(&p).expect("valid theme");
         let _ = t.base; // use
 
         // Error case: unknown key + missing required
         let mut pe = dir.clone();
         pe.push("bad.conf");
-        let mut f = fs::File::create(&pe).unwrap();
-        writeln!(f, "unknown_key = #fff").unwrap();
-        let err = try_load_theme_with_diagnostics(&pe).unwrap_err();
+        let mut f = fs::File::create(&pe).expect("Failed to create test theme file");
+        writeln!(f, "unknown_key = #fff").expect("Failed to write to test theme file");
+        let err = try_load_theme_with_diagnostics(&pe)
+            .expect_err("Expected error for invalid theme file");
         assert!(err.contains("Unknown key"));
         assert!(err.contains("Missing required keys"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -80,17 +81,15 @@ mod tests {
                 if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
                     return None;
                 }
-                if let Some(eq_pos) = trimmed.find('=') {
+                trimmed.find('=').map(|eq_pos| {
                     let key = trimmed[..eq_pos]
                         .trim()
                         .to_lowercase()
                         .replace(['.', '-', ' '], "_");
                     // Map to canonical key if possible
                     let canon = canonical_for_key(&key).unwrap_or(&key);
-                    Some(canon.to_string())
-                } else {
-                    None
-                }
+                    canon.to_string()
+                })
             })
             .collect();
 
@@ -105,8 +104,7 @@ mod tests {
         for key in &required_keys {
             assert!(
                 skeleton_keys.contains(*key),
-                "Missing required key '{}' in theme skeleton config",
-                key
+                "Missing required key '{key}' in theme skeleton config"
             );
         }
 
@@ -117,12 +115,12 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&dir);
         let theme_path = dir.join("theme.conf");
-        fs::write(&theme_path, skeleton_content).unwrap();
+        fs::write(&theme_path, skeleton_content).expect("Failed to write test theme skeleton file");
 
         let theme_result = try_load_theme_with_diagnostics(&theme_path);
         assert!(
@@ -130,7 +128,7 @@ mod tests {
             "Theme skeleton should parse successfully: {:?}",
             theme_result.err()
         );
-        let theme = theme_result.unwrap();
+        let theme = theme_result.expect("Failed to parse theme skeleton in test");
         // Verify all fields are set (they should be non-zero colors)
         let _ = (
             theme.base,
@@ -152,7 +150,8 @@ mod tests {
         );
 
         // Test 3: Verify generated skeleton file contains all required keys
-        let generated_content = fs::read_to_string(&theme_path).unwrap();
+        let generated_content =
+            fs::read_to_string(&theme_path).expect("Failed to read generated theme file");
         let generated_keys: HashSet<String> = generated_content
             .lines()
             .filter_map(|line| {
@@ -160,25 +159,22 @@ mod tests {
                 if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
                     return None;
                 }
-                if let Some(eq_pos) = trimmed.find('=') {
+                trimmed.find('=').map(|eq_pos| {
                     let key = trimmed[..eq_pos]
                         .trim()
                         .to_lowercase()
                         .replace(['.', '-', ' '], "_");
                     // Map to canonical key if possible
                     let canon = canonical_for_key(&key).unwrap_or(&key);
-                    Some(canon.to_string())
-                } else {
-                    None
-                }
+                    canon.to_string()
+                })
             })
             .collect();
 
         for key in &required_keys {
             assert!(
                 generated_keys.contains(*key),
-                "Missing required key '{}' in generated theme skeleton file",
-                key
+                "Missing required key '{key}' in generated theme skeleton file"
             );
         }
 
@@ -192,7 +188,7 @@ mod tests {
     /// - Config file content as string.
     ///
     /// Output:
-    /// - HashSet of normalized key names extracted from the config.
+    /// - `HashSet` of normalized key names extracted from the config.
     ///
     /// Details:
     /// - Skips empty lines, comments, and lines without '='.
@@ -205,15 +201,12 @@ mod tests {
                 if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
                     return None;
                 }
-                if let Some(eq_pos) = trimmed.find('=') {
-                    let key = trimmed[..eq_pos]
+                trimmed.find('=').map(|eq_pos| {
+                    trimmed[..eq_pos]
                         .trim()
                         .to_lowercase()
-                        .replace(['.', '-', ' '], "_");
-                    Some(key)
-                } else {
-                    None
-                }
+                        .replace(['.', '-', ' '], "_")
+                })
             })
             .collect()
     }
@@ -223,7 +216,7 @@ mod tests {
     /// Inputs: None
     ///
     /// Output:
-    /// - HashSet of expected Settings key names.
+    /// - `HashSet` of expected Settings key names.
     ///
     /// Details:
     /// - Returns the list of all expected Settings keys (excluding keymap which is in keybinds.conf).
@@ -273,9 +266,7 @@ mod tests {
         for key in expected_keys {
             assert!(
                 extracted_keys.contains(*key),
-                "Missing key '{}' in {}",
-                key,
-                context
+                "Missing key '{key}' in {context}"
             );
         }
     }
@@ -393,20 +384,18 @@ mod tests {
     ///
     /// Details:
     /// - Checks for both "key = value" and "key=value" formats.
-    fn assert_config_contains(content: &str, key: &str, value: &str, context: &str) {
+    fn assert_config_contains(content: &str, key: &str, value: &str, test_context: &str) {
         assert!(
-            content.contains(&format!("{} = {}", key, value))
-                || content.contains(&format!("{}={}", key, value)),
-            "{} should persist {}",
-            context,
-            key
+            content.contains(&format!("{key} = {value}"))
+                || content.contains(&format!("{key}={value}")),
+            "{test_context} should persist {key}"
         );
     }
 
     /// What: Restore original environment variables.
     ///
     /// Inputs:
-    /// - Original HOME and XDG_CONFIG_HOME values.
+    /// - Original HOME and `XDG_CONFIG_HOME` values.
     ///
     /// Output: None
     ///
@@ -435,7 +424,7 @@ mod tests {
     /// Inputs: None
     ///
     /// Output:
-    /// - Tuple of (base directory, config directory, original HOME, original XDG_CONFIG_HOME)
+    /// - Tuple of (base directory, config directory, original HOME, original `XDG_CONFIG_HOME`)
     ///
     /// Details:
     /// - Creates temporary directory structure and sets environment variables for isolated testing.
@@ -454,7 +443,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let cfg_dir = base.join(".config").join("pacsea");
@@ -489,7 +478,7 @@ mod tests {
     /// Output: None (panics on failure)
     ///
     /// Details:
-    /// - Verifies that calling ensure_settings_keys_present creates a config file with all required keys.
+    /// - Verifies that calling `ensure_settings_keys_present` creates a config file with all required keys.
     fn test_missing_config_generation(
         settings_path: &std::path::Path,
         expected_keys: &std::collections::HashSet<&str>,
@@ -504,7 +493,8 @@ mod tests {
         ensure_settings_keys_present(&default_prefs);
 
         assert!(settings_path.exists(), "Settings file should be created");
-        let generated_content = fs::read_to_string(settings_path).unwrap();
+        let generated_content =
+            fs::read_to_string(settings_path).expect("Failed to read generated settings file");
         assert!(
             !generated_content.is_empty(),
             "Generated config file should not be empty"
@@ -522,7 +512,7 @@ mod tests {
     /// Output: None (panics on failure)
     ///
     /// Details:
-    /// - Creates a minimal config and verifies that ensure_settings_keys_present adds missing keys while preserving existing ones.
+    /// - Creates a minimal config and verifies that `ensure_settings_keys_present` adds missing keys while preserving existing ones.
     fn test_missing_keys_added(
         settings_path: &std::path::Path,
         expected_keys: &std::collections::HashSet<&str>,
@@ -532,7 +522,7 @@ mod tests {
             settings_path,
             "# Minimal config\nsort_mode = aur_popularity\n",
         )
-        .unwrap();
+        .expect("Failed to write test settings file");
 
         let modified_prefs = crate::theme::types::Settings {
             sort_mode: crate::state::SortMode::AurPopularityThenOfficial,
@@ -540,7 +530,8 @@ mod tests {
         };
         ensure_settings_keys_present(&modified_prefs);
 
-        let updated_content = fs::read_to_string(settings_path).unwrap();
+        let updated_content =
+            fs::read_to_string(settings_path).expect("Failed to read updated settings file");
         let updated_keys = extract_config_keys(&updated_content);
         assert_all_keys_present(
             &updated_keys,
@@ -591,7 +582,7 @@ mod tests {
              news_unread_symbol = UNREAD\n\
              preferred_terminal = alacritty\n",
         )
-        .unwrap();
+        .expect("Failed to write test settings file with custom values");
 
         let loaded_custom = crate::theme::settings::settings();
         assert_eq!(loaded_custom.layout_left_pct, 25);
@@ -630,7 +621,8 @@ mod tests {
     fn test_save_functions_persist(settings_path: &std::path::Path) {
         use std::fs;
         save_sort_mode(crate::state::SortMode::BestMatches);
-        let saved_content = fs::read_to_string(settings_path).unwrap();
+        let saved_content =
+            fs::read_to_string(settings_path).expect("Failed to read saved settings file");
         assert_config_contains(
             &saved_content,
             "sort_mode",
@@ -639,7 +631,8 @@ mod tests {
         );
 
         save_show_recent_pane(true);
-        let saved_content2 = fs::read_to_string(settings_path).unwrap();
+        let saved_content2 = fs::read_to_string(settings_path)
+            .expect("Failed to read saved settings file (second read)");
         assert_config_contains(
             &saved_content2,
             "show_recent_pane",
@@ -648,7 +641,8 @@ mod tests {
         );
 
         save_selected_countries("Switzerland, Austria");
-        let saved_content3 = fs::read_to_string(settings_path).unwrap();
+        let saved_content3 = fs::read_to_string(settings_path)
+            .expect("Failed to read saved settings file (third read)");
         assert_config_contains(
             &saved_content3,
             "selected_countries",
@@ -676,7 +670,9 @@ mod tests {
     fn config_settings_comprehensive_parameter_check() {
         use std::fs;
 
-        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
         let (base, cfg_dir, orig_home, orig_xdg) = setup_test_environment();
 
         let expected_keys = get_expected_settings_keys();
@@ -689,7 +685,7 @@ mod tests {
         test_missing_config_generation(&settings_path, &expected_keys);
 
         // Test 3: All parameters are loaded with defaults when missing
-        fs::remove_file(&settings_path).unwrap();
+        fs::remove_file(&settings_path).expect("Failed to remove test settings file");
         let loaded_settings = crate::theme::settings::settings();
         let default_settings = crate::theme::types::Settings::default();
         assert_settings_match_defaults(&loaded_settings, &default_settings);

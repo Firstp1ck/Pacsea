@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
 
-/// What: Handle key events for ImportHelp modal.
+/// What: Handle key events for `ImportHelp` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -17,7 +17,7 @@ use crate::state::{AppState, PackageItem};
 ///
 /// Details:
 /// - Handles Esc to close, Enter to open file picker and import packages
-pub(crate) fn handle_import_help(
+pub(super) fn handle_import_help(
     ke: KeyEvent,
     app: &mut AppState,
     add_tx: &mpsc::UnboundedSender<PackageItem>,
@@ -33,7 +33,7 @@ pub(crate) fn handle_import_help(
     false
 }
 
-/// What: Handle Enter key in ImportHelp modal - open file picker and import packages.
+/// What: Handle Enter key in `ImportHelp` modal - open file picker and import packages.
 ///
 /// Inputs:
 /// - `add_tx`: Channel for adding packages
@@ -43,12 +43,14 @@ pub(crate) fn handle_import_help(
 /// Details:
 /// - Opens file picker dialog and imports package names from selected file
 /// - During tests, this is a no-op to avoid opening real file picker dialogs
-fn handle_import_help_enter(_add_tx: &mpsc::UnboundedSender<PackageItem>) {
+#[cfg_attr(test, allow(unused_variables))]
+#[allow(clippy::missing_const_for_fn)]
+fn handle_import_help_enter(add_tx: &mpsc::UnboundedSender<PackageItem>) {
     // Skip actual file picker during tests
     #[cfg(not(test))]
     {
         tracing::info!("import: Enter pressed in ImportHelp modal");
-        let add_tx_clone = _add_tx.clone();
+        let add_tx_clone = add_tx.clone();
         std::thread::spawn(move || {
             tracing::info!("import: thread started, opening file picker");
             #[cfg(target_os = "windows")]
@@ -109,7 +111,7 @@ fn handle_import_help_enter(_add_tx: &mpsc::UnboundedSender<PackageItem>) {
                 if let Ok(body) = std::fs::read_to_string(&path) {
                     use std::collections::HashSet;
                     let mut official_names: HashSet<String> = HashSet::new();
-                    for it in crate::index::all_official().iter() {
+                    for it in &crate::index::all_official() {
                         official_names.insert(it.name.to_lowercase());
                     }
                     let mut imported: usize = 0;

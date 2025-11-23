@@ -5,7 +5,7 @@ use crate::state::{AppState, PackageItem};
 /// What: Prefetch details for items near the current selection (alternating above/below).
 ///
 /// Inputs:
-/// - `app`: Mutable application state (results, selected, details_cache)
+/// - `app`: Mutable application state (`results`, `selected`, `details_cache`)
 /// - `details_tx`: Channel to enqueue detail requests
 ///
 /// Output:
@@ -24,26 +24,30 @@ pub fn ring_prefetch_from_selected(
     let max_radius: usize = 30;
     let mut step: usize = 1;
     loop {
-        let mut progressed = false;
-        if let Some(i) = app.selected.checked_sub(step) {
+        let progressed_up = if let Some(i) = app.selected.checked_sub(step) {
             if let Some(it) = app.results.get(i).cloned()
                 && crate::logic::is_allowed(&it.name)
                 && !app.details_cache.contains_key(&it.name)
             {
                 let _ = details_tx.send(it);
             }
-            progressed = true;
-        }
+            true
+        } else {
+            false
+        };
         let below = app.selected + step;
-        if below < len_u {
+        let progressed_down = if below < len_u {
             if let Some(it) = app.results.get(below).cloned()
                 && crate::logic::is_allowed(&it.name)
                 && !app.details_cache.contains_key(&it.name)
             {
                 let _ = details_tx.send(it);
             }
-            progressed = true;
-        }
+            true
+        } else {
+            false
+        };
+        let progressed = progressed_up || progressed_down;
         if step >= max_radius || !progressed {
             break;
         }
@@ -82,9 +86,7 @@ mod tests {
     /// - Uses a short timeout to confirm no unexpected sends occur during the async loop.
     async fn prefetch_noop_on_empty_results() {
         let _guard = crate::global_test_mutex_lock();
-        let mut app = AppState {
-            ..Default::default()
-        };
+        let mut app = AppState::default();
         let (tx, mut rx) = mpsc::unbounded_channel();
         ring_prefetch_from_selected(&mut app, &tx);
         let none = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
@@ -109,14 +111,14 @@ mod tests {
     async fn prefetch_respects_allowed_and_cache() {
         let _guard = crate::global_test_mutex_lock();
         let mut app = AppState {
+            results: vec![
+                item_official("a", "core"),
+                item_official("b", "extra"),
+                item_official("c", "extra"),
+            ],
+            selected: 1,
             ..Default::default()
         };
-        app.results = vec![
-            item_official("a", "core"),
-            item_official("b", "extra"),
-            item_official("c", "extra"),
-        ];
-        app.selected = 1;
         // Disallow b/c except selected, and cache one neighbor
         crate::logic::set_allowed_only_selected(&app);
         app.details_cache.insert(

@@ -17,13 +17,13 @@ use crate::events::preflight::display::build_file_display_items;
 ///
 /// Details:
 /// - Toggles expansion/collapse of dependency trees for selected package.
-pub(crate) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
     if ctx.dependency_info.is_empty() {
         return false;
     }
 
     let mut grouped: HashMap<String, Vec<&crate::state::modal::DependencyInfo>> = HashMap::new();
-    for dep in ctx.dependency_info.iter() {
+    for dep in ctx.dependency_info {
         for req_by in &dep.required_by {
             grouped.entry(req_by.clone()).or_default().push(dep);
         }
@@ -36,7 +36,7 @@ pub(crate) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
             && let Some(pkg_deps) = grouped.get(pkg_name)
         {
             let mut seen_deps = HashSet::new();
-            for dep in pkg_deps.iter() {
+            for dep in pkg_deps {
                 if seen_deps.insert(dep.name.as_str()) {
                     display_items.push((false, String::new()));
                 }
@@ -66,7 +66,7 @@ pub(crate) fn handle_deps_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 ///
 /// Details:
 /// - Toggles expansion/collapse of file trees for selected package.
-pub(crate) fn handle_files_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_files_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
     let display_items = build_file_display_items(ctx.items, ctx.file_info, ctx.file_tree_expanded);
     if let Some((is_header, pkg_name)) = display_items.get(ctx.file_selected)
         && *is_header
@@ -91,14 +91,14 @@ pub(crate) fn handle_files_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 /// Details:
 /// - Toggles expansion/collapse of sandbox dependency trees for selected package.
 /// - Toggles optional dependency selection when on an optdepends entry.
-pub(crate) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+    type SandboxDisplayItem = (bool, String, Option<(&'static str, String)>);
     if ctx.items.is_empty() {
         return false;
     }
 
-    type SandboxDisplayItem = (bool, String, Option<(&'static str, String)>);
     let mut display_items: Vec<SandboxDisplayItem> = Vec::new();
-    for item in ctx.items.iter() {
+    for item in ctx.items {
         let is_aur = matches!(item.source, crate::state::Source::Aur);
         display_items.push((true, item.name.clone(), None));
         if is_aur
@@ -141,7 +141,11 @@ pub(crate) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 
     if let Some((is_header, pkg_name, dep_opt)) = display_items.get(ctx.sandbox_selected) {
         if *is_header {
-            let item = ctx.items.iter().find(|p| p.name == *pkg_name).unwrap();
+            let item = ctx
+                .items
+                .iter()
+                .find(|p| p.name == *pkg_name)
+                .expect("package should exist in items when present in display_items");
             if matches!(item.source, crate::state::Source::Aur) {
                 if ctx.sandbox_tree_expanded.contains(pkg_name) {
                     ctx.sandbox_tree_expanded.remove(pkg_name);
@@ -175,7 +179,7 @@ pub(crate) fn handle_sandbox_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 ///
 /// Details:
 /// - Toggles restart decision for the selected service.
-pub(crate) fn handle_services_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_services_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
     if ctx.service_info.is_empty() {
         return false;
     }
@@ -203,13 +207,13 @@ pub(crate) fn handle_services_tab(ctx: &mut EnterOrSpaceContext<'_>) -> bool {
 /// Details:
 /// - Handles expansion/collapse logic for Deps, Files, and Sandbox tabs.
 /// - Handles service restart decision toggling in Services tab.
-pub(crate) fn handle_enter_or_space(ctx: EnterOrSpaceContext<'_>) -> bool {
+pub(super) fn handle_enter_or_space(ctx: EnterOrSpaceContext<'_>) -> bool {
     let mut ctx = ctx;
     match *ctx.tab {
         crate::state::PreflightTab::Deps => handle_deps_tab(&mut ctx),
         crate::state::PreflightTab::Files => handle_files_tab(&mut ctx),
         crate::state::PreflightTab::Sandbox => handle_sandbox_tab(&mut ctx),
         crate::state::PreflightTab::Services => handle_services_tab(&mut ctx),
-        _ => true, // Default: close modal
+        crate::state::PreflightTab::Summary => true, // Default: close modal
     }
 }

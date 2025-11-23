@@ -29,7 +29,7 @@ pub fn detect_optional_repos(
     let mut artix_world = false;
     let mut artix_system = false;
     let mut manj = false;
-    for it in app.all_results.iter() {
+    for it in &app.all_results {
         if let Source::Official { repo, .. } = &it.source {
             let r = repo.to_lowercase();
             if !eos && crate::index::is_eos_repo(&r) {
@@ -119,13 +119,13 @@ pub fn center_selection(app: &mut AppState, area: Rect) {
         let selected = selected_idx.unwrap_or(0);
         let max_offset = len.saturating_sub(viewport_rows);
         let desired = selected.saturating_sub(viewport_rows / 2).min(max_offset);
-        if app.list_state.offset() != desired {
+        if app.list_state.offset() == desired {
+            // ensure selection is set
+            app.list_state.select(selected_idx);
+        } else {
             let mut st = ratatui::widgets::ListState::default().with_offset(desired);
             st.select(selected_idx);
             app.list_state = st;
-        } else {
-            // ensure selection is set
-            app.list_state.select(selected_idx);
         }
     } else {
         // Small lists: ensure offset is 0 and selection is applied
@@ -139,13 +139,13 @@ pub fn center_selection(app: &mut AppState, area: Rect) {
     }
 }
 
-/// What: Extract all data needed for rendering from AppState in one operation.
+/// What: Extract all data needed for rendering from `AppState` in one operation.
 ///
 /// Inputs:
 /// - `app`: Application state to extract data from
 ///
 /// Output:
-/// - RenderContext containing all extracted values
+/// - `RenderContext` containing all extracted values
 ///
 /// Details:
 /// - Reduces data flow complexity by extracting all needed values in a single function call
@@ -213,6 +213,7 @@ pub fn extract_render_context(app: &AppState) -> RenderContext {
 /// Details:
 /// - Offsets by one cell to exclude borders and reduces width/height accordingly for accurate
 ///   click detection.
+#[allow(clippy::missing_const_for_fn)]
 pub fn record_results_rect(app: &mut AppState, area: Rect) {
     // Record inner results rect for mouse hit-testing (inside borders)
     app.results_rect = Some((

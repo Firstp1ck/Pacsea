@@ -3,7 +3,7 @@ use crate::state::{AppState, SortMode, Source};
 /// What: Apply the currently selected sorting mode to `app.results` in-place.
 ///
 /// Inputs:
-/// - `app`: Mutable application state (results, selected, input, sort_mode)
+/// - `app`: Mutable application state (`results`, `selected`, `input`, `sort_mode`)
 ///
 /// Output:
 /// - Sorts `app.results` and preserves selection by name when possible; otherwise clamps index.
@@ -122,17 +122,17 @@ mod tests {
     /// - Ensures the UI behaviour stays predictable when users toggle sort modes after highlighting a result.
     fn sort_preserve_selection_and_best_matches() {
         let mut app = AppState {
+            results: vec![
+                item_aur("zzz", Some(1.0)),
+                item_official("aaa", "core"),
+                item_official("bbb", "extra"),
+                item_aur("ccc", Some(10.0)),
+            ],
+            selected: 2,
+            sort_mode: SortMode::RepoThenName,
             ..Default::default()
         };
-        app.results = vec![
-            item_aur("zzz", Some(1.0)),
-            item_official("aaa", "core"),
-            item_official("bbb", "extra"),
-            item_aur("ccc", Some(10.0)),
-        ];
-        app.selected = 2;
         app.list_state.select(Some(2));
-        app.sort_mode = SortMode::RepoThenName;
         sort_results_preserve_selection(&mut app);
         assert_eq!(
             app.results
@@ -155,7 +155,7 @@ mod tests {
             app.results
                 .iter()
                 .position(|p| p.name.contains("bb"))
-                .unwrap()
+                .expect("should find package containing 'bb' in test data")
                 <= 1
         );
     }
@@ -173,15 +173,15 @@ mod tests {
     /// - Captures the layered tiebreak logic to catch regressions if repo precedence changes.
     fn sort_bestmatches_tiebreak_repo_then_name() {
         let mut app = AppState {
+            results: vec![
+                item_official("alpha2", "extra"),
+                item_official("alpha1", "extra"),
+                item_official("alpha_core", "core"),
+            ],
+            input: "alpha".into(),
+            sort_mode: SortMode::BestMatches,
             ..Default::default()
         };
-        app.results = vec![
-            item_official("alpha2", "extra"),
-            item_official("alpha1", "extra"),
-            item_official("alpha_core", "core"),
-        ];
-        app.input = "alpha".into();
-        app.sort_mode = SortMode::BestMatches;
         sort_results_preserve_selection(&mut app);
         let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
         assert_eq!(names, vec!["alpha_core", "alpha1", "alpha2"]);
@@ -200,15 +200,15 @@ mod tests {
     /// - Verifies the composite comparator remains stable for UI diffs and regression detection.
     fn sort_aur_popularity_and_official_tiebreaks() {
         let mut app = AppState {
+            results: vec![
+                item_aur("aurB", Some(1.0)),
+                item_aur("aurA", Some(1.0)),
+                item_official("z_off", "core"),
+                item_official("a_off", "extra"),
+            ],
+            sort_mode: SortMode::AurPopularityThenOfficial,
             ..Default::default()
         };
-        app.results = vec![
-            item_aur("aurB", Some(1.0)),
-            item_aur("aurA", Some(1.0)),
-            item_official("z_off", "core"),
-            item_official("a_off", "extra"),
-        ];
-        app.sort_mode = SortMode::AurPopularityThenOfficial;
         sort_results_preserve_selection(&mut app);
         let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
         assert_eq!(names, vec!["aurA", "aurB", "z_off", "a_off"]);

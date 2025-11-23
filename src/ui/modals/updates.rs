@@ -74,7 +74,7 @@ fn calculate_modal_rect(area: Rect) -> Rect {
 /// What: Build all three line vectors for update entries in a single pass.
 ///
 /// Inputs:
-/// - `entries`: Update entries to display (name, old_version, new_version)
+/// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
 /// - `th`: Theme for styling
 ///
 /// Output:
@@ -90,9 +90,9 @@ fn build_update_lines(entries: &[(String, String, String)], th: &Theme) -> Updat
     let mut center_lines = Vec::new();
     let mut right_lines = Vec::new();
 
-    for (name, old_version, new_version) in entries.iter() {
+    for (name, old_version, new_version) in entries {
         // Build left pane line (old versions) - right-aligned with padding
-        let left_text = format!("{} - {}     ", name, old_version);
+        let left_text = format!("{name} - {old_version}     ");
         left_lines.push(Line::from(Span::styled(
             left_text,
             Style::default().fg(th.text),
@@ -105,7 +105,7 @@ fn build_update_lines(entries: &[(String, String, String)], th: &Theme) -> Updat
         )));
 
         // Build right pane line (new versions) with padding
-        let right_text = format!("     {} - {}", name, new_version);
+        let right_text = format!("     {name} - {new_version}");
         right_lines.push(Line::from(Span::styled(
             right_text,
             Style::default().fg(th.text),
@@ -157,7 +157,7 @@ fn render_pane(
 /// - `f`: Frame to render into
 /// - `app`: Mutable application state (records rects)
 /// - `area`: Full screen area used to center the modal
-/// - `entries`: Update entries to display (name, old_version, new_version)
+/// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
 /// - `scroll`: Scroll offset (lines) for the updates list
 ///
 /// Output:

@@ -1,4 +1,4 @@
-//! Common modal handlers (Alert, Help, News, PreflightExec, PostSummary, GnomeTerminalPrompt).
+//! Common modal handlers (Alert, Help, News, `PreflightExec`, `PostSummary`, `GnomeTerminalPrompt`).
 
 use crossterm::event::{KeyCode, KeyEvent};
 
@@ -17,7 +17,7 @@ use crate::state::AppState;
 /// Details:
 /// - Handles Enter/Esc to close, Up/Down for help scrolling
 /// - Returns `true` for Esc to prevent mode toggling in search handler
-pub(crate) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> bool {
+pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> bool {
     let is_help = message.contains("Help") || message.contains("Tab Help");
     match ke.code {
         KeyCode::Esc => {
@@ -56,7 +56,7 @@ pub(crate) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
     }
 }
 
-/// What: Handle key events for PreflightExec modal.
+/// What: Handle key events for `PreflightExec` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -70,7 +70,7 @@ pub(crate) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
 ///
 /// Details:
 /// - Handles Esc/q to close, Enter to show summary, l to toggle verbose, x to abort
-pub(crate) fn handle_preflight_exec(
+pub(super) fn handle_preflight_exec(
     ke: KeyEvent,
     app: &mut AppState,
     verbose: &mut bool,
@@ -93,7 +93,8 @@ pub(crate) fn handle_preflight_exec(
         }
         KeyCode::Char('l') => {
             *verbose = !*verbose;
-            app.toast_message = Some(format!("Verbose: {}", if *verbose { "ON" } else { "OFF" }));
+            let verbose_status = if *verbose { "ON" } else { "OFF" };
+            app.toast_message = Some(format!("Verbose: {verbose_status}"));
         }
         // TODO: implement Logic for aborting the transaction
         KeyCode::Char('x') => {
@@ -106,7 +107,7 @@ pub(crate) fn handle_preflight_exec(
     false
 }
 
-/// What: Handle key events for PostSummary modal.
+/// What: Handle key events for `PostSummary` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -118,7 +119,7 @@ pub(crate) fn handle_preflight_exec(
 ///
 /// Details:
 /// - Handles Esc/Enter/q to close, r for rollback, s for service restart
-pub(crate) fn handle_post_summary(
+pub(super) fn handle_post_summary(
     ke: KeyEvent,
     app: &mut AppState,
     services_pending: &[String],
@@ -154,7 +155,7 @@ pub(crate) fn handle_post_summary(
 /// Details:
 /// - Handles Esc/Enter to close
 /// - Returns `true` for Esc to prevent mode toggling in search handler
-pub(crate) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
+pub(super) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
     match ke.code {
         KeyCode::Esc => {
             app.modal = crate::state::Modal::None;
@@ -181,7 +182,7 @@ pub(crate) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Handles navigation, Enter to open URL, keymap shortcuts for marking read
-pub(crate) fn handle_news(
+pub(super) fn handle_news(
     ke: KeyEvent,
     app: &mut AppState,
     items: &[crate::state::NewsItem],
@@ -196,7 +197,7 @@ pub(crate) fn handle_news(
         return false;
     }
     if crate::events::utils::matches_any(&ke, &km.news_mark_all_read) {
-        for it in items.iter() {
+        for it in items {
             app.news_read_urls.insert(it.url.clone());
         }
         app.news_read_dirty = true;
@@ -232,7 +233,7 @@ pub(crate) fn handle_news(
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `entries`: Update entries list (name, old_version, new_version)
+/// - `entries`: Update entries list (name, `old_version`, `new_version`)
 /// - `scroll`: Mutable scroll offset
 ///
 /// Output:
@@ -240,7 +241,7 @@ pub(crate) fn handle_news(
 ///
 /// Details:
 /// - Handles Esc/Enter to close, Up/Down/PageUp/PageDown for scrolling
-pub(crate) fn handle_updates(
+pub(super) fn handle_updates(
     ke: KeyEvent,
     app: &mut AppState,
     entries: &[(String, String, String)],
@@ -257,7 +258,9 @@ pub(crate) fn handle_updates(
         KeyCode::Down => {
             // Calculate max scroll based on content height
             // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
-            let content_lines = entries.len() as u16 + 4;
+            let content_lines = u16::try_from(entries.len())
+                .unwrap_or(u16::MAX)
+                .saturating_add(4);
             // Estimate visible lines (modal height minus borders and title/footer)
             let max_scroll = content_lines.saturating_sub(10);
             if *scroll < max_scroll {
@@ -268,7 +271,9 @@ pub(crate) fn handle_updates(
             *scroll = scroll.saturating_sub(10);
         }
         KeyCode::PageDown => {
-            let content_lines = entries.len() as u16 + 4;
+            let content_lines = u16::try_from(entries.len())
+                .unwrap_or(u16::MAX)
+                .saturating_add(4);
             let max_scroll = content_lines.saturating_sub(10);
             *scroll = (*scroll + 10).min(max_scroll);
         }
@@ -278,7 +283,9 @@ pub(crate) fn handle_updates(
                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
         {
             // Ctrl+D: page down (20 lines)
-            let content_lines = entries.len() as u16 + 4;
+            let content_lines = u16::try_from(entries.len())
+                .unwrap_or(u16::MAX)
+                .saturating_add(4);
             let max_scroll = content_lines.saturating_sub(10);
             *scroll = (*scroll + 25).min(max_scroll);
         }
@@ -295,7 +302,7 @@ pub(crate) fn handle_updates(
     false
 }
 
-/// What: Handle key events for GnomeTerminalPrompt modal.
+/// What: Handle key events for `GnomeTerminalPrompt` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -306,7 +313,7 @@ pub(crate) fn handle_updates(
 ///
 /// Details:
 /// - Handles Enter to install terminal, Esc to show warning
-pub(crate) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> bool {
+pub(super) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> bool {
     match ke.code {
         KeyCode::Enter => {
             // Install GNOME Terminal, then close the prompt
@@ -314,10 +321,7 @@ pub(crate) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> 
             let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
 
             if app.dry_run {
-                crate::install::spawn_shell_commands_in_terminal(&[format!(
-                    "echo DRY RUN: {}",
-                    cmd
-                )]);
+                crate::install::spawn_shell_commands_in_terminal(&[format!("echo DRY RUN: {cmd}")]);
             } else {
                 crate::install::spawn_shell_commands_in_terminal(&[cmd]);
             }

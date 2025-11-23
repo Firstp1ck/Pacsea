@@ -18,7 +18,7 @@ mod utils;
 
 /// What: Context struct containing all extracted values needed for rendering.
 ///
-/// Inputs: Values extracted from AppState to avoid borrow conflicts.
+/// Inputs: Values extracted from `AppState` to avoid borrow conflicts.
 ///
 /// Output: Grouped context data.
 ///
@@ -37,6 +37,7 @@ pub struct RenderContext {
 /// Output: Struct containing all optional repo flags.
 ///
 /// Details: Used to pass multiple optional repo flags as a single parameter.
+#[allow(clippy::struct_excessive_bools)]
 pub struct OptionalRepos {
     pub has_eos: bool,
     pub has_cachyos: bool,
@@ -57,6 +58,7 @@ pub struct OptionalRepos {
 /// Output: Struct containing all menu states.
 ///
 /// Details: Used to pass multiple menu states as a single parameter.
+#[allow(clippy::struct_excessive_bools)]
 pub struct MenuStates {
     pub sort_menu_open: bool,
     pub config_menu_open: bool,
@@ -71,6 +73,7 @@ pub struct MenuStates {
 /// Output: Struct containing all filter states.
 ///
 /// Details: Used to pass multiple filter states as a single parameter.
+#[allow(clippy::struct_excessive_bools)]
 pub struct FilterStates {
     pub show_aur: bool,
     pub show_core: bool,
@@ -120,7 +123,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     // Render status and sort menu, record rects (all mutate app)
     status::render_status(f, app, area);
-    let btn_x = app.sort_button_rect.map(|(x, _, _, _)| x).unwrap_or(area.x);
+    let btn_x = app.sort_button_rect.map_or(area.x, |(x, _, _, _)| x);
     sort_menu::render_sort_menu(f, app, area, btn_x);
     utils::record_results_rect(app, area);
 }
@@ -129,7 +132,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: Application state for list items and list_state
+/// - `app`: Application state for list items and `list_state`
 /// - `area`: Target rectangle for the results block
 /// - `title_spans`: Pre-built title spans
 ///
@@ -138,7 +141,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 ///
 /// Details:
 /// - Builds list items only for visible viewport to improve performance.
-/// - Mutates app.list_state during rendering.
+/// - Mutates `app.list_state` during rendering.
 fn render_list_widget(
     f: &mut Frame,
     app: &mut AppState,
@@ -201,7 +204,7 @@ mod tests {
     /// What: Initialize minimal English translations for tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
@@ -274,10 +277,8 @@ mod tests {
     fn results_sets_title_button_rects_and_status_rect() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(120, 20);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         // Seed minimal results to render
         app.results = vec![crate::state::PackageItem {
@@ -294,7 +295,7 @@ mod tests {
             let area = f.area();
             render_results(f, &mut app, area);
         })
-        .unwrap();
+        .expect("failed to draw test terminal");
 
         assert!(app.sort_button_rect.is_some());
         assert!(app.options_button_rect.is_some());

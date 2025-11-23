@@ -12,6 +12,7 @@
 /// Details:
 /// - Normalizes repository names and applies special-handling for EOS/CachyOS/Artix classification helpers.
 /// - Unknown repositories are only allowed when every official filter is enabled simultaneously.
+#[must_use]
 pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
     let r = repo.to_lowercase();
     if r == "core" {
@@ -67,9 +68,10 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
 /// - Returns a display label describing the ecosystem the package belongs to.
 ///
 /// Details:
-/// - Distinguishes EndeavourOS, CachyOS, and Artix Linux repos (with specific labels for each Artix repo:
-///   OMNI, UNI, LIB32, GALAXY, WORLD, SYSTEM), and detects Manjaro branding by name/owner heuristics.
+/// - Distinguishes `EndeavourOS`, `CachyOS`, and `Artix Linux` repos (with specific labels for each Artix repo:
+///   `OMNI`, `UNI`, `LIB32`, `GALAXY`, `WORLD`, `SYSTEM`), and detects `Manjaro` branding by name/owner heuristics.
 /// - Falls back to the raw repository string when no special classification matches.
+#[must_use]
 pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     let r = repo.to_lowercase();
     if crate::index::is_eos_repo(&r) {
@@ -115,21 +117,21 @@ mod tests {
     /// Details:
     /// - Ensures the per-repository gate respects the individual boolean flags.
     fn repo_toggle_respects_individual_flags() {
-        let mut app = AppState {
+        let app = AppState {
+            results_filter_show_core: true,
+            results_filter_show_extra: false,
+            results_filter_show_multilib: false,
+            results_filter_show_eos: false,
+            results_filter_show_cachyos: false,
+            results_filter_show_artix: false,
+            results_filter_show_artix_omniverse: false,
+            results_filter_show_artix_universe: false,
+            results_filter_show_artix_lib32: false,
+            results_filter_show_artix_galaxy: false,
+            results_filter_show_artix_world: false,
+            results_filter_show_artix_system: false,
             ..Default::default()
         };
-        app.results_filter_show_core = true;
-        app.results_filter_show_extra = false;
-        app.results_filter_show_multilib = false;
-        app.results_filter_show_eos = false;
-        app.results_filter_show_cachyos = false;
-        app.results_filter_show_artix = false;
-        app.results_filter_show_artix_omniverse = false;
-        app.results_filter_show_artix_universe = false;
-        app.results_filter_show_artix_lib32 = false;
-        app.results_filter_show_artix_galaxy = false;
-        app.results_filter_show_artix_world = false;
-        app.results_filter_show_artix_system = false;
 
         assert!(repo_toggle_for("core", &app));
         assert!(!repo_toggle_for("extra", &app));
@@ -149,20 +151,20 @@ mod tests {
     /// - Exercises the fallback clause guarding unfamiliar repositories.
     fn repo_toggle_unknown_only_with_full_whitelist() {
         let mut app = AppState {
+            results_filter_show_core: true,
+            results_filter_show_extra: true,
+            results_filter_show_multilib: true,
+            results_filter_show_eos: true,
+            results_filter_show_cachyos: true,
+            results_filter_show_artix: true,
+            results_filter_show_artix_omniverse: true,
+            results_filter_show_artix_universe: true,
+            results_filter_show_artix_lib32: true,
+            results_filter_show_artix_galaxy: true,
+            results_filter_show_artix_world: true,
+            results_filter_show_artix_system: true,
             ..Default::default()
         };
-        app.results_filter_show_core = true;
-        app.results_filter_show_extra = true;
-        app.results_filter_show_multilib = true;
-        app.results_filter_show_eos = true;
-        app.results_filter_show_cachyos = true;
-        app.results_filter_show_artix = true;
-        app.results_filter_show_artix_omniverse = true;
-        app.results_filter_show_artix_universe = true;
-        app.results_filter_show_artix_lib32 = true;
-        app.results_filter_show_artix_galaxy = true;
-        app.results_filter_show_artix_world = true;
-        app.results_filter_show_artix_system = true;
 
         assert!(repo_toggle_for("unlisted", &app));
 
@@ -174,7 +176,7 @@ mod tests {
     /// What: Confirm label helper emits ecosystem-specific aliases for recognised repositories.
     ///
     /// Inputs:
-    /// - Repository/name permutations covering EndeavourOS, CachyOS, Artix Linux (with specific repo labels), Manjaro, and a generic repo.
+    /// - Repository/name permutations covering `EndeavourOS`, `CachyOS`, `Artix Linux` (with specific repo labels), `Manjaro`, and a generic repo.
     ///
     /// Output:
     /// - Labels reduce to `EOS`, `CachyOS`, `OMNI`, `UNI` (for specific Artix repos), `Manjaro`, and the original repo name respectively.

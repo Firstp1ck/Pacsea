@@ -20,6 +20,7 @@ use parse_settings::parse_settings;
 ///
 /// Output:
 /// - A `Settings` value; falls back to `Settings::default()` when missing or invalid.
+#[must_use]
 pub fn settings() -> Settings {
     let mut out = Settings::default();
     // Load settings from settings.conf (or legacy pacsea.conf)
@@ -85,14 +86,16 @@ mod tests {
     /// Details:
     /// - Overrides `HOME` to a temp dir and restores it afterwards to avoid polluting the user environment.
     fn settings_parse_values_and_keybinds_with_defaults_on_invalid_sum() {
-        let _guard = crate::theme::test_mutex().lock().unwrap();
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
         let orig_home = std::env::var_os("HOME");
         let base = std::env::temp_dir().join(format!(
             "pacsea_test_settings_{}_{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let cfg = base.join(".config").join("pacsea");
@@ -105,10 +108,11 @@ mod tests {
             &settings_path,
             "layout_left_pct=10\nlayout_center_pct=10\nlayout_right_pct=10\nsort_mode=aur_popularity\nclipboard_suffix=OK\nshow_recent_pane=true\nshow_install_pane=false\nshow_keybinds_footer=true\n",
         )
-        .unwrap();
+        .expect("failed to write test settings file");
         // Write keybinds.conf
         let keybinds_path = cfg.join("keybinds.conf");
-        std::fs::write(&keybinds_path, "keybind_exit = Ctrl+Q\nkeybind_help = F1\n").unwrap();
+        std::fs::write(&keybinds_path, "keybind_exit = Ctrl+Q\nkeybind_help = F1\n")
+            .expect("Failed to write test keybinds file");
 
         let s = super::settings();
         // Invalid layout sum -> defaults

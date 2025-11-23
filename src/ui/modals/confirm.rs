@@ -14,7 +14,7 @@ use crate::theme::theme;
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: AppState for translations
+/// - `app`: `AppState` for translations
 /// - `area`: Full screen area used to center the modal
 /// - `items`: Packages selected for installation
 ///
@@ -24,6 +24,7 @@ use crate::theme::theme;
 /// Details:
 /// - Highlights the heading, truncates the list to fit the modal, and shows instructions for
 ///   confirming, cancelling, or initiating security scans.
+#[allow(clippy::many_single_char_names)]
 pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: &[PackageItem]) {
     let th = theme();
     let w = area.width.saturating_sub(6).min(90);
@@ -50,8 +51,9 @@ pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: 
         )));
     } else {
         for p in items.iter().take((h as usize).saturating_sub(6)) {
+            let p_name = &p.name;
             lines.push(Line::from(Span::styled(
-                format!("- {}", p.name),
+                format!("- {p_name}"),
                 Style::default().fg(th.text),
             )));
         }
@@ -92,7 +94,7 @@ pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: 
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: AppState for translations
+/// - `app`: `AppState` for translations
 /// - `area`: Full screen area used to center the modal
 /// - `items`: Packages scheduled for removal
 ///
@@ -102,6 +104,7 @@ pub fn render_confirm_install(f: &mut Frame, app: &AppState, area: Rect, items: 
 /// Details:
 /// - Emphasizes critical warnings when core packages are present, truncates long lists, and
 ///   instructs on confirm/cancel actions while matching the theme.
+#[allow(clippy::many_single_char_names)]
 pub fn render_confirm_remove(f: &mut Frame, app: &AppState, area: Rect, items: &[PackageItem]) {
     let th = theme();
     let w = area.width.saturating_sub(6).min(90);
@@ -124,7 +127,7 @@ pub fn render_confirm_remove(f: &mut Frame, app: &AppState, area: Rect, items: &
     // Warn explicitly if any core packages are present
     let has_core = items.iter().any(|p| match &p.source {
         crate::state::Source::Official { repo, .. } => repo.eq_ignore_ascii_case("core"),
-        _ => false,
+        crate::state::Source::Aur => false,
     });
     if has_core {
         lines.push(Line::from(Span::styled(
@@ -140,8 +143,9 @@ pub fn render_confirm_remove(f: &mut Frame, app: &AppState, area: Rect, items: &
         )));
     } else {
         for p in items.iter().take((h as usize).saturating_sub(6)) {
+            let p_name = &p.name;
             lines.push(Line::from(Span::styled(
-                format!("- {}", p.name),
+                format!("- {p_name}"),
                 Style::default().fg(th.text),
             )));
         }

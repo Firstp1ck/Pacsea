@@ -28,13 +28,13 @@ use crate::state::{AppState, Modal, PackageItem};
 /// - `true` if the event is fully handled and should not propagate to other handlers; otherwise `false`.
 ///
 /// Details:
-/// - Covers Alert, PreflightExec, PostSummary, SystemUpdate, ConfirmInstall/Remove, Help, News,
-///   OptionalDeps, VirusTotalSetup, ScanConfig, ImportHelp, and other lightweight modals.
+/// - Covers Alert, `PreflightExec`, `PostSummary`, `SystemUpdate`, `ConfirmInstall`/`Remove`, Help, News,
+///   `OptionalDeps`, `VirusTotalSetup`, `ScanConfig`, `ImportHelp`, and other lightweight modals.
 /// - Each branch performs modal-specific mutations (toggles, list navigation, spawning commands) and
 ///   is responsible for clearing or restoring `app.modal` when exiting.
 /// - When a modal should block further processing this function returns `true`, allowing callers to
 ///   short-circuit additional event handling.
-pub(crate) fn handle_modal_key(
+pub(super) fn handle_modal_key(
     ke: KeyEvent,
     app: &mut AppState,
     add_tx: &mpsc::UnboundedSender<PackageItem>,
@@ -42,12 +42,12 @@ pub(crate) fn handle_modal_key(
     // Use a temporary to avoid borrow checker issues
     let modal = std::mem::take(&mut app.modal);
     match modal {
-        Modal::Alert { .. } => handlers::handle_alert_modal(ke, app, modal),
+        Modal::Alert { .. } => handlers::handle_alert_modal(ke, app, &modal),
         Modal::PreflightExec { .. } => handlers::handle_preflight_exec_modal(ke, app, modal),
-        Modal::PostSummary { .. } => handlers::handle_post_summary_modal(ke, app, modal),
+        Modal::PostSummary { .. } => handlers::handle_post_summary_modal(ke, app, &modal),
         Modal::SystemUpdate { .. } => handlers::handle_system_update_modal(ke, app, modal),
-        Modal::ConfirmInstall { .. } => handlers::handle_confirm_install_modal(ke, app, modal),
-        Modal::ConfirmRemove { .. } => handlers::handle_confirm_remove_modal(ke, app, modal),
+        Modal::ConfirmInstall { .. } => handlers::handle_confirm_install_modal(ke, app, &modal),
+        Modal::ConfirmRemove { .. } => handlers::handle_confirm_remove_modal(ke, app, &modal),
         Modal::Help => handlers::handle_help_modal(ke, app, modal),
         Modal::News { .. } => handlers::handle_news_modal(ke, app, modal),
         Modal::Updates { .. } => handlers::handle_updates_modal(ke, app, modal),

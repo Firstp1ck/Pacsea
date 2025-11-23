@@ -15,7 +15,7 @@ use crossterm::event::KeyModifiers;
 /// Details:
 /// - Supports function keys, navigation keys, and single printable characters.
 /// - Normalizes character keys to lowercase for consistent matching.
-pub(crate) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
+pub(super) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
     let t = s.trim();
     // Function keys
     if let Some(num) = t.strip_prefix('F').and_then(|x| x.parse::<u8>().ok()) {
@@ -61,7 +61,7 @@ pub(crate) fn parse_key_identifier(s: &str) -> Option<KeyCode> {
 /// Details:
 /// - Recognizes Ctrl/Alt/Shift/Super modifiers in any case.
 /// - Normalizes `Shift+Tab` to the dedicated `BackTab` key code and clears modifiers.
-pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
+pub(super) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
     // Accept formats like: CTRL+R, Alt+?, Shift+Del, F1, Tab, BackTab, Super+F2
     let mut mods = KeyModifiers::empty();
     let mut key_part: Option<String> = None;
@@ -102,19 +102,19 @@ pub(crate) fn parse_key_chord(spec: &str) -> Option<KeyChord> {
 /// Details:
 /// - Strips trailing comments beginning with `//` or secondary `#` markers.
 /// - Accepts `#RRGGBB` hex and `R,G,B` decimal triplets (0-255 per channel).
-pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
+#[allow(clippy::many_single_char_names)]
+pub(super) fn parse_color_value(s: &str) -> Option<Color> {
     // Trim and strip inline comments (support trailing "// ..." and "# ...").
-    // Preserve a leading '#' for hex values by searching for '#' only after the first char.
+    // Preserve a leading '#' for hex values by searching for '#' only after position 1.
     let mut t = s.trim();
+    // Strip // comments first
     if let Some(i) = t.find("//") {
         t = &t[..i];
     }
-    if let Some(i_rel) = if let Some(stripped) = t.strip_prefix('#') {
-        stripped.find('#').map(|j| j + 1)
-    } else {
-        t.find('#')
-    } {
-        t = &t[..i_rel];
+    // Strip # comments, but preserve leading # for hex colors
+    // Look for # after position 1 (to preserve #RRGGBB format)
+    if let Some(i) = t.char_indices().skip(1).find(|(_, ch)| *ch == '#') {
+        t = &t[..i.0];
     }
     t = t.trim();
     if t.is_empty() {
@@ -138,7 +138,11 @@ pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
         && g <= 255
         && b <= 255
     {
-        return Some(Color::Rgb(r as u8, g as u8, b as u8));
+        return Some(Color::Rgb(
+            u8::try_from(r).unwrap_or(255),
+            u8::try_from(g).unwrap_or(255),
+            u8::try_from(b).unwrap_or(255),
+        ));
     }
     None
 }
@@ -153,7 +157,7 @@ pub(crate) fn parse_color_value(s: &str) -> Option<Color> {
 ///
 /// Details:
 /// - Handles legacy and alternative naming schemes to preserve backwards compatibility.
-pub(crate) fn canonical_for_key(norm: &str) -> Option<&'static str> {
+pub(super) fn canonical_for_key(norm: &str) -> Option<&'static str> {
     match norm {
         // Legacy and comprehensive keys mapped to canonical names
         "base" | "background" | "background_base" => Some("base"),
@@ -186,7 +190,7 @@ pub(crate) fn canonical_for_key(norm: &str) -> Option<&'static str> {
 ///
 /// Details:
 /// - Favors descriptive names (e.g., `overlay_primary`) when available.
-pub(crate) fn canonical_to_preferred(canon: &str) -> String {
+pub(super) fn canonical_to_preferred(canon: &str) -> String {
     match canon {
         "base" => "background_base",
         "mantle" => "background_mantle",
@@ -223,7 +227,7 @@ pub(crate) fn canonical_to_preferred(canon: &str) -> String {
 ///
 /// Details:
 /// - Normalizes keys, suggests close matches, and validates color formats before inserting.
-pub(crate) fn apply_override_to_map(
+pub(super) fn apply_override_to_map(
     map: &mut std::collections::HashMap<String, Color>,
     key: &str,
     value: &str,
@@ -249,13 +253,16 @@ pub(crate) fn apply_override_to_map(
         errors.push(format!("- Missing value for '{key}' on line {line_no}"));
         return;
     }
-    if let Some(c) = parse_color_value(value) {
-        map.insert(canon.to_string(), c);
-    } else {
-        errors.push(format!(
-            "- Invalid color for '{key}' on line {line_no} (use #RRGGBB or R,G,B)"
-        ));
-    }
+    parse_color_value(value).map_or_else(
+        || {
+            errors.push(format!(
+                "- Invalid color for '{key}' on line {line_no} (use #RRGGBB or R,G,B)"
+            ));
+        },
+        |c| {
+            map.insert(canon.to_string(), c);
+        },
+    );
 }
 
 /// What: Suggest the canonical key closest to a potentially misspelled input.
@@ -268,7 +275,7 @@ pub(crate) fn apply_override_to_map(
 ///
 /// Details:
 /// - Computes Levenshtein distance across the small known key set for quick suggestion hints.
-pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
+pub(super) fn nearest_key(input: &str) -> Option<&'static str> {
     // Very small domain; simple Levenshtein distance is fine
     const CANON: [&str; 16] = [
         "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text",
@@ -277,7 +284,7 @@ pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
     let mut best: Option<(&'static str, usize)> = None;
     for &k in &CANON {
         let d = levenshtein(input, k);
-        if best.map(|(_, bd)| d < bd).unwrap_or(true) {
+        if best.is_none_or(|(_, bd)| d < bd) {
             best = Some((k, d));
         }
     }
@@ -295,7 +302,7 @@ pub(crate) fn nearest_key(input: &str) -> Option<&'static str> {
 ///
 /// Details:
 /// - Uses a rolling dynamic programming table to reduce allocations while iterating.
-pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
+pub(super) fn levenshtein(a: &str, b: &str) -> usize {
     let m = b.len();
     let mut dp: Vec<usize> = (0..=m).collect();
     for (i, ca) in a.chars().enumerate() {
@@ -303,7 +310,7 @@ pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
         dp[0] = i + 1;
         for (j, cb) in b.chars().enumerate() {
             let tmp = dp[j + 1];
-            let cost = if ca == cb { 0 } else { 1 };
+            let cost = usize::from(ca != cb);
             dp[j + 1] = std::cmp::min(std::cmp::min(dp[j + 1] + 1, dp[j] + 1), prev + cost);
             prev = tmp;
         }
@@ -321,16 +328,15 @@ pub(crate) fn levenshtein(a: &str, b: &str) -> usize {
 ///
 /// Details:
 /// - Strips trailing `//` sections and secondary `#` characters without harming leading `#RRGGBB` values.
-pub(crate) fn strip_inline_comment(mut s: &str) -> &str {
+pub(super) fn strip_inline_comment(mut s: &str) -> &str {
+    // Strip // comments first
     if let Some(i) = s.find("//") {
         s = &s[..i];
     }
-    if let Some(i_rel) = if let Some(stripped) = s.strip_prefix('#') {
-        stripped.find('#').map(|j| j + 1)
-    } else {
-        s.find('#')
-    } {
-        s = &s[..i_rel];
+    // Strip # comments, but preserve leading # for hex colors
+    // Look for # after position 1 (to preserve #RRGGBB format)
+    if let Some(i) = s.char_indices().skip(1).find(|(_, ch)| *ch == '#') {
+        s = &s[..i.0];
     }
     s.trim()
 }
@@ -354,13 +360,13 @@ mod tests {
         assert_eq!(parse_key_identifier("F5"), Some(KeyCode::F(5)));
         assert_eq!(parse_key_identifier("?"), Some(KeyCode::Char('?')));
         assert_eq!(parse_key_identifier("Backspace"), Some(KeyCode::Backspace));
-        let kc = parse_key_chord("Ctrl+R").unwrap();
+        let kc = parse_key_chord("Ctrl+R").expect("Ctrl+R should be a valid key chord");
         assert_eq!(kc.code, KeyCode::Char('r'));
         assert!(kc.mods.contains(KeyModifiers::CONTROL));
-        let bt = parse_key_chord("Shift+Tab").unwrap();
+        let bt = parse_key_chord("Shift+Tab").expect("Shift+Tab should be a valid key chord");
         assert_eq!(bt.code, KeyCode::BackTab);
         assert!(bt.mods.is_empty());
-        let sr = parse_key_chord("Shift+R").unwrap();
+        let sr = parse_key_chord("Shift+R").expect("Shift+R should be a valid key chord");
         assert_eq!(sr.code, KeyCode::Char('r'));
         assert!(sr.mods.contains(KeyModifiers::SHIFT));
         assert!(!sr.mods.contains(KeyModifiers::CONTROL));

@@ -20,9 +20,10 @@ Details:
 /// - Appends overall risk calculation commands to the vector.
 ///
 /// Details:
-/// - Aggregates scores from ShellCheck, ClamAV, Trivy, Semgrep, VirusTotal, and Custom scans.
+/// - Aggregates scores from `ShellCheck`, `ClamAV`, `Trivy`, `Semgrep`, `VirusTotal`, and Custom scans.
 /// - Calculates overall percentage and tier (LOW/MEDIUM/HIGH/CRITICAL).
 #[cfg(not(target_os = "windows"))]
+#[allow(clippy::all, clippy::literal_string_with_formatting_args)] // Shell variable syntax ${VAR:-default} in raw strings - false positive
 pub fn add_overall_risk_calc(cmds: &mut Vec<String>) {
     cmds.push(
         r#"(
@@ -107,13 +108,13 @@ pub fn add_overall_risk_calc(cmds: &mut Vec<String>) {
     );
 }
 
-/// What: Add ClamAV summary commands to command vector.
+/// What: Add `ClamAV` summary commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
 ///
 /// Output:
-/// - Appends ClamAV summary commands to the vector.
+/// - Appends `ClamAV` summary commands to the vector.
 #[cfg(not(target_os = "windows"))]
 pub fn add_clamav_summary(cmds: &mut Vec<String>) {
     cmds.push(
@@ -196,13 +197,13 @@ fi"#
     );
 }
 
-/// What: Add ShellCheck summary commands to command vector.
+/// What: Add `ShellCheck` summary commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
 ///
 /// Output:
-/// - Appends ShellCheck summary commands to the vector.
+/// - Appends `ShellCheck` summary commands to the vector.
 #[cfg(not(target_os = "windows"))]
 pub fn add_shellcheck_summary(cmds: &mut Vec<String>) {
     cmds.push(
@@ -220,13 +221,13 @@ fi"#
     );
 }
 
-/// What: Add ShellCheck risk evaluation summary commands to command vector.
+/// What: Add `ShellCheck` risk evaluation summary commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
 ///
 /// Output:
-/// - Appends ShellCheck risk evaluation summary commands to the vector.
+/// - Appends `ShellCheck` risk evaluation summary commands to the vector.
 #[cfg(not(target_os = "windows"))]
 pub fn add_shellcheck_risk_summary(cmds: &mut Vec<String>) {
     cmds.push(
@@ -239,13 +240,13 @@ fi"#
     );
 }
 
-/// What: Add custom scan and VirusTotal summary commands to command vector.
+/// What: Add custom scan and `VirusTotal` summary commands to command vector.
 ///
 /// Input:
 /// - `cmds`: Mutable reference to command vector to append to.
 ///
 /// Output:
-/// - Appends custom scan and VirusTotal summary commands to the vector.
+/// - Appends custom scan and `VirusTotal` summary commands to the vector.
 #[cfg(not(target_os = "windows"))]
 pub fn add_custom_and_vt_summary(cmds: &mut Vec<String>) {
     cmds.push(

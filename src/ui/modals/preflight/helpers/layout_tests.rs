@@ -1,8 +1,8 @@
-//! Unit tests for calculate_modal_layout function.
+//! Unit tests for `calculate_modal_layout` function.
 
 use super::layout;
 
-/// What: Test calculate_modal_layout with standard area.
+/// What: Test `calculate_modal_layout` with standard area.
 ///
 /// Inputs:
 /// - `area`: Standard terminal area (120x40)
@@ -36,7 +36,7 @@ fn test_calculate_modal_layout_standard() {
     assert_eq!(keybinds_rect.height, 4);
 }
 
-/// What: Test calculate_modal_layout with small area.
+/// What: Test `calculate_modal_layout` with small area.
 ///
 /// Inputs:
 /// - `area`: Small terminal area (50x20)
@@ -65,7 +65,7 @@ fn test_calculate_modal_layout_small() {
     assert!(content_rect.height + keybinds_rect.height <= modal_rect.height);
 }
 
-/// What: Test calculate_modal_layout with maximum constraints.
+/// What: Test `calculate_modal_layout` with maximum constraints.
 ///
 /// Inputs:
 /// - `area`: Very large terminal area (200x100)
@@ -92,7 +92,7 @@ fn test_calculate_modal_layout_max_constraints() {
     assert_eq!(modal_rect.height, 32);
 }
 
-/// What: Test calculate_modal_layout with offset area.
+/// What: Test `calculate_modal_layout` with offset area.
 ///
 /// Inputs:
 /// - `area`: Area with non-zero offset (x=10, y=5)

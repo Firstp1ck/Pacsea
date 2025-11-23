@@ -123,7 +123,7 @@ fn has_incomplete_data(
 /// - Shows different headers for install vs remove actions.
 fn render_summary_header(
     app: &AppState,
-    action: &PreflightAction,
+    action: PreflightAction,
     stats: &DepStats,
     items_count: usize,
     has_incomplete: bool,
@@ -135,7 +135,7 @@ fn render_summary_header(
         return lines;
     }
 
-    if matches!(*action, PreflightAction::Remove) {
+    if matches!(action, PreflightAction::Remove) {
         let count_text = format_count_with_indicator(stats.total, items_count, has_incomplete);
         lines.push(Line::from(Span::styled(
             i18n::t_fmt1(
@@ -147,7 +147,6 @@ fn render_summary_header(
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )));
-        lines.push(Line::from(""));
     } else {
         let mut summary_parts = Vec::new();
         let total_text = format_count_with_indicator(stats.total, items_count, has_incomplete);
@@ -211,8 +210,8 @@ fn render_summary_header(
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )));
-        lines.push(Line::from(""));
     }
+    lines.push(Line::from(""));
 
     lines
 }
@@ -233,15 +232,15 @@ fn render_summary_header(
 /// - Shows different messages for install vs remove, with error handling.
 fn render_empty_state(
     app: &AppState,
-    action: &PreflightAction,
+    action: PreflightAction,
     items: &[PackageItem],
     is_resolving: bool,
-    deps_error: &Option<String>,
+    deps_error: Option<&String>,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
 
-    if !matches!(*action, PreflightAction::Install) {
+    if !matches!(action, PreflightAction::Install) {
         lines.push(Line::from(Span::styled(
             i18n::t(app, "app.modals.preflight.deps.no_deps_for_removal"),
             Style::default().fg(th.subtext1),
@@ -253,7 +252,7 @@ fn render_empty_state(
         for pkg_name in items.iter().map(|p| &p.name) {
             let mut spans = Vec::new();
             spans.push(Span::styled(
-                format!("▶ {} ", pkg_name),
+                format!("▶ {pkg_name} "),
                 Style::default()
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
@@ -280,7 +279,7 @@ fn render_empty_state(
         for pkg_name in items.iter().map(|p| &p.name) {
             let mut spans = Vec::new();
             spans.push(Span::styled(
-                format!("▶ {} ", pkg_name),
+                format!("▶ {pkg_name} "),
                 Style::default()
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
@@ -306,7 +305,7 @@ fn render_empty_state(
 /// - `dep_tree_expanded`: Set of expanded package names.
 ///
 /// Output:
-/// - Returns vector of (is_header, header_name, optional_dep) tuples.
+/// - Returns vector of (`is_header`, `header_name`, `optional_dep`) tuples.
 ///
 /// Details:
 /// - Includes all packages even if they have no dependencies.
@@ -322,7 +321,7 @@ fn build_display_items<'a>(
 
         if is_expanded && let Some(pkg_deps) = grouped.get(pkg_name) {
             let mut seen_deps = HashSet::new();
-            for dep in pkg_deps.iter() {
+            for dep in pkg_deps {
                 if seen_deps.insert(dep.name.as_str()) {
                     display_items.push((false, String::new(), Some(*dep)));
                 }
@@ -340,7 +339,7 @@ fn build_display_items<'a>(
 /// - `dep_selected`: Currently selected index (mutable).
 ///
 /// Output:
-/// - Returns (start_idx, end_idx) tuple for viewport range.
+/// - Returns (`start_idx`, `end_idx`) tuple for viewport range.
 ///
 /// Details:
 /// - Clamps selected index and calculates centered viewport.
@@ -401,7 +400,7 @@ fn render_package_header(
             .add_modifier(Modifier::BOLD)
     };
     spans.push(Span::styled(
-        format!("{} {} ", arrow_symbol, header_name),
+        format!("{arrow_symbol} {header_name} "),
         header_style,
     ));
 
@@ -412,7 +411,7 @@ fn render_package_header(
             .filter(|dep| seen_deps.insert(dep.name.as_str()))
             .count();
         spans.push(Span::styled(
-            format!("({} deps)", dep_count),
+            format!("({dep_count} deps)"),
             Style::default().fg(th.subtext1),
         ));
     } else {
@@ -452,7 +451,7 @@ fn render_dependency_item(
         DependencyStatus::Missing => ("?", th.red),
     };
     spans.push(Span::styled(
-        format!("{} ", status_icon),
+        format!("{status_icon} "),
         Style::default().fg(status_color),
     ));
 
@@ -483,7 +482,7 @@ fn render_dependency_item(
             } else {
                 th.green
             };
-            (format!(" [{}]", repo), color)
+            (format!(" [{repo}]"), color)
         }
         DependencySource::Aur => (" [AUR]".to_string(), th.yellow),
         DependencySource::Local => (" [local]".to_string(), th.overlay1),
@@ -511,13 +510,13 @@ fn render_dependency_item(
         }
         DependencyStatus::ToUpgrade { current, required } => {
             spans.push(Span::styled(
-                format!(" ({} → {})", current, required),
+                format!(" ({current} → {required})"),
                 Style::default().fg(th.yellow),
             ));
         }
         DependencyStatus::Conflict { reason } => {
             spans.push(Span::styled(
-                format!(" ({})", reason),
+                format!(" ({reason})"),
                 Style::default().fg(th.red),
             ));
         }
@@ -549,11 +548,11 @@ fn render_dependency_item(
 pub fn render_deps_tab(
     app: &AppState,
     items: &[PackageItem],
-    action: &PreflightAction,
+    action: PreflightAction,
     dependency_info: &[DependencyInfo],
     dep_selected: &mut usize,
     dep_tree_expanded: &HashSet<String>,
-    deps_error: &Option<String>,
+    deps_error: Option<&String>,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
     let th = theme();
@@ -562,7 +561,7 @@ pub fn render_deps_tab(
     // Group dependencies by the packages that require them and deduplicate
     let mut grouped: HashMap<String, Vec<&DependencyInfo>> = HashMap::new();
     let mut unique_deps: HashMap<String, &DependencyInfo> = HashMap::new();
-    for dep in dependency_info.iter() {
+    for dep in dependency_info {
         unique_deps.entry(dep.name.clone()).or_insert(dep);
         for req_by in &dep.required_by {
             grouped.entry(req_by.clone()).or_default().push(dep);

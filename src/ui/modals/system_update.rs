@@ -28,6 +28,7 @@ use crate::theme::theme;
 /// Details:
 /// - Formats checkbox rows, displays the effective country list from settings, and surfaces key
 ///   hints for toggling, adjusting country, and running the update.
+#[allow(clippy::many_single_char_names, clippy::fn_params_excessive_bools)]
 pub fn render_system_update(
     f: &mut Frame,
     app: &AppState,
@@ -110,7 +111,7 @@ pub fn render_system_update(
     let conf_countries = if prefs.selected_countries.trim().is_empty() {
         worldwide_text.clone()
     } else {
-        prefs.selected_countries.clone()
+        prefs.selected_countries
     };
     // If Worldwide is selected, show the configured countries
     let shown_countries = if country_label == &worldwide_text {

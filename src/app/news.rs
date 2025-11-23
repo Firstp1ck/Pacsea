@@ -49,18 +49,23 @@ pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     let mut month: u32 = 1;
     let mut day: u64 = days;
 
-    for &days_in_m in days_in_month.iter() {
-        if day < days_in_m as u64 {
+    for &days_in_m in &days_in_month {
+        let days_in_m_u64 = u64::try_from(days_in_m).unwrap_or(0);
+        if day < days_in_m_u64 {
             break;
         }
-        day -= days_in_m as u64;
+        day -= days_in_m_u64;
         month += 1;
     }
 
-    Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
+    Some((
+        year,
+        month,
+        u32::try_from(day).expect("day fits in u32") + 1,
+    )) // +1 because day is 0-indexed
 }
 
-fn is_leap_year(year: i32) -> bool {
+const fn is_leap_year(year: i32) -> bool {
     // What: Determine whether a Gregorian calendar year is a leap year.
     // Inputs: `year` is a four-digit Gregorian year expressed as an i32.
     // Output: true when the year is divisible by 4 but not 100, unless divisible by 400.
@@ -108,6 +113,7 @@ fn parse_month_name(m_s: &str) -> Option<u32> {
 /// Output:
 /// - `Some((y, m, d))` for recognized and valid dates; `None` otherwise.
 #[cfg_attr(not(test), allow(dead_code))]
+#[allow(clippy::many_single_char_names)]
 pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
     let t = s.trim();
     // Case 1: ISO: YYYY-MM-DD

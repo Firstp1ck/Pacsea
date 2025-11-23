@@ -32,12 +32,12 @@ pub async fn refresh_installed_cache() {
 ///
 /// Details:
 /// - Acquires a read lock and defers to `HashSet::contains`, returning false on lock poisoning.
+#[must_use]
 pub fn is_installed(name: &str) -> bool {
     installed_lock()
         .read()
         .ok()
-        .map(|s| s.contains(name))
-        .unwrap_or(false)
+        .is_some_and(|s| s.contains(name))
 }
 
 #[cfg(test)]
@@ -56,7 +56,7 @@ mod tests {
     fn is_installed_returns_false_when_uninitialized_or_missing() {
         let _guard = crate::global_test_mutex()
             .lock()
-            .unwrap_or_else(|e| e.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Ok(mut g) = super::installed_lock().write() {
             g.clear();
         }
@@ -77,7 +77,7 @@ mod tests {
     fn is_installed_checks_membership_in_cached_set() {
         let _guard = crate::global_test_mutex()
             .lock()
-            .unwrap_or_else(|e| e.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Ok(mut g) = super::installed_lock().write() {
             g.clear();
             g.insert("bar".to_string());
@@ -100,13 +100,6 @@ mod tests {
     /// Details:
     /// - Exercises the async refresh path, ensures PATH is restored, and verifies cache contents via helper accessors.
     async fn refresh_installed_cache_populates_cache_from_pacman_output() {
-        let _guard = crate::global_test_mutex_lock();
-
-        if let Ok(mut g) = super::installed_lock().write() {
-            g.clear();
-        }
-
-        let original_path = std::env::var("PATH").unwrap_or_default();
         struct PathGuard {
             original: String,
         }
@@ -117,6 +110,13 @@ mod tests {
                 }
             }
         }
+        let _guard = crate::global_test_mutex_lock();
+
+        if let Ok(mut g) = super::installed_lock().write() {
+            g.clear();
+        }
+
+        let original_path = std::env::var("PATH").unwrap_or_default();
         let _path_guard = PathGuard {
             original: original_path.clone(),
         };
@@ -127,13 +127,13 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).expect("failed to create test root directory");
         let mut bin = root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("failed to create test bin directory");
         let mut script = bin.clone();
         script.push("pacman");
         let body = r#"#!/usr/bin/env bash
@@ -145,15 +145,18 @@ if [[ "$1" == "-Qq" ]]; then
 fi
 exit 1
 "#;
-        std::fs::write(&script, body).unwrap();
+        std::fs::write(&script, body).expect("failed to write test pacman script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            let mut perm = std::fs::metadata(&script)
+                .expect("failed to read test pacman script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&script, perm).unwrap();
+            std::fs::set_permissions(&script, perm)
+                .expect("failed to set test pacman script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), original_path);
+        let new_path = format!("{}:{original_path}", bin.to_string_lossy());
         unsafe {
             std::env::set_var("PATH", &new_path);
         }

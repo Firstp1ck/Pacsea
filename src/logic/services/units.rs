@@ -22,7 +22,7 @@ use super::command::run_command;
 /// - Executes `pacman -Fl <package>` and filters paths under the standard
 ///   systemd directories.
 /// - For AUR packages, uses fallback methods (installed files, paru/yay -Fl).
-pub(crate) fn collect_service_units_for_package(
+pub(super) fn collect_service_units_for_package(
     package: &str,
     source: &Source,
 ) -> Result<Vec<String>, String> {
@@ -32,7 +32,7 @@ pub(crate) fn collect_service_units_for_package(
             let output = run_command(
                 "pacman",
                 &["-Fl", package],
-                &format!("pacman -Fl {}", package),
+                &format!("pacman -Fl {package}"),
             )?;
             let units = extract_service_units_from_file_list(&output, package);
             Ok(units)
@@ -45,7 +45,7 @@ pub(crate) fn collect_service_units_for_package(
             {
                 let file_list = installed_files
                     .iter()
-                    .map(|f| format!("{} {}", package, f))
+                    .map(|f| format!("{package} {f}"))
                     .collect::<Vec<_>>()
                     .join("\n");
                 let units = extract_service_units_from_file_list(&file_list, package);
@@ -131,14 +131,13 @@ pub(crate) fn collect_service_units_for_package(
 /// - Recognises units residing under `/usr/lib/systemd/system/` or the legacy
 ///   `/lib/systemd/system/` prefixes.
 /// - Discards duplicate unit entries while preserving discovery order.
-pub(crate) fn extract_service_units_from_file_list(file_list: &str, package: &str) -> Vec<String> {
+pub(super) fn extract_service_units_from_file_list(file_list: &str, package: &str) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut units = Vec::new();
 
     for line in file_list.lines() {
-        let (pkg, raw_path) = match line.split_once(' ') {
-            Some(parts) => parts,
-            None => continue,
+        let Some((pkg, raw_path)) = line.split_once(' ') else {
+            continue;
         };
         if pkg != package {
             continue;
@@ -152,7 +151,7 @@ pub(crate) fn extract_service_units_from_file_list(file_list: &str, package: &st
         if let Some(file_name) = Path::new(path)
             .file_name()
             .and_then(|name| name.to_str())
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .filter(|name| seen.insert(name.clone()))
         {
             units.push(file_name);
@@ -173,7 +172,7 @@ pub(crate) fn extract_service_units_from_file_list(file_list: &str, package: &st
 ///
 /// Details:
 /// - Supports both `/usr/lib/systemd/system` and `/lib/systemd/system` roots.
-pub(crate) fn is_service_path(path: &str) -> bool {
+pub(super) fn is_service_path(path: &str) -> bool {
     const PREFIXES: [&str; 2] = ["/usr/lib/systemd/system/", "/lib/systemd/system/"];
     PREFIXES
         .iter()

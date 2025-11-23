@@ -19,27 +19,27 @@ use crate::state::{AppState, Modal, PackageItem};
 /// Details:
 /// - Delegates to common handler and handles restoration
 /// - Returns the result from common handler to prevent event propagation when Esc is pressed
-pub(crate) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
-    if let Modal::Alert { ref message } = modal {
+pub(super) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal) -> bool {
+    if let Modal::Alert { message } = modal {
         super::common::handle_alert(ke, app, message)
     } else {
         false
     }
 }
 
-/// What: Handle key events for PreflightExec modal, including restoration logic.
+/// What: Handle key events for `PreflightExec` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: PreflightExec modal variant
+/// - `modal`: `PreflightExec` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
 ///
 /// Details:
 /// - Delegates to common handler, updates verbose flag, and restores modal if needed
-pub(crate) fn handle_preflight_exec_modal(
+pub(super) fn handle_preflight_exec_modal(
     ke: KeyEvent,
     app: &mut AppState,
     mut modal: Modal,
@@ -73,26 +73,26 @@ pub(crate) fn handle_preflight_exec_modal(
     false
 }
 
-/// What: Handle key events for PostSummary modal, including restoration logic.
+/// What: Handle key events for `PostSummary` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: PostSummary modal variant
+/// - `modal`: `PostSummary` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
 ///
 /// Details:
 /// - Delegates to common handler and restores modal if needed
-pub(crate) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
+pub(super) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal) -> bool {
     if let Modal::PostSummary {
-        ref success,
-        ref changed_files,
-        ref pacnew_count,
-        ref pacsave_count,
-        ref services_pending,
-        ref snapshot_label,
+        success,
+        changed_files,
+        pacnew_count,
+        pacsave_count,
+        services_pending,
+        snapshot_label,
     } = modal
     {
         super::common::handle_post_summary(ke, app, services_pending);
@@ -113,19 +113,19 @@ pub(crate) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal:
     false
 }
 
-/// What: Handle key events for SystemUpdate modal, including restoration logic.
+/// What: Handle key events for `SystemUpdate` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: SystemUpdate modal variant
+/// - `modal`: `SystemUpdate` modal variant
 ///
 /// Output:
 /// - `true` if event propagation should stop, otherwise `false`
 ///
 /// Details:
-/// - Delegates to system_update handler and restores modal if needed
-pub(crate) fn handle_system_update_modal(
+/// - Delegates to `system_update` handler and restores modal if needed
+pub(super) fn handle_system_update_modal(
     ke: KeyEvent,
     app: &mut AppState,
     mut modal: Modal,
@@ -172,39 +172,43 @@ pub(crate) fn handle_system_update_modal(
     false
 }
 
-/// What: Handle key events for ConfirmInstall modal.
+/// What: Handle key events for `ConfirmInstall` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: ConfirmInstall modal variant
+/// - `modal`: `ConfirmInstall` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
 ///
 /// Details:
 /// - Delegates to install handler
-pub(crate) fn handle_confirm_install_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
-    if let Modal::ConfirmInstall { ref items } = modal {
+pub(super) fn handle_confirm_install_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ConfirmInstall { items } = modal {
         super::install::handle_confirm_install(ke, app, items);
     }
     false
 }
 
-/// What: Handle key events for ConfirmRemove modal.
+/// What: Handle key events for `ConfirmRemove` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: ConfirmRemove modal variant
+/// - `modal`: `ConfirmRemove` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
 ///
 /// Details:
 /// - Delegates to install handler
-pub(crate) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
-    if let Modal::ConfirmRemove { ref items } = modal {
+pub(super) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal) -> bool {
+    if let Modal::ConfirmRemove { items } = modal {
         super::install::handle_confirm_remove(ke, app, items);
     }
     false
@@ -222,7 +226,7 @@ pub(crate) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, moda
 ///
 /// Details:
 /// - Delegates to common handler
-pub(crate) fn handle_help_modal(ke: KeyEvent, app: &mut AppState, _modal: Modal) -> bool {
+pub(super) fn handle_help_modal(ke: KeyEvent, app: &mut AppState, _modal: Modal) -> bool {
     super::common::handle_help(ke, app)
 }
 
@@ -238,7 +242,7 @@ pub(crate) fn handle_help_modal(ke: KeyEvent, app: &mut AppState, _modal: Modal)
 ///
 /// Details:
 /// - Delegates to common handler and restores modal if needed
-pub(crate) fn handle_news_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
+pub(super) fn handle_news_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
     if let Modal::News {
         ref items,
         ref mut selected,
@@ -269,7 +273,7 @@ pub(crate) fn handle_news_modal(ke: KeyEvent, app: &mut AppState, mut modal: Mod
 ///
 /// Details:
 /// - Delegates to common handler and restores modal if needed
-pub(crate) fn handle_updates_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
+pub(super) fn handle_updates_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
     if let Modal::Updates {
         ref entries,
         ref mut scroll,
@@ -288,19 +292,19 @@ pub(crate) fn handle_updates_modal(ke: KeyEvent, app: &mut AppState, mut modal: 
     false
 }
 
-/// What: Handle key events for OptionalDeps modal, including restoration logic.
+/// What: Handle key events for `OptionalDeps` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: OptionalDeps modal variant
+/// - `modal`: `OptionalDeps` modal variant
 ///
 /// Output:
 /// - `true` if event propagation should stop, otherwise `false`
 ///
 /// Details:
-/// - Delegates to optional_deps handler and restores modal if needed
-pub(crate) fn handle_optional_deps_modal(
+/// - Delegates to `optional_deps` handler and restores modal if needed
+pub(super) fn handle_optional_deps_modal(
     ke: KeyEvent,
     app: &mut AppState,
     mut modal: Modal,
@@ -324,19 +328,19 @@ pub(crate) fn handle_optional_deps_modal(
     false
 }
 
-/// What: Handle key events for ScanConfig modal, including restoration logic.
+/// What: Handle key events for `ScanConfig` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: ScanConfig modal variant
+/// - `modal`: `ScanConfig` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
 ///
 /// Details:
 /// - Delegates to scan handler and restores modal if needed
-pub(crate) fn handle_scan_config_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
+pub(super) fn handle_scan_config_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
     if let Modal::ScanConfig {
         ref mut do_clamav,
         ref mut do_trivy,
@@ -378,19 +382,19 @@ pub(crate) fn handle_scan_config_modal(ke: KeyEvent, app: &mut AppState, mut mod
     false
 }
 
-/// What: Handle key events for VirusTotalSetup modal, including restoration logic.
+/// What: Handle key events for `VirusTotalSetup` modal, including restoration logic.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: VirusTotalSetup modal variant
+/// - `modal`: `VirusTotalSetup` modal variant
 ///
 /// Output:
 /// - `false` (never stops propagation)
 ///
 /// Details:
 /// - Delegates to scan handler and restores modal if needed
-pub(crate) fn handle_virustotal_setup_modal(
+pub(super) fn handle_virustotal_setup_modal(
     ke: KeyEvent,
     app: &mut AppState,
     mut modal: Modal,
@@ -413,19 +417,19 @@ pub(crate) fn handle_virustotal_setup_modal(
     false
 }
 
-/// What: Handle key events for GnomeTerminalPrompt modal.
+/// What: Handle key events for `GnomeTerminalPrompt` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `modal`: GnomeTerminalPrompt modal variant (unit type)
+/// - `modal`: `GnomeTerminalPrompt` modal variant (unit type)
 ///
 /// Output:
 /// - `false` (never stops propagation)
 ///
 /// Details:
 /// - Delegates to common handler
-pub(crate) fn handle_gnome_terminal_prompt_modal(
+pub(super) fn handle_gnome_terminal_prompt_modal(
     ke: KeyEvent,
     app: &mut AppState,
     _modal: Modal,
@@ -434,20 +438,20 @@ pub(crate) fn handle_gnome_terminal_prompt_modal(
     false
 }
 
-/// What: Handle key events for ImportHelp modal.
+/// What: Handle key events for `ImportHelp` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
 /// - `add_tx`: Channel for adding packages
-/// - `modal`: ImportHelp modal variant (unit type)
+/// - `modal`: `ImportHelp` modal variant (unit type)
 ///
 /// Output:
 /// - `false` (never stops propagation)
 ///
 /// Details:
 /// - Delegates to import handler
-pub(crate) fn handle_import_help_modal(
+pub(super) fn handle_import_help_modal(
     ke: KeyEvent,
     app: &mut AppState,
     add_tx: &mpsc::UnboundedSender<PackageItem>,

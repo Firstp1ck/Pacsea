@@ -28,6 +28,7 @@ pub struct ServiceCache {
 ///
 /// Details:
 /// - Clones each package name and sorts the collection alphabetically.
+#[must_use]
 pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> {
     let mut names: Vec<String> = packages.iter().map(|p| p.name.clone()).collect();
     names.sort();
@@ -60,9 +61,8 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<Se
         if cached_sig == current_sig {
             tracing::info!(path = %path.display(), count = cache.services.len(), "loaded service cache");
             return Some(cache.services);
-        } else {
-            tracing::debug!(path = %path.display(), "service cache signature mismatch, ignoring");
         }
+        tracing::debug!(path = %path.display(), "service cache signature mismatch, ignoring");
     }
     None
 }
@@ -105,7 +105,7 @@ mod tests {
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         path

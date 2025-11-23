@@ -14,7 +14,7 @@ type Result<T> = super::Result<T>;
 /// - Vector of tokens, or empty when field is missing or "None".
 fn split_ws_or_none(s: Option<&String>) -> Vec<String> {
     match s {
-        Some(v) if v != "None" => v.split_whitespace().map(|x| x.to_string()).collect(),
+        Some(v) if v != "None" => v.split_whitespace().map(ToString::to_string).collect(),
         _ => Vec::new(),
     }
 }
@@ -39,13 +39,10 @@ fn process_continuation_line(
     let entry = map.entry(key.to_string()).or_default();
     if key == "Optional Deps" {
         entry.push('\n');
-        entry.push_str(line.trim());
-    } else {
-        if !entry.ends_with(' ') {
-            entry.push(' ');
-        }
-        entry.push_str(line.trim());
+    } else if !entry.ends_with(' ') {
+        entry.push(' ');
     }
+    entry.push_str(line.trim());
 }
 
 /// Run `pacman -Si` command and return the output text.
@@ -73,7 +70,7 @@ fn run_pacman_si(repo: &str, name: &str) -> Result<String> {
     if !out.status.success() {
         return Err(format!("pacman -Si failed: {:?}", out.status).into());
     }
-    String::from_utf8(out.stdout).map_err(|e| e.into())
+    String::from_utf8(out.stdout).map_err(std::convert::Into::into)
 }
 
 /// Parse pacman output text into a key-value map.
@@ -209,7 +206,7 @@ fn fill_missing_fields(name: &str, description: &mut String, architecture: &mut 
     }
 }
 
-/// Build PackageDetails from parsed map and extracted fields.
+/// Build `PackageDetails` from parsed map and extracted fields.
 ///
 /// Inputs:
 /// - `repo`: Repository name (fallback if not in map)
@@ -252,7 +249,7 @@ fn build_package_details(
     }
 }
 
-/// Run `pacman -Si` for a package, parsing its key-value output into PackageDetails.
+/// Run `pacman -Si` for a package, parsing its key-value output into `PackageDetails`.
 ///
 /// Inputs:
 /// - `repo`: Preferred repository prefix (may be empty to let pacman resolve)
@@ -276,18 +273,30 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
 /// Output:
 /// - `Some(bytes)` when parsed; `None` for invalid strings. Accepts B, KiB, MiB, GiB, TiB, PiB.
 fn parse_size_bytes(s: &str) -> Option<u64> {
+    // Maximum f64 value that fits in u64 (2^64 - 1, but f64 can represent up to 2^53 exactly)
+    // For values beyond 2^53, we check if they exceed u64::MAX by comparing with a threshold
+    const MAX_U64_AS_F64: f64 = 18_446_744_073_709_551_615.0; // u64::MAX as approximate f64
     let mut it = s.split_whitespace();
     let num = it.next()?.parse::<f64>().ok()?;
     let unit = it.next().unwrap_or("");
     let mult = match unit {
-        "B" => 1.0,
         "KiB" => 1024.0,
         "MiB" => 1024.0 * 1024.0,
         "GiB" => 1024.0 * 1024.0 * 1024.0,
         "TiB" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
         _ => 1.0,
     };
-    Some((num * mult) as u64)
+    let result = num * mult;
+    // Check bounds: negative values are invalid
+    if result < 0.0 {
+        return None;
+    }
+    if result > MAX_U64_AS_F64 {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let bytes = result as u64;
+    Some(bytes)
 }
 
 #[cfg(test)]
@@ -326,6 +335,12 @@ mod size_tests {
 ///
 /// Output:
 /// - `Ok(PackageDetails)` on success; `Err` if retrieval or parsing fails.
+///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when package details cannot be fetched from official repositories or AUR
+/// - Returns `Err` when response parsing fails (invalid JSON or missing fields)
+///
 pub async fn fetch_details(item: PackageItem) -> Result<PackageDetails> {
     match item.source.clone() {
         Source::Official { repo, arch } => fetch_official_details(repo, arch, item).await,
@@ -353,7 +368,7 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
 
     let version0 = s(&obj, "Version");
     let description0 = s(&obj, "Description");
-    let popularity0 = obj.get("Popularity").and_then(|v| v.as_f64());
+    let popularity0 = obj.get("Popularity").and_then(serde_json::Value::as_f64);
 
     let d = PackageDetails {
         repository: "AUR".into(),
@@ -382,7 +397,9 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
         download_size: None,
         install_size: None,
         owner: s(&obj, "Maintainer"),
-        build_date: crate::util::ts_to_date(obj.get("LastModified").and_then(|v| v.as_i64())),
+        build_date: crate::util::ts_to_date(
+            obj.get("LastModified").and_then(serde_json::Value::as_i64),
+        ),
         popularity: popularity0,
     };
     Ok(d)
@@ -445,8 +462,8 @@ pub async fn fetch_official_details(
             .await
             {
                 v = Some(val);
-                repo_selected = r.clone();
-                arch_selected = a.clone();
+                repo_selected.clone_from(r);
+                arch_selected.clone_from(a);
                 break 'outer;
             }
         }
@@ -509,9 +526,9 @@ mod tests {
             crate::state::PackageDetails {
                 repository: repo_selected,
                 name: item.name.clone(),
-                version: ss(obj, &["pkgver", "Version"]).unwrap_or(item.version.clone()),
+                version: ss(obj, &["pkgver", "Version"]).unwrap_or_else(|| item.version.clone()),
                 description: ss(obj, &["pkgdesc", "Description"])
-                    .unwrap_or(item.description.clone()),
+                    .unwrap_or_else(|| item.description.clone()),
                 architecture: ss(obj, &["arch", "Architecture"]).unwrap_or(arch_selected),
                 url: ss(obj, &["url", "URL"]).unwrap_or_default(),
                 licenses: arrs(obj, &["licenses", "Licenses"]),
@@ -593,7 +610,7 @@ mod tests {
             use crate::util::{arrs, s};
             let version0 = s(obj, "Version");
             let description0 = s(obj, "Description");
-            let popularity0 = obj.get("Popularity").and_then(|v| v.as_f64());
+            let popularity0 = obj.get("Popularity").and_then(serde_json::Value::as_f64);
             crate::state::PackageDetails {
                 repository: "AUR".into(),
                 name: item.name.clone(),
@@ -622,7 +639,7 @@ mod tests {
                 install_size: None,
                 owner: s(obj, "Maintainer"),
                 build_date: crate::util::ts_to_date(
-                    obj.get("LastModified").and_then(|v| v.as_i64()),
+                    obj.get("LastModified").and_then(serde_json::Value::as_i64),
                 ),
                 popularity: popularity0,
             }

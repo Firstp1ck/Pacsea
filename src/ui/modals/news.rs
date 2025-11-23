@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::i18n;
 use crate::state::{AppState, NewsItem};
-use crate::theme::theme;
+use crate::theme::{KeyChord, theme};
 
 // Option 2: Extract constants for magic numbers
 const MODAL_WIDTH_RATIO: u16 = 2;
@@ -115,11 +115,10 @@ fn format_news_item(
     };
     let line_text = format!("{} {}  {}", symbol, item.date, item.title);
     let (fg, bg) = compute_item_colors(is_selected, is_critical);
-    let style = if let Some(bg_color) = bg {
-        Style::default().fg(fg).bg(bg_color)
-    } else {
-        Style::default().fg(fg)
-    };
+    let style = bg.map_or_else(
+        || Style::default().fg(fg),
+        |bg_color| Style::default().fg(fg).bg(bg_color),
+    );
     Line::from(Span::styled(line_text, style))
 }
 
@@ -140,14 +139,12 @@ fn build_footer(app: &AppState) -> Line<'static> {
         .keymap
         .news_mark_read
         .first()
-        .map(|k| k.label())
-        .unwrap_or_else(|| "R".to_string());
+        .map_or_else(|| "R".to_string(), KeyChord::label);
     let mark_all_read_key = app
         .keymap
         .news_mark_all_read
         .first()
-        .map(|k| k.label())
-        .unwrap_or_else(|| "Ctrl+R".to_string());
+        .map_or_else(|| "Ctrl+R".to_string(), KeyChord::label);
     let footer_template = i18n::t(app, "app.modals.news.footer_hint");
     // Replace placeholders one at a time to avoid replacing all {} with the first value
     let footer_text =
@@ -211,7 +208,7 @@ fn build_news_lines(app: &AppState, items: &[NewsItem], selected: usize) -> Vec<
 /// Details:
 /// - Accounts for borders, header lines, and footer lines.
 /// - Used for mouse click detection on news items.
-fn calculate_list_rect(rect: Rect) -> (u16, u16, u16, u16) {
+const fn calculate_list_rect(rect: Rect) -> (u16, u16, u16, u16) {
     let list_inner_x = rect.x + BORDER_WIDTH;
     let list_inner_y = rect.y + BORDER_WIDTH + HEADER_LINES;
     let list_inner_w = rect.width.saturating_sub(BORDER_WIDTH * 2);

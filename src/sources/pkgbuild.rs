@@ -18,6 +18,15 @@ const PKGBUILD_MIN_INTERVAL_MS: u64 = 200; // Minimum 200ms between requests (re
 /// Output:
 /// - `Ok(String)` with PKGBUILD text when available; `Err` on network or lookup failure.
 ///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when PKGBUILD cannot be fetched from AUR or official GitLab repositories
+/// - Returns `Err` when rate limiting mutex is poisoned
+/// - Returns `Err` when task spawn fails
+///
+/// # Panics
+/// - Panics if the rate limiting mutex is poisoned
+///
 /// Details:
 /// - First tries offline methods (yay/paru cache) for fast loading.
 /// - Then tries network with rate limiting and timeout (10s).
@@ -38,7 +47,9 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
 
     // 2. Rate limiting: ensure minimum interval between requests
     let delay = {
-        let mut last_request = PKGBUILD_RATE_LIMITER.lock().unwrap();
+        let mut last_request = PKGBUILD_RATE_LIMITER
+            .lock()
+            .expect("PKGBUILD rate limiter mutex poisoned");
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
             if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
@@ -114,7 +125,9 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn pkgbuild_fetches_aur_via_curl_text() {
-        let _guard = crate::sources::test_mutex().lock().unwrap();
+        let _guard = crate::sources::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
         // Shim PATH with fake curl
         let old_path = std::env::var("PATH").unwrap_or_default();
         let mut root = std::env::temp_dir();
@@ -123,25 +136,28 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).expect("Failed to create test root directory");
         let mut bin = root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("Failed to create test bin directory");
         let mut curl = bin.clone();
         curl.push("curl");
         let script = "#!/bin/sh\necho 'pkgver=1'\n";
-        std::fs::write(&curl, script.as_bytes()).unwrap();
+        std::fs::write(&curl, script.as_bytes()).expect("Failed to write test curl script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&curl).unwrap().permissions();
+            let mut perm = std::fs::metadata(&curl)
+                .expect("Failed to read test curl script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&curl, perm).unwrap();
+            std::fs::set_permissions(&curl, perm)
+                .expect("Failed to set test curl script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
 
         let item = PackageItem {
@@ -151,7 +167,9 @@ mod tests {
             source: Source::Aur,
             popularity: None,
         };
-        let txt = super::fetch_pkgbuild_fast(&item).await.unwrap();
+        let txt = super::fetch_pkgbuild_fast(&item)
+            .await
+            .expect("Failed to fetch PKGBUILD in test");
         assert!(txt.contains("pkgver=1"));
 
         unsafe { std::env::set_var("PATH", &old_path) };
@@ -169,13 +187,13 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).expect("Failed to create test root directory");
         let mut bin = root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("Failed to create test bin directory");
         let mut curl = bin.clone();
         curl.push("curl");
         // Fail when URL contains '/-/raw/main/' and succeed when '/-/raw/master/'
@@ -183,38 +201,47 @@ mod tests {
         // In sh/bash, $1="-sSLf", $2="--max-time", $3="10", $4=url
         // Get the last argument using eval
         let script = "#!/bin/sh\neval \"url=\\$$#\"\nif echo \"$url\" | grep -q '/-/raw/main/'; then exit 22; fi\necho 'pkgrel=2'\n";
-        std::fs::write(&curl, script.as_bytes()).unwrap();
+        std::fs::write(&curl, script.as_bytes()).expect("Failed to write test curl script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&curl).unwrap().permissions();
+            let mut perm = std::fs::metadata(&curl)
+                .expect("Failed to read test curl script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&curl, perm).unwrap();
+            std::fs::set_permissions(&curl, perm)
+                .expect("Failed to set test curl script permissions");
         }
 
         // Create fake paru and yay that fail (to prevent get_pkgbuild_from_cache from fetching real data)
         let mut paru = bin.clone();
         paru.push("paru");
-        std::fs::write(&paru, b"#!/bin/sh\nexit 1\n").unwrap();
+        std::fs::write(&paru, b"#!/bin/sh\nexit 1\n").expect("Failed to write test paru script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&paru).unwrap().permissions();
+            let mut perm = std::fs::metadata(&paru)
+                .expect("Failed to read test paru script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&paru, perm).unwrap();
+            std::fs::set_permissions(&paru, perm)
+                .expect("Failed to set test paru script permissions");
         }
 
         let mut yay = bin.clone();
         yay.push("yay");
-        std::fs::write(&yay, b"#!/bin/sh\nexit 1\n").unwrap();
+        std::fs::write(&yay, b"#!/bin/sh\nexit 1\n").expect("Failed to write test yay script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&yay).unwrap().permissions();
+            let mut perm = std::fs::metadata(&yay)
+                .expect("Failed to read test yay script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&yay, perm).unwrap();
+            std::fs::set_permissions(&yay, perm)
+                .expect("Failed to set test yay script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
 
         // Set HOME to empty directory to avoid finding cached PKGBUILDs
@@ -222,7 +249,7 @@ mod tests {
         unsafe { std::env::set_var("HOME", root.to_string_lossy().as_ref()) };
 
         // Create a new tokio runtime AFTER setting PATH and HOME so worker threads inherit them
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime for test");
         let txt = rt.block_on(async {
             let item = PackageItem {
                 name: "ripgrep".into(),
@@ -234,7 +261,9 @@ mod tests {
                 },
                 popularity: None,
             };
-            super::fetch_pkgbuild_fast(&item).await.unwrap()
+            super::fetch_pkgbuild_fast(&item)
+                .await
+                .expect("Failed to fetch PKGBUILD in test")
         });
 
         assert!(txt.contains("pkgrel=2"));

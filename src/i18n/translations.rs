@@ -17,6 +17,7 @@ pub type TranslationMap = HashMap<String, String>;
 /// Details:
 /// - Direct key lookup
 /// - Returns None if key not found
+#[must_use]
 pub fn translate(key: &str, translations: &TranslationMap) -> Option<String> {
     translations.get(key).cloned()
 }

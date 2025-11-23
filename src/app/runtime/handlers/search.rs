@@ -1,6 +1,6 @@
 use tokio::sync::mpsc;
 
-use crate::state::*;
+use crate::state::{AppState, PackageDetails, PackageItem, SearchResults, Source};
 
 /// What: Handle search results update event.
 ///
@@ -28,6 +28,7 @@ pub fn handle_search_results(
     // Respect installed-only mode: keep results restricted to explicit installs
     let mut incoming = new_results.items;
     if app.installed_only_mode {
+        use std::collections::HashSet;
         let explicit = crate::index::explicit_names();
         if app.input.trim().is_empty() {
             // For empty query, reconstruct full installed list (official + AUR fallbacks)
@@ -35,9 +36,8 @@ pub fn handle_search_results(
                 .into_iter()
                 .filter(|p| explicit.contains(&p.name))
                 .collect();
-            use std::collections::HashSet;
             let official_names: HashSet<String> = items.iter().map(|p| p.name.clone()).collect();
-            for name in explicit.into_iter() {
+            for name in explicit {
                 if !official_names.contains(&name) {
                     let is_eos = name.to_lowercase().contains("eos-");
                     let src = if is_eos {
@@ -79,7 +79,7 @@ pub fn handle_search_results(
         if let Some(cached) = app.details_cache.get(&item.name).cloned() {
             app.details = cached;
         } else {
-            let _ = details_req_tx.send(item.clone());
+            let _ = details_req_tx.send(item);
         }
     }
     crate::logic::set_allowed_ring(app, 30);
@@ -134,29 +134,30 @@ pub fn handle_search_results(
 /// - Updates result list entry with new information
 pub fn handle_details_update(
     app: &mut AppState,
-    details: PackageDetails,
+    details: &PackageDetails,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
+    let details_clone = details.clone();
     if app.details_focus.as_deref() == Some(details.name.as_str()) {
-        app.details = details.clone();
+        app.details = details_clone.clone();
     }
     app.details_cache
-        .insert(details.name.clone(), details.clone());
+        .insert(details_clone.name.clone(), details_clone.clone());
     app.cache_dirty = true;
     if let Some(pos) = app.results.iter().position(|p| p.name == details.name) {
-        app.results[pos].description = details.description.clone();
-        if !details.version.is_empty() && app.results[pos].version != details.version {
-            app.results[pos].version = details.version.clone();
+        app.results[pos].description = details_clone.description;
+        if !details_clone.version.is_empty() && app.results[pos].version != details_clone.version {
+            app.results[pos].version = details_clone.version;
         }
-        if details.popularity.is_some() {
-            app.results[pos].popularity = details.popularity;
+        if details_clone.popularity.is_some() {
+            app.results[pos].popularity = details_clone.popularity;
         }
         if let crate::state::Source::Official { repo, arch } = &mut app.results[pos].source {
-            if repo.is_empty() && !details.repository.is_empty() {
-                *repo = details.repository.clone();
+            if repo.is_empty() && !details_clone.repository.is_empty() {
+                *repo = details_clone.repository;
             }
-            if arch.is_empty() && !details.architecture.is_empty() {
-                *arch = details.architecture.clone();
+            if arch.is_empty() && !details_clone.architecture.is_empty() {
+                *arch = details_clone.architecture;
             }
         }
     }
@@ -181,7 +182,7 @@ pub fn handle_preview(
     if let Some(cached) = app.details_cache.get(&item.name).cloned() {
         app.details = cached;
     } else {
-        let _ = details_req_tx.send(item.clone());
+        let _ = details_req_tx.send(item);
     }
     if !app.results.is_empty() && app.selected >= app.results.len() {
         app.selected = app.results.len() - 1;
@@ -202,11 +203,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_search_results ignores results with mismatched query ID.
+    /// What: Verify that `handle_search_results` ignores results with mismatched query ID.
     ///
     /// Inputs:
-    /// - App state with latest_query_id = 1
-    /// - SearchResults with id = 2
+    /// - `AppState` with `latest_query_id` = 1
+    /// - `SearchResults` with `id` = 2
     ///
     /// Output:
     /// - Results are ignored, app state unchanged
@@ -246,11 +247,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_search_results updates results when query ID matches.
+    /// What: Verify that `handle_search_results` updates results when query ID matches.
     ///
     /// Inputs:
-    /// - App state with latest_query_id = 1
-    /// - SearchResults with id = 1 and new items
+    /// - `AppState` with `latest_query_id` = 1
+    /// - `SearchResults` with `id` = 1 and new items
     ///
     /// Output:
     /// - Results are updated with new items
@@ -291,11 +292,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_details_update updates cache and current details.
+    /// What: Verify that `handle_details_update` updates cache and current details.
     ///
     /// Inputs:
-    /// - App state with details_focus set
-    /// - PackageDetails for focused package
+    /// - `AppState` with `details_focus` set
+    /// - `PackageDetails` for focused package
     ///
     /// Output:
     /// - Details cache is updated
@@ -333,7 +334,7 @@ mod tests {
             popularity: None,
         };
 
-        handle_details_update(&mut app, details.clone(), &tick_tx);
+        handle_details_update(&mut app, &details, &tick_tx);
 
         // Cache should be updated
         assert!(app.details_cache.contains_key("test-package"));
@@ -344,11 +345,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_preview loads details from cache when available.
+    /// What: Verify that `handle_preview` loads details from cache when available.
     ///
     /// Inputs:
-    /// - App state with cached details
-    /// - PackageItem to preview
+    /// - `AppState` with cached details
+    /// - `PackageItem` to preview
     ///
     /// Output:
     /// - Details are loaded from cache
@@ -381,7 +382,7 @@ mod tests {
             popularity: None,
         };
         app.details_cache
-            .insert("test-package".to_string(), cached_details.clone());
+            .insert("test-package".to_string(), cached_details);
 
         let (details_tx, mut details_rx) = mpsc::unbounded_channel();
 

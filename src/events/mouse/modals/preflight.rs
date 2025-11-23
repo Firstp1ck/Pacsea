@@ -91,7 +91,7 @@ pub(super) fn handle_preflight_modal(
                 return Some(false);
             }
         }
-        _ => {}
+        crate::state::PreflightTab::Sandbox => {}
     }
 
     // Consume all mouse events while Preflight modal is open
@@ -199,7 +199,7 @@ fn handle_preflight_tab_click(mx: u16, my: u16, app: &mut AppState) -> bool {
                     && service_info.is_empty()
                     && let Some(cached_services) = load_cached_services(
                         items,
-                        action,
+                        *action,
                         app.services_resolving,
                         &app.services_cache_path,
                         &app.install_list_services,

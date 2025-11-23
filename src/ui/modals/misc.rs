@@ -72,7 +72,7 @@ pub fn render_optional_deps(
         if let Some(note) = &row.note {
             segs.push(Span::raw("  "));
             segs.push(Span::styled(
-                format!("({})", note),
+                format!("({note})"),
                 Style::default().fg(th.overlay2),
             ));
         }
@@ -108,6 +108,7 @@ pub fn render_optional_deps(
 /// Details:
 /// - Presents each scanner with checkboxes, respecting theme emphasis for the cursor and summarizing
 ///   available shortcuts at the bottom.
+#[allow(clippy::fn_params_excessive_bools)]
 pub fn render_scan_config(
     f: &mut Frame,
     area: Rect,
@@ -137,7 +138,7 @@ pub fn render_scan_config(
         let mark = if *checked { "[x]" } else { "[ ]" };
         let mut spans: Vec<Span> = Vec::new();
         spans.push(Span::styled(
-            format!("{} ", mark),
+            format!("{mark} "),
             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
         ));
         let style = if i == cursor {
@@ -171,6 +172,7 @@ pub fn render_scan_config(
 ///
 /// Details:
 /// - Highlights the heading, explains why the terminal is recommended, and warns about cancelling.
+#[allow(clippy::many_single_char_names)]
 pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
     let th = theme();
     // Centered confirmation dialog for installing GNOME Terminal
@@ -224,7 +226,7 @@ pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
     f.render_widget(boxw, rect);
 }
 
-/// What: Render the VirusTotal API setup modal with clickable URL and current input preview.
+/// What: Render the `VirusTotal` API setup modal with clickable URL and current input preview.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
@@ -238,6 +240,7 @@ pub fn render_gnome_terminal_prompt(f: &mut Frame, area: Rect) {
 /// Details:
 /// - Provides direct link to the API portal, surfaces instructions, and mirrors the buffer so users
 ///   can verify pasted values.
+#[allow(clippy::many_single_char_names)]
 pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, input: &str) {
     let th = theme();
     // Centered dialog for VirusTotal API key setup with clickable URL and input field
@@ -287,7 +290,7 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
             Style::default().fg(th.subtext1),
         )),
         Line::from(Span::styled(
-            format!("API key: {}", shown),
+            format!("API key: {shown}"),
             Style::default().fg(th.text),
         )),
         Line::from(""),
@@ -301,7 +304,7 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
     let inner_y = rect.y + 1;
     let url_line_y = inner_y + 3;
     let url_x = inner_x + 1;
-    let url_w = vt_url.len() as u16;
+    let url_w = u16::try_from(vt_url.len()).unwrap_or(u16::MAX);
     app.vt_url_rect = Some((url_x, url_line_y, url_w, 1));
     let boxw = Paragraph::new(lines)
         .style(Style::default().fg(th.text).bg(th.mantle))
@@ -332,6 +335,7 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
 /// Details:
 /// - Enumerates formatting rules, provides an example snippet, and keeps styling aligned with other
 ///   informational modals.
+#[allow(clippy::many_single_char_names)]
 pub fn render_import_help(f: &mut Frame, area: Rect) {
     let th = theme();
     let w = area.width.saturating_sub(10).min(85);

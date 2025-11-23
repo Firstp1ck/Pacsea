@@ -10,16 +10,16 @@
 mod settings_ensure;
 mod settings_save;
 mod skeletons;
-mod theme_loader;
+pub mod theme_loader;
 
 #[cfg(test)]
 mod tests;
 
 // Re-export skeleton constants (only THEME_SKELETON_CONTENT is used externally)
-pub(crate) use skeletons::THEME_SKELETON_CONTENT;
+pub use skeletons::THEME_SKELETON_CONTENT;
 
 // Re-export theme loading functions
-pub(crate) use theme_loader::{load_theme_from_file, try_load_theme_with_diagnostics};
+pub use theme_loader::{load_theme_from_file, try_load_theme_with_diagnostics};
 
 // Re-export settings save functions
 pub use settings_save::{

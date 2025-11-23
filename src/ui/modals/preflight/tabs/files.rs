@@ -35,7 +35,7 @@ fn render_loading_state(
     let th = theme();
     let mut lines = Vec::new();
 
-    for item in items.iter() {
+    for item in items {
         let mut spans = Vec::new();
         spans.push(Span::styled(
             format!("▶ {} ", item.name),
@@ -105,7 +105,7 @@ fn build_display_items(
 
     let mut display_items = Vec::new();
     // Always show ALL packages from items, even if they have no file info
-    for item in items.iter() {
+    for item in items {
         let pkg_name = &item.name;
         let is_expanded = file_tree_expanded.contains(pkg_name);
         display_items.push((true, pkg_name.clone(), None)); // Package header
@@ -113,7 +113,7 @@ fn build_display_items(
         if is_expanded {
             // Show files if available
             if let Some(pkg_info) = file_info_map.get(pkg_name) {
-                for file in pkg_info.files.iter() {
+                for file in &pkg_info.files {
                     display_items.push((
                         false,
                         String::new(),
@@ -136,13 +136,13 @@ fn build_display_items(
 ///
 /// Inputs:
 /// - `app`: Application state for i18n.
-/// - `sync_info`: Optional sync info tuple (age_days, date_str, color_category).
+/// - `sync_info`: Optional sync info tuple (`age_days`, `date_str`, `color_category`).
 ///
 /// Output:
 /// - Returns optional line and number of lines added (0 or 2).
 fn render_sync_timestamp(
     app: &AppState,
-    sync_info: &Option<(u64, String, u8)>,
+    sync_info: Option<&(u64, String, u8)>,
 ) -> (Option<Line<'static>>, usize) {
     let th = theme();
     if let Some((_age_days, date_str, color_category)) = sync_info {
@@ -187,8 +187,8 @@ fn render_empty_state(
     app: &AppState,
     items: &[PackageItem],
     file_info: &[PackageFileInfo],
-    is_stale: &Option<bool>,
-    sync_info: &Option<(u64, String, u8)>,
+    is_stale: Option<&bool>,
+    sync_info: Option<&(u64, String, u8)>,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
@@ -201,54 +201,52 @@ fn render_empty_state(
         .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
 
     let mut unresolved_packages = Vec::new();
-    for pkg_info in file_info.iter() {
+    for pkg_info in file_info {
         if pkg_info.files.is_empty() {
             unresolved_packages.push(pkg_info.name.clone());
         }
     }
 
-    if !file_info.is_empty() {
-        if !unresolved_packages.is_empty() {
-            lines.push(Line::from(Span::styled(
-                i18n::t_fmt1(
-                    app,
-                    "app.modals.preflight.files.no_file_changes",
-                    unresolved_packages.len(),
-                ),
-                Style::default().fg(th.subtext1),
-            )));
-            lines.push(Line::from(""));
-
-            if has_official_packages {
-                lines.push(Line::from(Span::styled(
-                    i18n::t(app, "app.modals.preflight.files.file_db_sync_note"),
-                    Style::default().fg(th.subtext0),
-                )));
-                lines.push(Line::from(Span::styled(
-                    i18n::t(app, "app.modals.preflight.files.sync_file_db_hint"),
-                    Style::default().fg(th.subtext0),
-                )));
-            }
-            if has_aur_packages {
-                lines.push(Line::from(Span::styled(
-                    i18n::t(app, "app.modals.preflight.files.aur_file_note"),
-                    Style::default().fg(th.subtext0),
-                )));
-            }
-        } else {
-            lines.push(Line::from(Span::styled(
-                i18n::t(app, "app.modals.preflight.files.no_file_changes_display"),
-                Style::default().fg(th.subtext1),
-            )));
-        }
-    } else {
+    if file_info.is_empty() {
         lines.push(Line::from(Span::styled(
             i18n::t(app, "app.modals.preflight.files.file_resolution_progress"),
             Style::default().fg(th.subtext1),
         )));
+    } else if unresolved_packages.is_empty() {
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.files.no_file_changes_display"),
+            Style::default().fg(th.subtext1),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            i18n::t_fmt1(
+                app,
+                "app.modals.preflight.files.no_file_changes",
+                unresolved_packages.len(),
+            ),
+            Style::default().fg(th.subtext1),
+        )));
+        lines.push(Line::from(""));
+
+        if has_official_packages {
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.files.file_db_sync_note"),
+                Style::default().fg(th.subtext0),
+            )));
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.files.sync_file_db_hint"),
+                Style::default().fg(th.subtext0),
+            )));
+        }
+        if has_aur_packages {
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.files.aur_file_note"),
+                Style::default().fg(th.subtext0),
+            )));
+        }
     }
 
-    if let Some(true) = is_stale {
+    if matches!(is_stale, Some(true)) {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             i18n::t(app, "app.modals.preflight.files.file_db_stale"),
@@ -300,10 +298,11 @@ fn render_package_header(
             .add_modifier(Modifier::BOLD)
     };
 
+    let total_count = pkg_info.total_count;
     let mut spans = vec![
-        Span::styled(format!("{} {} ", arrow_symbol, pkg_name), header_style),
+        Span::styled(format!("{arrow_symbol} {pkg_name} "), header_style),
         Span::styled(
-            format!("({} files", pkg_info.total_count),
+            format!("({total_count} files"),
             Style::default().fg(th.subtext1),
         ),
     ];
@@ -318,32 +317,37 @@ fn render_package_header(
         ));
     }
     if pkg_info.changed_count > 0 {
+        let changed_count = pkg_info.changed_count;
         spans.push(Span::styled(
-            format!(", {} changed", pkg_info.changed_count),
+            format!(", {changed_count} changed"),
             Style::default().fg(th.yellow),
         ));
     }
     if pkg_info.removed_count > 0 {
+        let removed_count = pkg_info.removed_count;
         spans.push(Span::styled(
-            format!(", {} removed", pkg_info.removed_count),
+            format!(", {removed_count} removed"),
             Style::default().fg(th.red),
         ));
     }
     if pkg_info.config_count > 0 {
+        let config_count = pkg_info.config_count;
         spans.push(Span::styled(
-            format!(", {} config", pkg_info.config_count),
+            format!(", {config_count} config"),
             Style::default().fg(th.mauve),
         ));
     }
     if pkg_info.pacnew_candidates > 0 {
+        let pacnew_candidates = pkg_info.pacnew_candidates;
         spans.push(Span::styled(
-            format!(", {} pacnew", pkg_info.pacnew_candidates),
+            format!(", {pacnew_candidates} pacnew"),
             Style::default().fg(th.yellow),
         ));
     }
     if pkg_info.pacsave_candidates > 0 {
+        let pacsave_candidates = pkg_info.pacsave_candidates;
         spans.push(Span::styled(
-            format!(", {} pacsave", pkg_info.pacsave_candidates),
+            format!(", {pacsave_candidates} pacsave"),
             Style::default().fg(th.red),
         ));
     }
@@ -357,13 +361,13 @@ fn render_package_header(
 /// Details:
 /// - Contains sums of all file counts from package file information.
 struct FileTotals {
-    total_files: usize,
-    total_new: usize,
-    total_changed: usize,
-    total_removed: usize,
-    total_config: usize,
-    total_pacnew: usize,
-    total_pacsave: usize,
+    files: usize,
+    new: usize,
+    changed: usize,
+    removed: usize,
+    config: usize,
+    pacnew: usize,
+    pacsave: usize,
 }
 
 /// What: Calculate file totals from package file information in a single pass.
@@ -375,26 +379,26 @@ struct FileTotals {
 /// - Returns aggregated file totals.
 ///
 /// Details:
-/// - Performs a single iteration over file_info to calculate all totals.
+/// - Performs a single iteration over `file_info` to calculate all totals.
 fn calculate_file_totals(file_info: &[PackageFileInfo]) -> FileTotals {
     file_info.iter().fold(
         FileTotals {
-            total_files: 0,
-            total_new: 0,
-            total_changed: 0,
-            total_removed: 0,
-            total_config: 0,
-            total_pacnew: 0,
-            total_pacsave: 0,
+            files: 0,
+            new: 0,
+            changed: 0,
+            removed: 0,
+            config: 0,
+            pacnew: 0,
+            pacsave: 0,
         },
         |acc, p| FileTotals {
-            total_files: acc.total_files + p.total_count,
-            total_new: acc.total_new + p.new_count,
-            total_changed: acc.total_changed + p.changed_count,
-            total_removed: acc.total_removed + p.removed_count,
-            total_config: acc.total_config + p.config_count,
-            total_pacnew: acc.total_pacnew + p.pacnew_candidates,
-            total_pacsave: acc.total_pacsave + p.pacsave_candidates,
+            files: acc.files + p.total_count,
+            new: acc.new + p.new_count,
+            changed: acc.changed + p.changed_count,
+            removed: acc.removed + p.removed_count,
+            config: acc.config + p.config_count,
+            pacnew: acc.pacnew + p.pacnew_candidates,
+            pacsave: acc.pacsave + p.pacsave_candidates,
         },
     )
 }
@@ -419,70 +423,60 @@ fn build_summary_parts(
     has_incomplete_data: bool,
 ) -> Vec<String> {
     let total_files_text =
-        format_count_with_indicator(totals.total_files, items_len * 10, has_incomplete_data);
+        format_count_with_indicator(totals.files, items_len * 10, has_incomplete_data);
     let mut summary_parts = vec![i18n::t_fmt1(
         app,
         "app.modals.preflight.files.total",
         total_files_text,
     )];
 
-    if totals.total_new > 0 {
-        let count_text =
-            format_count_with_indicator(totals.total_new, totals.total_files, has_incomplete_data);
+    if totals.new > 0 {
+        let count_text = format_count_with_indicator(totals.new, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.new",
             count_text,
         ));
     }
-    if totals.total_changed > 0 {
-        let count_text = format_count_with_indicator(
-            totals.total_changed,
-            totals.total_files,
-            has_incomplete_data,
-        );
+    if totals.changed > 0 {
+        let count_text =
+            format_count_with_indicator(totals.changed, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.changed",
             count_text,
         ));
     }
-    if totals.total_removed > 0 {
-        let count_text = format_count_with_indicator(
-            totals.total_removed,
-            totals.total_files,
-            has_incomplete_data,
-        );
+    if totals.removed > 0 {
+        let count_text =
+            format_count_with_indicator(totals.removed, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.removed",
             count_text,
         ));
     }
-    if totals.total_config > 0 {
-        let count_text = format_count_with_indicator(
-            totals.total_config,
-            totals.total_files,
-            has_incomplete_data,
-        );
+    if totals.config > 0 {
+        let count_text =
+            format_count_with_indicator(totals.config, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.config",
             count_text,
         ));
     }
-    if totals.total_pacnew > 0 {
+    if totals.pacnew > 0 {
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.pacnew",
-            totals.total_pacnew,
+            totals.pacnew,
         ));
     }
-    if totals.total_pacsave > 0 {
+    if totals.pacsave > 0 {
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.pacsave",
-            totals.total_pacsave,
+            totals.pacsave,
         ));
     }
 
@@ -497,12 +491,12 @@ fn build_summary_parts(
 /// - `file_selected`: Currently selected file index (mutable, will be clamped).
 ///
 /// Output:
-/// - Returns tuple of (start_idx, end_idx) for visible range.
+/// - Returns tuple of (`start_idx`, `end_idx`) for visible range.
 ///
 /// Details:
 /// - Centers selected item when possible.
 /// - Ensures selected item is always visible.
-/// - Clamps file_selected to valid range.
+/// - Clamps `file_selected` to valid range.
 fn calculate_viewport(
     total_items: usize,
     available_height: usize,
@@ -570,7 +564,7 @@ fn render_missing_package_header(
             .add_modifier(Modifier::BOLD)
     };
     let spans = vec![
-        Span::styled(format!("{} {} ", arrow_symbol, pkg_name), header_style),
+        Span::styled(format!("{arrow_symbol} {pkg_name} "), header_style),
         Span::styled("(0 files)", Style::default().fg(th.subtext1)),
     ];
     Line::from(spans)
@@ -672,6 +666,7 @@ struct FileListContext<'a> {
 ///
 /// Output:
 /// - Returns a line to render.
+#[allow(clippy::fn_params_excessive_bools)]
 fn render_file_entry(
     app: &AppState,
     change_type: &FileChangeType,
@@ -689,53 +684,50 @@ fn render_file_entry(
     };
 
     let highlight_bg = if is_selected { Some(th.lavender) } else { None };
-    let icon_style = if let Some(bg) = highlight_bg {
-        Style::default().fg(color).bg(bg)
-    } else {
-        Style::default().fg(color)
-    };
-    let mut spans = vec![Span::styled(format!("  {} ", icon), icon_style)];
+    let icon_style = highlight_bg.map_or_else(
+        || Style::default().fg(color),
+        |bg| Style::default().fg(color).bg(bg),
+    );
+    let mut spans = vec![Span::styled(format!("  {icon} "), icon_style)];
 
     if is_config {
-        let cfg_style = if let Some(bg) = highlight_bg {
-            Style::default().fg(th.mauve).bg(bg)
-        } else {
-            Style::default().fg(th.mauve)
-        };
+        let cfg_style = highlight_bg.map_or_else(
+            || Style::default().fg(th.mauve),
+            |bg| Style::default().fg(th.mauve).bg(bg),
+        );
         spans.push(Span::styled("⚙ ", cfg_style));
     }
 
     if predicted_pacnew {
-        let pacnew_style = if let Some(bg) = highlight_bg {
-            Style::default().fg(th.yellow).bg(bg)
-        } else {
-            Style::default().fg(th.yellow)
-        };
+        let pacnew_style = highlight_bg.map_or_else(
+            || Style::default().fg(th.yellow),
+            |bg| Style::default().fg(th.yellow).bg(bg),
+        );
         spans.push(Span::styled(
             i18n::t(app, "app.modals.preflight.files.pacnew_label"),
             pacnew_style,
         ));
     }
     if predicted_pacsave {
-        let pacsave_style = if let Some(bg) = highlight_bg {
-            Style::default().fg(th.red).bg(bg)
-        } else {
-            Style::default().fg(th.red)
-        };
+        let pacsave_style = highlight_bg.map_or_else(
+            || Style::default().fg(th.red),
+            |bg| Style::default().fg(th.red).bg(bg),
+        );
         spans.push(Span::styled(
             i18n::t(app, "app.modals.preflight.files.pacsave_label"),
             pacsave_style,
         ));
     }
 
-    let path_style = if let Some(bg) = highlight_bg {
-        Style::default()
-            .fg(th.crust)
-            .bg(bg)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(th.text)
-    };
+    let path_style = highlight_bg.map_or_else(
+        || Style::default().fg(th.text),
+        |bg| {
+            Style::default()
+                .fg(th.crust)
+                .bg(bg)
+                .add_modifier(Modifier::BOLD)
+        },
+    );
 
     spans.push(Span::styled(path.to_string(), path_style));
 
@@ -754,7 +746,7 @@ fn render_file_entry(
 /// - Returns a vector of lines to render.
 fn render_file_list(
     app: &AppState,
-    ctx: FileListContext,
+    ctx: &FileListContext,
     file_selected: &mut usize,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
@@ -782,7 +774,7 @@ fn render_file_list(
     )));
     lines.push(Line::from(""));
 
-    let (sync_line, sync_timestamp_lines) = render_sync_timestamp(app, ctx.sync_info);
+    let (sync_line, sync_timestamp_lines) = render_sync_timestamp(app, ctx.sync_info.as_ref());
     if let Some(line) = sync_line {
         lines.push(line);
         lines.push(Line::from(""));
@@ -853,9 +845,10 @@ pub fn render_files_tab(
     file_info: &[PackageFileInfo],
     file_selected: &mut usize,
     file_tree_expanded: &std::collections::HashSet<String>,
-    files_error: &Option<String>,
+    files_error: Option<&String>,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
+    const STALE_THRESHOLD_DAYS: u64 = 7;
     let is_resolving = app.preflight_files_resolving || app.files_resolving;
 
     // Log render state for debugging
@@ -874,7 +867,7 @@ pub fn render_files_tab(
             "[UI] render_files_tab: Rendering {} file info entries",
             file_info.len()
         );
-        for pkg_info in file_info.iter() {
+        for pkg_info in file_info {
             tracing::info!(
                 "[UI] render_files_tab: Package '{}' - total={}, new={}, changed={}, removed={}, config={}, files={}",
                 pkg_info.name,
@@ -909,11 +902,10 @@ pub fn render_files_tab(
 
     let display_items = build_display_items(items, file_info, file_tree_expanded);
     let sync_info = crate::logic::files::get_file_db_sync_info();
-    const STALE_THRESHOLD_DAYS: u64 = 7;
     let is_stale = crate::logic::files::is_file_db_stale(STALE_THRESHOLD_DAYS);
 
     if display_items.is_empty() {
-        render_empty_state(app, items, file_info, &is_stale, &sync_info)
+        render_empty_state(app, items, file_info, is_stale.as_ref(), sync_info.as_ref())
     } else {
         let ctx = FileListContext {
             file_info,
@@ -922,6 +914,6 @@ pub fn render_files_tab(
             file_tree_expanded,
             sync_info: &sync_info,
         };
-        render_file_list(app, ctx, file_selected, content_rect)
+        render_file_list(app, &ctx, file_selected, content_rect)
     }
 }

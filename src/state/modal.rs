@@ -34,7 +34,7 @@ pub enum PreflightTab {
     Sandbox,
 }
 
-/// Removal cascade strategy for pacman operations.
+/// Removal cascade strategy for `pacman` operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CascadeMode {
     /// `pacman -R` – remove targets only.
@@ -46,35 +46,39 @@ pub enum CascadeMode {
 }
 
 impl CascadeMode {
-    /// Return the pacman flag sequence corresponding to this cascade mode.
+    /// Return the `pacman` flag sequence corresponding to this `CascadeMode`.
+    #[must_use]
     pub const fn flag(self) -> &'static str {
         match self {
-            CascadeMode::Basic => "-R",
-            CascadeMode::Cascade => "-Rs",
-            CascadeMode::CascadeWithConfigs => "-Rns",
+            Self::Basic => "-R",
+            Self::Cascade => "-Rs",
+            Self::CascadeWithConfigs => "-Rns",
         }
     }
 
-    /// Short text describing the effect of this mode.
+    /// Short text describing the effect of this `CascadeMode`.
+    #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
-            CascadeMode::Basic => "targets only",
-            CascadeMode::Cascade => "remove dependents",
-            CascadeMode::CascadeWithConfigs => "dependents + configs",
+            Self::Basic => "targets only",
+            Self::Cascade => "remove dependents",
+            Self::CascadeWithConfigs => "dependents + configs",
         }
     }
 
-    /// Whether this mode allows removal when dependents exist.
+    /// Whether this `CascadeMode` allows removal when dependents exist.
+    #[must_use]
     pub const fn allows_dependents(self) -> bool {
-        !matches!(self, CascadeMode::Basic)
+        !matches!(self, Self::Basic)
     }
 
-    /// Cycle to the next cascade mode.
+    /// Cycle to the next `CascadeMode`.
+    #[must_use]
     pub const fn next(self) -> Self {
         match self {
-            CascadeMode::Basic => CascadeMode::Cascade,
-            CascadeMode::Cascade => CascadeMode::CascadeWithConfigs,
-            CascadeMode::CascadeWithConfigs => CascadeMode::Basic,
+            Self::Basic => Self::Cascade,
+            Self::Cascade => Self::CascadeWithConfigs,
+            Self::CascadeWithConfigs => Self::Basic,
         }
     }
 }
@@ -139,7 +143,7 @@ pub enum DependencySource {
     Local,
 }
 
-/// What: Restart preference applied to an impacted systemd service.
+/// What: Restart preference applied to an impacted `systemd` service.
 ///
 /// Inputs:
 /// - Assigned automatically from heuristics or by user toggles within the Services tab.
@@ -157,7 +161,7 @@ pub enum ServiceRestartDecision {
     Defer,
 }
 
-/// What: Aggregated information about a systemd unit affected by the pending operation.
+/// What: Aggregated information about a `systemd` unit affected by the pending operation.
 ///
 /// Inputs:
 /// - Populated by the service impact resolver which correlates package file lists and
@@ -264,7 +268,7 @@ impl Default for RiskLevel {
     /// Details:
     /// - Keeps `Default` implementations for composite structs simple while biasing towards safety.
     fn default() -> Self {
-        RiskLevel::Low
+        Self::Low
     }
 }
 
@@ -510,15 +514,15 @@ pub enum Modal {
     },
     /// Select which scans to run before executing the AUR scan.
     ScanConfig {
-        /// Whether to run ClamAV (clamscan).
+        /// Whether to run `ClamAV` (clamscan).
         do_clamav: bool,
         /// Whether to run Trivy filesystem scan.
         do_trivy: bool,
         /// Whether to run Semgrep static analysis.
         do_semgrep: bool,
-        /// Whether to run ShellCheck on PKGBUILD/.install.
+        /// Whether to run `ShellCheck` on `PKGBUILD`/.install.
         do_shellcheck: bool,
-        /// Whether to run VirusTotal hash lookups.
+        /// Whether to run `VirusTotal` hash lookups.
         do_virustotal: bool,
         /// Whether to run custom suspicious-pattern scan (PKGBUILD/.install).
         do_custom: bool,
@@ -527,9 +531,9 @@ pub enum Modal {
         /// Cursor row in the dialog.
         cursor: usize,
     },
-    /// Prompt to install GNOME Terminal at startup on GNOME when not present.
+    /// Prompt to install `GNOME Terminal` at startup on GNOME when not present.
     GnomeTerminalPrompt,
-    /// Setup dialog for VirusTotal API key.
+    /// Setup dialog for `VirusTotal` API key.
     VirusTotalSetup {
         /// User-entered API key buffer.
         input: String,
@@ -554,7 +558,7 @@ mod tests {
     /// Details:
     /// - Acts as a regression guard when fields or defaults change, catching compile-time or panicking construction paths.
     fn modal_default_and_variants_construct() {
-        let m: super::Modal = Default::default();
+        let m = super::Modal::default();
         matches!(m, super::Modal::None);
         let _ = super::Modal::Alert {
             message: "hi".into(),

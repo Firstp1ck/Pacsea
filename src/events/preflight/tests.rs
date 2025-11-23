@@ -78,7 +78,7 @@ fn dep(name: &str, required_by: &[&str]) -> DependencyInfo {
 /// - `DependencyInfo` instance with the specified status for assertions.
 ///
 /// Details:
-/// - Allows testing different dependency statuses (Installed, ToInstall, etc.) to verify correct display.
+/// - Allows testing different dependency statuses (`Installed`, `ToInstall`, etc.) to verify correct display.
 fn dep_with_status(name: &str, required_by: &[&str], status: DependencyStatus) -> DependencyInfo {
     DependencyInfo {
         name: name.into(),
@@ -504,7 +504,7 @@ fn handle_service_restart_shortcuts_force_decisions() {
 /// - Preflight modal with dependencies including installed ones.
 ///
 /// Output:
-/// - All dependencies, including installed ones, are present in dependency_info.
+/// - All dependencies, including installed ones, are present in `dependency_info`.
 ///
 /// Details:
 /// - Tests that installed dependencies are not filtered out and should display with checkmarks.
@@ -517,8 +517,8 @@ fn installed_dependencies_are_included_in_list() {
         },
     );
     let to_install_dep = dep("libnew", &["target"]);
-    let deps = vec![installed_dep.clone(), to_install_dep.clone()];
-    let app = setup_preflight_app(PreflightTab::Deps, deps.clone(), 0, HashSet::new());
+    let deps = vec![installed_dep, to_install_dep];
+    let app = setup_preflight_app(PreflightTab::Deps, deps, 0, HashSet::new());
 
     if let Modal::Preflight {
         dependency_info, ..
@@ -545,11 +545,11 @@ fn installed_dependencies_are_included_in_list() {
 /// What: Verify that cached dependencies are correctly loaded when switching to Deps tab.
 ///
 /// Inputs:
-/// - AppState with cached dependencies in install_list_deps.
+/// - `AppState` with cached dependencies in `install_list_deps`.
 /// - Preflight modal initially on Summary tab, then switching to Deps tab.
 ///
 /// Output:
-/// - Cached dependencies are loaded into dependency_info when switching to Deps tab.
+/// - Cached dependencies are loaded into `dependency_info` when switching to Deps tab.
 ///
 /// Details:
 /// - Tests the tab switching logic that loads cached dependencies from app state.
@@ -557,9 +557,9 @@ fn cached_dependencies_load_on_tab_switch() {
     let mut app = AppState::default();
     let items = vec![pkg("target")];
     let cached_deps = vec![dep("libcached", &["target"])];
-    app.install_list_deps = cached_deps.clone();
+    app.install_list_deps = cached_deps;
     app.modal = Modal::Preflight {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         summary: None,
@@ -610,11 +610,11 @@ fn cached_dependencies_load_on_tab_switch() {
 /// What: Verify that cached files are correctly loaded when switching to Files tab.
 ///
 /// Inputs:
-/// - AppState with cached files in install_list_files.
+/// - `AppState` with cached files in `install_list_files`.
 /// - Preflight modal initially on Summary tab, then switching to Files tab.
 ///
 /// Output:
-/// - Cached files are loaded into file_info when switching to Files tab.
+/// - Cached files are loaded into `file_info` when switching to Files tab.
 ///
 /// Details:
 /// - Tests the tab switching logic that loads cached files from app state.
@@ -622,9 +622,9 @@ fn cached_files_load_on_tab_switch() {
     let mut app = AppState::default();
     let items = vec![pkg("target")];
     let cached_files = vec![file_info("target", 3)];
-    app.install_list_files = cached_files.clone();
+    app.install_list_files = cached_files;
     app.modal = Modal::Preflight {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         summary: None,
@@ -702,10 +702,10 @@ fn installed_dependencies_counted_in_display_length() {
 }
 
 #[test]
-/// What: Verify that files are correctly displayed when file_info is populated.
+/// What: Verify that files are correctly displayed when `file_info` is populated.
 ///
 /// Inputs:
-/// - Preflight modal with file_info containing files for a package.
+/// - Preflight modal with `file_info` containing files for a package.
 ///
 /// Output:
 /// - File display length correctly counts files when package is expanded.
@@ -729,10 +729,10 @@ fn files_displayed_when_file_info_populated() {
 }
 
 #[test]
-/// What: Verify that empty file_info shows correct empty state.
+/// What: Verify that empty `file_info` shows correct empty state.
 ///
 /// Inputs:
-/// - Preflight modal with empty file_info but packages in items.
+/// - Preflight modal with empty `file_info` but packages in items.
 ///
 /// Output:
 /// - File display length returns 2 (all packages shown even if no file info).
@@ -749,10 +749,10 @@ fn empty_file_info_handled_correctly() {
 }
 
 #[test]
-/// What: Verify that dependencies are correctly filtered by required_by when loading from cache.
+/// What: Verify that dependencies are correctly filtered by `required_by` when loading from cache.
 ///
 /// Inputs:
-/// - AppState with cached dependencies, some matching current items and some not.
+/// - `AppState` with cached dependencies, some matching current items and some not.
 /// - Preflight modal switching to Deps tab.
 ///
 /// Output:
@@ -766,9 +766,9 @@ fn dependencies_filtered_by_required_by_on_cache_load() {
     // Create dependencies: one for "target", one for "other" package
     let deps_for_target = dep("libtarget", &["target"]);
     let deps_for_other = dep("libother", &["other"]);
-    app.install_list_deps = vec![deps_for_target.clone(), deps_for_other.clone()];
+    app.install_list_deps = vec![deps_for_target, deps_for_other];
     app.modal = Modal::Preflight {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         summary: None,
@@ -823,7 +823,7 @@ fn dependencies_filtered_by_required_by_on_cache_load() {
 /// What: Verify that files are correctly filtered by package name when loading from cache.
 ///
 /// Inputs:
-/// - AppState with cached files for multiple packages.
+/// - `AppState` with cached files for multiple packages.
 /// - Preflight modal with only some packages in items.
 ///
 /// Output:
@@ -836,9 +836,9 @@ fn files_filtered_by_package_name_on_cache_load() {
     let items = vec![pkg("target")];
     let files_for_target = file_info("target", 2);
     let files_for_other = file_info("other", 3);
-    app.install_list_files = vec![files_for_target.clone(), files_for_other.clone()];
+    app.install_list_files = vec![files_for_target, files_for_other];
     app.modal = Modal::Preflight {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         summary: None,
@@ -1246,12 +1246,13 @@ fn test_all_preflight_keys_return_false() {
 
     for (key_code, key_name) in keys_to_test {
         let mut app = AppState::default();
-        let mut tab = PreflightTab::Summary;
 
         // Switch to Files tab for 'f' key test
-        if matches!(key_code, KeyCode::Char('f') | KeyCode::Char('F')) {
-            tab = PreflightTab::Files;
-        }
+        let tab = if matches!(key_code, KeyCode::Char('f' | 'F')) {
+            PreflightTab::Files
+        } else {
+            PreflightTab::Summary
+        };
 
         app.modal = Modal::Preflight {
             items: vec![pkg("test-package")],
@@ -1286,8 +1287,7 @@ fn test_all_preflight_keys_return_false() {
 
         assert!(
             !should_exit,
-            "{} should not close the TUI (returned true, expected false)",
-            key_name
+            "{key_name} should not close the TUI (returned true, expected false)"
         );
     }
 }
@@ -1351,8 +1351,7 @@ fn test_keys_return_false_on_all_tabs() {
 
         assert!(
             !should_exit,
-            "Pressing 'p' on {:?} tab should not close the TUI",
-            tab
+            "Pressing 'p' on {tab:?} tab should not close the TUI"
         );
     }
 }

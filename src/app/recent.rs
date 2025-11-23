@@ -43,9 +43,7 @@ mod tests {
     use super::*;
 
     fn new_app() -> AppState {
-        AppState {
-            ..Default::default()
-        }
+        AppState::default()
     }
 
     #[test]
@@ -73,7 +71,9 @@ mod tests {
         assert!(app.recent.is_empty());
 
         // 3) Same value as last_saved_value -> no save
-        app.last_input_change = std::time::Instant::now() - std::time::Duration::from_secs(3);
+        app.last_input_change = std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(3))
+            .unwrap_or_else(std::time::Instant::now);
         app.last_saved_value = Some("ripgrep".into());
         maybe_save_recent(&mut app);
         assert!(app.recent.is_empty());
@@ -81,9 +81,11 @@ mod tests {
         // 4) New value beyond debounce -> saved at front, deduped, clamped
         app.input = "fd".into();
         app.last_saved_value = Some("ripgrep".into());
-        app.last_input_change = std::time::Instant::now() - std::time::Duration::from_secs(3);
+        app.last_input_change = std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(3))
+            .unwrap_or_else(std::time::Instant::now);
         maybe_save_recent(&mut app);
-        assert_eq!(app.recent.first().map(|s| s.as_str()), Some("fd"));
+        assert_eq!(app.recent.first().map(String::as_str), Some("fd"));
         assert!(app.recent_dirty);
     }
 
@@ -102,7 +104,9 @@ mod tests {
         let mut app = new_app();
         app.recent = vec!["RipGrep".into()];
         app.input = "ripgrep".into();
-        app.last_input_change = std::time::Instant::now() - std::time::Duration::from_secs(3);
+        app.last_input_change = std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(3))
+            .unwrap_or_else(std::time::Instant::now);
         maybe_save_recent(&mut app);
         assert_eq!(app.recent.len(), 1);
         assert_eq!(app.recent[0], "ripgrep");

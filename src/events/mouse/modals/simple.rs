@@ -1,4 +1,4 @@
-//! Simple modal mouse event handling (Help, VirusTotalSetup, News).
+//! Simple modal mouse event handling (Help, `VirusTotalSetup`, News).
 
 use crate::state::AppState;
 use crossterm::event::{MouseEvent, MouseEventKind};
@@ -15,7 +15,7 @@ use crossterm::event::{MouseEvent, MouseEventKind};
 /// - `app`: Mutable application state containing modal state and UI rectangles
 ///
 /// Output:
-/// - `Some(false)` if the event was handled, `None` if not handled.
+/// - `false` if the event was handled
 ///
 /// Details:
 /// - Supports scrolling within content area.
@@ -27,7 +27,7 @@ pub(super) fn handle_help_modal(
     my: u16,
     is_left_down: bool,
     app: &mut AppState,
-) -> Option<bool> {
+) -> bool {
     // Scroll within Help content area
     if let Some((x, y, w, h)) = app.help_rect
         && mx >= x
@@ -38,11 +38,11 @@ pub(super) fn handle_help_modal(
         match m.kind {
             MouseEventKind::ScrollUp => {
                 app.help_scroll = app.help_scroll.saturating_sub(1);
-                return Some(false);
+                return false;
             }
             MouseEventKind::ScrollDown => {
                 app.help_scroll = app.help_scroll.saturating_add(1);
-                return Some(false);
+                return false;
             }
             _ => {}
         }
@@ -62,15 +62,15 @@ pub(super) fn handle_help_modal(
             // Fallback: close on any click if no rect is known
             app.modal = crate::state::Modal::None;
         }
-        return Some(false);
+        return false;
     }
     // Consume remaining mouse events while Help is open
-    Some(false)
+    false
 }
 
-/// Handle mouse events for the VirusTotalSetup modal.
+/// Handle mouse events for the `VirusTotalSetup` modal.
 ///
-/// What: Process mouse interactions within the VirusTotalSetup modal dialog.
+/// What: Process mouse interactions within the `VirusTotalSetup` modal dialog.
 ///
 /// Inputs:
 /// - `_m`: Mouse event including position, button, and modifiers (unused but kept for signature consistency)
@@ -80,18 +80,18 @@ pub(super) fn handle_help_modal(
 /// - `app`: Mutable application state containing modal state and UI rectangles
 ///
 /// Output:
-/// - `Some(false)` if the event was handled, `None` if not handled.
+/// - `false` if the event was handled
 ///
 /// Details:
 /// - Opens URL when clicking the link area.
-/// - Consumes all mouse events while VirusTotal setup modal is open.
+/// - Consumes all mouse events while `VirusTotal` setup modal is open.
 pub(super) fn handle_virustotal_modal(
     _m: MouseEvent,
     mx: u16,
     my: u16,
     is_left_down: bool,
-    app: &mut AppState,
-) -> Option<bool> {
+    app: &AppState,
+) -> bool {
     if is_left_down
         && let Some((x, y, w, h)) = app.vt_url_rect
         && mx >= x
@@ -110,7 +110,7 @@ pub(super) fn handle_virustotal_modal(
         });
     }
     // Consume all mouse events while VirusTotal setup modal is open
-    Some(false)
+    false
 }
 
 /// Handle mouse events for the News modal.
@@ -223,7 +223,9 @@ pub(super) fn handle_updates_modal(
             crossterm::event::MouseEventKind::ScrollDown => {
                 // Calculate max scroll based on content height
                 // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
-                let content_lines = entries.len() as u16 + 4;
+                let content_lines = u16::try_from(entries.len())
+                    .unwrap_or(u16::MAX)
+                    .saturating_add(4);
                 // Estimate visible lines (modal height minus borders and title/footer)
                 let max_scroll = content_lines.saturating_sub(10);
                 if *scroll < max_scroll {

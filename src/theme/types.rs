@@ -53,6 +53,7 @@ pub enum PackageMarker {
 }
 
 #[derive(Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Settings {
     /// Percentage width allocated to the Recent pane (left column).
     pub layout_left_pct: u16,
@@ -117,7 +118,7 @@ impl Default for Settings {
     /// - Sets balanced pane layout percentages and enables all panes by default.
     /// - Enables all scan types and uses Catppuccin-inspired news glyphs.
     fn default() -> Self {
-        Settings {
+        Self {
             layout_left_pct: 20,
             layout_center_pct: 60,
             layout_right_pct: 20,
@@ -158,6 +159,7 @@ pub struct KeyChord {
 
 impl KeyChord {
     /// Return a short display label such as "Ctrl+R", "F1", "Shift+Del", "+/ ?".
+    #[must_use]
     pub fn label(&self) -> String {
         let mut parts: Vec<&'static str> = Vec::new();
         if self.mods.contains(KeyModifiers::CONTROL) {
@@ -203,7 +205,7 @@ impl KeyChord {
         if parts.is_empty() || matches!(self.code, KeyCode::BackTab) {
             key
         } else {
-            format!("{}+{}", parts.join("+"), key)
+            format!("{}+{key}", parts.join("+"))
         }
     }
 }
@@ -347,6 +349,512 @@ pub struct KeyMap {
     pub news_mark_all_read: Vec<KeyChord>,
 }
 
+/// Type alias for global key bindings tuple.
+///
+/// Contains 8 `Vec<KeyChord>` for `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
+type GlobalKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// Type alias for search key bindings tuple.
+///
+/// Contains 9 `Vec<KeyChord>` for search navigation, actions, and focus keys.
+type SearchKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// Type alias for search normal mode key bindings tuple.
+///
+/// Contains 10 `Vec<KeyChord>` for Vim-like normal mode search keys.
+type SearchNormalKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// Type alias for recent pane key bindings tuple.
+///
+/// Contains 9 `Vec<KeyChord>` for recent pane navigation and action keys.
+type RecentKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// Type alias for install list key bindings tuple.
+///
+/// Contains 8 `Vec<KeyChord>` for install list navigation and action keys.
+type InstallKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// What: Create default global key bindings.
+///
+/// Inputs:
+/// - `none`: Empty key modifiers
+/// - `ctrl`: Control modifier
+///
+/// Output:
+/// - Tuple of global key binding vectors
+///
+/// Details:
+/// - Returns `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
+fn default_global_keys(none: KeyModifiers, ctrl: KeyModifiers) -> GlobalKeys {
+    use KeyCode::{BackTab, Char, Left, Right, Tab};
+    (
+        vec![
+            KeyChord {
+                code: KeyCode::F(1),
+                mods: none,
+            },
+            KeyChord {
+                code: Char('?'),
+                mods: none,
+            },
+        ],
+        vec![KeyChord {
+            code: Char('r'),
+            mods: ctrl,
+        }],
+        vec![KeyChord {
+            code: Char('c'),
+            mods: ctrl,
+        }],
+        vec![KeyChord {
+            code: Char('x'),
+            mods: ctrl,
+        }],
+        vec![KeyChord {
+            code: BackTab,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Tab,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Left,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Right,
+            mods: none,
+        }],
+    )
+}
+
+/// What: Create default dropdown toggle key bindings.
+///
+/// Inputs:
+/// - `shift`: Shift modifier
+///
+/// Output:
+/// - Tuple of dropdown toggle key binding vectors
+///
+/// Details:
+/// - Returns `config_menu_toggle`, `options_menu_toggle`, and `panels_menu_toggle` keys.
+fn default_dropdown_keys(shift: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>, Vec<KeyChord>) {
+    use KeyCode::Char;
+    (
+        vec![KeyChord {
+            code: Char('c'),
+            mods: shift,
+        }],
+        vec![KeyChord {
+            code: Char('o'),
+            mods: shift,
+        }],
+        vec![KeyChord {
+            code: Char('p'),
+            mods: shift,
+        }],
+    )
+}
+
+/// What: Create default search key bindings.
+///
+/// Inputs:
+/// - `none`: Empty key modifiers
+///
+/// Output:
+/// - Tuple of search key binding vectors
+///
+/// Details:
+/// - Returns all search-related key bindings for navigation, actions, and focus.
+fn default_search_keys(none: KeyModifiers) -> SearchKeys {
+    use KeyCode::{Backspace, Char, Down, Enter, Left, PageDown, PageUp, Right, Up};
+    (
+        vec![KeyChord {
+            code: Up,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Down,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: PageUp,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: PageDown,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char(' '),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Enter,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Left,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Right,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Backspace,
+            mods: none,
+        }],
+    )
+}
+
+/// What: Create default search normal mode key bindings.
+///
+/// Inputs:
+/// - `none`: Empty key modifiers
+/// - `shift`: Shift modifier
+///
+/// Output:
+/// - Tuple of search normal mode key binding vectors
+///
+/// Details:
+/// - Returns all Vim-like normal mode key bindings for search.
+fn default_search_normal_keys(none: KeyModifiers, shift: KeyModifiers) -> SearchNormalKeys {
+    use KeyCode::{Char, Delete, Esc};
+    (
+        vec![KeyChord {
+            code: Esc,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('i'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('h'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('l'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('d'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Delete,
+            mods: shift,
+        }],
+        vec![KeyChord {
+            code: Char('s'),
+            mods: shift,
+        }],
+        vec![KeyChord {
+            code: Char('i'),
+            mods: shift,
+        }],
+        vec![KeyChord {
+            code: Char('e'),
+            mods: shift,
+        }],
+        vec![KeyChord {
+            code: Char('u'),
+            mods: shift,
+        }],
+    )
+}
+
+/// What: Create default recent pane key bindings.
+///
+/// Inputs:
+/// - `none`: Empty key modifiers
+/// - `shift`: Shift modifier
+///
+/// Output:
+/// - Tuple of recent pane key binding vectors
+///
+/// Details:
+/// - Returns all recent pane navigation and action key bindings.
+fn default_recent_keys(none: KeyModifiers, shift: KeyModifiers) -> RecentKeys {
+    use KeyCode::{Char, Delete, Down, Enter, Esc, Right, Up};
+    (
+        vec![
+            KeyChord {
+                code: Char('k'),
+                mods: none,
+            },
+            KeyChord {
+                code: Up,
+                mods: none,
+            },
+        ],
+        vec![
+            KeyChord {
+                code: Char('j'),
+                mods: none,
+            },
+            KeyChord {
+                code: Down,
+                mods: none,
+            },
+        ],
+        vec![KeyChord {
+            code: Char('/'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Enter,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char(' '),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Esc,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Right,
+            mods: none,
+        }],
+        vec![
+            KeyChord {
+                code: Char('d'),
+                mods: none,
+            },
+            KeyChord {
+                code: Delete,
+                mods: none,
+            },
+        ],
+        vec![KeyChord {
+            code: Delete,
+            mods: shift,
+        }],
+    )
+}
+
+/// What: Create default install list key bindings.
+///
+/// Inputs:
+/// - `none`: Empty key modifiers
+/// - `shift`: Shift modifier
+///
+/// Output:
+/// - Tuple of install list key binding vectors
+///
+/// Details:
+/// - Returns all install list navigation and action key bindings.
+fn default_install_keys(none: KeyModifiers, shift: KeyModifiers) -> InstallKeys {
+    use KeyCode::{Char, Delete, Down, Enter, Esc, Left, Up};
+    (
+        vec![
+            KeyChord {
+                code: Char('k'),
+                mods: none,
+            },
+            KeyChord {
+                code: Up,
+                mods: none,
+            },
+        ],
+        vec![
+            KeyChord {
+                code: Char('j'),
+                mods: none,
+            },
+            KeyChord {
+                code: Down,
+                mods: none,
+            },
+        ],
+        vec![KeyChord {
+            code: Enter,
+            mods: none,
+        }],
+        vec![
+            KeyChord {
+                code: Delete,
+                mods: none,
+            },
+            KeyChord {
+                code: Char('d'),
+                mods: none,
+            },
+        ],
+        vec![KeyChord {
+            code: Delete,
+            mods: shift,
+        }],
+        vec![KeyChord {
+            code: Char('/'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Esc,
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Left,
+            mods: none,
+        }],
+    )
+}
+
+/// What: Create default news modal key bindings.
+///
+/// Inputs:
+/// - `none`: Empty key modifiers
+/// - `ctrl`: Control modifier
+///
+/// Output:
+/// - Tuple of news modal key binding vectors
+///
+/// Details:
+/// - Returns `news_mark_read` and `news_mark_all_read` key bindings.
+fn default_news_keys(none: KeyModifiers, ctrl: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>) {
+    use KeyCode::Char;
+    (
+        vec![KeyChord {
+            code: Char('r'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('r'),
+            mods: ctrl,
+        }],
+    )
+}
+
+/// What: Build the default `KeyMap` by constructing it from helper functions.
+///
+/// Inputs:
+/// - None (uses internal modifier constants).
+///
+/// Output:
+/// - Returns a fully constructed `KeyMap` with all default key bindings.
+///
+/// Details:
+/// - Consolidates all key binding construction to reduce data flow complexity.
+/// - All key bindings are constructed inline within the struct initialization.
+fn build_default_keymap() -> KeyMap {
+    let none = KeyModifiers::empty();
+    let ctrl = KeyModifiers::CONTROL;
+    let shift = KeyModifiers::SHIFT;
+
+    let global = default_global_keys(none, ctrl);
+    let dropdown = default_dropdown_keys(shift);
+    let search = default_search_keys(none);
+    let search_normal = default_search_normal_keys(none, shift);
+    let recent = default_recent_keys(none, shift);
+    let install = default_install_keys(none, shift);
+    let news = default_news_keys(none, ctrl);
+
+    KeyMap {
+        help_overlay: global.0,
+        reload_theme: global.1,
+        exit: global.2,
+        show_pkgbuild: global.3,
+        change_sort: global.4,
+        pane_next: global.5,
+        pane_left: global.6,
+        pane_right: global.7,
+        config_menu_toggle: dropdown.0,
+        options_menu_toggle: dropdown.1,
+        panels_menu_toggle: dropdown.2,
+        search_move_up: search.0,
+        search_move_down: search.1,
+        search_page_up: search.2,
+        search_page_down: search.3,
+        search_add: search.4,
+        search_install: search.5,
+        search_focus_left: search.6,
+        search_focus_right: search.7,
+        search_backspace: search.8,
+        search_normal_toggle: search_normal.0,
+        search_normal_insert: search_normal.1,
+        search_normal_select_left: search_normal.2,
+        search_normal_select_right: search_normal.3,
+        search_normal_delete: search_normal.4,
+        search_normal_clear: search_normal.5,
+        search_normal_open_status: search_normal.6,
+        search_normal_import: search_normal.7,
+        search_normal_export: search_normal.8,
+        search_normal_updates: search_normal.9,
+        recent_move_up: recent.0,
+        recent_move_down: recent.1,
+        recent_find: recent.2,
+        recent_use: recent.3,
+        recent_add: recent.4,
+        recent_to_search: recent.5,
+        recent_focus_right: recent.6,
+        recent_remove: recent.7,
+        recent_clear: recent.8,
+        install_move_up: install.0,
+        install_move_down: install.1,
+        install_confirm: install.2,
+        install_remove: install.3,
+        install_clear: install.4,
+        install_find: install.5,
+        install_to_search: install.6,
+        install_focus_left: install.7,
+        news_mark_read: news.0,
+        news_mark_all_read: news.1,
+    }
+}
+
 impl Default for KeyMap {
     /// What: Supply the default key bindings for Pacsea interactions.
     ///
@@ -359,259 +867,8 @@ impl Default for KeyMap {
     /// Details:
     /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the theme.
     /// - Provides multiple bindings for certain actions (e.g., `F1` and `?` for help).
+    /// - Delegates to `build_default_keymap()` to reduce data flow complexity.
     fn default() -> Self {
-        use KeyCode::*;
-        let none = KeyModifiers::empty();
-        let ctrl = KeyModifiers::CONTROL;
-        let shift = KeyModifiers::SHIFT; // retained for other bindings; not used for pane switching
-        KeyMap {
-            help_overlay: vec![
-                KeyChord {
-                    code: F(1),
-                    mods: none,
-                },
-                KeyChord {
-                    code: Char('?'),
-                    mods: none,
-                },
-            ],
-            reload_theme: vec![KeyChord {
-                code: Char('r'),
-                mods: ctrl,
-            }],
-            exit: vec![KeyChord {
-                code: Char('c'),
-                mods: ctrl,
-            }],
-            show_pkgbuild: vec![KeyChord {
-                code: Char('x'),
-                mods: ctrl,
-            }],
-            change_sort: vec![KeyChord {
-                code: BackTab,
-                mods: none,
-            }],
-            pane_next: vec![KeyChord {
-                code: Tab,
-                mods: none,
-            }],
-            pane_left: vec![KeyChord {
-                code: Left,
-                mods: none,
-            }],
-            pane_right: vec![KeyChord {
-                code: Right,
-                mods: none,
-            }],
-
-            // Dropdown toggles (defaults: Shift+C / Shift+O / Shift+P)
-            config_menu_toggle: vec![KeyChord {
-                code: Char('c'),
-                mods: shift,
-            }],
-            options_menu_toggle: vec![KeyChord {
-                code: Char('o'),
-                mods: shift,
-            }],
-            panels_menu_toggle: vec![KeyChord {
-                code: Char('p'),
-                mods: shift,
-            }],
-
-            search_move_up: vec![KeyChord {
-                code: Up,
-                mods: none,
-            }],
-            search_move_down: vec![KeyChord {
-                code: Down,
-                mods: none,
-            }],
-            search_page_up: vec![KeyChord {
-                code: PageUp,
-                mods: none,
-            }],
-            search_page_down: vec![KeyChord {
-                code: PageDown,
-                mods: none,
-            }],
-            search_add: vec![KeyChord {
-                code: Char(' '),
-                mods: none,
-            }],
-            search_install: vec![KeyChord {
-                code: Enter,
-                mods: none,
-            }],
-            search_focus_left: vec![KeyChord {
-                code: Left,
-                mods: none,
-            }],
-            search_focus_right: vec![KeyChord {
-                code: Right,
-                mods: none,
-            }],
-            search_backspace: vec![KeyChord {
-                code: Backspace,
-                mods: none,
-            }],
-
-            // Search normal mode (Vim-like)
-            search_normal_toggle: vec![KeyChord {
-                code: Esc,
-                mods: none,
-            }],
-            search_normal_insert: vec![KeyChord {
-                code: Char('i'),
-                mods: none,
-            }],
-            search_normal_select_left: vec![KeyChord {
-                code: Char('h'),
-                mods: none,
-            }],
-            search_normal_select_right: vec![KeyChord {
-                code: Char('l'),
-                mods: none,
-            }],
-            search_normal_delete: vec![KeyChord {
-                code: Char('d'),
-                mods: none,
-            }],
-            search_normal_clear: vec![KeyChord {
-                code: Delete,
-                mods: shift,
-            }],
-            search_normal_open_status: vec![KeyChord {
-                code: Char('s'),
-                mods: shift,
-            }],
-            search_normal_import: vec![KeyChord {
-                code: Char('i'),
-                mods: shift,
-            }],
-            search_normal_export: vec![KeyChord {
-                code: Char('e'),
-                mods: shift,
-            }],
-            search_normal_updates: vec![KeyChord {
-                code: Char('u'),
-                mods: shift,
-            }],
-
-            recent_move_up: vec![
-                KeyChord {
-                    code: Char('k'),
-                    mods: none,
-                },
-                KeyChord {
-                    code: Up,
-                    mods: none,
-                },
-            ],
-            recent_move_down: vec![
-                KeyChord {
-                    code: Char('j'),
-                    mods: none,
-                },
-                KeyChord {
-                    code: Down,
-                    mods: none,
-                },
-            ],
-            recent_find: vec![KeyChord {
-                code: Char('/'),
-                mods: none,
-            }],
-            recent_use: vec![KeyChord {
-                code: Enter,
-                mods: none,
-            }],
-            recent_add: vec![KeyChord {
-                code: Char(' '),
-                mods: none,
-            }],
-            recent_to_search: vec![KeyChord {
-                code: Esc,
-                mods: none,
-            }],
-            recent_focus_right: vec![KeyChord {
-                code: Right,
-                mods: none,
-            }],
-            recent_remove: vec![
-                KeyChord {
-                    code: Char('d'),
-                    mods: none,
-                },
-                KeyChord {
-                    code: Delete,
-                    mods: none,
-                },
-            ],
-            recent_clear: vec![KeyChord {
-                code: Delete,
-                mods: shift,
-            }],
-
-            install_move_up: vec![
-                KeyChord {
-                    code: Char('k'),
-                    mods: none,
-                },
-                KeyChord {
-                    code: Up,
-                    mods: none,
-                },
-            ],
-            install_move_down: vec![
-                KeyChord {
-                    code: Char('j'),
-                    mods: none,
-                },
-                KeyChord {
-                    code: Down,
-                    mods: none,
-                },
-            ],
-            install_confirm: vec![KeyChord {
-                code: Enter,
-                mods: none,
-            }],
-            install_remove: vec![
-                KeyChord {
-                    code: Delete,
-                    mods: none,
-                },
-                KeyChord {
-                    code: Char('d'),
-                    mods: none,
-                },
-            ],
-            install_clear: vec![KeyChord {
-                code: Delete,
-                mods: shift,
-            }],
-            install_find: vec![KeyChord {
-                code: Char('/'),
-                mods: none,
-            }],
-            install_to_search: vec![KeyChord {
-                code: Esc,
-                mods: none,
-            }],
-            install_focus_left: vec![KeyChord {
-                code: Left,
-                mods: none,
-            }],
-
-            // News modal
-            news_mark_read: vec![KeyChord {
-                code: Char('r'),
-                mods: none,
-            }],
-            news_mark_all_read: vec![KeyChord {
-                code: Char('r'),
-                mods: ctrl,
-            }],
-        }
+        build_default_keymap()
     }
 }

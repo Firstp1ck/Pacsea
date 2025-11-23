@@ -101,7 +101,7 @@ mod tests {
     /// What: Initialize minimal English translations for recent tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with recent-related translations
@@ -133,10 +133,8 @@ mod tests {
     #[test]
     fn recent_renders_and_records_rect_when_visible() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
         app.recent.push("package1".to_string());
@@ -146,10 +144,12 @@ mod tests {
             let area = f.area();
             render_recent(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render recent pane");
 
         assert!(app.recent_rect.is_some());
-        let (x, y, w, h) = app.recent_rect.unwrap();
+        let (x, y, w, h) = app
+            .recent_rect
+            .expect("recent_rect should be Some after is_some() check");
         // Rect should exclude borders
         assert_eq!(x, 1);
         assert_eq!(y, 1);
@@ -170,10 +170,8 @@ mod tests {
     #[test]
     fn recent_clears_rect_when_hidden() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = false;
         app.recent_rect = Some((10, 10, 20, 20)); // Set initial value
@@ -182,7 +180,7 @@ mod tests {
             let area = f.area();
             render_recent(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render hidden recent pane");
 
         assert!(app.recent_rect.is_none());
     }
@@ -200,10 +198,8 @@ mod tests {
     #[test]
     fn recent_clears_rect_when_area_zero_width() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
 
@@ -216,7 +212,7 @@ mod tests {
             };
             render_recent(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render recent pane with zero width");
 
         assert!(app.recent_rect.is_none());
     }
@@ -234,10 +230,8 @@ mod tests {
     #[test]
     fn recent_displays_pane_find_when_focused() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
         app.focus = crate::state::Focus::Recent;
@@ -247,7 +241,7 @@ mod tests {
             let area = f.area();
             render_recent(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render recent pane with pane find");
 
         // Should render without panic with pane find in title
         assert!(app.recent_rect.is_some());
@@ -266,10 +260,8 @@ mod tests {
     #[test]
     fn recent_hides_pane_find_when_unfocused() {
         let backend = TestBackend::new(100, 30);
-        let mut term = Terminal::new(backend).unwrap();
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut term = Terminal::new(backend).expect("Failed to create terminal for test");
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
         app.focus = crate::state::Focus::Search;
@@ -279,7 +271,7 @@ mod tests {
             let area = f.area();
             render_recent(f, &mut app, area);
         })
-        .unwrap();
+        .expect("Failed to render unfocused recent pane");
 
         // Should render without pane find in title
         assert!(app.recent_rect.is_some());

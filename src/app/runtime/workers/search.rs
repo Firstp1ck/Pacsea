@@ -8,7 +8,7 @@ use tokio::{
 
 use crate::index as pkgindex;
 use crate::sources;
-use crate::state::*;
+use crate::state::{QueryInput, SearchResults};
 use crate::util::{match_rank, repo_order};
 
 /// What: Spawn background worker for search queries.
@@ -27,24 +27,25 @@ use crate::util::{match_rank, repo_order};
 pub fn spawn_search_worker(
     mut query_rx: mpsc::UnboundedReceiver<QueryInput>,
     search_result_tx: mpsc::UnboundedSender<SearchResults>,
-    net_err_tx: mpsc::UnboundedSender<String>,
+    net_err_tx: &mpsc::UnboundedSender<String>,
     index_path: std::path::PathBuf,
 ) {
     let net_err_tx_search = net_err_tx.clone();
     tokio::spawn(async move {
         const DEBOUNCE_MS: u64 = 250;
         const MIN_INTERVAL_MS: u64 = 300;
-        let mut last_sent = Instant::now() - Duration::from_millis(MIN_INTERVAL_MS);
+        let mut last_sent = Instant::now()
+            .checked_sub(Duration::from_millis(MIN_INTERVAL_MS))
+            .unwrap_or_else(Instant::now);
         loop {
-            let mut latest = match query_rx.recv().await {
-                Some(q) => q,
-                None => break,
+            let Some(mut latest) = query_rx.recv().await else {
+                break;
             };
             loop {
-                select! { Some(new_q) = query_rx.recv() => { latest = new_q; } _ = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } }
+                select! { Some(new_q) = query_rx.recv() => { latest = new_q; } () = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } }
             }
             if latest.text.trim().is_empty() {
-                let mut items = pkgindex::all_official_or_fetch(&index_path).await;
+                let mut items = pkgindex::all_official_or_fetch(&index_path);
                 items.sort_by(|a, b| {
                     let oa = repo_order(&a.source);
                     let ob = repo_order(&b.source);
@@ -78,7 +79,7 @@ pub fn spawn_search_worker(
             let ipath = index_path.clone();
             tokio::spawn(async move {
                 if crate::index::all_official().is_empty() {
-                    let _ = crate::index::all_official_or_fetch(&ipath).await;
+                    let _ = crate::index::all_official_or_fetch(&ipath);
                 }
                 let mut items = pkgindex::search_official(&qtext);
                 let q_for_net = qtext.clone();

@@ -78,14 +78,11 @@ fn process_conflicts(
         }
 
         let reason = if is_installed && is_in_install_list {
-            format!(
-                "conflicts with {} (installed and in install list)",
-                conflict_name
-            )
+            format!("conflicts with {conflict_name} (installed and in install list)")
         } else if is_installed {
-            format!("conflicts with installed package {}", conflict_name)
+            format!("conflicts with installed package {conflict_name}")
         } else {
-            format!("conflicts with package {} in install list", conflict_name)
+            format!("conflicts with package {conflict_name} in install list")
         };
 
         // Add or update conflict entry for the conflicting package
@@ -124,8 +121,7 @@ fn process_conflicts(
         // a conflict entry for the current package being checked, so it shows up
         // in the UI as having a conflict
         if is_in_install_list {
-            let reverse_reason =
-                format!("conflicts with package {} in install list", conflict_name);
+            let reverse_reason = format!("conflicts with package {conflict_name} in install list");
             let current_entry = deps.entry(item.name.clone()).or_insert_with(|| {
                 // Determine source for current package
                 let (dep_source, is_core) =
@@ -176,6 +172,7 @@ fn process_conflicts(
 ///
 /// Details:
 /// - Parses dependency specifications and filters out self-references and .so files.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn process_batched_dependencies(
     name: &str,
     dep_names: Vec<String>,
@@ -189,7 +186,8 @@ fn process_batched_dependencies(
         if pkg_name == name {
             continue;
         }
-        if pkg_name.ends_with(".so") || pkg_name.contains(".so.") || pkg_name.contains(".so=") {
+        let pkg_lower = pkg_name.to_lowercase();
+        if pkg_lower.ends_with(".so") || pkg_lower.contains(".so.") || pkg_lower.contains(".so=") {
             continue;
         }
         let status = determine_status(&pkg_name, &version_req, installed, provided, upgradable);
@@ -223,9 +221,9 @@ fn process_batched_dependencies(
 /// - Updates the `deps` map with the merged dependency.
 ///
 /// Details:
-/// - Merges status (keeps worst), version requirements (keeps more restrictive), and required_by lists.
+/// - Merges status (keeps worst), version requirements (keeps more restrictive), and `required_by` lists.
 fn merge_dependency(
-    dep: DependencyInfo,
+    dep: &DependencyInfo,
     parent_name: &str,
     installed: &HashSet<String>,
     provided: &HashSet<String>,
@@ -238,8 +236,7 @@ fn merge_dependency(
     let existing_dep = deps.get(&dep_name).cloned();
     let needs_required_by_update = existing_dep
         .as_ref()
-        .map(|e| !e.required_by.contains(&parent_name.to_string()))
-        .unwrap_or(true);
+        .is_none_or(|e| !e.required_by.contains(&parent_name.to_string()));
 
     // Update or create dependency entry
     let entry = deps
@@ -261,16 +258,29 @@ fn merge_dependency(
     }
 
     // Merge status (keep worst)
-    let existing_priority = dependency_priority(&entry.status);
-    let new_priority = dependency_priority(&dep.status);
-    if new_priority < existing_priority {
-        entry.status = dep.status.clone();
+    // But never overwrite a Conflict status - conflicts take precedence
+    if !matches!(entry.status, DependencyStatus::Conflict { .. }) {
+        let existing_priority = dependency_priority(&entry.status);
+        let new_priority = dependency_priority(&dep.status);
+        if new_priority < existing_priority {
+            entry.status = dep.status.clone();
+        }
     }
 
     // Merge version requirements (keep more restrictive)
+    // But never overwrite a Conflict status - conflicts take precedence
     if !dep.version.is_empty() && dep.version != entry.version {
+        // If entry is already a conflict, don't overwrite it with dependency status
+        if matches!(entry.status, DependencyStatus::Conflict { .. }) {
+            // Still update version if needed, but keep conflict status
+            if entry.version.is_empty() {
+                entry.version.clone_from(&dep.version);
+            }
+            return;
+        }
+
         if entry.version.is_empty() {
-            entry.version = dep.version.clone();
+            entry.version.clone_from(&dep.version);
         } else {
             // Check which version requirement is more restrictive
             let existing_status =
@@ -281,7 +291,7 @@ fn merge_dependency(
             let new_req_priority = dependency_priority(&new_status);
 
             if new_req_priority < existing_req_priority {
-                entry.version = dep.version.clone();
+                entry.version.clone_from(&dep.version);
                 entry.status = new_status;
             }
         }
@@ -301,7 +311,7 @@ fn merge_dependency(
 /// - Returns a result containing a vector of `DependencyInfo` records or an error.
 ///
 /// Details:
-/// - Uses batched cache if available for official packages, otherwise calls resolve_package_deps.
+/// - Uses batched cache if available for official packages, otherwise calls `resolve_package_deps`.
 fn resolve_single_package_deps(
     item: &PackageItem,
     batched_deps_cache: &HashMap<String, Vec<String>>,
@@ -358,7 +368,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     // Only warn if called from UI thread (not from background workers)
     // Background workers use spawn_blocking which is fine and expected
     let backtrace = std::backtrace::Backtrace::force_capture();
-    let backtrace_str = format!("{:?}", backtrace);
+    let backtrace_str = format!("{backtrace:?}");
     // Only warn if NOT in a blocking task (i.e., called from UI thread/event handlers)
     // Check for various indicators that we're in a blocking thread pool
     let is_blocking_task = backtrace_str.contains("blocking::task")
@@ -401,7 +411,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     // 1. Check conflicts against installed packages
     // 2. Check conflicts between packages in the install list
     tracing::info!("Checking conflicts for {} package(s)", items.len());
-    for item in items.iter() {
+    for item in items {
         process_conflicts(item, &root_names, &installed, &provided, &mut deps);
     }
 
@@ -424,20 +434,20 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
         .iter()
         .filter_map(|item| {
             if let Source::Official { repo, .. } = &item.source {
-                if *repo != "local" {
-                    Some(item.name.as_str())
-                } else {
+                if *repo == "local" {
                     None
+                } else {
+                    Some(item.name.as_str())
                 }
             } else {
                 None
             }
         })
         .collect();
-    let batched_deps_cache = if !official_packages.is_empty() {
-        batch_fetch_official_deps(&official_packages)
-    } else {
+    let batched_deps_cache = if official_packages.is_empty() {
         std::collections::HashMap::new()
+    } else {
+        batch_fetch_official_deps(&official_packages)
     };
 
     // Resolve ONLY direct dependencies (non-recursive)
@@ -450,16 +460,16 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
             &provided,
             &upgradable,
         ) {
-            Ok(mut resolved_deps) => {
+            Ok(resolved_deps) => {
                 tracing::debug!(
                     "  Found {} dependencies for {}",
                     resolved_deps.len(),
                     item.name
                 );
 
-                for dep in resolved_deps.drain(..) {
+                for dep in resolved_deps {
                     merge_dependency(
-                        dep,
+                        &dep,
                         &item.name,
                         &installed,
                         &provided,
@@ -490,7 +500,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     });
 
     let elapsed = start_time.elapsed();
-    let duration_ms = elapsed.as_millis() as u64;
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
         stage = "dependencies",
         item_count = items.len(),

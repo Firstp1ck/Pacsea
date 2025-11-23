@@ -46,7 +46,7 @@ mod tests {
     /// What: Initialize minimal English translations for tests.
     ///
     /// Inputs:
-    /// - `app`: AppState to populate with translations
+    /// - `app`: `AppState` to populate with translations
     ///
     /// Output:
     /// - Populates `app.translations` and `app.translations_fallback` with minimal English translations
@@ -76,11 +76,9 @@ mod tests {
     fn details_sets_url_and_pkgb_rects() {
         use ratatui::{Terminal, backend::TestBackend};
         let backend = TestBackend::new(80, 20);
-        let mut term = Terminal::new(backend).unwrap();
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
 
-        let mut app = crate::state::AppState {
-            ..Default::default()
-        };
+        let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.details = crate::state::PackageDetails {
             repository: "extra".into(),
@@ -112,7 +110,7 @@ mod tests {
             let area = f.area();
             super::render_details(f, &mut app, area);
         })
-        .unwrap();
+        .expect("failed to draw test terminal");
 
         assert!(app.details_rect.is_some());
         assert!(app.url_button_rect.is_some());

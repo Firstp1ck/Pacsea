@@ -20,9 +20,7 @@ use super::handle_modal_key;
 /// Details:
 /// - Provides a clean starting state for each test case
 fn new_app() -> AppState {
-    AppState {
-        ..Default::default()
-    }
+    AppState::default()
 }
 
 /// What: Create a key event with Press kind.
@@ -32,7 +30,7 @@ fn new_app() -> AppState {
 /// - `modifiers`: Key modifiers
 ///
 /// Output:
-/// - KeyEvent with Press kind
+/// - `KeyEvent` with Press kind
 fn key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
     let mut ke = KeyEvent::new(code, modifiers);
     ke.kind = crossterm::event::KeyEventKind::Press;
@@ -40,10 +38,10 @@ fn key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
 }
 
 #[test]
-/// What: Verify Esc key closes OptionalDeps modal and doesn't restore it.
+/// What: Verify Esc key closes `OptionalDeps` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - OptionalDeps modal with test rows
+/// - `OptionalDeps` modal with test rows
 /// - Esc key event
 ///
 /// Output:
@@ -60,10 +58,7 @@ fn optional_deps_esc_closes_modal() {
         selectable: true,
         note: None,
     }];
-    app.modal = crate::state::Modal::OptionalDeps {
-        rows: rows.clone(),
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Esc, KeyModifiers::empty());
@@ -74,10 +69,10 @@ fn optional_deps_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes SystemUpdate modal and doesn't restore it.
+/// What: Verify Esc key closes `SystemUpdate` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - SystemUpdate modal with default settings
+/// - `SystemUpdate` modal with default settings
 /// - Esc key event
 ///
 /// Output:
@@ -107,10 +102,10 @@ fn system_update_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes PreflightExec modal and doesn't restore it.
+/// What: Verify Esc key closes `PreflightExec` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - PreflightExec modal
+/// - `PreflightExec` modal
 /// - Esc key event
 ///
 /// Output:
@@ -139,10 +134,10 @@ fn preflight_exec_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify 'q' key closes PreflightExec modal and doesn't restore it.
+/// What: Verify 'q' key closes `PreflightExec` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - PreflightExec modal
+/// - `PreflightExec` modal
 /// - 'q' key event
 ///
 /// Output:
@@ -171,10 +166,10 @@ fn preflight_exec_q_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes PostSummary modal and doesn't restore it.
+/// What: Verify Esc key closes `PostSummary` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - PostSummary modal
+/// - `PostSummary` modal
 /// - Esc key event
 ///
 /// Output:
@@ -202,10 +197,10 @@ fn post_summary_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Enter key closes PostSummary modal and doesn't restore it.
+/// What: Verify Enter key closes `PostSummary` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - PostSummary modal
+/// - `PostSummary` modal
 /// - Enter key event
 ///
 /// Output:
@@ -233,10 +228,10 @@ fn post_summary_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes ScanConfig modal and doesn't restore it.
+/// What: Verify Esc key closes `ScanConfig` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - ScanConfig modal
+/// - `ScanConfig` modal
 /// - Esc key event
 ///
 /// Output:
@@ -266,10 +261,10 @@ fn scan_config_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes VirusTotalSetup modal and doesn't restore it.
+/// What: Verify Esc key closes `VirusTotalSetup` modal and doesn't restore it.
 ///
 /// Inputs:
-/// - VirusTotalSetup modal
+/// - `VirusTotalSetup` modal
 /// - Esc key event
 ///
 /// Output:
@@ -293,10 +288,10 @@ fn virustotal_setup_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify navigation keys in OptionalDeps modal don't close it.
+/// What: Verify navigation keys in `OptionalDeps` modal don't close it.
 ///
 /// Inputs:
-/// - OptionalDeps modal with multiple rows
+/// - `OptionalDeps` modal with multiple rows
 /// - Up/Down key events
 ///
 /// Output:
@@ -322,10 +317,7 @@ fn optional_deps_navigation_preserves_modal() {
             note: None,
         },
     ];
-    app.modal = crate::state::Modal::OptionalDeps {
-        rows: rows.clone(),
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
@@ -353,10 +345,10 @@ fn optional_deps_navigation_preserves_modal() {
 }
 
 #[test]
-/// What: Verify navigation keys in SystemUpdate modal don't close it.
+/// What: Verify navigation keys in `SystemUpdate` modal don't close it.
 ///
 /// Inputs:
-/// - SystemUpdate modal
+/// - `SystemUpdate` modal
 /// - Up/Down key events
 ///
 /// Output:
@@ -403,10 +395,10 @@ fn system_update_navigation_preserves_modal() {
 }
 
 #[test]
-/// What: Verify unhandled keys in OptionalDeps modal don't break state.
+/// What: Verify unhandled keys in `OptionalDeps` modal don't break state.
 ///
 /// Inputs:
-/// - OptionalDeps modal
+/// - `OptionalDeps` modal
 /// - Unhandled key event (e.g., 'x')
 ///
 /// Output:
@@ -423,10 +415,7 @@ fn optional_deps_unhandled_key_preserves_modal() {
         selectable: true,
         note: None,
     }];
-    app.modal = crate::state::Modal::OptionalDeps {
-        rows: rows.clone(),
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Char('x'), KeyModifiers::empty());
@@ -443,10 +432,10 @@ fn optional_deps_unhandled_key_preserves_modal() {
 }
 
 #[test]
-/// What: Verify unhandled keys in SystemUpdate modal don't break state.
+/// What: Verify unhandled keys in `SystemUpdate` modal don't break state.
 ///
 /// Inputs:
-/// - SystemUpdate modal
+/// - `SystemUpdate` modal
 /// - Unhandled key event (e.g., 'z')
 ///
 /// Output:
@@ -482,10 +471,10 @@ fn system_update_unhandled_key_preserves_modal() {
 }
 
 #[test]
-/// What: Verify toggle keys in SystemUpdate modal work correctly.
+/// What: Verify toggle keys in `SystemUpdate` modal work correctly.
 ///
 /// Inputs:
-/// - SystemUpdate modal
+/// - `SystemUpdate` modal
 /// - Space key event to toggle options
 ///
 /// Output:
@@ -549,10 +538,7 @@ fn news_esc_closes_modal() {
             url: "https://example.com/news2".to_string(),
         },
     ];
-    app.modal = crate::state::Modal::News {
-        items: items.clone(),
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::News { items, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Esc, KeyModifiers::empty());
@@ -593,10 +579,7 @@ fn news_navigation_preserves_modal() {
             url: "https://example.com/news3".to_string(),
         },
     ];
-    app.modal = crate::state::Modal::News {
-        items: items.clone(),
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::News { items, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
@@ -666,10 +649,7 @@ fn news_enter_preserves_modal() {
         title: "Test News".to_string(),
         url: test_url.to_string(),
     }];
-    app.modal = crate::state::Modal::News {
-        items: items.clone(),
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::News { items, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
@@ -707,10 +687,7 @@ fn news_unhandled_key_preserves_modal() {
         title: "Test News".to_string(),
         url: "https://example.com/news".to_string(),
     }];
-    app.modal = crate::state::Modal::News {
-        items: items.clone(),
-        selected: 0,
-    };
+    app.modal = crate::state::Modal::News { items, selected: 0 };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Char('x'), KeyModifiers::empty());
@@ -779,17 +756,17 @@ fn alert_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes ConfirmInstall modal.
+/// What: Verify Esc key closes `ConfirmInstall` modal.
 ///
 /// Inputs:
-/// - ConfirmInstall modal with items
+/// - `ConfirmInstall` modal with items
 /// - Esc key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Esc closes ConfirmInstall modal correctly
+/// - Tests that Esc closes `ConfirmInstall` modal correctly
 fn confirm_install_esc_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ConfirmInstall {
@@ -811,17 +788,17 @@ fn confirm_install_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes ConfirmRemove modal.
+/// What: Verify Esc key closes `ConfirmRemove` modal.
 ///
 /// Inputs:
-/// - ConfirmRemove modal with items
+/// - `ConfirmRemove` modal with items
 /// - Esc key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Esc closes ConfirmRemove modal correctly
+/// - Tests that Esc closes `ConfirmRemove` modal correctly
 fn confirm_remove_esc_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ConfirmRemove {
@@ -843,17 +820,17 @@ fn confirm_remove_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Enter key closes ConfirmRemove modal.
+/// What: Verify Enter key closes `ConfirmRemove` modal.
 ///
 /// Inputs:
-/// - ConfirmRemove modal with items
+/// - `ConfirmRemove` modal with items
 /// - Enter key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Enter also closes ConfirmRemove modal
+/// - Tests that Enter also closes `ConfirmRemove` modal
 /// - Cleans up terminal window opened by the test
 fn confirm_remove_enter_closes_modal() {
     let mut app = new_app();
@@ -926,17 +903,17 @@ fn help_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify Esc key closes GnomeTerminalPrompt modal.
+/// What: Verify Esc key closes `GnomeTerminalPrompt` modal.
 ///
 /// Inputs:
-/// - GnomeTerminalPrompt modal
+/// - `GnomeTerminalPrompt` modal
 /// - Esc key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Esc closes GnomeTerminalPrompt modal correctly
+/// - Tests that Esc closes `GnomeTerminalPrompt` modal correctly
 fn gnome_terminal_prompt_esc_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::GnomeTerminalPrompt;
@@ -950,10 +927,10 @@ fn gnome_terminal_prompt_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Enter key in VirusTotalSetup modal with empty input opens browser.
+/// What: Verify Enter key in `VirusTotalSetup` modal with empty input opens browser.
 ///
 /// Inputs:
-/// - VirusTotalSetup modal with empty input
+/// - `VirusTotalSetup` modal with empty input
 /// - Enter key event
 ///
 /// Output:
@@ -985,10 +962,10 @@ fn virustotal_setup_enter_opens_browser() {
 }
 
 #[test]
-/// What: Verify Enter key in GnomeTerminalPrompt modal spawns terminal.
+/// What: Verify Enter key in `GnomeTerminalPrompt` modal spawns terminal.
 ///
 /// Inputs:
-/// - GnomeTerminalPrompt modal
+/// - `GnomeTerminalPrompt` modal
 /// - Enter key event
 ///
 /// Output:
@@ -1012,17 +989,17 @@ fn gnome_terminal_prompt_enter_spawns_terminal() {
 }
 
 #[test]
-/// What: Verify Esc key closes ImportHelp modal.
+/// What: Verify Esc key closes `ImportHelp` modal.
 ///
 /// Inputs:
-/// - ImportHelp modal
+/// - `ImportHelp` modal
 /// - Esc key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Esc closes ImportHelp modal correctly
+/// - Tests that Esc closes `ImportHelp` modal correctly
 fn import_help_esc_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ImportHelp;
@@ -1036,17 +1013,17 @@ fn import_help_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify Enter key closes ImportHelp modal.
+/// What: Verify Enter key closes `ImportHelp` modal.
 ///
 /// Inputs:
-/// - ImportHelp modal
+/// - `ImportHelp` modal
 /// - Enter key event
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Tests that Enter also closes ImportHelp modal
+/// - Tests that Enter also closes `ImportHelp` modal
 /// - Cleans up file picker window opened by the test
 fn import_help_enter_closes_modal() {
     let mut app = new_app();

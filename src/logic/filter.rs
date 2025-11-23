@@ -113,24 +113,24 @@ mod tests {
     ///   respects flags and prunes disabled repositories.
     fn apply_filters_and_preserve_selection() {
         let mut app = AppState {
+            all_results: vec![
+                PackageItem {
+                    name: "aur1".into(),
+                    version: "1".into(),
+                    description: String::new(),
+                    source: Source::Aur,
+                    popularity: Some(1.0),
+                },
+                item_official("core1", "core"),
+                item_official("extra1", "extra"),
+                item_official("other1", "community"),
+            ],
+            results_filter_show_aur: false,
+            results_filter_show_core: true,
+            results_filter_show_extra: false,
+            results_filter_show_multilib: false,
             ..Default::default()
         };
-        app.all_results = vec![
-            PackageItem {
-                name: "aur1".into(),
-                version: "1".into(),
-                description: String::new(),
-                source: Source::Aur,
-                popularity: Some(1.0),
-            },
-            item_official("core1", "core"),
-            item_official("extra1", "extra"),
-            item_official("other1", "community"),
-        ];
-        app.results_filter_show_aur = false;
-        app.results_filter_show_core = true;
-        app.results_filter_show_extra = false;
-        app.results_filter_show_multilib = false;
         apply_filters_and_sort_preserve_selection(&mut app);
         assert!(app.results.iter().all(
             |p| matches!(&p.source, Source::Official{repo, ..} if repo.eq_ignore_ascii_case("core"))
@@ -138,56 +138,56 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify CachyOS and EOS toggles act independently when filtering official repos.
+    /// What: Verify `CachyOS` and `EOS` toggles act independently when filtering official repos.
     ///
     /// Inputs:
-    /// - `app`: `AppState` containing CachyOS and EndeavourOS entries with toggle combinations.
+    /// - `app`: `AppState` containing `CachyOS` and `EndeavourOS` entries with toggle combinations.
     ///
     /// Output:
-    /// - CachyOS packages persist while EOS entries are removed per toggle state.
+    /// - `CachyOS` packages persist while `EOS` entries are removed per toggle state.
     ///
     /// Details:
-    /// - Confirms CachyOS inclusion does not implicitly re-enable EOS repositories.
+    /// - Confirms `CachyOS` inclusion does not implicitly re-enable `EOS` repositories.
     fn apply_filters_cachyos_and_eos_interaction() {
         let mut app = AppState {
+            all_results: vec![
+                PackageItem {
+                    name: "cx".into(),
+                    version: "1".into(),
+                    description: String::new(),
+                    source: Source::Official {
+                        repo: "cachyos-core".into(),
+                        arch: "x86_64".into(),
+                    },
+                    popularity: None,
+                },
+                PackageItem {
+                    name: "ey".into(),
+                    version: "1".into(),
+                    description: String::new(),
+                    source: Source::Official {
+                        repo: "endeavouros".into(),
+                        arch: "x86_64".into(),
+                    },
+                    popularity: None,
+                },
+                item_official("core1", "core"),
+            ],
+            results_filter_show_core: true,
+            results_filter_show_extra: true,
+            results_filter_show_multilib: true,
+            results_filter_show_eos: false,
+            results_filter_show_cachyos: true,
             ..Default::default()
         };
-        app.all_results = vec![
-            PackageItem {
-                name: "cx".into(),
-                version: "1".into(),
-                description: String::new(),
-                source: Source::Official {
-                    repo: "cachyos-core".into(),
-                    arch: "x86_64".into(),
-                },
-                popularity: None,
-            },
-            PackageItem {
-                name: "ey".into(),
-                version: "1".into(),
-                description: String::new(),
-                source: Source::Official {
-                    repo: "endeavouros".into(),
-                    arch: "x86_64".into(),
-                },
-                popularity: None,
-            },
-            item_official("core1", "core"),
-        ];
-        app.results_filter_show_core = true;
-        app.results_filter_show_extra = true;
-        app.results_filter_show_multilib = true;
-        app.results_filter_show_eos = false;
-        app.results_filter_show_cachyos = true;
         apply_filters_and_sort_preserve_selection(&mut app);
         assert!(app.results.iter().any(|p| match &p.source {
             Source::Official { repo, .. } => repo.to_lowercase().starts_with("cachyos"),
-            _ => false,
+            Source::Aur => false,
         }));
         assert!(app.results.iter().all(|p| match &p.source {
             Source::Official { repo, .. } => !repo.eq_ignore_ascii_case("endeavouros"),
-            _ => true,
+            Source::Aur => true,
         }));
     }
 
@@ -205,38 +205,38 @@ mod tests {
     ///   previously filtered repos.
     fn logic_filter_unknown_official_inclusion_policy() {
         let mut app = AppState {
+            all_results: vec![
+                PackageItem {
+                    name: "x1".into(),
+                    version: "1".into(),
+                    description: String::new(),
+                    source: Source::Official {
+                        repo: "weirdrepo".into(),
+                        arch: "x86_64".into(),
+                    },
+                    popularity: None,
+                },
+                item_official("core1", "core"),
+            ],
+            results_filter_show_aur: true,
+            results_filter_show_core: true,
+            results_filter_show_extra: true,
+            results_filter_show_multilib: false,
+            results_filter_show_eos: true,
+            results_filter_show_cachyos: true,
             ..Default::default()
         };
-        app.all_results = vec![
-            PackageItem {
-                name: "x1".into(),
-                version: "1".into(),
-                description: String::new(),
-                source: Source::Official {
-                    repo: "weirdrepo".into(),
-                    arch: "x86_64".into(),
-                },
-                popularity: None,
-            },
-            item_official("core1", "core"),
-        ];
-        app.results_filter_show_aur = true;
-        app.results_filter_show_core = true;
-        app.results_filter_show_extra = true;
-        app.results_filter_show_multilib = false;
-        app.results_filter_show_eos = true;
-        app.results_filter_show_cachyos = true;
         apply_filters_and_sort_preserve_selection(&mut app);
         assert!(app.results.iter().all(|p| match &p.source {
             Source::Official { repo, .. } => repo.eq_ignore_ascii_case("core"),
-            _ => false,
+            Source::Aur => false,
         }));
 
         app.results_filter_show_multilib = true;
         apply_filters_and_sort_preserve_selection(&mut app);
         assert!(app.results.iter().any(|p| match &p.source {
             Source::Official { repo, .. } => repo.eq_ignore_ascii_case("weirdrepo"),
-            _ => false,
+            Source::Aur => false,
         }));
     }
 }

@@ -39,24 +39,22 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
     // If file doesn't exist or is empty, initialize with skeleton
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
-    let file_empty = meta.map(|m| m.len() == 0).unwrap_or(true);
+    let file_empty = meta.is_none_or(|m| m.len() == 0);
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
-        if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(|s| s.to_string()).collect()
-        } else {
-            Vec::new()
-        }
+        fs::read_to_string(&p)
+            .map(|content| content.lines().map(ToString::to_string).collect())
+            .unwrap_or_default()
     } else {
         // File doesn't exist or is empty - start with skeleton
         SETTINGS_SKELETON_CONTENT
             .lines()
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect()
     };
     let mut replaced = false;
-    for line in lines.iter_mut() {
+    for line in &mut lines {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
             continue;
@@ -120,24 +118,22 @@ fn save_boolean_key(key_norm: &str, value: bool) {
     // If file doesn't exist or is empty, initialize with skeleton
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
-    let file_empty = meta.map(|m| m.len() == 0).unwrap_or(true);
+    let file_empty = meta.is_none_or(|m| m.len() == 0);
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
-        if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(|s| s.to_string()).collect()
-        } else {
-            Vec::new()
-        }
+        fs::read_to_string(&p)
+            .map(|content| content.lines().map(ToString::to_string).collect())
+            .unwrap_or_default()
     } else {
         // File doesn't exist or is empty - start with skeleton
         SETTINGS_SKELETON_CONTENT
             .lines()
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect()
     };
     let mut replaced = false;
-    for line in lines.iter_mut() {
+    for line in &mut lines {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
             continue;
@@ -205,24 +201,22 @@ fn save_string_key(key_norm: &str, value: &str) {
     // If file doesn't exist or is empty, initialize with skeleton
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
-    let file_empty = meta.map(|m| m.len() == 0).unwrap_or(true);
+    let file_empty = meta.is_none_or(|m| m.len() == 0);
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
-        if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(|s| s.to_string()).collect()
-        } else {
-            Vec::new()
-        }
+        fs::read_to_string(&p)
+            .map(|content| content.lines().map(ToString::to_string).collect())
+            .unwrap_or_default()
     } else {
         // File doesn't exist or is empty - start with skeleton
         SETTINGS_SKELETON_CONTENT
             .lines()
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect()
     };
     let mut replaced = false;
-    for line in lines.iter_mut() {
+    for line in &mut lines {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
             continue;
@@ -261,7 +255,7 @@ fn save_string_key(key_norm: &str, value: &str) {
 /// Details:
 /// - Delegates to `save_boolean_key("show_recent_pane", value)`.
 pub fn save_show_recent_pane(value: bool) {
-    save_boolean_key("show_recent_pane", value)
+    save_boolean_key("show_recent_pane", value);
 }
 /// What: Persist the visibility flag for the Install pane.
 ///
@@ -274,7 +268,7 @@ pub fn save_show_recent_pane(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("show_install_pane", value)`.
 pub fn save_show_install_pane(value: bool) {
-    save_boolean_key("show_install_pane", value)
+    save_boolean_key("show_install_pane", value);
 }
 /// What: Persist the visibility flag for the keybinds footer.
 ///
@@ -287,7 +281,7 @@ pub fn save_show_install_pane(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("show_keybinds_footer", value)`.
 pub fn save_show_keybinds_footer(value: bool) {
-    save_boolean_key("show_keybinds_footer", value)
+    save_boolean_key("show_keybinds_footer", value);
 }
 
 /// What: Persist the comma-separated list of preferred mirror countries.
@@ -301,7 +295,7 @@ pub fn save_show_keybinds_footer(value: bool) {
 /// Details:
 /// - Delegates to `save_string_key("selected_countries", ...)`.
 pub fn save_selected_countries(value: &str) {
-    save_string_key("selected_countries", value)
+    save_string_key("selected_countries", value);
 }
 /// What: Persist the numeric limit on ranked mirrors.
 ///
@@ -314,10 +308,10 @@ pub fn save_selected_countries(value: &str) {
 /// Details:
 /// - Delegates to `save_string_key("mirror_count", value)` after converting to text.
 pub fn save_mirror_count(value: u16) {
-    save_string_key("mirror_count", &value.to_string())
+    save_string_key("mirror_count", &value.to_string());
 }
 
-/// What: Persist the VirusTotal API key used for scanning packages.
+/// What: Persist the `VirusTotal` API key used for scanning packages.
 ///
 /// Inputs:
 /// - `value`: API key string supplied by the user.
@@ -328,13 +322,13 @@ pub fn save_mirror_count(value: u16) {
 /// Details:
 /// - Delegates to `save_string_key("virustotal_api_key", ...)`.
 pub fn save_virustotal_api_key(value: &str) {
-    save_string_key("virustotal_api_key", value)
+    save_string_key("virustotal_api_key", value);
 }
 
-/// What: Persist the ClamAV scan toggle.
+/// What: Persist the `ClamAV` scan toggle.
 ///
 /// Inputs:
-/// - `value`: Whether ClamAV scans should run by default.
+/// - `value`: Whether `ClamAV` scans should run by default.
 ///
 /// Output:
 /// - None.
@@ -342,7 +336,7 @@ pub fn save_virustotal_api_key(value: &str) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_clamav", value)`.
 pub fn save_scan_do_clamav(value: bool) {
-    save_boolean_key("scan_do_clamav", value)
+    save_boolean_key("scan_do_clamav", value);
 }
 /// What: Persist the Trivy scan toggle.
 ///
@@ -355,7 +349,7 @@ pub fn save_scan_do_clamav(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_trivy", value)`.
 pub fn save_scan_do_trivy(value: bool) {
-    save_boolean_key("scan_do_trivy", value)
+    save_boolean_key("scan_do_trivy", value);
 }
 /// What: Persist the Semgrep scan toggle.
 ///
@@ -368,12 +362,12 @@ pub fn save_scan_do_trivy(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_semgrep", value)`.
 pub fn save_scan_do_semgrep(value: bool) {
-    save_boolean_key("scan_do_semgrep", value)
+    save_boolean_key("scan_do_semgrep", value);
 }
-/// What: Persist the ShellCheck scan toggle.
+/// What: Persist the `ShellCheck` scan toggle.
 ///
 /// Inputs:
-/// - `value`: Whether ShellCheck scans should run by default.
+/// - `value`: Whether `ShellCheck` scans should run by default.
 ///
 /// Output:
 /// - None.
@@ -381,12 +375,12 @@ pub fn save_scan_do_semgrep(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_shellcheck", value)`.
 pub fn save_scan_do_shellcheck(value: bool) {
-    save_boolean_key("scan_do_shellcheck", value)
+    save_boolean_key("scan_do_shellcheck", value);
 }
-/// What: Persist the VirusTotal scan toggle.
+/// What: Persist the `VirusTotal` scan toggle.
 ///
 /// Inputs:
-/// - `value`: Whether VirusTotal scans should run by default.
+/// - `value`: Whether `VirusTotal` scans should run by default.
 ///
 /// Output:
 /// - None.
@@ -394,7 +388,7 @@ pub fn save_scan_do_shellcheck(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_virustotal", value)`.
 pub fn save_scan_do_virustotal(value: bool) {
-    save_boolean_key("scan_do_virustotal", value)
+    save_boolean_key("scan_do_virustotal", value);
 }
 /// What: Persist the custom scan toggle.
 ///
@@ -407,7 +401,7 @@ pub fn save_scan_do_virustotal(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_custom", value)`.
 pub fn save_scan_do_custom(value: bool) {
-    save_boolean_key("scan_do_custom", value)
+    save_boolean_key("scan_do_custom", value);
 }
 
 /// What: Persist the Sleuth scan toggle.
@@ -421,5 +415,5 @@ pub fn save_scan_do_custom(value: bool) {
 /// Details:
 /// - Delegates to `save_boolean_key("scan_do_sleuth", value)`.
 pub fn save_scan_do_sleuth(value: bool) {
-    save_boolean_key("scan_do_sleuth", value)
+    save_boolean_key("scan_do_sleuth", value);
 }

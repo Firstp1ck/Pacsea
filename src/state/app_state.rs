@@ -15,6 +15,7 @@ use crate::theme::KeyMap;
 /// updates. Certain subsets are persisted to disk to preserve user context
 /// across runs (e.g., recent searches, details cache, install list).
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct AppState {
     /// Current search input text.
     pub input: String,
@@ -110,8 +111,8 @@ pub struct AppState {
     /// Whether Search pane is in Normal mode (Vim-like navigation) instead of Insert mode.
     pub search_normal_mode: bool,
 
-    /// Caret position (in characters) within the Search input.
-    /// Always clamped to the range 0..=input.chars().count().
+    /// Caret position (in characters) within the `Search` input.
+    /// Always clamped to the range 0..=`input.chars().count()`.
     pub search_caret: usize,
     /// Selection anchor (in characters) for the Search input when selecting text.
     /// When `None`, no selection is active. When `Some(i)`, the selected range is
@@ -143,7 +144,7 @@ pub struct AppState {
     pub url_button_rect: Option<(u16, u16, u16, u16)>,
 
     // VirusTotal API setup modal clickable URL rectangle
-    /// Rectangle of the clickable VirusTotal API URL in the setup modal (x, y, w, h).
+    /// Rectangle of the clickable `VirusTotal` API URL in the setup modal (x, y, w, h).
     pub vt_url_rect: Option<(u16, u16, u16, u16)>,
 
     // Install pane bottom action (Import)
@@ -344,7 +345,7 @@ pub struct AppState {
     pub results_filter_multilib_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the EOS filter toggle in the Results title (x, y, w, h).
     pub results_filter_eos_rect: Option<(u16, u16, u16, u16)>,
-    /// Clickable rectangle for the CachyOS filter toggle in the Results title (x, y, w, h).
+    /// Clickable rectangle for the `CachyOS` filter toggle in the Results title (x, y, w, h).
     pub results_filter_cachyos_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the Artix filter toggle in the Results title (x, y, w, h).
     pub results_filter_artix_rect: Option<(u16, u16, u16, u16)>,
@@ -456,10 +457,142 @@ pub struct AppState {
     pub preflight_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
+/// What: Create default paths for persisted data.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Tuple of default paths for recent searches, cache, news, install list, and various caches.
+///
+/// Details:
+/// - All paths are under the lists directory from theme configuration.
+fn default_paths() -> (
+    std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
+) {
+    let lists_dir = crate::theme::lists_dir();
+    (
+        lists_dir.join("recent_searches.json"),
+        lists_dir.join("details_cache.json"),
+        lists_dir.join("news_read_urls.json"),
+        lists_dir.join("install_list.json"),
+        lists_dir.join("official_index.json"),
+        lists_dir.join("install_deps_cache.json"),
+        lists_dir.join("file_cache.json"),
+        lists_dir.join("services_cache.json"),
+    )
+}
+
+/// Type alias for default filter state tuple.
+///
+/// Contains 13 boolean flags for repository filters and an array of 13 optional rects.
+type DefaultFilters = (
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    bool,
+    [Option<(u16, u16, u16, u16)>; 13],
+);
+
+/// What: Create default filter state (all filters enabled).
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Tuple of filter boolean flags and rect options.
+///
+/// Details:
+/// - All repository filters default to showing everything.
+const fn default_filters() -> DefaultFilters {
+    (
+        true,       // show_aur
+        true,       // show_core
+        true,       // show_extra
+        true,       // show_multilib
+        true,       // show_eos
+        true,       // show_cachyos
+        true,       // show_artix
+        true,       // show_artix_omniverse
+        true,       // show_artix_universe
+        true,       // show_artix_lib32
+        true,       // show_artix_galaxy
+        true,       // show_artix_world
+        true,       // show_artix_system
+        [None; 13], // filter rects
+    )
+}
+
 impl Default for AppState {
-    /// Construct a default, empty [`AppState`], initializing paths, selection
-    /// states, and timers with sensible defaults.
+    /// What: Construct a default, empty [`AppState`] with initialized paths, selection states, and timers.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Returns an `AppState` instance with sensible defaults for all fields.
+    ///
+    /// Details:
+    /// - Initializes paths for persisted data (recent searches, cache, news, install list, etc.) under the configured lists directory.
+    /// - Sets selection indices to zero, result buffers to empty, and UI flags to default visibility states.
+    /// - All repository filters default to showing everything.
+    /// - Initializes timers, scroll positions, and modal states to their default values.
     fn default() -> Self {
+        let (
+            recent_path,
+            cache_path,
+            news_read_path,
+            install_path,
+            official_index_path,
+            deps_cache_path,
+            files_cache_path,
+            services_cache_path,
+        ) = default_paths();
+        let (
+            results_filter_show_aur,
+            results_filter_show_core,
+            results_filter_show_extra,
+            results_filter_show_multilib,
+            results_filter_show_eos,
+            results_filter_show_cachyos,
+            results_filter_show_artix,
+            results_filter_show_artix_omniverse,
+            results_filter_show_artix_universe,
+            results_filter_show_artix_lib32,
+            results_filter_show_artix_galaxy,
+            results_filter_show_artix_world,
+            results_filter_show_artix_system,
+            filter_rects,
+        ) = default_filters();
+        let [
+            results_filter_aur_rect,
+            results_filter_core_rect,
+            results_filter_extra_rect,
+            results_filter_multilib_rect,
+            results_filter_eos_rect,
+            results_filter_cachyos_rect,
+            results_filter_artix_rect,
+            results_filter_artix_omniverse_rect,
+            results_filter_artix_universe_rect,
+            results_filter_artix_lib32_rect,
+            results_filter_artix_galaxy_rect,
+            results_filter_artix_world_rect,
+            results_filter_artix_system_rect,
+        ] = filter_rects;
         Self {
             input: String::new(),
             results: Vec::new(),
@@ -477,19 +610,19 @@ impl Default for AppState {
             last_input_change: Instant::now(),
             last_saved_value: None,
             // Persisted recent searches (lists dir under config)
-            recent_path: crate::theme::lists_dir().join("recent_searches.json"),
+            recent_path,
             recent_dirty: false,
 
             latest_query_id: 0,
             next_query_id: 1,
             details_cache: HashMap::new(),
             // Details cache (lists dir under config)
-            cache_path: crate::theme::lists_dir().join("details_cache.json"),
+            cache_path,
             cache_dirty: false,
 
             // News read/unread tracking (lists dir under config)
             news_read_urls: std::collections::HashSet::new(),
-            news_read_path: crate::theme::lists_dir().join("news_read_urls.json"),
+            news_read_path,
             news_read_dirty: false,
 
             install_list: Vec::new(),
@@ -499,7 +632,7 @@ impl Default for AppState {
             downgrade_list: Vec::new(),
             downgrade_state: ListState::default(),
             // Install list (lists dir under config)
-            install_path: crate::theme::lists_dir().join("install_list.json"),
+            install_path,
             install_dirty: false,
             last_install_change: None,
 
@@ -516,7 +649,7 @@ impl Default for AppState {
             search_select_anchor: None,
 
             // Official index (lists dir under config)
-            official_index_path: crate::theme::lists_dir().join("official_index.json"),
+            official_index_path,
 
             loading_index: false,
 
@@ -612,33 +745,33 @@ impl Default for AppState {
             package_marker: crate::theme::PackageMarker::Front,
 
             // Filters default to showing everything
-            results_filter_show_aur: true,
-            results_filter_show_core: true,
-            results_filter_show_extra: true,
-            results_filter_show_multilib: true,
-            results_filter_show_eos: true,
-            results_filter_show_cachyos: true,
-            results_filter_show_artix: true,
-            results_filter_show_artix_omniverse: true,
-            results_filter_show_artix_universe: true,
-            results_filter_show_artix_lib32: true,
-            results_filter_show_artix_galaxy: true,
-            results_filter_show_artix_world: true,
-            results_filter_show_artix_system: true,
+            results_filter_show_aur,
+            results_filter_show_core,
+            results_filter_show_extra,
+            results_filter_show_multilib,
+            results_filter_show_eos,
+            results_filter_show_cachyos,
+            results_filter_show_artix,
+            results_filter_show_artix_omniverse,
+            results_filter_show_artix_universe,
+            results_filter_show_artix_lib32,
+            results_filter_show_artix_galaxy,
+            results_filter_show_artix_world,
+            results_filter_show_artix_system,
             results_filter_show_manjaro: true,
-            results_filter_aur_rect: None,
-            results_filter_core_rect: None,
-            results_filter_extra_rect: None,
-            results_filter_multilib_rect: None,
-            results_filter_eos_rect: None,
-            results_filter_cachyos_rect: None,
-            results_filter_artix_rect: None,
-            results_filter_artix_omniverse_rect: None,
-            results_filter_artix_universe_rect: None,
-            results_filter_artix_lib32_rect: None,
-            results_filter_artix_galaxy_rect: None,
-            results_filter_artix_world_rect: None,
-            results_filter_artix_system_rect: None,
+            results_filter_aur_rect,
+            results_filter_core_rect,
+            results_filter_extra_rect,
+            results_filter_multilib_rect,
+            results_filter_eos_rect,
+            results_filter_cachyos_rect,
+            results_filter_artix_rect,
+            results_filter_artix_omniverse_rect,
+            results_filter_artix_universe_rect,
+            results_filter_artix_lib32_rect,
+            results_filter_artix_galaxy_rect,
+            results_filter_artix_world_rect,
+            results_filter_artix_system_rect,
             results_filter_manjaro_rect: None,
 
             // Package mutation cache refresh state (inactive by default)
@@ -653,19 +786,19 @@ impl Default for AppState {
             remove_cascade_mode: CascadeMode::Basic,
             deps_resolving: false,
             // Dependency cache (lists dir under config)
-            deps_cache_path: crate::theme::lists_dir().join("install_deps_cache.json"),
+            deps_cache_path,
             deps_cache_dirty: false,
 
             install_list_files: Vec::new(),
             files_resolving: false,
             // File cache (lists dir under config)
-            files_cache_path: crate::theme::lists_dir().join("file_cache.json"),
+            files_cache_path,
             files_cache_dirty: false,
 
             install_list_services: Vec::new(),
             services_resolving: false,
             // Service cache (lists dir under config)
-            services_cache_path: crate::theme::lists_dir().join("services_cache.json"),
+            services_cache_path,
             services_cache_dirty: false,
             service_resolve_now: false,
             active_service_request: None,
@@ -707,7 +840,9 @@ mod tests {
     /// Details:
     /// - Uses a mutex guard to serialise environment mutations and restores `HOME` at the end to avoid cross-test interference.
     fn app_state_default_initializes_paths_and_flags() {
-        let _guard = crate::state::test_mutex().lock().unwrap();
+        let _guard = crate::state::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
         // Shim HOME so lists_dir() resolves under a temp dir
         let orig_home = std::env::var_os("HOME");
         let dir = std::env::temp_dir().join(format!(
@@ -715,7 +850,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = std::fs::create_dir_all(&dir);

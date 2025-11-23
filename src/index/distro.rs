@@ -10,6 +10,7 @@
 ///
 /// Details:
 /// - Compares a lowercased name with the "manjaro-" prefix.
+#[must_use]
 pub fn is_name_manjaro(name: &str) -> bool {
     name.to_lowercase().starts_with("manjaro-")
 }
@@ -24,13 +25,14 @@ pub fn is_name_manjaro(name: &str) -> bool {
 ///
 /// Details:
 /// - Lowercases both inputs and checks the prefix/substring rules.
+#[must_use]
 pub fn is_manjaro_name_or_owner(name: &str, owner: &str) -> bool {
     let name_l = name.to_lowercase();
     let owner_l = owner.to_lowercase();
     name_l.starts_with("manjaro-") || owner_l.contains("manjaro")
 }
 
-/// What: Check if a repo name is an EndeavourOS repo
+/// What: Check if a repo name is an `EndeavourOS` repo
 ///
 /// Input:
 /// - `repo` repository name
@@ -40,12 +42,13 @@ pub fn is_manjaro_name_or_owner(name: &str, owner: &str) -> bool {
 ///
 /// Details:
 /// - Lowercases and matches exact names.
+#[must_use]
 pub fn is_eos_repo(repo: &str) -> bool {
     let r = repo.to_lowercase();
     r == "eos" || r == "endeavouros"
 }
 
-/// What: Check if a repo name belongs to CachyOS
+/// What: Check if a repo name belongs to `CachyOS`
 ///
 /// Input:
 /// - `repo` repository name
@@ -55,6 +58,7 @@ pub fn is_eos_repo(repo: &str) -> bool {
 ///
 /// Details:
 /// - Lowercases and checks the "cachyos" prefix.
+#[must_use]
 pub fn is_cachyos_repo(repo: &str) -> bool {
     let r = repo.to_lowercase();
     r.starts_with("cachyos")
@@ -70,6 +74,7 @@ pub fn is_cachyos_repo(repo: &str) -> bool {
 ///
 /// Details:
 /// - Checks against the list of Artix repositories: omniverse, universe, lib32, galaxy, world, system.
+#[must_use]
 pub fn is_artix_repo(repo: &str) -> bool {
     let r = repo.to_lowercase();
     matches!(
@@ -79,56 +84,62 @@ pub fn is_artix_repo(repo: &str) -> bool {
 }
 
 /// What: Check if a repo name is the Artix omniverse repository.
-pub fn is_artix_omniverse(repo: &str) -> bool {
+#[must_use]
+pub const fn is_artix_omniverse(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("omniverse")
 }
 
 /// What: Check if a repo name is the Artix universe repository.
-pub fn is_artix_universe(repo: &str) -> bool {
+#[must_use]
+pub const fn is_artix_universe(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("universe")
 }
 
 /// What: Check if a repo name is the Artix lib32 repository.
-pub fn is_artix_lib32(repo: &str) -> bool {
+#[must_use]
+pub const fn is_artix_lib32(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("lib32")
 }
 
 /// What: Check if a repo name is the Artix galaxy repository.
-pub fn is_artix_galaxy(repo: &str) -> bool {
+#[must_use]
+pub const fn is_artix_galaxy(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("galaxy")
 }
 
 /// What: Check if a repo name is the Artix world repository.
-pub fn is_artix_world(repo: &str) -> bool {
+#[must_use]
+pub const fn is_artix_world(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("world")
 }
 
 /// What: Check if a repo name is the Artix system repository.
-pub fn is_artix_system(repo: &str) -> bool {
+#[must_use]
+pub const fn is_artix_system(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("system")
 }
 
 #[cfg(not(target_os = "windows"))]
-/// What: Known EndeavourOS repo names usable with pacman -Sl
+/// What: Known `EndeavourOS` repo names usable with pacman -Sl
 ///
 /// Output:
 /// - Static slice of repo names
 ///
 /// Details:
-/// - Returns ["eos", "endeavouros"].
-pub fn eos_repo_names() -> &'static [&'static str] {
+/// - Returns `["eos", "endeavouros"]`.
+pub const fn eos_repo_names() -> &'static [&'static str] {
     &["eos", "endeavouros"]
 }
 
 #[cfg(not(target_os = "windows"))]
-/// What: Known CachyOS repo names usable with pacman -Sl
+/// What: Known `CachyOS` repo names usable with pacman -Sl
 ///
 /// Output:
 /// - Static slice of repo names
 ///
 /// Details:
 /// - Includes multiple generation-specific names (v3/v4) for compatibility.
-pub fn cachyos_repo_names() -> &'static [&'static str] {
+pub const fn cachyos_repo_names() -> &'static [&'static str] {
     &[
         "cachyos",
         "cachyos-core",
@@ -150,7 +161,7 @@ pub fn cachyos_repo_names() -> &'static [&'static str] {
 ///
 /// Details:
 /// - Returns the standard Artix repositories: omniverse, universe, lib32, galaxy, world, system.
-pub fn artix_repo_names() -> &'static [&'static str] {
+pub const fn artix_repo_names() -> &'static [&'static str] {
     &[
         "omniverse",
         "universe",
@@ -171,6 +182,7 @@ pub fn artix_repo_names() -> &'static [&'static str] {
 ///
 /// Details:
 /// - Used when reconstructing installed-only items not present in the official index.
+#[must_use]
 pub fn is_eos_name(name: &str) -> bool {
     name.to_lowercase().contains("eos-")
 }
@@ -212,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Confirm repo heuristics for EOS and CachyOS.
+    /// What: Confirm repo heuristics for `EOS` and `CachyOS`.
     ///
     /// Inputs:
     /// - Various repo strings spanning expected matches and misses.

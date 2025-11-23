@@ -2,7 +2,7 @@ use tokio::sync::mpsc;
 
 use crate::app::runtime::handlers::common::{HandlerConfig, handle_result};
 use crate::logic::add_to_install_list;
-use crate::state::*;
+use crate::state::{AppState, PackageItem};
 
 /// What: Handle add to install list event (single item).
 ///
@@ -101,7 +101,13 @@ impl HandlerConfig for DependencyHandlerConfig {
                 .cloned()
                 .collect();
             let old_deps_len = dependency_info.len();
-            if !filtered_deps.is_empty() {
+            if filtered_deps.is_empty() {
+                tracing::debug!(
+                    "[Runtime] No matching dependencies to sync (results={}, items={:?})",
+                    results.len(),
+                    item_names
+                );
+            } else {
                 tracing::info!(
                     "[Runtime] Syncing {} dependencies to preflight modal (was_preflight={}, modal had {} before)",
                     filtered_deps.len(),
@@ -113,12 +119,6 @@ impl HandlerConfig for DependencyHandlerConfig {
                     "[Runtime] Modal dependency_info now has {} entries (was {})",
                     dependency_info.len(),
                     old_deps_len
-                );
-            } else {
-                tracing::debug!(
-                    "[Runtime] No matching dependencies to sync (results={}, items={:?})",
-                    results.len(),
-                    item_names
                 );
             }
         }
@@ -238,15 +238,16 @@ impl HandlerConfig for DependencyHandlerConfig {
 /// - Respects cancellation flag
 pub fn handle_dependency_result(
     app: &mut AppState,
-    deps: Vec<crate::state::modal::DependencyInfo>,
+    deps: &[crate::state::modal::DependencyInfo],
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, deps, tick_tx, DependencyHandlerConfig);
+    handle_result(app, deps, tick_tx, &DependencyHandlerConfig);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::Source;
 
     /// What: Provide a baseline `AppState` for handler tests.
     ///
@@ -257,11 +258,11 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_add_to_install_list adds item and triggers resolutions.
+    /// What: Verify that `handle_add_to_install_list` adds item and triggers resolutions.
     ///
     /// Inputs:
     /// - App state with empty install list
-    /// - PackageItem to add
+    /// - `PackageItem` to add
     /// - Channel senders
     ///
     /// Output:
@@ -313,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_dependency_result updates cache and respects cancellation.
+    /// What: Verify that `handle_dependency_result` updates cache and respects cancellation.
     ///
     /// Inputs:
     /// - App state
@@ -348,7 +349,7 @@ mod tests {
             is_system: false,
         }];
 
-        handle_dependency_result(&mut app, deps.clone(), &tick_tx);
+        handle_dependency_result(&mut app, &deps, &tick_tx);
 
         // Dependencies should be cached
         assert_eq!(app.install_list_deps.len(), 1);
@@ -360,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_dependency_result ignores results when cancelled.
+    /// What: Verify that `handle_dependency_result` ignores results when cancelled.
     ///
     /// Inputs:
     /// - App state with cancellation flag set
@@ -394,7 +395,7 @@ mod tests {
             is_system: false,
         }];
 
-        handle_dependency_result(&mut app, deps, &tick_tx);
+        handle_dependency_result(&mut app, &deps, &tick_tx);
 
         // Dependencies should not be updated when cancelled
         assert_eq!(app.install_list_deps.len(), 0);

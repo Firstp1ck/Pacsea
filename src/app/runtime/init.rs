@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::index as pkgindex;
-use crate::state::*;
+use crate::state::{AppState, PackageDetails, PackageItem};
 
 use super::super::deps_cache;
 use super::super::files_cache;
@@ -13,7 +13,7 @@ use super::super::services_cache;
 ///
 /// Inputs:
 /// - `app`: Application state to populate with locale and translations
-/// - `locale_pref`: Locale preference from settings.conf (empty = auto-detect)
+/// - `locale_pref`: Locale preference from `settings.conf` (empty = auto-detect)
 /// - `_prefs`: Settings struct (unused but kept for future use)
 ///
 /// Output:
@@ -36,42 +36,39 @@ pub fn initialize_locale_system(
             .join("config")
             .join("locales")
     });
-    let i18n_config_path = match crate::i18n::find_config_file("i18n.yml") {
-        Some(path) => path,
-        None => {
-            tracing::error!(
-                "i18n config file not found in development or installed locations. Using default locale 'en-US'."
-            );
-            app.locale = "en-US".to_string();
-            app.translations = std::collections::HashMap::new();
-            app.translations_fallback = std::collections::HashMap::new();
-            return;
-        }
+    let Some(i18n_config_path) = crate::i18n::find_config_file("i18n.yml") else {
+        tracing::error!(
+            "i18n config file not found in development or installed locations. Using default locale 'en-US'."
+        );
+        app.locale = "en-US".to_string();
+        app.translations = std::collections::HashMap::new();
+        app.translations_fallback = std::collections::HashMap::new();
+        return;
     };
 
     // Resolve locale
     let resolver = crate::i18n::LocaleResolver::new(&i18n_config_path);
     let resolved_locale = resolver.resolve(locale_pref);
-    app.locale = resolved_locale.clone();
 
     tracing::info!(
         "Resolved locale: '{}' (from settings: '{}')",
-        resolved_locale,
+        &resolved_locale,
         if locale_pref.trim().is_empty() {
             "<auto-detect>"
         } else {
             locale_pref
         }
     );
+    app.locale.clone_from(&resolved_locale);
 
     // Load translations
-    let mut loader = crate::i18n::LocaleLoader::new(locales_dir.clone());
+    let mut loader = crate::i18n::LocaleLoader::new(locales_dir);
 
     // Load fallback (English) translations first - this is required
     match loader.load("en-US") {
         Ok(fallback) => {
             let key_count = fallback.len();
-            app.translations_fallback = fallback.clone();
+            app.translations_fallback = fallback;
             tracing::debug!("Loaded English fallback translations ({} keys)", key_count);
         }
         Err(e) => {
@@ -84,7 +81,11 @@ pub fn initialize_locale_system(
     }
 
     // Load primary locale translations
-    if resolved_locale != "en-US" {
+    if resolved_locale == "en-US" {
+        // Already loaded English as fallback, use it as primary too
+        app.translations = app.translations_fallback.clone();
+        tracing::debug!("Using English as primary locale");
+    } else {
         match loader.load(&resolved_locale) {
             Ok(translations) => {
                 let key_count = translations.len();
@@ -117,10 +118,6 @@ pub fn initialize_locale_system(
                 app.translations = std::collections::HashMap::new();
             }
         }
-    } else {
-        // Already loaded English as fallback, use it as primary too
-        app.translations = app.translations_fallback.clone();
-        tracing::debug!("Using English as primary locale");
     }
 }
 
@@ -139,6 +136,7 @@ pub fn initialize_locale_system(
 /// - Loads persisted caches (details, recent, install list, dependencies, files, services, sandbox)
 /// - Initializes locale system
 /// - Checks for GNOME terminal if on GNOME desktop
+#[allow(clippy::struct_excessive_bools)]
 pub struct InitFlags {
     pub needs_deps_resolution: bool,
     pub needs_files_resolution: bool,
@@ -173,16 +171,16 @@ fn load_cache_with_signature<T>(
     }
 
     let signature = compute_signature(install_list);
-    match load_cache(cache_path, &signature) {
-        Some(cached) => (Some(cached), false),
-        None => {
+    load_cache(cache_path, &signature).map_or_else(
+        || {
             tracing::info!(
                 "{} cache missing or invalid, will trigger background resolution",
                 cache_name
             );
             (None, true)
-        }
-    }
+        },
+        |cached| (Some(cached), false),
+    )
 }
 
 /// What: Apply settings from configuration to application state.
@@ -216,8 +214,8 @@ fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Setting
 /// Output: None (modifies app state in place)
 ///
 /// Details:
-/// - Checks if running on GNOME desktop without gnome-terminal or gnome-console/kgx
-/// - Sets modal to GnomeTerminalPrompt if terminal is missing
+/// - Checks if running on GNOME desktop without `gnome-terminal` or `gnome-console`/`kgx`
+/// - Sets modal to `GnomeTerminalPrompt` if terminal is missing
 fn check_gnome_terminal(app: &mut AppState, headless: bool) {
     if headless {
         return;
@@ -225,8 +223,7 @@ fn check_gnome_terminal(app: &mut AppState, headless: bool) {
 
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
         .ok()
-        .map(|v| v.to_uppercase().contains("GNOME"))
-        .unwrap_or(false);
+        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
 
     if !is_gnome {
         return;
@@ -358,9 +355,8 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     crate::theme::ensure_settings_keys_present(&prefs);
     apply_settings_to_app_state(app, &prefs);
 
-    // Initialize locale system (clone locale string to avoid borrow issues)
-    let locale_pref = prefs.locale.clone();
-    initialize_locale_system(app, &locale_pref, &prefs);
+    // Initialize locale system
+    initialize_locale_system(app, &prefs.locale, &prefs);
 
     check_gnome_terminal(app, headless);
 
@@ -510,7 +506,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that initialize_locale_system sets default locale when config file is missing.
+    /// What: Verify that `initialize_locale_system` sets default locale when config file is missing.
     ///
     /// Inputs:
     /// - App state with default locale
@@ -537,19 +533,19 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that initialize_app_state sets dry_run flag correctly.
+    /// What: Verify that `initialize_app_state` sets `dry_run` flag correctly.
     ///
     /// Inputs:
-    /// - App state
-    /// - dry_run_flag = true
+    /// - `AppState`
+    /// - `dry_run_flag` = true
     /// - headless = false
     ///
     /// Output:
-    /// - app.dry_run is set to true
-    /// - InitFlags are returned
+    /// - `app.dry_run` is set to true
+    /// - `InitFlags` are returned
     ///
     /// Details:
-    /// - Tests that dry_run flag is properly initialized
+    /// - Tests that `dry_run` flag is properly initialized
     fn initialize_app_state_sets_dry_run_flag() {
         let mut app = new_app();
         let flags = initialize_app_state(&mut app, true, false);
@@ -561,15 +557,15 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that initialize_app_state loads settings correctly.
+    /// What: Verify that `initialize_app_state` loads settings correctly.
     ///
     /// Inputs:
-    /// - App state
-    /// - dry_run_flag = false
+    /// - `AppState`
+    /// - `dry_run_flag` = false
     /// - headless = false
     ///
     /// Output:
-    /// - App state has layout percentages set
+    /// - `AppState` has layout percentages set
     /// - Keymap is set
     /// - Sort mode is set
     ///
@@ -589,11 +585,11 @@ mod tests {
     }
 
     #[tokio::test]
-    /// What: Verify that trigger_initial_resolutions skips when install list is empty.
+    /// What: Verify that `trigger_initial_resolutions` skips when install list is empty.
     ///
     /// Inputs:
-    /// - App state with empty install list
-    /// - InitFlags with needs_deps_resolution = true
+    /// - `AppState` with empty install list
+    /// - `InitFlags` with `needs_deps_resolution` = true
     /// - Channel senders
     ///
     /// Output:
@@ -633,16 +629,16 @@ mod tests {
     }
 
     #[tokio::test]
-    /// What: Verify that trigger_initial_resolutions sets flags and sends requests when needed.
+    /// What: Verify that `trigger_initial_resolutions` sets flags and sends requests when needed.
     ///
     /// Inputs:
-    /// - App state with non-empty install list
-    /// - InitFlags with needs_deps_resolution = true
+    /// - `AppState` with non-empty install list
+    /// - `InitFlags` with `needs_deps_resolution` = true
     /// - Channel senders
     ///
     /// Output:
-    /// - deps_resolving flag is set
-    /// - Request is sent to deps_req_tx
+    /// - `deps_resolving` flag is set
+    /// - Request is sent to `deps_req_tx`
     ///
     /// Details:
     /// - Tests that resolution is properly triggered when conditions are met

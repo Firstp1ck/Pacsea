@@ -20,7 +20,7 @@ use crate::theme::{KeyChord, Theme, theme};
 ///
 /// Details:
 /// - Used to highlight active sections in the footer.
-fn get_label_color(is_focused: bool, th: &Theme) -> ratatui::style::Color {
+const fn get_label_color(is_focused: bool, th: &Theme) -> ratatui::style::Color {
     if is_focused { th.mauve } else { th.overlay1 }
 }
 
@@ -42,7 +42,7 @@ fn add_keybind_entry(
     spans: &mut Vec<Span<'static>>,
     key_opt: Option<&KeyChord>,
     key_style: Style,
-    text: String,
+    text: &str,
     sep_style: Style,
 ) {
     if let Some(k) = key_opt {
@@ -74,7 +74,7 @@ fn add_dual_keybind_entry(
     up_opt: Option<&KeyChord>,
     down_opt: Option<&KeyChord>,
     key_style: Style,
-    text: String,
+    text: &str,
     sep_style: Style,
 ) {
     if let (Some(up), Some(dn)) = (up_opt, down_opt) {
@@ -104,13 +104,13 @@ fn add_multi_keybind_entry(
     spans: &mut Vec<Span<'static>>,
     keys: &[KeyChord],
     key_style: Style,
-    text: String,
+    text: &str,
     sep_style: Style,
 ) {
     if !keys.is_empty() {
         let keys_str = keys
             .iter()
-            .map(|c| c.label())
+            .map(KeyChord::label)
             .collect::<Vec<_>>()
             .join(" / ");
         spans.extend([
@@ -173,42 +173,42 @@ fn build_globals_section(
         &mut spans,
         km.exit.first(),
         key_style,
-        i18n::t(app, "app.actions.exit"),
+        &i18n::t(app, "app.actions.exit"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.help_overlay.first(),
         key_style,
-        i18n::t(app, "app.actions.help"),
+        &i18n::t(app, "app.actions.help"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.reload_theme.first(),
         key_style,
-        i18n::t(app, "app.actions.reload_theme"),
+        &i18n::t(app, "app.actions.reload_theme"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.show_pkgbuild.first(),
         key_style,
-        i18n::t(app, "app.actions.show_hide_pkgbuild"),
+        &i18n::t(app, "app.actions.show_hide_pkgbuild"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.change_sort.first(),
         key_style,
-        i18n::t(app, "app.actions.change_sort_mode"),
+        &i18n::t(app, "app.actions.change_sort_mode"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.search_normal_toggle.first(),
         key_style,
-        i18n::t(app, "app.actions.insert_mode"),
+        &i18n::t(app, "app.actions.insert_mode"),
         sep_style,
     );
 
@@ -246,7 +246,7 @@ fn build_search_section(
         km.search_move_up.first(),
         km.search_move_down.first(),
         key_style,
-        i18n::t(app, "app.actions.move"),
+        &i18n::t(app, "app.actions.move"),
         sep_style,
     );
     add_dual_keybind_entry(
@@ -254,18 +254,19 @@ fn build_search_section(
         km.search_page_up.first(),
         km.search_page_down.first(),
         key_style,
-        i18n::t(app, "app.actions.move_page"),
+        &i18n::t(app, "app.actions.move_page"),
         sep_style,
     );
+    let add_text = if app.installed_only_mode {
+        i18n::t(app, "app.actions.add_to_remove")
+    } else {
+        i18n::t(app, "app.actions.add_to_install")
+    };
     add_keybind_entry(
         &mut spans,
         km.search_add.first(),
         key_style,
-        if app.installed_only_mode {
-            i18n::t(app, "app.actions.add_to_remove")
-        } else {
-            i18n::t(app, "app.actions.add_to_install")
-        },
+        &add_text,
         sep_style,
     );
     if app.installed_only_mode {
@@ -279,7 +280,7 @@ fn build_search_section(
         &mut spans,
         km.search_install.first(),
         key_style,
-        i18n::t(app, "app.actions.install"),
+        &i18n::t(app, "app.actions.install"),
         sep_style,
     );
 
@@ -305,7 +306,7 @@ fn build_right_pane_spans(
     app: &AppState,
     label: String,
     label_color: ratatui::style::Color,
-    confirm_text: String,
+    confirm_text: &str,
     key_style: Style,
     sep_style: Style,
 ) -> Vec<Span<'static>> {
@@ -317,7 +318,7 @@ fn build_right_pane_spans(
         km.install_move_up.first(),
         km.install_move_down.first(),
         key_style,
-        i18n::t(app, "app.actions.move"),
+        &i18n::t(app, "app.actions.move"),
         sep_style,
     );
     add_keybind_entry(
@@ -331,28 +332,28 @@ fn build_right_pane_spans(
         &mut spans,
         &km.install_remove,
         key_style,
-        i18n::t(app, "app.actions.remove_from_list"),
+        &i18n::t(app, "app.actions.remove_from_list"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.install_clear.first(),
         key_style,
-        i18n::t(app, "app.actions.clear"),
+        &i18n::t(app, "app.actions.clear"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.install_find.first(),
         key_style,
-        i18n::t(app, "app.details.footer.search_hint"),
+        &i18n::t(app, "app.details.footer.search_hint"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.install_to_search.first(),
         key_style,
-        i18n::t(app, "app.actions.go_to_search"),
+        &i18n::t(app, "app.actions.go_to_search"),
         sep_style,
     );
 
@@ -397,7 +398,7 @@ fn build_install_section(
             app,
             format!("{}:", i18n::t(app, "app.headings.downgrade")),
             downgrade_color,
-            i18n::t(app, "app.details.footer.confirm_downgrade"),
+            &i18n::t(app, "app.details.footer.confirm_downgrade"),
             key_style,
             sep_style,
         );
@@ -405,7 +406,7 @@ fn build_install_section(
             app,
             format!("{}:   ", i18n::t(app, "app.headings.remove")),
             remove_color,
-            i18n::t(app, "app.details.footer.confirm_removal"),
+            &i18n::t(app, "app.details.footer.confirm_removal"),
             key_style,
             sep_style,
         );
@@ -416,7 +417,7 @@ fn build_install_section(
             app,
             format!("{}:  ", i18n::t(app, "app.headings.install")),
             install_color,
-            i18n::t(app, "app.details.footer.confirm_installation"),
+            &i18n::t(app, "app.details.footer.confirm_installation"),
             key_style,
             sep_style,
         );
@@ -455,49 +456,49 @@ fn build_recent_section(
         km.recent_move_up.first(),
         km.recent_move_down.first(),
         key_style,
-        i18n::t(app, "app.actions.move"),
+        &i18n::t(app, "app.actions.move"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_use.first(),
         key_style,
-        i18n::t(app, "app.actions.add_to_search"),
+        &i18n::t(app, "app.actions.add_to_search"),
         sep_style,
     );
     add_multi_keybind_entry(
         &mut spans,
         &km.recent_remove,
         key_style,
-        i18n::t(app, "app.actions.remove_from_list"),
+        &i18n::t(app, "app.actions.remove_from_list"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_clear.first(),
         key_style,
-        i18n::t(app, "app.actions.clear"),
+        &i18n::t(app, "app.actions.clear"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_add.first(),
         key_style,
-        i18n::t(app, "app.actions.add_first_match_to_install"),
+        &i18n::t(app, "app.actions.add_first_match_to_install"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_find.first(),
         key_style,
-        i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel"),
+        &i18n::t(app, "app.actions.search_hint_enter_next_esc_cancel"),
         sep_style,
     );
     add_keybind_entry(
         &mut spans,
         km.recent_to_search.first(),
         key_style,
-        i18n::t(app, "app.actions.go_to_search"),
+        &i18n::t(app, "app.actions.go_to_search"),
         sep_style,
     );
 
@@ -520,11 +521,8 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
     let km = &app.keymap;
     let mut lines = Vec::new();
 
-    let label = |v: &Vec<KeyChord>, def: &str| {
-        v.first()
-            .map(|c| c.label())
-            .unwrap_or_else(|| def.to_string())
-    };
+    let label =
+        |v: &Vec<KeyChord>, def: &str| v.first().map_or_else(|| def.to_string(), KeyChord::label);
     let toggle_label = label(&km.search_normal_toggle, "Esc");
     let insert_label = label(&km.search_normal_insert, "i");
     let left_label = label(&km.search_normal_select_left, "h");
@@ -542,27 +540,27 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
 
     let n_spans: Vec<Span> = vec![
         Span::styled(
-            normal_mode_label.clone(),
+            normal_mode_label,
             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
         Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
-        Span::raw(insert_mode_text.clone()),
+        Span::raw(insert_mode_text),
         Span::styled("[j / k]", key_style),
-        Span::raw(move_text.clone()),
+        Span::raw(move_text),
         Span::styled("[Ctrl+d / Ctrl+u]", key_style),
-        Span::raw(page_text.clone()),
+        Span::raw(page_text),
         Span::styled(format!("[{left_label} / {right_label}]"), key_style),
-        Span::raw(select_text_text.clone()),
+        Span::raw(select_text_text),
         Span::styled(format!("[{delete_label}]"), key_style),
-        Span::raw(delete_text_text.clone()),
+        Span::raw(delete_text_text),
         Span::styled(format!("[{clear_label}]"), key_style),
-        Span::raw(clear_input_text.clone()),
+        Span::raw(clear_input_text),
     ];
     lines.push(Line::from(n_spans));
 
     // Second line: menus and import/export (if any)
-    let mut n2_spans: Vec<Span> = Vec::new();
+    let mut second_line_spans: Vec<Span> = Vec::new();
 
     if !km.config_menu_toggle.is_empty()
         || !km.options_menu_toggle.is_empty()
@@ -573,19 +571,19 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
         let open_panels_text = i18n::t(app, "app.modals.help.normal_mode.open_panels");
 
         if let Some(k) = km.config_menu_toggle.first() {
-            n2_spans.push(Span::raw("  •  "));
-            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            n2_spans.push(Span::raw(open_config_list_text.clone()));
+            second_line_spans.push(Span::raw("  •  "));
+            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            second_line_spans.push(Span::raw(open_config_list_text));
         }
         if let Some(k) = km.options_menu_toggle.first() {
-            n2_spans.push(Span::raw("  •  "));
-            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            n2_spans.push(Span::raw(open_options_text.clone()));
+            second_line_spans.push(Span::raw("  •  "));
+            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            second_line_spans.push(Span::raw(open_options_text));
         }
         if let Some(k) = km.panels_menu_toggle.first() {
-            n2_spans.push(Span::raw("  •  "));
-            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            n2_spans.push(Span::raw(open_panels_text.clone()));
+            second_line_spans.push(Span::raw("  •  "));
+            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            second_line_spans.push(Span::raw(open_panels_text));
         }
     }
 
@@ -599,36 +597,36 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
         let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
         let updates_text = i18n::t(app, "app.modals.help.normal_mode.updates");
 
-        n2_spans.push(Span::raw(install_list_text.clone()));
+        second_line_spans.push(Span::raw(install_list_text));
         if let Some(k) = km.search_normal_import.first() {
-            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            n2_spans.push(Span::raw(import_text.clone()));
+            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            second_line_spans.push(Span::raw(import_text));
             if let Some(k2) = km.search_normal_export.first() {
-                n2_spans.push(Span::raw(", "));
-                n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                n2_spans.push(Span::raw(export_text.clone()));
+                second_line_spans.push(Span::raw(", "));
+                second_line_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
+                second_line_spans.push(Span::raw(export_text));
             }
             if let Some(k3) = km.search_normal_updates.first() {
-                n2_spans.push(Span::raw(", "));
-                n2_spans.push(Span::styled(format!("[{}]", k3.label()), key_style));
-                n2_spans.push(Span::raw(updates_text.clone()));
+                second_line_spans.push(Span::raw(", "));
+                second_line_spans.push(Span::styled(format!("[{}]", k3.label()), key_style));
+                second_line_spans.push(Span::raw(updates_text));
             }
         } else if let Some(k) = km.search_normal_export.first() {
-            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            n2_spans.push(Span::raw(export_text.clone()));
+            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            second_line_spans.push(Span::raw(export_text));
             if let Some(k2) = km.search_normal_updates.first() {
-                n2_spans.push(Span::raw(", "));
-                n2_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                n2_spans.push(Span::raw(updates_text.clone()));
+                second_line_spans.push(Span::raw(", "));
+                second_line_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
+                second_line_spans.push(Span::raw(updates_text));
             }
         } else if let Some(k) = km.search_normal_updates.first() {
-            n2_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            n2_spans.push(Span::raw(updates_text.clone()));
+            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
+            second_line_spans.push(Span::raw(updates_text));
         }
     }
 
-    if !n2_spans.is_empty() {
-        lines.push(Line::from(n2_spans));
+    if !second_line_spans.is_empty() {
+        lines.push(Line::from(second_line_spans));
     }
 
     lines
@@ -688,7 +686,7 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
                 match app.right_pane_focus {
                     RightPaneFocus::Downgrade => lines.push(d_line),
                     RightPaneFocus::Remove => lines.push(rm_line),
-                    _ => {}
+                    RightPaneFocus::Install => {}
                 }
             }
         }

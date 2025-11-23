@@ -6,7 +6,7 @@ use std::io::Write;
 ///
 /// Output: `Ok(())` on success; otherwise an I/O error.
 ///
-/// Details: Writes to logs_dir/install_log.log, prefixing each name with a UTC timestamp.
+/// Details: Writes to `logs_dir/install_log.log`, prefixing each name with a UTC timestamp.
 pub fn log_installed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
     path.push("install_log.log");
@@ -16,8 +16,8 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
         .open(path)?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .ok();
+        .ok()
+        .and_then(|d| i64::try_from(d.as_secs()).ok());
     let when = crate::util::ts_to_date(now);
     for n in names {
         writeln!(f, "{when} {n}")?;
@@ -33,8 +33,12 @@ pub fn log_installed(names: &[String]) -> std::io::Result<()> {
 /// Output:
 /// - `Ok(())` on success; otherwise an I/O error.
 ///
+/// # Errors
+/// - Returns `Err` when the logs directory cannot be accessed or created
+/// - Returns `Err` when the log file cannot be opened or written to
+///
 /// Details:
-/// - Appends to logs_dir/remove_log.log without timestamps.
+/// - Appends to `logs_dir/remove_log.log` without timestamps.
 pub fn log_removed(names: &[String]) -> std::io::Result<()> {
     let mut path = crate::theme::logs_dir();
     path.push("remove_log.log");
@@ -73,7 +77,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let _ = fs::create_dir_all(&home);
@@ -81,17 +85,17 @@ mod tests {
 
         // Write install log
         let names = vec!["a".to_string(), "b".to_string()];
-        super::log_installed(&names).unwrap();
+        super::log_installed(&names).expect("Failed to write install log in test");
         let mut p = crate::theme::logs_dir();
         p.push("install_log.log");
-        let body = fs::read_to_string(&p).unwrap();
+        let body = fs::read_to_string(&p).expect("Failed to read install log in test");
         assert!(body.contains(" a\n") || body.contains(" a\r\n"));
 
         // Write remove log
-        super::log_removed(&names).unwrap();
+        super::log_removed(&names).expect("Failed to write remove log in test");
         let mut pr = crate::theme::logs_dir();
         pr.push("remove_log.log");
-        let body_r = fs::read_to_string(&pr).unwrap();
+        let body_r = fs::read_to_string(&pr).expect("Failed to read remove log in test");
         assert!(body_r.contains("a\n") || body_r.contains("a\r\n"));
 
         // Cleanup env; not removing files so test artifacts may remain in tmp

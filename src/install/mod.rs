@@ -31,6 +31,7 @@ pub use remove::{check_config_directories, spawn_remove_all};
 /// Details:
 /// - Loads `pattern.conf`, publishes severity regexes via environment variables, and lets the scan module honour them.
 /// - Environment overrides take precedence so UI toggles and config-driven patterns cooperate.
+#[allow(clippy::fn_params_excessive_bools)]
 pub fn spawn_aur_scan_for_with_config(
     pkg: &str,
     do_clamav: bool,

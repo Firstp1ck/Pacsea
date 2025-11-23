@@ -89,8 +89,10 @@ pub fn load_cache_partial(
 
             if current_set.is_subset(&cached_set) {
                 // Filter cached results to match current selection
-                let current_names: std::collections::HashSet<&str> =
-                    current_sig.iter().map(|s| s.as_str()).collect();
+                let current_names: std::collections::HashSet<&str> = current_sig
+                    .iter()
+                    .map(std::string::String::as_str)
+                    .collect();
                 let filtered: Vec<PackageFileInfo> = cache
                     .files
                     .iter()
@@ -153,7 +155,7 @@ mod tests {
             std::process::id(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         path

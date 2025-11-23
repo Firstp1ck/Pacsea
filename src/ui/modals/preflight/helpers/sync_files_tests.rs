@@ -1,14 +1,14 @@
-//! Unit tests for sync_files function.
+//! Unit tests for `sync_files` function.
 
 use super::sync;
 use crate::state::AppState;
 use crate::state::modal::{FileChange, FileChangeType, PackageFileInfo, PreflightTab};
 use crate::state::{PackageItem, Source};
 
-/// What: Test sync_files early return when not on Files tab.
+/// What: Test `sync_files` early return when not on Files tab.
 ///
 /// Inputs:
-/// - `tab`: PreflightTab::Summary
+/// - `tab`: `PreflightTab::Summary`
 /// - `file_info`: Empty vector
 ///
 /// Output:
@@ -30,15 +30,15 @@ fn test_sync_files_early_return_wrong_tab() {
     let mut file_info = Vec::new();
     let mut file_selected = 0;
 
-    sync::sync_files(&app, &items, &tab, &mut file_info, &mut file_selected);
+    sync::sync_files(&app, &items, tab, &mut file_info, &mut file_selected);
 
     assert!(file_info.is_empty());
 }
 
-/// What: Test sync_files filters files by package name.
+/// What: Test `sync_files` filters files by package name.
 ///
 /// Inputs:
-/// - `app`: AppState with cached file info
+/// - `app`: `AppState` with cached file info
 /// - `items`: Packages to filter by
 ///
 /// Output:
@@ -93,14 +93,14 @@ fn test_sync_files_filters_by_package_name() {
     let mut file_info = Vec::new();
     let mut file_selected = 0;
 
-    sync::sync_files(&app, &items, &tab, &mut file_info, &mut file_selected);
+    sync::sync_files(&app, &items, tab, &mut file_info, &mut file_selected);
 
     assert_eq!(file_info.len(), 1);
     assert_eq!(file_info[0].name, "test-pkg");
     assert_eq!(file_selected, 0);
 }
 
-/// What: Test sync_files resets selection when files change.
+/// What: Test `sync_files` resets selection when files change.
 ///
 /// Inputs:
 /// - `file_info`: Empty
@@ -139,7 +139,7 @@ fn test_sync_files_resets_selection_when_files_change() {
     let mut file_info = Vec::new();
     let mut file_selected = 5;
 
-    sync::sync_files(&app, &items, &tab, &mut file_info, &mut file_selected);
+    sync::sync_files(&app, &items, tab, &mut file_info, &mut file_selected);
 
     assert_eq!(file_selected, 0);
 }

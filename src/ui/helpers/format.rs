@@ -124,16 +124,18 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
         ),
         kv(
             &i18n::t(app, "app.details.fields.download_size"),
-            d.download_size
-                .map(human_bytes)
-                .unwrap_or_else(|| i18n::t(app, "app.details.fields.not_available")),
+            d.download_size.map_or_else(
+                || i18n::t(app, "app.details.fields.not_available"),
+                human_bytes,
+            ),
             th,
         ),
         kv(
             &i18n::t(app, "app.details.fields.install_size"),
-            d.install_size
-                .map(human_bytes)
-                .unwrap_or_else(|| i18n::t(app, "app.details.fields.not_available")),
+            d.install_size.map_or_else(
+                || i18n::t(app, "app.details.fields.not_available"),
+                human_bytes,
+            ),
             th,
         ),
         kv(
@@ -190,8 +192,10 @@ pub(crate) fn join(list: &[String]) -> String {
 ///
 /// Details:
 /// - Uses binary units (KiB, MiB, GiB, etc.) and shows integer for bytes < 1024, otherwise 1 decimal place.
+#[must_use]
 pub fn format_bytes(value: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+    #[allow(clippy::cast_precision_loss)]
     let mut size = value as f64;
     let mut unit_index = 0usize;
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
@@ -199,9 +203,9 @@ pub fn format_bytes(value: u64) -> String {
         unit_index += 1;
     }
     if unit_index == 0 {
-        format!("{} {}", value, UNITS[unit_index])
+        format!("{value} {}", UNITS[unit_index])
     } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
+        format!("{size:.1} {}", UNITS[unit_index])
     }
 }
 
@@ -214,7 +218,8 @@ pub fn format_bytes(value: u64) -> String {
 /// - Returns a formatted string like "+1.5 MiB" or "-512 KiB" or "0 B".
 ///
 /// Details:
-/// - Uses format_bytes for magnitude and adds +/- prefix based on sign.
+/// - Uses `format_bytes` for magnitude and adds +/- prefix based on sign.
+#[must_use]
 pub fn format_signed_bytes(value: i64) -> String {
     if value == 0 {
         return "0 B".to_string();
@@ -237,14 +242,16 @@ pub fn format_signed_bytes(value: i64) -> String {
 ///
 /// Details:
 /// - Iteratively divides by 1024 up to PiB, retaining one decimal place for readability.
-/// - Always shows decimal place (unlike format_bytes which shows integer for bytes < 1024).
+/// - Always shows decimal place (unlike `format_bytes` which shows integer for bytes < 1024).
+#[must_use]
 pub fn human_bytes(n: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+    #[allow(clippy::cast_precision_loss)]
     let mut v = n as f64;
     let mut i = 0;
     while v >= 1024.0 && i < UNITS.len() - 1 {
         v /= 1024.0;
         i += 1;
     }
-    format!("{:.1} {}", v, UNITS[i])
+    format!("{v:.1} {}", UNITS[i])
 }

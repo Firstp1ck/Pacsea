@@ -1,8 +1,9 @@
 use crate::state::ArchStatusColor;
+use std::fmt::Write;
 
 use super::utils::{severity_max, today_ymd_utc};
 
-/// Parse the UptimeRobot API response to extract the worst status among all monitors (AUR, Forum, Website, Wiki).
+/// Parse the `UptimeRobot` API response to extract the worst status among all monitors (AUR, Forum, Website, Wiki).
 ///
 /// Inputs:
 /// - `v`: JSON value from <https://status.archlinux.org/api/getMonitorList/vmM5ruWEAB>
@@ -23,7 +24,7 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
     // Collect today's status for all monitors
     let mut monitor_statuses: Vec<(String, f64, &str, &str)> = Vec::new();
 
-    for monitor in data.iter() {
+    for monitor in data {
         let name = monitor.get("name")?.as_str()?;
         if !monitor_names.iter().any(|&n| n.eq_ignore_ascii_case(name)) {
             continue;
@@ -33,8 +34,7 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
         if let Some(today_data) = daily_ratios.iter().find(|d| {
             d.get("date")
                 .and_then(|date| date.as_str())
-                .map(|date| date == today_str)
-                .unwrap_or(false)
+                .is_some_and(|date| date == today_str)
         }) {
             let ratio_str = today_data.get("ratio")?.as_str()?;
             if let Ok(ratio) = ratio_str.parse::<f64>() {
@@ -89,22 +89,13 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
 
     // Determine text based on ratio, label, and service name
     let mut text = if *ratio < 90.0 {
-        format!(
-            "{} outage (see status) — {} today: {:.1}%",
-            name, name, ratio
-        )
+        format!("{name} outage (see status) — {name} today: {ratio:.1}%")
     } else if *ratio < 95.0 {
-        format!(
-            "{} degraded (see status) — {} today: {:.1}%",
-            name, name, ratio
-        )
+        format!("{name} degraded (see status) — {name} today: {ratio:.1}%")
     } else if *label == "poor" || *color_str == "red" {
-        format!(
-            "{} issues detected (see status) — {} today: {:.1}%",
-            name, name, ratio
-        )
+        format!("{name} issues detected (see status) — {name} today: {ratio:.1}%")
     } else {
-        format!("Arch systems nominal — {} today: {:.1}%", name, ratio)
+        format!("Arch systems nominal — {name} today: {ratio:.1}%")
     };
 
     // Always append AUR status in parentheses if AUR is not the worst service AND AUR has issues
@@ -112,7 +103,7 @@ pub(super) fn parse_uptimerobot_api(v: &serde_json::Value) -> Option<(String, Ar
         && !aur_name.eq_ignore_ascii_case(name)
         && (*aur_ratio < 100.0 || *aur_color_str != "green")
     {
-        text.push_str(&format!(" (AUR: {:.1}%)", aur_ratio));
+        let _ = write!(text, " (AUR: {aur_ratio:.1}%)");
     }
 
     Some((text, color))
@@ -149,14 +140,12 @@ pub(super) fn parse_status_api_summary(
         && let Some(aur_comp) = components.iter().find(|c| {
             c.get("name")
                 .and_then(|n| n.as_str())
-                .map(|n| n.to_lowercase().contains("aur"))
-                .unwrap_or(false)
+                .is_some_and(|n| n.to_lowercase().contains("aur"))
         })
         && let Some(state) = aur_comp.get("status").and_then(|s| s.as_str())
     {
         aur_state = Some(state);
         match state {
-            "operational" => { /* no suffix */ }
             "degraded_performance" => {
                 // Don't set suffix - text will already say "AUR RPC degraded"
                 color = severity_max(color, ArchStatusColor::IncidentToday);
@@ -178,15 +167,15 @@ pub(super) fn parse_status_api_summary(
     }
 
     // If AUR has a non-operational status, prioritize that in the text
-    let text = if let Some(state) = aur_state {
-        match state {
-            "operational" => {
-                if indicator == "none" {
-                    "All systems operational".to_string()
-                } else {
-                    "Arch systems nominal".to_string()
-                }
+    let text = aur_state.map_or_else(
+        || {
+            if indicator == "none" {
+                "All systems operational".to_string()
+            } else {
+                "Arch systems nominal".to_string()
             }
+        },
+        |state| match state {
             "major_outage" => "AUR outage (see status)".to_string(),
             "partial_outage" => "AUR partial outage".to_string(),
             "degraded_performance" => "AUR RPC degraded".to_string(),
@@ -198,12 +187,8 @@ pub(super) fn parse_status_api_summary(
                     "Arch systems nominal".to_string()
                 }
             }
-        }
-    } else if indicator == "none" {
-        "All systems operational".to_string()
-    } else {
-        "Arch systems nominal".to_string()
-    };
+        },
+    );
 
     (text, color, suffix)
 }

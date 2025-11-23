@@ -84,7 +84,7 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
 /// - `prefs`: Current settings to get values from
 ///
 /// Output:
-/// - Vector of (setting_line, optional_comment) tuples
+/// - Vector of (`setting_line`, `optional_comment`) tuples
 fn parse_missing_settings(
     skeleton_lines: &[&str],
     have: &HashSet<String>,
@@ -93,7 +93,7 @@ fn parse_missing_settings(
     let mut missing_settings: Vec<(String, Option<String>)> = Vec::new();
     let mut current_comment: Option<String> = None;
 
-    for line in skeleton_lines.iter() {
+    for line in skeleton_lines {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             current_comment = None;
@@ -121,13 +121,13 @@ fn parse_missing_settings(
             let raw_key = parts.next().unwrap_or("");
             let skeleton_value = parts.next().unwrap_or("").trim().to_string();
             let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
-            if !have.contains(&key) {
+            if have.contains(&key) {
+                current_comment = None;
+            } else {
                 // Use value from prefs if available, otherwise use skeleton value
                 let value = get_setting_value(&key, skeleton_value, prefs);
                 let setting_line = format!("{} = {}", raw_key.trim(), value);
                 missing_settings.push((setting_line, current_comment.take()));
-            } else {
-                current_comment = None;
             }
         }
     }
@@ -141,6 +141,9 @@ fn parse_missing_settings(
 ///
 /// Output:
 /// - None.
+///
+/// # Panics
+/// - Panics if `lines.last()` is called on an empty vector after checking `!lines.is_empty()` (should not happen due to the check)
 ///
 /// Details:
 /// - Preserves existing lines and comments while adding only absent keys.
@@ -171,16 +174,14 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
-    let file_empty = meta.map(|m| m.len() == 0).unwrap_or(true);
+    let file_empty = meta.is_none_or(|m| m.len() == 0);
     let created_new = !file_exists || file_empty;
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
-        if let Ok(content) = fs::read_to_string(&p) {
-            content.lines().map(|s| s.to_string()).collect()
-        } else {
-            Vec::new()
-        }
+        fs::read_to_string(&p)
+            .map(|content| content.lines().map(ToString::to_string).collect())
+            .unwrap_or_default()
     } else {
         // File doesn't exist or is empty - start with skeleton
         Vec::new()
@@ -190,7 +191,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
     if created_new || lines.is_empty() {
         lines = SETTINGS_SKELETON_CONTENT
             .lines()
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect();
     }
     // Parse existing settings keys (normalize keys like the parser does)
@@ -218,7 +219,14 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     // Append missing settings to the file
     // Add separator and header comment for auto-added settings
-    if !created_new && !lines.is_empty() && !lines.last().unwrap().trim().is_empty() {
+    if !created_new
+        && !lines.is_empty()
+        && !lines
+            .last()
+            .expect("lines should not be empty after is_empty() check")
+            .trim()
+            .is_empty()
+    {
         lines.push(String::new());
     }
     if !missing_settings.is_empty() {
@@ -226,7 +234,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         lines.push(String::new());
     }
 
-    for (setting_line, comment) in missing_settings.iter() {
+    for (setting_line, comment) in &missing_settings {
         if let Some(comment) = comment {
             lines.push(comment.clone());
         }
@@ -238,14 +246,14 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     // Ensure keybinds file exists with skeleton if missing (best-effort)
     let kb = config_dir().join("keybinds.conf");
-    if !kb.exists() {
+    if kb.exists() {
+        // Append missing keybinds to existing file
+        ensure_keybinds_present(&kb);
+    } else {
         if let Some(dir) = kb.parent() {
             let _ = fs::create_dir_all(dir);
         }
         let _ = fs::write(kb, KEYBINDS_SKELETON_CONTENT);
-    } else {
-        // Append missing keybinds to existing file
-        ensure_keybinds_present(&kb);
     }
 }
 
@@ -263,9 +271,8 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 /// - Appends missing keybinds with their comments in the correct sections.
 fn ensure_keybinds_present(keybinds_path: &Path) {
     // Read existing file
-    let existing_content = match fs::read_to_string(keybinds_path) {
-        Ok(content) => content,
-        Err(_) => return, // Can't read, skip
+    let Ok(existing_content) = fs::read_to_string(keybinds_path) else {
+        return; // Can't read, skip
     };
 
     // Parse existing keybinds (normalize keys like the parser does)
@@ -289,7 +296,7 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
     let mut missing_keybinds: Vec<(String, Option<String>)> = Vec::new();
     let mut current_comment: Option<String> = None;
 
-    for line in skeleton_lines.iter() {
+    for line in skeleton_lines {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             current_comment = None;
@@ -315,10 +322,10 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
             let mut parts = trimmed.splitn(2, '=');
             let raw_key = parts.next().unwrap_or("");
             let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
-            if !have.contains(&key) {
-                missing_keybinds.push((trimmed.to_string(), current_comment.take()));
-            } else {
+            if have.contains(&key) {
                 current_comment = None;
+            } else {
+                missing_keybinds.push((trimmed.to_string(), current_comment.take()));
             }
         }
     }
@@ -329,10 +336,16 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
     }
 
     // Append missing keybinds to the file
-    let mut new_lines: Vec<String> = existing_content.lines().map(|s| s.to_string()).collect();
+    let mut new_lines: Vec<String> = existing_content.lines().map(ToString::to_string).collect();
 
     // Add separator and header comment for auto-added keybinds
-    if !new_lines.is_empty() && !new_lines.last().unwrap().trim().is_empty() {
+    if !new_lines.is_empty()
+        && !new_lines
+            .last()
+            .expect("new_lines should not be empty after is_empty() check")
+            .trim()
+            .is_empty()
+    {
         new_lines.push(String::new());
     }
     if !missing_keybinds.is_empty() {
@@ -340,7 +353,7 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
         new_lines.push(String::new());
     }
 
-    for (keybind_line, comment) in missing_keybinds.iter() {
+    for (keybind_line, comment) in &missing_keybinds {
         if let Some(comment) = comment {
             new_lines.push(comment.clone());
         }
@@ -373,10 +386,9 @@ pub fn maybe_migrate_legacy_confs() {
         let keybinds_path = base.join("keybinds.conf");
 
         // theme.conf
-        let theme_missing_or_empty = match std::fs::metadata(&theme_path) {
-            Ok(m) => m.len() == 0,
-            Err(_) => true,
-        };
+        let theme_missing_or_empty = std::fs::metadata(&theme_path)
+            .ok()
+            .is_none_or(|m| m.len() == 0);
         if theme_missing_or_empty {
             if let Some(dir) = theme_path.parent() {
                 let _ = fs::create_dir_all(dir);
@@ -385,10 +397,9 @@ pub fn maybe_migrate_legacy_confs() {
         }
 
         // settings.conf
-        let settings_missing_or_empty = match std::fs::metadata(&settings_path) {
-            Ok(m) => m.len() == 0,
-            Err(_) => true,
-        };
+        let settings_missing_or_empty = std::fs::metadata(&settings_path)
+            .ok()
+            .is_none_or(|m| m.len() == 0);
         if settings_missing_or_empty {
             if let Some(dir) = settings_path.parent() {
                 let _ = fs::create_dir_all(dir);
@@ -397,10 +408,9 @@ pub fn maybe_migrate_legacy_confs() {
         }
 
         // keybinds.conf
-        let keybinds_missing_or_empty = match std::fs::metadata(&keybinds_path) {
-            Ok(m) => m.len() == 0,
-            Err(_) => true,
-        };
+        let keybinds_missing_or_empty = std::fs::metadata(&keybinds_path)
+            .ok()
+            .is_none_or(|m| m.len() == 0);
         if keybinds_missing_or_empty {
             if let Some(dir) = keybinds_path.parent() {
                 let _ = fs::create_dir_all(dir);
@@ -412,14 +422,12 @@ pub fn maybe_migrate_legacy_confs() {
     let theme_path = base.join("theme.conf");
     let settings_path = base.join("settings.conf");
 
-    let theme_missing_or_empty = match std::fs::metadata(&theme_path) {
-        Ok(m) => m.len() == 0,
-        Err(_) => true,
-    };
-    let settings_missing_or_empty = match std::fs::metadata(&settings_path) {
-        Ok(m) => m.len() == 0,
-        Err(_) => true,
-    };
+    let theme_missing_or_empty = std::fs::metadata(&theme_path)
+        .ok()
+        .is_none_or(|m| m.len() == 0);
+    let settings_missing_or_empty = std::fs::metadata(&settings_path)
+        .ok()
+        .is_none_or(|m| m.len() == 0);
     if !theme_missing_or_empty && !settings_missing_or_empty {
         // Nothing to do
         return;

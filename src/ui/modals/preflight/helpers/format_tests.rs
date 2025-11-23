@@ -1,8 +1,8 @@
-//! Unit tests for format_bytes and format_signed_bytes functions.
+//! Unit tests for `format_bytes` and `format_signed_bytes` functions.
 
 use super::{format_bytes, format_signed_bytes};
 
-/// What: Test format_bytes with zero bytes.
+/// What: Test `format_bytes` with zero bytes.
 ///
 /// Inputs:
 /// - `value`: 0 bytes
@@ -17,7 +17,7 @@ fn test_format_bytes_zero() {
     assert_eq!(format_bytes(0), "0 B");
 }
 
-/// What: Test format_bytes with single byte.
+/// What: Test `format_bytes` with single byte.
 ///
 /// Inputs:
 /// - `value`: 1 byte
@@ -32,7 +32,7 @@ fn test_format_bytes_one() {
     assert_eq!(format_bytes(1), "1 B");
 }
 
-/// What: Test format_bytes with bytes less than 1 KiB.
+/// What: Test `format_bytes` with bytes less than 1 KiB.
 ///
 /// Inputs:
 /// - `value`: 1023 bytes
@@ -47,7 +47,7 @@ fn test_format_bytes_less_than_kib() {
     assert_eq!(format_bytes(1023), "1023 B");
 }
 
-/// What: Test format_bytes with exactly 1 KiB.
+/// What: Test `format_bytes` with exactly 1 KiB.
 ///
 /// Inputs:
 /// - `value`: 1024 bytes
@@ -62,7 +62,7 @@ fn test_format_bytes_one_kib() {
     assert_eq!(format_bytes(1024), "1.0 KiB");
 }
 
-/// What: Test format_bytes with values between KiB and MiB.
+/// What: Test `format_bytes` with values between KiB and MiB.
 ///
 /// Inputs:
 /// - `value`: 1536 bytes (1.5 KiB)
@@ -77,7 +77,7 @@ fn test_format_bytes_fractional_kib() {
     assert_eq!(format_bytes(1536), "1.5 KiB");
 }
 
-/// What: Test format_bytes with exactly 1 MiB.
+/// What: Test `format_bytes` with exactly 1 MiB.
 ///
 /// Inputs:
 /// - `value`: 1048576 bytes (1024 * 1024)
@@ -89,10 +89,10 @@ fn test_format_bytes_fractional_kib() {
 /// - Verifies that exactly 1 MiB is formatted correctly.
 #[test]
 fn test_format_bytes_one_mib() {
-    assert_eq!(format_bytes(1048576), "1.0 MiB");
+    assert_eq!(format_bytes(1_048_576), "1.0 MiB");
 }
 
-/// What: Test format_bytes with values between MiB and GiB.
+/// What: Test `format_bytes` with values between MiB and GiB.
 ///
 /// Inputs:
 /// - `value`: 15728640 bytes (15 MiB)
@@ -104,10 +104,10 @@ fn test_format_bytes_one_mib() {
 /// - Verifies that MiB values are formatted with one decimal place.
 #[test]
 fn test_format_bytes_mib() {
-    assert_eq!(format_bytes(15728640), "15.0 MiB");
+    assert_eq!(format_bytes(15_728_640), "15.0 MiB");
 }
 
-/// What: Test format_bytes with exactly 1 GiB.
+/// What: Test `format_bytes` with exactly 1 GiB.
 ///
 /// Inputs:
 /// - `value`: 1073741824 bytes (1024 * 1024 * 1024)
@@ -119,10 +119,10 @@ fn test_format_bytes_mib() {
 /// - Verifies that exactly 1 GiB is formatted correctly.
 #[test]
 fn test_format_bytes_one_gib() {
-    assert_eq!(format_bytes(1073741824), "1.0 GiB");
+    assert_eq!(format_bytes(1_073_741_824), "1.0 GiB");
 }
 
-/// What: Test format_bytes with large values (TiB).
+/// What: Test `format_bytes` with large values (TiB).
 ///
 /// Inputs:
 /// - `value`: 1099511627776 bytes (1 TiB)
@@ -134,10 +134,10 @@ fn test_format_bytes_one_gib() {
 /// - Verifies that TiB values are formatted correctly.
 #[test]
 fn test_format_bytes_one_tib() {
-    assert_eq!(format_bytes(1099511627776), "1.0 TiB");
+    assert_eq!(format_bytes(1_099_511_627_776), "1.0 TiB");
 }
 
-/// What: Test format_bytes with very large values (PiB).
+/// What: Test `format_bytes` with very large values (PiB).
 ///
 /// Inputs:
 /// - `value`: 1125899906842624 bytes (1 PiB)
@@ -149,10 +149,10 @@ fn test_format_bytes_one_tib() {
 /// - Verifies that PiB values are formatted correctly.
 #[test]
 fn test_format_bytes_one_pib() {
-    assert_eq!(format_bytes(1125899906842624), "1.0 PiB");
+    assert_eq!(format_bytes(1_125_899_906_842_624), "1.0 PiB");
 }
 
-/// What: Test format_bytes with fractional values.
+/// What: Test `format_bytes` with fractional values.
 ///
 /// Inputs:
 /// - `value`: 2621440 bytes (2.5 MiB)
@@ -164,10 +164,10 @@ fn test_format_bytes_one_pib() {
 /// - Verifies that fractional values are rounded to one decimal place.
 #[test]
 fn test_format_bytes_fractional_mib() {
-    assert_eq!(format_bytes(2621440), "2.5 MiB");
+    assert_eq!(format_bytes(2_621_440), "2.5 MiB");
 }
 
-/// What: Test format_signed_bytes with zero.
+/// What: Test `format_signed_bytes` with zero.
 ///
 /// Inputs:
 /// - `value`: 0
@@ -182,7 +182,7 @@ fn test_format_signed_bytes_zero() {
     assert_eq!(format_signed_bytes(0), "0 B");
 }
 
-/// What: Test format_signed_bytes with positive value.
+/// What: Test `format_signed_bytes` with positive value.
 ///
 /// Inputs:
 /// - `value`: 1024
@@ -197,7 +197,7 @@ fn test_format_signed_bytes_positive() {
     assert_eq!(format_signed_bytes(1024), "+1.0 KiB");
 }
 
-/// What: Test format_signed_bytes with negative value.
+/// What: Test `format_signed_bytes` with negative value.
 ///
 /// Inputs:
 /// - `value`: -1024
@@ -212,7 +212,7 @@ fn test_format_signed_bytes_negative() {
     assert_eq!(format_signed_bytes(-1024), "-1.0 KiB");
 }
 
-/// What: Test format_signed_bytes with large positive value.
+/// What: Test `format_signed_bytes` with large positive value.
 ///
 /// Inputs:
 /// - `value`: 1048576 (1 MiB)
@@ -224,10 +224,10 @@ fn test_format_signed_bytes_negative() {
 /// - Verifies that large positive values are formatted correctly with sign.
 #[test]
 fn test_format_signed_bytes_large_positive() {
-    assert_eq!(format_signed_bytes(1048576), "+1.0 MiB");
+    assert_eq!(format_signed_bytes(1_048_576), "+1.0 MiB");
 }
 
-/// What: Test format_signed_bytes with large negative value.
+/// What: Test `format_signed_bytes` with large negative value.
 ///
 /// Inputs:
 /// - `value`: -1048576 (-1 MiB)
@@ -239,10 +239,10 @@ fn test_format_signed_bytes_large_positive() {
 /// - Verifies that large negative values are formatted correctly with sign.
 #[test]
 fn test_format_signed_bytes_large_negative() {
-    assert_eq!(format_signed_bytes(-1048576), "-1.0 MiB");
+    assert_eq!(format_signed_bytes(-1_048_576), "-1.0 MiB");
 }
 
-/// What: Test format_signed_bytes with fractional positive value.
+/// What: Test `format_signed_bytes` with fractional positive value.
 ///
 /// Inputs:
 /// - `value`: 1536 (1.5 KiB)
@@ -257,7 +257,7 @@ fn test_format_signed_bytes_fractional_positive() {
     assert_eq!(format_signed_bytes(1536), "+1.5 KiB");
 }
 
-/// What: Test format_signed_bytes with fractional negative value.
+/// What: Test `format_signed_bytes` with fractional negative value.
 ///
 /// Inputs:
 /// - `value`: -1536 (-1.5 KiB)

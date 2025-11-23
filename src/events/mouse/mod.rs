@@ -1,7 +1,7 @@
 //! Mouse event handling for Pacsea's TUI.
 //!
 //! This module delegates mouse event handling to specialized submodules:
-//! - `modals`: Modal interactions (Help, VirusTotalSetup, Preflight, News)
+//! - `modals`: Modal interactions (Help, `VirusTotalSetup`, `Preflight`, News)
 //! - `details`: Details pane interactions (URL, PKGBUILD buttons, scroll)
 //! - `menus`: Menu interactions (sort, options, config, panels, import/export)
 //! - `filters`: Filter toggle interactions
@@ -14,8 +14,8 @@ use crate::state::{AppState, PackageItem};
 
 mod details;
 mod filters;
-pub(crate) mod menu_options;
-mod menus;
+pub mod menu_options;
+pub mod menus;
 mod modals;
 mod panes;
 
@@ -118,4 +118,4 @@ pub fn handle_mouse_event(
 }
 
 // Re-export for use in keyboard handlers
-pub(crate) use menus::handle_updates_button;
+pub use menus::handle_updates_button;

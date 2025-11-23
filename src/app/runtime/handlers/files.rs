@@ -1,7 +1,7 @@
 use tokio::sync::mpsc;
 
 use crate::app::runtime::handlers::common::{HandlerConfig, handle_result};
-use crate::state::*;
+use crate::state::AppState;
 
 /// What: Handler configuration for file results.
 struct FileHandlerConfig;
@@ -97,7 +97,13 @@ impl HandlerConfig for FileHandlerConfig {
                 file_info.len(),
                 old_files_len
             );
-            if !filtered_files.is_empty() {
+            if filtered_files.is_empty() {
+                tracing::debug!(
+                    "[Runtime] handle_file_result: No matching files to sync. Modal items: {:?}, File packages: {:?}",
+                    item_names,
+                    results.iter().map(|f| &f.name).collect::<Vec<_>>()
+                );
+            } else {
                 tracing::info!(
                     "[Runtime] handle_file_result: Syncing {} file infos to preflight modal (was_preflight={}, modal had {} before)",
                     filtered_files.len(),
@@ -138,12 +144,6 @@ impl HandlerConfig for FileHandlerConfig {
                     "[Runtime] handle_file_result: Successfully synced file info to modal, modal now has {} entries (was {})",
                     file_info.len(),
                     old_files_len
-                );
-            } else {
-                tracing::debug!(
-                    "[Runtime] handle_file_result: No matching files to sync. Modal items: {:?}, File packages: {:?}",
-                    item_names,
-                    results.iter().map(|f| &f.name).collect::<Vec<_>>()
                 );
             }
         } else {
@@ -247,10 +247,10 @@ impl HandlerConfig for FileHandlerConfig {
 /// - Respects cancellation flag
 pub fn handle_file_result(
     app: &mut AppState,
-    files: Vec<crate::state::modal::PackageFileInfo>,
+    files: &[crate::state::modal::PackageFileInfo],
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
-    handle_result(app, files, tick_tx, FileHandlerConfig);
+    handle_result(app, files, tick_tx, &FileHandlerConfig);
 }
 
 #[cfg(test)]
@@ -259,7 +259,7 @@ mod tests {
     use crate::test_utils::new_app;
 
     #[test]
-    /// What: Verify that handle_file_result updates cache correctly.
+    /// What: Verify that `handle_file_result` updates cache correctly.
     ///
     /// Inputs:
     /// - App state
@@ -289,7 +289,7 @@ mod tests {
             pacsave_candidates: 0,
         }];
 
-        handle_file_result(&mut app, files.clone(), &tick_tx);
+        handle_file_result(&mut app, &files, &tick_tx);
 
         // Files should be cached
         assert_eq!(app.install_list_files.len(), 1);

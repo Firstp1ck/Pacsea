@@ -1,7 +1,7 @@
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crate::logic::send_query;
-use crate::state::*;
+use crate::state::AppState;
 
 use super::terminal::{restore_terminal, setup_terminal};
 
@@ -21,9 +21,11 @@ use init::{initialize_app_state, trigger_initial_resolutions};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// What: Run the Pacsea TUI application end-to-end: initialize terminal and state, spawn
-/// background workers (index, search, details, status/news), drive the event loop, persist
-/// caches, and restore the terminal on exit.
+/// What: Run the Pacsea TUI application end-to-end.
+///
+/// This function initializes terminal and state, spawns background workers
+/// (index, search, details, status/news), drives the event loop, persists
+/// caches, and restores the terminal on exit.
 ///
 /// Inputs:
 /// - `dry_run_flag`: When `true`, install/remove/downgrade actions are displayed but not executed
@@ -33,6 +35,11 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 ///
 /// Output:
 /// - `Ok(())` when the UI exits cleanly; `Err` on unrecoverable terminal or runtime errors.
+///
+/// # Errors
+/// - Returns `Err` when terminal setup fails (e.g., unable to initialize terminal backend)
+/// - Returns `Err` when terminal restoration fails on exit
+/// - Returns `Err` when critical runtime errors occur during initialization or event loop execution
 ///
 /// Details:
 /// - Config/state: Migrates legacy configs, loads settings (layout, keymap, sort), and reads
@@ -77,14 +84,14 @@ pub async fn run(dry_run_flag: bool, refresh_result: Option<bool>) -> Result<()>
     // Spawn auxiliary workers (status, news, tick, index updates)
     spawn_auxiliary_workers(
         headless,
-        channels.status_tx.clone(),
-        channels.news_tx.clone(),
-        channels.tick_tx.clone(),
-        app.news_read_urls.clone(),
-        app.official_index_path.clone(),
-        channels.net_err_tx.clone(),
-        channels.index_notify_tx.clone(),
-        channels.updates_tx.clone(),
+        &channels.status_tx,
+        &channels.news_tx,
+        &channels.tick_tx,
+        &app.news_read_urls,
+        &app.official_index_path,
+        &channels.net_err_tx,
+        &channels.index_notify_tx,
+        &channels.updates_tx,
     );
 
     // Spawn event reading thread

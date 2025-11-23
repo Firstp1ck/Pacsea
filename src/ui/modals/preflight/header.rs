@@ -32,8 +32,8 @@ struct TabStatus {
 /// Output: Returns `TabStatus` with completion and loading flags.
 ///
 /// Details: Summary is complete if data exists.
-fn calculate_summary_status(
-    summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
+const fn calculate_summary_status(
+    summary: Option<&crate::state::modal::PreflightSummaryData>,
     summary_loading: bool,
 ) -> TabStatus {
     TabStatus {
@@ -131,7 +131,7 @@ fn calculate_files_status(
 /// Output: Returns `TabStatus` with completion and loading flags.
 ///
 /// Details: Services are complete if marked as loaded or if install list has services.
-fn calculate_services_status(app: &AppState, services_loaded: bool) -> TabStatus {
+const fn calculate_services_status(app: &AppState, services_loaded: bool) -> TabStatus {
     let loading = app.preflight_services_resolving || app.services_resolving;
     let complete = services_loaded || (!loading && !app.install_list_services.is_empty());
 
@@ -188,7 +188,7 @@ fn calculate_sandbox_status(
 /// Output: Returns tuple of (icon string, color).
 ///
 /// Details: Returns loading icon if loading, checkmark if complete, empty otherwise.
-fn get_status_icon(
+const fn get_status_icon(
     status: &TabStatus,
     th: &crate::theme::Theme,
 ) -> (&'static str, ratatui::style::Color) {
@@ -232,7 +232,7 @@ fn build_completion_order(statuses: &[TabStatus]) -> Vec<usize> {
 /// Output: Returns color for the highlight.
 ///
 /// Details: Uses different colors for different completion positions.
-fn get_completion_highlight_color(
+const fn get_completion_highlight_color(
     order_idx: usize,
     th: &crate::theme::Theme,
 ) -> ratatui::style::Color {
@@ -252,8 +252,8 @@ fn get_completion_highlight_color(
 ///
 /// Output: Returns true if the tab is active.
 ///
-/// Details: Maps tab indices to PreflightTab enum variants.
-fn is_tab_active(tab_idx: usize, current_tab: PreflightTab) -> bool {
+/// Details: Maps tab indices to `PreflightTab` enum variants.
+const fn is_tab_active(tab_idx: usize, current_tab: PreflightTab) -> bool {
     matches!(
         (tab_idx, current_tab),
         (0, PreflightTab::Summary)
@@ -285,11 +285,12 @@ fn calculate_tab_color(
         return th.mauve;
     }
 
-    if let Some(order_idx) = completion_order.iter().position(|&x| x == tab_idx) {
-        get_completion_highlight_color(order_idx, th)
-    } else {
-        th.overlay1
-    }
+    completion_order
+        .iter()
+        .position(|&x| x == tab_idx)
+        .map_or(th.overlay1, |order_idx| {
+            get_completion_highlight_color(order_idx, th)
+        })
 }
 
 /// What: Calculate the width of a tab for rectangle storage.
@@ -305,9 +306,9 @@ fn calculate_tab_color(
 fn calculate_tab_width(label: &str, status_icon: &str, is_active: bool) -> u16 {
     let base_width = label.len() + status_icon.len();
     if is_active {
-        (base_width + 2) as u16 // +2 for brackets
+        u16::try_from(base_width + 2).unwrap_or(u16::MAX) // +2 for brackets
     } else {
-        base_width as u16
+        u16::try_from(base_width).unwrap_or(u16::MAX)
     }
 }
 
@@ -354,7 +355,7 @@ fn create_tab_label_span(
     tab_color: ratatui::style::Color,
 ) -> Span<'static> {
     let text = if is_active {
-        format!("[{}]", label)
+        format!("[{label}]")
     } else {
         label.to_string()
     };
@@ -381,7 +382,7 @@ fn create_tab_label_span(
 /// - `th`: Theme reference.
 /// - `tab_rects`: Mutable reference to tab rectangles array.
 ///
-/// Output: Returns tuple of (spans for this tab, new tab_x position).
+/// Output: Returns tuple of (spans for this tab, new `tab_x` position).
 ///
 /// Details: Builds status icon and label spans, stores rectangle for mouse clicks.
 #[allow(clippy::too_many_arguments)]
@@ -488,7 +489,7 @@ fn calculate_all_tab_statuses(
     app: &AppState,
     item_names: &std::collections::HashSet<String>,
     aur_items: &std::collections::HashSet<String>,
-    summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
+    summary: Option<&crate::state::modal::PreflightSummaryData>,
     dependency_info: &[crate::state::modal::DependencyInfo],
     file_info: &[crate::state::modal::PackageFileInfo],
     services_loaded: bool,
@@ -567,6 +568,7 @@ fn build_tab_header_spans(
 /// Output: None (stores in app state).
 ///
 /// Details: Calculates content area after header (3 lines: chips + tabs + empty).
+#[allow(clippy::missing_const_for_fn)]
 fn store_content_rect(app: &mut AppState, content_rect: Rect) {
     app.preflight_content_rect = Some((
         content_rect.x + 1,                    // +1 for left border
@@ -610,7 +612,6 @@ struct TabHeaderContext<'a> {
 /// - `summary`: Summary data (for completion status).
 /// - `dependency_info`: Dependency info (for completion status).
 /// - `file_info`: File info (for completion status).
-/// - `service_info`: Service info (for completion status).
 /// - `services_loaded`: Whether services are loaded.
 /// - `sandbox_info`: Sandbox info (for completion status).
 /// - `sandbox_loaded`: Whether sandbox is loaded.
@@ -627,19 +628,18 @@ struct TabHeaderContext<'a> {
 pub fn render_tab_header(
     app: &mut AppState,
     content_rect: Rect,
-    tab: &PreflightTab,
+    tab: PreflightTab,
     header_chips: &PreflightHeaderChips,
     items: &[crate::state::PackageItem],
-    summary: &Option<Box<crate::state::modal::PreflightSummaryData>>,
+    summary: Option<&crate::state::modal::PreflightSummaryData>,
     dependency_info: &[crate::state::modal::DependencyInfo],
     file_info: &[crate::state::modal::PackageFileInfo],
-    _service_info: &[crate::state::modal::ServiceImpact],
     services_loaded: bool,
-    _sandbox_info: &[crate::logic::sandbox::SandboxInfo],
+    sandbox_info: &[crate::logic::sandbox::SandboxInfo],
     sandbox_loaded: bool,
 ) -> (Line<'static>, Line<'static>) {
     let th = theme();
-    let current_tab = *tab;
+    let current_tab = tab;
 
     // Option 1: Extract data preparation
     let (item_names, aur_items) = extract_package_sets(items);
@@ -656,7 +656,7 @@ pub fn render_tab_header(
         dependency_info,
         file_info,
         services_loaded,
-        _sandbox_info,
+        sandbox_info,
         sandbox_loaded,
     );
 

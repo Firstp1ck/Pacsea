@@ -22,6 +22,7 @@ pub fn request_enrich_for(
     tokio::spawn(async move {
         // Deduplicate names
         use std::collections::HashSet;
+        const BATCH: usize = 100;
         let set: HashSet<String> = names.into_iter().collect();
         if set.is_empty() {
             return;
@@ -29,14 +30,13 @@ pub fn request_enrich_for(
         // Batch -Si queries
         let mut desc_map: std::collections::HashMap<String, (String, String, String, String)> =
             std::collections::HashMap::new(); // name -> (desc, arch, repo, version)
-        const BATCH: usize = 100;
         let all: Vec<String> = set.into_iter().collect();
         for chunk in all.chunks(BATCH) {
             let args_owned: Vec<String> = std::iter::once("-Si".to_string())
                 .chain(chunk.iter().cloned())
                 .collect();
             let block = tokio::task::spawn_blocking(move || {
-                let args_ref: Vec<&str> = args_owned.iter().map(|s| s.as_str()).collect();
+                let args_ref: Vec<&str> = args_owned.iter().map(String::as_str).collect();
                 crate::util::pacman::run_pacman(&args_ref)
             })
             .await;
@@ -47,8 +47,9 @@ pub fn request_enrich_for(
             let mut cur_arch: Option<String> = None;
             let mut cur_repo: Option<String> = None;
             let mut cur_ver: Option<String> = None;
+            #[allow(clippy::collection_is_never_read)]
             let mut _cur_packager: Option<String> = None;
-            for line in out.lines().chain([""].iter().copied()) {
+            for line in out.lines().chain(std::iter::once("")) {
                 let line = line.trim_end();
                 if line.is_empty() {
                     if let Some(n) = cur_name.take() {
@@ -124,11 +125,15 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let idx_json = serde_json::json!({ "pkgs": [] });
-        std::fs::write(&path, serde_json::to_string(&idx_json).unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            serde_json::to_string(&idx_json).expect("Failed to serialize test index JSON"),
+        )
+        .expect("Failed to write test index file");
         crate::index::load_from_disk(&path);
 
         let (notify_tx, mut notify_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
@@ -174,13 +179,13 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).expect("Failed to create test root directory");
         let mut bin = root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("Failed to create test bin directory");
         let mut script = bin.clone();
         script.push("pacman");
         let body = r#"#!/usr/bin/env bash
@@ -204,15 +209,18 @@ EOF
 fi
 exit 0
 "#;
-        std::fs::write(&script, body).unwrap();
+        std::fs::write(&script, body).expect("Failed to write test pacman script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            let mut perm = std::fs::metadata(&script)
+                .expect("Failed to read test pacman script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&script, perm).unwrap();
+            std::fs::set_permissions(&script, perm)
+                .expect("Failed to set test pacman script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
 
         // Temp file for persistence
@@ -232,7 +240,10 @@ exit 0
 
         // Check that fields got updated for foo
         let all = crate::index::all_official();
-        let pkg = all.iter().find(|p| p.name == "foo").unwrap();
+        let pkg = all
+            .iter()
+            .find(|p| p.name == "foo")
+            .expect("package 'foo' should exist in test data");
         assert_eq!(pkg.version, "1.2.3");
         assert_eq!(pkg.description, "hello");
         match &pkg.source {
@@ -240,7 +251,7 @@ exit 0
                 assert_eq!(repo, "core");
                 assert_eq!(arch, "x86_64");
             }
-            _ => panic!("expected official"),
+            crate::state::Source::Aur => panic!("expected official"),
         }
 
         // Cleanup

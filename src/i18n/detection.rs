@@ -11,9 +11,10 @@ use std::env;
 /// - `Option<String>` containing locale code (e.g., "de-DE") or None if not detectable
 ///
 /// Details:
-/// - Checks LC_ALL, LC_MESSAGES, and LANG environment variables in order
+/// - Checks `LC_ALL`, `LC_MESSAGES`, and `LANG` environment variables in order
 /// - Parses locale strings like "de_DE.UTF-8" -> "de-DE"
 /// - Returns None if no valid locale found
+#[must_use]
 pub fn detect_system_locale() -> Option<String> {
     // Check environment variables in priority order
     let locale_vars = ["LC_ALL", "LC_MESSAGES", "LANG"];
@@ -32,7 +33,7 @@ pub fn detect_system_locale() -> Option<String> {
 /// What: Parse a locale string from environment variables into a standardized format.
 ///
 /// Inputs:
-/// - `locale_str`: Locale string like "de_DE.UTF-8", "de-DE", "en_US.utf8"
+/// - `locale_str`: Locale string like `"de_DE.UTF-8"`, `"de-DE"`, `"en_US.utf8"`
 ///
 /// Output:
 /// - `Option<String>` with standardized format (e.g., "de-DE") or None if invalid
@@ -40,7 +41,7 @@ pub fn detect_system_locale() -> Option<String> {
 /// Details:
 /// - Converts underscores to hyphens
 /// - Removes encoding suffix (.UTF-8, .utf8, etc.)
-/// - Handles both "de_DE" and "de-DE" formats
+/// - Handles both `"de_DE"` and `"de-DE"` formats
 fn parse_locale_string(locale_str: &str) -> Option<String> {
     let trimmed = locale_str.trim();
     if trimmed.is_empty() {
@@ -63,9 +64,9 @@ fn parse_locale_string(locale_str: &str) -> Option<String> {
         if parts.len() == 3 {
             // Handle script variant (e.g., "zh-Hans-CN")
             let script = parts[2];
-            Some(format!("{}-{}-{}", language, script, region))
+            Some(format!("{language}-{script}-{region}"))
         } else {
-            Some(format!("{}-{}", language, region))
+            Some(format!("{language}-{region}"))
         }
     } else if parts.len() == 1 {
         // Single part locale (e.g., "en", "de") - return as-is for fallback handling

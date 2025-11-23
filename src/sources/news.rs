@@ -7,6 +7,11 @@ type Result<T> = super::Result<T>;
 /// Input: `limit` maximum number of items to return (best-effort)
 /// Output: `Ok(Vec<NewsItem>)` with date/title/url; `Err` on network or parse failures
 ///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when RSS feed cannot be fetched from Arch Linux website
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+///
 /// Details: Downloads the Arch Linux news RSS feed and iteratively parses `<item>` blocks,
 /// extracting `<title>`, `<link>`, and `<pubDate>`. The `pubDate` value is normalized to a
 /// date-only form via `strip_time_and_tz`.
@@ -18,10 +23,7 @@ pub async fn fetch_arch_news(limit: usize) -> Result<Vec<NewsItem>> {
     while items.len() < limit {
         if let Some(start) = body[pos..].find("<item>") {
             let s = pos + start;
-            let end = body[s..]
-                .find("</item>")
-                .map(|e| s + e + 7)
-                .unwrap_or(body.len());
+            let end = body[s..].find("</item>").map_or(body.len(), |e| s + e + 7);
             let chunk = &body[s..end];
             let title = extract_between(chunk, "<title>", "</title>").unwrap_or_default();
             let link = extract_between(chunk, "<link>", "</link>").unwrap_or_default();
@@ -98,7 +100,8 @@ mod tests {
     fn news_extract_between_and_strip_time_tz() {
         // extract_between
         assert_eq!(
-            super::extract_between("<a>hi</a>", "<a>", "</a>").unwrap(),
+            super::extract_between("<a>hi</a>", "<a>", "</a>")
+                .expect("extract_between should find 'hi' in test string"),
             "hi"
         );
         assert!(super::extract_between("nope", "<a>", "</a>").is_none());

@@ -13,9 +13,9 @@
 /// - On Manjaro (detected via /etc/os-release), ensures pacman-mirrors exists, then:
 ///   - Worldwide: `pacman-mirrors --fasttrack {count}` followed by `pacman -Syy`
 ///   - Countries: `pacman-mirrors --method rank --country '{countries}'` followed by `pacman -Syy`
-/// - On Artix (detected via /etc/os-release), checks for rate-mirrors and AUR helper (yay/paru), prompts for installation if needed, creates backup of mirrorlist, then runs rate-mirrors with country filtering using --entry-country option (only one country allowed, global option must come before the artix command).
-/// - On EndeavourOS, ensures `eos-rankmirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
-/// - On CachyOS, ensures `cachyos-rate-mirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
+/// - On `Artix` (detected via /etc/os-release), checks for rate-mirrors and `AUR` helper (`yay`/`paru`), prompts for installation if needed, creates backup of mirrorlist, then runs rate-mirrors with country filtering using --entry-country option (only one country allowed, global option must come before the artix command).
+/// - On `EndeavourOS`, ensures `eos-rankmirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
+/// - On `CachyOS`, ensures `cachyos-rate-mirrors` is installed (retry once after `pacman -Syy` on failure), runs it (retry once after `pacman -Syy` on failure), then runs `reflector`.
 /// - Otherwise, attempts to use `reflector` to write `/etc/pacman.d/mirrorlist`; if not found, prints a notice.
 pub fn mirror_update_command(countries: &str, count: u16) -> String {
     if countries.eq("Worldwide") {
@@ -145,7 +145,7 @@ mod tests {
     /// - Command string includes the quoted country list for both Manjaro rank and reflector fallback branches.
     ///
     /// Details:
-    /// - Confirms the EndeavourOS clause still emits the reflector call with the customized country list.
+    /// - Confirms the `EndeavourOS` clause still emits the reflector call with the customized country list.
     fn mirror_update_regional_propagates_country_argument() {
         let countries = "Germany,France";
         let cmd = mirror_update_command(countries, 5);
@@ -155,7 +155,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Confirm EndeavourOS and CachyOS branches retain their helper invocations and fallback messaging.
+    /// What: Confirm `EndeavourOS` and `CachyOS` branches retain their helper invocations and fallback messaging.
     ///
     /// Inputs:
     /// - `countries`: `"Worldwide"` to pass through every branch without country filtering.

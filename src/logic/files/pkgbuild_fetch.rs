@@ -20,7 +20,7 @@ const PKGBUILD_MIN_INTERVAL_MS: u64 = 500; // Minimum 500ms between requests
 /// - Returns PKGBUILD content if found, or None.
 ///
 /// Details:
-/// - First checks base_dir/PKGBUILD, then searches subdirectories.
+/// - First checks `base_dir`/`PKGBUILD`, then searches subdirectories.
 fn find_pkgbuild_in_dir(
     base_dir: &std::path::Path,
     name: &str,
@@ -73,7 +73,7 @@ fn find_pkgbuild_in_dir(
 /// Details:
 /// - Executes helper -G command in a temp directory and searches for PKGBUILD.
 fn try_helper_command(helper: &str, name: &str) -> Option<String> {
-    let temp_dir = std::env::temp_dir().join(format!("pacsea_pkgbuild_{}", name));
+    let temp_dir = std::env::temp_dir().join(format!("pacsea_pkgbuild_{name}"));
     let _ = std::fs::create_dir_all(&temp_dir);
 
     let output = Command::new(helper)
@@ -105,8 +105,8 @@ fn try_helper_command(helper: &str, name: &str) -> Option<String> {
 /// - Checks standard cache locations for paru and yay.
 fn try_direct_cache_paths(name: &str, home: &str) -> Option<String> {
     let cache_paths = [
-        format!("{}/.cache/paru/clone/{}/PKGBUILD", home, name),
-        format!("{}/.cache/yay/{}/PKGBUILD", home, name),
+        format!("{home}/.cache/paru/clone/{name}/PKGBUILD"),
+        format!("{home}/.cache/yay/{name}/PKGBUILD"),
     ];
 
     for path_str in cache_paths {
@@ -134,8 +134,8 @@ fn try_direct_cache_paths(name: &str, home: &str) -> Option<String> {
 /// - Searches cache directories for packages that might be in subdirectories.
 fn try_cache_subdirectories(name: &str, home: &str) -> Option<String> {
     let cache_bases = [
-        format!("{}/.cache/paru/clone", home),
-        format!("{}/.cache/yay", home),
+        format!("{home}/.cache/paru/clone"),
+        format!("{home}/.cache/yay"),
     ];
 
     for cache_base in cache_bases {
@@ -152,8 +152,7 @@ fn try_cache_subdirectories(name: &str, home: &str) -> Option<String> {
             let matches_name = path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .map(|n| n.contains(name))
-                .unwrap_or(false);
+                .is_some_and(|n| n.contains(name));
 
             if !matches_name {
                 continue;
@@ -211,6 +210,7 @@ fn try_cache_subdirectories(name: &str, home: &str) -> Option<String> {
 /// Details:
 /// - Checks yay cache (~/.cache/yay) and paru cache (~/.cache/paru).
 /// - Also tries using `yay -G` or `paru -G` commands.
+#[must_use]
 pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
     // Try helper commands first (fastest, uses helper's cache)
     if let Some(text) = try_helper_command("paru", name) {
@@ -238,6 +238,14 @@ pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
 /// Output:
 /// - Returns PKGBUILD content as a string, or an error if fetch fails.
 ///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when PKGBUILD cannot be fetched from AUR or official repositories
+/// - Returns `Err` when rate limiting mutex is poisoned
+///
+/// # Panics
+/// - Panics if the rate limiting mutex is poisoned
+///
 /// Details:
 /// - First tries offline methods (yay/paru cache, yay -G, paru -G).
 /// - Then tries AUR with rate limiting (500ms between requests).
@@ -252,7 +260,9 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
 
     // 2. Rate limiting: ensure minimum interval between requests
     {
-        let mut last_request = PKGBUILD_RATE_LIMITER.lock().unwrap();
+        let mut last_request = PKGBUILD_RATE_LIMITER
+            .lock()
+            .expect("PKGBUILD rate limiter mutex poisoned");
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
             if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
@@ -291,11 +301,7 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
             // If AUR returns 502 (Bad Gateway), don't try GitLab fallback
             // GitLab should only be used for official packages, not AUR packages
             // AUR 502 indicates a temporary AUR server issue, not that the package doesn't exist in AUR
-            if let Some(code) = output.status.code() {
-                code == 22
-            } else {
-                false
-            }
+            output.status.code().is_some_and(|code| code == 22)
         }
         _ => false,
     };
@@ -328,12 +334,11 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
                 && !text.trim_start().starts_with("<html")
             {
                 return Ok(text);
-            } else {
-                tracing::warn!(
-                    "GitLab main returned invalid PKGBUILD (likely HTML): first 200 chars: {:?}",
-                    text.chars().take(200).collect::<String>()
-                );
             }
+            tracing::warn!(
+                "GitLab main returned invalid PKGBUILD (likely HTML): first 200 chars: {:?}",
+                text.chars().take(200).collect::<String>()
+            );
         }
         _ => {}
     }
@@ -349,7 +354,7 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
     let output = Command::new("curl")
         .args(&args)
         .output()
-        .map_err(|e| format!("curl failed: {}", e))?;
+        .map_err(|e| format!("curl failed: {e}"))?;
 
     if !output.status.success() {
         return Err(format!(
@@ -390,6 +395,10 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
 ///
 /// Output:
 /// - Returns .SRCINFO content as a string, or an error if fetch fails.
+///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when .SRCINFO cannot be fetched from AUR
 ///
 /// Details:
 /// - Downloads .SRCINFO from AUR cgit repository.

@@ -22,8 +22,7 @@ impl PathGuard {
         let base_path = original
             .as_ref()
             .filter(|p| !p.is_empty())
-            .map(|s| s.as_str())
-            .unwrap_or("/usr/bin:/bin:/usr/local/bin");
+            .map_or("/usr/bin:/bin:/usr/local/bin", String::as_str);
         let mut new_path = dir.display().to_string();
         new_path.push(':');
         new_path.push_str(base_path);
@@ -38,14 +37,14 @@ impl Drop for PathGuard {
     fn drop(&mut self) {
         if let Some(ref orig) = self.original {
             // Only restore if the original PATH was valid (not empty)
-            if !orig.is_empty() {
-                unsafe {
-                    std::env::set_var("PATH", orig);
-                }
-            } else {
+            if orig.is_empty() {
                 // If original was empty, restore to a default system PATH
                 unsafe {
                     std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin");
+                }
+            } else {
+                unsafe {
+                    std::env::set_var("PATH", orig);
                 }
             }
         } else {
@@ -68,11 +67,11 @@ fn write_executable(dir: &std::path::Path, name: &str, body: &str) {
 
 #[test]
 fn test_parse_backup_from_pkgbuild_single_line() {
-    let pkgbuild = r#"
+    let pkgbuild = r"
 pkgname=test
 pkgver=1.0
 backup=('/etc/config' '/etc/other.conf')
-"#;
+";
     let backup_files = parse_backup_from_pkgbuild(pkgbuild);
     assert_eq!(backup_files.len(), 2);
     assert!(backup_files.contains(&"/etc/config".to_string()));
@@ -81,7 +80,7 @@ backup=('/etc/config' '/etc/other.conf')
 
 #[test]
 fn test_parse_backup_from_pkgbuild_multi_line() {
-    let pkgbuild = r#"
+    let pkgbuild = r"
 pkgname=test
 pkgver=1.0
 backup=(
@@ -89,7 +88,7 @@ backup=(
     '/etc/other.conf'
     '/etc/more.conf'
 )
-"#;
+";
     let backup_files = parse_backup_from_pkgbuild(pkgbuild);
     assert_eq!(backup_files.len(), 3);
     assert!(backup_files.contains(&"/etc/config".to_string()));
@@ -99,14 +98,14 @@ backup=(
 
 #[test]
 fn test_parse_backup_from_srcinfo() {
-    let srcinfo = r#"
+    let srcinfo = r"
 pkgbase = test-package
 pkgname = test-package
 pkgver = 1.0.0
 backup = /etc/config
 backup = /etc/other.conf
 backup = /etc/more.conf
-"#;
+";
     let backup_files = parse_backup_from_srcinfo(srcinfo);
     assert_eq!(backup_files.len(), 3);
     assert!(backup_files.contains(&"/etc/config".to_string()));
@@ -187,7 +186,7 @@ exit 1
     assert_eq!(info.pacnew_candidates, 1);
 
     let mut paths: Vec<&str> = info.files.iter().map(|f| f.path.as_str()).collect();
-    paths.sort();
+    paths.sort_unstable();
     assert_eq!(paths, vec!["/etc/app.conf", "/usr/bin/newtool"]);
 
     let config_entry = info

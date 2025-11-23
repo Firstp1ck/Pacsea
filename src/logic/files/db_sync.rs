@@ -55,6 +55,7 @@ pub fn get_file_db_sync_timestamp() -> Option<SystemTime> {
 ///
 /// Details:
 /// - Buckets age into three categories: green (<7 days), yellow (<30 days), red (>=30 days).
+#[must_use]
 pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
     let sync_time = get_file_db_sync_timestamp()?;
 
@@ -67,7 +68,7 @@ pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
         sync_time
             .duration_since(SystemTime::UNIX_EPOCH)
             .ok()
-            .map(|d| d.as_secs() as i64),
+            .and_then(|d| i64::try_from(d.as_secs()).ok()),
     );
 
     // Determine color category
@@ -92,6 +93,7 @@ pub fn get_file_db_sync_info() -> Option<(u64, String, u8)> {
 ///
 /// Details:
 /// - Uses `get_file_db_sync_timestamp()` to check the last sync time.
+#[must_use]
 pub fn is_file_db_stale(max_age_days: u64) -> Option<bool> {
     let sync_time = get_file_db_sync_timestamp()?;
     let now = SystemTime::now();
@@ -109,27 +111,30 @@ pub fn is_file_db_stale(max_age_days: u64) -> Option<bool> {
 /// Output:
 /// - Returns `Ok(true)` if sync was performed, `Ok(false)` if sync was skipped (fresh DB), `Err` if sync failed.
 ///
+/// # Errors
+/// - Returns `Err` when `pacman -Fy` command execution fails (I/O error)
+/// - Returns `Err` when `pacman -Fy` exits with non-zero status
+///
 /// Details:
 /// - Checks timestamp first if `force` is false, only syncing when stale.
 /// - Intended to reduce false negatives when later querying remote file lists.
 pub fn ensure_file_db_synced(force: bool, max_age_days: u64) -> Result<bool, String> {
     // Check if we need to sync
-    if !force {
-        if let Some(is_stale) = is_file_db_stale(max_age_days) {
-            if !is_stale {
-                tracing::debug!("File database is fresh, skipping sync");
-                return Ok(false);
-            }
+    if force {
+        tracing::debug!("Force syncing pacman file database...");
+    } else if let Some(is_stale) = is_file_db_stale(max_age_days) {
+        if is_stale {
             tracing::debug!(
                 "File database is stale (older than {} days), syncing...",
                 max_age_days
             );
         } else {
-            // Can't determine timestamp, try to sync anyway
-            tracing::debug!("Cannot determine file database timestamp, attempting sync...");
+            tracing::debug!("File database is fresh, skipping sync");
+            return Ok(false);
         }
     } else {
-        tracing::debug!("Force syncing pacman file database...");
+        // Can't determine timestamp, try to sync anyway
+        tracing::debug!("Cannot determine file database timestamp, attempting sync...");
     }
 
     let output = Command::new("pacman")
@@ -137,14 +142,14 @@ pub fn ensure_file_db_synced(force: bool, max_age_days: u64) -> Result<bool, Str
         .env("LC_ALL", "C")
         .env("LANG", "C")
         .output()
-        .map_err(|e| format!("Failed to execute pacman -Fy: {}", e))?;
+        .map_err(|e| format!("Failed to execute pacman -Fy: {e}"))?;
 
     if output.status.success() {
         tracing::debug!("File database sync successful");
         Ok(true)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let error_msg = format!("File database sync failed: {}", stderr);
+        let error_msg = format!("File database sync failed: {stderr}");
         tracing::warn!("{}", error_msg);
         Err(error_msg)
     }

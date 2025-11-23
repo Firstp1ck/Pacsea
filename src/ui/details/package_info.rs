@@ -17,11 +17,11 @@ use crate::theme::theme;
 /// - `details_area`: Rect assigned to the Package Info pane content
 ///
 /// Output:
-/// - Tuple of (content_x, content_y, inner_w) representing layout dimensions.
+/// - Tuple of (`content_x`, `content_y`, `inner_w`) representing layout dimensions.
 ///
 /// Details:
 /// - Accounts for border inset and calculates inner content dimensions.
-fn calculate_content_layout(details_area: Rect) -> (u16, u16, u16) {
+const fn calculate_content_layout(details_area: Rect) -> (u16, u16, u16) {
     let border_inset = 1u16;
     let content_x = details_area.x.saturating_add(border_inset);
     let content_y = details_area.y.saturating_add(border_inset);
@@ -75,12 +75,15 @@ fn style_url_in_lines(
 /// - Number of rows (at least 1) the line will occupy.
 ///
 /// Details:
-/// - Handles zero-width case and calculates wrapping using div_ceil.
+/// - Handles zero-width case and calculates wrapping using `div_ceil`.
 fn calculate_wrapped_line_rows(line_len: usize, inner_w: u16) -> u16 {
     if inner_w == 0 {
         1
     } else {
-        (line_len as u16).div_ceil(inner_w).max(1)
+        u16::try_from(line_len)
+            .unwrap_or(u16::MAX)
+            .div_ceil(inner_w)
+            .max(1)
     }
 }
 
@@ -109,10 +112,10 @@ fn calculate_url_button_rect(
         return None;
     }
     // Use Unicode display width, not byte length, to handle wide characters
-    let key_len = key_txt.width() as u16;
+    let key_len = u16::try_from(key_txt.width()).unwrap_or(u16::MAX);
     let x_start = content_x.saturating_add(key_len);
     let max_w = inner_w.saturating_sub(key_len);
-    let w = url_txt.width().min(max_w as usize) as u16;
+    let w = u16::try_from(url_txt.width().min(max_w as usize)).unwrap_or(u16::MAX);
     if w > 0 {
         Some((x_start, cur_y, w, 1))
     } else {
@@ -140,7 +143,7 @@ fn calculate_pkgbuild_button_rect(
     inner_w: u16,
 ) -> Option<(u16, u16, u16, u16)> {
     // Use Unicode display width, not byte length, to handle wide characters
-    let w = txt.width().min(inner_w as usize) as u16;
+    let w = u16::try_from(txt.width().min(inner_w as usize)).unwrap_or(u16::MAX);
     if w > 0 {
         Some((content_x, cur_y, w, 1))
     } else {
@@ -183,7 +186,7 @@ fn calculate_button_rects(
     details_lines: &[Line],
     visible_lines: &[Line],
     scroll_offset: usize,
-    ctx: ButtonContext<'_>,
+    ctx: &ButtonContext<'_>,
     app: &mut AppState,
 ) {
     app.url_button_rect = None;
@@ -282,7 +285,7 @@ pub fn render_package_info(f: &mut Frame, app: &mut AppState, details_area: Rect
         &details_lines,
         &visible_lines,
         scroll_offset,
-        button_ctx,
+        &button_ctx,
         app,
     );
 

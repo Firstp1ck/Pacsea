@@ -13,14 +13,14 @@ use super::idx;
 ///
 /// Details:
 /// - Performs a case-insensitive substring match on package names and clones matching entries.
+#[must_use]
 pub fn search_official(query: &str) -> Vec<PackageItem> {
     let ql = query.trim().to_lowercase();
     if ql.is_empty() {
         return Vec::new();
     }
-    let guard = idx().read().ok();
     let mut items = Vec::new();
-    if let Some(g) = guard {
+    if let Ok(g) = idx().read() {
         for p in &g.pkgs {
             let nl = p.name.to_lowercase();
             if nl.contains(&ql) {
@@ -50,10 +50,10 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
 ///
 /// Details:
 /// - Clones data from the shared index under a read lock and omits popularity data.
+#[must_use]
 pub fn all_official() -> Vec<PackageItem> {
-    let guard = idx().read().ok();
     let mut items = Vec::new();
-    if let Some(g) = guard {
+    if let Ok(g) = idx().read() {
         items.reserve(g.pkgs.len());
         for p in &g.pkgs {
             items.push(PackageItem {
@@ -81,7 +81,8 @@ pub fn all_official() -> Vec<PackageItem> {
 ///
 /// Details:
 /// - Loads from disk only when the in-memory list is empty to avoid redundant IO.
-pub async fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
+#[must_use]
+pub fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
     let items = all_official();
     if !items.is_empty() {
         return items;
@@ -158,7 +159,7 @@ mod tests {
                 assert_eq!(repo, "core");
                 assert_eq!(arch, "x86_64");
             }
-            _ => panic!("expected Source::Official"),
+            crate::state::Source::Aur => panic!("expected Source::Official"),
         }
     }
 
@@ -221,7 +222,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         let idx_json = serde_json::json!({
@@ -229,8 +230,12 @@ mod tests {
                 {"name": "foo", "repo": "core", "arch": "x86_64", "version": "1", "description": ""}
             ]
         });
-        std::fs::write(&path, serde_json::to_string(&idx_json).unwrap()).unwrap();
-        let items = super::all_official_or_fetch(&path).await;
+        std::fs::write(
+            &path,
+            serde_json::to_string(&idx_json).expect("failed to serialize index JSON"),
+        )
+        .expect("failed to write index JSON file");
+        let items = super::all_official_or_fetch(&path);
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "foo");
         let _ = std::fs::remove_file(&path);

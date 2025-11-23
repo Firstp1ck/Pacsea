@@ -12,7 +12,7 @@ use super::distro::{artix_repo_names, cachyos_repo_names, eos_repo_names};
 ///   are empty for speed. The result is deduplicated by `(repo, name)`.
 ///
 /// Details:
-/// - Combines results from core, extra, multilib, EndeavourOS, CachyOS, and Artix Linux repositories before
+/// - Combines results from core, extra, multilib, `EndeavourOS`, `CachyOS`, and `Artix Linux` repositories before
 ///   sorting and deduplicating entries.
 #[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()
@@ -21,49 +21,49 @@ pub async fn fetch_official_pkg_names()
     let core = tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "core"]))
         .await
         .ok()
-        .and_then(|r| r.ok())
+        .and_then(Result::ok)
         .unwrap_or_default();
     let extra = tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "extra"]))
         .await
         .ok()
-        .and_then(|r| r.ok())
+        .and_then(Result::ok)
         .unwrap_or_default();
     let multilib =
         tokio::task::spawn_blocking(|| crate::util::pacman::run_pacman(&["-Sl", "multilib"]))
             .await
             .ok()
-            .and_then(|r| r.ok())
+            .and_then(Result::ok)
             .unwrap_or_default();
     // EOS/EndeavourOS: attempt both known names
     let mut eos_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in eos_repo_names().iter() {
+    for &repo in eos_repo_names() {
         let body =
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
                 .ok()
-                .and_then(|r| r.ok())
+                .and_then(Result::ok)
                 .unwrap_or_default();
         eos_pairs.push((repo, body));
     }
     // CachyOS: attempt multiple potential repo names; missing ones yield empty output
     let mut cach_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in cachyos_repo_names().iter() {
+    for &repo in cachyos_repo_names() {
         let body =
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
                 .ok()
-                .and_then(|r| r.ok())
+                .and_then(Result::ok)
                 .unwrap_or_default();
         cach_pairs.push((repo, body));
     }
     // Artix Linux: attempt all known Artix repo names; missing ones yield empty output
     let mut artix_pairs: Vec<(&str, String)> = Vec::new();
-    for &repo in artix_repo_names().iter() {
+    for &repo in artix_repo_names() {
         let body =
             tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
                 .await
                 .ok()
-                .and_then(|r| r.ok())
+                .and_then(Result::ok)
                 .unwrap_or_default();
         artix_pairs.push((repo, body));
     }
@@ -80,11 +80,12 @@ pub async fn fetch_official_pkg_names()
             let r = it.next();
             let n = it.next();
             let v = it.next();
-            if r.is_none() || n.is_none() {
+            let Some(r) = r else {
                 continue;
-            }
-            let r = r.unwrap();
-            let n = n.unwrap();
+            };
+            let Some(n) = n else {
+                continue;
+            };
             if r != repo {
                 continue;
             }
@@ -148,13 +149,13 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).expect("Failed to create test root directory");
         let mut bin = root.clone();
         bin.push("bin");
-        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&bin).expect("Failed to create test bin directory");
         let mut script = bin.clone();
         script.push("pacman");
         let body = r#"#!/usr/bin/env bash
@@ -177,18 +178,23 @@ if [[ "$1" == "-Sl" ]]; then
 fi
 exit 0
 "#;
-        std::fs::write(&script, body).unwrap();
+        std::fs::write(&script, body).expect("Failed to write test pacman script");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&script).unwrap().permissions();
+            let mut perm = std::fs::metadata(&script)
+                .expect("Failed to read test pacman script metadata")
+                .permissions();
             perm.set_mode(0o755);
-            std::fs::set_permissions(&script, perm).unwrap();
+            std::fs::set_permissions(&script, perm)
+                .expect("Failed to set test pacman script permissions");
         }
-        let new_path = format!("{}:{}", bin.to_string_lossy(), old_path);
+        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
 
-        let pkgs = super::fetch_official_pkg_names().await.unwrap();
+        let pkgs = super::fetch_official_pkg_names()
+            .await
+            .expect("Failed to fetch official package names in test");
 
         // Cleanup PATH and temp files early
         unsafe { std::env::set_var("PATH", &old_path) };

@@ -97,7 +97,7 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
 
@@ -107,7 +107,11 @@ mod tests {
                 {"name": "aa", "repo": "core", "arch": "x86_64", "version": "1", "description": ""}
             ]
         });
-        std::fs::write(&path, serde_json::to_string(&idx_json1).unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            serde_json::to_string(&idx_json1).expect("failed to serialize index JSON"),
+        )
+        .expect("failed to write index JSON file");
         super::load_from_disk(&path);
 
         let idx_json2 = serde_json::json!({
@@ -116,7 +120,11 @@ mod tests {
                 {"name": "zz", "repo": "extra", "arch": "x86_64", "version": "1", "description": ""}
             ]
         });
-        std::fs::write(&path, serde_json::to_string(&idx_json2).unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            serde_json::to_string(&idx_json2).expect("failed to serialize index JSON"),
+        )
+        .expect("failed to write index JSON file");
         super::load_from_disk(&path);
 
         let all = crate::index::all_official();
@@ -158,12 +166,12 @@ mod tests {
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
         super::save_to_disk(&path);
         // Read back and assert content contains our package name
-        let body = std::fs::read_to_string(&path).unwrap();
+        let body = std::fs::read_to_string(&path).expect("failed to read index JSON file");
         assert!(body.contains("\"abc\""));
         let _ = std::fs::remove_file(&path);
     }

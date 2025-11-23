@@ -17,6 +17,7 @@ use crate::theme::reload_theme;
 ///
 /// Details:
 /// - Closes sort, options, panels, config, and artix filter menus.
+#[allow(clippy::missing_const_for_fn)]
 fn close_all_dropdowns(app: &mut AppState) -> bool {
     let any_open = app.sort_menu_open
         || app.options_menu_open
@@ -49,6 +50,7 @@ fn handle_options_installed_only_toggle(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) {
+    use std::collections::HashSet;
     if app.installed_only_mode {
         if let Some(prev) = app.results_backup_for_toggle.take() {
             app.all_results = prev;
@@ -64,9 +66,8 @@ fn handle_options_installed_only_toggle(
             .into_iter()
             .filter(|p| explicit.contains(&p.name))
             .collect();
-        use std::collections::HashSet;
         let official_names: HashSet<String> = items.iter().map(|p| p.name.clone()).collect();
-        for name in explicit.into_iter() {
+        for name in explicit {
             if !official_names.contains(&name) {
                 let is_eos = crate::index::is_eos_name(&name);
                 let src = if is_eos {
@@ -105,7 +106,7 @@ fn handle_options_installed_only_toggle(
 /// - `app`: Mutable application state
 ///
 /// Details:
-/// - Opens SystemUpdate modal with default settings.
+/// - Opens `SystemUpdate` modal with default settings.
 fn handle_options_system_update(app: &mut AppState) {
     let countries = vec![
         "Worldwide".to_string(),
@@ -125,8 +126,7 @@ fn handle_options_system_update(app: &mut AppState) {
             .selected_countries
             .split(',')
             .next()
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "Worldwide".to_string());
+            .map_or_else(|| "Worldwide".to_string(), |s| s.trim().to_string());
         countries.iter().position(|c| c == &sel).unwrap_or(0)
     };
     app.modal = crate::state::Modal::SystemUpdate {
@@ -187,7 +187,7 @@ fn handle_options_news(app: &mut AppState) {
 /// - `app`: Mutable application state
 ///
 /// Details:
-/// - Builds optional dependencies rows and opens OptionalDeps modal.
+/// - Builds optional dependencies rows and opens `OptionalDeps` modal.
 fn handle_options_optional_deps(app: &mut AppState) {
     let rows = crate::events::mouse::menu_options::build_optional_deps_rows(app);
     app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
@@ -225,17 +225,17 @@ fn handle_panels_menu_selection(idx: usize, app: &mut AppState) {
     }
 }
 
-/// What: Normalize BackTab modifiers so that SHIFT modifier does not affect matching across terminals.
+/// What: Normalize `BackTab` modifiers so that `SHIFT` modifier does not affect matching across terminals.
 ///
 /// Inputs:
 /// - `ke`: Key event from crossterm
 ///
 /// Output:
-/// - Normalized modifiers (empty for BackTab, original modifiers otherwise)
+/// - Normalized modifiers (empty for `BackTab`, original modifiers otherwise)
 ///
 /// Details:
-/// - BackTab normalization ensures consistent keybind matching across different terminal emulators.
-fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
+/// - `BackTab` normalization ensures consistent keybind matching across different terminal emulators.
+const fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
     if matches!(ke.code, KeyCode::BackTab) {
         KeyModifiers::empty()
     } else {
@@ -249,11 +249,11 @@ fn normalize_key_modifiers(ke: &KeyEvent) -> KeyModifiers {
 /// - `ke`: Key event from crossterm
 ///
 /// Output:
-/// - Tuple of (KeyCode, KeyModifiers) suitable for matching against KeyChord lists
+/// - Tuple of (`KeyCode`, `KeyModifiers`) suitable for matching against `KeyChord` lists
 ///
 /// Details:
-/// - Normalizes BackTab modifiers before creating the chord.
-fn create_key_chord(ke: &KeyEvent) -> (KeyCode, KeyModifiers) {
+/// - Normalizes `BackTab` modifiers before creating the chord.
+const fn create_key_chord(ke: &KeyEvent) -> (KeyCode, KeyModifiers) {
     (ke.code, normalize_key_modifiers(ke))
 }
 
@@ -267,7 +267,7 @@ fn create_key_chord(ke: &KeyEvent) -> (KeyCode, KeyModifiers) {
 /// - `true` if the key event matches any chord in the list, `false` otherwise
 ///
 /// Details:
-/// - Normalizes BackTab modifiers before matching.
+/// - Normalizes `BackTab` modifiers before matching.
 fn matches_keybind(ke: &KeyEvent, chords: &[crate::theme::KeyChord]) -> bool {
     let chord = create_key_chord(ke);
     chords.iter().any(|c| (c.code, c.mods) == chord)
@@ -297,13 +297,13 @@ fn handle_escape(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if help was opened, `None` otherwise
+/// - `false` if help was opened
 ///
 /// Details:
 /// - Opens the Help modal when the help overlay keybind is pressed.
-fn handle_help_overlay(app: &mut AppState) -> Option<bool> {
+fn handle_help_overlay(app: &mut AppState) -> bool {
     app.modal = crate::state::Modal::Help;
-    Some(false)
+    false
 }
 
 /// What: Handle theme reload keybind.
@@ -312,11 +312,11 @@ fn handle_help_overlay(app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if theme was reloaded, `None` otherwise
+/// - `false` if theme was reloaded
 ///
 /// Details:
 /// - Reloads the theme configuration and shows a toast message on success.
-fn handle_reload_theme(app: &mut AppState) -> Option<bool> {
+fn handle_reload_theme(app: &mut AppState) -> bool {
     match reload_theme() {
         Ok(()) => {
             app.toast_message = Some(crate::i18n::t(app, "app.toasts.theme_reloaded"));
@@ -327,7 +327,7 @@ fn handle_reload_theme(app: &mut AppState) -> Option<bool> {
             app.modal = crate::state::Modal::Alert { message: msg };
         }
     }
-    Some(false)
+    false
 }
 
 /// What: Handle exit keybind.
@@ -336,12 +336,12 @@ fn handle_reload_theme(app: &mut AppState) -> Option<bool> {
 /// - None (uses closure pattern)
 ///
 /// Output:
-/// - `Some(true)` to signal exit
+/// - `true` to signal exit
 ///
 /// Details:
 /// - Returns exit signal when exit keybind is pressed.
-fn handle_exit() -> Option<bool> {
-    Some(true)
+const fn handle_exit() -> bool {
+    true
 }
 
 /// What: Handle PKGBUILD viewer toggle keybind.
@@ -351,14 +351,14 @@ fn handle_exit() -> Option<bool> {
 /// - `pkgb_tx`: Channel to request PKGBUILD content
 ///
 /// Output:
-/// - `Some(false)` if PKGBUILD was toggled, `None` otherwise
+/// - `false` if PKGBUILD was toggled
 ///
 /// Details:
 /// - Toggles PKGBUILD viewer visibility and requests content if opening.
 fn handle_toggle_pkgbuild(
     app: &mut AppState,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
-) -> Option<bool> {
+) -> bool {
     if app.pkgb_visible {
         app.pkgb_visible = false;
         app.pkgb_text = None;
@@ -373,7 +373,7 @@ fn handle_toggle_pkgbuild(
             let _ = pkgb_tx.send(item);
         }
     }
-    Some(false)
+    false
 }
 
 /// What: Handle sort mode change keybind.
@@ -383,14 +383,11 @@ fn handle_toggle_pkgbuild(
 /// - `details_tx`: Channel to request package details
 ///
 /// Output:
-/// - `Some(false)` if sort mode was changed, `None` otherwise
+/// - `false` if sort mode was changed
 ///
 /// Details:
 /// - Cycles through sort modes, persists preference, re-sorts results, and refreshes details.
-fn handle_change_sort(
-    app: &mut AppState,
-    details_tx: &mpsc::UnboundedSender<PackageItem>,
-) -> Option<bool> {
+fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) -> bool {
     // Cycle through sort modes in fixed order
     app.sort_mode = match app.sort_mode {
         crate::state::SortMode::RepoThenName => crate::state::SortMode::AurPopularityThenOfficial,
@@ -401,18 +398,18 @@ fn handle_change_sort(
     crate::theme::save_sort_mode(app.sort_mode);
     crate::logic::sort_results_preserve_selection(app);
     // Jump selection to top and refresh details
-    if !app.results.is_empty() {
+    if app.results.is_empty() {
+        app.list_state.select(None);
+    } else {
         app.selected = 0;
         app.list_state.select(Some(0));
         utils::refresh_selected_details(app, details_tx);
-    } else {
-        app.list_state.select(None);
     }
     // Show the dropdown so the user sees the current option with a check mark
     app.sort_menu_open = true;
     app.sort_menu_auto_close_at =
         Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
-    Some(false)
+    false
 }
 
 /// What: Handle numeric menu selection for options menu.
@@ -450,14 +447,14 @@ fn handle_options_menu_numeric(
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if selection was handled, `None` otherwise
+/// - `false` if selection was handled
 ///
 /// Details:
 /// - Routes numeric selection to panels menu handler and keeps menu open.
-fn handle_panels_menu_numeric(idx: usize, app: &mut AppState) -> Option<bool> {
+fn handle_panels_menu_numeric(idx: usize, app: &mut AppState) -> bool {
     handle_panels_menu_selection(idx, app);
     // Keep menu open after toggling panels
-    Some(false)
+    false
 }
 
 /// What: Handle numeric menu selection for config menu.
@@ -467,13 +464,13 @@ fn handle_panels_menu_numeric(idx: usize, app: &mut AppState) -> Option<bool> {
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `Some(false)` if selection was handled, `None` otherwise
+/// - `false` if selection was handled
 ///
 /// Details:
 /// - Routes numeric selection to config menu handler.
-fn handle_config_menu_numeric(idx: usize, app: &mut AppState) -> Option<bool> {
+fn handle_config_menu_numeric(idx: usize, app: &mut AppState) -> bool {
     handle_config_menu_selection(idx, app);
-    Some(false)
+    false
 }
 
 /// What: Handle numeric key press when dropdown menus are open.
@@ -497,9 +494,9 @@ fn handle_menu_numeric_selection(
     if app.options_menu_open {
         handle_options_menu_numeric(idx, app, details_tx)
     } else if app.panels_menu_open {
-        handle_panels_menu_numeric(idx, app)
+        Some(handle_panels_menu_numeric(idx, app))
     } else if app.config_menu_open {
-        handle_config_menu_numeric(idx, app)
+        Some(handle_config_menu_numeric(idx, app))
     } else {
         None
     }
@@ -530,27 +527,27 @@ fn handle_global_keybinds(
     if !matches!(app.modal, crate::state::Modal::Preflight { .. })
         && matches_keybind(ke, &km.help_overlay)
     {
-        return handle_help_overlay(app);
+        return Some(handle_help_overlay(app));
     }
 
     // Theme reload
     if matches_keybind(ke, &km.reload_theme) {
-        return handle_reload_theme(app);
+        return Some(handle_reload_theme(app));
     }
 
     // Exit
     if matches_keybind(ke, &km.exit) {
-        return handle_exit();
+        return Some(handle_exit());
     }
 
     // PKGBUILD toggle
     if matches_keybind(ke, &km.show_pkgbuild) {
-        return handle_toggle_pkgbuild(app, pkgb_tx);
+        return Some(handle_toggle_pkgbuild(app, pkgb_tx));
     }
 
     // Sort change
     if matches_keybind(ke, &km.change_sort) {
-        return handle_change_sort(app, details_tx);
+        return Some(handle_change_sort(app, details_tx));
     }
 
     None
@@ -559,32 +556,19 @@ fn handle_global_keybinds(
 /// What: Handle config menu numeric selection.
 ///
 /// Inputs:
-/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds, 3=install, 4=installed, 5=recent)
+/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds)
 /// - `app`: Mutable application state
 ///
 /// Details:
 /// - Opens the selected config file in a terminal editor.
-/// - Exports installed packages list if index 4 is selected.
 fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
     let settings_path = crate::theme::config_dir().join("settings.conf");
     let theme_path = crate::theme::config_dir().join("theme.conf");
     let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-    let install_path = app.install_path.clone();
-    let recent_path = app.recent_path.clone();
-    let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
-    if idx == 4 {
-        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-        names.sort();
-        let body = names.join("\n");
-        let _ = std::fs::write(&installed_list_path, body);
-    }
     let target = match idx {
         0 => settings_path,
         1 => theme_path,
         2 => keybinds_path,
-        3 => install_path,
-        4 => installed_list_path,
-        5 => recent_path,
         _ => {
             app.config_menu_open = false;
             app.artix_filter_menu_open = false;
@@ -635,7 +619,7 @@ fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
 /// - Routes configured global chords (help overlay, theme reload, exit, PKGBUILD toggle, sort cycle).
 /// - When sort mode changes it persists the preference, re-sorts results, and refreshes details.
 /// - Supports menu number shortcuts (1-9) for Options/Panels/Config dropdowns while they are open.
-pub(crate) fn handle_global_key(
+pub(super) fn handle_global_key(
     ke: KeyEvent,
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
@@ -672,9 +656,7 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     fn new_app() -> AppState {
-        AppState {
-            ..Default::default()
-        }
+        AppState::default()
     }
 
     #[test]
@@ -724,7 +706,7 @@ mod tests {
     /// - Handler returns `false` and sets `app.modal` to `Modal::Help`.
     ///
     /// Details:
-    /// - Confirms BackTab normalization does not interfere with regular function keys.
+    /// - Confirms `BackTab` normalization does not interfere with regular function keys.
     fn global_help_overlay_opens_modal() {
         let mut app = new_app();
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();

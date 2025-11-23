@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 /// Details:
 /// - Performs best-effort verification of the returned version, logging
 ///   mismatches for diagnostics.
-pub(crate) fn fetch_official_metadata<R: CommandRunner>(
+pub(super) fn fetch_official_metadata<R: CommandRunner>(
     runner: &R,
     repo: &str,
     name: &str,
@@ -70,7 +70,7 @@ pub(crate) fn fetch_official_metadata<R: CommandRunner>(
 ///
 /// Details:
 /// - Trims stdout and returns the last whitespace-separated token.
-pub(crate) fn fetch_installed_version<R: CommandRunner>(
+pub(super) fn fetch_installed_version<R: CommandRunner>(
     runner: &R,
     name: &str,
 ) -> Result<String, CommandError> {
@@ -79,7 +79,7 @@ pub(crate) fn fetch_installed_version<R: CommandRunner>(
     let _pkg_name = parts.next();
     parts
         .next_back()
-        .map(|value| value.to_string())
+        .map(ToString::to_string)
         .ok_or_else(|| CommandError::Parse {
             program: "pacman -Q".to_string(),
             field: "version".to_string(),
@@ -98,7 +98,7 @@ pub(crate) fn fetch_installed_version<R: CommandRunner>(
 ///
 /// Details:
 /// - Parses the `Installed Size` field using [`parse_size_to_bytes`].
-pub(crate) fn fetch_installed_size<R: CommandRunner>(
+pub(super) fn fetch_installed_size<R: CommandRunner>(
     runner: &R,
     name: &str,
 ) -> Result<u64, CommandError> {
@@ -123,7 +123,7 @@ pub(crate) fn fetch_installed_size<R: CommandRunner>(
 /// Details:
 /// - Values are `None` when the upstream output omits a field.
 #[derive(Default, Debug)]
-pub(crate) struct OfficialMetadata {
+pub struct OfficialMetadata {
     pub(crate) download_size: Option<u64>,
     pub(crate) install_size: Option<u64>,
 }
@@ -139,7 +139,7 @@ pub(crate) struct OfficialMetadata {
 /// Details:
 /// - Continuation lines (prefixed with a space) are appended to the previous
 ///   key's value.
-pub(crate) fn parse_pacman_key_values(output: &str) -> HashMap<String, String> {
+pub(super) fn parse_pacman_key_values(output: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     let mut last_key: Option<String> = None;
 
@@ -180,20 +180,32 @@ pub(crate) fn parse_pacman_key_values(output: &str) -> HashMap<String, String> {
 ///
 /// Details:
 /// - Supports B, KiB, MiB, GiB, and TiB units.
-pub(crate) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
+pub(super) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
+    // Maximum f64 value that fits in u64 (2^64 - 1, but f64 can represent up to 2^53 exactly)
+    // For values beyond 2^53, we check if they exceed u64::MAX by comparing with a threshold
+    const MAX_U64_AS_F64: f64 = 18_446_744_073_709_551_615.0; // u64::MAX as approximate f64
     let mut parts = raw.split_whitespace();
     let number = parts.next()?.replace(',', "");
     let value = number.parse::<f64>().ok()?;
     let unit = parts.next().unwrap_or("B");
     let multiplier = match unit {
-        "B" => 1.0,
         "KiB" => 1024.0,
         "MiB" => 1024.0 * 1024.0,
         "GiB" => 1024.0 * 1024.0 * 1024.0,
         "TiB" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
         _ => 1.0,
     };
-    Some((value * multiplier) as u64)
+    let result = value * multiplier;
+    // Check bounds: negative values are invalid
+    if result < 0.0 {
+        return None;
+    }
+    if result > MAX_U64_AS_F64 {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let bytes = result.round() as u64;
+    Some(bytes)
 }
 
 /// What: Find AUR package file in pacman cache or AUR helper caches.
@@ -236,8 +248,8 @@ fn find_aur_package_file(name: &str, version: Option<&str>) -> Option<PathBuf> {
     // Try AUR helper caches
     if let Ok(home) = std::env::var("HOME") {
         let cache_paths = [
-            format!("{}/.cache/paru/clone/{}", home, name),
-            format!("{}/.cache/yay/{}", home, name),
+            format!("{home}/.cache/paru/clone/{name}"),
+            format!("{home}/.cache/yay/{name}"),
         ];
 
         for cache_base in cache_paths {
@@ -274,38 +286,33 @@ fn find_aur_package_file(name: &str, version: Option<&str>) -> Option<PathBuf> {
 /// - `pkg_path`: Path to the package file.
 ///
 /// Output:
-/// - `Ok(OfficialMetadata)` with download_size (file size) and install_size (from package metadata).
-/// - `Err(CommandError)` when extraction fails.
+/// - `OfficialMetadata` with `download_size` (file size) and `install_size` (from package metadata).
 ///
 /// Details:
 /// - Download size is the actual file size on disk.
 /// - Install size is extracted via `pacman -Qp` command.
-fn extract_aur_package_sizes<R: CommandRunner>(
-    runner: &R,
-    pkg_path: &Path,
-) -> Result<OfficialMetadata, CommandError> {
+/// - Errors are handled gracefully by returning None values.
+fn extract_aur_package_sizes<R: CommandRunner>(runner: &R, pkg_path: &Path) -> OfficialMetadata {
     // Get download size (file size on disk)
     let download_size = fs::metadata(pkg_path).ok().map(|meta| meta.len());
 
     // Get install size from package metadata
-    let install_size = if let Some(pkg_str) = pkg_path.to_str() {
-        match runner.run("pacman", &["-Qp", pkg_str]) {
-            Ok(output) => {
+    let install_size = pkg_path.to_str().and_then(|pkg_str| {
+        runner
+            .run("pacman", &["-Qp", pkg_str])
+            .ok()
+            .and_then(|output| {
                 let fields = parse_pacman_key_values(&output);
                 fields
                     .get("Installed Size")
                     .and_then(|raw| parse_size_to_bytes(raw))
-            }
-            Err(_) => None,
-        }
-    } else {
-        None
-    };
+            })
+    });
 
-    Ok(OfficialMetadata {
+    OfficialMetadata {
         download_size,
         install_size,
-    })
+    }
 }
 
 /// What: Fetch metadata for AUR packages by checking local caches.
@@ -316,27 +323,26 @@ fn extract_aur_package_sizes<R: CommandRunner>(
 /// - `version`: Package version (optional, for matching).
 ///
 /// Output:
-/// - `Ok(OfficialMetadata)` with sizes if package file found in cache.
-/// - `Err(CommandError)` when extraction fails or package not found.
+/// - `OfficialMetadata` with sizes if package file found in cache.
 ///
 /// Details:
 /// - Checks pacman cache and AUR helper caches for built package files.
 /// - Extracts sizes from found package files.
 /// - Returns None values if package file is not found (graceful degradation).
-pub(crate) fn fetch_aur_metadata<R: CommandRunner>(
+/// - Errors are handled gracefully by returning None values.
+pub(super) fn fetch_aur_metadata<R: CommandRunner>(
     runner: &R,
     name: &str,
     version: Option<&str>,
-) -> Result<OfficialMetadata, CommandError> {
-    if let Some(pkg_path) = find_aur_package_file(name, version) {
-        extract_aur_package_sizes(runner, &pkg_path)
-    } else {
+) -> OfficialMetadata {
+    find_aur_package_file(name, version).map_or(
         // Package file not found in cache - return None values (graceful degradation)
-        Ok(OfficialMetadata {
+        OfficialMetadata {
             download_size: None,
             install_size: None,
-        })
-    }
+        },
+        |pkg_path| extract_aur_package_sizes(runner, &pkg_path),
+    )
 }
 
 #[cfg(not(windows))]
@@ -369,13 +375,13 @@ mod tests {
         fn run(&self, program: &str, args: &[&str]) -> Result<String, CommandError> {
             let key = (
                 program.to_string(),
-                args.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                args.iter().map(ToString::to_string).collect::<Vec<_>>(),
             );
             let mut guard = self.responses.lock().expect("poisoned responses mutex");
             guard.remove(&key).unwrap_or_else(|| {
                 Err(CommandError::Failed {
                     program: program.to_string(),
-                    args: args.iter().map(|s| s.to_string()).collect(),
+                    args: args.iter().map(ToString::to_string).collect(),
                     status: std::process::ExitStatus::from_raw(1),
                 })
             })
@@ -396,18 +402,9 @@ mod tests {
     fn test_parse_size_to_bytes() {
         assert_eq!(parse_size_to_bytes("10 B"), Some(10));
         assert_eq!(parse_size_to_bytes("1 KiB"), Some(1024));
-        assert_eq!(
-            parse_size_to_bytes("2.5 MiB"),
-            Some((2.5 * 1024.0 * 1024.0) as u64)
-        );
-        assert_eq!(
-            parse_size_to_bytes("1.5 GiB"),
-            Some((1.5 * 1024.0 * 1024.0 * 1024.0) as u64)
-        );
-        assert_eq!(
-            parse_size_to_bytes("1,234.5 MiB"),
-            Some((1234.5 * 1024.0 * 1024.0) as u64)
-        );
+        assert_eq!(parse_size_to_bytes("2.5 MiB"), Some(2_621_440));
+        assert_eq!(parse_size_to_bytes("1.5 GiB"), Some(1_610_612_736));
+        assert_eq!(parse_size_to_bytes("1,234.5 MiB"), Some(1_294_467_072));
         assert_eq!(parse_size_to_bytes("invalid"), None);
         assert_eq!(parse_size_to_bytes(""), None);
     }
@@ -425,9 +422,7 @@ mod tests {
     /// - Tests graceful degradation when package file is not available.
     fn test_fetch_aur_metadata_not_found() {
         let runner = MockRunner::default();
-        let result = fetch_aur_metadata(&runner, "nonexistent-package", Some("1.0.0"));
-        assert!(result.is_ok());
-        let meta = result.unwrap();
+        let meta = fetch_aur_metadata(&runner, "nonexistent-package", Some("1.0.0"));
         assert_eq!(meta.download_size, None);
         assert_eq!(meta.install_size, None);
     }
@@ -446,9 +441,9 @@ mod tests {
     fn test_extract_aur_package_sizes() {
         // Create a temporary file for testing
         let temp_dir = std::env::temp_dir().join(format!("pacsea_test_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::create_dir_all(&temp_dir).expect("failed to create test temp directory");
         let pkg_path = temp_dir.join("test-1.0.0-1-x86_64.pkg.tar.zst");
-        std::fs::write(&pkg_path, b"fake package data").unwrap();
+        std::fs::write(&pkg_path, b"fake package data").expect("failed to write test package file");
 
         // Set up mock response using the actual temp file path
         let mut responses = HashMap::new();
@@ -462,9 +457,7 @@ mod tests {
 
         let runner = MockRunner::with(responses);
 
-        let result = extract_aur_package_sizes(&runner, &pkg_path);
-        assert!(result.is_ok());
-        let meta = result.unwrap();
+        let meta = extract_aur_package_sizes(&runner, &pkg_path);
 
         // Download size should be the file size (17 bytes in this case)
         assert_eq!(meta.download_size, Some(17));

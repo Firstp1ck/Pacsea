@@ -1,19 +1,19 @@
-//! Scan configuration and VirusTotal setup modal handling.
+//! Scan configuration and `VirusTotal` setup modal handling.
 
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::AppState;
 
-/// What: Handle key events for ScanConfig modal.
+/// What: Handle key events for `ScanConfig` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `do_clamav`: Mutable reference to ClamAV flag
+/// - `do_clamav`: Mutable reference to `ClamAV` flag
 /// - `do_trivy`: Mutable reference to Trivy flag
 /// - `do_semgrep`: Mutable reference to Semgrep flag
-/// - `do_shellcheck`: Mutable reference to Shellcheck flag
-/// - `do_virustotal`: Mutable reference to VirusTotal flag
+/// - `do_shellcheck`: Mutable reference to `Shellcheck` flag
+/// - `do_virustotal`: Mutable reference to `VirusTotal` flag
 /// - `do_custom`: Mutable reference to custom scan flag
 /// - `do_sleuth`: Mutable reference to sleuth flag
 /// - `cursor`: Mutable reference to cursor position
@@ -24,7 +24,7 @@ use crate::state::AppState;
 /// Details:
 /// - Handles navigation, toggles, and Enter to confirm scan configuration
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn handle_scan_config(
+pub(super) fn handle_scan_config(
     ke: KeyEvent,
     app: &mut AppState,
     do_clamav: &mut bool,
@@ -67,7 +67,7 @@ pub(crate) fn handle_scan_config(
         },
         KeyCode::Enter => {
             let new_modal = handle_scan_config_confirm(
-                &mut app.pending_install_names,
+                app.pending_install_names.as_ref(),
                 app.dry_run,
                 *do_clamav,
                 *do_trivy,
@@ -84,7 +84,7 @@ pub(crate) fn handle_scan_config(
     false
 }
 
-/// What: Handle key events for VirusTotalSetup modal.
+/// What: Handle key events for `VirusTotalSetup` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -97,7 +97,7 @@ pub(crate) fn handle_scan_config(
 ///
 /// Details:
 /// - Handles text input, navigation, and Enter to save API key
-pub(crate) fn handle_virustotal_setup(
+pub(super) fn handle_virustotal_setup(
     ke: KeyEvent,
     app: &mut AppState,
     input: &mut String,
@@ -161,11 +161,11 @@ pub(crate) fn handle_virustotal_setup(
 /// Inputs:
 /// - `pending_install_names`: Mutable reference to pending install names
 /// - `dry_run`: Whether to run in dry-run mode
-/// - `do_clamav`: ClamAV scan flag
+/// - `do_clamav`: `ClamAV` scan flag
 /// - `do_trivy`: Trivy scan flag
 /// - `do_semgrep`: Semgrep scan flag
-/// - `do_shellcheck`: Shellcheck scan flag
-/// - `do_virustotal`: VirusTotal scan flag
+/// - `do_shellcheck`: `Shellcheck` scan flag
+/// - `do_virustotal`: `VirusTotal` scan flag
 /// - `do_custom`: Custom scan flag
 /// - `do_sleuth`: Sleuth scan flag
 ///
@@ -173,9 +173,9 @@ pub(crate) fn handle_virustotal_setup(
 ///
 /// Details:
 /// - Persists scan settings and spawns AUR scans for pending packages
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn handle_scan_config_confirm(
-    pending_install_names: &mut Option<Vec<String>>,
+    pending_install_names: Option<&Vec<String>>,
     dry_run: bool,
     do_clamav: bool,
     do_trivy: bool,
@@ -194,7 +194,7 @@ fn handle_scan_config_confirm(
         do_shellcheck,
         do_virustotal,
         do_custom,
-        pending_count = pending_install_names.as_ref().map_or(0, |v| v.len()),
+        pending_count = pending_install_names.map_or(0, Vec::len),
         "Scan Configuration confirmed"
     );
     crate::theme::save_scan_do_clamav(do_clamav);
@@ -206,7 +206,7 @@ fn handle_scan_config_confirm(
     crate::theme::save_scan_do_sleuth(do_sleuth);
 
     #[cfg(not(target_os = "windows"))]
-    if let Some(names) = pending_install_names.clone() {
+    if let Some(names) = pending_install_names.cloned() {
         tracing::info!(
             names = ?names,
             count = names.len(),
@@ -214,23 +214,15 @@ fn handle_scan_config_confirm(
             "Launching AUR scans"
         );
         if dry_run {
-            for n in names.iter() {
+            for n in &names {
                 tracing::info!(package = %n, "Dry-run: spawning AUR scan terminal");
                 let msg = format!(
-                    "echo DRY RUN: AUR scan {} (clamav={} trivy={} semgrep={} shellcheck={} virustotal={} custom={} sleuth={})",
-                    n,
-                    do_clamav,
-                    do_trivy,
-                    do_semgrep,
-                    do_shellcheck,
-                    do_virustotal,
-                    do_custom,
-                    do_sleuth
+                    "echo DRY RUN: AUR scan {n} (clamav={do_clamav} trivy={do_trivy} semgrep={do_semgrep} shellcheck={do_shellcheck} virustotal={do_virustotal} custom={do_custom} sleuth={do_sleuth})"
                 );
                 crate::install::spawn_shell_commands_in_terminal(&[msg]);
             }
         } else {
-            for n in names.iter() {
+            for n in &names {
                 tracing::info!(
                     package = %n,
                     do_clamav,

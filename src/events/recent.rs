@@ -352,9 +352,7 @@ mod tests {
     /// Details:
     /// - Keeps tests concise by centralizing setup of the baseline application state.
     fn new_app() -> AppState {
-        AppState {
-            ..Default::default()
-        }
+        AppState::default()
     }
 
     #[test]

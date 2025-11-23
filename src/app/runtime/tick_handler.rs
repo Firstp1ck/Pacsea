@@ -1,10 +1,11 @@
+use std::fmt::Write;
 use std::time::Instant;
 
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 
 use crate::logic::send_query;
-use crate::state::*;
+use crate::state::{AppState, ArchStatusColor, Modal, NewsItem, PackageItem, QueryInput};
 
 use super::super::persist::{
     maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install,
@@ -61,7 +62,9 @@ pub fn handle_summary_result(
     let cancelled = app
         .preflight_cancelled
         .load(std::sync::atomic::Ordering::Relaxed);
-    if !cancelled {
+    if cancelled {
+        tracing::debug!("[Runtime] Ignoring summary result (preflight cancelled)");
+    } else {
         // Update preflight modal with computed summary
         tracing::info!(
             stage = "summary",
@@ -77,13 +80,135 @@ pub fn handle_summary_result(
             *summary = Some(Box::new(summary_outcome.summary));
             *header_chips = summary_outcome.header;
         }
-    } else {
-        tracing::debug!("[Runtime] Ignoring summary result (preflight cancelled)");
     }
     app.preflight_summary_resolving = false;
     // Clear preflight summary items
     app.preflight_summary_items = None;
     let _ = tick_tx.send(());
+}
+
+/// What: Check and trigger summary resolution if conditions are met.
+fn check_and_trigger_summary_resolution(
+    app: &mut AppState,
+    summary_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
+) {
+    if let Some((items, action)) = app.preflight_summary_items.take()
+        && !app.preflight_summary_resolving
+    {
+        tracing::debug!(
+            "[Runtime] Tick: Triggering summary computation for {} items, action={:?}",
+            items.len(),
+            action
+        );
+        app.preflight_summary_resolving = true;
+        let _ = summary_req_tx.send((items, action));
+    } else if app.preflight_summary_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering summary - items={}, preflight_summary_resolving={}",
+            app.preflight_summary_items
+                .as_ref()
+                .map_or(0, |(items, _)| items.len()),
+            app.preflight_summary_resolving
+        );
+    }
+}
+
+/// What: Check and trigger dependency resolution if conditions are met.
+fn check_and_trigger_deps_resolution(
+    app: &mut AppState,
+    deps_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+) {
+    if let Some(items) = app.preflight_deps_items.take()
+        && app.preflight_deps_resolving
+        && !app.deps_resolving
+    {
+        tracing::debug!(
+            "[Runtime] Tick: Triggering dependency resolution for {} preflight items (preflight_deps_resolving={}, deps_resolving={})",
+            items.len(),
+            app.preflight_deps_resolving,
+            app.deps_resolving
+        );
+        app.deps_resolving = true;
+        let _ = deps_req_tx.send(items);
+    } else if app.preflight_deps_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
+            app.preflight_deps_items.as_ref().map_or(0, Vec::len),
+            app.preflight_deps_resolving,
+            app.deps_resolving
+        );
+    }
+}
+
+/// What: Check and trigger file resolution if conditions are met.
+fn check_and_trigger_files_resolution(
+    app: &mut AppState,
+    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+) {
+    if let Some(items) = app.preflight_files_items.take()
+        && app.preflight_files_resolving
+        && !app.files_resolving
+    {
+        tracing::debug!(
+            "[Runtime] Tick: Triggering file resolution for {} preflight items (preflight_files_resolving={}, files_resolving={})",
+            items.len(),
+            app.preflight_files_resolving,
+            app.files_resolving
+        );
+        app.files_resolving = true;
+        let _ = files_req_tx.send(items);
+    } else if app.preflight_files_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
+            app.preflight_files_items.as_ref().map_or(0, Vec::len),
+            app.preflight_files_resolving,
+            app.files_resolving
+        );
+    }
+}
+
+/// What: Check and trigger service resolution if conditions are met.
+fn check_and_trigger_services_resolution(
+    app: &mut AppState,
+    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+) {
+    if let Some(ref items) = app.preflight_services_items
+        && app.preflight_services_resolving
+        && !app.services_resolving
+    {
+        app.services_resolving = true;
+        let _ = services_req_tx.send(items.clone());
+    }
+}
+
+/// What: Check and trigger sandbox resolution if conditions are met.
+fn check_and_trigger_sandbox_resolution(
+    app: &mut AppState,
+    sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+) {
+    if let Some(items) = app.preflight_sandbox_items.take()
+        && app.preflight_sandbox_resolving
+        && !app.sandbox_resolving
+    {
+        tracing::debug!(
+            "[Runtime] Tick: Triggering sandbox resolution for {} preflight items (preflight_sandbox_resolving={}, sandbox_resolving={})",
+            items.len(),
+            app.preflight_sandbox_resolving,
+            app.sandbox_resolving
+        );
+        app.sandbox_resolving = true;
+        let _ = sandbox_req_tx.send(items);
+    } else if app.preflight_sandbox_items.is_some() {
+        tracing::debug!(
+            "[Runtime] Tick: NOT triggering sandbox - items={}, preflight_sandbox_resolving={}, sandbox_resolving={}",
+            app.preflight_sandbox_items.as_ref().map_or(0, Vec::len),
+            app.preflight_sandbox_resolving,
+            app.sandbox_resolving
+        );
+    }
 }
 
 /// What: Handle preflight resolution requests.
@@ -126,107 +251,11 @@ fn handle_preflight_resolution(
     }
 
     // Check for preflight resolution requests - each stage has its own queue
-    if let Some((ref items, ref action)) = app.preflight_summary_items
-        && !app.preflight_summary_resolving
-    {
-        // Trigger summary computation
-        tracing::debug!(
-            "[Runtime] Tick: Triggering summary computation for {} items, action={:?}",
-            items.len(),
-            action
-        );
-        app.preflight_summary_resolving = true;
-        let _ = summary_req_tx.send((items.clone(), *action));
-    } else if app.preflight_summary_items.is_some() {
-        tracing::debug!(
-            "[Runtime] Tick: NOT triggering summary - items={}, preflight_summary_resolving={}",
-            app.preflight_summary_items
-                .as_ref()
-                .map(|(items, _)| items.len())
-                .unwrap_or(0),
-            app.preflight_summary_resolving
-        );
-    }
-    if let Some(ref items) = app.preflight_deps_items
-        && app.preflight_deps_resolving
-        && !app.deps_resolving
-    {
-        // Trigger dependency resolution for preflight items
-        tracing::debug!(
-            "[Runtime] Tick: Triggering dependency resolution for {} preflight items (preflight_deps_resolving={}, deps_resolving={})",
-            items.len(),
-            app.preflight_deps_resolving,
-            app.deps_resolving
-        );
-        app.deps_resolving = true;
-        let _ = deps_req_tx.send(items.clone());
-    } else if app.preflight_deps_items.is_some() {
-        tracing::debug!(
-            "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
-            app.preflight_deps_items
-                .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
-            app.preflight_deps_resolving,
-            app.deps_resolving
-        );
-    }
-    if let Some(ref items) = app.preflight_files_items
-        && app.preflight_files_resolving
-        && !app.files_resolving
-    {
-        // Trigger file resolution for preflight items
-        tracing::debug!(
-            "[Runtime] Tick: Triggering file resolution for {} preflight items (preflight_files_resolving={}, files_resolving={})",
-            items.len(),
-            app.preflight_files_resolving,
-            app.files_resolving
-        );
-        app.files_resolving = true;
-        let _ = files_req_tx.send(items.clone());
-    } else if app.preflight_files_items.is_some() {
-        tracing::debug!(
-            "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
-            app.preflight_files_items
-                .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
-            app.preflight_files_resolving,
-            app.files_resolving
-        );
-    }
-    if let Some(ref items) = app.preflight_services_items
-        && app.preflight_services_resolving
-        && !app.services_resolving
-    {
-        // Trigger service resolution for preflight items
-        app.services_resolving = true;
-        let _ = services_req_tx.send(items.clone());
-    }
-    if let Some(ref items) = app.preflight_sandbox_items
-        && app.preflight_sandbox_resolving
-        && !app.sandbox_resolving
-    {
-        // Trigger sandbox resolution for preflight items (already filtered to AUR)
-        tracing::debug!(
-            "[Runtime] Tick: Triggering sandbox resolution for {} preflight items (preflight_sandbox_resolving={}, sandbox_resolving={})",
-            items.len(),
-            app.preflight_sandbox_resolving,
-            app.sandbox_resolving
-        );
-        app.sandbox_resolving = true;
-        let _ = sandbox_req_tx.send(items.clone());
-    } else if app.preflight_sandbox_items.is_some() {
-        tracing::debug!(
-            "[Runtime] Tick: NOT triggering sandbox - items={}, preflight_sandbox_resolving={}, sandbox_resolving={}",
-            app.preflight_sandbox_items
-                .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
-            app.preflight_sandbox_resolving,
-            app.sandbox_resolving
-        );
-    }
+    check_and_trigger_summary_resolution(app, summary_req_tx);
+    check_and_trigger_deps_resolution(app, deps_req_tx);
+    check_and_trigger_files_resolution(app, files_req_tx);
+    check_and_trigger_services_resolution(app, services_req_tx);
+    check_and_trigger_sandbox_resolution(app, sandbox_req_tx);
 }
 
 /// What: Handle PKGBUILD reload debouncing.
@@ -253,7 +282,7 @@ fn handle_pkgbuild_reload_debounce(
     };
 
     let elapsed = requested_at.elapsed();
-    if elapsed.as_millis() < PKGBUILD_DEBOUNCE_MS as u128 {
+    if elapsed.as_millis() < u128::from(PKGBUILD_DEBOUNCE_MS) {
         return;
     }
 
@@ -297,10 +326,7 @@ fn handle_installed_cache_polling(
         return;
     }
 
-    let should_poll = app
-        .next_installed_refresh_at
-        .map(|t| now >= t)
-        .unwrap_or(true);
+    let should_poll = app.next_installed_refresh_at.is_none_or(|t| now >= t);
     if !should_poll {
         return;
     }
@@ -349,7 +375,7 @@ fn handle_installed_cache_polling(
                 for pkg in &pending_rm {
                     let config_dirs = crate::install::check_config_directories(pkg, &home);
                     for dir in config_dirs {
-                        found_configs.push((pkg.clone(), dir));
+                        found_configs.push((pkg.to_string(), dir));
                     }
                 }
 
@@ -358,7 +384,7 @@ fn handle_installed_cache_polling(
                         "Configuration directories were found in your home directory:\n\n",
                     );
                     for (pkg, dir) in &found_configs {
-                        message.push_str(&format!("  {}: {}\n", pkg, dir.display()));
+                        let _ = writeln!(message, "  {pkg}: {}", dir.display());
                     }
                     message.push_str("\nYou may want to manually remove these directories if they are no longer needed.");
                     app.modal = crate::state::Modal::Alert { message };
@@ -432,8 +458,7 @@ pub fn handle_tick(
     if app.need_ring_prefetch
         && app
             .ring_resume_at
-            .map(|t| std::time::Instant::now() >= t)
-            .unwrap_or(false)
+            .is_some_and(|t| std::time::Instant::now() >= t)
     {
         crate::logic::set_allowed_ring(app, 30);
         crate::logic::ring_prefetch_from_selected(app, details_req_tx);
@@ -467,14 +492,14 @@ pub fn handle_tick(
 /// Details:
 /// - Shows toast if no new news
 /// - Opens news modal if there are unread items
-pub fn handle_news(app: &mut AppState, todays: Vec<NewsItem>) {
+pub fn handle_news(app: &mut AppState, todays: &[NewsItem]) {
     if todays.is_empty() {
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
         app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
     } else {
         // Show unread news items; default to first selected
         app.modal = Modal::News {
-            items: todays.clone(),
+            items: todays.to_vec(),
             selected: 0,
         };
     }
@@ -484,13 +509,15 @@ pub fn handle_news(app: &mut AppState, todays: Vec<NewsItem>) {
 ///
 /// Inputs:
 /// - `app`: Application state
-/// - `txt`: Status text
+/// - `txt`: Status text (in English, will be translated)
 /// - `color`: Status color
 ///
 /// Details:
+/// - Translates status text to current locale
 /// - Updates Arch status text and color
 pub fn handle_status(app: &mut AppState, txt: String, color: ArchStatusColor) {
-    app.arch_status_text = txt;
+    use crate::sources::status::translate;
+    app.arch_status_text = translate::translate_status_text(app, &txt);
     app.arch_status_color = color;
 }
 
@@ -507,10 +534,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_tick flushes caches when called.
+    /// What: Verify that `handle_tick` flushes caches when called.
     ///
     /// Inputs:
-    /// - App state with cache_dirty = true
+    /// - `AppState` with `cache_dirty` = true
     /// - Channel senders
     ///
     /// Output:
@@ -550,10 +577,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_tick clears queues when cancelled.
+    /// What: Verify that `handle_tick` clears queues when cancelled.
     ///
     /// Inputs:
-    /// - App state with cancellation flag set
+    /// - `AppState` with cancellation flag set
     /// - Preflight items queued
     ///
     /// Output:
@@ -610,20 +637,24 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_tick processes PKGBUILD reload debouncing.
+    /// What: Verify that `handle_tick` processes `PKGBUILD` reload debouncing.
     ///
     /// Inputs:
-    /// - App state with pending PKGBUILD reload request
+    /// - `AppState` with pending `PKGBUILD` reload request
     /// - Time elapsed beyond debounce threshold
     ///
     /// Output:
-    /// - PKGBUILD request is sent if still on same package
+    /// - `PKGBUILD` request is sent if still on same package
     ///
     /// Details:
     /// - Tests that debouncing works correctly
     fn handle_tick_processes_pkgbuild_debounce() {
         let mut app = new_app();
-        app.pkgb_reload_requested_at = Some(Instant::now() - Duration::from_millis(300));
+        app.pkgb_reload_requested_at = Some(
+            Instant::now()
+                .checked_sub(Duration::from_millis(300))
+                .unwrap_or_else(Instant::now),
+        );
         app.pkgb_reload_requested_for = Some("test-package".to_string());
         app.results = vec![crate::state::PackageItem {
             name: "test-package".to_string(),
@@ -663,10 +694,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_news shows toast when no new news.
+    /// What: Verify that `handle_news` shows toast when no new news.
     ///
     /// Inputs:
-    /// - App state
+    /// - `AppState`
     /// - Empty news list
     ///
     /// Output:
@@ -679,7 +710,7 @@ mod tests {
         let mut app = new_app();
         let news: Vec<NewsItem> = vec![];
 
-        handle_news(&mut app, news);
+        handle_news(&mut app, &news);
 
         // Toast should be set
         assert!(app.toast_message.is_some());
@@ -687,10 +718,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_news opens modal when news available.
+    /// What: Verify that `handle_news` opens modal when news available.
     ///
     /// Inputs:
-    /// - App state
+    /// - `AppState`
     /// - Non-empty news list
     ///
     /// Output:
@@ -707,7 +738,7 @@ mod tests {
             date: String::new(),
         }];
 
-        handle_news(&mut app, news.clone());
+        handle_news(&mut app, &news);
 
         // Modal should be opened
         if let crate::state::Modal::News { items, selected } = &app.modal {
@@ -719,10 +750,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_status updates status text and color.
+    /// What: Verify that `handle_status` updates status text and color.
     ///
     /// Inputs:
-    /// - App state
+    /// - `AppState`
     /// - Status text and color
     ///
     /// Output:
@@ -743,14 +774,14 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_pkgbuild_result updates text when focused.
+    /// What: Verify that `handle_pkgbuild_result` updates text when focused.
     ///
     /// Inputs:
-    /// - App state with details_focus set
-    /// - PKGBUILD text
+    /// - `AppState` with `details_focus` set
+    /// - `PKGBUILD` text
     ///
     /// Output:
-    /// - PKGBUILD text is updated
+    /// - `PKGBUILD` text is updated
     /// - Pending reload request is cleared
     ///
     /// Details:
@@ -779,10 +810,10 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that handle_summary_result updates modal when not cancelled.
+    /// What: Verify that `handle_summary_result` updates modal when not cancelled.
     ///
     /// Inputs:
-    /// - App state with preflight modal open
+    /// - `AppState` with preflight modal open
     /// - Summary outcome
     /// - Cancellation flag not set
     ///
@@ -868,7 +899,13 @@ mod tests {
         // Summary should be updated
         if let crate::state::Modal::Preflight { summary, .. } = &app.modal {
             assert!(summary.is_some());
-            assert_eq!(summary.as_ref().unwrap().package_count, 1);
+            assert_eq!(
+                summary
+                    .as_ref()
+                    .expect("summary should be Some after is_some() check")
+                    .package_count,
+                1
+            );
         } else {
             panic!("Expected Preflight modal");
         }

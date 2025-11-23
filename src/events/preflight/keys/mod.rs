@@ -40,17 +40,16 @@ fn handle_keys_needing_app(ke: KeyEvent, app: &mut AppState) -> bool {
             false
         }
         KeyCode::Left => handle_tab_switch(app, false),
-        KeyCode::Right => handle_tab_switch(app, true),
-        KeyCode::Tab => handle_tab_switch(app, true),
-        KeyCode::Char('r') | KeyCode::Char('R') => {
+        KeyCode::Right | KeyCode::Tab => handle_tab_switch(app, true),
+        KeyCode::Char('r' | 'R') => {
             if ke.modifiers.contains(KeyModifiers::SHIFT) {
                 handle_shift_r_key(app)
             } else {
                 false // Handled in first block
             }
         }
-        KeyCode::Char('f') | KeyCode::Char('F') => handle_f_key(app),
-        KeyCode::Char('s') | KeyCode::Char('S') => handle_s_key(app),
+        KeyCode::Char('f' | 'F') => handle_f_key(app),
+        KeyCode::Char('s' | 'S') => handle_s_key(app),
         KeyCode::Char('d') => handle_dry_run_key(app),
         KeyCode::Char('m') => handle_m_key(app),
         KeyCode::Char('p') => handle_p_key(app),
@@ -76,7 +75,7 @@ fn handle_keys_needing_app(ke: KeyEvent, app: &mut AppState) -> bool {
 /// - Mutates `app.modal` (and related cached fields) to close the modal, open nested dialogs, or
 ///   keep it updated with resolved dependency/file data.
 /// - Returns `false` so callers continue processing, matching existing event-loop expectations.
-pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
+pub fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
     // First, handle keys that only need ctx (no app access required)
     // This avoids borrow checker conflicts
     {
@@ -142,11 +141,11 @@ pub(crate) fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     handle_d_key(&mut ctx);
                     return false;
                 }
-                KeyCode::Char('a') | KeyCode::Char('A') => {
+                KeyCode::Char('a' | 'A') => {
                     handle_a_key(&mut ctx);
                     return false;
                 }
-                KeyCode::Char('r') | KeyCode::Char('R') => {
+                KeyCode::Char('r' | 'R') => {
                     if !ke.modifiers.contains(KeyModifiers::SHIFT) {
                         handle_r_key(&mut ctx);
                         return false;

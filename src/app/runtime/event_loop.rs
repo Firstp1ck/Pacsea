@@ -1,11 +1,15 @@
 use ratatui::Terminal;
 use tokio::select;
 
-use crate::state::*;
+use crate::state::{AppState, Modal, PackageItem};
 use crate::ui::ui;
 
 use super::background::Channels;
-use super::handlers::*;
+use super::handlers::{
+    handle_add_to_install_list, handle_dependency_result, handle_details_update,
+    handle_file_result, handle_preview, handle_sandbox_result, handle_search_results,
+    handle_service_result,
+};
 use super::tick_handler::{
     handle_news, handle_pkgbuild_result, handle_status, handle_summary_result, handle_tick,
 };
@@ -23,14 +27,10 @@ use super::tick_handler::{
 /// - Batch-drains imported items arriving close together to avoid repeated redraws
 fn handle_add_batch(app: &mut AppState, channels: &mut Channels, first: PackageItem) {
     let mut batch = vec![first];
-    loop {
-        match channels.add_rx.try_recv() {
-            Ok(it) => batch.push(it),
-            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
-        }
+    while let Ok(it) = channels.add_rx.try_recv() {
+        batch.push(it);
     }
-    for it in batch.into_iter() {
+    for it in batch {
         handle_add_to_install_list(
             app,
             it,
@@ -52,15 +52,15 @@ fn handle_add_batch(app: &mut AppState, channels: &mut Channels, first: PackageI
 /// Output: None (side effect: processes files)
 fn handle_file_result_with_logging(
     app: &mut AppState,
-    channels: &mut Channels,
-    files: Vec<crate::state::modal::PackageFileInfo>,
+    channels: &Channels,
+    files: &[crate::state::modal::PackageFileInfo],
 ) {
     tracing::debug!(
         "[Runtime] Received file result: {} entries for packages: {:?}",
         files.len(),
         files.iter().map(|f| &f.name).collect::<Vec<_>>()
     );
-    for file_info in &files {
+    for file_info in files {
         tracing::debug!(
             "[Runtime] Package '{}' - total={}, new={}, changed={}, removed={}, config={}",
             file_info.name,
@@ -85,11 +85,12 @@ fn handle_file_result_with_logging(
 /// Details:
 /// - Waits for and processes a single message from any channel
 /// - Returns `true` when an event handler indicates exit (e.g., quit command)
+#[allow(clippy::too_many_lines)]
 async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -> bool {
     select! {
         Some(ev) = channels.event_rx.recv() => {
             crate::events::handle_event(
-                ev,
+                &ev,
                 app,
                 &channels.query_tx,
                 &channels.details_req_tx,
@@ -98,7 +99,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.pkgb_req_tx,
             )
         }
-        Some(_) = channels.index_notify_rx.recv() => {
+        Some(()) = channels.index_notify_rx.recv() => {
             app.loading_index = false;
             let _ = channels.tick_tx.send(());
             false
@@ -113,7 +114,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(details) = channels.details_res_rx.recv() => {
-            handle_details_update(app, details, &channels.tick_tx);
+            handle_details_update(app, &details, &channels.tick_tx);
             false
         }
         Some(item) = channels.preview_rx.recv() => {
@@ -125,11 +126,11 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(deps) = channels.deps_res_rx.recv() => {
-            handle_dependency_result(app, deps, &channels.tick_tx);
+            handle_dependency_result(app, &deps, &channels.tick_tx);
             false
         }
         Some(files) = channels.files_res_rx.recv() => {
-            handle_file_result_with_logging(app, channels, files);
+            handle_file_result_with_logging(app, channels, &files);
             false
         }
         Some(services) = channels.services_res_rx.recv() => {
@@ -137,7 +138,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 "[Runtime] Received service result: {} entries",
                 services.len()
             );
-            handle_service_result(app, services, &channels.tick_tx);
+            handle_service_result(app, &services, &channels.tick_tx);
             false
         }
         Some(sandbox_info) = channels.sandbox_res_rx.recv() => {
@@ -146,7 +147,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 sandbox_info.len(),
                 sandbox_info.iter().map(|s| &s.package_name).collect::<Vec<_>>()
             );
-            handle_sandbox_result(app, sandbox_info, &channels.tick_tx);
+            handle_sandbox_result(app, &sandbox_info, &channels.tick_tx);
             false
         }
         Some((pkgname, text)) = channels.pkgb_res_rx.recv() => {
@@ -161,7 +162,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             app.modal = Modal::Alert { message: msg };
             false
         }
-        Some(_) = channels.tick_rx.recv() => {
+        Some(()) = channels.tick_rx.recv() => {
             handle_tick(
                 app,
                 &channels.query_tx,
@@ -176,7 +177,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(todays) = channels.news_rx.recv() => {
-            handle_news(app, todays);
+            handle_news(app, &todays);
             false
         }
         Some((txt, color)) = channels.status_rx.recv() => {

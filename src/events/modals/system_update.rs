@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use crate::events::distro;
 use crate::state::AppState;
 
-/// What: Handle key events for SystemUpdate modal.
+/// What: Handle key events for `SystemUpdate` modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
@@ -25,7 +25,7 @@ use crate::state::AppState;
 /// Details:
 /// - Handles navigation, toggles, and Enter to execute update commands
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn handle_system_update(
+pub(super) fn handle_system_update(
     ke: KeyEvent,
     app: &mut AppState,
     do_mirrors: &mut bool,
@@ -108,13 +108,8 @@ pub(crate) fn handle_system_update(
                 countries,
                 *mirror_count,
             );
-            match new_modal {
-                Some(m) => {
-                    app.modal = m;
-                    Some(true)
-                }
-                None => Some(false),
-            }
+            app.modal = new_modal;
+            Some(true)
         }
         _ => None,
     }
@@ -133,11 +128,11 @@ pub(crate) fn handle_system_update(
 /// - `mirror_count`: Number of mirrors to use
 ///
 /// Output:
-/// - `Some(Modal::None)` if commands were executed (to stop propagation), `Some(Modal::Alert)` if no actions selected
+/// - `Modal::None` if commands were executed (to stop propagation), `Modal::Alert` if no actions selected
 ///
 /// Details:
 /// - Builds command list based on selected options and spawns them in a terminal
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn handle_system_update_enter(
     dry_run: bool,
     do_mirrors: bool,
@@ -147,7 +142,7 @@ fn handle_system_update_enter(
     country_idx: usize,
     countries: &[String],
     mirror_count: u16,
-) -> Option<crate::state::Modal> {
+) -> crate::state::Modal {
     let mut cmds: Vec<String> = Vec::new();
     if do_mirrors {
         let sel = if country_idx < countries.len() {
@@ -176,17 +171,15 @@ fn handle_system_update_enter(
         cmds.push("((command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1) && paru -Sc --noconfirm) || ((command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1) && yay -Sc --noconfirm) || true".to_string());
     }
     if cmds.is_empty() {
-        return Some(crate::state::Modal::Alert {
+        return crate::state::Modal::Alert {
             message: "No actions selected".to_string(),
-        });
+        };
     }
     let to_run: Vec<String> = if dry_run {
-        cmds.iter()
-            .map(|c| format!("echo DRY RUN: {}", c))
-            .collect()
+        cmds.iter().map(|c| format!("echo DRY RUN: {c}")).collect()
     } else {
         cmds
     };
     crate::install::spawn_shell_commands_in_terminal(&to_run);
-    Some(crate::state::Modal::None)
+    crate::state::Modal::None
 }

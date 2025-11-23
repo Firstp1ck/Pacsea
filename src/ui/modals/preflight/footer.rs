@@ -34,8 +34,8 @@ pub fn render_footer(
     f: &mut Frame,
     app: &AppState,
     items: &[PackageItem],
-    action: &PreflightAction,
-    tab: &PreflightTab,
+    action: PreflightAction,
+    tab: PreflightTab,
     content_rect: Rect,
     keybinds_rect: Rect,
     bg_color: ratatui::style::Color,
@@ -84,7 +84,7 @@ pub fn render_footer(
         }
     };
 
-    if matches!(*action, PreflightAction::Remove) {
+    if matches!(action, PreflightAction::Remove) {
         scan_hint.push_str(&i18n::t(
             app,
             "app.modals.preflight.footer_hints.cascade_mode",

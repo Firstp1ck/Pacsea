@@ -1,6 +1,6 @@
 use crate::state::PackageItem;
 
-/// What: Minimal data required to populate the PostSummary modal.
+/// What: Minimal data required to populate the `PostSummary` modal.
 ///
 /// Inputs:
 /// - Populated by `compute_post_summary` after pacman inspections.
@@ -107,6 +107,7 @@ fn count_pac_conflicts_in_etc() -> (usize, usize) {
 ///
 /// Details:
 /// - Combines sync database lookups with an `/etc` scan without performing system modifications.
+#[must_use]
 pub fn compute_post_summary(items: &[PackageItem]) -> PostSummaryData {
     let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
     let (changed_files, services_pending) = count_changed_files_and_services(&names);

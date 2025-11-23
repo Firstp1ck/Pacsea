@@ -18,8 +18,8 @@ use crossterm::event::{KeyCode, KeyEvent};
 /// Details:
 /// - Checks if `app.modal` is `None` (indicating handler closed it)
 /// - If modal is still `None` and key doesn't match excluded keys, restores the modal
-/// - Used for modals like PreflightExec and PostSummary that exclude Esc/q or Esc/Enter/q
-pub(crate) fn restore_if_not_closed_with_excluded_keys(
+/// - Used for modals like `PreflightExec` and `PostSummary` that exclude Esc/q or Esc/Enter/q
+pub(super) fn restore_if_not_closed_with_excluded_keys(
     app: &mut AppState,
     ke: &KeyEvent,
     excluded_keys: &[KeyCode],
@@ -44,11 +44,11 @@ pub(crate) fn restore_if_not_closed_with_excluded_keys(
 /// - Returns `true` if Esc was pressed and modal was closed (to stop propagation)
 ///
 /// Details:
-/// - Used for modals like SystemUpdate and OptionalDeps that return `Option<bool>`
+/// - Used for modals like `SystemUpdate` and `OptionalDeps` that return `Option<bool>`
 /// - Restores modal if handler didn't close it and Esc wasn't pressed
 /// - Esc key closes modal even if `should_stop` is `Some(false)`
 /// - When Esc closes the modal, returns `true` to stop event propagation
-pub(crate) fn restore_if_not_closed_with_option_result(
+pub(super) fn restore_if_not_closed_with_option_result(
     app: &mut AppState,
     ke: &KeyEvent,
     should_stop: Option<bool>,
@@ -81,8 +81,8 @@ pub(crate) fn restore_if_not_closed_with_option_result(
 /// Details:
 /// - Checks if `app.modal` is `None` (indicating handler closed it)
 /// - If modal is still `None` and key is not Esc, restores the modal
-/// - Used for modals like ScanConfig and VirusTotalSetup that only exclude Esc
-pub(crate) fn restore_if_not_closed_with_esc(app: &mut AppState, ke: &KeyEvent, modal: Modal) {
+/// - Used for modals like `ScanConfig` and `VirusTotalSetup` that only exclude Esc
+pub(super) fn restore_if_not_closed_with_esc(app: &mut AppState, ke: &KeyEvent, modal: Modal) {
     if matches!(app.modal, Modal::None) && !matches!(ke.code, KeyCode::Esc) {
         app.modal = modal;
     }
@@ -102,7 +102,7 @@ pub(crate) fn restore_if_not_closed_with_esc(app: &mut AppState, ke: &KeyEvent, 
 /// Details:
 /// - Used for modals like News that return a boolean indicating if propagation should stop
 /// - If result is `false` (event not fully handled) and modal is `None`, restores the modal
-pub(crate) fn restore_if_not_closed_with_bool_result(
+pub(super) fn restore_if_not_closed_with_bool_result(
     app: &mut AppState,
     result: bool,
     modal: Modal,
@@ -143,7 +143,7 @@ mod tests {
         let modal = Modal::Help;
         let excluded = [KeyCode::Esc, KeyCode::Char('q')];
 
-        restore_if_not_closed_with_excluded_keys(&mut app, &ke, &excluded, modal.clone());
+        restore_if_not_closed_with_excluded_keys(&mut app, &ke, &excluded, modal);
 
         assert!(matches!(app.modal, Modal::Help));
     }
@@ -181,7 +181,7 @@ mod tests {
         let ke = create_key_event(KeyCode::Char('a'));
         let modal = Modal::Help;
 
-        let result = restore_if_not_closed_with_option_result(&mut app, &ke, None, modal.clone());
+        let result = restore_if_not_closed_with_option_result(&mut app, &ke, None, modal);
 
         assert!(matches!(app.modal, Modal::Help));
         assert!(!result);
@@ -193,8 +193,7 @@ mod tests {
         let ke = create_key_event(KeyCode::Char('a'));
         let modal = Modal::Help;
 
-        let result =
-            restore_if_not_closed_with_option_result(&mut app, &ke, Some(false), modal.clone());
+        let result = restore_if_not_closed_with_option_result(&mut app, &ke, Some(false), modal);
 
         assert!(matches!(app.modal, Modal::Help));
         assert!(!result);
@@ -230,7 +229,7 @@ mod tests {
         let ke = create_key_event(KeyCode::Char('a'));
         let modal = Modal::Help;
 
-        restore_if_not_closed_with_esc(&mut app, &ke, modal.clone());
+        restore_if_not_closed_with_esc(&mut app, &ke, modal);
 
         assert!(matches!(app.modal, Modal::Help));
     }
@@ -265,7 +264,7 @@ mod tests {
         let mut app = create_app_state_with_modal(Modal::None);
         let modal = Modal::Help;
 
-        let result = restore_if_not_closed_with_bool_result(&mut app, false, modal.clone());
+        let result = restore_if_not_closed_with_bool_result(&mut app, false, modal);
 
         assert!(matches!(app.modal, Modal::Help));
         assert!(!result);

@@ -1,7 +1,9 @@
 use crate::state::ArchStatusColor;
+use std::fmt::Write;
 
 mod api;
 mod html;
+pub mod translate;
 mod utils;
 
 use api::{parse_status_api_summary, parse_uptimerobot_api};
@@ -17,6 +19,13 @@ type Result<T> = super::Result<T>;
 /// Output:
 /// - `Ok((text, color))` where `text` summarizes current status and `color` indicates severity.
 /// - `Err` on network or parse failures.
+///
+/// # Errors
+/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when status API response cannot be fetched or parsed
+/// - Returns `Err` when task spawn fails
+///
+#[allow(clippy::missing_const_for_fn)]
 pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     // 1) Prefer the official Statuspage API (reliable for active incidents and component states)
     let api_url = "https://status.archlinux.org/api/v2/summary.json";
@@ -46,7 +55,7 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
             // Extract today's AUR uptime percentage (best-effort)
             let aur_pct_opt = extract_aur_today_percent(&html);
             if let Some(p) = aur_pct_opt {
-                text.push_str(&format!(" — AUR today: {p}%"));
+                let _ = write!(text, " — AUR today: {p}%");
             }
 
             // Check the visual indicator (rect color/beam) - this is authoritative for current status
@@ -59,8 +68,7 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
                         .and_then(|arr| arr.iter().find(|c| {
                             c.get("name")
                                 .and_then(|n| n.as_str())
-                                .map(|n| n.to_lowercase().contains("aur"))
-                                .unwrap_or(false)
+                                .is_some_and(|n| n.to_lowercase().contains("aur"))
                         }))
                         .and_then(|c| c.get("status").and_then(|s| s.as_str())),
                     Some("operational")

@@ -1,4 +1,4 @@
-//! Unit tests for sync_dependencies function.
+//! Unit tests for `sync_dependencies` function.
 
 use super::sync;
 use crate::state::AppState;
@@ -7,10 +7,10 @@ use crate::state::modal::{
 };
 use crate::state::{PackageItem, Source};
 
-/// What: Test sync_dependencies early return for Remove action.
+/// What: Test `sync_dependencies` early return for Remove action.
 ///
 /// Inputs:
-/// - `action`: PreflightAction::Remove
+/// - `action`: `PreflightAction::Remove`
 /// - `dependency_info`: Empty vector
 ///
 /// Output:
@@ -36,8 +36,8 @@ fn test_sync_dependencies_early_return_remove() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );
@@ -45,10 +45,10 @@ fn test_sync_dependencies_early_return_remove() {
     assert!(dependency_info.is_empty());
 }
 
-/// What: Test sync_dependencies early return when not on Deps tab.
+/// What: Test `sync_dependencies` early return when not on Deps tab.
 ///
 /// Inputs:
-/// - `tab`: PreflightTab::Summary
+/// - `tab`: `PreflightTab::Summary`
 /// - `dependency_info`: Empty vector
 ///
 /// Output:
@@ -74,8 +74,8 @@ fn test_sync_dependencies_early_return_wrong_tab() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );
@@ -83,10 +83,10 @@ fn test_sync_dependencies_early_return_wrong_tab() {
     assert!(dependency_info.is_empty());
 }
 
-/// What: Test sync_dependencies filters dependencies by required_by.
+/// What: Test `sync_dependencies` filters dependencies by `required_by`.
 ///
 /// Inputs:
-/// - `app`: AppState with cached dependencies
+/// - `app`: `AppState` with cached dependencies
 /// - `items`: Packages that require dependencies
 ///
 /// Output:
@@ -140,8 +140,8 @@ fn test_sync_dependencies_filters_by_required_by() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );
@@ -151,7 +151,7 @@ fn test_sync_dependencies_filters_by_required_by() {
     assert_eq!(dep_selected, 0);
 }
 
-/// What: Test sync_dependencies resets selection on first load.
+/// What: Test `sync_dependencies` resets selection on first load.
 ///
 /// Inputs:
 /// - `dependency_info`: Empty (first load)
@@ -194,8 +194,8 @@ fn test_sync_dependencies_resets_selection_on_first_load() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );
@@ -203,7 +203,7 @@ fn test_sync_dependencies_resets_selection_on_first_load() {
     assert_eq!(dep_selected, 0);
 }
 
-/// What: Test sync_dependencies does not reset selection on subsequent loads.
+/// What: Test `sync_dependencies` does not reset selection on subsequent loads.
 ///
 /// Inputs:
 /// - `dependency_info`: Already populated
@@ -271,8 +271,8 @@ fn test_sync_dependencies_preserves_selection_on_subsequent_load() {
     sync::sync_dependencies(
         &app,
         &items,
-        &action,
-        &tab,
+        action,
+        tab,
         &mut dependency_info,
         &mut dep_selected,
     );

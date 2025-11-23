@@ -50,7 +50,6 @@ fn load_initial_theme_or_exit() -> Theme {
                 );
             }
         }
-        std::process::exit(1);
     } else {
         // No config found: write default skeleton to config_dir()/theme.conf
         let config_directory = config_dir();
@@ -69,8 +68,8 @@ fn load_initial_theme_or_exit() -> Theme {
             path = %target.display(),
             "theme configuration missing or incomplete. Please edit the theme.conf file at the path shown above."
         );
-        std::process::exit(1);
     }
+    std::process::exit(1);
 }
 
 /// What: Access the application's theme palette, loading or caching as needed.
@@ -80,6 +79,9 @@ fn load_initial_theme_or_exit() -> Theme {
 ///
 /// Output:
 /// - A copy of the currently loaded `Theme`.
+///
+/// # Panics
+/// - Panics if the theme store `RwLock` is poisoned
 ///
 /// Details:
 /// - Lazily initializes a global `RwLock<Theme>` using `load_initial_theme_or_exit`.
@@ -98,6 +100,11 @@ pub fn theme() -> Theme {
 /// - `Ok(())` when the theme is reloaded successfully.
 /// - `Err(String)` with a human-readable reason when reloading fails.
 ///
+/// # Errors
+/// - Returns `Err` when no theme configuration file is found
+/// - Returns `Err` when theme file cannot be loaded or parsed
+/// - Returns `Err` when theme validation fails
+///
 /// Details:
 /// - Keeps the in-memory cache up to date so the UI can refresh without restarting Pacsea.
 /// - Returns an error if the theme file is missing or contains validation problems.
@@ -108,10 +115,11 @@ pub fn reload_theme() -> std::result::Result<(), String> {
     };
     let new_theme = super::config::try_load_theme_with_diagnostics(&p)?;
     let lock = THEME_STORE.get_or_init(|| RwLock::new(load_initial_theme_or_exit()));
-    if let Ok(mut guard) = lock.write() {
-        *guard = new_theme;
-        Ok(())
-    } else {
-        Err("Failed to acquire theme store for writing".to_string())
-    }
+    lock.write().map_or_else(
+        |_| Err("Failed to acquire theme store for writing".to_string()),
+        |mut guard| {
+            *guard = new_theme;
+            Ok(())
+        },
+    )
 }

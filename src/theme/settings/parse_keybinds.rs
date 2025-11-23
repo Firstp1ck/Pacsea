@@ -383,7 +383,7 @@ fn apply_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Settings) {
 /// Details:
 /// - Parses all keybind_* entries from the content.
 /// - Handles both dedicated keybinds.conf format and legacy settings.conf format.
-/// - For some keybinds (recent_remove, install_remove), allows multiple bindings by checking for duplicates.
+/// - For some keybinds (`recent_remove`, `install_remove`), allows multiple bindings by checking for duplicates.
 pub fn parse_keybinds(content: &str, settings: &mut Settings) {
     for line in content.lines() {
         let trimmed = line.trim();
@@ -790,7 +790,7 @@ mod tests {
     /// - Verifies comment stripping and normalization.
     fn test_parse_keybinds() {
         let mut settings = Settings::default();
-        let content = r#"
+        let content = r"
 # This is a comment
 keybind_help = Ctrl+R
 keybind.search.move.up = Ctrl+Up
@@ -800,7 +800,7 @@ keybind search install = Ctrl+I
 keybind_recent_remove = Ctrl+D
 keybind_recent_remove = Ctrl+X
 invalid_line_without_equals
-"#;
+";
 
         parse_keybinds(content, &mut settings);
 
@@ -823,14 +823,14 @@ invalid_line_without_equals
     /// - Correctly parses and assigns news keybinds to settings.
     ///
     /// Details:
-    /// - Tests parsing of news_mark_read and news_mark_all_read keybinds.
+    /// - Tests parsing of `news_mark_read` and `news_mark_all_read` keybinds.
     /// - Verifies that both keybinds are loaded correctly.
     fn test_parse_news_keybinds() {
         let mut settings = Settings::default();
-        let content = r#"
+        let content = r"
 keybind_news_mark_read = r
 keybind_news_mark_all_read = CTRL+R
-"#;
+";
 
         parse_keybinds(content, &mut settings);
 

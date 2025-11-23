@@ -19,9 +19,7 @@ use super::helpers::navigate_pane;
 /// Details:
 /// - Keeps search tests concise by centralizing the default application setup in one helper.
 fn new_app() -> AppState {
-    AppState {
-        ..Default::default()
-    }
+    AppState::default()
 }
 
 #[test]
@@ -371,7 +369,7 @@ fn helpers_navigate_pane_directions() {
 /// - Press Space with a selected item in normal and installed-only modes.
 ///
 /// Output:
-/// - Items are sent to add_tx in normal mode, or added to remove_list in installed-only mode.
+/// - Items are sent to `add_tx` in normal mode, or added to `remove_list` in installed-only mode.
 ///
 /// Details:
 /// - Validates that Space correctly routes items based on `installed_only_mode` flag.
@@ -407,11 +405,16 @@ fn search_insert_mode_space_adds_items() {
     );
     let received = arx.try_recv().ok();
     assert!(received.is_some());
-    assert_eq!(received.unwrap().name, "test-package");
+    assert_eq!(
+        received
+            .expect("received should be Some after is_some() check")
+            .name,
+        "test-package"
+    );
 
     // Test installed-only mode: should add to remove_list
     app.installed_only_mode = true;
-    app.results.push(test_item.clone());
+    app.results.push(test_item);
     app.selected = 0;
     let _ = handle_search_key(
         KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()),

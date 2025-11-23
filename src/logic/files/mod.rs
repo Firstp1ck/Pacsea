@@ -36,10 +36,14 @@ use crate::state::types::PackageItem;
 ///
 /// Details:
 /// - Invokes pacman commands to compare remote and installed file lists while preserving package order.
+#[allow(clippy::missing_const_for_fn)]
 pub fn resolve_file_changes(
     items: &[PackageItem],
     action: crate::state::modal::PreflightAction,
 ) -> Vec<PackageFileInfo> {
+    // Check if file database is stale, but don't force sync (let user decide)
+    // Only sync if database doesn't exist or is very old (>30 days)
+    const MAX_AUTO_SYNC_AGE_DAYS: u64 = 30;
     let _span = tracing::info_span!(
         "resolve_file_changes",
         stage = "files",
@@ -52,10 +56,6 @@ pub fn resolve_file_changes(
         tracing::warn!("No packages provided for file resolution");
         return Vec::new();
     }
-
-    // Check if file database is stale, but don't force sync (let user decide)
-    // Only sync if database doesn't exist or is very old (>30 days)
-    const MAX_AUTO_SYNC_AGE_DAYS: u64 = 30;
     match ensure_file_db_synced(false, MAX_AUTO_SYNC_AGE_DAYS) {
         Ok(synced) => {
             if synced {
@@ -149,7 +149,7 @@ pub fn resolve_file_changes(
     }
 
     let elapsed = start_time.elapsed();
-    let duration_ms = elapsed.as_millis() as u64;
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
         stage = "files",
         item_count = items.len(),

@@ -76,6 +76,23 @@ de-DE:
       virustotal: "VirusTotal"
       arch_linux_news: "Arch Linux Neuigkeiten"
       system_update: "System-Update"
+    arch_status:
+      aur_down: "Status: AUR Ausfall"
+      some_systems_down: "Einige Arch-Systeme ausgefallen (Status ansehen)"
+      systems_degraded: "Arch-Systeme beeinträchtigt (Status ansehen)"
+      systems_nominal: "Arch-Systeme normal"
+      all_systems_operational: "Alle Systeme funktionsfähig"
+      aur_outage: "AUR-Ausfall (Status ansehen)"
+      aur_partial_outage: "AUR teilweise ausgefallen"
+      aur_rpc_degraded: "AUR RPC beeinträchtigt"
+      aur_maintenance_ongoing: "AUR-Wartung läuft"
+      aur_issues_detected: "AUR-Probleme erkannt (Status ansehen)"
+      aur_degraded: "AUR beeinträchtigt (Status ansehen)"
+      service_outage: "{} Ausfall (Status ansehen) — {} heute: {:.1}%"
+      service_degraded: "{} beeinträchtigt (Status ansehen) — {} heute: {:.1}%"
+      service_issues_detected: "{} Probleme erkannt (Status ansehen) — {} heute: {:.1}%"
+      systems_nominal_with_service: "Arch-Systeme normal — {} heute: {:.1}%"
+      aur_today_suffix: " — AUR heute: {}%"
 
     labels:
       open_menus: "Menüs öffnen:"
@@ -251,9 +268,6 @@ de-DE:
           settings: "Einstellungen -> settings.conf"
           theme: "Theme -> theme.conf"
           keybindings: "Tastenkombinationen -> keybinds.conf"
-          install_list: "Installationsliste -> install_list.json"
-          installed_packages: "Installierte Pakete -> installed_packages.txt"
-          recent_searches: "Kürzliche Suchen -> recent_searches.json"
       panels_menu:
         show_recent: "Kürzlich anzeigen"
         hide_recent: "Kürzlich verbergen"
