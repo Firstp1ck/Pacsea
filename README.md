@@ -23,7 +23,7 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 
 
 ### Main app view
-![Main app view (v0.4.1)](Images/AppView_v0.5.0.png "Main app view (v0.4.1)")
+![Main app view (v0.5.2)](Images/AppView_v0.5.2.png "Main app view (v0.5.2)")
 
 ## Table of Contents
 - [Quick start](#quick-start)
@@ -57,14 +57,16 @@ pacsea
 
 ## Features
 - **Security Scan for AUR Packages**: Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries
+- **Fuzzy Search**: Toggle flexible fuzzy search mode (`CTRL+F`) to find packages even without exact names
 - **Unified search**: Fast results across official repos and the AUR.
+- **Package Update Availability**: Automatic background checks with detailed version comparison view
 - **Keyboard‑first**: Minimal keystrokes, Vim‑friendly navigation.
 - **Queue & install**: Space to add, Enter to confirm installs. Press S in the confirm dialog to scan AUR packages before installing.
 - **Always‑visible details**: Open package links with a click.
 - **PKGBUILD preview**: Toggle viewer; copy PKGBUILD with one click.
 - **Persistent lists**: Recent searches and Install list are saved.
 - **Installed‑only mode**: Review and remove installed packages safely.
-- **Distro-aware updates**: Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, and standard Arch
+- **Distro-aware updates**: Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, Artix, and standard Arch
 - **Helpful tools**: System update dialog with distro-aware mirror management and Arch News popup.
 
 ## Security-first approach for AUR Packages
@@ -99,7 +101,7 @@ Future implementation will include: Enhanced AI Security Scan (optional)
 ![TUI Optional Deps (v0.4.5)](Images/Optional_Deps_v0.4.5.png "TUI Optional Deps (v0.4.5)")
 
 ## Usage
-1. Start typing to search.
+1. Start typing to search (press `CTRL+F` to toggle fuzzy search mode).
 2. Move with ↑/↓ or PageUp/PageDown.
 3. Press Space to add to the Install list.
 4. Press Enter to install (or confirm the Install list).
@@ -107,12 +109,17 @@ Future implementation will include: Enhanced AI Security Scan (optional)
 6. Press F1 or ? anytime for a help overlay.
 7. **PKGBUILD copy**: For the "Copy PKGBUILD" button, install `wl-clipboard` (Wayland) or `xclip` (X11). 
   The copied PKGBUILD includes a suffix configured in `settings.conf` (`clipboard_suffix`).
+8. Check for available updates using the "Updates available" button at the top of the interface.
 
 ### Handy shortcuts
 - **Help**: F1 or ?
+- **Fuzzy search**: Ctrl+F (toggle mode)
+- **Reload config**: Ctrl+R
 - **Switch panes**: Tab , ← / →
 - **Change sorting**: Shift+Tab
 - **Add / Install**: Space / Enter
+- **Clear search**: Shift+Del (in insert mode)
+- **Close popup**: q
 - **Toggle PKGBUILD viewer**: Ctrl+X (or click the label)
 - **Quit**: Ctrl+C
 
@@ -191,7 +198,6 @@ cargo run
 ### Potential future Features
 
 ### Community Suggestions: Priority Features
-- **Possibiltiy to switch between Normal search and Fuzzy search modes** (on going)
 - **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
