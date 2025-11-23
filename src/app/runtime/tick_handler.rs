@@ -515,9 +515,9 @@ pub fn handle_news(app: &mut AppState, todays: &[NewsItem]) {
 /// Details:
 /// - Translates status text to current locale
 /// - Updates Arch status text and color
-pub fn handle_status(app: &mut AppState, txt: String, color: ArchStatusColor) {
+pub fn handle_status(app: &mut AppState, txt: &str, color: ArchStatusColor) {
     use crate::sources::status::translate;
-    app.arch_status_text = translate::translate_status_text(app, &txt);
+    app.arch_status_text = translate::translate_status_text(app, txt);
     app.arch_status_color = color;
 }
 
@@ -767,7 +767,7 @@ mod tests {
         let txt = "System is up to date".to_string();
         let color = ArchStatusColor::Operational;
 
-        handle_status(&mut app, txt.clone(), color);
+        handle_status(&mut app, &txt, color);
 
         assert_eq!(app.arch_status_text, txt);
         assert_eq!(app.arch_status_color, color);

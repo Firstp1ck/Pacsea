@@ -133,6 +133,7 @@ struct NewsContext {
 struct UpdatesContext {
     entries: Vec<(String, String, String)>,
     scroll: u16,
+    selected: usize,
 }
 
 /// What: Context struct grouping `OptionalDeps` modal fields to reduce data flow complexity.
@@ -260,8 +261,16 @@ impl ModalRenderer for Modal {
                 let ctx = NewsContext { items, selected };
                 render_news_modal(f, app, area, ctx)
             }
-            Self::Updates { entries, scroll } => {
-                let ctx = UpdatesContext { entries, scroll };
+            Self::Updates {
+                entries,
+                scroll,
+                selected,
+            } => {
+                let ctx = UpdatesContext {
+                    entries,
+                    scroll,
+                    selected,
+                };
                 render_updates_modal(f, app, area, ctx)
             }
             Self::OptionalDeps { rows, selected } => {
@@ -295,7 +304,7 @@ impl ModalRenderer for Modal {
                 let ctx = VirusTotalSetupContext { input, cursor };
                 render_virustotal_setup_modal(f, app, area, ctx)
             }
-            Self::ImportHelp => render_import_help_modal(f, area),
+            Self::ImportHelp => render_import_help_modal(f, app, area),
             Self::None => Self::None,
         }
     }
@@ -547,10 +556,11 @@ fn render_updates_modal(
     area: Rect,
     ctx: UpdatesContext,
 ) -> Modal {
-    updates::render_updates(f, app, area, &ctx.entries, ctx.scroll);
+    updates::render_updates(f, app, area, &ctx.entries, ctx.scroll, ctx.selected);
     Modal::Updates {
         entries: ctx.entries,
         scroll: ctx.scroll,
+        selected: ctx.selected,
     }
 }
 
@@ -653,8 +663,8 @@ fn render_virustotal_setup_modal(
 }
 
 /// What: Render `ImportHelp` modal and return reconstructed state.
-fn render_import_help_modal(f: &mut Frame, area: Rect) -> Modal {
-    misc::render_import_help(f, area);
+fn render_import_help_modal(f: &mut Frame, app: &AppState, area: Rect) -> Modal {
+    misc::render_import_help(f, area, app);
     Modal::ImportHelp
 }
 

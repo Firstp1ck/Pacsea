@@ -1,14 +1,12 @@
 //! //! Tests for AUR and official package mixing.
 
 use pacsea as crate_root;
-use super::helpers::*;
-
 
 #[test]
 /// What: Verify that preflight modal handles mix of AUR and official packages correctly.
 ///
 /// Inputs:
-/// - Mix of AUR and official packages in install_list
+/// - Mix of AUR and official packages in `install_list`
 /// - Different loading characteristics for each type
 /// - Preflight modal opened with both types
 ///
@@ -22,14 +20,13 @@ use super::helpers::*;
 /// - Tests that filtering works correctly for AUR vs official packages
 /// - Verifies sandbox tab only displays AUR packages
 /// - Ensures other tabs display all packages regardless of source
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_handles_aur_and_official_package_mix() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![
         crate_root::state::PackageItem {

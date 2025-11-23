@@ -76,6 +76,7 @@ fn calculate_modal_rect(area: Rect) -> Rect {
 /// Inputs:
 /// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
 /// - `th`: Theme for styling
+/// - `selected`: Index of the currently selected entry
 ///
 /// Output:
 /// - Returns `UpdateLines` containing left, center, and right pane lines
@@ -85,31 +86,49 @@ fn calculate_modal_rect(area: Rect) -> Rect {
 /// - Left pane: old versions with right padding (right-aligned)
 /// - Center pane: arrows with spacing (centered)
 /// - Right pane: new versions with left padding (left-aligned)
-fn build_update_lines(entries: &[(String, String, String)], th: &Theme) -> UpdateLines {
+/// - Highlights the selected entry with background color
+fn build_update_lines(
+    entries: &[(String, String, String)],
+    th: &Theme,
+    selected: usize,
+) -> UpdateLines {
     let mut left_lines = Vec::new();
     let mut center_lines = Vec::new();
     let mut right_lines = Vec::new();
 
-    for (name, old_version, new_version) in entries {
+    for (idx, (name, old_version, new_version)) in entries.iter().enumerate() {
+        let is_selected = idx == selected;
+
         // Build left pane line (old versions) - right-aligned with padding
-        let left_text = format!("{name} - {old_version}     ");
-        left_lines.push(Line::from(Span::styled(
-            left_text,
-            Style::default().fg(th.text),
-        )));
+        // Add cursor indicator "▶" for selected item with distinct styling
+        if is_selected {
+            let mut left_spans = Vec::new();
+            // Cursor indicator with mauve color to stand out (no background, block handles it)
+            let cursor_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
+            left_spans.push(Span::styled("▶ ", cursor_style));
+            // Package name and version with normal styling (no background, block handles it)
+            let text_style = Style::default().fg(th.text);
+            left_spans.push(Span::styled(
+                format!("{name} - {old_version}     "),
+                text_style,
+            ));
+            left_lines.push(Line::from(left_spans));
+        } else {
+            let left_text = format!("  {name} - {old_version}     ");
+            let left_style = Style::default().fg(th.text);
+            left_lines.push(Line::from(Span::styled(left_text, left_style)));
+        }
 
         // Build center arrow line with spacing (5 spaces on each side)
-        center_lines.push(Line::from(Span::styled(
-            "     →     ",
-            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-        )));
+        // No background on span, block handles it for selected lines
+        let center_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
+        center_lines.push(Line::from(Span::styled("     →     ", center_style)));
 
         // Build right pane line (new versions) with padding
+        // No background on span, block handles it for selected lines
         let right_text = format!("     {name} - {new_version}");
-        right_lines.push(Line::from(Span::styled(
-            right_text,
-            Style::default().fg(th.text),
-        )));
+        let right_style = Style::default().fg(th.text);
+        right_lines.push(Line::from(Span::styled(right_text, right_style)));
     }
 
     UpdateLines {
@@ -143,6 +162,7 @@ fn render_pane(
     scroll: u16,
     th: &Theme,
 ) {
+    // Render the paragraph with base background
     let para = Paragraph::new(lines)
         .style(Style::default().fg(th.text).bg(th.mantle))
         .alignment(alignment)
@@ -159,12 +179,14 @@ fn render_pane(
 /// - `area`: Full screen area used to center the modal
 /// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
 /// - `scroll`: Scroll offset (lines) for the updates list
+/// - `selected`: Index of the currently selected entry
 ///
 /// Output:
-/// - Draws the updates list with scroll support
+/// - Draws the updates list with scroll support and selection highlighting
 ///
 /// Details:
 /// - Shows update entries with old version on left, arrow in center, new version on right
+/// - Highlights the selected entry with background color
 /// - Records rects for mouse interaction and scrolling
 pub fn render_updates(
     f: &mut Frame,
@@ -172,6 +194,7 @@ pub fn render_updates(
     area: Rect,
     entries: &[(String, String, String)],
     scroll: u16,
+    selected: usize,
 ) {
     let th = theme();
     let rect = calculate_modal_rect(area);
@@ -223,7 +246,7 @@ pub fn render_updates(
             ])
             .split(chunks[1]);
 
-        let update_lines = build_update_lines(entries, &th);
+        let update_lines = build_update_lines(entries, &th, selected);
 
         // Render panes using helper function
         render_pane(

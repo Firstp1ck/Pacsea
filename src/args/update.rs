@@ -33,13 +33,12 @@ fn format_clickable_path(path: &Path) -> String {
         } else {
             std::env::current_dir()
                 .ok()
-                .map(|cwd| cwd.join(path))
-                .unwrap_or_else(|| path.to_path_buf())
+                .map_or_else(|| path.to_path_buf(), |cwd| cwd.join(path))
         }
     };
     let path_str = absolute_path.to_string_lossy();
-    let file_url = format!("file://{}", path_str);
-    format!("\x1b]8;;{}\x1b\\{}\x1b]8;;\x1b\\", file_url, path_str)
+    let file_url = format!("file://{path_str}");
+    format!("\x1b]8;;{file_url}\x1b\\{path_str}\x1b]8;;\x1b\\")
 }
 
 /// What: Extract failed package names from pacman error output.
@@ -53,6 +52,7 @@ fn format_clickable_path(path: &Path) -> String {
 /// Details:
 /// - Parses various pacman error patterns including "target not found", transaction failures, etc.
 /// - Handles both English and German error messages.
+#[allow(clippy::similar_names)]
 fn extract_failed_packages_from_pacman(output: &str) -> Vec<String> {
     let mut failed = Vec::new();
     let lines: Vec<&str> = output.lines().collect();
@@ -110,7 +110,7 @@ fn extract_failed_packages_from_pacman(output: &str) -> Vec<String> {
             // Look for lines that might contain package names
             // Skip common error message text
             if !trimmed.is_empty()
-                && !lower.starts_with(&format!("{}:", error_prefix))
+                && !lower.starts_with(&format!("{error_prefix}:"))
                 && !lower.contains(&resolving)
                 && !lower.contains(&looking_for)
                 && !lower.contains("::")
@@ -144,7 +144,7 @@ fn extract_failed_packages_from_pacman(output: &str) -> Vec<String> {
                 }
             }
             // Reset error section on empty lines or new error messages
-            if trimmed.is_empty() || lower.starts_with(&format!("{}:", error_prefix)) {
+            if trimmed.is_empty() || lower.starts_with(&format!("{error_prefix}:")) {
                 in_error_section = false;
                 in_conflict_section = false;
             }
@@ -219,13 +219,13 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
                     // Check if the rest looks like it might be a header/description
                     // If it contains common words, it's probably a header, not a package
                     let after_arrow = &trimmed[2..].trim();
-                    if !after_arrow.chars().any(|c| c.is_whitespace() || c == ':') {
+                    if after_arrow.chars().all(|c| !c.is_whitespace() && c != ':') {
                         // Might be a package name
                         if after_arrow
                             .chars()
                             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
                         {
-                            failed_aur.push(after_arrow.to_string());
+                            failed_aur.push((*after_arrow).to_string());
                             in_package_list = true;
                         }
                     } else {
@@ -308,8 +308,7 @@ fn run_command_with_logging(
     // command 2>&1 | tee -a logfile | tee tempfile > /dev/tty
     // This way: output is displayed once, logged to file, and captured to tempfile
     let shell_cmd = format!(
-        "{} {} 2>&1 | tee -a {} | tee {} > /dev/tty; exit ${{PIPESTATUS[0]}}",
-        program, args_str, log_file_str, temp_output_str
+        "{program} {args_str} 2>&1 | tee -a {log_file_str} | tee {temp_output_str} > /dev/tty; exit ${{PIPESTATUS[0]}}"
     );
 
     let status = Command::new("bash").arg("-c").arg(&shell_cmd).status()?;
@@ -337,6 +336,7 @@ fn run_command_with_logging(
 /// - Displays update progress output in real-time to the terminal.
 /// - Logs all command output and status messages to `update.log` in the config logs directory.
 /// - Informs user of final status and log file path.
+#[allow(clippy::too_many_lines)]
 pub fn handle_update() -> ! {
     use std::fs::OpenOptions;
     use std::io::Write;
@@ -360,11 +360,11 @@ pub fn handle_update() -> ! {
             .append(true)
             .open(&log_file_path)
         {
-            let timestamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| pacsea::util::ts_to_date(Some(d.as_secs() as i64)))
-                .unwrap_or_else(|_| "unknown".to_string());
-            let _ = writeln!(file, "[{}] {}", timestamp, message);
+            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+                |_| "unknown".to_string(),
+                |d| pacsea::util::ts_to_date(Some(i64::try_from(d.as_secs()).unwrap_or(0))),
+            );
+            let _ = writeln!(file, "[{timestamp}] {message}");
         }
     };
 
@@ -406,8 +406,7 @@ pub fn handle_update() -> ! {
             println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
             eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
             write_log(&format!(
-                "FAILED: Could not execute pacman -Syyu --noconfirm: {}",
-                e
+                "FAILED: Could not execute pacman -Syyu --noconfirm: {e}"
             ));
             all_succeeded = false;
             failed_commands.push("pacman -Syyu --noconfirm".to_string());
@@ -420,10 +419,7 @@ pub fn handle_update() -> ! {
     if let Some(helper) = aur_helper {
         aur_helper_name = Some(helper);
         println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
-        write_log(&format!(
-            "Starting AUR update: {} -Syyu --noconfirm",
-            helper
-        ));
+        write_log(&format!("Starting AUR update: {helper} -Syyu --noconfirm"));
 
         let aur_result =
             run_command_with_logging(helper, &["-Syyu", "--noconfirm"], &log_file_path);
@@ -433,8 +429,7 @@ pub fn handle_update() -> ! {
                 if status.success() {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
                     write_log(&format!(
-                        "SUCCESS: {} -Syyu --noconfirm completed successfully",
-                        helper
+                        "SUCCESS: {helper} -Syyu --noconfirm completed successfully"
                     ));
                     aur_succeeded = Some(true);
                 } else {
@@ -447,7 +442,7 @@ pub fn handle_update() -> ! {
                     let packages = extract_failed_packages(&output, helper);
                     failed_packages.extend(packages);
                     all_succeeded = false;
-                    failed_commands.push(format!("{} -Syyu --noconfirm", helper));
+                    failed_commands.push(format!("{helper} -Syyu --noconfirm"));
                     aur_succeeded = Some(false);
                 }
             }
@@ -455,11 +450,10 @@ pub fn handle_update() -> ! {
                 println!("{}", i18n::t_fmt1("app.cli.update.aur_exec_failed", helper));
                 eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
                 write_log(&format!(
-                    "FAILED: Could not execute {} -Syyu --noconfirm: {}",
-                    helper, e
+                    "FAILED: Could not execute {helper} -Syyu --noconfirm: {e}"
                 ));
                 all_succeeded = false;
-                failed_commands.push(format!("{} -Syyu --noconfirm", helper));
+                failed_commands.push(format!("{helper} -Syyu --noconfirm"));
                 aur_succeeded = Some(false);
             }
         }
@@ -493,17 +487,16 @@ pub fn handle_update() -> ! {
     } else {
         println!("\n{}", i18n::t("app.cli.update.completed_with_errors"));
         write_log(&format!(
-            "SUMMARY: Update failed. Failed commands: {:?}",
-            failed_commands
+            "SUMMARY: Update failed. Failed commands: {failed_commands:?}"
         ));
         if !failed_packages.is_empty() {
             println!("\n{}", i18n::t("app.cli.update.failed_packages"));
             for pkg in &failed_packages {
-                println!("  - {}", pkg);
+                println!("  - {pkg}");
             }
             write_log(&i18n::t_fmt1(
                 "app.cli.update.failed_packages_log",
-                format!("{:?}", failed_packages),
+                format!("{failed_packages:?}"),
             ));
         }
     }
@@ -511,7 +504,7 @@ pub fn handle_update() -> ! {
     let clickable_path = format_clickable_path(&log_file_path);
     // Replace {} placeholder with clickable path
     let log_file_message = log_file_format.replace("{}", &clickable_path);
-    println!("{}", log_file_message);
+    println!("{log_file_message}");
     write_log(&format!(
         "Update process finished. Log file: {}",
         log_file_path.display()

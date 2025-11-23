@@ -18,28 +18,22 @@ use std::collections::HashMap;
 /// - Returns empty maps if loading fails (graceful degradation).
 pub fn load_cli_translations() -> (TranslationMap, TranslationMap) {
     // Get locales directory
-    let locales_dir = match find_locales_dir() {
-        Some(dir) => dir,
-        None => {
-            tracing::debug!("Locales directory not found, using English fallback");
-            return (HashMap::new(), HashMap::new());
-        }
+    let Some(locales_dir) = find_locales_dir() else {
+        tracing::debug!("Locales directory not found, using English fallback");
+        return (HashMap::new(), HashMap::new());
     };
 
     // Resolve locale (try to read from settings, fallback to system/default)
-    let i18n_config_path = match i18n::find_config_file("i18n.yml") {
-        Some(path) => path,
-        None => {
-            tracing::debug!("i18n.yml not found, using default locale");
-            let fallback = load_locale_file("en-US", &locales_dir).unwrap_or_default();
-            return (fallback.clone(), fallback);
-        }
+    let Some(i18n_config_path) = i18n::find_config_file("i18n.yml") else {
+        tracing::debug!("i18n.yml not found, using default locale");
+        let fallback = load_locale_file("en-US", &locales_dir).unwrap_or_default();
+        return (fallback.clone(), fallback);
     };
 
     // Try to read locale from settings
-    let settings_locale = pacsea::theme::settings().locale.clone();
+    let settings_locale = &pacsea::theme::settings().locale;
 
-    let resolved_locale = resolve_locale(&settings_locale, &i18n_config_path);
+    let resolved_locale = resolve_locale(settings_locale, &i18n_config_path);
 
     // Load primary locale
     let primary = load_locale_file(&resolved_locale, &locales_dir).unwrap_or_default();

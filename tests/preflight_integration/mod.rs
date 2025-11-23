@@ -14,20 +14,17 @@
 
 #![cfg(test)]
 
-mod helpers;
-mod data_arrival;
-mod caching;
-mod package_operations;
-mod tab_switching;
-mod error_handling;
-mod remove_operations;
-mod tab_variations;
-mod edge_cases;
-mod cache_sync;
 mod aur_mix;
-mod large_datasets;
-mod persistence;
+mod cache_sync;
+mod caching;
 mod conflicts;
-
-pub use helpers::*;
-
+mod data_arrival;
+mod edge_cases;
+mod error_handling;
+mod helpers;
+mod large_datasets;
+mod package_operations;
+mod persistence;
+mod remove_operations;
+mod tab_switching;
+mod tab_variations;

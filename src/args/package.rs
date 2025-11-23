@@ -29,14 +29,11 @@ fn is_official_package_search(package_name: &str) -> bool {
             let output_str = String::from_utf8_lossy(&output.stdout);
             // Look for exact package name match (format: "repo/package_name" or "package_name")
             output_str.lines().any(|line| {
-                line.split_whitespace()
-                    .next()
-                    .map(|pkg_line| {
-                        // Handle format like "repo/package_name" or just "package_name"
-                        let pkg_part = pkg_line.split('/').next_back().unwrap_or(pkg_line);
-                        pkg_part == package_name
-                    })
-                    .unwrap_or(false)
+                line.split_whitespace().next().is_some_and(|pkg_line| {
+                    // Handle format like "repo/package_name" or just "package_name"
+                    let pkg_part = pkg_line.split('/').next_back().unwrap_or(pkg_line);
+                    pkg_part == package_name
+                })
             })
         }
         Err(_) => false,
@@ -97,14 +94,11 @@ fn is_aur_package_search(package_name: &str, helper: &str) -> bool {
             let output_str = String::from_utf8_lossy(&output.stdout);
             // Look for exact package name match (format: "aur/package_name" or "package_name")
             output_str.lines().any(|line| {
-                line.split_whitespace()
-                    .next()
-                    .map(|pkg_line| {
-                        // Handle format like "aur/package_name" or just "package_name"
-                        let pkg_part = pkg_line.split('/').next_back().unwrap_or(pkg_line);
-                        pkg_part == package_name
-                    })
-                    .unwrap_or(false)
+                line.split_whitespace().next().is_some_and(|pkg_line| {
+                    // Handle format like "aur/package_name" or just "package_name"
+                    let pkg_part = pkg_line.split('/').next_back().unwrap_or(pkg_line);
+                    pkg_part == package_name
+                })
             })
         }
         Err(_) => false,
@@ -145,7 +139,7 @@ fn is_aur_package(package_name: &str, helper: &str) -> bool {
 /// - `aur_helper`: Optional AUR helper name ("paru" or "yay").
 ///
 /// Output:
-/// - Tuple of (official_packages, aur_packages, invalid_packages).
+/// - Tuple of (`official_packages`, `aur_packages`, `invalid_packages`).
 ///
 /// Details:
 /// - Checks each package against official repos and AUR (if helper available).
@@ -184,7 +178,7 @@ pub fn validate_and_categorize_packages(
 /// - `aur_helper`: Optional AUR helper name ("paru" or "yay").
 ///
 /// Output:
-/// - Tuple of (official_packages, aur_packages, invalid_packages).
+/// - Tuple of (`official_packages`, `aur_packages`, `invalid_packages`).
 ///
 /// Details:
 /// - Checks each package using `sudo pacman -Ss` first.
@@ -245,7 +239,7 @@ pub fn handle_invalid_packages(
 
     eprintln!("\n{}", i18n::t("app.cli.package.packages_not_found"));
     for pkg in invalid_packages {
-        eprintln!("  - {}", pkg);
+        eprintln!("  - {pkg}");
     }
     if aur_helper.is_none() && !invalid_packages.is_empty() {
         eprintln!("\n{}", i18n::t("app.cli.package.no_aur_helper_note"));

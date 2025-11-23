@@ -72,8 +72,8 @@ fn apply_global_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setti
             assign_keybind(chord, &mut settings.keymap.panels_menu_toggle);
             true
         }
-        "keybind_reload_theme" | "keybind_reload" => {
-            assign_keybind(chord, &mut settings.keymap.reload_theme);
+        "keybind_reload_config" | "keybind_reload_theme" | "keybind_reload" => {
+            assign_keybind(chord, &mut settings.keymap.reload_config);
             true
         }
         "keybind_exit" | "keybind_quit" => {
@@ -153,6 +153,10 @@ fn apply_search_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setti
         }
         "keybind_search_backspace" => {
             assign_keybind(chord, &mut settings.keymap.search_backspace);
+            true
+        }
+        "keybind_search_insert_clear" => {
+            assign_keybind(chord, &mut settings.keymap.search_insert_clear);
             true
         }
         "keybind_search_normal_toggle" => {

@@ -142,6 +142,16 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
             "locale" | "language" => {
                 settings.locale = val.trim().to_string();
             }
+            "search_startup_mode" | "startup_mode" | "search_mode" => {
+                let lv = val.to_ascii_lowercase();
+                // Accept both boolean and mode name formats
+                settings.search_startup_mode = lv == "true"
+                    || lv == "1"
+                    || lv == "yes"
+                    || lv == "on"
+                    || lv == "normal_mode"
+                    || lv == "normal";
+            }
             // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
             _ => {}
         }

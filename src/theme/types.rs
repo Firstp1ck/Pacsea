@@ -103,6 +103,10 @@ pub struct Settings {
     /// Locale code for translations (e.g., "de-DE", "en-US").
     /// Empty string means auto-detect from system locale.
     pub locale: String,
+    /// Search input mode on startup.
+    /// When false, starts in insert mode (default).
+    /// When true, starts in normal mode.
+    pub search_startup_mode: bool,
 }
 
 impl Default for Settings {
@@ -145,7 +149,8 @@ impl Default for Settings {
             news_unread_symbol: "∘".to_string(),
             preferred_terminal: String::new(),
             skip_preflight: false,
-            locale: String::new(), // Empty means auto-detect from system
+            locale: String::new(),      // Empty means auto-detect from system
+            search_startup_mode: false, // Default to insert mode
         }
     }
 }
@@ -270,7 +275,7 @@ mod tests {
 pub struct KeyMap {
     // Global
     pub help_overlay: Vec<KeyChord>,
-    pub reload_theme: Vec<KeyChord>,
+    pub reload_config: Vec<KeyChord>,
     pub exit: Vec<KeyChord>,
     /// Global: Show/Hide PKGBUILD viewer
     pub show_pkgbuild: Vec<KeyChord>,
@@ -296,6 +301,8 @@ pub struct KeyMap {
     pub search_focus_left: Vec<KeyChord>,
     pub search_focus_right: Vec<KeyChord>,
     pub search_backspace: Vec<KeyChord>,
+    /// Insert mode: clear entire search input (default: Shift+Del)
+    pub search_insert_clear: Vec<KeyChord>,
 
     // Search normal mode
     /// Toggle Search normal mode on/off (works from both insert/normal)
@@ -351,7 +358,7 @@ pub struct KeyMap {
 
 /// Type alias for global key bindings tuple.
 ///
-/// Contains 8 `Vec<KeyChord>` for `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
+/// Contains 8 `Vec<KeyChord>` for `help_overlay`, `reload_config`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
 type GlobalKeys = (
     Vec<KeyChord>,
     Vec<KeyChord>,
@@ -365,8 +372,9 @@ type GlobalKeys = (
 
 /// Type alias for search key bindings tuple.
 ///
-/// Contains 9 `Vec<KeyChord>` for search navigation, actions, and focus keys.
+/// Contains 10 `Vec<KeyChord>` for search navigation, actions, and focus keys.
 type SearchKeys = (
+    Vec<KeyChord>,
     Vec<KeyChord>,
     Vec<KeyChord>,
     Vec<KeyChord>,
@@ -433,7 +441,7 @@ type InstallKeys = (
 /// - Tuple of global key binding vectors
 ///
 /// Details:
-/// - Returns `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
+/// - Returns `help_overlay`, `reload_config`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
 fn default_global_keys(none: KeyModifiers, ctrl: KeyModifiers) -> GlobalKeys {
     use KeyCode::{BackTab, Char, Left, Right, Tab};
     (
@@ -554,6 +562,10 @@ fn default_search_keys(none: KeyModifiers) -> SearchKeys {
         vec![KeyChord {
             code: Backspace,
             mods: none,
+        }],
+        vec![KeyChord {
+            code: KeyCode::Delete,
+            mods: KeyModifiers::SHIFT,
         }],
     )
 }
@@ -804,7 +816,7 @@ fn build_default_keymap() -> KeyMap {
 
     KeyMap {
         help_overlay: global.0,
-        reload_theme: global.1,
+        reload_config: global.1,
         exit: global.2,
         show_pkgbuild: global.3,
         change_sort: global.4,
@@ -823,6 +835,7 @@ fn build_default_keymap() -> KeyMap {
         search_focus_left: search.6,
         search_focus_right: search.7,
         search_backspace: search.8,
+        search_insert_clear: search.9,
         search_normal_toggle: search_normal.0,
         search_normal_insert: search_normal.1,
         search_normal_select_left: search_normal.2,
@@ -865,7 +878,7 @@ impl Default for KeyMap {
     /// - Returns a `KeyMap` prefilling chord vectors for global, search, recent, install, and news actions.
     ///
     /// Details:
-    /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the theme.
+    /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the configuration.
     /// - Provides multiple bindings for certain actions (e.g., `F1` and `?` for help).
     /// - Delegates to `build_default_keymap()` to reduce data flow complexity.
     fn default() -> Self {

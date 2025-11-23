@@ -25,8 +25,8 @@ fn write_fake(term_name: &str, dir: &std::path::Path) -> (std::path::PathBuf, st
 #[test]
 /// What: tilix arg shape uses "--", "bash", "-lc"
 ///
-/// - Input: Fake tilix on PATH and SystemUpdate Enter
-/// - Output: First three args are ["--", "bash", "-lc"]
+/// - Input: Fake tilix on PATH and ``SystemUpdate`` Enter
+/// - Output: First three args are `["--", "bash", "-lc"]`
 fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -35,25 +35,23 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos()
     ));
     let _ = std::fs::create_dir_all(&dir);
     let (_term_path, out_path) = write_fake("tilix", &dir);
     let orig_path = std::env::var_os("PATH");
-    let combined_path = match std::env::var("PATH") {
-        Ok(p) => format!("{}:{}", dir.display(), p),
-        Err(_) => dir.display().to_string(),
-    };
+    let combined_path = std::env::var("PATH").map_or_else(
+        |_| dir.display().to_string(),
+        |p| format!("{}:{}", dir.display(), p),
+    );
     unsafe {
         std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
     let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
     let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
@@ -96,7 +94,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
-    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
     assert_eq!(lines[0], "--");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
@@ -113,8 +111,8 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
 #[test]
 /// What: mate-terminal arg shape uses "--", "bash", "-lc"
 ///
-/// - Input: Fake mate-terminal on PATH and SystemUpdate Enter
-/// - Output: First three args are ["--", "bash", "-lc"]
+/// - Input: Fake mate-terminal on PATH and `SystemUpdate` Enter
+/// - Output: First three args are `["--", "bash", "-lc"]`
 fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -123,25 +121,23 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos()
     ));
     let _ = std::fs::create_dir_all(&dir);
     let (_term_path, out_path) = write_fake("mate-terminal", &dir);
     let orig_path = std::env::var_os("PATH");
-    let combined_path = match std::env::var("PATH") {
-        Ok(p) => format!("{}:{}", dir.display(), p),
-        Err(_) => dir.display().to_string(),
-    };
+    let combined_path = std::env::var("PATH").map_or_else(
+        |_| dir.display().to_string(),
+        |p| format!("{}:{}", dir.display(), p),
+    );
     unsafe {
         std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
     let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
     let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
@@ -184,7 +180,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
-    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
     assert_eq!(lines[0], "--");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
@@ -201,8 +197,8 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
 #[test]
 /// What: gnome-terminal arg shape uses "--", "bash", "-lc"
 ///
-/// - Input: Fake gnome-terminal PATH isolated; SystemUpdate Enter
-/// - Output: First three args are ["--", "bash", "-lc"]
+/// - Input: Fake gnome-terminal PATH isolated; `SystemUpdate` Enter
+/// - Output: First three args are `["--", "bash", "-lc"]`
 fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -211,7 +207,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos()
     ));
     let _ = std::fs::create_dir_all(&dir);
@@ -223,9 +219,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
     let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
     let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
@@ -268,7 +262,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
-    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
     assert_eq!(lines[0], "--");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
@@ -285,8 +279,8 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
 #[test]
 /// What: konsole arg shape uses "-e", "bash", "-lc"
 ///
-/// - Input: Fake konsole PATH isolated; SystemUpdate Enter
-/// - Output: First three args are ["-e", "bash", "-lc"]
+/// - Input: Fake konsole PATH isolated; `SystemUpdate` Enter
+/// - Output: First three args are `["-e", "bash", "-lc"]`
 fn ui_options_update_system_enter_triggers_konsole_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -295,7 +289,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos()
     ));
     let _ = std::fs::create_dir_all(&dir);
@@ -307,9 +301,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
     let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
     let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
@@ -352,7 +344,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
-    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
     assert_eq!(lines[0], "-e");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
@@ -369,8 +361,8 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
 #[test]
 /// What: alacritty arg shape uses "-e", "bash", "-lc"
 ///
-/// - Input: Fake alacritty PATH isolated; SystemUpdate Enter
-/// - Output: First three args are ["-e", "bash", "-lc"]
+/// - Input: Fake alacritty PATH isolated; `SystemUpdate` Enter
+/// - Output: First three args are `["-e", "bash", "-lc"]`
 fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -379,7 +371,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos()
     ));
     let _ = std::fs::create_dir_all(&dir);
@@ -391,9 +383,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
     let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
     let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
@@ -436,7 +426,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
-    assert!(lines.len() >= 3, "expected at least 3 args, got: {}", body);
+    assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
     assert_eq!(lines[0], "-e");
     assert_eq!(lines[1], "bash");
     assert_eq!(lines[2], "-lc");
@@ -453,8 +443,8 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
 #[test]
 /// What: kitty arg shape uses "bash", "-lc"
 ///
-/// - Input: Fake kitty PATH isolated; SystemUpdate Enter
-/// - Output: First two args are ["bash", "-lc"]
+/// - Input: Fake kitty PATH isolated; `SystemUpdate` Enter
+/// - Output: First two args are `["bash", "-lc"]`
 fn ui_options_update_system_enter_triggers_kitty_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -463,7 +453,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos()
     ));
     let _ = std::fs::create_dir_all(&dir);
@@ -475,9 +465,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
     let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
     let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
@@ -520,7 +508,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
-    assert!(lines.len() >= 2, "expected at least 2 args, got: {}", body);
+    assert!(lines.len() >= 2, "expected at least 2 args, got: {body}");
     assert_eq!(lines[0], "bash");
     assert_eq!(lines[1], "-lc");
     unsafe {
@@ -536,8 +524,8 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
 #[test]
 /// What: xterm arg shape uses "-hold", "-e", "bash", "-lc"
 ///
-/// - Input: Fake xterm PATH isolated; SystemUpdate Enter
-/// - Output: First four args are ["-hold", "-e", "bash", "-lc"]
+/// - Input: Fake xterm PATH isolated; `SystemUpdate` Enter
+/// - Output: First four args are `["-hold", "-e", "bash", "-lc"]`
 fn ui_options_update_system_enter_triggers_xterm_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -546,7 +534,7 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos()
     ));
     let _ = std::fs::create_dir_all(&dir);
@@ -558,9 +546,7 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
     let (dtx, _drx) = tokio::sync::mpsc::unbounded_channel();
     let (ptx, _prx) = tokio::sync::mpsc::unbounded_channel();
@@ -603,7 +589,7 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
     std::thread::sleep(std::time::Duration::from_millis(50));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
-    assert!(lines.len() >= 4, "expected at least 4 args, got: {}", body);
+    assert!(lines.len() >= 4, "expected at least 4 args, got: {body}");
     assert_eq!(lines[0], "-hold");
     assert_eq!(lines[1], "-e");
     assert_eq!(lines[2], "bash");

@@ -102,10 +102,29 @@ pub fn handle_insert_mode(
             app.search_select_anchor = None;
             send_query(app, query_tx);
         }
-        (KeyCode::Up, _) => move_sel_cached(app, -1, details_tx),
-        (KeyCode::Down, _) => move_sel_cached(app, 1, details_tx),
-        (KeyCode::PageUp, _) => move_sel_cached(app, -10, details_tx),
-        (KeyCode::PageDown, _) => move_sel_cached(app, 10, details_tx),
+        _ if matches_any(&ke, &km.search_move_up) => {
+            move_sel_cached(app, -1, details_tx);
+        }
+        _ if matches_any(&ke, &km.search_move_down) => {
+            move_sel_cached(app, 1, details_tx);
+        }
+        _ if matches_any(&ke, &km.search_page_up) => {
+            move_sel_cached(app, -10, details_tx);
+        }
+        _ if matches_any(&ke, &km.search_page_down) => {
+            move_sel_cached(app, 10, details_tx);
+        }
+        _ if matches_any(&ke, &km.search_insert_clear) => {
+            // Clear entire search input
+            if !app.input.is_empty() {
+                app.input.clear();
+                app.search_caret = 0;
+                app.search_select_anchor = None;
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                send_query(app, query_tx);
+            }
+        }
         _ => {}
     }
     false

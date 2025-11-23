@@ -1,14 +1,12 @@
 //! //! Tests for tab switching behavior.
 
 use pacsea as crate_root;
-use super::helpers::*;
-
 
 #[test]
 /// What: Verify that preflight modal handles mixed completion states correctly when switching tabs.
 ///
 /// Inputs:
-/// - Packages in install_list
+/// - Packages in `install_list`
 /// - Some tabs have data loaded (Deps, Files)
 /// - Some tabs are still resolving (Services, Sandbox)
 /// - User switches between tabs
@@ -21,14 +19,13 @@ use super::helpers::*;
 /// Details:
 /// - Tests edge case where resolution completes at different times
 /// - Verifies that partial data doesn't cause issues when switching tabs
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_handles_mixed_completion_states_when_switching_tabs() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![
         crate_root::state::PackageItem {

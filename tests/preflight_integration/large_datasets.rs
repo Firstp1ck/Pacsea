@@ -1,14 +1,13 @@
 //! //! Tests for large datasets handling.
 
-use pacsea as crate_root;
 use super::helpers::*;
-
+use pacsea as crate_root;
 
 #[test]
 /// What: Verify that preflight modal handles large datasets correctly.
 ///
 /// Inputs:
-/// - 10+ packages in install_list (mix of official and AUR)
+/// - 10+ packages in `install_list` (mix of official and AUR)
 /// - Each package has 3-5 dependencies
 /// - Each package has 2-3 files
 /// - Each package has 1-2 services
@@ -24,21 +23,20 @@ use super::helpers::*;
 /// - Tests performance and correctness with large datasets
 /// - Verifies that many packages don't cause data corruption
 /// - Ensures navigation remains functional with many items
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_handles_large_datasets_correctly() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     // Create 12 test packages (mix of official and AUR)
     let mut test_packages = Vec::new();
     for i in 1..=8 {
         test_packages.push(crate_root::state::PackageItem {
-            name: format!("test-official-pkg-{}", i),
-            version: format!("{}.0.0", i),
+            name: format!("test-official-pkg-{i}"),
+            version: format!("{i}.0.0"),
             description: String::new(),
             source: crate_root::state::Source::Official {
                 repo: if i % 2 == 0 { "extra" } else { "core" }.to_string(),
@@ -49,8 +47,8 @@ fn preflight_handles_large_datasets_correctly() {
     }
     for i in 1..=4 {
         test_packages.push(crate_root::state::PackageItem {
-            name: format!("test-aur-pkg-{}", i),
-            version: format!("{}.0.0", i),
+            name: format!("test-aur-pkg-{i}"),
+            version: format!("{i}.0.0"),
             description: String::new(),
             source: crate_root::state::Source::Aur,
             popularity: None,
@@ -174,13 +172,12 @@ fn preflight_handles_large_datasets_correctly() {
     );
     // Verify all packages have their dependencies
     for pkg in &test_packages {
-        let pkg_deps: Vec<_> = dependency_info
-            .iter()
-            .filter(|d| d.required_by.contains(&pkg.name))
-            .collect();
         let expected = if pkg.name.contains("official") { 4 } else { 3 };
         assert_eq!(
-            pkg_deps.len(),
+            dependency_info
+                .iter()
+                .filter(|d| d.required_by.contains(&pkg.name))
+                .count(),
             expected,
             "Package {} should have {} dependencies",
             pkg.name,
@@ -298,12 +295,10 @@ fn preflight_handles_large_datasets_correctly() {
 
     // Verify data integrity - all packages should have their data
     for pkg in &test_packages {
-        let pkg_deps: Vec<_> = dependency_info
-            .iter()
-            .filter(|d| d.required_by.contains(&pkg.name))
-            .collect();
         assert!(
-            !pkg_deps.is_empty(),
+            dependency_info
+                .iter()
+                .any(|d| d.required_by.contains(&pkg.name)),
             "Package {} should have dependencies",
             pkg.name
         );
@@ -312,12 +307,8 @@ fn preflight_handles_large_datasets_correctly() {
             "Package {} should have file info",
             pkg.name
         );
-        let pkg_services: Vec<_> = service_info
-            .iter()
-            .filter(|s| s.providers.contains(&pkg.name))
-            .collect();
         assert!(
-            !pkg_services.is_empty(),
+            service_info.iter().any(|s| s.providers.contains(&pkg.name)),
             "Package {} should have services",
             pkg.name
         );

@@ -28,7 +28,9 @@ pub fn handle_search(search_query: &str) -> ! {
         .output()
         .is_ok();
 
-    let has_yay = if !has_paru {
+    let has_yay = if has_paru {
+        false
+    } else {
         Command::new("yay")
             .args(["--version"])
             .stdin(Stdio::null())
@@ -36,8 +38,6 @@ pub fn handle_search(search_query: &str) -> ! {
             .stderr(Stdio::null())
             .output()
             .is_ok()
-    } else {
-        false
     };
 
     if has_paru {

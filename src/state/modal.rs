@@ -504,6 +504,8 @@ pub enum Modal {
         entries: Vec<(String, String, String)>, // (name, old_version, new_version)
         /// Scroll offset (lines) for the updates list.
         scroll: u16,
+        /// Selected row index.
+        selected: usize,
     },
     /// TUI Optional Dependencies chooser: selectable rows with install status.
     OptionalDeps {

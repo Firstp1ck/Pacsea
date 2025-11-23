@@ -1,14 +1,12 @@
 //! //! Tests for edge cases.
 
 use pacsea as crate_root;
-use super::helpers::*;
-
 
 #[test]
 /// What: Verify that preflight modal handles empty results gracefully across all tabs.
 ///
 /// Inputs:
-/// - Packages in install_list
+/// - Packages in `install_list`
 /// - All resolution stages return empty results (no deps, files, services, sandbox)
 /// - User switches between all tabs
 ///
@@ -21,14 +19,13 @@ use super::helpers::*;
 /// - Tests edge case where packages have no dependencies, files, services, or sandbox data
 /// - Verifies graceful handling of empty results
 /// - Ensures UI doesn't break with empty data
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_handles_empty_results_gracefully() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![crate_root::state::PackageItem {
         name: "test-package-empty".to_string(),
@@ -211,12 +208,12 @@ fn preflight_handles_empty_results_gracefully() {
                 .cloned()
                 .collect();
             // Even if empty, we should handle it gracefully
-            if !cached_services.is_empty() {
-                *service_info = cached_services;
-                *services_loaded = true;
+            if cached_services.is_empty() {
+                // Mark as loaded even if empty
             } else {
-                *services_loaded = true; // Mark as loaded even if empty
+                *service_info = cached_services;
             }
+            *services_loaded = true;
             *service_selected = 0;
         }
     }
@@ -268,12 +265,12 @@ fn preflight_handles_empty_results_gracefully() {
                 .cloned()
                 .collect();
             // Even if empty, we should handle it gracefully
-            if !cached_sandbox.is_empty() {
-                *sandbox_info = cached_sandbox;
-                *sandbox_loaded = true;
+            if cached_sandbox.is_empty() {
+                // Mark as loaded even if empty
             } else {
-                *sandbox_loaded = true; // Mark as loaded even if empty
+                *sandbox_info = cached_sandbox;
             }
+            *sandbox_loaded = true;
         }
     }
 

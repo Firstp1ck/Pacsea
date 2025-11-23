@@ -6,13 +6,13 @@ use pacsea::theme;
 /// What: Handle clear cache flag by removing all cache files and exiting.
 ///
 /// Inputs:
-/// - None (uses theme::lists_dir() to locate cache files).
+/// - None (uses `theme::lists_dir()` to locate cache files).
 ///
 /// Output:
 /// - Exits the process after clearing cache files.
 ///
 /// Details:
-/// - Removes install_deps_cache.json, file_cache.json, services_cache.json, sandbox_cache.json, and details_cache.json.
+/// - Removes `install_deps_cache.json`, `file_cache.json`, `services_cache.json`, `sandbox_cache.json`, and `details_cache.json`.
 /// - Prints the number of cleared files to stdout.
 /// - Exits immediately after clearing (doesn't launch TUI).
 pub fn handle_clear_cache() -> ! {
@@ -30,7 +30,7 @@ pub fn handle_clear_cache() -> ! {
     for cache_file in &cache_files {
         let cache_path = lists_dir.join(cache_file);
         match std::fs::remove_file(&cache_path) {
-            Ok(_) => {
+            Ok(()) => {
                 tracing::info!(path = %cache_path.display(), "cleared cache file");
                 cleared_count += 1;
             }

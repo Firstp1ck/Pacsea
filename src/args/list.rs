@@ -120,7 +120,7 @@ pub fn handle_list(exp: bool, imp: bool, all: bool) -> ! {
 
     // Print packages one per line
     for pkg in sorted_packages {
-        println!("{}", pkg);
+        println!("{pkg}");
     }
 
     tracing::info!(count = count, "Listed installed packages");

@@ -181,7 +181,7 @@ pub(super) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
 /// - `true` if Esc was pressed (to stop propagation), otherwise `false`
 ///
 /// Details:
-/// - Handles navigation, Enter to open URL, keymap shortcuts for marking read
+/// - Handles Esc/q to close, navigation, Enter to open URL, keymap shortcuts for marking read
 pub(super) fn handle_news(
     ke: KeyEvent,
     app: &mut AppState,
@@ -204,16 +204,16 @@ pub(super) fn handle_news(
         return false;
     }
     match ke.code {
-        KeyCode::Esc => {
+        KeyCode::Esc | KeyCode::Char('q') => {
             app.modal = crate::state::Modal::None;
             return true; // Stop propagation to prevent global Esc handler from running
         }
-        KeyCode::Up => {
+        KeyCode::Up | KeyCode::Char('k') => {
             if *selected > 0 {
                 *selected -= 1;
             }
         }
-        KeyCode::Down => {
+        KeyCode::Down | KeyCode::Char('j') => {
             if *selected + 1 < items.len() {
                 *selected += 1;
             }
@@ -235,59 +235,62 @@ pub(super) fn handle_news(
 /// - `app`: Mutable application state
 /// - `entries`: Update entries list (name, `old_version`, `new_version`)
 /// - `scroll`: Mutable scroll offset
+/// - `selected`: Mutable selected index
 ///
 /// Output:
 /// - `true` if Esc was pressed (to stop propagation), otherwise `false`
 ///
 /// Details:
-/// - Handles Esc/Enter to close, Up/Down/PageUp/PageDown for scrolling
+/// - Handles Esc/Enter/q to close, j/k and arrow keys for selection navigation
+/// - Auto-scrolls to keep selected item visible
 pub(super) fn handle_updates(
     ke: KeyEvent,
     app: &mut AppState,
     entries: &[(String, String, String)],
     scroll: &mut u16,
+    selected: &mut usize,
 ) -> bool {
     match ke.code {
-        KeyCode::Esc | KeyCode::Enter => {
+        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
             app.modal = crate::state::Modal::None;
             return true; // Stop propagation
         }
-        KeyCode::Up => {
-            *scroll = scroll.saturating_sub(1);
+        KeyCode::Up | KeyCode::Char('k') => {
+            if *selected > 0 {
+                *selected -= 1;
+                // Auto-scroll to keep selected item visible
+                update_scroll_for_selection(scroll, *selected);
+            }
         }
-        KeyCode::Down => {
-            // Calculate max scroll based on content height
-            // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
-            let content_lines = u16::try_from(entries.len())
-                .unwrap_or(u16::MAX)
-                .saturating_add(4);
-            // Estimate visible lines (modal height minus borders and title/footer)
-            let max_scroll = content_lines.saturating_sub(10);
-            if *scroll < max_scroll {
-                *scroll = scroll.saturating_add(1);
+        KeyCode::Down | KeyCode::Char('j') => {
+            if *selected + 1 < entries.len() {
+                *selected += 1;
+                // Auto-scroll to keep selected item visible
+                update_scroll_for_selection(scroll, *selected);
             }
         }
         KeyCode::PageUp => {
-            *scroll = scroll.saturating_sub(10);
+            if *selected >= 10 {
+                *selected -= 10;
+            } else {
+                *selected = 0;
+            }
+            update_scroll_for_selection(scroll, *selected);
         }
         KeyCode::PageDown => {
-            let content_lines = u16::try_from(entries.len())
-                .unwrap_or(u16::MAX)
-                .saturating_add(4);
-            let max_scroll = content_lines.saturating_sub(10);
-            *scroll = (*scroll + 10).min(max_scroll);
+            let max_idx = entries.len().saturating_sub(1);
+            *selected = (*selected + 10).min(max_idx);
+            update_scroll_for_selection(scroll, *selected);
         }
         KeyCode::Char('d')
             if ke
                 .modifiers
                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
         {
-            // Ctrl+D: page down (20 lines)
-            let content_lines = u16::try_from(entries.len())
-                .unwrap_or(u16::MAX)
-                .saturating_add(4);
-            let max_scroll = content_lines.saturating_sub(10);
-            *scroll = (*scroll + 25).min(max_scroll);
+            // Ctrl+D: page down (25 lines)
+            let max_idx = entries.len().saturating_sub(1);
+            *selected = (*selected + 25).min(max_idx);
+            update_scroll_for_selection(scroll, *selected);
         }
         KeyCode::Char('u')
             if ke
@@ -295,11 +298,46 @@ pub(super) fn handle_updates(
                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
         {
             // Ctrl+U: page up (20 lines)
-            *scroll = scroll.saturating_sub(20);
+            if *selected >= 20 {
+                *selected -= 20;
+            } else {
+                *selected = 0;
+            }
+            update_scroll_for_selection(scroll, *selected);
         }
         _ => {}
     }
     false
+}
+
+/// What: Update scroll offset to keep the selected item visible.
+///
+/// Inputs:
+/// - `scroll`: Mutable scroll offset
+/// - `selected`: Selected index
+///
+/// Output:
+/// - Updates scroll to ensure selected item is visible
+///
+/// Details:
+/// - Estimates visible lines based on modal height
+/// - Adjusts scroll so selected item is within visible range
+fn update_scroll_for_selection(scroll: &mut u16, selected: usize) {
+    // Estimate visible content lines (modal height minus header/footer/borders)
+    // Header: 2 lines, borders: 2 lines, footer: 0 lines = ~4 lines overhead
+    // Assume ~20 visible content lines as a reasonable default
+    const VISIBLE_LINES: u16 = 20;
+
+    let selected_line = u16::try_from(selected).unwrap_or(u16::MAX);
+
+    // If selected item is above visible area, scroll up
+    if selected_line < *scroll {
+        *scroll = selected_line;
+    }
+    // If selected item is below visible area, scroll down
+    else if selected_line >= *scroll + VISIBLE_LINES {
+        *scroll = selected_line.saturating_sub(VISIBLE_LINES.saturating_sub(1));
+    }
 }
 
 /// What: Handle key events for `GnomeTerminalPrompt` modal.

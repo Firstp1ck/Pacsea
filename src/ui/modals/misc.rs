@@ -328,6 +328,7 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `area`: Full screen area used to center the modal
+/// - `app`: Application state for i18n translation
 ///
 /// Output:
 /// - Draws instructions for import file syntax and highlights confirm/cancel keys.
@@ -336,7 +337,7 @@ pub fn render_virustotal_setup(f: &mut Frame, app: &mut AppState, area: Rect, in
 /// - Enumerates formatting rules, provides an example snippet, and keeps styling aligned with other
 ///   informational modals.
 #[allow(clippy::many_single_char_names)]
-pub fn render_import_help(f: &mut Frame, area: Rect) {
+pub fn render_import_help(f: &mut Frame, area: Rect, app: &crate::state::AppState) {
     let th = theme();
     let w = area.width.saturating_sub(10).min(85);
     let h = 19;
@@ -352,35 +353,45 @@ pub fn render_import_help(f: &mut Frame, area: Rect) {
 
     let lines: Vec<Line<'static>> = vec![
         Line::from(Span::styled(
-            "Import File Format",
+            crate::i18n::t(app, "app.modals.import_help.heading"),
             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
         Line::from(Span::styled(
-            "The import file should contain one package name per line.",
+            crate::i18n::t(app, "app.modals.import_help.description"),
             Style::default().fg(th.text),
         )),
         Line::from(""),
         Line::from(Span::styled(
-            "Format:",
+            crate::i18n::t(app, "app.modals.import_help.format_label"),
             Style::default()
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from(Span::raw("  • One package name per line")),
-        Line::from(Span::raw("  • Blank lines are ignored")),
-        Line::from(Span::raw(
-            "  • Lines starting with '#' are treated as comments",
-        )),
+        Line::from(Span::raw(crate::i18n::t(
+            app,
+            "app.modals.import_help.format_one_per_line",
+        ))),
+        Line::from(Span::raw(crate::i18n::t(
+            app,
+            "app.modals.import_help.format_blank_ignored",
+        ))),
+        Line::from(Span::raw(crate::i18n::t(
+            app,
+            "app.modals.import_help.format_comments",
+        ))),
         Line::from(""),
         Line::from(Span::styled(
-            "Example:",
+            crate::i18n::t(app, "app.modals.import_help.example_label"),
             Style::default()
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::raw("  firefox")),
-        Line::from(Span::raw("  # This is a comment")),
+        Line::from(Span::raw(crate::i18n::t(
+            app,
+            "app.modals.import_help.example_comment",
+        ))),
         Line::from(Span::raw("  vim")),
         Line::from(Span::raw("  paru")),
         Line::from(""),
@@ -389,13 +400,19 @@ pub fn render_import_help(f: &mut Frame, area: Rect) {
                 "[Enter]",
                 Style::default().fg(th.text).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" confirm", Style::default().fg(th.overlay1)),
+            Span::styled(
+                crate::i18n::t(app, "app.modals.import_help.hint_confirm"),
+                Style::default().fg(th.overlay1),
+            ),
             Span::raw("  •  "),
             Span::styled(
                 "[Esc]",
                 Style::default().fg(th.text).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(" cancel", Style::default().fg(th.overlay1)),
+            Span::styled(
+                crate::i18n::t(app, "app.modals.import_help.hint_cancel"),
+                Style::default().fg(th.overlay1),
+            ),
         ]),
     ];
 
@@ -405,7 +422,7 @@ pub fn render_import_help(f: &mut Frame, area: Rect) {
         .block(
             Block::default()
                 .title(Span::styled(
-                    " Import Help ",
+                    crate::i18n::t(app, "app.modals.import_help.title"),
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)

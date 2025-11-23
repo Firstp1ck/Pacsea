@@ -49,6 +49,7 @@ pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> 
 /// - Reads the JSON, deserializes it, sorts both signatures, and compares them before
 ///   returning the cached sandbox data.
 /// - Uses partial matching to load entries for packages that exist in both cache and current list.
+#[must_use]
 pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<SandboxInfo>> {
     load_cache_partial(path, current_signature, false)
 }

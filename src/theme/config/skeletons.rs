@@ -196,6 +196,10 @@ app_dry_run_default = false\n\
 show_recent_pane = true\n\
 show_install_pane = true\n\
 show_keybinds_footer = true\n\
+# Search input mode on startup\n\
+# Allowed values: insert_mode | normal_mode\n\
+# Default is insert_mode\n\
+search_startup_mode = insert_mode\n\
 \n\
 # Results sorting\n\
 # Allowed values: alphabetical | aur_popularity | best_matches\n\
@@ -336,7 +340,7 @@ pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\
 keybind_help = F1\n\
 # Alternative help shortcut\n\
 keybind_help = ?\n\
-keybind_reload_theme = CTRL+R\n\
+keybind_reload_config = CTRL+R\n\
 keybind_exit = CTRL+Q\n\
 keybind_show_pkgbuild = CTRL+X\n\
 \n\
@@ -361,6 +365,7 @@ keybind_search_install = Enter\n\
 keybind_search_focus_left = Left\n\
 keybind_search_focus_right = Right\n\
 keybind_search_backspace = Backspace\n\
+keybind_search_insert_clear = Shift+Del\n\
 \n\
 # SEARCH — Normal Mode (Focused Search Window)\n\
 keybind_search_normal_toggle = Esc\n\

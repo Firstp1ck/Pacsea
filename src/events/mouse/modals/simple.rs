@@ -187,7 +187,7 @@ pub(super) fn handle_news_modal(
 
 /// Handle mouse events for Updates modal.
 ///
-/// What: Process mouse interactions within the Updates modal (scroll, close).
+/// What: Process mouse interactions within the Updates modal (scroll, selection, close).
 ///
 /// Inputs:
 /// - `m`: Mouse event
@@ -200,54 +200,107 @@ pub(super) fn handle_news_modal(
 /// - `Some(false)` if handled, `None` otherwise
 ///
 /// Details:
-/// - Handles scroll navigation.
+/// - Handles row selection on click.
+/// - Handles scroll navigation (updates selection to match scroll position).
 /// - Closes modal on outside click.
 pub(super) fn handle_updates_modal(
     m: MouseEvent,
-    _mx: u16,
-    _my: u16,
+    mx: u16,
+    my: u16,
     is_left_down: bool,
     app: &mut AppState,
 ) -> Option<bool> {
     if let crate::state::Modal::Updates {
         ref mut scroll,
         ref entries,
+        ref mut selected,
     } = app.modal
     {
-        // Handle scroll within modal
+        // Left click: select row or close on outside
+        if is_left_down {
+            if let Some((x, y, w, h)) = app.updates_modal_content_rect
+                && mx >= x
+                && mx < x + w
+                && my >= y
+                && my < y + h
+            {
+                // Account for header (2 lines) when calculating clicked row
+                const HEADER_LINES: u16 = 2;
+                let relative_y = my.saturating_sub(y);
+                // Only process clicks in the content area (below header)
+                if relative_y >= HEADER_LINES {
+                    // Calculate which row was clicked (accounting for header and scroll offset)
+                    let clicked_row = (relative_y.saturating_sub(HEADER_LINES) as usize)
+                        .saturating_add(*scroll as usize);
+                    // Only update selection if clicking on an actual entry
+                    if clicked_row < entries.len() {
+                        *selected = clicked_row;
+                        // Auto-scroll to keep selected item visible
+                        update_scroll_for_selection(scroll, *selected);
+                    }
+                }
+            } else if let Some((x, y, w, h)) = app.updates_modal_rect {
+                // Click outside modal closes it
+                if mx < x || mx >= x + w || my < y || my >= y + h {
+                    app.modal = crate::state::Modal::None;
+                }
+            }
+            return Some(false);
+        }
+
+        // Handle scroll within modal: update selection to match scroll position
         match m.kind {
             crossterm::event::MouseEventKind::ScrollUp => {
-                *scroll = scroll.saturating_sub(1);
+                if *selected > 0 {
+                    *selected -= 1;
+                }
+                // Auto-scroll to keep selected item visible
+                update_scroll_for_selection(scroll, *selected);
                 return Some(false);
             }
             crossterm::event::MouseEventKind::ScrollDown => {
-                // Calculate max scroll based on content height
-                // Each entry is 1 line, plus header (1 line), blank (1 line), footer (1 line), blank (1 line) = 4 lines
-                let content_lines = u16::try_from(entries.len())
-                    .unwrap_or(u16::MAX)
-                    .saturating_add(4);
-                // Estimate visible lines (modal height minus borders and title/footer)
-                let max_scroll = content_lines.saturating_sub(10);
-                if *scroll < max_scroll {
-                    *scroll = scroll.saturating_add(1);
+                if *selected + 1 < entries.len() {
+                    *selected += 1;
                 }
+                // Auto-scroll to keep selected item visible
+                update_scroll_for_selection(scroll, *selected);
                 return Some(false);
             }
             _ => {}
-        }
-
-        // Left click outside modal closes it
-        if is_left_down && let Some((x, y, w, h)) = app.updates_modal_rect {
-            let mx = m.column;
-            let my = m.row;
-            if mx < x || mx >= x + w || my < y || my >= y + h {
-                app.modal = crate::state::Modal::None;
-                return Some(false);
-            }
         }
 
         // Consume all mouse events while Updates modal is open
         return Some(false);
     }
     None
+}
+
+/// What: Update scroll offset to keep the selected item visible.
+///
+/// Inputs:
+/// - `scroll`: Mutable scroll offset
+/// - `selected`: Selected index
+///
+/// Output:
+/// - Updates scroll to ensure selected item is visible
+///
+/// Details:
+/// - Estimates visible lines based on modal height
+/// - Adjusts scroll so selected item is within visible range
+fn update_scroll_for_selection(scroll: &mut u16, selected: usize) {
+    // Estimate visible content lines (modal height minus header/footer/borders)
+    // Header: 2 lines, borders: 2 lines, footer: 0 lines = ~4 lines overhead
+    // Assume ~20 visible content lines as a reasonable default
+    const VISIBLE_LINES: u16 = 20;
+
+    let selected_line = u16::try_from(selected).unwrap_or(u16::MAX);
+
+    // If selected item is above visible area, scroll up
+    if selected_line < *scroll {
+        *scroll = selected_line;
+    }
+    // If selected item is below visible area, scroll down
+    else if selected_line >= *scroll + VISIBLE_LINES {
+        *scroll = selected_line.saturating_sub(VISIBLE_LINES.saturating_sub(1));
+    }
 }

@@ -1,13 +1,12 @@
 //! Tests for cached data loading.
 
 use pacsea as crate_root;
-use super::helpers::*;
 
 #[test]
 /// What: Verify that preflight modal correctly loads cached data when packages are already in install list.
 ///
 /// Inputs:
-/// - Packages already listed in install_list
+/// - Packages already listed in `install_list`
 /// - Pre-populated cache with dependencies (including conflicts), files, services, and sandbox data
 /// - Preflight modal opened
 ///
@@ -21,14 +20,13 @@ use super::helpers::*;
 /// - Tests edge case where data is already cached before preflight starts
 /// - Verifies that all tabs correctly sync data from cache to modal state
 /// - Ensures UI can display the cached data correctly
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_loads_cached_data_when_packages_already_in_install_list() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     // Create test packages (mix of official and AUR for sandbox testing)
     let test_packages = vec![
@@ -394,7 +392,7 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
         let pkg1_files = file_info
             .iter()
             .find(|f| f.name == "test-package-1")
-            .unwrap();
+            .expect("test-package-1 should be found in file_info");
         assert_eq!(pkg1_files.files.len(), 2, "Package 1 should have 2 files");
         assert_eq!(pkg1_files.total_count, 2);
         assert_eq!(pkg1_files.new_count, 2);
@@ -404,7 +402,7 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
         let pkg2_files = file_info
             .iter()
             .find(|f| f.name == "test-package-2")
-            .unwrap();
+            .expect("test-package-2 should be found in file_info");
         assert_eq!(pkg2_files.files.len(), 1, "Package 2 should have 1 file");
         assert_eq!(pkg2_files.total_count, 1);
         assert_eq!(pkg2_files.changed_count, 1);
@@ -465,7 +463,7 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
         let svc1 = service_info
             .iter()
             .find(|s| s.unit_name == "test-service-1.service")
-            .unwrap();
+            .expect("test-service-1.service should be found in service_info");
         assert!(svc1.is_active);
         assert!(svc1.needs_restart);
         assert_eq!(
@@ -476,7 +474,7 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
         let svc2 = service_info
             .iter()
             .find(|s| s.unit_name == "test-service-2.service")
-            .unwrap();
+            .expect("test-service-2.service should be found in service_info");
         assert!(!svc2.is_active);
         assert!(!svc2.needs_restart);
         assert_eq!(
@@ -540,18 +538,26 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
         let sandbox = sandbox_info
             .iter()
             .find(|s| s.package_name == "test-aur-package")
-            .unwrap();
+            .expect("test-aur-package should be found in sandbox_info");
         assert_eq!(sandbox.depends.len(), 2, "Should have 2 depends");
         assert_eq!(sandbox.makedepends.len(), 1, "Should have 1 makedepends");
         assert_eq!(sandbox.checkdepends.len(), 0, "Should have 0 checkdepends");
         assert_eq!(sandbox.optdepends.len(), 1, "Should have 1 optdepends");
 
         // Verify dependency details
-        let dep1 = sandbox.depends.iter().find(|d| d.name == "dep1").unwrap();
+        let dep1 = sandbox
+            .depends
+            .iter()
+            .find(|d| d.name == "dep1")
+            .expect("dep1 should be found in sandbox.depends");
         assert!(dep1.is_installed);
         assert_eq!(dep1.installed_version, Some("1.0.0".to_string()));
 
-        let dep2 = sandbox.depends.iter().find(|d| d.name == "dep2").unwrap();
+        let dep2 = sandbox
+            .depends
+            .iter()
+            .find(|d| d.name == "dep2")
+            .expect("dep2 should be found in sandbox.depends");
         assert!(!dep2.is_installed);
 
         assert_eq!(*sandbox_selected, 0, "Selection should be reset to 0");
@@ -590,4 +596,3 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
         panic!("Expected Preflight modal");
     }
 }
-

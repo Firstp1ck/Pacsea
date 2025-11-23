@@ -1,14 +1,12 @@
 //! //! Tests for error handling and partial failures.
 
 use pacsea as crate_root;
-use super::helpers::*;
-
 
 #[test]
 /// What: Verify that preflight modal handles partial failures correctly.
 ///
 /// Inputs:
-/// - Packages in install_list
+/// - Packages in `install_list`
 /// - Some tabs resolve successfully (Deps, Files)
 /// - One tab fails (Services with error)
 /// - User switches between tabs
@@ -22,14 +20,13 @@ use super::helpers::*;
 /// - Tests edge case where resolution fails for one tab but succeeds for others
 /// - Verifies error messages are shown correctly
 /// - Ensures failures don't affect other tabs
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_handles_partial_failures_correctly() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![crate_root::state::PackageItem {
         name: "test-package-1".to_string(),
@@ -243,7 +240,9 @@ fn preflight_handles_partial_failures_correctly() {
             "Services should have error message"
         );
         assert_eq!(
-            services_error.as_ref().unwrap(),
+            services_error
+                .as_ref()
+                .expect("services_error should be Some"),
             "Failed to resolve services: systemd not available",
             "Error message should match"
         );

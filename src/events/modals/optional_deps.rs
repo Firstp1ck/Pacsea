@@ -16,7 +16,7 @@ use crate::state::AppState;
 /// - `Some(true)` if Enter was pressed and should stop propagation, `Some(false)` otherwise, `None` if not handled
 ///
 /// Details:
-/// - Handles navigation and Enter to install/setup optional dependencies
+/// - Handles Esc/q to close, navigation and Enter to install/setup optional dependencies
 pub(super) fn handle_optional_deps(
     ke: KeyEvent,
     app: &mut AppState,
@@ -24,17 +24,17 @@ pub(super) fn handle_optional_deps(
     selected: &mut usize,
 ) -> Option<bool> {
     match ke.code {
-        KeyCode::Esc => {
+        KeyCode::Esc | KeyCode::Char('q') => {
             app.modal = crate::state::Modal::None;
             Some(false)
         }
-        KeyCode::Up => {
+        KeyCode::Up | KeyCode::Char('k') => {
             if *selected > 0 {
                 *selected -= 1;
             }
             Some(false)
         }
-        KeyCode::Down => {
+        KeyCode::Down | KeyCode::Char('j') => {
             if *selected + 1 < rows.len() {
                 *selected += 1;
             }

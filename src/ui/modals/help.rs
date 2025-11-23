@@ -146,8 +146,8 @@ fn build_global_bindings(
         lines,
         app,
         th,
-        km.reload_theme.first().copied(),
-        "app.modals.help.key_labels.reload_theme",
+        km.reload_config.first().copied(),
+        "app.modals.help.key_labels.reload_config",
     );
     add_binding_if_some(
         lines,
@@ -274,6 +274,13 @@ fn build_search_bindings(
         km.search_backspace.first().copied(),
         "app.modals.help.key_labels.delete",
     );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_insert_clear.first().copied(),
+        "app.modals.help.key_labels.clear_input",
+    );
 }
 
 /// What: Build search normal mode keybindings section.
@@ -300,6 +307,7 @@ fn build_search_normal_bindings(
         || !km.search_normal_select_left.is_empty()
         || !km.search_normal_select_right.is_empty()
         || !km.search_normal_delete.is_empty()
+        || !km.search_normal_clear.is_empty()
         || !km.search_normal_open_status.is_empty()
         || !km.config_menu_toggle.is_empty()
         || !km.options_menu_toggle.is_empty()
@@ -345,6 +353,13 @@ fn build_search_normal_bindings(
         th,
         km.search_normal_delete.first().copied(),
         "app.modals.help.key_labels.delete",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_clear.first().copied(),
+        "app.modals.help.key_labels.clear_input",
     );
     add_binding_if_some(
         lines,

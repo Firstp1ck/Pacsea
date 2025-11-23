@@ -10,7 +10,7 @@ mod channels;
 mod cleanup;
 mod event_loop;
 mod handlers;
-mod init;
+pub mod init;
 mod tick_handler;
 mod workers;
 

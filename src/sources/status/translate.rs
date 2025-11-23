@@ -199,28 +199,29 @@ pub fn translate_status_text(app: &AppState, text: &str) -> String {
     }
 
     // Extract AUR percentage suffix if present (for simple patterns)
-    let (base_text, aur_pct) = if let Some(suffix_pos) = text.find(" — AUR today: ") {
-        let (base, suffix) = text.split_at(suffix_pos);
-        let pct = suffix
-            .strip_prefix(" — AUR today: ")
-            .and_then(|s| s.strip_suffix('%'))
-            .and_then(|s| s.parse::<u32>().ok());
-        (base, pct)
-    } else {
-        (text, None)
-    };
+    let (base_text, aur_pct) = text
+        .find(" — AUR today: ")
+        .map_or((text, None), |suffix_pos| {
+            let (base, suffix) = text.split_at(suffix_pos);
+            let pct = suffix
+                .strip_prefix(" — AUR today: ")
+                .and_then(|s| s.strip_suffix('%'))
+                .and_then(|s| s.parse::<u32>().ok());
+            (base, pct)
+        });
 
     // Extract AUR suffix in parentheses if present
-    let (base_text, aur_ratio) = if let Some(suffix_pos) = base_text.find(" (AUR: ") {
-        let (base, suffix) = base_text.split_at(suffix_pos);
-        let ratio = suffix
-            .strip_prefix(" (AUR: ")
-            .and_then(|s| s.strip_suffix("%)"))
-            .and_then(|s| s.parse::<f64>().ok());
-        (base, ratio)
-    } else {
-        (base_text, None)
-    };
+    let (base_text, aur_ratio) =
+        base_text
+            .find(" (AUR: ")
+            .map_or((base_text, None), |suffix_pos| {
+                let (base, suffix) = base_text.split_at(suffix_pos);
+                let ratio = suffix
+                    .strip_prefix(" (AUR: ")
+                    .and_then(|s| s.strip_suffix("%)"))
+                    .and_then(|s| s.parse::<f64>().ok());
+                (base, ratio)
+            });
 
     // Match base text patterns and translate
     let Some(translated) = translate_simple_pattern(app, base_text) else {
@@ -242,7 +243,7 @@ mod tests {
     ///
     /// Inputs:
     /// - English status text
-    /// - AppState with translations
+    /// - `AppState` with translations
     ///
     /// Output:
     /// - Translated status text
@@ -262,7 +263,7 @@ mod tests {
     ///
     /// Inputs:
     /// - English status text with AUR percentage suffix
-    /// - AppState with translations
+    /// - `AppState` with translations
     ///
     /// Output:
     /// - Translated status text with translated suffix

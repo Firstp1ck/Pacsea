@@ -99,7 +99,11 @@ pub fn handle_updates_button(app: &mut AppState) -> bool {
         Vec::new()
     };
 
-    app.modal = crate::state::Modal::Updates { entries, scroll: 0 };
+    app.modal = crate::state::Modal::Updates {
+        entries,
+        scroll: 0,
+        selected: 0,
+    };
     false
 }
 

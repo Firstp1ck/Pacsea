@@ -2,7 +2,6 @@
 
 use pacsea as crate_root;
 use tokio::sync::mpsc;
-use super::helpers::*;
 
 #[tokio::test]
 /// What: Verify that preflight modal handles out-of-order data arrival correctly.
@@ -14,14 +13,13 @@ use super::helpers::*;
 /// Output:
 /// - Modal state correctly reflects data as it arrives, regardless of order
 /// - All stages eventually show as complete
+#[allow(clippy::too_many_lines)]
 async fn preflight_handles_out_of_order_data_arrival() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     // Create test packages
     let test_packages = vec![
@@ -380,9 +378,7 @@ async fn preflight_cancellation_aborts_in_flight_work() {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![crate_root::state::PackageItem {
         name: "test-package".to_string(),
@@ -545,4 +541,3 @@ async fn preflight_cancellation_aborts_in_flight_work() {
     assert!(!app.preflight_files_resolving);
     assert!(app.preflight_files_items.is_none());
 }
-
