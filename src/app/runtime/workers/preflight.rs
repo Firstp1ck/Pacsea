@@ -30,7 +30,7 @@ pub fn spawn_dependency_worker(
             // This ensures deps_resolving flag is always reset
             tokio::spawn(async move {
                 match handle.await {
-                    Ok(_) => {
+                    Ok(()) => {
                         // Task completed successfully, result already sent
                         tracing::debug!("[Runtime] Dependency resolution task completed");
                     }
@@ -196,7 +196,7 @@ pub fn spawn_summary_worker(
             // CRITICAL: Always await and send a result, even if task panics
             tokio::spawn(async move {
                 match handle.await {
-                    Ok(_) => {
+                    Ok(()) => {
                         // Task completed successfully, result already sent
                         tracing::debug!("[Runtime] Preflight summary computation task completed");
                     }

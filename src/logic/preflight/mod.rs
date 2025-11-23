@@ -226,7 +226,8 @@ fn fetch_package_metadata<R: CommandRunner>(
             }
         }
         Source::Aur => {
-            let meta = metadata::fetch_aur_metadata(runner, &item.name, Some(item.version.as_str()));
+            let meta =
+                metadata::fetch_aur_metadata(runner, &item.name, Some(item.version.as_str()));
             if meta.download_size.is_some() || meta.install_size.is_some() {
                 tracing::debug!(
                     "Preflight summary: found AUR package sizes for {}: DL={:?}, Install={:?}",

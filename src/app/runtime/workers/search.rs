@@ -40,7 +40,7 @@ pub fn spawn_search_worker(
                 break;
             };
             loop {
-                select! { Some(new_q) = query_rx.recv() => { latest = new_q; } _ = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } }
+                select! { Some(new_q) = query_rx.recv() => { latest = new_q; } () = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } }
             }
             if latest.text.trim().is_empty() {
                 let mut items = pkgindex::all_official_or_fetch(&index_path);

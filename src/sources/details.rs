@@ -273,11 +273,13 @@ fn pacman_si(repo: &str, name: &str) -> Result<PackageDetails> {
 /// Output:
 /// - `Some(bytes)` when parsed; `None` for invalid strings. Accepts B, KiB, MiB, GiB, TiB, PiB.
 fn parse_size_bytes(s: &str) -> Option<u64> {
+    // Maximum f64 value that fits in u64 (2^64 - 1, but f64 can represent up to 2^53 exactly)
+    // For values beyond 2^53, we check if they exceed u64::MAX by comparing with a threshold
+    const MAX_U64_AS_F64: f64 = 18_446_744_073_709_551_615.0; // u64::MAX as approximate f64
     let mut it = s.split_whitespace();
     let num = it.next()?.parse::<f64>().ok()?;
     let unit = it.next().unwrap_or("");
     let mult = match unit {
-        "B" => 1.0,
         "KiB" => 1024.0,
         "MiB" => 1024.0 * 1024.0,
         "GiB" => 1024.0 * 1024.0 * 1024.0,
@@ -289,9 +291,6 @@ fn parse_size_bytes(s: &str) -> Option<u64> {
     if result < 0.0 {
         return None;
     }
-    // Maximum f64 value that fits in u64 (2^64 - 1, but f64 can represent up to 2^53 exactly)
-    // For values beyond 2^53, we check if they exceed u64::MAX by comparing with a threshold
-    const MAX_U64_AS_F64: f64 = 18_446_744_073_709_551_615.0; // u64::MAX as approximate f64
     if result > MAX_U64_AS_F64 {
         return None;
     }

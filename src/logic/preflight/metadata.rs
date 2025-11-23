@@ -181,12 +181,14 @@ pub(super) fn parse_pacman_key_values(output: &str) -> HashMap<String, String> {
 /// Details:
 /// - Supports B, KiB, MiB, GiB, and TiB units.
 pub(super) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
+    // Maximum f64 value that fits in u64 (2^64 - 1, but f64 can represent up to 2^53 exactly)
+    // For values beyond 2^53, we check if they exceed u64::MAX by comparing with a threshold
+    const MAX_U64_AS_F64: f64 = 18_446_744_073_709_551_615.0; // u64::MAX as approximate f64
     let mut parts = raw.split_whitespace();
     let number = parts.next()?.replace(',', "");
     let value = number.parse::<f64>().ok()?;
     let unit = parts.next().unwrap_or("B");
     let multiplier = match unit {
-        "B" => 1.0,
         "KiB" => 1024.0,
         "MiB" => 1024.0 * 1024.0,
         "GiB" => 1024.0 * 1024.0 * 1024.0,
@@ -198,9 +200,6 @@ pub(super) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
     if result < 0.0 {
         return None;
     }
-    // Maximum f64 value that fits in u64 (2^64 - 1, but f64 can represent up to 2^53 exactly)
-    // For values beyond 2^53, we check if they exceed u64::MAX by comparing with a threshold
-    const MAX_U64_AS_F64: f64 = 18_446_744_073_709_551_615.0; // u64::MAX as approximate f64
     if result > MAX_U64_AS_F64 {
         return None;
     }

@@ -146,7 +146,6 @@ pub(super) fn parse_status_api_summary(
     {
         aur_state = Some(state);
         match state {
-            "operational" => { /* no suffix */ }
             "degraded_performance" => {
                 // Don't set suffix - text will already say "AUR RPC degraded"
                 color = severity_max(color, ArchStatusColor::IncidentToday);
@@ -177,13 +176,6 @@ pub(super) fn parse_status_api_summary(
             }
         },
         |state| match state {
-            "operational" => {
-                if indicator == "none" {
-                    "All systems operational".to_string()
-                } else {
-                    "Arch systems nominal".to_string()
-                }
-            }
             "major_outage" => "AUR outage (see status)".to_string(),
             "partial_outage" => "AUR partial outage".to_string(),
             "degraded_performance" => "AUR RPC degraded".to_string(),

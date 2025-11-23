@@ -140,7 +140,7 @@ fn handle_export_button(app: &mut AppState) -> bool {
     };
     let body = names.join("\n");
     match std::fs::write(&file_path, body) {
-        Ok(_) => {
+        Ok(()) => {
             app.toast_message = Some(crate::i18n::t_fmt1(
                 app,
                 "app.toasts.exported_to",
@@ -427,8 +427,7 @@ fn handle_system_update_option(app: &mut AppState) {
             .selected_countries
             .split(',')
             .next()
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "Worldwide".to_string());
+            .map_or_else(|| "Worldwide".to_string(), |s| s.trim().to_string());
         countries.iter().position(|c| c == &sel).unwrap_or(0)
     };
     app.modal = crate::state::Modal::SystemUpdate {

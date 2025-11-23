@@ -160,7 +160,7 @@ fn handle_export(app: &mut AppState) {
 
     let body = names.join("\n");
     match std::fs::write(&file_path, body) {
-        Ok(_) => {
+        Ok(()) => {
             app.toast_message = Some(crate::i18n::t_fmt1(
                 app,
                 "app.toasts.exported_to",

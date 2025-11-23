@@ -29,33 +29,27 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
         let toggle_label = km
             .search_normal_toggle
             .first()
-            .map(KeyChord::label)
-            .unwrap_or_else(|| "Esc".to_string());
+            .map_or_else(|| "Esc".to_string(), KeyChord::label);
         let insert_label = km
             .search_normal_insert
             .first()
-            .map(KeyChord::label)
-            .unwrap_or_else(|| "i".to_string());
+            .map_or_else(|| "i".to_string(), KeyChord::label);
         let left_label = km
             .search_normal_select_left
             .first()
-            .map(KeyChord::label)
-            .unwrap_or_else(|| "h".to_string());
+            .map_or_else(|| "h".to_string(), KeyChord::label);
         let right_label = km
             .search_normal_select_right
             .first()
-            .map(KeyChord::label)
-            .unwrap_or_else(|| "l".to_string());
+            .map_or_else(|| "l".to_string(), KeyChord::label);
         let delete_label = km
             .search_normal_delete
             .first()
-            .map(KeyChord::label)
-            .unwrap_or_else(|| "d".to_string());
+            .map_or_else(|| "d".to_string(), KeyChord::label);
         let clear_label = km
             .search_normal_clear
             .first()
-            .map(KeyChord::label)
-            .unwrap_or_else(|| "Shift+Del".to_string());
+            .map_or_else(|| "Shift+Del".to_string(), KeyChord::label);
 
         let line1 = format!(
             "Normal Mode (Focused Search Window):  [{toggle_label}/{insert_label}] Insert Mode, [j / k] move, [Ctrl+d / Ctrl+u] page, [{left_label} / {right_label}] Select text, [{delete_label}] Delete text, [{clear_label}] Clear input"

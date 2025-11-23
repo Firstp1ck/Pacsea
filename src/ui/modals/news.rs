@@ -139,14 +139,12 @@ fn build_footer(app: &AppState) -> Line<'static> {
         .keymap
         .news_mark_read
         .first()
-        .map(KeyChord::label)
-        .unwrap_or_else(|| "R".to_string());
+        .map_or_else(|| "R".to_string(), KeyChord::label);
     let mark_all_read_key = app
         .keymap
         .news_mark_all_read
         .first()
-        .map(KeyChord::label)
-        .unwrap_or_else(|| "Ctrl+R".to_string());
+        .map_or_else(|| "Ctrl+R".to_string(), KeyChord::label);
     let footer_template = i18n::t(app, "app.modals.news.footer_hint");
     // Replace placeholders one at a time to avoid replacing all {} with the first value
     let footer_text =

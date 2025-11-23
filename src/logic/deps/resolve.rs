@@ -720,8 +720,7 @@ mod tests {
             let base_path = original
                 .as_ref()
                 .filter(|p| !p.is_empty())
-                .map(String::as_str)
-                .unwrap_or("/usr/bin:/bin:/usr/local/bin");
+                .map_or("/usr/bin:/bin:/usr/local/bin", String::as_str);
             let mut new_path = dir.display().to_string();
             new_path.push(':');
             new_path.push_str(base_path);

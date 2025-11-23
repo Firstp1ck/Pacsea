@@ -124,16 +124,18 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
         ),
         kv(
             &i18n::t(app, "app.details.fields.download_size"),
-            d.download_size
-                .map(human_bytes)
-                .unwrap_or_else(|| i18n::t(app, "app.details.fields.not_available")),
+            d.download_size.map_or_else(
+                || i18n::t(app, "app.details.fields.not_available"),
+                human_bytes,
+            ),
             th,
         ),
         kv(
             &i18n::t(app, "app.details.fields.install_size"),
-            d.install_size
-                .map(human_bytes)
-                .unwrap_or_else(|| i18n::t(app, "app.details.fields.not_available")),
+            d.install_size.map_or_else(
+                || i18n::t(app, "app.details.fields.not_available"),
+                human_bytes,
+            ),
             th,
         ),
         kv(

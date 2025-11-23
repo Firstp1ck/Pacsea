@@ -16,7 +16,7 @@ use super::handle_install_key;
 /// Details:
 /// - Keeps test bodies concise while ensuring each case starts from a clean copy.
 fn new_app() -> AppState {
-    Default::default()
+    AppState::default()
 }
 
 #[test]

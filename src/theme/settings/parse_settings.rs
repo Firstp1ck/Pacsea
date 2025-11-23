@@ -132,7 +132,6 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
                         PackageMarker::FullLine
                     }
                     "end" | "suffix" => PackageMarker::End,
-                    "front" | "start" | "prefix" | "" => PackageMarker::Front,
                     _ => PackageMarker::Front,
                 };
             }

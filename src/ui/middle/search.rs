@@ -203,7 +203,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
         .expect("Failed to render search pane");
 
@@ -236,7 +236,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
         .expect("Failed to render search pane without selection");
 
@@ -267,7 +267,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
         .expect("Failed to render search pane with selection");
 
@@ -296,7 +296,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
         .expect("Failed to render unfocused search pane");
 
@@ -325,7 +325,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &mut app, area);
+            render_search(f, &app, area);
         })
         .expect("failed to draw test terminal");
 
