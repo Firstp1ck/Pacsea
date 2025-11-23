@@ -204,7 +204,7 @@ pub(super) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
         return None;
     }
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let bytes = result as u64;
+    let bytes = result.round() as u64;
     Some(bytes)
 }
 
@@ -404,7 +404,7 @@ mod tests {
         assert_eq!(parse_size_to_bytes("1 KiB"), Some(1024));
         assert_eq!(parse_size_to_bytes("2.5 MiB"), Some(2_621_440));
         assert_eq!(parse_size_to_bytes("1.5 GiB"), Some(1_610_612_736));
-        assert_eq!(parse_size_to_bytes("1,234.5 MiB"), Some(1_294_699_008));
+        assert_eq!(parse_size_to_bytes("1,234.5 MiB"), Some(1_294_467_072));
         assert_eq!(parse_size_to_bytes("invalid"), None);
         assert_eq!(parse_size_to_bytes(""), None);
     }

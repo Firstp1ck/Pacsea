@@ -1248,7 +1248,7 @@ fn test_all_preflight_keys_return_false() {
         let mut app = AppState::default();
 
         // Switch to Files tab for 'f' key test
-        let mut tab = if matches!(key_code, KeyCode::Char('f' | 'F')) {
+        let tab = if matches!(key_code, KeyCode::Char('f' | 'F')) {
             PreflightTab::Files
         } else {
             PreflightTab::Summary
