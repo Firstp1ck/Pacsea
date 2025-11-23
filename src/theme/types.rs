@@ -778,6 +778,83 @@ fn default_news_keys(none: KeyModifiers, ctrl: KeyModifiers) -> (Vec<KeyChord>, 
     )
 }
 
+/// What: Build the default `KeyMap` by constructing it from helper functions.
+///
+/// Inputs:
+/// - None (uses internal modifier constants).
+///
+/// Output:
+/// - Returns a fully constructed `KeyMap` with all default key bindings.
+///
+/// Details:
+/// - Consolidates all key binding construction to reduce data flow complexity.
+/// - All key bindings are constructed inline within the struct initialization.
+fn build_default_keymap() -> KeyMap {
+    let none = KeyModifiers::empty();
+    let ctrl = KeyModifiers::CONTROL;
+    let shift = KeyModifiers::SHIFT;
+
+    let global = default_global_keys(none, ctrl);
+    let dropdown = default_dropdown_keys(shift);
+    let search = default_search_keys(none);
+    let search_normal = default_search_normal_keys(none, shift);
+    let recent = default_recent_keys(none, shift);
+    let install = default_install_keys(none, shift);
+    let news = default_news_keys(none, ctrl);
+
+    KeyMap {
+        help_overlay: global.0,
+        reload_theme: global.1,
+        exit: global.2,
+        show_pkgbuild: global.3,
+        change_sort: global.4,
+        pane_next: global.5,
+        pane_left: global.6,
+        pane_right: global.7,
+        config_menu_toggle: dropdown.0,
+        options_menu_toggle: dropdown.1,
+        panels_menu_toggle: dropdown.2,
+        search_move_up: search.0,
+        search_move_down: search.1,
+        search_page_up: search.2,
+        search_page_down: search.3,
+        search_add: search.4,
+        search_install: search.5,
+        search_focus_left: search.6,
+        search_focus_right: search.7,
+        search_backspace: search.8,
+        search_normal_toggle: search_normal.0,
+        search_normal_insert: search_normal.1,
+        search_normal_select_left: search_normal.2,
+        search_normal_select_right: search_normal.3,
+        search_normal_delete: search_normal.4,
+        search_normal_clear: search_normal.5,
+        search_normal_open_status: search_normal.6,
+        search_normal_import: search_normal.7,
+        search_normal_export: search_normal.8,
+        search_normal_updates: search_normal.9,
+        recent_move_up: recent.0,
+        recent_move_down: recent.1,
+        recent_find: recent.2,
+        recent_use: recent.3,
+        recent_add: recent.4,
+        recent_to_search: recent.5,
+        recent_focus_right: recent.6,
+        recent_remove: recent.7,
+        recent_clear: recent.8,
+        install_move_up: install.0,
+        install_move_down: install.1,
+        install_confirm: install.2,
+        install_remove: install.3,
+        install_clear: install.4,
+        install_find: install.5,
+        install_to_search: install.6,
+        install_focus_left: install.7,
+        news_mark_read: news.0,
+        news_mark_all_read: news.1,
+    }
+}
+
 impl Default for KeyMap {
     /// What: Supply the default key bindings for Pacsea interactions.
     ///
@@ -790,125 +867,8 @@ impl Default for KeyMap {
     /// Details:
     /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the theme.
     /// - Provides multiple bindings for certain actions (e.g., `F1` and `?` for help).
+    /// - Delegates to `build_default_keymap()` to reduce data flow complexity.
     fn default() -> Self {
-        let none = KeyModifiers::empty();
-        let ctrl = KeyModifiers::CONTROL;
-        let shift = KeyModifiers::SHIFT;
-
-        let (
-            help_overlay,
-            reload_theme,
-            exit,
-            show_pkgbuild,
-            change_sort,
-            pane_next,
-            pane_left,
-            pane_right,
-        ) = default_global_keys(none, ctrl);
-
-        let (config_menu_toggle, options_menu_toggle, panels_menu_toggle) =
-            default_dropdown_keys(shift);
-
-        let (
-            search_move_up,
-            search_move_down,
-            search_page_up,
-            search_page_down,
-            search_add,
-            search_install,
-            search_focus_left,
-            search_focus_right,
-            search_backspace,
-        ) = default_search_keys(none);
-
-        let (
-            search_normal_toggle,
-            search_normal_insert,
-            search_normal_select_left,
-            search_normal_select_right,
-            search_normal_delete,
-            search_normal_clear,
-            search_normal_open_status,
-            search_normal_import,
-            search_normal_export,
-            search_normal_updates,
-        ) = default_search_normal_keys(none, shift);
-
-        let (
-            recent_move_up,
-            recent_move_down,
-            recent_find,
-            recent_use,
-            recent_add,
-            recent_to_search,
-            recent_focus_right,
-            recent_remove,
-            recent_clear,
-        ) = default_recent_keys(none, shift);
-
-        let (
-            install_move_up,
-            install_move_down,
-            install_confirm,
-            install_remove,
-            install_clear,
-            install_find,
-            install_to_search,
-            install_focus_left,
-        ) = default_install_keys(none, shift);
-
-        let (news_mark_read, news_mark_all_read) = default_news_keys(none, ctrl);
-
-        Self {
-            help_overlay,
-            reload_theme,
-            exit,
-            show_pkgbuild,
-            change_sort,
-            pane_next,
-            pane_left,
-            pane_right,
-            config_menu_toggle,
-            options_menu_toggle,
-            panels_menu_toggle,
-            search_move_up,
-            search_move_down,
-            search_page_up,
-            search_page_down,
-            search_add,
-            search_install,
-            search_focus_left,
-            search_focus_right,
-            search_backspace,
-            search_normal_toggle,
-            search_normal_insert,
-            search_normal_select_left,
-            search_normal_select_right,
-            search_normal_delete,
-            search_normal_clear,
-            search_normal_open_status,
-            search_normal_import,
-            search_normal_export,
-            search_normal_updates,
-            recent_move_up,
-            recent_move_down,
-            recent_find,
-            recent_use,
-            recent_add,
-            recent_to_search,
-            recent_focus_right,
-            recent_remove,
-            recent_clear,
-            install_move_up,
-            install_move_down,
-            install_confirm,
-            install_remove,
-            install_clear,
-            install_find,
-            install_to_search,
-            install_focus_left,
-            news_mark_read,
-            news_mark_all_read,
-        }
+        build_default_keymap()
     }
 }

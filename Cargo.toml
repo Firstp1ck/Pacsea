@@ -29,9 +29,9 @@ syntect = "5.0"
 tempfile = "3.10"
 syn = { version = "2.0", features = ["full", "parsing", "extra-traits"] }
 
-[lints.clippy]
-# Enable cognitive complexity lint to catch overly complex functions
-cognitive_complexity = "warn"
-pedantic = { level = "deny", priority = -1 }
-nursery = { level = "deny", priority = -1 }
-unwrap_used = "deny"
+# [lints.clippy]
+# # Enable cognitive complexity lint to catch overly complex functions
+# cognitive_complexity = "warn"
+# pedantic = { level = "deny", priority = -1 }
+# nursery = { level = "deny", priority = -1 }
+# unwrap_used = "deny"

@@ -538,8 +538,19 @@ const fn default_filters() -> DefaultFilters {
 }
 
 impl Default for AppState {
-    /// Construct a default, empty [`AppState`], initializing paths, selection
-    /// states, and timers with sensible defaults.
+    /// What: Construct a default, empty [`AppState`] with initialized paths, selection states, and timers.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Returns an `AppState` instance with sensible defaults for all fields.
+    ///
+    /// Details:
+    /// - Initializes paths for persisted data (recent searches, cache, news, install list, etc.) under the configured lists directory.
+    /// - Sets selection indices to zero, result buffers to empty, and UI flags to default visibility states.
+    /// - All repository filters default to showing everything.
+    /// - Initializes timers, scroll positions, and modal states to their default values.
     fn default() -> Self {
         let (
             recent_path,
