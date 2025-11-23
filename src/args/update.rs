@@ -307,7 +307,9 @@ fn run_command_with_logging(
     // Use tee twice: first logs to file, second captures to tempfile and displays
     // command 2>&1 | tee -a logfile | tee tempfile > /dev/tty
     // This way: output is displayed once, logged to file, and captured to tempfile
-    let shell_cmd = format!("{program} {args_str} 2>&1 | tee -a {log_file_str} | tee {temp_output_str} > /dev/tty; exit ${{PIPESTATUS[0]}}");
+    let shell_cmd = format!(
+        "{program} {args_str} 2>&1 | tee -a {log_file_str} | tee {temp_output_str} > /dev/tty; exit ${{PIPESTATUS[0]}}"
+    );
 
     let status = Command::new("bash").arg("-c").arg(&shell_cmd).status()?;
 
@@ -358,12 +360,10 @@ pub fn handle_update() -> ! {
             .append(true)
             .open(&log_file_path)
         {
-            let timestamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_or_else(
-                    |_| "unknown".to_string(),
-                    |d| pacsea::util::ts_to_date(Some(i64::try_from(d.as_secs()).unwrap_or(0)))
-                );
+            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+                |_| "unknown".to_string(),
+                |d| pacsea::util::ts_to_date(Some(i64::try_from(d.as_secs()).unwrap_or(0))),
+            );
             let _ = writeln!(file, "[{timestamp}] {message}");
         }
     };
@@ -405,7 +405,9 @@ pub fn handle_update() -> ! {
         Err(e) => {
             println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
             eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-            write_log(&format!("FAILED: Could not execute pacman -Syyu --noconfirm: {e}"));
+            write_log(&format!(
+                "FAILED: Could not execute pacman -Syyu --noconfirm: {e}"
+            ));
             all_succeeded = false;
             failed_commands.push("pacman -Syyu --noconfirm".to_string());
             pacman_succeeded = Some(false);
@@ -426,7 +428,9 @@ pub fn handle_update() -> ! {
             Ok((status, output)) => {
                 if status.success() {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
-                    write_log(&format!("SUCCESS: {helper} -Syyu --noconfirm completed successfully"));
+                    write_log(&format!(
+                        "SUCCESS: {helper} -Syyu --noconfirm completed successfully"
+                    ));
                     aur_succeeded = Some(true);
                 } else {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
@@ -445,7 +449,9 @@ pub fn handle_update() -> ! {
             Err(e) => {
                 println!("{}", i18n::t_fmt1("app.cli.update.aur_exec_failed", helper));
                 eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-                write_log(&format!("FAILED: Could not execute {helper} -Syyu --noconfirm: {e}"));
+                write_log(&format!(
+                    "FAILED: Could not execute {helper} -Syyu --noconfirm: {e}"
+                ));
                 all_succeeded = false;
                 failed_commands.push(format!("{helper} -Syyu --noconfirm"));
                 aur_succeeded = Some(false);
@@ -480,7 +486,9 @@ pub fn handle_update() -> ! {
         write_log("SUMMARY: All updates completed successfully");
     } else {
         println!("\n{}", i18n::t("app.cli.update.completed_with_errors"));
-        write_log(&format!("SUMMARY: Update failed. Failed commands: {failed_commands:?}"));
+        write_log(&format!(
+            "SUMMARY: Update failed. Failed commands: {failed_commands:?}"
+        ));
         if !failed_packages.is_empty() {
             println!("\n{}", i18n::t("app.cli.update.failed_packages"));
             for pkg in &failed_packages {

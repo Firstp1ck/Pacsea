@@ -443,8 +443,7 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
         })
         .count();
     assert_eq!(
-        all_conflicts_count,
-        3,
+        all_conflicts_count, 3,
         "Should have 3 total conflicts (2 from pacsea-bin, 1 from jujutsu-git)"
     );
 
@@ -487,8 +486,7 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
         })
         .count();
     assert_eq!(
-        conflicts_after_switch_count,
-        3,
+        conflicts_after_switch_count, 3,
         "Should still have 3 conflicts after tab switches"
     );
 
@@ -503,8 +501,7 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
         })
         .count();
     assert_eq!(
-        pacsea_conflicts_after_switch_count,
-        2,
+        pacsea_conflicts_after_switch_count, 2,
         "pacsea-bin should still have 2 conflicts after tab switches"
     );
 }
@@ -538,19 +535,19 @@ fn test_cached_conflicts_preserved_in_cache_merge() {
     // Step 1: Simulate pacsea-bin's conflict being cached (from first package addition)
     let mut app = crate_root::state::AppState {
         install_list_deps: vec![crate_root::state::modal::DependencyInfo {
-        name: "pacsea".to_string(),
-        version: String::new(),
-        status: DependencyStatus::Conflict {
-            reason: "conflicts with installed package pacsea".to_string(),
-        },
-        source: crate_root::state::modal::DependencySource::Official {
-            repo: "core".to_string(),
-        },
-        required_by: vec!["pacsea-bin".to_string()],
-        depends_on: Vec::new(),
-        is_core: false,
-        is_system: false,
-    }],
+            name: "pacsea".to_string(),
+            version: String::new(),
+            status: DependencyStatus::Conflict {
+                reason: "conflicts with installed package pacsea".to_string(),
+            },
+            source: crate_root::state::modal::DependencySource::Official {
+                repo: "core".to_string(),
+            },
+            required_by: vec!["pacsea-bin".to_string()],
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        }],
         ..Default::default()
     };
 

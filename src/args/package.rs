@@ -29,13 +29,11 @@ fn is_official_package_search(package_name: &str) -> bool {
             let output_str = String::from_utf8_lossy(&output.stdout);
             // Look for exact package name match (format: "repo/package_name" or "package_name")
             output_str.lines().any(|line| {
-                line.split_whitespace()
-                    .next()
-                    .is_some_and(|pkg_line| {
-                        // Handle format like "repo/package_name" or just "package_name"
-                        let pkg_part = pkg_line.split('/').next_back().unwrap_or(pkg_line);
-                        pkg_part == package_name
-                    })
+                line.split_whitespace().next().is_some_and(|pkg_line| {
+                    // Handle format like "repo/package_name" or just "package_name"
+                    let pkg_part = pkg_line.split('/').next_back().unwrap_or(pkg_line);
+                    pkg_part == package_name
+                })
             })
         }
         Err(_) => false,
@@ -96,13 +94,11 @@ fn is_aur_package_search(package_name: &str, helper: &str) -> bool {
             let output_str = String::from_utf8_lossy(&output.stdout);
             // Look for exact package name match (format: "aur/package_name" or "package_name")
             output_str.lines().any(|line| {
-                line.split_whitespace()
-                    .next()
-                    .is_some_and(|pkg_line| {
-                        // Handle format like "aur/package_name" or just "package_name"
-                        let pkg_part = pkg_line.split('/').next_back().unwrap_or(pkg_line);
-                        pkg_part == package_name
-                    })
+                line.split_whitespace().next().is_some_and(|pkg_line| {
+                    // Handle format like "aur/package_name" or just "package_name"
+                    let pkg_part = pkg_line.split('/').next_back().unwrap_or(pkg_line);
+                    pkg_part == package_name
+                })
             })
         }
         Err(_) => false,

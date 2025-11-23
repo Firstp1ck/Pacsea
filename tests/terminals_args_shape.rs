@@ -41,7 +41,10 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     let _ = std::fs::create_dir_all(&dir);
     let (_term_path, out_path) = write_fake("tilix", &dir);
     let orig_path = std::env::var_os("PATH");
-    let combined_path = std::env::var("PATH").map_or_else(|_| dir.display().to_string(), |p| format!("{}:{}", dir.display(), p));
+    let combined_path = std::env::var("PATH").map_or_else(
+        |_| dir.display().to_string(),
+        |p| format!("{}:{}", dir.display(), p),
+    );
     unsafe {
         std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
@@ -124,7 +127,10 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     let _ = std::fs::create_dir_all(&dir);
     let (_term_path, out_path) = write_fake("mate-terminal", &dir);
     let orig_path = std::env::var_os("PATH");
-    let combined_path = std::env::var("PATH").map_or_else(|_| dir.display().to_string(), |p| format!("{}:{}", dir.display(), p));
+    let combined_path = std::env::var("PATH").map_or_else(
+        |_| dir.display().to_string(),
+        |p| format!("{}:{}", dir.display(), p),
+    );
     unsafe {
         std::env::set_var("PATH", combined_path);
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
