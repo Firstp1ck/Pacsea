@@ -137,7 +137,7 @@ For a complete list of all CLI commands and options, see the [CLI Commands wiki 
 pacsea --help
 ```
 
-> **Note**: All CLI commands exit after completion and don't launch the TUI interface.
+> **Note**: All CLI commands exit after completion and don't launch the TUI interface. Except if explicitly mentioned.
 
 ## Configuration
 - Config lives in `~/.config/pacsea/` as three files:
