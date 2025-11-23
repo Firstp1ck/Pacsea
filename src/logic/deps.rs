@@ -258,14 +258,27 @@ fn merge_dependency(
     }
 
     // Merge status (keep worst)
-    let existing_priority = dependency_priority(&entry.status);
-    let new_priority = dependency_priority(&dep.status);
-    if new_priority < existing_priority {
-        entry.status = dep.status.clone();
+    // But never overwrite a Conflict status - conflicts take precedence
+    if !matches!(entry.status, DependencyStatus::Conflict { .. }) {
+        let existing_priority = dependency_priority(&entry.status);
+        let new_priority = dependency_priority(&dep.status);
+        if new_priority < existing_priority {
+            entry.status = dep.status.clone();
+        }
     }
 
     // Merge version requirements (keep more restrictive)
+    // But never overwrite a Conflict status - conflicts take precedence
     if !dep.version.is_empty() && dep.version != entry.version {
+        // If entry is already a conflict, don't overwrite it with dependency status
+        if matches!(entry.status, DependencyStatus::Conflict { .. }) {
+            // Still update version if needed, but keep conflict status
+            if entry.version.is_empty() {
+                entry.version.clone_from(&dep.version);
+            }
+            return;
+        }
+
         if entry.version.is_empty() {
             entry.version.clone_from(&dep.version);
         } else {

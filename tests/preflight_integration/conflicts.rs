@@ -743,3 +743,323 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         panic!("Expected Preflight modal");
     }
 }
+
+#[test]
+/// What: Verify that conflicts are not overwritten when new packages are added to install list sequentially.
+///
+/// Inputs:
+/// - pacsea-bin added first with conflicts (pacsea, pacsea-git)
+/// - jujutsu-git added second with conflicts (jujutsu)
+/// - Both packages may have overlapping dependencies
+///
+/// Output:
+/// - pacsea-bin's conflicts remain present after jujutsu-git is added
+/// - jujutsu-git's conflicts are also detected
+/// - No conflicts are overwritten by dependency merging
+///
+/// Details:
+/// - Tests the fix for conflict status preservation during dependency merging
+/// - Verifies that conflicts take precedence over dependency statuses
+/// - Ensures timing of package addition doesn't affect conflict detection
+fn preflight_conflicts_not_overwritten_when_packages_added_sequentially() {
+    unsafe {
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    }
+
+    let mut app = crate_root::state::AppState {
+        ..Default::default()
+    };
+
+    // Step 1: Add pacsea-bin first
+    let pacsea_bin = create_test_package(
+        "pacsea-bin",
+        "0.5.1",
+        crate_root::state::Source::Aur,
+    );
+
+    // Pre-populate cache with pacsea-bin's conflicts
+    // pacsea-bin conflicts with pacsea and pacsea-git
+    app.install_list_deps = vec![
+        // pacsea-bin's conflict with pacsea
+        crate_root::state::modal::DependencyInfo {
+            name: "pacsea".to_string(),
+            version: String::new(),
+            status: crate_root::state::modal::DependencyStatus::Conflict {
+                reason: "conflicts with installed package pacsea".to_string(),
+            },
+            source: crate_root::state::modal::DependencySource::Official {
+                repo: "core".to_string(),
+            },
+            required_by: vec!["pacsea-bin".to_string()],
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        },
+        // pacsea-bin's conflict with pacsea-git
+        crate_root::state::modal::DependencyInfo {
+            name: "pacsea-git".to_string(),
+            version: String::new(),
+            status: crate_root::state::modal::DependencyStatus::Conflict {
+                reason: "conflicts with installed package pacsea-git".to_string(),
+            },
+            source: crate_root::state::modal::DependencySource::Aur,
+            required_by: vec!["pacsea-bin".to_string()],
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        },
+        // pacsea-bin's regular dependency (to test that conflicts aren't overwritten by deps)
+        crate_root::state::modal::DependencyInfo {
+            name: "common-dep".to_string(),
+            version: "1.0.0".to_string(),
+            status: crate_root::state::modal::DependencyStatus::ToInstall,
+            source: crate_root::state::modal::DependencySource::Official {
+                repo: "core".to_string(),
+            },
+            required_by: vec!["pacsea-bin".to_string()],
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        },
+    ];
+
+    app.install_list = vec![pacsea_bin.clone()];
+    app.preflight_cancelled
+        .store(false, std::sync::atomic::Ordering::Relaxed);
+
+    app.modal = create_preflight_modal(
+        vec![pacsea_bin.clone()],
+        crate_root::state::PreflightAction::Install,
+        crate_root::state::PreflightTab::Deps,
+    );
+
+    // Verify pacsea-bin's conflicts are detected
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
+    let (_, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
+
+    let conflicts_after_first: Vec<_> = dependency_info
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.status,
+                crate_root::state::modal::DependencyStatus::Conflict { .. }
+            )
+        })
+        .collect();
+    assert_eq!(
+        conflicts_after_first.len(),
+        2,
+        "Should have 2 conflicts after adding pacsea-bin"
+    );
+    assert!(
+        conflicts_after_first
+            .iter()
+            .any(|c| c.name == "pacsea" && c.required_by.contains(&"pacsea-bin".to_string())),
+        "pacsea-bin should conflict with pacsea"
+    );
+    assert!(
+        conflicts_after_first
+            .iter()
+            .any(|c| c.name == "pacsea-git" && c.required_by.contains(&"pacsea-bin".to_string())),
+        "pacsea-bin should conflict with pacsea-git"
+    );
+
+    // Step 2: Add jujutsu-git (which might have dependencies that could overwrite conflicts)
+    let jujutsu_git = create_test_package(
+        "jujutsu-git",
+        "0.1.0",
+        crate_root::state::Source::Aur,
+    );
+
+    // Add jujutsu-git's conflicts and dependencies to cache
+    // jujutsu-git conflicts with jujutsu
+    // jujutsu-git might also depend on common-dep (to test conflict preservation)
+    app.install_list_deps.extend(vec![
+        // jujutsu-git's conflict with jujutsu
+        crate_root::state::modal::DependencyInfo {
+            name: "jujutsu".to_string(),
+            version: String::new(),
+            status: crate_root::state::modal::DependencyStatus::Conflict {
+                reason: "conflicts with installed package jujutsu".to_string(),
+            },
+            source: crate_root::state::modal::DependencySource::Official {
+                repo: "community".to_string(),
+            },
+            required_by: vec!["jujutsu-git".to_string()],
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        },
+        // jujutsu-git also depends on common-dep (same as pacsea-bin)
+        // This tests that pacsea-bin's conflict entries aren't overwritten
+        crate_root::state::modal::DependencyInfo {
+            name: "common-dep".to_string(),
+            version: "1.0.0".to_string(),
+            status: crate_root::state::modal::DependencyStatus::ToInstall,
+            source: crate_root::state::modal::DependencySource::Official {
+                repo: "core".to_string(),
+            },
+            required_by: vec!["jujutsu-git".to_string()],
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        },
+        // jujutsu-git's unique dependency
+        crate_root::state::modal::DependencyInfo {
+            name: "jujutsu-dep".to_string(),
+            version: "2.0.0".to_string(),
+            status: crate_root::state::modal::DependencyStatus::ToInstall,
+            source: crate_root::state::modal::DependencySource::Official {
+                repo: "extra".to_string(),
+            },
+            required_by: vec!["jujutsu-git".to_string()],
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        },
+    ]);
+
+    // Update install list to include both packages
+    app.install_list = vec![pacsea_bin.clone(), jujutsu_git.clone()];
+
+    // Update modal to include both packages
+    app.modal = create_preflight_modal(
+        vec![pacsea_bin.clone(), jujutsu_git.clone()],
+        crate_root::state::PreflightAction::Install,
+        crate_root::state::PreflightTab::Deps,
+    );
+
+    // Step 3: Verify conflicts are still present after adding jujutsu-git
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
+    let (items, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
+
+    assert_eq!(
+        items.len(),
+        2,
+        "Should have 2 packages in install list"
+    );
+
+    // Verify pacsea-bin's conflicts are still present (not overwritten)
+    let pacsea_conflicts: Vec<_> = dependency_info
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.status,
+                crate_root::state::modal::DependencyStatus::Conflict { .. }
+            ) && d.required_by.contains(&"pacsea-bin".to_string())
+        })
+        .collect();
+    assert_eq!(
+        pacsea_conflicts.len(),
+        2,
+        "pacsea-bin should still have 2 conflicts after adding jujutsu-git"
+    );
+    assert!(
+        pacsea_conflicts
+            .iter()
+            .any(|c| c.name == "pacsea"),
+        "pacsea-bin should still conflict with pacsea"
+    );
+    assert!(
+        pacsea_conflicts
+            .iter()
+            .any(|c| c.name == "pacsea-git"),
+        "pacsea-bin should still conflict with pacsea-git"
+    );
+
+    // Verify jujutsu-git's conflicts are also detected
+    let jujutsu_conflicts: Vec<_> = dependency_info
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.status,
+                crate_root::state::modal::DependencyStatus::Conflict { .. }
+            ) && d.required_by.contains(&"jujutsu-git".to_string())
+        })
+        .collect();
+    assert_eq!(
+        jujutsu_conflicts.len(),
+        1,
+        "jujutsu-git should have 1 conflict"
+    );
+    assert!(
+        jujutsu_conflicts
+            .iter()
+            .any(|c| c.name == "jujutsu"),
+        "jujutsu-git should conflict with jujutsu"
+    );
+
+    // Verify total conflicts count
+    let all_conflicts: Vec<_> = dependency_info
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.status,
+                crate_root::state::modal::DependencyStatus::Conflict { .. }
+            )
+        })
+        .collect();
+    assert_eq!(
+        all_conflicts.len(),
+        3,
+        "Should have 3 total conflicts (2 from pacsea-bin, 1 from jujutsu-git)"
+    );
+
+    // Verify that common-dep is not a conflict (it's a regular dependency)
+    let common_dep = dependency_info
+        .iter()
+        .find(|d| d.name == "common-dep")
+        .expect("common-dep should be present");
+    assert!(
+        matches!(
+            common_dep.status,
+            crate_root::state::modal::DependencyStatus::ToInstall
+        ),
+        "common-dep should be ToInstall, not Conflict"
+    );
+    assert!(
+        common_dep.required_by.contains(&"pacsea-bin".to_string()),
+        "common-dep should be required by pacsea-bin"
+    );
+    assert!(
+        common_dep.required_by.contains(&"jujutsu-git".to_string()),
+        "common-dep should be required by jujutsu-git"
+    );
+
+    // Step 4: Verify conflicts persist through multiple tab switches
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Summary);
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
+
+    let (_, _, _, dependency_info_after_switch, _, _, _, _, _) = assert_preflight_modal(&app);
+
+    let conflicts_after_switch: Vec<_> = dependency_info_after_switch
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.status,
+                crate_root::state::modal::DependencyStatus::Conflict { .. }
+            )
+        })
+        .collect();
+    assert_eq!(
+        conflicts_after_switch.len(),
+        3,
+        "Should still have 3 conflicts after tab switches"
+    );
+
+    // Verify pacsea-bin's conflicts are still intact
+    let pacsea_conflicts_after_switch: Vec<_> = dependency_info_after_switch
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.status,
+                crate_root::state::modal::DependencyStatus::Conflict { .. }
+            ) && d.required_by.contains(&"pacsea-bin".to_string())
+        })
+        .collect();
+    assert_eq!(
+        pacsea_conflicts_after_switch.len(),
+        2,
+        "pacsea-bin should still have 2 conflicts after tab switches"
+    );
+}

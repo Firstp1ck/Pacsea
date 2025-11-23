@@ -48,11 +48,35 @@ pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> 
 /// Details:
 /// - Reads the JSON, deserializes it, sorts both signatures, and compares them before
 ///   returning the cached sandbox data.
+/// - Uses partial matching to load entries for packages that exist in both cache and current list.
 pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<SandboxInfo>> {
+    load_cache_partial(path, current_signature, false)
+}
+
+/// What: Load cached sandbox data with partial matching support.
+///
+/// Inputs:
+/// - `path`: Filesystem location of the serialized `SandboxCache` JSON.
+/// - `current_signature`: Signature derived from the current install list for validation.
+/// - `exact_match_only`: If true, only match when signatures are identical. If false, allow partial matching.
+///
+/// Output:
+/// - `Some(Vec<SandboxInfo>)` when the cache exists and matches (exact or partial);
+///   `None` otherwise.
+///
+/// Details:
+/// - If `exact_match_only` is false, loads entries for packages that exist in both
+///   the cached signature and the current signature (intersection matching).
+/// - This allows preserving sandbox data when packages are added to the install list.
+pub fn load_cache_partial(
+    path: &PathBuf,
+    current_signature: &[String],
+    exact_match_only: bool,
+) -> Option<Vec<SandboxInfo>> {
     if let Ok(s) = fs::read_to_string(path)
         && let Ok(cache) = serde_json::from_str::<SandboxCache>(&s)
     {
-        // Check if signature matches
+        // Check if signature matches exactly
         let mut cached_sig = cache.install_list_signature.clone();
         cached_sig.sort();
         let mut current_sig = current_signature.to_vec();
@@ -62,10 +86,44 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<Sa
             tracing::info!(
                 path = %path.display(),
                 count = cache.sandbox_info.len(),
-                "loaded sandbox cache"
+                "loaded sandbox cache (exact match)"
             );
             return Some(cache.sandbox_info);
+        } else if !exact_match_only {
+            // Partial matching: load entries for packages that exist in both signatures
+            let cached_set: std::collections::HashSet<&String> = cached_sig.iter().collect();
+            let current_set: std::collections::HashSet<&String> = current_sig.iter().collect();
+
+            // Find intersection: packages that exist in both cache and current list
+            let intersection: std::collections::HashSet<&String> =
+                cached_set.intersection(&current_set).copied().collect();
+
+            if !intersection.is_empty() {
+                // Filter cached results to match packages in intersection
+                let intersection_names: std::collections::HashSet<&str> =
+                    intersection.iter().map(|s| s.as_str()).collect();
+                let filtered: Vec<SandboxInfo> = cache
+                    .sandbox_info
+                    .iter()
+                    .filter(|sandbox_info| {
+                        intersection_names.contains(sandbox_info.package_name.as_str())
+                    })
+                    .cloned()
+                    .collect();
+
+                if !filtered.is_empty() {
+                    tracing::info!(
+                        path = %path.display(),
+                        cached_count = cache.sandbox_info.len(),
+                        filtered_count = filtered.len(),
+                        intersection_packages = ?intersection.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                        "loaded sandbox cache (partial match)"
+                    );
+                    return Some(filtered);
+                }
+            }
         }
+
         tracing::debug!(
             path = %path.display(),
             "sandbox cache signature mismatch, ignoring"
@@ -198,6 +256,62 @@ mod tests {
         assert_eq!(reloaded.len(), sandbox_info.len());
         assert_eq!(reloaded[0].package_name, sandbox_info[0].package_name);
         assert_eq!(reloaded[0].depends.len(), sandbox_info[0].depends.len());
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    /// What: Verify partial cache loading preserves entries when new packages are added.
+    /// Inputs:
+    /// - Cache saved for `["jujutsu-git"]` but reloaded with signature `["jujutsu-git", "pacsea-bin"]`.
+    ///
+    /// Output:
+    /// - Returns `Some(Vec<SandboxInfo>)` containing only `jujutsu-git` entry (partial match).
+    fn load_cache_partial_match() {
+        let path = temp_path("partial");
+        let jujutsu_sandbox = SandboxInfo {
+            package_name: "jujutsu-git".into(),
+            depends: vec![DependencyDelta {
+                name: "python".into(),
+                is_installed: true,
+                installed_version: Some("3.11.0".into()),
+                version_satisfied: true,
+            }],
+            makedepends: vec![],
+            checkdepends: vec![],
+            optdepends: vec![],
+        };
+        let signature = vec!["jujutsu-git".into()];
+        save_cache(&path, &signature, std::slice::from_ref(&jujutsu_sandbox));
+
+        // Try to load with expanded signature (new package added)
+        let expanded_signature = vec!["jujutsu-git".into(), "pacsea-bin".into()];
+        let reloaded =
+            load_cache(&path, &expanded_signature).expect("expected partial cache to load");
+
+        assert_eq!(reloaded.len(), 1);
+        assert_eq!(reloaded[0].package_name, "jujutsu-git");
+        assert_eq!(reloaded[0].depends.len(), 1);
+        assert_eq!(reloaded[0].depends[0].name, "python");
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    /// What: Verify partial cache loading returns None when no packages overlap.
+    /// Inputs:
+    /// - Cache saved for `["jujutsu-git"]` but reloaded with signature `["pacsea-bin"]`.
+    ///
+    /// Output:
+    /// - Returns `None` (no overlap).
+    fn load_cache_partial_no_overlap() {
+        let path = temp_path("no_overlap");
+        let jujutsu_sandbox = sample_sandbox_info();
+        let signature = vec!["jujutsu-git".into()];
+        save_cache(&path, &signature, &jujutsu_sandbox);
+
+        let different_signature = vec!["pacsea-bin".into()];
+        assert!(load_cache(&path, &different_signature).is_none());
 
         let _ = fs::remove_file(&path);
     }

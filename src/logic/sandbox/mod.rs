@@ -9,7 +9,7 @@ mod types;
 mod tests;
 
 pub use analyze::extract_package_name;
-pub use parse::parse_pkgbuild_deps;
+pub use parse::{parse_pkgbuild_conflicts, parse_pkgbuild_deps};
 pub use types::{DependencyDelta, SandboxInfo};
 
 use crate::logic::sandbox::analyze::{

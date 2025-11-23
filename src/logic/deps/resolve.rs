@@ -5,7 +5,7 @@ use super::source::{determine_dependency_source, is_system_package};
 use super::srcinfo::{fetch_srcinfo, parse_srcinfo_conflicts, parse_srcinfo_deps};
 use super::status::determine_status;
 use crate::logic::files::get_pkgbuild_from_cache;
-use crate::logic::sandbox::parse_pkgbuild_deps;
+use crate::logic::sandbox::{parse_pkgbuild_conflicts, parse_pkgbuild_deps};
 use crate::state::modal::DependencyInfo;
 use crate::state::types::Source;
 use std::collections::{HashMap, HashSet};
@@ -693,7 +693,24 @@ pub(super) fn fetch_package_conflicts(name: &str, source: &Source) -> Vec<String
             // Fall back to .SRCINFO
             if let Ok(srcinfo_text) = fetch_srcinfo(name, Some(10)) {
                 tracing::debug!("Using .SRCINFO for conflicts of {}", name);
-                return parse_srcinfo_conflicts(&srcinfo_text);
+                let conflicts = parse_srcinfo_conflicts(&srcinfo_text);
+                if !conflicts.is_empty() {
+                    return conflicts;
+                }
+            }
+
+            // Fall back to cached PKGBUILD if .SRCINFO didn't have conflicts or wasn't available
+            if let Some(pkgbuild_text) = get_pkgbuild_from_cache(name) {
+                tracing::debug!("Using cached PKGBUILD for conflicts of {}", name);
+                let conflicts = parse_pkgbuild_conflicts(&pkgbuild_text);
+                if !conflicts.is_empty() {
+                    tracing::info!(
+                        "Found {} conflicts from PKGBUILD for {}",
+                        conflicts.len(),
+                        name
+                    );
+                    return conflicts;
+                }
             }
 
             Vec::new()
