@@ -132,6 +132,36 @@ pub fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
 
 use crate::state::Source;
 
+/// Rank how well a package name matches a query using fuzzy matching (fzf-style) with a provided matcher.
+///
+/// Inputs:
+/// - `name`: Package name to match against
+/// - `query`: Query string to match
+/// - `matcher`: Reference to a `SkimMatcherV2` instance to reuse across multiple calls
+///
+/// Output:
+/// - `Some(score)` if the query matches the name (higher score = better match), `None` if no match
+///
+/// Details:
+/// - Uses the provided `fuzzy_matcher::skim::SkimMatcherV2` for fzf-style fuzzy matching
+/// - Returns scores where higher values indicate better matches
+/// - Returns `None` when the query doesn't match at all
+/// - This function is optimized for cases where the matcher can be reused across multiple calls
+#[must_use]
+pub fn fuzzy_match_rank_with_matcher(
+    name: &str,
+    query: &str,
+    matcher: &fuzzy_matcher::skim::SkimMatcherV2,
+) -> Option<i64> {
+    use fuzzy_matcher::FuzzyMatcher;
+
+    if query.trim().is_empty() {
+        return None;
+    }
+
+    matcher.fuzzy_match(name, query)
+}
+
 /// Rank how well a package name matches a query using fuzzy matching (fzf-style).
 ///
 /// Inputs:
@@ -145,17 +175,14 @@ use crate::state::Source;
 /// - Uses `fuzzy_matcher::skim::SkimMatcherV2` for fzf-style fuzzy matching
 /// - Returns scores where higher values indicate better matches
 /// - Returns `None` when the query doesn't match at all
+/// - For performance-critical code that calls this function multiple times with the same query,
+///   consider using `fuzzy_match_rank_with_matcher` instead to reuse the matcher instance
 #[must_use]
 pub fn fuzzy_match_rank(name: &str, query: &str) -> Option<i64> {
-    use fuzzy_matcher::FuzzyMatcher;
     use fuzzy_matcher::skim::SkimMatcherV2;
 
-    if query.trim().is_empty() {
-        return None;
-    }
-
     let matcher = SkimMatcherV2::default();
-    matcher.fuzzy_match(name, query)
+    fuzzy_match_rank_with_matcher(name, query, &matcher)
 }
 
 /// Determine ordering weight for a package source.

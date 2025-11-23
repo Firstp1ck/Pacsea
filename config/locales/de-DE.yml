@@ -373,7 +373,7 @@ de-DE:
           clear: "  Leeren"
           clear_input: "  Eingabe leeren"
           toggle_fuzzy: "  Fuzzy-Suche umschalten"
-          toggle_normal: "  Normal Suche umschalten"
+          toggle_normal: "  Normale Suche umschalten"
           insert_mode: "  Einfügemodus"
           select_left: "  Links auswählen"
           select_right: "  Rechts auswählen"

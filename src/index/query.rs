@@ -24,9 +24,17 @@ pub fn search_official(query: &str, fuzzy: bool) -> Vec<(PackageItem, Option<i64
     }
     let mut items = Vec::new();
     if let Ok(g) = idx().read() {
+        // Create matcher once per search query for better performance
+        let fuzzy_matcher = if fuzzy {
+            Some(fuzzy_matcher::skim::SkimMatcherV2::default())
+        } else {
+            None
+        };
         for p in &g.pkgs {
-            let matched = if fuzzy {
-                crate::util::fuzzy_match_rank(&p.name, ql)
+            let match_score = if fuzzy {
+                fuzzy_matcher
+                    .as_ref()
+                    .and_then(|m| crate::util::fuzzy_match_rank_with_matcher(&p.name, ql, m))
             } else {
                 let nl = p.name.to_lowercase();
                 let ql_lower = ql.to_lowercase();
@@ -36,7 +44,7 @@ pub fn search_official(query: &str, fuzzy: bool) -> Vec<(PackageItem, Option<i64
                     None
                 }
             };
-            if let Some(score) = matched {
+            if let Some(score) = match_score {
                 items.push((
                     PackageItem {
                         name: p.name.clone(),

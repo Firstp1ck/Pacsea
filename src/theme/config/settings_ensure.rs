@@ -250,8 +250,10 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     // Ensure keybinds file exists with skeleton if missing (best-effort)
     // Try to use the same path resolution as reading, but fall back to config_dir if file doesn't exist yet
-    let kb = resolve_keybinds_config_path()
-        .map_or_else(|| config_dir().join("keybinds.conf"), |existing_path| existing_path);
+    let kb = resolve_keybinds_config_path().map_or_else(
+        || config_dir().join("keybinds.conf"),
+        |existing_path| existing_path,
+    );
     if kb.exists() {
         // Append missing keybinds to existing file
         ensure_keybinds_present(&kb);
@@ -306,7 +308,7 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
     for line in skeleton_lines {
         let trimmed = line.trim();
         if trimmed.is_empty() {
-            // Keep section header across empty lines, but clear descriptive comment
+            // Clear descriptive comment on empty lines (section header persists until next keybind)
             current_comment = None;
             continue;
         }
@@ -348,7 +350,9 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
                 };
                 missing_keybinds.push((trimmed.to_string(), combined_comment));
             }
-            // Clear comments after processing keybind (whether it exists or not)
+            // Clear both descriptive comment and section header after processing keybind
+            // (whether the keybind exists or not). Only the first missing keybind in a section
+            // will include the section header in its comment.
             current_comment = None;
             current_section_header = None;
         }

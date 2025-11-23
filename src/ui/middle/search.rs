@@ -109,15 +109,16 @@ fn build_input_spans<'a>(
 /// - `th`: Theme
 ///
 /// Output:
-/// - Title line with mode indicator
+/// - Tuple containing: title line with mode indicator, base title length, and mode text
 ///
 /// Details:
 /// - Returns base title length for rectangle calculation
+/// - Returns mode text to avoid duplicate i18n lookups
 fn build_title_line<'a>(
     app: &AppState,
     search_focused: bool,
     th: &'a crate::theme::Theme,
-) -> (Line<'a>, usize) {
+) -> (Line<'a>, usize, String) {
     let search_title_base = if search_focused {
         i18n::t(app, "app.titles.search_focused")
     } else {
@@ -153,7 +154,7 @@ fn build_title_line<'a>(
         format!(" [{mode_text}]"),
         Style::default().fg(mode_color),
     ));
-    (Line::from(title_spans), base_title_len)
+    (Line::from(title_spans), base_title_len, mode_text)
 }
 
 /// What: Calculate and store fuzzy indicator rectangle.
@@ -218,12 +219,7 @@ pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
     let input_line = Line::from(input_spans);
 
     // Build title with fuzzy/normal indicator
-    let (search_title, base_title_len) = build_title_line(app, search_focused, &th);
-    let mode_text = if app.fuzzy_search_enabled {
-        i18n::t(app, "app.search_mode_fuzzy")
-    } else {
-        i18n::t(app, "app.search_mode_normal")
-    };
+    let (search_title, base_title_len, mode_text) = build_title_line(app, search_focused, &th);
     let input = Paragraph::new(input_line)
         .style(
             Style::default()

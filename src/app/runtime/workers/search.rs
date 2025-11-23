@@ -94,10 +94,12 @@ pub fn spawn_search_worker(
                 if fuzzy_mode {
                     // In fuzzy mode, filter AUR items by fuzzy match and keep scores
                     // AUR API returns substring matches, but we re-filter with fuzzy matching
+                    // Create matcher once per search query for better performance
+                    let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
                     let aur_scored: Vec<(crate::state::PackageItem, Option<i64>)> = aur_items
                         .into_iter()
                         .filter_map(|item| {
-                            crate::util::fuzzy_match_rank(&item.name, &qtext)
+                            crate::util::fuzzy_match_rank_with_matcher(&item.name, &qtext, &matcher)
                                 .map(|score| (item, Some(score)))
                         })
                         .collect();
