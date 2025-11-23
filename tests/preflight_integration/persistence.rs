@@ -1,14 +1,12 @@
 //! //! Tests for persistence across tabs.
 
 use pacsea as crate_root;
-use super::helpers::*;
-
 
 #[test]
 /// What: Verify that service restart decisions persist when switching tabs.
 ///
 /// Inputs:
-/// - Packages in install_list with services
+/// - Packages in `install_list` with services
 /// - Preflight modal opened with services loaded
 /// - User changes service restart decisions in Services tab
 /// - User switches to other tabs and back
@@ -16,20 +14,19 @@ use super::helpers::*;
 /// Output:
 /// - Service restart decisions remain unchanged when switching tabs
 /// - Modified decisions persist across tab switches
-/// - All services maintain their restart_decision values
+/// - All services maintain their `restart_decision` values
 ///
 /// Details:
 /// - Tests that user choices for service restart decisions are preserved
 /// - Verifies modal state correctly maintains service decisions
 /// - Ensures no data loss when switching tabs
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_persists_service_restart_decisions_across_tabs() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![
         crate_root::state::PackageItem {
@@ -200,7 +197,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-1.service")
-                .unwrap()
+                .expect("service-1.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Defer,
             "service-1 should be Defer after toggle"
@@ -209,7 +206,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-2.service")
-                .unwrap()
+                .expect("service-2.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Restart,
             "service-2 should be Restart after toggle"
@@ -218,7 +215,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-3.service")
-                .unwrap()
+                .expect("service-3.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Restart,
             "service-3 should remain Restart"
@@ -266,7 +263,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-1.service")
-                .unwrap()
+                .expect("service-1.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Defer,
             "service-1 should still be Defer after switching to Deps"
@@ -275,7 +272,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-2.service")
-                .unwrap()
+                .expect("service-2.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Restart,
             "service-2 should still be Restart after switching to Deps"
@@ -316,7 +313,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-1.service")
-                .unwrap()
+                .expect("service-1.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Defer,
             "service-1 should still be Defer after switching to Files"
@@ -325,7 +322,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-2.service")
-                .unwrap()
+                .expect("service-2.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Restart,
             "service-2 should still be Restart after switching to Files"
@@ -393,7 +390,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-1.service")
-                .unwrap()
+                .expect("service-1.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Defer,
             "service-1 should still be Defer after switching back to Services"
@@ -402,7 +399,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-2.service")
-                .unwrap()
+                .expect("service-2.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Restart,
             "service-2 should still be Restart after switching back to Services"
@@ -411,7 +408,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
             service_info
                 .iter()
                 .find(|s| s.unit_name == "service-3.service")
-                .unwrap()
+                .expect("service-3.service should be found in service_info")
                 .restart_decision,
             crate_root::state::modal::ServiceRestartDecision::Restart,
             "service-3 should still be Restart after switching back to Services"
@@ -423,7 +420,7 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
     // Final verification: All decisions are preserved
     if let crate_root::state::Modal::Preflight { service_info, .. } = &app.modal {
         // Verify all services maintain their decisions
-        for service in service_info.iter() {
+        for service in service_info {
             match service.unit_name.as_str() {
                 "service-1.service" => {
                     assert_eq!(
@@ -458,28 +455,27 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
 /// What: Verify that optional dependencies selection persists when switching tabs.
 ///
 /// Inputs:
-/// - AUR packages in install_list with optional dependencies
+/// - AUR packages in `install_list` with optional dependencies
 /// - Preflight modal opened with sandbox info loaded
 /// - User selects optional dependencies in Sandbox tab
 /// - User switches to other tabs and back
 ///
 /// Output:
 /// - Optional dependency selections persist when switching tabs
-/// - `selected_optdepends` HashMap maintains correct structure
+/// - `selected_optdepends` `HashMap` maintains correct structure
 /// - Selections remain unchanged when switching back to Sandbox tab
 ///
 /// Details:
 /// - Tests that user selections for optional dependencies are preserved
 /// - Verifies modal state correctly maintains optdepends selections
 /// - Ensures no data loss when switching tabs
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_persists_optional_dependencies_selection() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![
         crate_root::state::PackageItem {
@@ -671,7 +667,9 @@ fn preflight_persists_optional_dependencies_selection() {
             "Should have selections for test-aur-pkg-2"
         );
 
-        let pkg1_selections = selected_optdepends.get("test-aur-pkg-1").unwrap();
+        let pkg1_selections = selected_optdepends
+            .get("test-aur-pkg-1")
+            .expect("test-aur-pkg-1 should be in selected_optdepends");
         assert_eq!(
             pkg1_selections.len(),
             2,
@@ -686,7 +684,9 @@ fn preflight_persists_optional_dependencies_selection() {
             "Should have optdep-2 selected"
         );
 
-        let pkg2_selections = selected_optdepends.get("test-aur-pkg-2").unwrap();
+        let pkg2_selections = selected_optdepends
+            .get("test-aur-pkg-2")
+            .expect("test-aur-pkg-2 should be in selected_optdepends");
         assert_eq!(
             pkg2_selections.len(),
             1,
@@ -744,13 +744,17 @@ fn preflight_persists_optional_dependencies_selection() {
             2,
             "Should still have selections for 2 packages after switching to Deps"
         );
-        let pkg1_selections = selected_optdepends.get("test-aur-pkg-1").unwrap();
+        let pkg1_selections = selected_optdepends
+            .get("test-aur-pkg-1")
+            .expect("test-aur-pkg-1 should be in selected_optdepends");
         assert_eq!(
             pkg1_selections.len(),
             2,
             "test-aur-pkg-1 should still have 2 selections"
         );
-        let pkg2_selections = selected_optdepends.get("test-aur-pkg-2").unwrap();
+        let pkg2_selections = selected_optdepends
+            .get("test-aur-pkg-2")
+            .expect("test-aur-pkg-2 should be in selected_optdepends");
         assert_eq!(
             pkg2_selections.len(),
             1,
@@ -797,7 +801,9 @@ fn preflight_persists_optional_dependencies_selection() {
             2,
             "Should still have selections for 2 packages after switching to Files"
         );
-        let pkg1_selections = selected_optdepends.get("test-aur-pkg-1").unwrap();
+        let pkg1_selections = selected_optdepends
+            .get("test-aur-pkg-1")
+            .expect("test-aur-pkg-1 should be in selected_optdepends");
         assert!(
             pkg1_selections.contains("optdep-1>=1.0.0"),
             "optdep-1>=1.0.0 should still be selected"
@@ -903,7 +909,9 @@ fn preflight_persists_optional_dependencies_selection() {
             "Should still have selections for 2 packages after switching back to Sandbox"
         );
 
-        let pkg1_selections = selected_optdepends.get("test-aur-pkg-1").unwrap();
+        let pkg1_selections = selected_optdepends
+            .get("test-aur-pkg-1")
+            .expect("test-aur-pkg-1 should be in selected_optdepends");
         assert_eq!(
             pkg1_selections.len(),
             2,
@@ -922,7 +930,9 @@ fn preflight_persists_optional_dependencies_selection() {
             "optdep-3 should NOT be selected"
         );
 
-        let pkg2_selections = selected_optdepends.get("test-aur-pkg-2").unwrap();
+        let pkg2_selections = selected_optdepends
+            .get("test-aur-pkg-2")
+            .expect("test-aur-pkg-2 should be in selected_optdepends");
         assert_eq!(
             pkg2_selections.len(),
             1,
@@ -943,16 +953,14 @@ fn preflight_persists_optional_dependencies_selection() {
     } = &app.modal
     {
         // Verify structure: package_name -> HashSet of optdep names
-        for (pkg_name, optdeps) in selected_optdepends.iter() {
+        for (pkg_name, optdeps) in selected_optdepends {
             assert!(
                 !optdeps.is_empty(),
-                "Package {} should have at least one selected optdep",
-                pkg_name
+                "Package {pkg_name} should have at least one selected optdep"
             );
             assert!(
                 test_packages.iter().any(|p| p.name == *pkg_name),
-                "Package {} should be in test packages",
-                pkg_name
+                "Package {pkg_name} should be in test packages"
             );
 
             // Verify each selected optdep exists in sandbox info
@@ -960,16 +968,16 @@ fn preflight_persists_optional_dependencies_selection() {
                 .install_list_sandbox
                 .iter()
                 .find(|s| s.package_name == *pkg_name)
-                .unwrap();
-            for optdep in optdeps.iter() {
+                .expect("package should be found in install_list_sandbox");
+            for optdep in optdeps {
                 // Extract package name from dependency spec (may include version or description)
                 let optdep_pkg_name = optdep
                     .split(':')
                     .next()
-                    .unwrap()
+                    .expect("optdep should have at least one part before ':'")
                     .split('>')
                     .next()
-                    .unwrap()
+                    .expect("optdep should have at least one part before '>'")
                     .trim();
                 assert!(
                     sandbox.optdepends.iter().any(|d| {
@@ -979,16 +987,18 @@ fn preflight_persists_optional_dependencies_selection() {
                                 d.name
                                     .split(':')
                                     .next()
-                                    .unwrap()
+                                    .expect(
+                                        "dependency name should have at least one part before ':'",
+                                    )
                                     .split('>')
                                     .next()
-                                    .unwrap()
+                                    .expect(
+                                        "dependency name should have at least one part before '>'",
+                                    )
                                     .trim(),
                             )
                     }),
-                    "Selected optdep {} should exist in sandbox info for {}",
-                    optdep,
-                    pkg_name
+                    "Selected optdep {optdep} should exist in sandbox info for {pkg_name}"
                 );
             }
         }

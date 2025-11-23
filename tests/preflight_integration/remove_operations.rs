@@ -1,14 +1,12 @@
 //! //! Tests for remove operations.
 
 use pacsea as crate_root;
-use super::helpers::*;
-
 
 #[test]
 /// What: Verify that preflight modal handles remove action correctly with reverse dependencies.
 ///
 /// Inputs:
-/// - Packages in remove_list
+/// - Packages in `remove_list`
 /// - Preflight modal opened with Remove action
 /// - Reverse dependencies resolved
 ///
@@ -21,14 +19,13 @@ use super::helpers::*;
 /// - Tests preflight modal for remove operations
 /// - Verifies reverse dependency resolution works
 /// - Ensures remove-specific logic is handled correctly
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_remove_action_with_reverse_dependencies() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![crate_root::state::PackageItem {
         name: "test-package-1".to_string(),
@@ -140,7 +137,7 @@ fn preflight_remove_action_with_reverse_dependencies() {
         if matches!(*action, crate_root::state::PreflightAction::Remove) {
             // In real code, this would call resolve_reverse_dependencies
             // For test, we'll use the pre-populated reverse_deps
-            *dependency_info = reverse_deps.clone();
+            *dependency_info = reverse_deps;
             *dep_selected = 0;
         }
     }
@@ -177,7 +174,7 @@ fn preflight_remove_action_with_reverse_dependencies() {
         let dep1 = dependency_info
             .iter()
             .find(|d| d.name == "dependent-package-1")
-            .unwrap();
+            .expect("dependent-package-1 should be found in dependency_info");
         assert_eq!(dep1.version, "2.0.0");
         assert!(dep1.depends_on.contains(&"test-package-1".to_string()));
         assert!(dep1.required_by.contains(&"test-package-1".to_string()));
@@ -185,7 +182,7 @@ fn preflight_remove_action_with_reverse_dependencies() {
         let dep2 = dependency_info
             .iter()
             .find(|d| d.name == "dependent-package-2")
-            .unwrap();
+            .expect("dependent-package-2 should be found in dependency_info");
         assert_eq!(dep2.version, "3.0.0");
         assert!(dep2.depends_on.contains(&"test-package-1".to_string()));
         assert!(dep2.required_by.contains(&"test-package-1".to_string()));
@@ -256,7 +253,7 @@ fn preflight_remove_action_with_reverse_dependencies() {
             "Reverse dependencies should be present"
         );
         // All dependencies should depend on the package being removed
-        for dep in dependency_info.iter() {
+        for dep in dependency_info {
             assert!(
                 dep.depends_on.contains(&"test-package-1".to_string()),
                 "All reverse dependencies should depend on test-package-1"

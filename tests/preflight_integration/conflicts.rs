@@ -1,14 +1,13 @@
 //! //! Tests for conflict resolution.
 
-use pacsea as crate_root;
 use super::helpers::*;
-
+use pacsea as crate_root;
 
 #[test]
 /// What: Verify that all tabs (Deps, Files, Services, Sandbox) load and display correctly when conflicts are present.
 ///
 /// Inputs:
-/// - Packages in install_list with dependency conflicts
+/// - Packages in `install_list` with dependency conflicts
 /// - All tabs have cached data (deps, files, services, sandbox)
 /// - Conflicts are detected in dependencies
 ///
@@ -23,14 +22,13 @@ use super::helpers::*;
 /// - Tests that conflicts in dependencies don't affect other tabs
 /// - Verifies cache loading works correctly for all tabs when conflicts exist
 /// - Ensures data integrity across all tabs when conflicts are present
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_all_tabs_load_correctly_when_conflicts_present() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![
         crate_root::state::PackageItem {
@@ -364,16 +362,19 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         assert!(conflicts[0].required_by.contains(&"package-2".to_string()));
 
         // Verify non-conflicting dependencies are present
-        let to_install: Vec<_> = dependency_info
-            .iter()
-            .filter(|d| {
-                matches!(
-                    d.status,
-                    crate_root::state::modal::DependencyStatus::ToInstall
-                )
-            })
-            .collect();
-        assert_eq!(to_install.len(), 4, "Should have 4 ToInstall dependencies");
+        assert_eq!(
+            dependency_info
+                .iter()
+                .filter(|d| {
+                    matches!(
+                        d.status,
+                        crate_root::state::modal::DependencyStatus::ToInstall
+                    )
+                })
+                .count(),
+            4,
+            "Should have 4 ToInstall dependencies"
+        );
 
         // Verify package-1's dependencies
         let pkg1_deps: Vec<_> = dependency_info
@@ -440,7 +441,10 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         assert_eq!(file_info.len(), 3, "Should have 3 file entries");
 
         // Verify package-1 files are correct
-        let pkg1_files = file_info.iter().find(|f| f.name == "package-1").unwrap();
+        let pkg1_files = file_info
+            .iter()
+            .find(|f| f.name == "package-1")
+            .expect("package-1 should be found in file_info");
         assert_eq!(pkg1_files.files.len(), 2, "Package-1 should have 2 files");
         assert_eq!(pkg1_files.total_count, 2);
         assert_eq!(pkg1_files.new_count, 2);
@@ -450,7 +454,10 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         assert_eq!(pkg1_files.pacsave_candidates, 0);
 
         // Verify package-2 files are correct
-        let pkg2_files = file_info.iter().find(|f| f.name == "package-2").unwrap();
+        let pkg2_files = file_info
+            .iter()
+            .find(|f| f.name == "package-2")
+            .expect("package-2 should be found in file_info");
         assert_eq!(pkg2_files.files.len(), 2, "Package-2 should have 2 files");
         assert_eq!(pkg2_files.total_count, 2);
         assert_eq!(pkg2_files.new_count, 1);
@@ -460,7 +467,10 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         assert_eq!(pkg2_files.pacsave_candidates, 1);
 
         // Verify AUR package files are correct
-        let aur_files = file_info.iter().find(|f| f.name == "aur-package").unwrap();
+        let aur_files = file_info
+            .iter()
+            .find(|f| f.name == "aur-package")
+            .expect("aur-package should be found in file_info");
         assert_eq!(aur_files.files.len(), 1, "AUR package should have 1 file");
         assert_eq!(aur_files.total_count, 1);
         assert_eq!(aur_files.new_count, 1);
@@ -522,7 +532,7 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         let pkg1_svc = service_info
             .iter()
             .find(|s| s.unit_name == "pkg1.service")
-            .unwrap();
+            .expect("pkg1.service should be found in service_info");
         assert!(pkg1_svc.is_active);
         assert!(pkg1_svc.needs_restart);
         assert_eq!(
@@ -535,7 +545,7 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         let pkg2_svc = service_info
             .iter()
             .find(|s| s.unit_name == "pkg2.service")
-            .unwrap();
+            .expect("pkg2.service should be found in service_info");
         assert!(!pkg2_svc.is_active);
         assert!(!pkg2_svc.needs_restart);
         assert_eq!(
@@ -548,7 +558,7 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         let aur_svc = service_info
             .iter()
             .find(|s| s.unit_name == "aur.service")
-            .unwrap();
+            .expect("aur.service should be found in service_info");
         assert!(aur_svc.is_active);
         assert!(aur_svc.needs_restart);
         assert_eq!(
@@ -611,7 +621,7 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
         let sandbox = sandbox_info
             .iter()
             .find(|s| s.package_name == "aur-package")
-            .unwrap();
+            .expect("aur-package should be found in sandbox_info");
         assert_eq!(sandbox.depends.len(), 1, "Should have 1 depends");
         assert_eq!(sandbox.makedepends.len(), 1, "Should have 1 makedepends");
         assert_eq!(sandbox.checkdepends.len(), 0, "Should have 0 checkdepends");
@@ -622,7 +632,7 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
             .depends
             .iter()
             .find(|d| d.name == "aur-dep")
-            .unwrap();
+            .expect("aur-dep should be found in sandbox.depends");
         assert!(!dep.is_installed);
         assert_eq!(dep.installed_version, None);
 
@@ -630,7 +640,7 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
             .makedepends
             .iter()
             .find(|d| d.name == "make-dep")
-            .unwrap();
+            .expect("make-dep should be found in sandbox.makedepends");
         assert!(makedep.is_installed);
         assert_eq!(makedep.installed_version, Some("1.0.0".to_string()));
     } else {
@@ -700,16 +710,19 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
     } = &app.modal
     {
         // Verify Deps tab has conflicts and other dependencies
-        let conflicts: Vec<_> = dependency_info
-            .iter()
-            .filter(|d| {
-                matches!(
-                    d.status,
-                    crate_root::state::modal::DependencyStatus::Conflict { .. }
-                )
-            })
-            .collect();
-        assert_eq!(conflicts.len(), 1, "Should have 1 conflict");
+        assert_eq!(
+            dependency_info
+                .iter()
+                .filter(|d| {
+                    matches!(
+                        d.status,
+                        crate_root::state::modal::DependencyStatus::Conflict { .. }
+                    )
+                })
+                .count(),
+            1,
+            "Should have 1 conflict"
+        );
         assert_eq!(dependency_info.len(), 5, "Should have 5 total dependencies");
 
         // Verify Files tab has all packages' files
@@ -761,21 +774,16 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
 /// - Tests the fix for conflict status preservation during dependency merging
 /// - Verifies that conflicts take precedence over dependency statuses
 /// - Ensures timing of package addition doesn't affect conflict detection
+#[allow(clippy::too_many_lines)]
 fn preflight_conflicts_not_overwritten_when_packages_added_sequentially() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     // Step 1: Add pacsea-bin first
-    let pacsea_bin = create_test_package(
-        "pacsea-bin",
-        "0.5.1",
-        crate_root::state::Source::Aur,
-    );
+    let pacsea_bin = create_test_package("pacsea-bin", "0.5.1", crate_root::state::Source::Aur);
 
     // Pre-populate cache with pacsea-bin's conflicts
     // pacsea-bin conflicts with pacsea and pacsea-git
@@ -865,11 +873,7 @@ fn preflight_conflicts_not_overwritten_when_packages_added_sequentially() {
     );
 
     // Step 2: Add jujutsu-git (which might have dependencies that could overwrite conflicts)
-    let jujutsu_git = create_test_package(
-        "jujutsu-git",
-        "0.1.0",
-        crate_root::state::Source::Aur,
-    );
+    let jujutsu_git = create_test_package("jujutsu-git", "0.1.0", crate_root::state::Source::Aur);
 
     // Add jujutsu-git's conflicts and dependencies to cache
     // jujutsu-git conflicts with jujutsu
@@ -924,7 +928,7 @@ fn preflight_conflicts_not_overwritten_when_packages_added_sequentially() {
 
     // Update modal to include both packages
     app.modal = create_preflight_modal(
-        vec![pacsea_bin.clone(), jujutsu_git.clone()],
+        vec![pacsea_bin, jujutsu_git],
         crate_root::state::PreflightAction::Install,
         crate_root::state::PreflightTab::Deps,
     );
@@ -933,11 +937,7 @@ fn preflight_conflicts_not_overwritten_when_packages_added_sequentially() {
     switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
     let (items, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
 
-    assert_eq!(
-        items.len(),
-        2,
-        "Should have 2 packages in install list"
-    );
+    assert_eq!(items.len(), 2, "Should have 2 packages in install list");
 
     // Verify pacsea-bin's conflicts are still present (not overwritten)
     let pacsea_conflicts: Vec<_> = dependency_info
@@ -955,15 +955,11 @@ fn preflight_conflicts_not_overwritten_when_packages_added_sequentially() {
         "pacsea-bin should still have 2 conflicts after adding jujutsu-git"
     );
     assert!(
-        pacsea_conflicts
-            .iter()
-            .any(|c| c.name == "pacsea"),
+        pacsea_conflicts.iter().any(|c| c.name == "pacsea"),
         "pacsea-bin should still conflict with pacsea"
     );
     assert!(
-        pacsea_conflicts
-            .iter()
-            .any(|c| c.name == "pacsea-git"),
+        pacsea_conflicts.iter().any(|c| c.name == "pacsea-git"),
         "pacsea-bin should still conflict with pacsea-git"
     );
 
@@ -983,24 +979,21 @@ fn preflight_conflicts_not_overwritten_when_packages_added_sequentially() {
         "jujutsu-git should have 1 conflict"
     );
     assert!(
-        jujutsu_conflicts
-            .iter()
-            .any(|c| c.name == "jujutsu"),
+        jujutsu_conflicts.iter().any(|c| c.name == "jujutsu"),
         "jujutsu-git should conflict with jujutsu"
     );
 
     // Verify total conflicts count
-    let all_conflicts: Vec<_> = dependency_info
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.status,
-                crate_root::state::modal::DependencyStatus::Conflict { .. }
-            )
-        })
-        .collect();
     assert_eq!(
-        all_conflicts.len(),
+        dependency_info
+            .iter()
+            .filter(|d| {
+                matches!(
+                    d.status,
+                    crate_root::state::modal::DependencyStatus::Conflict { .. }
+                )
+            })
+            .count(),
         3,
         "Should have 3 total conflicts (2 from pacsea-bin, 1 from jujutsu-git)"
     );
@@ -1032,33 +1025,31 @@ fn preflight_conflicts_not_overwritten_when_packages_added_sequentially() {
 
     let (_, _, _, dependency_info_after_switch, _, _, _, _, _) = assert_preflight_modal(&app);
 
-    let conflicts_after_switch: Vec<_> = dependency_info_after_switch
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.status,
-                crate_root::state::modal::DependencyStatus::Conflict { .. }
-            )
-        })
-        .collect();
     assert_eq!(
-        conflicts_after_switch.len(),
+        dependency_info_after_switch
+            .iter()
+            .filter(|d| {
+                matches!(
+                    d.status,
+                    crate_root::state::modal::DependencyStatus::Conflict { .. }
+                )
+            })
+            .count(),
         3,
         "Should still have 3 conflicts after tab switches"
     );
 
     // Verify pacsea-bin's conflicts are still intact
-    let pacsea_conflicts_after_switch: Vec<_> = dependency_info_after_switch
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.status,
-                crate_root::state::modal::DependencyStatus::Conflict { .. }
-            ) && d.required_by.contains(&"pacsea-bin".to_string())
-        })
-        .collect();
     assert_eq!(
-        pacsea_conflicts_after_switch.len(),
+        dependency_info_after_switch
+            .iter()
+            .filter(|d| {
+                matches!(
+                    d.status,
+                    crate_root::state::modal::DependencyStatus::Conflict { .. }
+                ) && d.required_by.contains(&"pacsea-bin".to_string())
+            })
+            .count(),
         2,
         "pacsea-bin should still have 2 conflicts after tab switches"
     );

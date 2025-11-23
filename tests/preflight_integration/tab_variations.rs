@@ -1,14 +1,13 @@
 //! //! Tests for tab switching variations.
 
-use pacsea as crate_root;
 use super::helpers::*;
-
+use pacsea as crate_root;
 
 #[test]
 /// What: Verify that preflight modal loads data correctly regardless of tab switching order.
 ///
 /// Inputs:
-/// - Packages in install_list with all data cached
+/// - Packages in `install_list` with all data cached
 /// - User switches tabs in different orders (e.g., Summary → Sandbox → Deps → Files → Services)
 ///
 /// Output:
@@ -25,9 +24,7 @@ fn preflight_tab_switching_order_variations() {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![
         create_test_package(
@@ -98,7 +95,7 @@ fn preflight_tab_switching_order_variations() {
 
     // Open preflight modal
     app.modal = create_preflight_modal(
-        test_packages.clone(),
+        test_packages,
         crate_root::state::PreflightAction::Install,
         crate_root::state::PreflightTab::Summary,
     );

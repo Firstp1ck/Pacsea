@@ -1,14 +1,12 @@
 //! //! Tests for cache synchronization.
 
 use pacsea as crate_root;
-use super::helpers::*;
-
 
 #[test]
 /// What: Verify that preflight modal syncs updated cache data when background resolution completes.
 ///
 /// Inputs:
-/// - Packages in install_list
+/// - Packages in `install_list`
 /// - Preflight modal opened with some data missing
 /// - Background resolution completes and updates cache while modal is open
 /// - User switches to affected tab
@@ -22,14 +20,13 @@ use super::helpers::*;
 /// - Tests that cache updates during modal open are handled correctly
 /// - Verifies data synchronization when background work completes
 /// - Ensures modal reflects latest cached data
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_syncs_cache_updates_during_modal_open() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![crate_root::state::PackageItem {
         name: "test-package-1".to_string(),

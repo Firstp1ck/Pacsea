@@ -1,15 +1,13 @@
 //! //! Tests for package operations and management.
 
 use pacsea as crate_root;
-use super::helpers::*;
-
 
 #[test]
 /// What: Verify that adding a second package to install list preserves first package's cached data.
 ///
 /// Inputs:
-/// - First package already in install_list with cached data
-/// - Second package added to install_list
+/// - First package already in `install_list` with cached data
+/// - Second package added to `install_list`
 /// - Preflight modal opened with both packages
 ///
 /// Output:
@@ -21,14 +19,13 @@ use super::helpers::*;
 /// - Tests edge case where install list grows after initial caching
 /// - Verifies that existing cached data is not lost when new packages are added
 /// - Ensures conflict detection works correctly between packages
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_preserves_first_package_when_second_package_added() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     // First package with cached data
     let first_package = crate_root::state::PackageItem {
@@ -192,7 +189,7 @@ fn preflight_preserves_first_package_when_second_package_added() {
 
     // Open preflight modal with both packages
     app.modal = crate_root::state::Modal::Preflight {
-        items: vec![first_package.clone(), second_package.clone()],
+        items: vec![first_package, second_package],
         action: crate_root::state::PreflightAction::Install,
         tab: crate_root::state::PreflightTab::Summary,
         summary: None,
@@ -385,7 +382,7 @@ fn preflight_preserves_first_package_when_second_package_added() {
         let first_files = file_info
             .iter()
             .find(|f| f.name == "first-package")
-            .unwrap();
+            .expect("first-package should be found in file_info");
         assert_eq!(
             first_files.files.len(),
             2,
@@ -400,7 +397,7 @@ fn preflight_preserves_first_package_when_second_package_added() {
         let second_files = file_info
             .iter()
             .find(|f| f.name == "second-package")
-            .unwrap();
+            .expect("second-package should be found in file_info");
         assert_eq!(
             second_files.files.len(),
             1,
@@ -466,7 +463,7 @@ fn preflight_preserves_first_package_when_second_package_added() {
         let first_svc = service_info
             .iter()
             .find(|s| s.unit_name == "first-service.service")
-            .unwrap();
+            .expect("first-service.service should be found in service_info");
         assert!(first_svc.is_active);
         assert!(first_svc.needs_restart);
         assert_eq!(
@@ -479,7 +476,7 @@ fn preflight_preserves_first_package_when_second_package_added() {
         let second_svc = service_info
             .iter()
             .find(|s| s.unit_name == "second-service.service")
-            .unwrap();
+            .expect("second-service.service should be found in service_info");
         assert!(!second_svc.is_active);
         assert!(!second_svc.needs_restart);
         assert_eq!(
@@ -502,20 +499,16 @@ fn preflight_preserves_first_package_when_second_package_added() {
     } = &app.modal
     {
         // Verify both packages have dependencies
-        let first_pkg_deps: Vec<_> = dependency_info
-            .iter()
-            .filter(|d| d.required_by.contains(&"first-package".to_string()))
-            .collect();
-        let second_pkg_deps: Vec<_> = dependency_info
-            .iter()
-            .filter(|d| d.required_by.contains(&"second-package".to_string()))
-            .collect();
         assert!(
-            !first_pkg_deps.is_empty(),
+            dependency_info
+                .iter()
+                .any(|d| d.required_by.contains(&"first-package".to_string())),
             "First package should have dependencies"
         );
         assert!(
-            !second_pkg_deps.is_empty(),
+            dependency_info
+                .iter()
+                .any(|d| d.required_by.contains(&"second-package".to_string())),
             "Second package should have dependencies"
         );
 
@@ -551,7 +544,7 @@ fn preflight_preserves_first_package_when_second_package_added() {
 /// What: Verify that adding a second package while first package is loading preserves independence.
 ///
 /// Inputs:
-/// - First package added to install_list and starts loading
+/// - First package added to `install_list` and starts loading
 /// - Second package added while first package is still loading
 /// - Preflight modal opened with both packages
 ///
@@ -565,14 +558,13 @@ fn preflight_preserves_first_package_when_second_package_added() {
 /// - Tests edge case where packages are added sequentially while resolution is in progress
 /// - Verifies that each package's data remains independent
 /// - Ensures conflict detection works correctly between independently loaded packages
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 fn preflight_independent_loading_when_packages_added_sequentially() {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
 
-    let mut app = crate_root::state::AppState {
-        ..Default::default()
-    };
+    let mut app = crate_root::state::AppState::default();
 
     // First package
     let first_package = crate_root::state::PackageItem {
@@ -724,7 +716,7 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
 
     // Open preflight modal with both packages
     app.modal = crate_root::state::Modal::Preflight {
-        items: vec![first_package.clone(), second_package.clone()],
+        items: vec![first_package, second_package],
         action: crate_root::state::PreflightAction::Install,
         tab: crate_root::state::PreflightTab::Summary,
         summary: None,
@@ -924,7 +916,7 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
         let first_files = file_info
             .iter()
             .find(|f| f.name == "first-package")
-            .unwrap();
+            .expect("first-package should be found in file_info");
         assert_eq!(
             first_files.files.len(),
             1,
@@ -938,7 +930,7 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
         let second_files = file_info
             .iter()
             .find(|f| f.name == "second-package")
-            .unwrap();
+            .expect("second-package should be found in file_info");
         assert_eq!(
             second_files.files.len(),
             2,
@@ -1015,7 +1007,7 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
         let second_svc = service_info
             .iter()
             .find(|s| s.unit_name == "second-service.service")
-            .unwrap();
+            .expect("second-service.service should be found in service_info");
         assert!(second_svc.is_active);
         assert!(second_svc.needs_restart);
         assert_eq!(
@@ -1038,28 +1030,23 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
     } = &app.modal
     {
         // Verify first package's data is independent
-        let first_pkg_deps: Vec<_> = dependency_info
-            .iter()
-            .filter(|d| d.required_by.contains(&"first-package".to_string()))
-            .collect();
         let first_pkg_files = file_info
             .iter()
             .find(|f| f.name == "first-package")
-            .unwrap();
+            .expect("first-package should be found in file_info");
 
         // Verify second package's data is independent
-        let second_pkg_deps: Vec<_> = dependency_info
-            .iter()
-            .filter(|d| d.required_by.contains(&"second-package".to_string()))
-            .collect();
         let second_pkg_files = file_info
             .iter()
             .find(|f| f.name == "second-package")
-            .unwrap();
+            .expect("second-package should be found in file_info");
 
         // Verify independence: first package's data is not affected by second
         assert_eq!(
-            first_pkg_deps.len(),
+            dependency_info
+                .iter()
+                .filter(|d| d.required_by.contains(&"first-package".to_string()))
+                .count(),
             1,
             "First package should have 1 dependency (independent)"
         );
@@ -1071,7 +1058,10 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
 
         // Verify independence: second package's data is not affected by first
         assert_eq!(
-            second_pkg_deps.len(),
+            dependency_info
+                .iter()
+                .filter(|d| d.required_by.contains(&"second-package".to_string()))
+                .count(),
             2,
             "Second package should have 2 dependencies (independent, one conflict)"
         );

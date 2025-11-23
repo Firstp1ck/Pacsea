@@ -1,6 +1,100 @@
 //! Helper functions for preflight integration tests.
 
 use pacsea as crate_root;
+use std::collections::HashMap;
+
+/// What: Merge dependencies with the same name into a single entry.
+///
+/// Inputs:
+/// - `deps`: Vector of dependencies that may contain duplicates
+///
+/// Output:
+/// - Vector of merged dependencies (one per unique name)
+///
+/// Details:
+/// - Combines `required_by` lists from duplicate dependencies
+/// - Keeps the worst status (conflicts take precedence)
+/// - Keeps the more restrictive version
+fn merge_dependencies(
+    deps: Vec<crate_root::state::modal::DependencyInfo>,
+) -> Vec<crate_root::state::modal::DependencyInfo> {
+    let mut merged: HashMap<String, crate_root::state::modal::DependencyInfo> = HashMap::new();
+
+    for dep in deps {
+        let dep_name = dep.name.clone();
+        let entry = merged.entry(dep_name.clone()).or_insert_with(|| {
+            crate_root::state::modal::DependencyInfo {
+                name: dep_name.clone(),
+                version: dep.version.clone(),
+                status: dep.status.clone(),
+                source: dep.source.clone(),
+                required_by: dep.required_by.clone(),
+                depends_on: Vec::new(),
+                is_core: dep.is_core,
+                is_system: dep.is_system,
+            }
+        });
+
+        // Merge required_by lists (combine unique values)
+        for req_by in dep.required_by {
+            if !entry.required_by.contains(&req_by) {
+                entry.required_by.push(req_by);
+            }
+        }
+
+        // Merge status (keep worst - lower priority number = higher priority)
+        // Conflicts take precedence
+        if !matches!(entry.status, crate_root::state::modal::DependencyStatus::Conflict { .. }) {
+            let existing_priority = dependency_priority(&entry.status);
+            let new_priority = dependency_priority(&dep.status);
+            if new_priority < existing_priority {
+                entry.status = dep.status.clone();
+            }
+        }
+
+        // Merge version requirements (keep more restrictive)
+        // But never overwrite a Conflict status
+        if !dep.version.is_empty()
+            && dep.version != entry.version
+            && !matches!(entry.status, crate_root::state::modal::DependencyStatus::Conflict { .. })
+        {
+            if entry.version.is_empty() {
+                entry.version = dep.version;
+            }
+        }
+    }
+
+    let mut result: Vec<_> = merged.into_values().collect();
+    // Sort dependencies: conflicts first, then missing, then to-install, then installed
+    result.sort_by(|a, b| {
+        let priority_a = dependency_priority(&a.status);
+        let priority_b = dependency_priority(&b.status);
+        priority_a
+            .cmp(&priority_b)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    result
+}
+
+/// What: Provide a numeric priority used to order dependency statuses.
+///
+/// Inputs:
+/// - `status`: Dependency status variant subject to sorting.
+///
+/// Output:
+/// - Returns a numeric priority where lower numbers represent higher urgency.
+///
+/// Details:
+/// - Aligns the ordering logic with UI expectations (conflicts first, installed last).
+const fn dependency_priority(status: &crate_root::state::modal::DependencyStatus) -> u8 {
+    match status {
+        crate_root::state::modal::DependencyStatus::Conflict { .. } => 0,
+        crate_root::state::modal::DependencyStatus::Missing => 1,
+        crate_root::state::modal::DependencyStatus::ToInstall => 2,
+        crate_root::state::modal::DependencyStatus::ToUpgrade { .. } => 3,
+        crate_root::state::modal::DependencyStatus::Installed { .. } => 4,
+    }
+}
 
 /// What: Create a test package item with specified properties.
 ///
@@ -143,7 +237,8 @@ pub fn switch_preflight_tab(
                 .collect();
             if !filtered.is_empty() {
                 let was_empty = dependency_info.is_empty();
-                *dependency_info = filtered;
+                // Merge dependencies with the same name
+                *dependency_info = merge_dependencies(filtered);
                 if was_empty {
                     *dep_selected = 0;
                 }
@@ -253,4 +348,3 @@ pub fn assert_preflight_modal(
         panic!("Expected Preflight modal");
     }
 }
-
