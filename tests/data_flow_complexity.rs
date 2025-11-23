@@ -79,25 +79,25 @@ impl DataFlowVisitor {
     }
 
     /// Records a variable definition.
-    fn record_def(&mut self, var_name: String) {
-        self.current_definitions.insert(var_name.clone());
+    fn record_def(&mut self, var_name: &str) {
+        self.current_definitions.insert(var_name.to_string());
         // Create DU pairs: this definition can reach all existing uses
         for use_var in &self.current_uses {
-            if use_var == &var_name {
+            if use_var == var_name {
                 self.current_du_pairs
-                    .insert((var_name.clone(), use_var.clone()));
+                    .insert((var_name.to_string(), use_var.clone()));
             }
         }
     }
 
     /// Records a variable use.
-    fn record_use(&mut self, var_name: String) {
-        self.current_uses.insert(var_name.clone());
+    fn record_use(&mut self, var_name: &str) {
+        self.current_uses.insert(var_name.to_string());
         // Create DU pairs: this use can be reached by all existing definitions
         for def_var in &self.current_definitions {
-            if def_var == &var_name {
+            if def_var == var_name {
                 self.current_du_pairs
-                    .insert((def_var.clone(), var_name.clone()));
+                    .insert((def_var.clone(), var_name.to_string()));
             }
         }
     }
@@ -110,7 +110,7 @@ impl DataFlowVisitor {
                 if let syn::Expr::Path(path) = &*assign.left
                     && let Some(ident) = path.path.get_ident()
                 {
-                    self.record_def(ident.to_string());
+                    self.record_def(&ident.to_string());
                 }
                 // Right side is a use
                 self.visit_expr(&assign.right);
@@ -125,7 +125,7 @@ impl DataFlowVisitor {
             syn::Expr::Path(path) => {
                 // Variable access is a use
                 if let Some(ident) = path.path.get_ident() {
-                    self.record_use(ident.to_string());
+                    self.record_use(&ident.to_string());
                 }
             }
             syn::Expr::Call(call) => {
@@ -258,10 +258,8 @@ impl DataFlowVisitor {
             syn::Expr::Field(field) => {
                 self.visit_expr(&field.base);
             }
-            syn::Expr::Lit(_) | syn::Expr::Macro(_) => {
-                // Leaf nodes, no variable access
-            }
             _ => {
+                // Leaf nodes and other expression types, no variable access
                 // For other expression types, we could add more specific handling
             }
         }
@@ -271,7 +269,7 @@ impl DataFlowVisitor {
     fn visit_pat(&mut self, pat: &syn::Pat) {
         match pat {
             syn::Pat::Ident(pat_ident) => {
-                self.record_def(pat_ident.ident.to_string());
+                self.record_def(&pat_ident.ident.to_string());
             }
             syn::Pat::Struct(struct_pat) => {
                 for field in &struct_pat.fields {
@@ -311,10 +309,8 @@ impl DataFlowVisitor {
             syn::Stmt::Expr(expr, _) => {
                 self.visit_expr(expr);
             }
-            syn::Stmt::Item(_) => {
-                // Items don't add data flow complexity directly
-            }
-            syn::Stmt::Macro(_) => {
+            syn::Stmt::Item(_) | syn::Stmt::Macro(_) => {
+                // Items and macros don't add data flow complexity directly
                 // Macros are complex but hard to analyze statically
             }
         }
@@ -341,7 +337,7 @@ impl DataFlowVisitor {
             match input {
                 syn::FnArg::Receiver(_) => {
                     // self is a use (we're using the receiver)
-                    self.record_use("self".to_string());
+                    self.record_use("self");
                 }
                 syn::FnArg::Typed(typed) => {
                     self.visit_pat(&typed.pat);
@@ -355,12 +351,14 @@ impl DataFlowVisitor {
         }
 
         // Calculate complexity: number of DU pairs, weighted by nesting level
+        #[allow(clippy::cast_possible_truncation)]
         let base_complexity = self.current_du_pairs.len() as u32;
         // Add complexity for nesting (more nested = more complex data flow)
         let nesting_complexity = self.nesting_level * 2;
         let total_complexity = base_complexity + nesting_complexity;
 
         // Save the function complexity
+        #[allow(clippy::cast_possible_truncation)]
         self.functions.push(FunctionDataFlowComplexity {
             name,
             file: self.current_file.clone(),
@@ -399,7 +397,7 @@ impl DataFlowVisitor {
             match input {
                 syn::FnArg::Receiver(_) => {
                     // self is a use (we're using the receiver)
-                    self.record_use("self".to_string());
+                    self.record_use("self");
                 }
                 syn::FnArg::Typed(typed) => {
                     self.visit_pat(&typed.pat);
@@ -413,12 +411,14 @@ impl DataFlowVisitor {
         }
 
         // Calculate complexity: number of DU pairs, weighted by nesting level
+        #[allow(clippy::cast_possible_truncation)]
         let base_complexity = self.current_du_pairs.len() as u32;
         // Add complexity for nesting (more nested = more complex data flow)
         let nesting_complexity = self.nesting_level * 2;
         let total_complexity = base_complexity + nesting_complexity;
 
         // Save the method complexity
+        #[allow(clippy::cast_possible_truncation)]
         self.functions.push(FunctionDataFlowComplexity {
             name,
             file: self.current_file.clone(),
@@ -481,10 +481,11 @@ fn analyze_file(file_path: &Path) -> Result<FileDataFlowComplexity, Box<dyn std:
     visitor.visit_file(&ast);
 
     let total_complexity: u32 = visitor.functions.iter().map(|f| f.complexity).sum();
+    #[allow(clippy::cast_precision_loss)]
     let avg_complexity = if visitor.functions.is_empty() {
         0.0
     } else {
-        total_complexity as f64 / visitor.functions.len() as f64
+        f64::from(total_complexity) / visitor.functions.len() as f64
     };
 
     Ok(FileDataFlowComplexity {
@@ -571,12 +572,17 @@ mod tests {
     /// - Optionally fails if complexity exceeds thresholds
     #[test]
     fn test_data_flow_complexity() {
+        // Complexity thresholds (guidelines for data flow complexity)
+        const VERY_HIGH_COMPLEXITY: u32 = 50;
+        const HIGH_COMPLEXITY: u32 = 25;
+        const MODERATE_COMPLEXITY: u32 = 10;
+        const MAX_AVERAGE_COMPLEXITY: f64 = 8.0;
+        const MAX_FILE_AVG_COMPLEXITY: f64 = 40.0;
+
         let results = calculate_project_data_flow_complexity()
             .expect("Failed to calculate project data flow complexity");
 
-        if results.is_empty() {
-            panic!("No Rust files found to analyze");
-        }
+        assert!(!results.is_empty(), "No Rust files found to analyze");
 
         // Collect all functions
         let mut all_functions = Vec::new();
@@ -601,14 +607,15 @@ mod tests {
         // Print summary
         println!("\n=== Data Flow Complexity Report (Dunsmore) ===");
         println!("Total files analyzed: {}", results.len());
-        println!("Total functions/methods: {}", total_functions);
-        println!("Total project complexity: {}", total_project_complexity);
-        println!("Total variable definitions: {}", total_definitions);
-        println!("Total variable uses: {}", total_uses);
+        println!("Total functions/methods: {total_functions}");
+        println!("Total project complexity: {total_project_complexity}");
+        println!("Total variable definitions: {total_definitions}");
+        println!("Total variable uses: {total_uses}");
 
         if total_functions > 0 {
-            let avg_complexity = total_project_complexity as f64 / total_functions as f64;
-            println!("Average complexity per function: {:.2}", avg_complexity);
+            #[allow(clippy::cast_precision_loss)]
+            let avg_complexity = f64::from(total_project_complexity) / total_functions as f64;
+            println!("Average complexity per function: {avg_complexity:.2}");
         }
 
         // Report top 10 most complex functions
@@ -641,11 +648,6 @@ mod tests {
             );
         }
 
-        // Complexity thresholds (guidelines for data flow complexity)
-        const VERY_HIGH_COMPLEXITY: u32 = 50;
-        const HIGH_COMPLEXITY: u32 = 25;
-        const MODERATE_COMPLEXITY: u32 = 10;
-
         // Count functions by complexity level
         let very_high = all_functions
             .iter()
@@ -661,7 +663,7 @@ mod tests {
             .count();
 
         println!("\n=== Complexity Distribution ===");
-        println!("Very High (≥{}): {}", VERY_HIGH_COMPLEXITY, very_high);
+        println!("Very High (≥{VERY_HIGH_COMPLEXITY}): {very_high}");
         println!(
             "High ({}..{}): {}",
             HIGH_COMPLEXITY,
@@ -682,10 +684,7 @@ mod tests {
 
         // List functions with very high complexity
         if very_high > 0 {
-            println!(
-                "\n=== Functions with Very High Complexity (≥{}) ===",
-                VERY_HIGH_COMPLEXITY
-            );
+            println!("\n=== Functions with Very High Complexity (≥{VERY_HIGH_COMPLEXITY}) ===");
             for func in all_functions
                 .iter()
                 .filter(|f| f.complexity >= VERY_HIGH_COMPLEXITY)
@@ -716,23 +715,20 @@ mod tests {
 
         // OPTION 1: AVERAGE COMPLEXITY - Ensure overall codebase stays maintainable
         // Recommended: Average should stay below 20-30 for data flow complexity
-        const MAX_AVERAGE_COMPLEXITY: f64 = 8.0;
+        #[allow(clippy::cast_precision_loss)]
         let avg_complexity = if total_functions > 0 {
-            total_project_complexity as f64 / total_functions as f64
+            f64::from(total_project_complexity) / total_functions as f64
         } else {
             0.0
         };
         assert!(
             avg_complexity <= MAX_AVERAGE_COMPLEXITY,
-            "Average data flow complexity too high: {:.2} (max allowed: {:.2}). \
-             Consider refactoring functions with complex data dependencies.",
-            avg_complexity,
-            MAX_AVERAGE_COMPLEXITY
+            "Average data flow complexity too high: {avg_complexity:.2} (max allowed: {MAX_AVERAGE_COMPLEXITY:.2}). \
+             Consider refactoring functions with complex data dependencies."
         );
 
         // OPTION 2: FILE-LEVEL - Prevent individual files from becoming too complex
         // Recommended: No single file should have average complexity > 40
-        const MAX_FILE_AVG_COMPLEXITY: f64 = 40.0;
         for (file_path, file_comp) in &file_complexities {
             if file_comp.avg_complexity > MAX_FILE_AVG_COMPLEXITY {
                 eprintln!(

@@ -7,6 +7,7 @@ use clap::Parser;
 #[command(name = "pacsea")]
 #[command(version)]
 #[command(about = "A fast, friendly TUI for browsing and installing Arch and AUR packages", long_about = None)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Args {
     /// Perform a dry run without making actual changes
     #[arg(long)]
@@ -156,7 +157,7 @@ pub fn process_args(args: &Args) -> Option<bool> {
     // Handle refresh flag
     #[cfg(not(target_os = "windows"))]
     let refresh_result = if args.refresh {
-        refresh::handle_refresh()
+        Some(refresh::handle_refresh())
     } else {
         None
     };

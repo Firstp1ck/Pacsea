@@ -2,7 +2,7 @@
 
 use crate::args::{i18n, utils};
 
-/// What: Check for configuration directories in $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+/// What: Check for configuration directories in `$HOME/PACKAGE_NAME` and `$HOME/.config/PACKAGE_NAME`.
 ///
 /// Inputs:
 /// - `package_name`: Name of the package to check for config directories.
@@ -12,7 +12,7 @@ use crate::args::{i18n, utils};
 /// - Vector of found config directory paths.
 ///
 /// Details:
-/// - Checks both $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+/// - Checks both `$HOME/PACKAGE_NAME` and `$HOME/.config/PACKAGE_NAME`.
 /// - Only returns directories that actually exist.
 fn check_config_directories(package_name: &str, home: &str) -> Vec<std::path::PathBuf> {
     use std::path::PathBuf;
@@ -46,7 +46,7 @@ fn check_config_directories(package_name: &str, home: &str) -> Vec<std::path::Pa
 /// - Shows warning about removal and no backup.
 /// - Prompts user with [y/N] (No is default).
 /// - Executes `sudo pacman -Rns` to remove packages.
-/// - After removal, checks for config directories in $HOME/PACKAGE_NAME and $HOME/.config/PACKAGE_NAME.
+/// - After removal, checks for config directories in `$HOME/PACKAGE_NAME` and `$HOME/.config/PACKAGE_NAME`.
 /// - Shows found config directories in a list.
 /// - Exits immediately after removal (doesn't launch TUI).
 pub fn handle_remove(packages: &[String]) -> ! {
@@ -65,7 +65,7 @@ pub fn handle_remove(packages: &[String]) -> ! {
     eprintln!("\n{}", i18n::t("app.cli.remove.warning"));
     eprintln!("\n{}", i18n::t("app.cli.remove.packages_to_remove"));
     for pkg in &package_names {
-        eprintln!("  - {}", pkg);
+        eprintln!("  - {pkg}");
     }
     eprintln!();
 

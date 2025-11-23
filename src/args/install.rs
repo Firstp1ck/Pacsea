@@ -240,7 +240,7 @@ pub fn handle_install_from_file(file_path: &str) -> ! {
     if !invalid_packages.is_empty() {
         eprintln!("\n{}", i18n::t("app.cli.install.packages_not_found"));
         for pkg in &invalid_packages {
-            eprintln!("  - {}", pkg);
+            eprintln!("  - {pkg}");
         }
         if aur_helper.is_none() && !invalid_packages.is_empty() {
             eprintln!("\n{}", i18n::t("app.cli.install.no_aur_helper_note"));
@@ -275,15 +275,12 @@ pub fn handle_install_from_file(file_path: &str) -> ! {
 
     // Install AUR packages
     if !aur_packages.is_empty() {
-        let helper = match aur_helper {
-            Some(h) => h,
-            None => {
-                eprintln!(
-                    "Error: Neither paru nor yay is available. Please install one of them to install AUR packages."
-                );
-                tracing::error!("Neither paru nor yay is available for AUR packages");
-                std::process::exit(1);
-            }
+        let Some(helper) = aur_helper else {
+            eprintln!(
+                "Error: Neither paru nor yay is available. Please install one of them to install AUR packages."
+            );
+            tracing::error!("Neither paru nor yay is available for AUR packages");
+            std::process::exit(1);
         };
         install_aur_packages(&aur_packages, helper);
     }
@@ -349,13 +346,10 @@ pub fn handle_install(packages: &[String]) -> ! {
 
     // Install AUR packages
     if !aur_packages.is_empty() {
-        let helper = match aur_helper {
-            Some(h) => h,
-            None => {
-                eprintln!("{}", i18n::t("app.cli.install.neither_helper_available"));
-                tracing::error!("Neither paru nor yay is available for AUR packages");
-                std::process::exit(1);
-            }
+        let Some(helper) = aur_helper else {
+            eprintln!("{}", i18n::t("app.cli.install.neither_helper_available"));
+            tracing::error!("Neither paru nor yay is available for AUR packages");
+            std::process::exit(1);
         };
         install_aur_packages(&aur_packages, helper);
     }

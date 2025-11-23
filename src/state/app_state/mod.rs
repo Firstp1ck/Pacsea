@@ -9,9 +9,9 @@ use crate::state::types::{
 };
 use crate::theme::KeyMap;
 
+mod default_impl;
 mod defaults;
 mod defaults_cache;
-mod default_impl;
 
 /// Global application state shared by the event, networking, and UI layers.
 ///
@@ -515,4 +515,3 @@ mod tests {
         }
     }
 }
-

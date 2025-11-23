@@ -54,7 +54,7 @@ struct ComplexityVisitor {
 
 impl ComplexityVisitor {
     /// Creates a new visitor for a given file.
-    fn new(file: PathBuf) -> Self {
+    const fn new(file: PathBuf) -> Self {
         Self {
             current_function: None,
             current_file: file,
@@ -67,18 +67,12 @@ impl ComplexityVisitor {
     /// Calculates complexity for a single expression.
     fn visit_expr(&mut self, expr: &syn::Expr) {
         match expr {
-            syn::Expr::While(_) => {
-                self.current_complexity += 1;
-            }
-            syn::Expr::ForLoop(_) => {
-                self.current_complexity += 1;
-            }
-            syn::Expr::Loop(_) => {
+            syn::Expr::While(_) | syn::Expr::ForLoop(_) | syn::Expr::Loop(_) => {
                 self.current_complexity += 1;
             }
             syn::Expr::Match(m) => {
                 // Each match arm adds complexity
-                self.current_complexity += m.arms.len() as u32;
+                self.current_complexity += u32::try_from(m.arms.len()).unwrap_or(u32::MAX);
                 // Guards add additional complexity
                 for arm in &m.arms {
                     if arm.guard.is_some() {
@@ -186,10 +180,8 @@ impl ComplexityVisitor {
             syn::Expr::Field(field) => {
                 self.visit_expr(&field.base);
             }
-            syn::Expr::Path(_) | syn::Expr::Lit(_) | syn::Expr::Macro(_) => {
-                // Leaf nodes, no additional complexity
-            }
             _ => {
+                // Leaf nodes and other expression types, no additional complexity
                 // For other expression types, we could add more specific handling
                 // but for now, we'll skip them to avoid over-counting
             }
@@ -207,10 +199,8 @@ impl ComplexityVisitor {
             syn::Stmt::Expr(expr, _) => {
                 self.visit_expr(expr);
             }
-            syn::Stmt::Item(_) => {
-                // Items don't add complexity directly
-            }
-            syn::Stmt::Macro(_) => {
+            syn::Stmt::Item(_) | syn::Stmt::Macro(_) => {
+                // Items and macros don't add complexity directly
                 // Macros are complex but hard to analyze statically
             }
         }
@@ -315,10 +305,11 @@ fn analyze_file(file_path: &Path) -> Result<FileComplexity, Box<dyn std::error::
     visitor.visit_file(&ast);
 
     let total_complexity: u32 = visitor.functions.iter().map(|f| f.complexity).sum();
+    #[allow(clippy::cast_precision_loss)]
     let avg_complexity = if visitor.functions.is_empty() {
         0.0
     } else {
-        total_complexity as f64 / visitor.functions.len() as f64
+        f64::from(total_complexity) / visitor.functions.len() as f64
     };
 
     Ok(FileComplexity {
@@ -404,12 +395,17 @@ mod tests {
     /// - Optionally fails if complexity exceeds thresholds
     #[test]
     fn test_cyclomatic_complexity() {
+        // Complexity thresholds (commonly used guidelines)
+        const VERY_HIGH_COMPLEXITY: u32 = 20;
+        const HIGH_COMPLEXITY: u32 = 10;
+        const MODERATE_COMPLEXITY: u32 = 5;
+        const MAX_AVERAGE_COMPLEXITY: f64 = 8.0;
+        const MAX_FILE_AVG_COMPLEXITY: f64 = 15.0;
+
         let results =
             calculate_project_complexity().expect("Failed to calculate project complexity");
 
-        if results.is_empty() {
-            panic!("No Rust files found to analyze");
-        }
+        assert!(!results.is_empty(), "No Rust files found to analyze");
 
         // Collect all functions
         let mut all_functions = Vec::new();
@@ -428,12 +424,13 @@ mod tests {
         // Print summary
         println!("\n=== Cyclomatic Complexity Report ===");
         println!("Total files analyzed: {}", results.len());
-        println!("Total functions/methods: {}", total_functions);
-        println!("Total project complexity: {}", total_project_complexity);
+        println!("Total functions/methods: {total_functions}");
+        println!("Total project complexity: {total_project_complexity}");
 
         if total_functions > 0 {
-            let avg_complexity = total_project_complexity as f64 / total_functions as f64;
-            println!("Average complexity per function: {:.2}", avg_complexity);
+            #[allow(clippy::cast_precision_loss)]
+            let avg_complexity = f64::from(total_project_complexity) / total_functions as f64;
+            println!("Average complexity per function: {avg_complexity:.2}");
         }
 
         // Report top 10 most complex functions
@@ -464,11 +461,6 @@ mod tests {
             );
         }
 
-        // Complexity thresholds (commonly used guidelines)
-        const VERY_HIGH_COMPLEXITY: u32 = 20;
-        const HIGH_COMPLEXITY: u32 = 10;
-        const MODERATE_COMPLEXITY: u32 = 5;
-
         // Count functions by complexity level
         let very_high = all_functions
             .iter()
@@ -484,7 +476,7 @@ mod tests {
             .count();
 
         println!("\n=== Complexity Distribution ===");
-        println!("Very High (≥{}): {}", VERY_HIGH_COMPLEXITY, very_high);
+        println!("Very High (≥{VERY_HIGH_COMPLEXITY}): {very_high}");
         println!(
             "High ({}..{}): {}",
             HIGH_COMPLEXITY,
@@ -505,10 +497,7 @@ mod tests {
 
         // List functions with very high complexity
         if very_high > 0 {
-            println!(
-                "\n=== Functions with Very High Complexity (≥{}) ===",
-                VERY_HIGH_COMPLEXITY
-            );
+            println!("\n=== Functions with Very High Complexity (≥{VERY_HIGH_COMPLEXITY}) ===");
             for func in all_functions
                 .iter()
                 .filter(|f| f.complexity >= VERY_HIGH_COMPLEXITY)
@@ -575,18 +564,16 @@ mod tests {
         // Recommended: Average should stay below 8-10
         // Current project average: 6.00 (excellent) - this assertion currently passes
 
-        const MAX_AVERAGE_COMPLEXITY: f64 = 8.0;
+        #[allow(clippy::cast_precision_loss)]
         let avg_complexity = if total_functions > 0 {
-            total_project_complexity as f64 / total_functions as f64
+            f64::from(total_project_complexity) / total_functions as f64
         } else {
             0.0
         };
         assert!(
             avg_complexity <= MAX_AVERAGE_COMPLEXITY,
-            "Average complexity too high: {:.2} (max allowed: {:.2}). \
-             Consider refactoring high-complexity functions.",
-            avg_complexity,
-            MAX_AVERAGE_COMPLEXITY
+            "Average complexity too high: {avg_complexity:.2} (max allowed: {MAX_AVERAGE_COMPLEXITY:.2}). \
+             Consider refactoring high-complexity functions."
         );
 
         // OPTION 4: PROGRESSIVE - Prevent new extremely complex functions
@@ -618,7 +605,6 @@ mod tests {
         // OPTION 5: FILE-LEVEL - Prevent individual files from becoming too complex
         // Recommended: No single file should have average complexity > 15
         // This is a warning only (doesn't fail the test)
-        const MAX_FILE_AVG_COMPLEXITY: f64 = 15.0;
         for (file_path, file_comp) in &file_complexities {
             if file_comp.avg_complexity > MAX_FILE_AVG_COMPLEXITY {
                 eprintln!(

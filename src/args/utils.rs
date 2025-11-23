@@ -9,8 +9,8 @@
 /// - Log level string (trace, debug, info, warn, error).
 ///
 /// Details:
-/// - Verbose flag overrides log_level argument.
-/// - PACSEA_PREFLIGHT_TRACE=1 enables TRACE level for detailed preflight timing.
+/// - Verbose flag overrides `log_level` argument.
+/// - `PACSEA_PREFLIGHT_TRACE=1` enables TRACE level for detailed preflight timing.
 pub fn determine_log_level(args: &crate::args::Args) -> String {
     if args.verbose {
         "debug".to_string()
@@ -99,7 +99,7 @@ pub fn parse_package_names(packages: &[String]) -> Vec<String> {
 pub fn prompt_user(message: &str) -> bool {
     use std::io::{self, Write};
 
-    print!("{} [Y/n]: ", message);
+    print!("{message} [Y/n]: ");
     io::stdout().flush().ok();
 
     let mut input = String::new();
@@ -128,7 +128,7 @@ pub fn prompt_user(message: &str) -> bool {
 pub fn prompt_user_no_default(message: &str) -> bool {
     use std::io::{self, Write};
 
-    print!("{} [y/N]: ", message);
+    print!("{message} [y/N]: ");
     io::stdout().flush().ok();
 
     let mut input = String::new();

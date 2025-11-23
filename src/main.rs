@@ -11,10 +11,10 @@ struct PacseaTimer;
 
 impl tracing_subscriber::fmt::time::FormatTime for PacseaTimer {
     fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer<'_>) -> fmt::Result {
-        let secs = match SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-            Ok(d) => d.as_secs() as i64,
-            Err(_) => 0,
-        };
+        #[allow(clippy::cast_possible_wrap)]
+        let secs = SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i64);
         let s = util::ts_to_date(Some(secs)); // "YYYY-MM-DD HH:MM:SS"
         let ts = s.replacen(' ', "-T", 1); // "YYYY-MM-DD-T HH:MM:SS"
         w.write_str(&ts)

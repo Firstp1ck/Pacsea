@@ -1,4 +1,4 @@
-//! Integration tests for UI rendering using ratatui's TestBackend.
+//! Integration tests for UI rendering using ratatui's `TestBackend`.
 //!
 //! These tests verify that the TUI renders correctly across different application states
 //! without requiring a real terminal. They focus on visual rendering correctness rather
@@ -109,11 +109,11 @@ fn init_test_translations(app: &mut AppState) {
         "Arch Linux News".to_string(),
     );
 
-    app.translations = translations.clone();
+    app.translations.clone_from(&translations);
     app.translations_fallback = translations;
 }
 
-/// Create a minimal AppState for testing.
+/// Create a minimal `AppState` for testing.
 fn create_test_app_state() -> AppState {
     let mut app = AppState {
         last_input_change: Instant::now(),
@@ -123,17 +123,17 @@ fn create_test_app_state() -> AppState {
     app
 }
 
-/// Create a TestBackend with standard size for testing.
+/// Create a `TestBackend` with standard size for testing.
 fn create_test_backend() -> TestBackend {
     TestBackend::new(120, 40)
 }
 
-/// Create a TestBackend with custom size.
+/// Create a `TestBackend` with custom size.
 fn create_test_backend_size(width: u16, height: u16) -> TestBackend {
     TestBackend::new(width, height)
 }
 
-/// Render UI to a TestBackend and return the terminal for assertions.
+/// Render UI to a `TestBackend` and return the terminal for assertions.
 fn render_ui_to_backend(backend: TestBackend, app: &mut AppState) -> Terminal<TestBackend> {
     let mut terminal = Terminal::new(backend).expect("failed to create test terminal");
     terminal

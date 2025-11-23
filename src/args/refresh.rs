@@ -10,7 +10,7 @@ use pacsea::theme;
 /// - None.
 ///
 /// Output:
-/// - `Some(true)` if refresh completed successfully, `Some(false)` if it failed, `None` if not run.
+/// - `true` if refresh completed successfully, `false` if it failed.
 ///
 /// Details:
 /// - Runs `sudo pacman -Sy` first to sync official package database.
@@ -20,7 +20,7 @@ use pacsea::theme;
 /// - Unlike `handle_update`, this does not exit - it allows the program to continue to TUI.
 /// - Returns the success status so the TUI can display a popup notification.
 #[cfg(not(target_os = "windows"))]
-pub fn handle_refresh() -> Option<bool> {
+pub fn handle_refresh() -> bool {
     use std::fs::OpenOptions;
     use std::io::Write;
     use std::process::Command;
@@ -41,9 +41,11 @@ pub fn handle_refresh() -> Option<bool> {
         {
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .map(|d| pacsea::util::ts_to_date(Some(d.as_secs() as i64)))
-                .unwrap_or_else(|_| "unknown".to_string());
-            let _ = writeln!(file, "[{}] {}", timestamp, message);
+                .map_or_else(
+                    |_| "unknown".to_string(),
+                    |d| pacsea::util::ts_to_date(Some(i64::try_from(d.as_secs()).unwrap_or(0)))
+                );
+            let _ = writeln!(file, "[{timestamp}] {message}");
         }
     };
 
@@ -92,7 +94,7 @@ pub fn handle_refresh() -> Option<bool> {
                     "FAILED: pacman -Sy failed with exit code {:?}",
                     output.status.code()
                 ));
-                write_log(&format!("Error: {}", error_msg));
+                write_log(&format!("Error: {error_msg}"));
                 if !output.stdout.is_empty() {
                     write_log(&format!(
                         "Output: {}",
@@ -106,7 +108,7 @@ pub fn handle_refresh() -> Option<bool> {
         Err(e) => {
             println!("{}", i18n::t("app.cli.refresh.pacman_exec_failed"));
             eprintln!("{}", i18n::t_fmt1("app.cli.refresh.error_prefix", &e));
-            write_log(&format!("FAILED: Could not execute pacman -Sy: {}", e));
+            write_log(&format!("FAILED: Could not execute pacman -Sy: {e}"));
             all_succeeded = false;
             failed_commands.push("pacman -Sy".to_string());
         }
@@ -116,7 +118,7 @@ pub fn handle_refresh() -> Option<bool> {
     let aur_helper = utils::get_aur_helper();
     if let Some(helper) = aur_helper {
         println!("\n{}", i18n::t_fmt1("app.cli.refresh.aur_starting", helper));
-        write_log(&format!("Starting AUR database refresh: {} -Sy", helper));
+        write_log(&format!("Starting AUR database refresh: {helper} -Sy"));
 
         // Skip actual command execution during tests to avoid requiring sudo
         #[cfg(test)]
@@ -138,7 +140,7 @@ pub fn handle_refresh() -> Option<bool> {
             Ok(output) => {
                 if output.status.success() {
                     println!("{}", i18n::t_fmt1("app.cli.refresh.aur_success", helper));
-                    write_log(&format!("SUCCESS: {} -Sy completed successfully", helper));
+                    write_log(&format!("SUCCESS: {helper} -Sy completed successfully"));
                     if !output.stdout.is_empty() {
                         write_log(&format!(
                             "Output: {}",
@@ -157,7 +159,7 @@ pub fn handle_refresh() -> Option<bool> {
                         helper,
                         output.status.code()
                     ));
-                    write_log(&format!("Error: {}", error_msg));
+                    write_log(&format!("Error: {error_msg}"));
                     if !output.stdout.is_empty() {
                         write_log(&format!(
                             "Output: {}",
@@ -165,7 +167,7 @@ pub fn handle_refresh() -> Option<bool> {
                         ));
                     }
                     all_succeeded = false;
-                    failed_commands.push(format!("{} -Sy", helper));
+                    failed_commands.push(format!("{helper} -Sy"));
                 }
             }
             Err(e) => {
@@ -174,9 +176,9 @@ pub fn handle_refresh() -> Option<bool> {
                     i18n::t_fmt1("app.cli.refresh.aur_exec_failed", helper)
                 );
                 eprintln!("{}", i18n::t_fmt1("app.cli.refresh.error_prefix", &e));
-                write_log(&format!("FAILED: Could not execute {} -Sy: {}", helper, e));
+                write_log(&format!("FAILED: Could not execute {helper} -Sy: {e}"));
                 all_succeeded = false;
-                failed_commands.push(format!("{} -Sy", helper));
+                failed_commands.push(format!("{helper} -Sy"));
             }
         }
     } else {
@@ -191,10 +193,7 @@ pub fn handle_refresh() -> Option<bool> {
         write_log("SUMMARY: All database refreshes completed successfully");
     } else {
         println!("{}", i18n::t("app.cli.refresh.completed_with_errors"));
-        write_log(&format!(
-            "SUMMARY: Database refresh failed. Failed commands: {:?}",
-            failed_commands
-        ));
+        write_log(&format!("SUMMARY: Database refresh failed. Failed commands: {failed_commands:?}"));
     }
     println!(
         "{}",
@@ -211,7 +210,7 @@ pub fn handle_refresh() -> Option<bool> {
         tracing::error!("Package database refresh completed with errors");
     }
 
-    Some(all_succeeded)
+    all_succeeded
 }
 
 #[cfg(test)]
@@ -229,7 +228,7 @@ mod tests {
     ///
     /// Details:
     /// - This is a smoke test to ensure the function can be called.
-    /// - Sets PACSEA_TEST_SKIP_COMMANDS to skip actual command execution during tests.
+    /// - Sets `PACSEA_TEST_SKIP_COMMANDS` to skip actual command execution during tests.
     #[test]
     fn handle_refresh_does_not_panic() {
         // Set environment variable to skip actual command execution
