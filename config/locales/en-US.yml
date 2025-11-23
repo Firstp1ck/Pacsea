@@ -429,10 +429,7 @@ en-US:
         format_blank_ignored: "  • Blank lines are ignored"
         format_comments: "  • Lines starting with '#' are treated as comments"
         example_label: "Example:"
-        example_firefox: "  firefox"
         example_comment: "  # This is a comment"
-        example_vim: "  vim"
-        example_paru: "  paru"
         hint_confirm: " confirm"
         hint_cancel: " cancel"
       preflight:

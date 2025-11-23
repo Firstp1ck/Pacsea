@@ -387,22 +387,13 @@ pub fn render_import_help(f: &mut Frame, area: Rect, app: &crate::state::AppStat
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from(Span::raw(crate::i18n::t(
-            app,
-            "app.modals.import_help.example_firefox",
-        ))),
+        Line::from(Span::raw("  firefox")),
         Line::from(Span::raw(crate::i18n::t(
             app,
             "app.modals.import_help.example_comment",
         ))),
-        Line::from(Span::raw(crate::i18n::t(
-            app,
-            "app.modals.import_help.example_vim",
-        ))),
-        Line::from(Span::raw(crate::i18n::t(
-            app,
-            "app.modals.import_help.example_paru",
-        ))),
+        Line::from(Span::raw("  vim")),
+        Line::from(Span::raw("  paru")),
         Line::from(""),
         Line::from(vec![
             Span::styled(
