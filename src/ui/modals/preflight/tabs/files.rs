@@ -433,8 +433,7 @@ fn build_summary_parts(
     )];
 
     if totals.new > 0 {
-        let count_text =
-            format_count_with_indicator(totals.new, totals.files, has_incomplete_data);
+        let count_text = format_count_with_indicator(totals.new, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.new",
@@ -442,11 +441,8 @@ fn build_summary_parts(
         ));
     }
     if totals.changed > 0 {
-        let count_text = format_count_with_indicator(
-            totals.changed,
-            totals.files,
-            has_incomplete_data,
-        );
+        let count_text =
+            format_count_with_indicator(totals.changed, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.changed",
@@ -454,11 +450,8 @@ fn build_summary_parts(
         ));
     }
     if totals.removed > 0 {
-        let count_text = format_count_with_indicator(
-            totals.removed,
-            totals.files,
-            has_incomplete_data,
-        );
+        let count_text =
+            format_count_with_indicator(totals.removed, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.removed",
@@ -466,11 +459,8 @@ fn build_summary_parts(
         ));
     }
     if totals.config > 0 {
-        let count_text = format_count_with_indicator(
-            totals.config,
-            totals.files,
-            has_incomplete_data,
-        );
+        let count_text =
+            format_count_with_indicator(totals.config, totals.files, has_incomplete_data);
         summary_parts.push(i18n::t_fmt1(
             app,
             "app.modals.preflight.files.config",
@@ -859,6 +849,7 @@ pub fn render_files_tab(
     files_error: &Option<String>,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
+    const STALE_THRESHOLD_DAYS: u64 = 7;
     let is_resolving = app.preflight_files_resolving || app.files_resolving;
 
     // Log render state for debugging
@@ -912,7 +903,6 @@ pub fn render_files_tab(
 
     let display_items = build_display_items(items, file_info, file_tree_expanded);
     let sync_info = crate::logic::files::get_file_db_sync_info();
-    const STALE_THRESHOLD_DAYS: u64 = 7;
     let is_stale = crate::logic::files::is_file_db_stale(STALE_THRESHOLD_DAYS);
 
     if display_items.is_empty() {

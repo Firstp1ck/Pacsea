@@ -56,7 +56,7 @@ pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     let sx = area.x.saturating_add(2); // a bit of left padding after corner
     let sy = area.y.saturating_add(area.height.saturating_sub(1));
     let maxw = area.width.saturating_sub(4); // avoid right corner
-    let mut content = status_text.clone();
+    let mut content = status_text;
     // Truncate by display width, not byte length, to handle wide characters
     if u16::try_from(content.width()).unwrap_or(u16::MAX) > maxw {
         let mut truncated = String::new();

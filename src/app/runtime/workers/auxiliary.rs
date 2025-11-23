@@ -503,23 +503,19 @@ pub fn spawn_event_thread(
                 match crossterm::event::poll(std::time::Duration::from_millis(50)) {
                     Ok(true) => {
                         // Event available, read it
-                        match crossterm::event::read() {
-                            Ok(ev) => {
-                                // Check cancellation again before sending
-                                if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
-                                    break;
-                                }
-                                // Check if channel is still open before sending
-                                // When receiver is dropped (on exit), send will fail
-                                if event_tx_for_thread.send(ev).is_err() {
-                                    // Channel closed, exit thread
-                                    break;
-                                }
+                        if let Ok(ev) = crossterm::event::read() {
+                            // Check cancellation again before sending
+                            if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                                break;
                             }
-                            Err(_) => {
-                                // ignore transient read errors and continue
+                            // Check if channel is still open before sending
+                            // When receiver is dropped (on exit), send will fail
+                            if event_tx_for_thread.send(ev).is_err() {
+                                // Channel closed, exit thread
+                                break;
                             }
                         }
+                        // ignore transient read errors and continue
                     }
                     Ok(false) => {
                         // No event available, check cancellation flag

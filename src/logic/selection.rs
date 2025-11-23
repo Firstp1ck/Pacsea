@@ -78,7 +78,8 @@ pub fn move_sel_cached(
         delta as usize
     };
     if abs_delta_usize > 0 {
-        let add = abs_delta_usize.min(u32::MAX as usize) as u32;
+        let add = u32::try_from(abs_delta_usize.min(u32::MAX as usize))
+            .expect("value is bounded by u32::MAX");
         app.scroll_moves = app.scroll_moves.saturating_add(add);
     }
     if app.need_ring_prefetch {

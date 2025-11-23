@@ -51,7 +51,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
 #[cfg(test)]
 mod tests {
     #[tokio::test]
-    #[allow(clippy::await_holding_lock)]
+    #[allow(clippy::await_holding_lock, clippy::all)] // Shell variable syntax ${VAR:-default} in raw strings - false positive
     async fn search_returns_items_on_success_and_error_on_failure() {
         let _guard = crate::global_test_mutex_lock();
         // Shim PATH curl to return a small JSON for success call, then fail on a second invocation
@@ -71,6 +71,8 @@ mod tests {
         std::fs::create_dir_all(&bin).expect("failed to create test bin directory");
         let mut curl = bin.clone();
         curl.push("curl");
+        // Shell variable syntax ${VAR:-default} - not a Rust format string
+        #[allow(clippy::all)]
         let script = r#"#!/usr/bin/env bash
 set -e
 state_dir="${PACSEA_FAKE_STATE_DIR:-.}"

@@ -19,9 +19,8 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
     if ql.is_empty() {
         return Vec::new();
     }
-    let guard = idx().read().ok();
     let mut items = Vec::new();
-    if let Some(g) = guard {
+    if let Some(g) = idx().read().ok() {
         for p in &g.pkgs {
             let nl = p.name.to_lowercase();
             if nl.contains(&ql) {
@@ -53,9 +52,8 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
 /// - Clones data from the shared index under a read lock and omits popularity data.
 #[must_use]
 pub fn all_official() -> Vec<PackageItem> {
-    let guard = idx().read().ok();
     let mut items = Vec::new();
-    if let Some(g) = guard {
+    if let Some(g) = idx().read().ok() {
         items.reserve(g.pkgs.len());
         for p in &g.pkgs {
             items.push(PackageItem {

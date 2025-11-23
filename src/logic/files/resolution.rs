@@ -28,7 +28,7 @@ pub fn batch_get_remote_file_lists(packages: &[(&str, &Source)]) -> HashMap<Stri
     for (name, source) in packages {
         if let Source::Official { repo, .. } = source {
             let repo_key = if repo.is_empty() {
-                "".to_string()
+                String::new()
             } else {
                 repo.clone()
             };

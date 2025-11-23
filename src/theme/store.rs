@@ -50,7 +50,6 @@ fn load_initial_theme_or_exit() -> Theme {
                 );
             }
         }
-        std::process::exit(1);
     } else {
         // No config found: write default skeleton to config_dir()/theme.conf
         let config_directory = config_dir();
@@ -69,8 +68,8 @@ fn load_initial_theme_or_exit() -> Theme {
             path = %target.display(),
             "theme configuration missing or incomplete. Please edit the theme.conf file at the path shown above."
         );
-        std::process::exit(1);
     }
+    std::process::exit(1);
 }
 
 /// What: Access the application's theme palette, loading or caching as needed.

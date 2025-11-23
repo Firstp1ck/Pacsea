@@ -309,14 +309,13 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
 /// - Keeps results selection centered by adjusting list offset.
 /// - Computes and records clickable rects (URL, Sort/Filters, Options/Config/Panels, status label).
 pub fn ui(f: &mut Frame, app: &mut AppState) {
+    const UPDATES_H: u16 = 1;
     let th = theme();
     let area = f.area();
 
     // Background
     let bg = Block::default().style(Style::default().bg(th.base));
     f.render_widget(bg, area);
-
-    const UPDATES_H: u16 = 1;
     let available_h = area.height.saturating_sub(UPDATES_H);
     let layout = calculate_layout_heights(available_h);
 

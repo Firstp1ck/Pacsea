@@ -147,7 +147,6 @@ fn render_summary_header(
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )));
-        lines.push(Line::from(""));
     } else {
         let mut summary_parts = Vec::new();
         let total_text = format_count_with_indicator(stats.total, items_count, has_incomplete);
@@ -211,8 +210,8 @@ fn render_summary_header(
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )));
-        lines.push(Line::from(""));
     }
+    lines.push(Line::from(""));
 
     lines
 }

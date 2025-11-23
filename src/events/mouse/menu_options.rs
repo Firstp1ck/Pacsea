@@ -172,7 +172,7 @@ fn build_editor_rows(app: &AppState, rows: &mut Vec<crate::state::types::Optiona
                     app,
                     "app.optional_deps.categories.editor",
                     bin,
-                    pkg.to_string(),
+                    (*pkg).to_string(),
                     installed,
                     None,
                 ));
@@ -222,7 +222,7 @@ fn build_terminal_rows(app: &AppState, rows: &mut Vec<crate::state::types::Optio
                 app,
                 "app.optional_deps.categories.terminal",
                 bin,
-                pkg.to_string(),
+                (*pkg).to_string(),
                 installed,
                 None,
             ));

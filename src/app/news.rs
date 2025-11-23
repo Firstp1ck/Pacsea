@@ -57,7 +57,11 @@ pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
         month += 1;
     }
 
-    Some((year, month, day as u32 + 1)) // +1 because day is 0-indexed
+    Some((
+        year,
+        month,
+        u32::try_from(day).expect("day fits in u32") + 1,
+    )) // +1 because day is 0-indexed
 }
 
 const fn is_leap_year(year: i32) -> bool {

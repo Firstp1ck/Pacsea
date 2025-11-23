@@ -1,6 +1,6 @@
 // Windows-only module - conditionally compiled in mod.rs
-use std::fs;
 use std::fmt::Write;
+use std::fs;
 use std::io::Write as IoWrite;
 use std::path::{Path, PathBuf};
 use tokio::task;

@@ -159,7 +159,7 @@ fn flatten_yaml_value(
                                 || {
                                     value
                                         .as_bool()
-                                        .map_or_else(|| "".to_string(), |b| b.to_string())
+                                        .map_or_else(|| String::new(), |b| b.to_string())
                                 },
                                 |n| n.to_string(),
                             )
@@ -167,7 +167,7 @@ fn flatten_yaml_value(
                         |n| n.to_string(),
                     )
                 },
-                |s| s.to_string(),
+                std::string::ToString::to_string,
             );
             translations.insert(prefix.to_string(), val_str);
         }

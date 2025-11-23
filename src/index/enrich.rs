@@ -47,6 +47,7 @@ pub fn request_enrich_for(
             let mut cur_arch: Option<String> = None;
             let mut cur_repo: Option<String> = None;
             let mut cur_ver: Option<String> = None;
+            #[allow(clippy::collection_is_never_read)]
             let mut _cur_packager: Option<String> = None;
             for line in out.lines().chain(std::iter::once("")) {
                 let line = line.trim_end();

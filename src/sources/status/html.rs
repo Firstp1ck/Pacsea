@@ -190,11 +190,13 @@ fn is_outage_today(body: &str, outage_pos: usize) -> bool {
                 && let (Ok(day), Some((ty, tm, td))) =
                     (day_s.trim().parse::<u32>(), today_ymd_utc())
             {
-                let month_idx = months
-                    .iter()
-                    .position(|mm| *mm == *m)
-                    .expect("month should be found in months array since it came from there")
-                    as u32
+                let month_idx = u32::try_from(
+                    months
+                        .iter()
+                        .position(|mm| *mm == *m)
+                        .expect("month should be found in months array since it came from there"),
+                )
+                .expect("month index fits in u32")
                     + 1;
                 let year_s = &region[year_start..(year_start + 4)];
                 return tm == month_idx && td == day && ty.to_string() == year_s;

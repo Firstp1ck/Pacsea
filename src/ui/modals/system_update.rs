@@ -111,7 +111,7 @@ pub fn render_system_update(
     let conf_countries = if prefs.selected_countries.trim().is_empty() {
         worldwide_text.clone()
     } else {
-        prefs.selected_countries.clone()
+        prefs.selected_countries
     };
     // If Worldwide is selected, show the configured countries
     let shown_countries = if country_label == &worldwide_text {

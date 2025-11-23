@@ -202,8 +202,12 @@ fn handle_selection_move(app: &mut AppState, direction: isize) {
     }
 
     let cc = char_count(&app.input);
-    let cur = app.search_caret as isize + direction;
-    let new_ci = if cur < 0 { 0 } else { cur as usize };
+    let cur = isize::try_from(app.search_caret).unwrap_or(0) + direction;
+    let new_ci = if cur < 0 {
+        0
+    } else {
+        usize::try_from(cur).unwrap_or(0)
+    };
     app.search_caret = new_ci.min(cc);
 }
 

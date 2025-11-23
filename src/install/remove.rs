@@ -235,8 +235,8 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
     let ctx = SpawnContext {
         names_str: &names_str,
         names_len: names.len(),
-        dry_run: dry_run,
-        cascade_mode: cascade_mode,
+        dry_run,
+        cascade_mode,
     };
 
     let mut launched = false;

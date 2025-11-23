@@ -71,7 +71,7 @@ fn handle_file_result_with_logging(
             file_info.config_count
         );
     }
-    handle_file_result(app, &files, &channels.tick_tx);
+    handle_file_result(app, files, &channels.tick_tx);
 }
 
 /// What: Process one iteration of channel message handling.

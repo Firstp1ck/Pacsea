@@ -39,13 +39,10 @@ fn process_continuation_line(
     let entry = map.entry(key.to_string()).or_default();
     if key == "Optional Deps" {
         entry.push('\n');
-        entry.push_str(line.trim());
-    } else {
-        if !entry.ends_with(' ') {
-            entry.push(' ');
-        }
-        entry.push_str(line.trim());
+    } else if !entry.ends_with(' ') {
+        entry.push(' ');
     }
+    entry.push_str(line.trim());
 }
 
 /// Run `pacman -Si` command and return the output text.
@@ -517,9 +514,9 @@ mod tests {
             crate::state::PackageDetails {
                 repository: repo_selected,
                 name: item.name.clone(),
-                version: ss(obj, &["pkgver", "Version"]).unwrap_or(item.version.clone()),
+                version: ss(obj, &["pkgver", "Version"]).unwrap_or_else(|| item.version.clone()),
                 description: ss(obj, &["pkgdesc", "Description"])
-                    .unwrap_or(item.description.clone()),
+                    .unwrap_or_else(|| item.description.clone()),
                 architecture: ss(obj, &["arch", "Architecture"]).unwrap_or(arch_selected),
                 url: ss(obj, &["url", "URL"]).unwrap_or_default(),
                 licenses: arrs(obj, &["licenses", "Licenses"]),

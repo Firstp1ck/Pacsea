@@ -193,6 +193,7 @@ pub(crate) fn join(list: &[String]) -> String {
 #[must_use]
 pub fn format_bytes(value: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+    #[allow(clippy::cast_precision_loss)]
     let mut size = value as f64;
     let mut unit_index = 0usize;
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
@@ -243,6 +244,7 @@ pub fn format_signed_bytes(value: i64) -> String {
 #[must_use]
 pub fn human_bytes(n: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+    #[allow(clippy::cast_precision_loss)]
     let mut v = n as f64;
     let mut i = 0;
     while v >= 1024.0 && i < UNITS.len() - 1 {

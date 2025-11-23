@@ -89,12 +89,10 @@ pub fn render_header_chips(app: &AppState, chips: &PreflightHeaderChips) -> Line
 
     // Install delta chip (always shown)
     spans.push(Span::styled(" ", Style::default()));
-    let delta_color = if chips.install_delta_bytes > 0 {
-        th.green
-    } else if chips.install_delta_bytes < 0 {
-        th.red
-    } else {
-        th.overlay1 // Neutral color for zero
+    let delta_color = match chips.install_delta_bytes.cmp(&0) {
+        std::cmp::Ordering::Greater => th.green,
+        std::cmp::Ordering::Less => th.red,
+        std::cmp::Ordering::Equal => th.overlay1, // Neutral color for zero
     };
     spans.push(Span::styled(
         i18n::t_fmt1(

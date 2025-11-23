@@ -15,6 +15,7 @@
 pub fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
     let mut backup_files = Vec::new();
     let mut in_backup_array = false;
+    #[allow(clippy::collection_is_never_read)]
     let mut current_line = String::new();
 
     for line in pkgbuild.lines() {
