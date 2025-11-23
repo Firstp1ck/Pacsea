@@ -185,9 +185,9 @@ fn build_globals_section(
     );
     add_keybind_entry(
         &mut spans,
-        km.reload_theme.first(),
+        km.reload_config.first(),
         key_style,
-        &i18n::t(app, "app.actions.reload_theme"),
+        &i18n::t(app, "app.actions.reload_config"),
         sep_style,
     );
     add_keybind_entry(

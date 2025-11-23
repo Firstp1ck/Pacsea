@@ -15,3 +15,6 @@ mod terminal;
 
 // Re-export the public entrypoint so callers keep using `app::run(...)`.
 pub use runtime::run;
+
+// Re-export functions needed by event handlers
+pub use runtime::init::{apply_settings_to_app_state, initialize_locale_system};

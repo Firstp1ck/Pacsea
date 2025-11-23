@@ -275,7 +275,7 @@ mod tests {
 pub struct KeyMap {
     // Global
     pub help_overlay: Vec<KeyChord>,
-    pub reload_theme: Vec<KeyChord>,
+    pub reload_config: Vec<KeyChord>,
     pub exit: Vec<KeyChord>,
     /// Global: Show/Hide PKGBUILD viewer
     pub show_pkgbuild: Vec<KeyChord>,
@@ -358,7 +358,7 @@ pub struct KeyMap {
 
 /// Type alias for global key bindings tuple.
 ///
-/// Contains 8 `Vec<KeyChord>` for `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
+/// Contains 8 `Vec<KeyChord>` for `help_overlay`, `reload_config`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
 type GlobalKeys = (
     Vec<KeyChord>,
     Vec<KeyChord>,
@@ -441,7 +441,7 @@ type InstallKeys = (
 /// - Tuple of global key binding vectors
 ///
 /// Details:
-/// - Returns `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
+/// - Returns `help_overlay`, `reload_config`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
 fn default_global_keys(none: KeyModifiers, ctrl: KeyModifiers) -> GlobalKeys {
     use KeyCode::{BackTab, Char, Left, Right, Tab};
     (
@@ -816,7 +816,7 @@ fn build_default_keymap() -> KeyMap {
 
     KeyMap {
         help_overlay: global.0,
-        reload_theme: global.1,
+        reload_config: global.1,
         exit: global.2,
         show_pkgbuild: global.3,
         change_sort: global.4,
@@ -878,7 +878,7 @@ impl Default for KeyMap {
     /// - Returns a `KeyMap` prefilling chord vectors for global, search, recent, install, and news actions.
     ///
     /// Details:
-    /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the theme.
+    /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the configuration.
     /// - Provides multiple bindings for certain actions (e.g., `F1` and `?` for help).
     /// - Delegates to `build_default_keymap()` to reduce data flow complexity.
     fn default() -> Self {

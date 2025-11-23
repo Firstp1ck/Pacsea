@@ -193,7 +193,7 @@ fn load_cache_with_signature<T>(
 ///
 /// Details:
 /// - Applies layout percentages, keymap, sort mode, package marker, and pane visibility
-fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Settings) {
+pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Settings) {
     app.layout_left_pct = prefs.layout_left_pct;
     app.layout_center_pct = prefs.layout_center_pct;
     app.layout_right_pct = prefs.layout_right_pct;

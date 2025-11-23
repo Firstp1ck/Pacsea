@@ -3,9 +3,10 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 
+use crate::app::{apply_settings_to_app_state, initialize_locale_system};
 use crate::events::utils;
 use crate::state::{AppState, PackageItem};
-use crate::theme::reload_theme;
+use crate::theme::{reload_theme, settings};
 
 /// What: Close all open dropdown menus when ESC is pressed.
 ///
@@ -306,26 +307,44 @@ fn handle_help_overlay(app: &mut AppState) -> bool {
     false
 }
 
-/// What: Handle theme reload keybind.
+/// What: Handle configuration reload keybind.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
 ///
 /// Output:
-/// - `false` if theme was reloaded
+/// - `false` if config was reloaded
 ///
 /// Details:
-/// - Reloads the theme configuration and shows a toast message on success.
-fn handle_reload_theme(app: &mut AppState) -> bool {
-    match reload_theme() {
-        Ok(()) => {
-            app.toast_message = Some(crate::i18n::t(app, "app.toasts.theme_reloaded"));
-            app.toast_expires_at =
-                Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
-        }
-        Err(msg) => {
-            app.modal = crate::state::Modal::Alert { message: msg };
-        }
+/// - Reloads theme, settings, keybinds, and locale configuration from disk.
+/// - Shows a toast message on success or error modal on failure.
+/// - Updates app state with new settings and reloads translations if locale changed.
+fn handle_reload_config(app: &mut AppState) -> bool {
+    let mut errors = Vec::new();
+
+    // Reload theme
+    if let Err(msg) = reload_theme() {
+        errors.push(format!("Theme reload failed: {msg}"));
+    }
+
+    // Reload settings and keybinds
+    let new_settings = settings();
+    let old_locale = app.locale.clone();
+    apply_settings_to_app_state(app, &new_settings);
+
+    // Reload locale if it changed
+    if new_settings.locale != old_locale {
+        initialize_locale_system(app, &new_settings.locale, &new_settings);
+    }
+
+    // Show result
+    if errors.is_empty() {
+        app.toast_message = Some(crate::i18n::t(app, "app.toasts.config_reloaded"));
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+    } else {
+        app.modal = crate::state::Modal::Alert {
+            message: errors.join("\n"),
+        };
     }
     false
 }
@@ -530,9 +549,9 @@ fn handle_global_keybinds(
         return Some(handle_help_overlay(app));
     }
 
-    // Theme reload
-    if matches_keybind(ke, &km.reload_theme) {
-        return Some(handle_reload_theme(app));
+    // Configuration reload
+    if matches_keybind(ke, &km.reload_config) {
+        return Some(handle_reload_config(app));
     }
 
     // Exit

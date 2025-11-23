@@ -146,8 +146,8 @@ fn build_global_bindings(
         lines,
         app,
         th,
-        km.reload_theme.first().copied(),
-        "app.modals.help.key_labels.reload_theme",
+        km.reload_config.first().copied(),
+        "app.modals.help.key_labels.reload_config",
     );
     add_binding_if_some(
         lines,

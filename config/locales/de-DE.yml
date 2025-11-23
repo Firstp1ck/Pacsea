@@ -117,6 +117,7 @@ de-DE:
       removing_preflight_skipped: "Entferne Liste (Preflight übersprungen)"
       preflight_remove_list: "Preflight: Liste entfernen"
       theme_reloaded: "Theme neu geladen"
+      config_reloaded: "Konfiguration neu geladen"
       installing_skipped: "Installiere (Preflight übersprungen)"
       preflight_opened: "Preflight geöffnet"
       no_new_news: "Keine neuen Neuigkeiten heute"
@@ -139,7 +140,7 @@ de-DE:
     actions:
       exit: "Beenden"
       help: "Hilfe"
-      reload_theme: "Theme neu laden"
+      reload_config: "Konfiguration neu laden"
       show_hide_pkgbuild: "PKGBUILD anzeigen/verbergen"
       change_sort_mode: "Sortiermodus ändern"
       import: "Importieren"
@@ -351,7 +352,7 @@ de-DE:
         key_labels:
           help_overlay: "Hilfe-Overlay"
           exit: "Beenden"
-          reload_theme: "Theme neu laden"
+          reload_config: "Konfiguration neu laden"
           next_pane: "Nächstes Panel"
           focus_left: "Nach links fokussieren"
           focus_right: "Nach rechts fokussieren"

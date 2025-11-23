@@ -121,6 +121,8 @@ hu-HU:
       removing_preflight_skipped: "Eltávolítási lista (előzetes ellenőrzés kihagyva)"
       preflight_remove_list: "Előzetes ellenőrzés: Eltávolítási lista"
       theme_reloaded: "Téma újratöltve"
+      # TODO: Translate config_reloaded in Hungarian
+      config_reloaded: "Configuration reloaded"
       installing_skipped: "Telepítés (előzetes ellenőrzés kihagyva)"
       preflight_opened: "Előzetes ellenőrzés megnyitva"
       no_new_news: "Ma nincsenek új hírek"
@@ -143,7 +145,8 @@ hu-HU:
     actions:
       exit: "Kilépés"
       help: "Súgó"
-      reload_theme: "Téma újratöltése"
+      # TODO: Translate config_reloaded in Hungarian
+      reload_config: "Reload configuration"
       show_hide_pkgbuild: "PKGBUILD megjelenítése/elrejtése"
       change_sort_mode: "Rendezési szempont módosítása"
       import: "Importálás"
@@ -355,7 +358,8 @@ hu-HU:
         key_labels:
           help_overlay: "Súgóréteg"
           exit: "Kilépés"
-          reload_theme: "Téma újratöltése"
+          # TODO: Translate reload_config in Hungarian
+          reload_config: "Reload configuration"
           next_pane: "Következő panel"
           focus_left: "Fókuszálás balra"
           focus_right: "Fókuszálás jobbra"

@@ -340,7 +340,7 @@ pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\
 keybind_help = F1\n\
 # Alternative help shortcut\n\
 keybind_help = ?\n\
-keybind_reload_theme = CTRL+R\n\
+keybind_reload_config = CTRL+R\n\
 keybind_exit = CTRL+Q\n\
 keybind_show_pkgbuild = CTRL+X\n\
 \n\

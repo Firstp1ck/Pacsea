@@ -117,6 +117,7 @@ en-US:
       removing_preflight_skipped: "Removing list (preflight skipped)"
       preflight_remove_list: "Preflight: Remove list"
       theme_reloaded: "Theme reloaded"
+      config_reloaded: "Configuration reloaded"
       installing_skipped: "Installing (preflight skipped)"
       preflight_opened: "Preflight opened"
       no_new_news: "No new News today"
@@ -139,7 +140,7 @@ en-US:
     actions:
       exit: "Exit"
       help: "Help"
-      reload_theme: "Reload theme"
+      reload_config: "Reload configuration"
       show_hide_pkgbuild: "Show/Hide PKGBUILD"
       change_sort_mode: "Change Sort Mode"
       import: "Import"
@@ -351,7 +352,7 @@ en-US:
         key_labels:
           help_overlay: "Help overlay"
           exit: "Exit"
-          reload_theme: "Reload theme"
+          reload_config: "Reload configuration"
           next_pane: "Next pane"
           focus_left: "Focus left"
           focus_right: "Focus right"
