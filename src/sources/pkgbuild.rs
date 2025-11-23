@@ -24,6 +24,9 @@ const PKGBUILD_MIN_INTERVAL_MS: u64 = 200; // Minimum 200ms between requests (re
 /// - Returns `Err` when rate limiting mutex is poisoned
 /// - Returns `Err` when task spawn fails
 ///
+/// # Panics
+/// - Panics if the rate limiting mutex is poisoned
+///
 /// Details:
 /// - First tries offline methods (yay/paru cache) for fast loading.
 /// - Then tries network with rate limiting and timeout (10s).

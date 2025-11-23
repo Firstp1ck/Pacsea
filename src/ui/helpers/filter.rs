@@ -13,6 +13,9 @@ use crate::state::{AppState, Focus};
 /// Output:
 /// - Vector of indices in ascending order without modifying application state.
 ///
+/// # Panics
+/// - Panics if `pane_find` is `Some` but becomes `None` between the check and the `expect` call (should not happen in single-threaded usage)
+///
 /// Details:
 /// - Applies pane find filtering only when the Recent pane is focused and the finder string is
 ///   non-empty; otherwise returns the full range.
@@ -48,6 +51,9 @@ pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
 ///
 /// Output:
 /// - Vector of indices in ascending order without modifying application state.
+///
+/// # Panics
+/// - Panics if `pane_find` is `Some` but becomes `None` between the check and the `expect` call (should not happen in single-threaded usage)
 ///
 /// Details:
 /// - Restricts matches to name or description substrings when the Install pane is focused and a

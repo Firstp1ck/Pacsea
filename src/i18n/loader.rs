@@ -207,6 +207,9 @@ impl LocaleLoader {
     /// # Errors
     /// - Returns `Err` when the locale file cannot be loaded (see `load_locale_file` for specific error conditions)
     ///
+    /// # Panics
+    /// - Panics if the cache is modified between the `contains_key` check and the `get` call (should not happen in single-threaded usage)
+    ///
     /// Details:
     /// - Caches loaded translations to avoid re-reading files
     /// - Returns cached version if available

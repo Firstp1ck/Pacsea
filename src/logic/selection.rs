@@ -12,6 +12,10 @@ use crate::state::{AppState, PackageItem};
 /// Output:
 /// - Updates selection-related state, potentially sends detail requests, and adjusts gating flags.
 ///
+/// # Panics
+/// - Panics if `abs_delta_usize` exceeds `u32::MAX` when converting to `u32`
+/// - May panic if `app.list_state.select` is called with an invalid index (depends on the list state implementation)
+///
 /// Details:
 /// - Clamps the selection to valid bounds, refreshes placeholder metadata, and reuses cached entries.
 /// - Schedules PKGBUILD reloads when necessary and tracks scroll velocity to throttle prefetching.

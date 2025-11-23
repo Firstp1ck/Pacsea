@@ -142,6 +142,9 @@ fn parse_missing_settings(
 /// Output:
 /// - None.
 ///
+/// # Panics
+/// - Panics if `lines.last()` is called on an empty vector after checking `!lines.is_empty()` (should not happen due to the check)
+///
 /// Details:
 /// - Preserves existing lines and comments while adding only absent keys.
 /// - Creates the settings file from the skeleton when it is missing or empty.

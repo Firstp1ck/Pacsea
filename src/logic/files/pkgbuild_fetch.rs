@@ -243,6 +243,9 @@ pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
 /// - Returns `Err` when PKGBUILD cannot be fetched from AUR or official repositories
 /// - Returns `Err` when rate limiting mutex is poisoned
 ///
+/// # Panics
+/// - Panics if the rate limiting mutex is poisoned
+///
 /// Details:
 /// - First tries offline methods (yay/paru cache, yay -G, paru -G).
 /// - Then tries AUR with rate limiting (500ms between requests).

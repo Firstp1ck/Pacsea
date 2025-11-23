@@ -80,6 +80,9 @@ fn load_initial_theme_or_exit() -> Theme {
 /// Output:
 /// - A copy of the currently loaded `Theme`.
 ///
+/// # Panics
+/// - Panics if the theme store `RwLock` is poisoned
+///
 /// Details:
 /// - Lazily initializes a global `RwLock<Theme>` using `load_initial_theme_or_exit`.
 /// - Subsequent calls reuse the cached theme until `reload_theme` updates it.

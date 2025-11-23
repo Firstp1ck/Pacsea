@@ -277,6 +277,9 @@ pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInf
 /// Output:
 /// - Vector of `SandboxInfo` entries, one per AUR package.
 ///
+/// # Panics
+/// - Panics if a tokio runtime cannot be created when no runtime handle is available
+///
 /// Details:
 /// - Wraps the async version for use in blocking contexts.
 #[must_use]
