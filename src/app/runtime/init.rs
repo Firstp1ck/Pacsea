@@ -203,6 +203,7 @@ fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Setting
     app.show_recent_pane = prefs.show_recent_pane;
     app.show_install_pane = prefs.show_install_pane;
     app.show_keybinds_footer = prefs.show_keybinds_footer;
+    app.search_normal_mode = prefs.search_startup_mode;
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.

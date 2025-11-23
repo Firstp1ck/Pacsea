@@ -23,7 +23,7 @@ use crate::state::AppState;
 /// - `Some(true)` if Enter was pressed and commands were executed, `Some(false)` otherwise, `None` if not handled
 ///
 /// Details:
-/// - Handles navigation, toggles, and Enter to execute update commands
+/// - Handles Esc/q to close, navigation, toggles, and Enter to execute update commands
 #[allow(clippy::too_many_arguments)]
 pub(super) fn handle_system_update(
     ke: KeyEvent,
@@ -38,17 +38,17 @@ pub(super) fn handle_system_update(
     cursor: &mut usize,
 ) -> Option<bool> {
     match ke.code {
-        KeyCode::Esc => {
+        KeyCode::Esc | KeyCode::Char('q') => {
             app.modal = crate::state::Modal::None;
             Some(false)
         }
-        KeyCode::Up => {
+        KeyCode::Up | KeyCode::Char('k') => {
             if *cursor > 0 {
                 *cursor -= 1;
             }
             Some(false)
         }
-        KeyCode::Down => {
+        KeyCode::Down | KeyCode::Char('j') => {
             let max = 4; // 4 options (0..3) + country row (index 4)
             if *cursor < max {
                 *cursor += 1;

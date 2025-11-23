@@ -133,6 +133,7 @@ struct NewsContext {
 struct UpdatesContext {
     entries: Vec<(String, String, String)>,
     scroll: u16,
+    selected: usize,
 }
 
 /// What: Context struct grouping `OptionalDeps` modal fields to reduce data flow complexity.
@@ -260,8 +261,16 @@ impl ModalRenderer for Modal {
                 let ctx = NewsContext { items, selected };
                 render_news_modal(f, app, area, ctx)
             }
-            Self::Updates { entries, scroll } => {
-                let ctx = UpdatesContext { entries, scroll };
+            Self::Updates {
+                entries,
+                scroll,
+                selected,
+            } => {
+                let ctx = UpdatesContext {
+                    entries,
+                    scroll,
+                    selected,
+                };
                 render_updates_modal(f, app, area, ctx)
             }
             Self::OptionalDeps { rows, selected } => {
@@ -547,10 +556,11 @@ fn render_updates_modal(
     area: Rect,
     ctx: UpdatesContext,
 ) -> Modal {
-    updates::render_updates(f, app, area, &ctx.entries, ctx.scroll);
+    updates::render_updates(f, app, area, &ctx.entries, ctx.scroll, ctx.selected);
     Modal::Updates {
         entries: ctx.entries,
         scroll: ctx.scroll,
+        selected: ctx.selected,
     }
 }
 

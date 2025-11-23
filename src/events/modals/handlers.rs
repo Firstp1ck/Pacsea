@@ -277,15 +277,17 @@ pub(super) fn handle_updates_modal(ke: KeyEvent, app: &mut AppState, mut modal: 
     if let Modal::Updates {
         ref entries,
         ref mut scroll,
+        ref mut selected,
     } = modal
     {
-        let result = super::common::handle_updates(ke, app, entries, scroll);
+        let result = super::common::handle_updates(ke, app, entries, scroll, selected);
         return restore::restore_if_not_closed_with_bool_result(
             app,
             result,
             Modal::Updates {
                 entries: entries.clone(),
                 scroll: *scroll,
+                selected: *selected,
             },
         );
     }

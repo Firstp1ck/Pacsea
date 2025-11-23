@@ -103,6 +103,10 @@ pub struct Settings {
     /// Locale code for translations (e.g., "de-DE", "en-US").
     /// Empty string means auto-detect from system locale.
     pub locale: String,
+    /// Search input mode on startup.
+    /// When false, starts in insert mode (default).
+    /// When true, starts in normal mode.
+    pub search_startup_mode: bool,
 }
 
 impl Default for Settings {
@@ -145,7 +149,8 @@ impl Default for Settings {
             news_unread_symbol: "∘".to_string(),
             preferred_terminal: String::new(),
             skip_preflight: false,
-            locale: String::new(), // Empty means auto-detect from system
+            locale: String::new(),      // Empty means auto-detect from system
+            search_startup_mode: false, // Default to insert mode
         }
     }
 }

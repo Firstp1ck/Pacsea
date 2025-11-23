@@ -196,6 +196,10 @@ app_dry_run_default = false\n\
 show_recent_pane = true\n\
 show_install_pane = true\n\
 show_keybinds_footer = true\n\
+# Search input mode on startup\n\
+# Allowed values: insert_mode | normal_mode\n\
+# Default is insert_mode\n\
+search_startup_mode = insert_mode\n\
 \n\
 # Results sorting\n\
 # Allowed values: alphabetical | aur_popularity | best_matches\n\

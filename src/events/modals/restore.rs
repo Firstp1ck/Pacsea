@@ -31,23 +31,23 @@ pub(super) fn restore_if_not_closed_with_excluded_keys(
 }
 
 /// What: Restore a modal if it wasn't closed by the handler, considering an
-/// Option<bool> result and excluding Esc key.
+/// Option<bool> result and excluding Esc/q keys.
 ///
 /// Inputs:
 /// - `app`: Mutable application state to check and restore modal in
-/// - `ke`: Key event to check against Esc key
+/// - `ke`: Key event to check against Esc/q keys
 /// - `should_stop`: Optional boolean indicating if event propagation should stop
 /// - `modal`: Modal variant to restore if conditions are met
 ///
 /// Output:
 /// - The boolean value from `should_stop`, or `false` if `None`
-/// - Returns `true` if Esc was pressed and modal was closed (to stop propagation)
+/// - Returns `true` if Esc or 'q' was pressed and modal was closed (to stop propagation)
 ///
 /// Details:
 /// - Used for modals like `SystemUpdate` and `OptionalDeps` that return `Option<bool>`
-/// - Restores modal if handler didn't close it and Esc wasn't pressed
-/// - Esc key closes modal even if `should_stop` is `Some(false)`
-/// - When Esc closes the modal, returns `true` to stop event propagation
+/// - Restores modal if handler didn't close it and Esc/q wasn't pressed
+/// - Esc/q keys close modal even if `should_stop` is `Some(false)`
+/// - When Esc/q closes the modal, returns `true` to stop event propagation
 pub(super) fn restore_if_not_closed_with_option_result(
     app: &mut AppState,
     ke: &KeyEvent,
@@ -55,11 +55,11 @@ pub(super) fn restore_if_not_closed_with_option_result(
     modal: Modal,
 ) -> bool {
     if matches!(app.modal, Modal::None) {
-        // If Esc was pressed and modal was closed, stop propagation
-        if matches!(ke.code, KeyCode::Esc) {
+        // If Esc or 'q' was pressed and modal was closed, stop propagation
+        if matches!(ke.code, KeyCode::Esc | KeyCode::Char('q')) {
             return true;
         }
-        // Only restore if handler didn't intentionally close (Esc returns Some(false) but closes modal)
+        // Only restore if handler didn't intentionally close (Esc/q returns Some(false) but closes modal)
         // For navigation/toggle keys, handler returns Some(false) but doesn't close, so we restore
         if should_stop.is_none() || should_stop == Some(false) {
             app.modal = modal;
@@ -209,6 +209,18 @@ mod tests {
 
         assert!(matches!(app.modal, Modal::None));
         assert!(result); // Esc returns true to stop propagation
+    }
+
+    #[test]
+    fn test_restore_if_not_closed_with_option_result_doesnt_restore_when_q() {
+        let mut app = create_app_state_with_modal(Modal::None);
+        let ke = create_key_event(KeyCode::Char('q'));
+        let modal = Modal::Help;
+
+        let result = restore_if_not_closed_with_option_result(&mut app, &ke, Some(false), modal);
+
+        assert!(matches!(app.modal, Modal::None));
+        assert!(result); // 'q' returns true to stop propagation
     }
 
     #[test]

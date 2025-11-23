@@ -212,6 +212,7 @@ pub(super) fn handle_updates_modal(
     if let crate::state::Modal::Updates {
         ref mut scroll,
         ref entries,
+        selected: _,
     } = app.modal
     {
         // Handle scroll within modal

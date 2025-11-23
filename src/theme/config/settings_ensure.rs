@@ -67,6 +67,12 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
             "false"
         }
         .to_string(),
+        "search_startup_mode" => if prefs.search_startup_mode {
+            "normal_mode"
+        } else {
+            "insert_mode"
+        }
+        .to_string(),
         "scan_do_clamav" | "scan_do_trivy" | "scan_do_semgrep" | "scan_do_shellcheck"
         | "scan_do_virustotal" | "scan_do_custom" | "scan_do_sleuth" => {
             // Scan keys default to true
