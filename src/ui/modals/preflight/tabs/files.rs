@@ -666,6 +666,7 @@ struct FileListContext<'a> {
 ///
 /// Output:
 /// - Returns a line to render.
+#[allow(clippy::fn_params_excessive_bools)]
 fn render_file_entry(
     app: &AppState,
     change_type: &FileChangeType,

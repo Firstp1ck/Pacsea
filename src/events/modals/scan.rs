@@ -173,7 +173,7 @@ pub(super) fn handle_virustotal_setup(
 ///
 /// Details:
 /// - Persists scan settings and spawns AUR scans for pending packages
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn handle_scan_config_confirm(
     pending_install_names: Option<&Vec<String>>,
     dry_run: bool,

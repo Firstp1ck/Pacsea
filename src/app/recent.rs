@@ -43,7 +43,7 @@ mod tests {
     use super::*;
 
     fn new_app() -> AppState {
-        Default::default()
+        AppState::default()
     }
 
     #[test]

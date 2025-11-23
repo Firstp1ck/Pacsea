@@ -1246,12 +1246,13 @@ fn test_all_preflight_keys_return_false() {
 
     for (key_code, key_name) in keys_to_test {
         let mut app = AppState::default();
-        let mut tab = PreflightTab::Summary;
 
         // Switch to Files tab for 'f' key test
-        if matches!(key_code, KeyCode::Char('f' | 'F')) {
-            tab = PreflightTab::Files;
-        }
+        let mut tab = if matches!(key_code, KeyCode::Char('f' | 'F')) {
+            PreflightTab::Files
+        } else {
+            PreflightTab::Summary
+        };
 
         app.modal = Modal::Preflight {
             items: vec![pkg("test-package")],

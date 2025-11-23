@@ -15,6 +15,7 @@ use crate::theme::KeyMap;
 /// updates. Certain subsets are persisted to disk to preserve user context
 /// across runs (e.g., recent searches, details cache, install list).
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct AppState {
     /// Current search input text.
     pub input: String,

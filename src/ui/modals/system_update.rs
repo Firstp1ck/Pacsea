@@ -28,7 +28,7 @@ use crate::theme::theme;
 /// Details:
 /// - Formats checkbox rows, displays the effective country list from settings, and surfaces key
 ///   hints for toggling, adjusting country, and running the update.
-#[allow(clippy::many_single_char_names)]
+#[allow(clippy::many_single_char_names, clippy::fn_params_excessive_bools)]
 pub fn render_system_update(
     f: &mut Frame,
     app: &AppState,

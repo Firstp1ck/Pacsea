@@ -132,7 +132,7 @@ pub(super) fn handle_system_update(
 ///
 /// Details:
 /// - Builds command list based on selected options and spawns them in a terminal
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn handle_system_update_enter(
     dry_run: bool,
     do_mirrors: bool,

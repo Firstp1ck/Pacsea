@@ -7,6 +7,7 @@
 ///
 /// Output:
 /// - Returns a tuple of (depends, makedepends, checkdepends, optdepends) vectors.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 pub(super) fn parse_srcinfo_deps(
     srcinfo: &str,
 ) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
@@ -27,7 +28,11 @@ pub(super) fn parse_srcinfo_deps(
             let value = value.trim();
 
             // Filter out virtual packages (.so files)
-            if value.ends_with(".so") || value.contains(".so.") || value.contains(".so=") {
+            let value_lower = value.to_lowercase();
+            if value_lower.ends_with(".so")
+                || value_lower.contains(".so.")
+                || value_lower.contains(".so=")
+            {
                 continue;
             }
 

@@ -26,7 +26,7 @@ fn get_depends_labels() -> &'static HashSet<String> {
         if let Ok(entries) = std::fs::read_dir(&locales_dir) {
             for entry in entries.flatten() {
                 if let Some(file_name) = entry.file_name().to_str()
-                    && file_name.ends_with(".yml")
+                    && file_name.to_lowercase().ends_with(".yml")
                 {
                     let locale = file_name.strip_suffix(".yml").unwrap_or(file_name);
                     if let Ok(translations) = crate::i18n::load_locale_file(locale, &locales_dir) {
@@ -86,7 +86,7 @@ fn get_none_labels() -> &'static HashSet<String> {
         if let Ok(entries) = std::fs::read_dir(&locales_dir) {
             for entry in entries.flatten() {
                 if let Some(file_name) = entry.file_name().to_str()
-                    && file_name.ends_with(".yml")
+                    && file_name.to_lowercase().ends_with(".yml")
                 {
                     let locale = file_name.strip_suffix(".yml").unwrap_or(file_name);
                     if let Ok(translations) = crate::i18n::load_locale_file(locale, &locales_dir) {
@@ -157,6 +157,7 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
             }
             // Split by whitespace, filter out empty strings and .so files (virtual packages)
             // Also filter out tokens that don't look like package names
+            #[allow(clippy::case_sensitive_file_extension_comparisons)]
             return deps_str
                 .split_whitespace()
                 .map(|s| s.trim().to_string())
@@ -166,7 +167,11 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
                     }
                     // Filter out .so files (virtual packages)
                     // Patterns: "libedit.so=0-64", "libgit2.so", "libfoo.so.1"
-                    if s.ends_with(".so") || s.contains(".so.") || s.contains(".so=") {
+                    let s_lower = s.to_lowercase();
+                    if s_lower.ends_with(".so")
+                        || s_lower.contains(".so.")
+                        || s_lower.contains(".so=")
+                    {
                         return false;
                     }
                     // Filter out common words that might appear in descriptions
@@ -218,7 +223,7 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
 ///
 /// Details:
 /// - Handles repository prefixes, download URLs, and shared-library provides while extracting canonical names.
-#[allow(dead_code)]
+#[allow(dead_code, clippy::case_sensitive_file_extension_comparisons)]
 pub(super) fn parse_dependency_output(text: &str) -> Vec<String> {
     text.lines()
         .filter_map(|line| {
@@ -255,7 +260,8 @@ pub(super) fn parse_dependency_output(text: &str) -> Vec<String> {
 
             // Handle .so files (shared libraries) - these are virtual packages
             // Skip them as they're not actual package dependencies
-            if line.ends_with(".so") || line.contains(".so.") {
+            let line_lower = line.to_lowercase();
+            if line_lower.ends_with(".so") || line_lower.contains(".so.") {
                 return None;
             }
 
@@ -285,6 +291,7 @@ pub(super) fn parse_dependency_output(text: &str) -> Vec<String> {
 /// Details:
 /// - Scans the "Conflicts With" line, splits on whitespace, and filters out invalid entries.
 /// - Similar to `parse_pacman_si_deps` but for conflicts field.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 pub(super) fn parse_pacman_si_conflicts(text: &str) -> Vec<String> {
     let none_labels = get_none_labels();
 
@@ -313,7 +320,11 @@ pub(super) fn parse_pacman_si_conflicts(text: &str) -> Vec<String> {
                         return false;
                     }
                     // Filter out .so files (virtual packages)
-                    if s.ends_with(".so") || s.contains(".so.") || s.contains(".so=") {
+                    let s_lower = s.to_lowercase();
+                    if s_lower.ends_with(".so")
+                        || s_lower.contains(".so.")
+                        || s_lower.contains(".so=")
+                    {
                         return false;
                     }
                     // Filter out common words

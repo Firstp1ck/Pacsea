@@ -145,8 +145,7 @@ pub(super) fn handle_dry_run_key(app: &mut AppState) -> bool {
 /// Output:
 /// - Always returns `false`.
 pub(super) fn handle_m_key(app: &mut AppState) -> bool {
-    let mut next_mode_opt = None;
-    if let crate::state::Modal::Preflight {
+    let next_mode_opt = if let crate::state::Modal::Preflight {
         action: crate::state::PreflightAction::Remove,
         cascade_mode,
         ..
@@ -154,8 +153,10 @@ pub(super) fn handle_m_key(app: &mut AppState) -> bool {
     {
         let next_mode = cascade_mode.next();
         *cascade_mode = next_mode;
-        next_mode_opt = Some(next_mode);
-    }
+        Some(next_mode)
+    } else {
+        None
+    };
 
     if let Some(next_mode) = next_mode_opt {
         app.remove_cascade_mode = next_mode;

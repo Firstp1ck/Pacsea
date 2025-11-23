@@ -157,12 +157,11 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
     );
 
     let terms = get_terminal_preferences();
-    let mut launched = false;
 
     // Try preferred path-based selection first
-    if let Some(idx) = choose_terminal_index_prefer_path(terms) {
+    let mut launched = if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
-        launched = try_spawn_terminal(
+        try_spawn_terminal(
             term,
             args,
             needs_xfce_command,
@@ -170,8 +169,10 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
             &item.name,
             src,
             dry_run,
-        );
-    }
+        )
+    } else {
+        false
+    };
 
     // Fallback: try each terminal in order
     if !launched {

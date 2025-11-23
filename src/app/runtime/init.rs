@@ -136,6 +136,7 @@ pub fn initialize_locale_system(
 /// - Loads persisted caches (details, recent, install list, dependencies, files, services, sandbox)
 /// - Initializes locale system
 /// - Checks for GNOME terminal if on GNOME desktop
+#[allow(clippy::struct_excessive_bools)]
 pub struct InitFlags {
     pub needs_deps_resolution: bool,
     pub needs_files_resolution: bool,

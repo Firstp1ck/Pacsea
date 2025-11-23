@@ -112,11 +112,14 @@ fn is_command_available(cmd: &str) -> bool {
 ///
 /// Details:
 /// - Filters out .so files (virtual packages) and self-references.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn should_filter_dependency(pkg_name: &str, parent_name: &str) -> bool {
-    pkg_name == parent_name
-        || pkg_name.ends_with(".so")
-        || pkg_name.contains(".so.")
-        || pkg_name.contains(".so=")
+    let pkg_lower = pkg_name.to_lowercase();
+    pkg_name
+        == parent_name
+        || pkg_lower.ends_with(".so")
+        || pkg_lower.contains(".so.")
+        || pkg_lower.contains(".so=")
 }
 
 /// What: Convert a dependency spec into a `DependencyInfo` record.
@@ -505,17 +508,15 @@ fn resolve_aur_package_deps(
         name
     );
 
-    let mut deps = Vec::new();
-    let mut used_helper = false;
-
     // Try paru first
-    if is_command_available("paru")
+    let (mut deps, mut used_helper) = if is_command_available("paru")
         && let Some(helper_deps) =
             try_helper_resolution("paru", name, installed, provided, upgradable)
     {
-        deps = helper_deps;
-        used_helper = true;
-    }
+        (helper_deps, true)
+    } else {
+        (Vec::new(), false)
+    };
 
     // Try yay if paru didn't work
     if !used_helper

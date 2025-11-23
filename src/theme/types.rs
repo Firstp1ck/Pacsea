@@ -53,6 +53,7 @@ pub enum PackageMarker {
 }
 
 #[derive(Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Settings {
     /// Percentage width allocated to the Recent pane (left column).
     pub layout_left_pct: u16,

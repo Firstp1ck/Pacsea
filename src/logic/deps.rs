@@ -172,6 +172,7 @@ fn process_conflicts(
 ///
 /// Details:
 /// - Parses dependency specifications and filters out self-references and .so files.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn process_batched_dependencies(
     name: &str,
     dep_names: Vec<String>,
@@ -185,7 +186,8 @@ fn process_batched_dependencies(
         if pkg_name == name {
             continue;
         }
-        if pkg_name.ends_with(".so") || pkg_name.contains(".so.") || pkg_name.contains(".so=") {
+        let pkg_lower = pkg_name.to_lowercase();
+        if pkg_lower.ends_with(".so") || pkg_lower.contains(".so.") || pkg_lower.contains(".so=") {
             continue;
         }
         let status = determine_status(&pkg_name, &version_req, installed, provided, upgradable);

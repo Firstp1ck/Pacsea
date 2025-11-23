@@ -218,7 +218,7 @@ mod tests {
     use crate::state::{PackageItem, Source};
 
     fn new_app() -> AppState {
-        Default::default()
+        AppState::default()
     }
 
     #[test]

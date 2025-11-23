@@ -15,6 +15,7 @@ pub(crate) use crate::util::srcinfo::fetch_srcinfo;
 /// - Parses key-value pairs from .SRCINFO format.
 /// - Handles array fields that can appear multiple times.
 /// - Filters out virtual packages (.so files).
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 pub(super) fn parse_srcinfo_deps(
     srcinfo: &str,
 ) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
@@ -35,7 +36,11 @@ pub(super) fn parse_srcinfo_deps(
             let value = value.trim();
 
             // Filter out virtual packages (.so files)
-            if value.ends_with(".so") || value.contains(".so.") || value.contains(".so=") {
+            let value_lower = value.to_lowercase();
+            if value_lower.ends_with(".so")
+                || value_lower.contains(".so.")
+                || value_lower.contains(".so=")
+            {
                 continue;
             }
 
@@ -64,6 +69,7 @@ pub(super) fn parse_srcinfo_deps(
 /// - Parses "conflicts" key-value pairs from .SRCINFO format.
 /// - Handles array fields that can appear multiple times.
 /// - Filters out virtual packages (.so files) and extracts package names from version constraints.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 pub(super) fn parse_srcinfo_conflicts(srcinfo: &str) -> Vec<String> {
     use super::parse::parse_dep_spec;
 
@@ -82,7 +88,11 @@ pub(super) fn parse_srcinfo_conflicts(srcinfo: &str) -> Vec<String> {
 
             if key == "conflicts" {
                 // Filter out virtual packages (.so files)
-                if value.ends_with(".so") || value.contains(".so.") || value.contains(".so=") {
+                let value_lower = value.to_lowercase();
+                if value_lower.ends_with(".so")
+                    || value_lower.contains(".so.")
+                    || value_lower.contains(".so=")
+                {
                     continue;
                 }
                 // Extract package name (remove version constraints if present)

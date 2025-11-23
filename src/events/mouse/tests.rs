@@ -21,7 +21,7 @@ fn new_app() -> AppState {
     unsafe {
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
-    Default::default()
+    AppState::default()
 }
 
 #[test]

@@ -219,7 +219,7 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
     let mut year: i32 = 1970;
     loop {
         let leap = is_leap(year);
-        let diy = if leap { 366 } else { 365 } as i64;
+        let diy = i64::from(if leap { 366 } else { 365 });
         if days >= diy {
             days -= diy;
             year += 1;
@@ -441,7 +441,7 @@ pub fn today_yyyymmdd_utc() -> String {
     let mut year: i32 = 1970;
     loop {
         let leap = is_leap(year);
-        let diy = if leap { 366 } else { 365 } as i64;
+        let diy = i64::from(if leap { 366 } else { 365 });
         if days >= diy {
             days -= diy;
             year += 1;

@@ -315,7 +315,7 @@ mod tests {
     /// Details:
     /// - Centralizes setup so each test starts from a clean copy without repeated boilerplate.
     fn new_app() -> AppState {
-        Default::default()
+        AppState::default()
     }
 
     #[test]

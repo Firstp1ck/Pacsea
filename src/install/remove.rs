@@ -239,11 +239,12 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
         cascade_mode,
     };
 
-    let mut launched = false;
-    if let Some(idx) = choose_terminal_index_prefer_path(terms) {
+    let mut launched = if let Some(idx) = choose_terminal_index_prefer_path(terms) {
         let (term, args, needs_xfce_command) = terms[idx];
-        launched = try_spawn_terminal(term, args, needs_xfce_command, &cmd_str, &ctx);
-    }
+        try_spawn_terminal(term, args, needs_xfce_command, &cmd_str, &ctx)
+    } else {
+        false
+    };
 
     if !launched {
         for (term, args, needs_xfce_command) in terms {

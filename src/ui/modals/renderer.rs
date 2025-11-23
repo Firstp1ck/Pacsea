@@ -31,6 +31,7 @@ struct PreflightExecContext {
 /// Output: Groups related fields together for passing to render functions.
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+#[allow(clippy::struct_excessive_bools)]
 struct SystemUpdateContext {
     do_mirrors: bool,
     do_pacman: bool,
@@ -65,6 +66,7 @@ struct PostSummaryContext {
 /// Output: Groups related fields together for passing to render functions.
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+#[allow(clippy::struct_excessive_bools)]
 struct ScanConfigContext {
     do_clamav: bool,
     do_trivy: bool,

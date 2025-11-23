@@ -108,6 +108,7 @@ pub fn render_optional_deps(
 /// Details:
 /// - Presents each scanner with checkboxes, respecting theme emphasis for the cursor and summarizing
 ///   available shortcuts at the bottom.
+#[allow(clippy::fn_params_excessive_bools)]
 pub fn render_scan_config(
     f: &mut Frame,
     area: Rect,

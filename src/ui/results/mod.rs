@@ -37,6 +37,7 @@ pub struct RenderContext {
 /// Output: Struct containing all optional repo flags.
 ///
 /// Details: Used to pass multiple optional repo flags as a single parameter.
+#[allow(clippy::struct_excessive_bools)]
 pub struct OptionalRepos {
     pub has_eos: bool,
     pub has_cachyos: bool,
@@ -57,6 +58,7 @@ pub struct OptionalRepos {
 /// Output: Struct containing all menu states.
 ///
 /// Details: Used to pass multiple menu states as a single parameter.
+#[allow(clippy::struct_excessive_bools)]
 pub struct MenuStates {
     pub sort_menu_open: bool,
     pub config_menu_open: bool,
@@ -71,6 +73,7 @@ pub struct MenuStates {
 /// Output: Struct containing all filter states.
 ///
 /// Details: Used to pass multiple filter states as a single parameter.
+#[allow(clippy::struct_excessive_bools)]
 pub struct FilterStates {
     pub show_aur: bool,
     pub show_core: bool,
