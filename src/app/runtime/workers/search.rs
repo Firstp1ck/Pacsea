@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::path::Path;
 use std::time::Instant;
 
 use tokio::{
@@ -8,8 +10,8 @@ use tokio::{
 
 use crate::index as pkgindex;
 use crate::sources;
-use crate::state::{QueryInput, SearchResults};
-use crate::util::{match_rank, repo_order};
+use crate::state::{PackageItem, QueryInput, SearchResults};
+use crate::util::{fuzzy_match_rank_with_matcher, match_rank, repo_order};
 
 /// What: Spawn background worker for search queries.
 ///
@@ -45,21 +47,7 @@ pub fn spawn_search_worker(
                 select! { Some(new_q) = query_rx.recv() => { latest = new_q; } () = sleep(Duration::from_millis(DEBOUNCE_MS)) => { break; } }
             }
             if latest.text.trim().is_empty() {
-                let mut items = pkgindex::all_official_or_fetch(&index_path);
-                items.sort_by(|a, b| {
-                    let oa = repo_order(&a.source);
-                    let ob = repo_order(&b.source);
-                    if oa != ob {
-                        return oa.cmp(&ob);
-                    }
-                    a.name.to_lowercase().cmp(&b.name.to_lowercase())
-                });
-                // Deduplicate by package name, preferring earlier entries (core > extra > others)
-                {
-                    use std::collections::HashSet;
-                    let mut seen = HashSet::new();
-                    items.retain(|p| seen.insert(p.name.to_lowercase()));
-                }
+                let items = handle_empty_query(&index_path);
                 let _ = search_result_tx.send(SearchResults {
                     id: latest.id,
                     items,
@@ -72,114 +60,226 @@ pub fn spawn_search_worker(
             }
             last_sent = Instant::now();
 
-            let qtext = latest.text.clone();
-            let fuzzy_mode = latest.fuzzy;
-            let sid = latest.id;
+            let query = latest;
             let tx = search_result_tx.clone();
             let err_tx = net_err_tx_search.clone();
             let ipath = index_path.clone();
             tokio::spawn(async move {
-                if crate::index::all_official().is_empty() {
-                    let _ = crate::index::all_official_or_fetch(&ipath);
-                }
-                let official_results = pkgindex::search_official(&qtext, fuzzy_mode);
-                let q_for_net = qtext.clone();
-                let (aur_items, errors) = sources::fetch_all_with_errors(q_for_net).await;
-
-                // Collect all items with their fuzzy scores if in fuzzy mode
-                let mut items_with_scores: Vec<(crate::state::PackageItem, Option<i64>)> =
-                    official_results;
-
-                // Filter and score AUR items
-                if fuzzy_mode {
-                    // In fuzzy mode, filter AUR items by fuzzy match and keep scores
-                    // AUR API returns substring matches, but we re-filter with fuzzy matching
-                    // Create matcher once per search query for better performance
-                    let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
-                    let aur_scored: Vec<(crate::state::PackageItem, Option<i64>)> = aur_items
-                        .into_iter()
-                        .filter_map(|item| {
-                            crate::util::fuzzy_match_rank_with_matcher(&item.name, &qtext, &matcher)
-                                .map(|score| (item, Some(score)))
-                        })
-                        .collect();
-                    items_with_scores.extend(aur_scored);
-                } else {
-                    // In normal mode, AUR API already filters by substring match
-                    // Add all AUR items with placeholder score for consistent sorting
-                    let aur_scored: Vec<(crate::state::PackageItem, Option<i64>)> = aur_items
-                        .into_iter()
-                        .map(|item| (item, Some(0))) // Placeholder score for AUR items
-                        .collect();
-                    items_with_scores.extend(aur_scored);
-                }
-
-                // Sort items based on fuzzy mode
-                if fuzzy_mode {
-                    // In fuzzy mode, sort by fuzzy score first (higher = better), then repo order
-                    items_with_scores.sort_by(|a, b| {
-                        match (a.1, b.1) {
-                            (Some(sa), Some(sb)) => {
-                                // Higher score first
-                                match sb.cmp(&sa) {
-                                    std::cmp::Ordering::Equal => {
-                                        let oa = repo_order(&a.0.source);
-                                        let ob = repo_order(&b.0.source);
-                                        if oa != ob {
-                                            return oa.cmp(&ob);
-                                        }
-                                        a.0.name.to_lowercase().cmp(&b.0.name.to_lowercase())
-                                    }
-                                    other => other,
-                                }
-                            }
-                            (Some(_), None) => std::cmp::Ordering::Less,
-                            (None, Some(_)) => std::cmp::Ordering::Greater,
-                            (None, None) => {
-                                let oa = repo_order(&a.0.source);
-                                let ob = repo_order(&b.0.source);
-                                if oa != ob {
-                                    return oa.cmp(&ob);
-                                }
-                                a.0.name.to_lowercase().cmp(&b.0.name.to_lowercase())
-                            }
-                        }
-                    });
-                } else {
-                    // Normal mode: use existing match_rank logic
-                    let ql = qtext.trim().to_lowercase();
-                    items_with_scores.sort_by(|a, b| {
-                        let oa = repo_order(&a.0.source);
-                        let ob = repo_order(&b.0.source);
-                        if oa != ob {
-                            return oa.cmp(&ob);
-                        }
-                        let ra = match_rank(&a.0.name, &ql);
-                        let rb = match_rank(&b.0.name, &ql);
-                        if ra != rb {
-                            return ra.cmp(&rb);
-                        }
-                        a.0.name.to_lowercase().cmp(&b.0.name.to_lowercase())
-                    });
-                }
-
-                // Extract items from scored tuples
-                let mut items: Vec<crate::state::PackageItem> = items_with_scores
-                    .into_iter()
-                    .map(|(item, _)| item)
-                    .collect();
-
-                // Deduplicate by package name, preferring earlier entries (official over AUR)
-                {
-                    use std::collections::HashSet;
-                    let mut seen = HashSet::new();
-                    items.retain(|p| seen.insert(p.name.to_lowercase()));
-                }
+                let (items, errors) = process_search_query(&query.text, query.fuzzy, &ipath).await;
                 for e in errors {
                     let _ = err_tx.send(e);
                 }
-                let _ = tx.send(SearchResults { id: sid, items });
+                let _ = tx.send(SearchResults {
+                    id: query.id,
+                    items,
+                });
             });
         }
     });
+}
+
+/// What: Handle empty query by returning all official packages.
+///
+/// Inputs:
+/// - `index_path`: Path to official package index
+///
+/// Output:
+/// - Sorted and deduplicated list of all official packages
+///
+/// Details:
+/// - Fetches all official packages
+/// - Sorts by repo order (core > extra > others), then by name
+/// - Deduplicates by package name, preferring earlier entries
+fn handle_empty_query(index_path: &Path) -> Vec<PackageItem> {
+    let mut items = pkgindex::all_official_or_fetch(index_path);
+    sort_by_repo_and_name(&mut items);
+    deduplicate_items(&mut items);
+    items
+}
+
+/// What: Process a search query and return sorted results.
+///
+/// Inputs:
+/// - `query_text`: Search query text
+/// - `fuzzy_mode`: Whether to use fuzzy matching
+/// - `index_path`: Path to official package index
+///
+/// Output:
+/// - Tuple of (sorted and deduplicated list of matching packages, network errors)
+///
+/// Details:
+/// - Ensures official index is loaded
+/// - Searches official packages
+/// - Fetches and filters AUR packages
+/// - Combines, scores, and sorts results
+async fn process_search_query(
+    query_text: &str,
+    fuzzy_mode: bool,
+    index_path: &Path,
+) -> (Vec<PackageItem>, Vec<String>) {
+    if crate::index::all_official().is_empty() {
+        let _ = crate::index::all_official_or_fetch(index_path);
+    }
+    let official_results = pkgindex::search_official(query_text, fuzzy_mode);
+    let (aur_items, errors) = sources::fetch_all_with_errors(query_text.to_string()).await;
+
+    let mut items_with_scores = official_results;
+    score_aur_items(&mut items_with_scores, aur_items, query_text, fuzzy_mode);
+    sort_scored_items(&mut items_with_scores, query_text, fuzzy_mode);
+
+    let mut items: Vec<PackageItem> = items_with_scores
+        .into_iter()
+        .map(|(item, _)| item)
+        .collect();
+    deduplicate_items(&mut items);
+    (items, errors)
+}
+
+/// What: Score and add AUR items to the results list.
+///
+/// Inputs:
+/// - `items_with_scores`: Mutable vector of (item, score) tuples to extend
+/// - `aur_items`: List of AUR package items
+/// - `query_text`: Search query text
+/// - `fuzzy_mode`: Whether to use fuzzy matching
+///
+/// Details:
+/// - In fuzzy mode: filters and scores AUR items using fuzzy matching
+/// - In normal mode: adds all AUR items with placeholder score
+#[allow(clippy::ptr_arg)] // Need &mut Vec to extend the vector
+fn score_aur_items(
+    items_with_scores: &mut Vec<(PackageItem, Option<i64>)>,
+    aur_items: Vec<PackageItem>,
+    query_text: &str,
+    fuzzy_mode: bool,
+) {
+    if fuzzy_mode {
+        let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+        let aur_scored: Vec<(PackageItem, Option<i64>)> = aur_items
+            .into_iter()
+            .filter_map(|item| {
+                fuzzy_match_rank_with_matcher(&item.name, query_text, &matcher)
+                    .map(|score| (item, Some(score)))
+            })
+            .collect();
+        items_with_scores.extend(aur_scored);
+    } else {
+        let aur_scored: Vec<(PackageItem, Option<i64>)> =
+            aur_items.into_iter().map(|item| (item, Some(0))).collect();
+        items_with_scores.extend(aur_scored);
+    }
+}
+
+/// What: Sort items based on fuzzy mode.
+///
+/// Inputs:
+/// - `items_with_scores`: Mutable slice of (item, score) tuples
+/// - `query_text`: Search query text
+/// - `fuzzy_mode`: Whether to use fuzzy matching
+///
+/// Details:
+/// - In fuzzy mode: sorts by fuzzy score (higher first), then repo order, then name
+/// - In normal mode: sorts by match rank, then repo order, then name
+fn sort_scored_items(
+    items_with_scores: &mut [(PackageItem, Option<i64>)],
+    query_text: &str,
+    fuzzy_mode: bool,
+) {
+    if fuzzy_mode {
+        sort_items_fuzzy(items_with_scores);
+    } else {
+        sort_items_normal(items_with_scores, query_text);
+    }
+}
+
+/// What: Sort items in fuzzy mode by score, repo order, and name.
+///
+/// Inputs:
+/// - `items_with_scores`: Mutable slice of (item, score) tuples
+///
+/// Details:
+/// - Higher fuzzy scores come first
+/// - Then sorted by repo order (official before AUR)
+/// - Finally sorted by name (case-insensitive)
+fn sort_items_fuzzy(items_with_scores: &mut [(PackageItem, Option<i64>)]) {
+    items_with_scores.sort_by(|a, b| match (a.1, b.1) {
+        (Some(sa), Some(sb)) => match sb.cmp(&sa) {
+            std::cmp::Ordering::Equal => compare_by_repo_and_name(&a.0, &b.0),
+            other => other,
+        },
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => compare_by_repo_and_name(&a.0, &b.0),
+    });
+}
+
+/// What: Sort items in normal mode by match rank, repo order, and name.
+///
+/// Inputs:
+/// - `items_with_scores`: Mutable slice of (item, score) tuples
+/// - `query_text`: Search query text
+///
+/// Details:
+/// - Lower match ranks come first (exact > prefix > substring > no match)
+/// - Then sorted by repo order (official before AUR)
+/// - Finally sorted by name (case-insensitive)
+fn sort_items_normal(items_with_scores: &mut [(PackageItem, Option<i64>)], query_text: &str) {
+    let query_lower = query_text.trim().to_lowercase();
+    items_with_scores.sort_by(|a, b| {
+        let oa = repo_order(&a.0.source);
+        let ob = repo_order(&b.0.source);
+        if oa != ob {
+            return oa.cmp(&ob);
+        }
+        let ra = match_rank(&a.0.name, &query_lower);
+        let rb = match_rank(&b.0.name, &query_lower);
+        if ra != rb {
+            return ra.cmp(&rb);
+        }
+        a.0.name.to_lowercase().cmp(&b.0.name.to_lowercase())
+    });
+}
+
+/// What: Compare two packages by repo order and name.
+///
+/// Inputs:
+/// - `a`: First package item
+/// - `b`: Second package item
+///
+/// Output:
+/// - Ordering comparison result
+///
+/// Details:
+/// - First compares by repo order (official before AUR)
+/// - Then compares by name (case-insensitive)
+fn compare_by_repo_and_name(a: &PackageItem, b: &PackageItem) -> std::cmp::Ordering {
+    let oa = repo_order(&a.source);
+    let ob = repo_order(&b.source);
+    oa.cmp(&ob)
+        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+}
+
+/// What: Sort items by repo order and name.
+///
+/// Inputs:
+/// - `items`: Mutable slice of package items
+///
+/// Details:
+/// - Sorts by repo order (core > extra > others > AUR)
+/// - Then sorts by name (case-insensitive)
+fn sort_by_repo_and_name(items: &mut [PackageItem]) {
+    items.sort_by(compare_by_repo_and_name);
+}
+
+/// What: Deduplicate items by package name, keeping first occurrence.
+///
+/// Inputs:
+/// - `items`: Mutable reference to list of package items
+///
+/// Details:
+/// - Removes duplicate packages based on case-insensitive name comparison
+/// - Keeps the first occurrence (preferring earlier entries in sort order)
+fn deduplicate_items(items: &mut Vec<PackageItem>) {
+    let mut seen = HashSet::new();
+    items.retain(|p| seen.insert(p.name.to_lowercase()));
 }
