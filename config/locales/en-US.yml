@@ -368,6 +368,7 @@ en-US:
           confirm: "  Confirm"
           remove: "  Remove"
           clear: "  Clear"
+          clear_input: "  Clear input"
           toggle_normal: "  Toggle normal"
           insert_mode: "  Insert Mode"
           select_left: "  Select left"

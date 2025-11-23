@@ -365,6 +365,7 @@ keybind_search_install = Enter\n\
 keybind_search_focus_left = Left\n\
 keybind_search_focus_right = Right\n\
 keybind_search_backspace = Backspace\n\
+keybind_search_insert_clear = Shift+Del\n\
 \n\
 # SEARCH — Normal Mode (Focused Search Window)\n\
 keybind_search_normal_toggle = Esc\n\

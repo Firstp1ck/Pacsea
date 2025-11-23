@@ -283,6 +283,24 @@ fn build_search_section(
         &i18n::t(app, "app.actions.install"),
         sep_style,
     );
+    // Show clear keybind based on mode: insert_clear for insert mode, normal_clear for normal mode
+    if app.search_normal_mode {
+        add_keybind_entry(
+            &mut spans,
+            km.search_normal_clear.first(),
+            key_style,
+            &i18n::t(app, "app.modals.help.key_labels.clear_input"),
+            sep_style,
+        );
+    } else {
+        add_keybind_entry(
+            &mut spans,
+            km.search_insert_clear.first(),
+            key_style,
+            &i18n::t(app, "app.modals.help.key_labels.clear_input"),
+            sep_style,
+        );
+    }
 
     spans
 }
@@ -525,17 +543,12 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
         |v: &Vec<KeyChord>, def: &str| v.first().map_or_else(|| def.to_string(), KeyChord::label);
     let toggle_label = label(&km.search_normal_toggle, "Esc");
     let insert_label = label(&km.search_normal_insert, "i");
-    let left_label = label(&km.search_normal_select_left, "h");
-    let right_label = label(&km.search_normal_select_right, "l");
-    let delete_label = label(&km.search_normal_delete, "d");
     let clear_label = label(&km.search_normal_clear, "Shift+Del");
 
     let normal_mode_label = i18n::t(app, "app.modals.help.normal_mode.label");
     let insert_mode_text = i18n::t(app, "app.modals.help.normal_mode.insert_mode");
     let move_text = i18n::t(app, "app.modals.help.normal_mode.move");
     let page_text = i18n::t(app, "app.modals.help.normal_mode.page");
-    let select_text_text = i18n::t(app, "app.modals.help.normal_mode.select_text");
-    let delete_text_text = i18n::t(app, "app.modals.help.normal_mode.delete_text");
     let clear_input_text = i18n::t(app, "app.modals.help.normal_mode.clear_input");
 
     let n_spans: Vec<Span> = vec![
@@ -550,10 +563,6 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
         Span::raw(move_text),
         Span::styled("[Ctrl+d / Ctrl+u]", key_style),
         Span::raw(page_text),
-        Span::styled(format!("[{left_label} / {right_label}]"), key_style),
-        Span::raw(select_text_text),
-        Span::styled(format!("[{delete_label}]"), key_style),
-        Span::raw(delete_text_text),
         Span::styled(format!("[{clear_label}]"), key_style),
         Span::raw(clear_input_text),
     ];

@@ -368,6 +368,7 @@ de-DE:
           confirm: "  Bestätigen"
           remove: "  Entfernen"
           clear: "  Leeren"
+          clear_input: "  Eingabe leeren"
           toggle_normal: "  Normalmodus umschalten"
           insert_mode: "  Einfügemodus"
           select_left: "  Links auswählen"

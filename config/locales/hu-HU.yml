@@ -372,6 +372,8 @@ hu-HU:
           confirm: "  Megerősítés"
           remove: "  Eltávolítás"
           clear: "  Törlés"
+          # TODO: Translate clear_input in Hungarian
+          clear_input: "  Clear input"
           toggle_normal: "  Normál mód ki-/bekapcsolása"
           insert_mode: "  Beszúrás mód"
           select_left: "  Bal oldali kiválasztása"

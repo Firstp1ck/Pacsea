@@ -301,6 +301,8 @@ pub struct KeyMap {
     pub search_focus_left: Vec<KeyChord>,
     pub search_focus_right: Vec<KeyChord>,
     pub search_backspace: Vec<KeyChord>,
+    /// Insert mode: clear entire search input (default: Shift+Del)
+    pub search_insert_clear: Vec<KeyChord>,
 
     // Search normal mode
     /// Toggle Search normal mode on/off (works from both insert/normal)
@@ -370,8 +372,9 @@ type GlobalKeys = (
 
 /// Type alias for search key bindings tuple.
 ///
-/// Contains 9 `Vec<KeyChord>` for search navigation, actions, and focus keys.
+/// Contains 10 `Vec<KeyChord>` for search navigation, actions, and focus keys.
 type SearchKeys = (
+    Vec<KeyChord>,
     Vec<KeyChord>,
     Vec<KeyChord>,
     Vec<KeyChord>,
@@ -559,6 +562,10 @@ fn default_search_keys(none: KeyModifiers) -> SearchKeys {
         vec![KeyChord {
             code: Backspace,
             mods: none,
+        }],
+        vec![KeyChord {
+            code: KeyCode::Delete,
+            mods: KeyModifiers::SHIFT,
         }],
     )
 }
@@ -828,6 +835,7 @@ fn build_default_keymap() -> KeyMap {
         search_focus_left: search.6,
         search_focus_right: search.7,
         search_backspace: search.8,
+        search_insert_clear: search.9,
         search_normal_toggle: search_normal.0,
         search_normal_insert: search_normal.1,
         search_normal_select_left: search_normal.2,

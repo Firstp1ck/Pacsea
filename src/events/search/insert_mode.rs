@@ -114,6 +114,17 @@ pub fn handle_insert_mode(
         _ if matches_any(&ke, &km.search_page_down) => {
             move_sel_cached(app, 10, details_tx);
         }
+        _ if matches_any(&ke, &km.search_insert_clear) => {
+            // Clear entire search input
+            if !app.input.is_empty() {
+                app.input.clear();
+                app.search_caret = 0;
+                app.search_select_anchor = None;
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                send_query(app, query_tx);
+            }
+        }
         _ => {}
     }
     false

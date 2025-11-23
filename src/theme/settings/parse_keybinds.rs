@@ -155,6 +155,10 @@ fn apply_search_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setti
             assign_keybind(chord, &mut settings.keymap.search_backspace);
             true
         }
+        "keybind_search_insert_clear" => {
+            assign_keybind(chord, &mut settings.keymap.search_insert_clear);
+            true
+        }
         "keybind_search_normal_toggle" => {
             assign_keybind(chord, &mut settings.keymap.search_normal_toggle);
             true
