@@ -251,9 +251,6 @@ en-US:
           settings: "Settings -> settings.conf"
           theme: "Theme -> theme.conf"
           keybindings: "Keybindings -> keybinds.conf"
-          install_list: "Install List -> install_list.json"
-          installed_packages: "Installed Packages -> installed_packages.txt"
-          recent_searches: "Recent Searches -> recent_searches.json"
       panels_menu:
         show_recent: "Show Recent"
         hide_recent: "Hide Recent"

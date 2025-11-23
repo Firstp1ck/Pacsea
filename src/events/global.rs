@@ -556,32 +556,19 @@ fn handle_global_keybinds(
 /// What: Handle config menu numeric selection.
 ///
 /// Inputs:
-/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds, 3=install, 4=installed, 5=recent)
+/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds)
 /// - `app`: Mutable application state
 ///
 /// Details:
 /// - Opens the selected config file in a terminal editor.
-/// - Exports installed packages list if index 4 is selected.
 fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
     let settings_path = crate::theme::config_dir().join("settings.conf");
     let theme_path = crate::theme::config_dir().join("theme.conf");
     let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-    let install_path = app.install_path.clone();
-    let recent_path = app.recent_path.clone();
-    let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
-    if idx == 4 {
-        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-        names.sort();
-        let body = names.join("\n");
-        let _ = std::fs::write(&installed_list_path, body);
-    }
     let target = match idx {
         0 => settings_path,
         1 => theme_path,
         2 => keybinds_path,
-        3 => install_path,
-        4 => installed_list_path,
-        5 => recent_path,
         _ => {
             app.config_menu_open = false;
             app.artix_filter_menu_open = false;

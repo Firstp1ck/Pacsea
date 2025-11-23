@@ -254,9 +254,6 @@ hu-HU:
           settings: "Beállítások → settings.conf"
           theme: "Téma → theme.conf"
           keybindings: "Billentyűkötések → keybinds.conf"
-          install_list: "Telepítési lista → install_list.json"
-          installed_packages: "Telepített csomagok → installed_packages.txt"
-          recent_searches: "Legutóbbi keresések → recent_searches.json"
       panels_menu:
         show_recent: "Legutóbbi megjelenítése"
         hide_recent: "Legutóbbi elrejtése"

@@ -20,7 +20,7 @@ use crate::events::utils::{byte_index_for_char, char_count, refresh_install_deta
 ///
 /// Details:
 /// - Opens the selected config file in a terminal editor.
-/// - Handles settings, theme, keybinds, install list, installed list, and recent paths.
+/// - Handles settings, theme, and keybinds.
 fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool {
     if !app.config_menu_open {
         return false;
@@ -29,24 +29,11 @@ fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool 
     let settings_path = crate::theme::config_dir().join("settings.conf");
     let theme_path = crate::theme::config_dir().join("theme.conf");
     let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-    let install_path = app.install_path.clone();
-    let recent_path = app.recent_path.clone();
-    let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
-
-    if idx == 4 {
-        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-        names.sort();
-        let body = names.join("\n");
-        let _ = std::fs::write(&installed_list_path, body);
-    }
 
     let target = match idx {
         0 => settings_path,
         1 => theme_path,
         2 => keybinds_path,
-        3 => install_path,
-        4 => installed_list_path,
-        5 => recent_path,
         _ => {
             app.config_menu_open = false;
             return false;

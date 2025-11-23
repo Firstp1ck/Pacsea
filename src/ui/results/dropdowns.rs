@@ -266,9 +266,6 @@ fn render_config_menu(
         i18n::t(app, "app.results.config_menu.options.settings"),
         i18n::t(app, "app.results.config_menu.options.theme"),
         i18n::t(app, "app.results.config_menu.options.keybindings"),
-        i18n::t(app, "app.results.config_menu.options.install_list"),
-        i18n::t(app, "app.results.config_menu.options.installed_packages"),
-        i18n::t(app, "app.results.config_menu.options.recent_searches"),
     ];
 
     let widest = opts

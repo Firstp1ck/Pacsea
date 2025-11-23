@@ -510,30 +510,17 @@ fn handle_optional_deps_option(app: &mut AppState) {
 /// - `Some(false)` if handled, `None` otherwise
 ///
 /// Details:
-/// - Exports installed packages list if row 4 is clicked
 fn handle_config_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.config_menu_rect {
         let row = my.saturating_sub(y) as usize;
         let settings_path = crate::theme::config_dir().join("settings.conf");
         let theme_path = crate::theme::config_dir().join("theme.conf");
         let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
-        let install_path = app.install_path.clone();
-        let recent_path = app.recent_path.clone();
-        let installed_list_path = crate::theme::config_dir().join("installed_packages.txt");
-        if row == 4 {
-            let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-            names.sort();
-            let body = names.join("\n");
-            let _ = std::fs::write(&installed_list_path, body);
-        }
 
         let target = match row {
             0 => settings_path,
             1 => theme_path,
             2 => keybinds_path,
-            3 => install_path,
-            4 => installed_list_path,
-            5 => recent_path,
             _ => {
                 app.config_menu_open = false;
                 app.artix_filter_menu_open = false;
