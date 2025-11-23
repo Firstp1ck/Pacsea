@@ -191,14 +191,14 @@ cargo run
 ### Potential future Features
 
 ### Community Suggestions: Priority Features
-- **Possibiltiy to switch between Normal search and Fuzzy search modes**
+- **Possibiltiy to switch between Normal search and Fuzzy search modes** (on going)
+- **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
-- **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
+
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does**
-- **Keybind harmonization and improvements**
 - **Mirror Search and extensive Mirror Selection**
 - **Add Chaotic AUR setup and add Garuda Repository Support**
 - **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
@@ -209,7 +209,8 @@ cargo run
 - **Add custom upgrade commands**
 - **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro, Garuda and  CachyOS**
 - **Add possibility to view News based on installed Packages (Including AUR comments)**
-- **Show available package Updates as number right beside the filters. Clickable opens a Preview with old and new version. grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)** (on going)
+- **Available Update button. Opens a Preview with old and new version. -> done;**
+  - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
