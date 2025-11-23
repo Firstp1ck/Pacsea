@@ -210,10 +210,10 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
         days -= 1;
     }
 
-    let hour = (sod / 3600) as u32;
+    let hour = u32::try_from(sod / 3600).unwrap_or(0);
     sod %= 3600;
-    let minute = (sod / 60) as u32;
-    let second = (sod % 60) as u32;
+    let minute = u32::try_from(sod / 60).unwrap_or(0);
+    let second = u32::try_from(sod % 60).unwrap_or(0);
 
     // Convert days since 1970-01-01 to Y-M-D (UTC) using simple loops
     let mut year: i32 = 1970;
@@ -251,7 +251,7 @@ pub fn ts_to_date(ts: Option<i64>) -> String {
             break;
         }
     }
-    let day = (days + 1) as u32;
+    let day = u32::try_from(days + 1).unwrap_or(1);
 
     format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}")
 }
@@ -474,7 +474,7 @@ pub fn today_yyyymmdd_utc() -> String {
             break;
         }
     }
-    let day = (days + 1) as u32;
+    let day = u32::try_from(days + 1).unwrap_or(1);
     format!("{year:04}{month:02}{day:02}")
 }
 

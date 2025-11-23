@@ -108,14 +108,11 @@ pub fn load() -> PatternSets {
     let mut out = PatternSets::default();
     let path = config_path();
 
-    match fs::read_to_string(&path) {
-        Ok(content) => {
-            let parsed = parse(&content, &out);
-            out = parsed;
-        }
-        Err(_) => {
-            // Keep defaults when missing/unreadable
-        }
+    if let Ok(content) = fs::read_to_string(&path) {
+        let parsed = parse(&content, &out);
+        out = parsed;
+    } else {
+        // Keep defaults when missing/unreadable
     }
     out
 }

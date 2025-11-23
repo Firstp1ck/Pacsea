@@ -81,12 +81,12 @@ pub(super) fn determine_status(
     }
 
     // Installed and up-to-date - get actual version
-    match get_installed_version(name) {
-        Ok(version) => DependencyStatus::Installed { version },
-        Err(_) => DependencyStatus::Installed {
+    get_installed_version(name).map_or_else(
+        |_| DependencyStatus::Installed {
             version: "installed".to_string(),
         },
-    }
+        |version| DependencyStatus::Installed { version },
+    )
 }
 
 /// What: Query the repositories for the latest available version of a package.

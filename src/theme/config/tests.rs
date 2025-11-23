@@ -48,7 +48,8 @@ mod tests {
         pe.push("bad.conf");
         let mut f = fs::File::create(&pe).expect("Failed to create test theme file");
         writeln!(f, "unknown_key = #fff").expect("Failed to write to test theme file");
-        let err = try_load_theme_with_diagnostics(&pe).unwrap_err();
+        let err = try_load_theme_with_diagnostics(&pe)
+            .expect_err("Expected error for invalid theme file");
         assert!(err.contains("Unknown key"));
         assert!(err.contains("Missing required keys"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -80,14 +81,14 @@ mod tests {
                 if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
                     return None;
                 }
-                trimmed.find('=').map_or(None, |eq_pos| {
+                trimmed.find('=').map(|eq_pos| {
                     let key = trimmed[..eq_pos]
                         .trim()
                         .to_lowercase()
                         .replace(['.', '-', ' '], "_");
                     // Map to canonical key if possible
                     let canon = canonical_for_key(&key).unwrap_or(&key);
-                    Some(canon.to_string())
+                    canon.to_string()
                 })
             })
             .collect();
@@ -158,14 +159,14 @@ mod tests {
                 if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
                     return None;
                 }
-                trimmed.find('=').map_or(None, |eq_pos| {
+                trimmed.find('=').map(|eq_pos| {
                     let key = trimmed[..eq_pos]
                         .trim()
                         .to_lowercase()
                         .replace(['.', '-', ' '], "_");
                     // Map to canonical key if possible
                     let canon = canonical_for_key(&key).unwrap_or(&key);
-                    Some(canon.to_string())
+                    canon.to_string()
                 })
             })
             .collect();

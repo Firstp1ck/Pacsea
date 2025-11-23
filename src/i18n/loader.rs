@@ -27,7 +27,6 @@ use crate::i18n::translations::TranslationMap;
 /// - Parses YAML structure into nested `HashMap`
 /// - Returns error if file not found or invalid YAML
 /// - Validates locale format before attempting to load
-#[must_use]
 pub fn load_locale_file(locale: &str, locales_dir: &Path) -> Result<TranslationMap, String> {
     // Validate locale format
     if locale.is_empty() {
@@ -156,11 +155,7 @@ fn flatten_yaml_value(
                     value.as_i64().map_or_else(
                         || {
                             value.as_f64().map_or_else(
-                                || {
-                                    value
-                                        .as_bool()
-                                        .map_or_else(|| String::new(), |b| b.to_string())
-                                },
+                                || value.as_bool().map_or_else(String::new, |b| b.to_string()),
                                 |n| n.to_string(),
                             )
                         },
@@ -214,7 +209,6 @@ impl LocaleLoader {
     /// - Caches loaded translations to avoid re-reading files
     /// - Returns cached version if available
     /// - Logs warnings for missing or invalid locale files
-    #[must_use]
     pub fn load(&mut self, locale: &str) -> Result<TranslationMap, String> {
         if self.cache.contains_key(locale) {
             Ok(self
@@ -332,7 +326,11 @@ test-LOCALE:
 
         let result = load_locale_file("nonexistent", locales_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("not found"));
+        assert!(
+            result
+                .expect_err("Expected error for nonexistent locale file")
+                .contains("not found")
+        );
     }
 
     #[test]
@@ -343,7 +341,11 @@ test-LOCALE:
         // Test with invalid locale format
         let result = load_locale_file("invalid-format-", locales_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Invalid locale code format"));
+        assert!(
+            result
+                .expect_err("Expected error for invalid locale format")
+                .contains("Invalid locale code format")
+        );
     }
 
     #[test]
@@ -357,7 +359,11 @@ test-LOCALE:
 
         let result = load_locale_file("empty", locales_dir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("empty"));
+        assert!(
+            result
+                .expect_err("Expected error for empty locale file")
+                .contains("empty")
+        );
     }
 
     #[test]

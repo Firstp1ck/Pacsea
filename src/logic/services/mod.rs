@@ -81,8 +81,7 @@ pub fn resolve_service_impacts(
     // Second pass: detect binaries that impact active units (heuristic enhancement)
     if matches!(action, PreflightAction::Install) && !active_units.is_empty() {
         // Get ExecStart paths for all active services
-        let active_service_binaries =
-            fetch_active_service_binaries(&active_units).unwrap_or_default();
+        let active_service_binaries = fetch_active_service_binaries(&active_units);
 
         // For each package, check if any of its binaries match active service binaries
         for item in items {
@@ -153,7 +152,7 @@ pub fn resolve_service_impacts(
         .collect();
 
     let elapsed = start_time.elapsed();
-    let duration_ms = elapsed.as_millis() as u64;
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
         stage = "services",
         item_count = items.len(),

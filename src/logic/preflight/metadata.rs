@@ -193,7 +193,20 @@ pub(super) fn parse_size_to_bytes(raw: &str) -> Option<u64> {
         "TiB" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
         _ => 1.0,
     };
-    Some((value * multiplier) as u64)
+    let result = value * multiplier;
+    // Check bounds: negative values are invalid
+    if result < 0.0 {
+        return None;
+    }
+    // Maximum f64 value that fits in u64 (2^64 - 1, but f64 can represent up to 2^53 exactly)
+    // For values beyond 2^53, we check if they exceed u64::MAX by comparing with a threshold
+    const MAX_U64_AS_F64: f64 = 18_446_744_073_709_551_615.0; // u64::MAX as approximate f64
+    if result > MAX_U64_AS_F64 {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let bytes = result as u64;
+    Some(bytes)
 }
 
 /// What: Find AUR package file in pacman cache or AUR helper caches.
@@ -274,25 +287,22 @@ fn find_aur_package_file(name: &str, version: Option<&str>) -> Option<PathBuf> {
 /// - `pkg_path`: Path to the package file.
 ///
 /// Output:
-/// - `Ok(OfficialMetadata)` with `download_size` (file size) and `install_size` (from package metadata).
-/// - `Err(CommandError)` when extraction fails.
+/// - `OfficialMetadata` with `download_size` (file size) and `install_size` (from package metadata).
 ///
 /// Details:
 /// - Download size is the actual file size on disk.
 /// - Install size is extracted via `pacman -Qp` command.
-fn extract_aur_package_sizes<R: CommandRunner>(
-    runner: &R,
-    pkg_path: &Path,
-) -> Result<OfficialMetadata, CommandError> {
+/// - Errors are handled gracefully by returning None values.
+fn extract_aur_package_sizes<R: CommandRunner>(runner: &R, pkg_path: &Path) -> OfficialMetadata {
     // Get download size (file size on disk)
     let download_size = fs::metadata(pkg_path).ok().map(|meta| meta.len());
 
     // Get install size from package metadata
-    let install_size = pkg_path.to_str().map_or(None, |pkg_str| {
+    let install_size = pkg_path.to_str().and_then(|pkg_str| {
         runner
             .run("pacman", &["-Qp", pkg_str])
             .ok()
-            .map_or(None, |output| {
+            .and_then(|output| {
                 let fields = parse_pacman_key_values(&output);
                 fields
                     .get("Installed Size")
@@ -300,10 +310,10 @@ fn extract_aur_package_sizes<R: CommandRunner>(
             })
     });
 
-    Ok(OfficialMetadata {
+    OfficialMetadata {
         download_size,
         install_size,
-    })
+    }
 }
 
 /// What: Fetch metadata for AUR packages by checking local caches.
@@ -314,24 +324,24 @@ fn extract_aur_package_sizes<R: CommandRunner>(
 /// - `version`: Package version (optional, for matching).
 ///
 /// Output:
-/// - `Ok(OfficialMetadata)` with sizes if package file found in cache.
-/// - `Err(CommandError)` when extraction fails or package not found.
+/// - `OfficialMetadata` with sizes if package file found in cache.
 ///
 /// Details:
 /// - Checks pacman cache and AUR helper caches for built package files.
 /// - Extracts sizes from found package files.
 /// - Returns None values if package file is not found (graceful degradation).
+/// - Errors are handled gracefully by returning None values.
 pub(super) fn fetch_aur_metadata<R: CommandRunner>(
     runner: &R,
     name: &str,
     version: Option<&str>,
-) -> Result<OfficialMetadata, CommandError> {
+) -> OfficialMetadata {
     find_aur_package_file(name, version).map_or(
         // Package file not found in cache - return None values (graceful degradation)
-        Ok(OfficialMetadata {
+        OfficialMetadata {
             download_size: None,
             install_size: None,
-        }),
+        },
         |pkg_path| extract_aur_package_sizes(runner, &pkg_path),
     )
 }
@@ -393,18 +403,9 @@ mod tests {
     fn test_parse_size_to_bytes() {
         assert_eq!(parse_size_to_bytes("10 B"), Some(10));
         assert_eq!(parse_size_to_bytes("1 KiB"), Some(1024));
-        assert_eq!(
-            parse_size_to_bytes("2.5 MiB"),
-            Some((2.5 * 1024.0 * 1024.0) as u64)
-        );
-        assert_eq!(
-            parse_size_to_bytes("1.5 GiB"),
-            Some((1.5 * 1024.0 * 1024.0 * 1024.0) as u64)
-        );
-        assert_eq!(
-            parse_size_to_bytes("1,234.5 MiB"),
-            Some((1234.5 * 1024.0 * 1024.0) as u64)
-        );
+        assert_eq!(parse_size_to_bytes("2.5 MiB"), Some(2_621_440));
+        assert_eq!(parse_size_to_bytes("1.5 GiB"), Some(1_610_612_736));
+        assert_eq!(parse_size_to_bytes("1,234.5 MiB"), Some(1_294_699_008));
         assert_eq!(parse_size_to_bytes("invalid"), None);
         assert_eq!(parse_size_to_bytes(""), None);
     }
@@ -422,9 +423,7 @@ mod tests {
     /// - Tests graceful degradation when package file is not available.
     fn test_fetch_aur_metadata_not_found() {
         let runner = MockRunner::default();
-        let result = fetch_aur_metadata(&runner, "nonexistent-package", Some("1.0.0"));
-        assert!(result.is_ok());
-        let meta = result.expect("fetch_aur_metadata should succeed for nonexistent package");
+        let meta = fetch_aur_metadata(&runner, "nonexistent-package", Some("1.0.0"));
         assert_eq!(meta.download_size, None);
         assert_eq!(meta.install_size, None);
     }
@@ -459,9 +458,7 @@ mod tests {
 
         let runner = MockRunner::with(responses);
 
-        let result = extract_aur_package_sizes(&runner, &pkg_path);
-        assert!(result.is_ok());
-        let meta = result.expect("extract_aur_package_sizes should succeed");
+        let meta = extract_aur_package_sizes(&runner, &pkg_path);
 
         // Download size should be the file size (17 bytes in this case)
         assert_eq!(meta.download_size, Some(17));

@@ -187,7 +187,7 @@ exit 1
     assert_eq!(info.pacnew_candidates, 1);
 
     let mut paths: Vec<&str> = info.files.iter().map(|f| f.path.as_str()).collect();
-    paths.sort();
+    paths.sort_unstable();
     assert_eq!(paths, vec!["/etc/app.conf", "/usr/bin/newtool"]);
 
     let config_entry = info

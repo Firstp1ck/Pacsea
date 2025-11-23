@@ -81,7 +81,11 @@ pub fn initialize_locale_system(
     }
 
     // Load primary locale translations
-    if resolved_locale != "en-US" {
+    if resolved_locale == "en-US" {
+        // Already loaded English as fallback, use it as primary too
+        app.translations = app.translations_fallback.clone();
+        tracing::debug!("Using English as primary locale");
+    } else {
         match loader.load(&resolved_locale) {
             Ok(translations) => {
                 let key_count = translations.len();
@@ -114,10 +118,6 @@ pub fn initialize_locale_system(
                 app.translations = std::collections::HashMap::new();
             }
         }
-    } else {
-        // Already loaded English as fallback, use it as primary too
-        app.translations = app.translations_fallback.clone();
-        tracing::debug!("Using English as primary locale");
     }
 }
 

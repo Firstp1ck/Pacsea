@@ -20,7 +20,7 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
         return Vec::new();
     }
     let mut items = Vec::new();
-    if let Some(g) = idx().read().ok() {
+    if let Ok(g) = idx().read() {
         for p in &g.pkgs {
             let nl = p.name.to_lowercase();
             if nl.contains(&ql) {
@@ -53,7 +53,7 @@ pub fn search_official(query: &str) -> Vec<PackageItem> {
 #[must_use]
 pub fn all_official() -> Vec<PackageItem> {
     let mut items = Vec::new();
-    if let Some(g) = idx().read().ok() {
+    if let Ok(g) = idx().read() {
         items.reserve(g.pkgs.len());
         for p in &g.pkgs {
             items.push(PackageItem {
@@ -81,6 +81,7 @@ pub fn all_official() -> Vec<PackageItem> {
 ///
 /// Details:
 /// - Loads from disk only when the in-memory list is empty to avoid redundant IO.
+#[must_use]
 pub fn all_official_or_fetch(path: &std::path::Path) -> Vec<PackageItem> {
     let items = all_official();
     if !items.is_empty() {

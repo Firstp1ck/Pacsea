@@ -226,27 +226,16 @@ fn fetch_package_metadata<R: CommandRunner>(
             }
         }
         Source::Aur => {
-            match metadata::fetch_aur_metadata(runner, &item.name, Some(item.version.as_str())) {
-                Ok(meta) => {
-                    if meta.download_size.is_some() || meta.install_size.is_some() {
-                        tracing::debug!(
-                            "Preflight summary: found AUR package sizes for {}: DL={:?}, Install={:?}",
-                            item.name,
-                            meta.download_size,
-                            meta.install_size
-                        );
-                    }
-                    (meta.download_size, meta.install_size)
-                }
-                Err(err) => {
-                    tracing::debug!(
-                        "Preflight summary: failed to fetch AUR metadata for {}: {}",
-                        item.name,
-                        err
-                    );
-                    (None, None)
-                }
+            let meta = metadata::fetch_aur_metadata(runner, &item.name, Some(item.version.as_str()));
+            if meta.download_size.is_some() || meta.install_size.is_some() {
+                tracing::debug!(
+                    "Preflight summary: found AUR package sizes for {}: DL={:?}, Install={:?}",
+                    item.name,
+                    meta.download_size,
+                    meta.install_size
+                );
             }
+            (meta.download_size, meta.install_size)
         }
     }
 }
@@ -526,7 +515,7 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
     };
 
     let elapsed = start_time.elapsed();
-    let duration_ms = elapsed.as_millis() as u64;
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
         stage = "summary",
         item_count = items.len(),

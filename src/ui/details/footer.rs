@@ -325,7 +325,7 @@ fn build_right_pane_spans(
         &mut spans,
         km.install_confirm.first(),
         key_style,
-        &confirm_text,
+        confirm_text,
         sep_style,
     );
     add_multi_keybind_entry(
@@ -521,11 +521,8 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
     let km = &app.keymap;
     let mut lines = Vec::new();
 
-    let label = |v: &Vec<KeyChord>, def: &str| {
-        v.first()
-            .map(KeyChord::label)
-            .unwrap_or_else(|| def.to_string())
-    };
+    let label =
+        |v: &Vec<KeyChord>, def: &str| v.first().map_or_else(|| def.to_string(), KeyChord::label);
     let toggle_label = label(&km.search_normal_toggle, "Esc");
     let insert_label = label(&km.search_normal_insert, "i");
     let left_label = label(&km.search_normal_select_left, "h");

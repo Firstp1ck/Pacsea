@@ -50,10 +50,11 @@ pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     let mut day: u64 = days;
 
     for &days_in_m in &days_in_month {
-        if day < days_in_m as u64 {
+        let days_in_m_u64 = u64::try_from(days_in_m).unwrap_or(0);
+        if day < days_in_m_u64 {
             break;
         }
-        day -= days_in_m as u64;
+        day -= days_in_m_u64;
         month += 1;
     }
 

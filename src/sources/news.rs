@@ -23,10 +23,7 @@ pub async fn fetch_arch_news(limit: usize) -> Result<Vec<NewsItem>> {
     while items.len() < limit {
         if let Some(start) = body[pos..].find("<item>") {
             let s = pos + start;
-            let end = body[s..]
-                .find("</item>")
-                .map(|e| s + e + 7)
-                .unwrap_or(body.len());
+            let end = body[s..].find("</item>").map_or(body.len(), |e| s + e + 7);
             let chunk = &body[s..end];
             let title = extract_between(chunk, "<title>", "</title>").unwrap_or_default();
             let link = extract_between(chunk, "<link>", "</link>").unwrap_or_default();

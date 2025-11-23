@@ -234,8 +234,7 @@ fn merge_dependency(
     let existing_dep = deps.get(&dep_name).cloned();
     let needs_required_by_update = existing_dep
         .as_ref()
-        .map(|e| !e.required_by.contains(&parent_name.to_string()))
-        .unwrap_or(true);
+        .map_or(true, |e| !e.required_by.contains(&parent_name.to_string()));
 
     // Update or create dependency entry
     let entry = deps
@@ -420,10 +419,10 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
         .iter()
         .filter_map(|item| {
             if let Source::Official { repo, .. } = &item.source {
-                if *repo != "local" {
-                    Some(item.name.as_str())
-                } else {
+                if *repo == "local" {
                     None
+                } else {
+                    Some(item.name.as_str())
                 }
             } else {
                 None
@@ -486,7 +485,7 @@ pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
     });
 
     let elapsed = start_time.elapsed();
-    let duration_ms = elapsed.as_millis() as u64;
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
         stage = "dependencies",
         item_count = items.len(),

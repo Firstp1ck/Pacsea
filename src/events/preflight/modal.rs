@@ -2,6 +2,36 @@
 
 use crate::state::{AppState, PackageItem};
 
+/// Parameters for handling deps tab switch.
+struct DepsTabParams<'a> {
+    dependency_info: &'a mut Vec<crate::state::modal::DependencyInfo>,
+    dep_selected: &'a mut usize,
+    install_list_deps: &'a [crate::state::modal::DependencyInfo],
+    preflight_deps_resolving: bool,
+    preflight_deps_items: &'a mut Option<Vec<PackageItem>>,
+    remove_preflight_summary_cleared: &'a mut bool,
+}
+
+/// Parameters for handling services tab switch.
+struct ServicesTabParams<'a> {
+    service_info: &'a mut Vec<crate::state::modal::ServiceImpact>,
+    service_selected: &'a mut usize,
+    services_loaded: &'a mut bool,
+    install_list_services: &'a [crate::state::modal::ServiceImpact],
+    services_cache_path: &'a std::path::PathBuf,
+    services_resolving: bool,
+}
+
+/// Parameters for handling sandbox tab switch.
+struct SandboxTabParams<'a> {
+    sandbox_info: &'a mut Vec<crate::logic::sandbox::SandboxInfo>,
+    sandbox_selected: &'a mut usize,
+    sandbox_loaded: &'a mut bool,
+    install_list_sandbox: &'a [crate::logic::sandbox::SandboxInfo],
+    preflight_sandbox_items: &'a mut Option<Vec<PackageItem>>,
+    preflight_sandbox_resolving: &'a mut bool,
+}
+
 /// What: Close the Preflight modal and clean up all related state.
 ///
 /// Inputs:
@@ -39,12 +69,7 @@ pub(super) fn close_preflight_modal(
 /// Inputs:
 /// - `items`: Packages in the transaction
 /// - `action`: Install or remove action
-/// - `dependency_info`: Mutable reference to dependency info vector
-/// - `dep_selected`: Mutable reference to selected index
-/// - `install_list_deps`: Reference to cached dependencies
-/// - `preflight_deps_resolving`: Reference to resolving flag
-/// - `preflight_deps_items`: Mutable reference to items for resolution
-/// - `remove_preflight_summary`: Mutable reference to summary to clear
+/// - `params`: Parameters struct containing mutable state and cache references
 ///
 /// Output:
 /// - Returns true if background resolution was triggered, false otherwise.
@@ -54,26 +79,22 @@ pub(super) fn close_preflight_modal(
 fn handle_deps_tab_switch(
     items: &[PackageItem],
     action: &crate::state::PreflightAction,
-    dependency_info: &mut Vec<crate::state::modal::DependencyInfo>,
-    dep_selected: &mut usize,
-    install_list_deps: &[crate::state::modal::DependencyInfo],
-    preflight_deps_resolving: bool,
-    preflight_deps_items: &mut Option<Vec<PackageItem>>,
-    remove_preflight_summary_cleared: &mut bool,
+    params: &mut DepsTabParams<'_>,
 ) -> bool {
     tracing::debug!(
         "[Preflight] switch_preflight_tab: Deps tab - dependency_info.len()={}, cache.len()={}, resolving={}",
-        dependency_info.len(),
-        install_list_deps.len(),
-        preflight_deps_resolving
+        params.dependency_info.len(),
+        params.install_list_deps.len(),
+        params.preflight_deps_resolving
     );
 
-    if dependency_info.is_empty() {
+    if params.dependency_info.is_empty() {
         match action {
             crate::state::PreflightAction::Install => {
                 let item_names: std::collections::HashSet<String> =
                     items.iter().map(|i| i.name.clone()).collect();
-                let cached_deps: Vec<crate::state::modal::DependencyInfo> = install_list_deps
+                let cached_deps: Vec<crate::state::modal::DependencyInfo> = params
+                    .install_list_deps
                     .iter()
                     .filter(|dep| {
                         dep.required_by
@@ -85,7 +106,7 @@ fn handle_deps_tab_switch(
                 tracing::info!(
                     "[Preflight] switch_preflight_tab: Deps - Found {} cached deps (filtered from {} total), items={:?}",
                     cached_deps.len(),
-                    install_list_deps.len(),
+                    params.install_list_deps.len(),
                     item_names
                 );
                 if cached_deps.is_empty() {
@@ -93,17 +114,17 @@ fn handle_deps_tab_switch(
                         "[Preflight] Triggering background dependency resolution for {} packages",
                         items.len()
                     );
-                    *preflight_deps_items = Some(items.to_vec());
-                    *remove_preflight_summary_cleared = true;
+                    *params.preflight_deps_items = Some(items.to_vec());
+                    *params.remove_preflight_summary_cleared = true;
                     return true;
                 }
-                *dependency_info = cached_deps;
-                *dep_selected = 0;
+                *params.dependency_info = cached_deps;
+                *params.dep_selected = 0;
                 tracing::info!(
                     "[Preflight] switch_preflight_tab: Deps - Loaded {} deps into modal, dep_selected=0",
-                    dependency_info.len()
+                    params.dependency_info.len()
                 );
-                *remove_preflight_summary_cleared = true;
+                *params.remove_preflight_summary_cleared = true;
             }
             crate::state::PreflightAction::Remove => {
                 // For remove action, reverse deps are computed on-demand
@@ -112,7 +133,7 @@ fn handle_deps_tab_switch(
     } else {
         tracing::debug!(
             "[Preflight] switch_preflight_tab: Deps tab - dependency_info not empty ({} entries), skipping cache load",
-            dependency_info.len()
+            params.dependency_info.len()
         );
     }
     false
@@ -190,12 +211,7 @@ fn handle_files_tab_switch(
 /// Inputs:
 /// - `items`: Packages in the transaction
 /// - `action`: Install or remove action
-/// - `service_info`: Mutable reference to service info vector
-/// - `service_selected`: Mutable reference to selected index
-/// - `services_loaded`: Mutable reference to loaded flag
-/// - `install_list_services`: Reference to cached services
-/// - `services_cache_path`: Path to services cache
-/// - `services_resolving`: Whether services are currently resolving
+/// - `params`: Parameters struct containing mutable state and cache references
 ///
 /// Output:
 /// - None (mutates state directly).
@@ -205,30 +221,25 @@ fn handle_files_tab_switch(
 fn handle_services_tab_switch(
     items: &[PackageItem],
     action: &crate::state::PreflightAction,
-    service_info: &mut Vec<crate::state::modal::ServiceImpact>,
-    service_selected: &mut usize,
-    services_loaded: &mut bool,
-    install_list_services: &[crate::state::modal::ServiceImpact],
-    services_cache_path: &std::path::PathBuf,
-    services_resolving: bool,
+    params: &mut ServicesTabParams<'_>,
 ) {
-    if service_info.is_empty()
+    if params.service_info.is_empty()
         && matches!(action, crate::state::PreflightAction::Install)
-        && !services_resolving
+        && !params.services_resolving
     {
         let cache_exists = if items.is_empty() {
             false
         } else {
             let signature = crate::app::services_cache::compute_signature(items);
-            crate::app::services_cache::load_cache(services_cache_path, &signature).is_some()
+            crate::app::services_cache::load_cache(params.services_cache_path, &signature).is_some()
         };
         if cache_exists {
-            if install_list_services.is_empty() {
+            if params.install_list_services.is_empty() {
                 // Skip if services list is empty
             } else {
-                *service_info = install_list_services.to_vec();
-                *service_selected = 0;
-                *services_loaded = true;
+                *params.service_info = params.install_list_services.to_vec();
+                *params.service_selected = 0;
+                *params.services_loaded = true;
             }
         }
     }
@@ -239,12 +250,7 @@ fn handle_services_tab_switch(
 /// Inputs:
 /// - `items`: Packages in the transaction
 /// - `action`: Install or remove action
-/// - `sandbox_info`: Mutable reference to sandbox info vector
-/// - `sandbox_selected`: Mutable reference to selected index
-/// - `sandbox_loaded`: Mutable reference to loaded flag
-/// - `install_list_sandbox`: Reference to cached sandbox info
-/// - `preflight_sandbox_items`: Mutable reference to items for resolution
-/// - `preflight_sandbox_resolving`: Mutable reference to resolving flag
+/// - `params`: Parameters struct containing mutable state and cache references
 ///
 /// Output:
 /// - None (mutates state directly).
@@ -254,19 +260,15 @@ fn handle_services_tab_switch(
 fn handle_sandbox_tab_switch(
     items: &[PackageItem],
     action: &crate::state::PreflightAction,
-    sandbox_info: &mut Vec<crate::logic::sandbox::SandboxInfo>,
-    sandbox_selected: &mut usize,
-    sandbox_loaded: &mut bool,
-    install_list_sandbox: &[crate::logic::sandbox::SandboxInfo],
-    preflight_sandbox_items: &mut Option<Vec<PackageItem>>,
-    preflight_sandbox_resolving: &mut bool,
+    params: &mut SandboxTabParams<'_>,
 ) {
-    if sandbox_info.is_empty() && !*sandbox_loaded {
+    if params.sandbox_info.is_empty() && !*params.sandbox_loaded {
         match action {
             crate::state::PreflightAction::Install => {
                 let item_names: std::collections::HashSet<String> =
                     items.iter().map(|i| i.name.clone()).collect();
-                let cached_sandbox: Vec<crate::logic::sandbox::SandboxInfo> = install_list_sandbox
+                let cached_sandbox: Vec<crate::logic::sandbox::SandboxInfo> = params
+                    .install_list_sandbox
                     .iter()
                     .filter(|s| item_names.contains(&s.package_name))
                     .cloned()
@@ -278,23 +280,23 @@ fn handle_sandbox_tab_switch(
                         .cloned()
                         .collect();
                     if aur_items.is_empty() {
-                        *sandbox_loaded = true;
+                        *params.sandbox_loaded = true;
                     } else {
                         tracing::debug!(
                             "[Preflight] Triggering background sandbox resolution for {} AUR packages",
                             aur_items.len()
                         );
-                        *preflight_sandbox_items = Some(aur_items);
-                        *preflight_sandbox_resolving = true;
+                        *params.preflight_sandbox_items = Some(aur_items);
+                        *params.preflight_sandbox_resolving = true;
                     }
                 } else {
-                    *sandbox_info = cached_sandbox;
-                    *sandbox_selected = 0;
-                    *sandbox_loaded = true;
+                    *params.sandbox_info = cached_sandbox;
+                    *params.sandbox_selected = 0;
+                    *params.sandbox_loaded = true;
                 }
             }
             crate::state::PreflightAction::Remove => {
-                *sandbox_loaded = true;
+                *params.sandbox_loaded = true;
             }
         }
     }
@@ -368,16 +370,15 @@ pub(super) fn switch_preflight_tab(
 
         match new_tab {
             crate::state::PreflightTab::Deps => {
-                let should_trigger = handle_deps_tab_switch(
-                    items,
-                    action,
+                let mut deps_params = DepsTabParams {
                     dependency_info,
                     dep_selected,
                     install_list_deps,
-                    preflight_deps_resolving_value,
-                    &mut preflight_deps_items,
-                    &mut remove_preflight_summary_cleared,
-                );
+                    preflight_deps_resolving: preflight_deps_resolving_value,
+                    preflight_deps_items: &mut preflight_deps_items,
+                    remove_preflight_summary_cleared: &mut remove_preflight_summary_cleared,
+                };
+                let should_trigger = handle_deps_tab_switch(items, action, &mut deps_params);
                 if should_trigger {
                     preflight_deps_items = Some(items.to_vec());
                 }
@@ -393,28 +394,26 @@ pub(super) fn switch_preflight_tab(
                 );
             }
             crate::state::PreflightTab::Services => {
-                handle_services_tab_switch(
-                    items,
-                    action,
+                let mut services_params = ServicesTabParams {
                     service_info,
                     service_selected,
                     services_loaded,
                     install_list_services,
-                    &services_cache_path,
+                    services_cache_path: &services_cache_path,
                     services_resolving,
-                );
+                };
+                handle_services_tab_switch(items, action, &mut services_params);
             }
             crate::state::PreflightTab::Sandbox => {
-                handle_sandbox_tab_switch(
-                    items,
-                    action,
+                let mut sandbox_params = SandboxTabParams {
                     sandbox_info,
                     sandbox_selected,
                     sandbox_loaded,
                     install_list_sandbox,
-                    &mut preflight_sandbox_items,
-                    &mut preflight_sandbox_resolving,
-                );
+                    preflight_sandbox_items: &mut preflight_sandbox_items,
+                    preflight_sandbox_resolving: &mut preflight_sandbox_resolving,
+                };
+                handle_sandbox_tab_switch(items, action, &mut sandbox_params);
             }
             crate::state::PreflightTab::Summary => {}
         }

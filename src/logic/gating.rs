@@ -30,11 +30,7 @@ fn allowed_set() -> &'static RwLock<HashSet<String>> {
 /// - Fails open when the read lock cannot be acquired to avoid blocking UI interactions.
 #[must_use]
 pub fn is_allowed(name: &str) -> bool {
-    allowed_set()
-        .read()
-        .ok()
-        .map(|s| s.contains(name))
-        .unwrap_or(true)
+    allowed_set().read().ok().map_or(true, |s| s.contains(name))
 }
 
 /// What: Restrict details loading to only the currently selected package.

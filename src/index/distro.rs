@@ -126,7 +126,7 @@ pub const fn is_artix_system(repo: &str) -> bool {
 /// - Static slice of repo names
 ///
 /// Details:
-/// - Returns ["eos", "endeavouros"].
+/// - Returns `["eos", "endeavouros"]`.
 pub const fn eos_repo_names() -> &'static [&'static str] {
     &["eos", "endeavouros"]
 }

@@ -148,7 +148,7 @@ pub fn resolve_file_changes(
     }
 
     let elapsed = start_time.elapsed();
-    let duration_ms = elapsed.as_millis() as u64;
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
         stage = "files",
         item_count = items.len(),

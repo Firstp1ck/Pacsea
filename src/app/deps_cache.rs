@@ -164,7 +164,7 @@ mod tests {
     #[test]
     /// What: Confirm `load_cache` rejects persisted caches whose signature does not match.
     /// Inputs:
-    /// - Cache saved for ["fd", "ripgrep"] but reloaded with signature ["ripgrep", "zellij"].
+    /// - Cache saved for `["fd", "ripgrep"]` but reloaded with signature `["ripgrep", "zellij"]`.
     ///
     /// Output:
     /// - `None`.

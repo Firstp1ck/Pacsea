@@ -194,7 +194,7 @@ fn handle_scan_config_confirm(
         do_shellcheck,
         do_virustotal,
         do_custom,
-        pending_count = pending_install_names.map_or(0, |v| v.len()),
+        pending_count = pending_install_names.map_or(0, Vec::len),
         "Scan Configuration confirmed"
     );
     crate::theme::save_scan_do_clamav(do_clamav);

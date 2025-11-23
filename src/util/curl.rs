@@ -21,31 +21,31 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// - Maps common curl exit codes (22, 6, 7, 28) to descriptive messages
 /// - Falls back to generic error message if code is unknown
 fn map_curl_error(code: Option<i32>, status: std::process::ExitStatus) -> String {
-    if let Some(code) = code {
-        match code {
+    code.map_or_else(
+        || {
+            // Process was terminated by a signal or other reason
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::ExitStatusExt;
+                status.signal().map_or_else(
+                    || format!("curl process failed: {status:?}"),
+                    |signal| format!("curl process terminated by signal {signal}"),
+                )
+            }
+            #[cfg(not(unix))]
+            {
+                format!("curl process failed: {:?}", status)
+            }
+        },
+        |code| match code {
             22 => "HTTP error from server (likely 502/503/504 - server temporarily unavailable)"
                 .to_string(),
             6 => "Could not resolve host (DNS/network issue)".to_string(),
             7 => "Failed to connect to host (network unreachable)".to_string(),
             28 => "Operation timeout".to_string(),
             _ => format!("curl failed with exit code {code}"),
-        }
-    } else {
-        // Process was terminated by a signal or other reason
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::ExitStatusExt;
-            if let Some(signal) = status.signal() {
-                format!("curl process terminated by signal {signal}")
-            } else {
-                format!("curl process failed: {status:?}")
-            }
-        }
-        #[cfg(not(unix))]
-        {
-            format!("curl process failed: {:?}", status)
-        }
-    }
+        },
+    )
 }
 
 /// What: Fetch JSON from a URL using curl and parse into `serde_json::Value`.

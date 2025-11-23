@@ -284,7 +284,20 @@ fn parse_size_bytes(s: &str) -> Option<u64> {
         "TiB" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
         _ => 1.0,
     };
-    Some((num * mult) as u64)
+    let result = num * mult;
+    // Check bounds: negative values are invalid
+    if result < 0.0 {
+        return None;
+    }
+    // Maximum f64 value that fits in u64 (2^64 - 1, but f64 can represent up to 2^53 exactly)
+    // For values beyond 2^53, we check if they exceed u64::MAX by comparing with a threshold
+    const MAX_U64_AS_F64: f64 = 18_446_744_073_709_551_615.0; // u64::MAX as approximate f64
+    if result > MAX_U64_AS_F64 {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let bytes = result as u64;
+    Some(bytes)
 }
 
 #[cfg(test)]

@@ -21,7 +21,7 @@ pub(super) fn analyze_package_from_srcinfo(
     srcinfo_text: &str,
     installed: &HashSet<String>,
     provided: &HashSet<String>,
-) -> Result<SandboxInfo, String> {
+) -> SandboxInfo {
     let (depends, makedepends, checkdepends, optdepends) = parse_srcinfo_deps(srcinfo_text);
 
     // Analyze each dependency against host environment
@@ -30,13 +30,13 @@ pub(super) fn analyze_package_from_srcinfo(
     let checkdepends_delta = analyze_dependencies(&checkdepends, installed, provided);
     let optdepends_delta = analyze_dependencies(&optdepends, installed, provided);
 
-    Ok(SandboxInfo {
+    SandboxInfo {
         package_name: package_name.to_string(),
         depends: depends_delta,
         makedepends: makedepends_delta,
         checkdepends: checkdepends_delta,
         optdepends: optdepends_delta,
-    })
+    }
 }
 
 /// What: Analyze package dependencies from PKGBUILD content.
@@ -54,7 +54,7 @@ pub(super) fn analyze_package_from_pkgbuild(
     pkgbuild_text: &str,
     installed: &HashSet<String>,
     provided: &HashSet<String>,
-) -> Result<SandboxInfo, String> {
+) -> SandboxInfo {
     let (depends, makedepends, checkdepends, optdepends) = parse_pkgbuild_deps(pkgbuild_text);
 
     // Analyze each dependency against host environment
@@ -63,13 +63,13 @@ pub(super) fn analyze_package_from_pkgbuild(
     let checkdepends_delta = analyze_dependencies(&checkdepends, installed, provided);
     let optdepends_delta = analyze_dependencies(&optdepends, installed, provided);
 
-    Ok(SandboxInfo {
+    SandboxInfo {
         package_name: package_name.to_string(),
         depends: depends_delta,
         makedepends: makedepends_delta,
         checkdepends: checkdepends_delta,
         optdepends: optdepends_delta,
-    })
+    }
 }
 
 /// What: Analyze dependencies against the host environment.

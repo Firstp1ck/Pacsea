@@ -815,7 +815,7 @@ exit 1
 
         assert_eq!(deps.len(), 2);
         let mut names: Vec<&str> = deps.iter().map(|d| d.name.as_str()).collect();
-        names.sort();
+        names.sort_unstable();
         assert_eq!(names, vec!["dep1", "other"]);
 
         let other = deps
@@ -874,7 +874,7 @@ exit 1
 
         assert_eq!(deps.len(), 2);
         let mut names: Vec<&str> = deps.iter().map(|d| d.name.as_str()).collect();
-        names.sort();
+        names.sort_unstable();
         assert_eq!(names, vec!["extra", "helper"]);
         let extra = deps
             .iter()

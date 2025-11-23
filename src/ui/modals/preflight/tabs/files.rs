@@ -212,39 +212,37 @@ fn render_empty_state(
             i18n::t(app, "app.modals.preflight.files.file_resolution_progress"),
             Style::default().fg(th.subtext1),
         )));
+    } else if unresolved_packages.is_empty() {
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.files.no_file_changes_display"),
+            Style::default().fg(th.subtext1),
+        )));
     } else {
-        if unresolved_packages.is_empty() {
-            lines.push(Line::from(Span::styled(
-                i18n::t(app, "app.modals.preflight.files.no_file_changes_display"),
-                Style::default().fg(th.subtext1),
-            )));
-        } else {
-            lines.push(Line::from(Span::styled(
-                i18n::t_fmt1(
-                    app,
-                    "app.modals.preflight.files.no_file_changes",
-                    unresolved_packages.len(),
-                ),
-                Style::default().fg(th.subtext1),
-            )));
-            lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            i18n::t_fmt1(
+                app,
+                "app.modals.preflight.files.no_file_changes",
+                unresolved_packages.len(),
+            ),
+            Style::default().fg(th.subtext1),
+        )));
+        lines.push(Line::from(""));
 
-            if has_official_packages {
-                lines.push(Line::from(Span::styled(
-                    i18n::t(app, "app.modals.preflight.files.file_db_sync_note"),
-                    Style::default().fg(th.subtext0),
-                )));
-                lines.push(Line::from(Span::styled(
-                    i18n::t(app, "app.modals.preflight.files.sync_file_db_hint"),
-                    Style::default().fg(th.subtext0),
-                )));
-            }
-            if has_aur_packages {
-                lines.push(Line::from(Span::styled(
-                    i18n::t(app, "app.modals.preflight.files.aur_file_note"),
-                    Style::default().fg(th.subtext0),
-                )));
-            }
+        if has_official_packages {
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.files.file_db_sync_note"),
+                Style::default().fg(th.subtext0),
+            )));
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.files.sync_file_db_hint"),
+                Style::default().fg(th.subtext0),
+            )));
+        }
+        if has_aur_packages {
+            lines.push(Line::from(Span::styled(
+                i18n::t(app, "app.modals.preflight.files.aur_file_note"),
+                Style::default().fg(th.subtext0),
+            )));
         }
     }
 

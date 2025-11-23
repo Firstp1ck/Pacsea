@@ -119,13 +119,13 @@ pub fn center_selection(app: &mut AppState, area: Rect) {
         let selected = selected_idx.unwrap_or(0);
         let max_offset = len.saturating_sub(viewport_rows);
         let desired = selected.saturating_sub(viewport_rows / 2).min(max_offset);
-        if app.list_state.offset() != desired {
+        if app.list_state.offset() == desired {
+            // ensure selection is set
+            app.list_state.select(selected_idx);
+        } else {
             let mut st = ratatui::widgets::ListState::default().with_offset(desired);
             st.select(selected_idx);
             app.list_state = st;
-        } else {
-            // ensure selection is set
-            app.list_state.select(selected_idx);
         }
     } else {
         // Small lists: ensure offset is 0 and selection is applied

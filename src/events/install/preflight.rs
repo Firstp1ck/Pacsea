@@ -404,19 +404,17 @@ fn trigger_background_resolution(
     }
     if services_loaded {
         tracing::debug!("[Preflight] NOT setting preflight_services_resolving (already loaded)");
+    } else if app.services_resolving {
+        tracing::debug!(
+            "[Preflight] NOT setting preflight_services_resolving (global services_resolving already in progress, will reuse result)"
+        );
     } else {
-        if app.services_resolving {
-            tracing::debug!(
-                "[Preflight] NOT setting preflight_services_resolving (global services_resolving already in progress, will reuse result)"
-            );
-        } else {
-            tracing::debug!(
-                "[Preflight] Setting preflight_services_resolving=true for {} items (not loaded)",
-                items.len()
-            );
-            app.preflight_services_items = Some(items.to_vec());
-            app.preflight_services_resolving = true;
-        }
+        tracing::debug!(
+            "[Preflight] Setting preflight_services_resolving=true for {} items (not loaded)",
+            items.len()
+        );
+        app.preflight_services_items = Some(items.to_vec());
+        app.preflight_services_resolving = true;
     }
     if cached_sandbox.is_empty() {
         let aur_items: Vec<_> = items
@@ -426,19 +424,17 @@ fn trigger_background_resolution(
             .collect();
         if aur_items.is_empty() {
             tracing::debug!("[Preflight] NOT setting preflight_sandbox_resolving (no AUR items)");
+        } else if app.sandbox_resolving {
+            tracing::debug!(
+                "[Preflight] NOT setting preflight_sandbox_resolving (global sandbox_resolving already in progress, will reuse result)"
+            );
         } else {
-            if app.sandbox_resolving {
-                tracing::debug!(
-                    "[Preflight] NOT setting preflight_sandbox_resolving (global sandbox_resolving already in progress, will reuse result)"
-                );
-            } else {
-                tracing::debug!(
-                    "[Preflight] Setting preflight_sandbox_resolving=true for {} AUR items (cache empty)",
-                    aur_items.len()
-                );
-                app.preflight_sandbox_items = Some(aur_items);
-                app.preflight_sandbox_resolving = true;
-            }
+            tracing::debug!(
+                "[Preflight] Setting preflight_sandbox_resolving=true for {} AUR items (cache empty)",
+                aur_items.len()
+            );
+            app.preflight_sandbox_items = Some(aur_items);
+            app.preflight_sandbox_resolving = true;
         }
     } else {
         tracing::debug!(

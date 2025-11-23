@@ -58,17 +58,7 @@ fn handle_srcinfo_analysis(
     installed: &std::collections::HashSet<String>,
     provided: &std::collections::HashSet<String>,
 ) -> SandboxInfo {
-    match analyze_package_from_srcinfo(name, srcinfo_text, installed, provided) {
-        Ok(info) => info,
-        Err(e) => {
-            tracing::warn!("Failed to analyze sandbox info for {}: {}", name, e);
-            tracing::info!(
-                "Creating empty sandbox info for {} (.SRCINFO analysis failed)",
-                name
-            );
-            create_empty_sandbox_info(name.to_string())
-        }
-    }
+    analyze_package_from_srcinfo(name, srcinfo_text, installed, provided)
 }
 
 /// What: Handle PKGBUILD fallback analysis for a package.
@@ -90,36 +80,21 @@ fn handle_pkgbuild_analysis(
     installed: &std::collections::HashSet<String>,
     provided: &std::collections::HashSet<String>,
 ) -> SandboxInfo {
-    match analyze_package_from_pkgbuild(name, pkgbuild_text, installed, provided) {
-        Ok(info) => {
-            let total_deps = info.depends.len()
-                + info.makedepends.len()
-                + info.checkdepends.len()
-                + info.optdepends.len();
-            tracing::info!(
-                "Parsed PKGBUILD for {}: {} total dependencies (depends={}, makedepends={}, checkdepends={}, optdepends={})",
-                name,
-                total_deps,
-                info.depends.len(),
-                info.makedepends.len(),
-                info.checkdepends.len(),
-                info.optdepends.len()
-            );
-            info
-        }
-        Err(e) => {
-            tracing::warn!(
-                "Failed to analyze sandbox info from PKGBUILD for {}: {}",
-                name,
-                e
-            );
-            tracing::info!(
-                "Creating empty sandbox info for {} (PKGBUILD analysis failed)",
-                name
-            );
-            create_empty_sandbox_info(name.to_string())
-        }
-    }
+    let info = analyze_package_from_pkgbuild(name, pkgbuild_text, installed, provided);
+    let total_deps = info.depends.len()
+        + info.makedepends.len()
+        + info.checkdepends.len()
+        + info.optdepends.len();
+    tracing::info!(
+        "Parsed PKGBUILD for {}: {} total dependencies (depends={}, makedepends={}, checkdepends={}, optdepends={})",
+        name,
+        total_deps,
+        info.depends.len(),
+        info.makedepends.len(),
+        info.checkdepends.len(),
+        info.optdepends.len()
+    );
+    info
 }
 
 /// What: Process a single AUR package to resolve sandbox information.
@@ -258,7 +233,7 @@ pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInf
     }
 
     let elapsed = start_time.elapsed();
-    let duration_ms = elapsed.as_millis() as u64;
+    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
     tracing::info!(
         stage = "sandbox",
         item_count = aur_items.len(),

@@ -65,9 +65,10 @@ pub(super) fn parse_active_units(systemctl_output: &str) -> BTreeSet<String> {
 /// Details:
 /// - Uses `systemctl show` to get `ExecStart` paths for each active service.
 /// - Parses `ExecStart` to extract binary paths (handles paths with arguments).
+/// - Errors are handled gracefully by skipping failed units.
 pub(super) fn fetch_active_service_binaries(
     active_units: &BTreeSet<String>,
-) -> Result<BTreeMap<String, Vec<String>>, String> {
+) -> BTreeMap<String, Vec<String>> {
     let mut unit_to_binaries: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
     for unit in active_units {
@@ -88,7 +89,7 @@ pub(super) fn fetch_active_service_binaries(
         }
     }
 
-    Ok(unit_to_binaries)
+    unit_to_binaries
 }
 
 /// What: Parse `ExecStart` paths from `systemctl show` output.
