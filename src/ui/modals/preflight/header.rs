@@ -568,6 +568,7 @@ fn build_tab_header_spans(
 /// Output: None (stores in app state).
 ///
 /// Details: Calculates content area after header (3 lines: chips + tabs + empty).
+#[allow(clippy::missing_const_for_fn)]
 fn store_content_rect(app: &mut AppState, content_rect: Rect) {
     app.preflight_content_rect = Some((
         content_rect.x + 1,                    // +1 for left border

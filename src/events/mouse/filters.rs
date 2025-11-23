@@ -153,6 +153,7 @@ fn handle_artix_main_filter_click(mx: u16, my: u16, app: &mut AppState) -> bool 
 ///
 /// Details:
 /// - The main Artix filter is enabled if at least one individual Artix filter is enabled.
+#[allow(clippy::missing_const_for_fn)]
 fn update_main_artix_filter_state(app: &mut AppState) {
     app.results_filter_show_artix = app.results_filter_show_artix_omniverse
         || app.results_filter_show_artix_universe

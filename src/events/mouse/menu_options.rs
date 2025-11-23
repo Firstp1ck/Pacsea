@@ -13,6 +13,7 @@ use crate::state::AppState;
 ///
 /// Details:
 /// - Checks both package installation and PATH availability
+#[allow(clippy::missing_const_for_fn)]
 fn is_tool_installed(pkg: &str, bin: &str) -> bool {
     crate::index::is_installed(pkg) || crate::install::command_on_path(bin)
 }

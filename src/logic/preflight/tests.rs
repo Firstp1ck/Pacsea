@@ -16,6 +16,7 @@ struct MockRunner {
 }
 
 impl MockRunner {
+    #[allow(clippy::missing_const_for_fn)]
     fn with(responses: MockResponseMap) -> Self {
         Self {
             responses: Mutex::new(responses),

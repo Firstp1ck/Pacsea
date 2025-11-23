@@ -25,6 +25,7 @@ use crate::theme::theme;
 /// - Detects help/configuration/clipboard keywords to pick header titles, resizes large help
 ///   dialogs, and instructs users on dismissal while respecting the current theme.
 #[allow(clippy::many_single_char_names)]
+#[allow(clippy::missing_const_for_fn)]
 pub fn render_alert(f: &mut Frame, app: &AppState, area: Rect, message: &str) {
     let th = theme();
     // Detect help messages and make them larger

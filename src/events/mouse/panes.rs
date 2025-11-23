@@ -373,6 +373,7 @@ fn handle_downgrade_scroll(
 ///
 /// Details:
 /// - Scroll wheel scrolls the PKGBUILD content.
+#[allow(clippy::missing_const_for_fn)]
 fn handle_pkgbuild_scroll(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) -> bool {
     if !is_in_rect(mx, my, app.pkgb_rect) {
         return false;

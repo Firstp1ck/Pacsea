@@ -701,6 +701,7 @@ impl LayoutState {
     /// Output: Updated x position.
     ///
     /// Details: Moves x cursor forward by label width plus spacing.
+    #[allow(clippy::missing_const_for_fn)]
     fn advance(&mut self, label_width: u16, spacing: u16) -> u16 {
         self.x = self.x.saturating_add(label_width).saturating_add(spacing);
         self.x

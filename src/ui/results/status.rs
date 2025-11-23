@@ -24,6 +24,7 @@ use crate::theme::{KeyChord, theme};
 /// Details:
 /// - Shows optional shortcut when Search normal mode is active, centers text within the border, and
 ///   colors the status dot based on [`AppState::arch_status_color`].
+#[allow(clippy::missing_const_for_fn)]
 pub fn render_status(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
 

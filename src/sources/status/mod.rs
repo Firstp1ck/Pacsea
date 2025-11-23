@@ -24,6 +24,7 @@ type Result<T> = super::Result<T>;
 /// - Returns `Err` when status API response cannot be fetched or parsed
 /// - Returns `Err` when task spawn fails
 ///
+#[allow(clippy::missing_const_for_fn)]
 pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
     // 1) Prefer the official Statuspage API (reliable for active incidents and component states)
     let api_url = "https://status.archlinux.org/api/v2/summary.json";

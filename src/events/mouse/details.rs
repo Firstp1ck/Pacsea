@@ -227,6 +227,7 @@ fn handle_reload_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - `true` if the scroll was handled, `false` otherwise.
+#[allow(clippy::missing_const_for_fn)]
 fn handle_details_scroll(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) -> bool {
     if !is_point_in_rect(mx, my, app.details_rect) {
         return false;

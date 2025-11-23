@@ -1,4 +1,5 @@
 use ratatui::{Frame, prelude::Rect, widgets::Clear};
+use std::convert::AsRef;
 
 use crate::i18n;
 use crate::state::{AppState, PreflightAction};
@@ -78,7 +79,7 @@ fn build_preflight_content_lines(
         *fields.tab,
         fields.header_chips,
         fields.items,
-        fields.summary.as_ref().map(|b| b.as_ref()),
+        fields.summary.as_ref().map(AsRef::as_ref),
         fields.dependency_info,
         fields.file_info,
         *fields.services_loaded,
@@ -94,7 +95,7 @@ fn build_preflight_content_lines(
         *fields.tab,
         fields.items,
         *fields.action,
-        fields.summary.as_ref().map(|b| b.as_ref()),
+        fields.summary.as_ref().map(AsRef::as_ref),
         fields.header_chips,
         fields.dependency_info,
         fields.dep_selected,

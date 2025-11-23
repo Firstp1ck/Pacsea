@@ -489,16 +489,10 @@ fn default_paths() -> (
     )
 }
 
-/// What: Create default filter state (all filters enabled).
+/// Type alias for default filter state tuple.
 ///
-/// Inputs: None.
-///
-/// Output:
-/// - Tuple of filter boolean flags and rect options.
-///
-/// Details:
-/// - All repository filters default to showing everything.
-fn default_filters() -> (
+/// Contains 13 boolean flags for repository filters and an array of 13 optional rects.
+type DefaultFilters = (
     bool,
     bool,
     bool,
@@ -513,7 +507,18 @@ fn default_filters() -> (
     bool,
     bool,
     [Option<(u16, u16, u16, u16)>; 13],
-) {
+);
+
+/// What: Create default filter state (all filters enabled).
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Tuple of filter boolean flags and rect options.
+///
+/// Details:
+/// - All repository filters default to showing everything.
+const fn default_filters() -> DefaultFilters {
     (
         true,       // show_aur
         true,       // show_core

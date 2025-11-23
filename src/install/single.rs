@@ -159,7 +159,7 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
     let terms = get_terminal_preferences();
 
     // Try preferred path-based selection first
-    let mut launched = choose_terminal_index_prefer_path(terms).map_or(false, |idx| {
+    let mut launched = choose_terminal_index_prefer_path(terms).is_some_and(|idx| {
         let (term, args, needs_xfce_command) = terms[idx];
         try_spawn_terminal(
             term,

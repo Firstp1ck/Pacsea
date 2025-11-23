@@ -284,7 +284,7 @@ pub(super) fn nearest_key(input: &str) -> Option<&'static str> {
     let mut best: Option<(&'static str, usize)> = None;
     for &k in &CANON {
         let d = levenshtein(input, k);
-        if best.map_or(true, |(_, bd)| d < bd) {
+        if best.is_none_or(|(_, bd)| d < bd) {
             best = Some((k, d));
         }
     }

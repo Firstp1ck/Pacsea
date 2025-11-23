@@ -349,6 +349,80 @@ pub struct KeyMap {
     pub news_mark_all_read: Vec<KeyChord>,
 }
 
+/// Type alias for global key bindings tuple.
+///
+/// Contains 8 `Vec<KeyChord>` for `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
+type GlobalKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// Type alias for search key bindings tuple.
+///
+/// Contains 9 `Vec<KeyChord>` for search navigation, actions, and focus keys.
+type SearchKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// Type alias for search normal mode key bindings tuple.
+///
+/// Contains 10 `Vec<KeyChord>` for Vim-like normal mode search keys.
+type SearchNormalKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// Type alias for recent pane key bindings tuple.
+///
+/// Contains 9 `Vec<KeyChord>` for recent pane navigation and action keys.
+type RecentKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
+/// Type alias for install list key bindings tuple.
+///
+/// Contains 8 `Vec<KeyChord>` for install list navigation and action keys.
+type InstallKeys = (
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+    Vec<KeyChord>,
+);
+
 /// What: Create default global key bindings.
 ///
 /// Inputs:
@@ -360,19 +434,7 @@ pub struct KeyMap {
 ///
 /// Details:
 /// - Returns `help_overlay`, `reload_theme`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
-fn default_global_keys(
-    none: KeyModifiers,
-    ctrl: KeyModifiers,
-) -> (
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-) {
+fn default_global_keys(none: KeyModifiers, ctrl: KeyModifiers) -> GlobalKeys {
     use KeyCode::{BackTab, Char, Left, Right, Tab};
     (
         vec![
@@ -454,19 +516,7 @@ fn default_dropdown_keys(shift: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>, 
 ///
 /// Details:
 /// - Returns all search-related key bindings for navigation, actions, and focus.
-fn default_search_keys(
-    none: KeyModifiers,
-) -> (
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-) {
+fn default_search_keys(none: KeyModifiers) -> SearchKeys {
     use KeyCode::{Backspace, Char, Down, Enter, Left, PageDown, PageUp, Right, Up};
     (
         vec![KeyChord {
@@ -519,21 +569,7 @@ fn default_search_keys(
 ///
 /// Details:
 /// - Returns all Vim-like normal mode key bindings for search.
-fn default_search_normal_keys(
-    none: KeyModifiers,
-    shift: KeyModifiers,
-) -> (
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-) {
+fn default_search_normal_keys(none: KeyModifiers, shift: KeyModifiers) -> SearchNormalKeys {
     use KeyCode::{Char, Delete, Esc};
     (
         vec![KeyChord {
@@ -590,20 +626,7 @@ fn default_search_normal_keys(
 ///
 /// Details:
 /// - Returns all recent pane navigation and action key bindings.
-fn default_recent_keys(
-    none: KeyModifiers,
-    shift: KeyModifiers,
-) -> (
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-) {
+fn default_recent_keys(none: KeyModifiers, shift: KeyModifiers) -> RecentKeys {
     use KeyCode::{Char, Delete, Down, Enter, Esc, Right, Up};
     (
         vec![
@@ -674,19 +697,7 @@ fn default_recent_keys(
 ///
 /// Details:
 /// - Returns all install list navigation and action key bindings.
-fn default_install_keys(
-    none: KeyModifiers,
-    shift: KeyModifiers,
-) -> (
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-    Vec<KeyChord>,
-) {
+fn default_install_keys(none: KeyModifiers, shift: KeyModifiers) -> InstallKeys {
     use KeyCode::{Char, Delete, Down, Enter, Esc, Left, Up};
     (
         vec![

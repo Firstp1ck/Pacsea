@@ -17,6 +17,7 @@ use crate::theme::reload_theme;
 ///
 /// Details:
 /// - Closes sort, options, panels, config, and artix filter menus.
+#[allow(clippy::missing_const_for_fn)]
 fn close_all_dropdowns(app: &mut AppState) -> bool {
     let any_open = app.sort_menu_open
         || app.options_menu_open

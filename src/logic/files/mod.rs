@@ -36,6 +36,7 @@ use crate::state::types::PackageItem;
 ///
 /// Details:
 /// - Invokes pacman commands to compare remote and installed file lists while preserving package order.
+#[allow(clippy::missing_const_for_fn)]
 pub fn resolve_file_changes(
     items: &[PackageItem],
     action: crate::state::modal::PreflightAction,

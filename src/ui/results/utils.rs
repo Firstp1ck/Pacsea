@@ -213,6 +213,7 @@ pub fn extract_render_context(app: &AppState) -> RenderContext {
 /// Details:
 /// - Offsets by one cell to exclude borders and reduces width/height accordingly for accurate
 ///   click detection.
+#[allow(clippy::missing_const_for_fn)]
 pub fn record_results_rect(app: &mut AppState, area: Rect) {
     // Record inner results rect for mouse hit-testing (inside borders)
     app.results_rect = Some((

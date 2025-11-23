@@ -236,7 +236,7 @@ fn merge_dependency(
     let existing_dep = deps.get(&dep_name).cloned();
     let needs_required_by_update = existing_dep
         .as_ref()
-        .map_or(true, |e| !e.required_by.contains(&parent_name.to_string()));
+        .is_none_or(|e| !e.required_by.contains(&parent_name.to_string()));
 
     // Update or create dependency entry
     let entry = deps

@@ -44,6 +44,7 @@ pub(super) fn handle_import_help(
 /// - Opens file picker dialog and imports package names from selected file
 /// - During tests, this is a no-op to avoid opening real file picker dialogs
 #[cfg_attr(test, allow(unused_variables))]
+#[allow(clippy::missing_const_for_fn)]
 fn handle_import_help_enter(add_tx: &mpsc::UnboundedSender<PackageItem>) {
     // Skip actual file picker during tests
     #[cfg(not(test))]

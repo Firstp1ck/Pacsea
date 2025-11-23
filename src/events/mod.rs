@@ -325,6 +325,22 @@ mod tests {
         (dir, orig_path, orig_wl)
     }
 
+    /// Type alias for application communication channels tuple.
+    ///
+    /// Contains 5 `UnboundedSender` channels for query, details, preview, add, and pkgbuild operations.
+    type AppChannels = (
+        tokio::sync::mpsc::UnboundedSender<QueryInput>,
+        tokio::sync::mpsc::UnboundedSender<PackageItem>,
+        tokio::sync::mpsc::UnboundedSender<PackageItem>,
+        tokio::sync::mpsc::UnboundedSender<PackageItem>,
+        tokio::sync::mpsc::UnboundedSender<PackageItem>,
+    );
+
+    /// Type alias for setup app result tuple.
+    ///
+    /// Contains `AppState` and `AppChannels`.
+    type SetupAppResult = (AppState, AppChannels);
+
     /// What: Setup app state with translations and return channels.
     ///
     /// Inputs: None.
@@ -334,16 +350,7 @@ mod tests {
     ///
     /// Details:
     /// - Initializes translations for optional deps categories.
-    fn setup_app_with_translations() -> (
-        AppState,
-        (
-            tokio::sync::mpsc::UnboundedSender<QueryInput>,
-            tokio::sync::mpsc::UnboundedSender<PackageItem>,
-            tokio::sync::mpsc::UnboundedSender<PackageItem>,
-            tokio::sync::mpsc::UnboundedSender<PackageItem>,
-            tokio::sync::mpsc::UnboundedSender<PackageItem>,
-        ),
-    ) {
+    fn setup_app_with_translations() -> SetupAppResult {
         use std::collections::HashMap;
         let mut app = AppState::default();
         let mut translations = HashMap::new();
@@ -387,16 +394,7 @@ mod tests {
     ///
     /// Details:
     /// - Clicks options button, then presses '4' to open Optional Deps.
-    fn open_optional_deps_modal(
-        app: &mut AppState,
-        channels: &(
-            tokio::sync::mpsc::UnboundedSender<QueryInput>,
-            tokio::sync::mpsc::UnboundedSender<PackageItem>,
-            tokio::sync::mpsc::UnboundedSender<PackageItem>,
-            tokio::sync::mpsc::UnboundedSender<PackageItem>,
-            tokio::sync::mpsc::UnboundedSender<PackageItem>,
-        ),
-    ) {
+    fn open_optional_deps_modal(app: &mut AppState, channels: &AppChannels) {
         app.options_button_rect = Some((5, 5, 12, 1));
         let click_options = CEvent::Mouse(crossterm::event::MouseEvent {
             kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),

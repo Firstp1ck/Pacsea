@@ -205,6 +205,7 @@ fn handle_sort_button(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - `false` if handled
+#[allow(clippy::missing_const_for_fn)]
 fn handle_options_button(app: &mut AppState) -> bool {
     app.options_menu_open = !app.options_menu_open;
     if app.options_menu_open {
@@ -224,6 +225,7 @@ fn handle_options_button(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - `false` if handled
+#[allow(clippy::missing_const_for_fn)]
 fn handle_config_button(app: &mut AppState) -> bool {
     app.config_menu_open = !app.config_menu_open;
     if app.config_menu_open {
@@ -242,6 +244,7 @@ fn handle_config_button(app: &mut AppState) -> bool {
 ///
 /// Output:
 /// - `false` if handled
+#[allow(clippy::missing_const_for_fn)]
 fn handle_panels_button(app: &mut AppState) -> bool {
     app.panels_menu_open = !app.panels_menu_open;
     if app.panels_menu_open {
@@ -615,6 +618,7 @@ fn handle_panels_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<boo
 ///
 /// Inputs:
 /// - `app`: Mutable application state
+#[allow(clippy::missing_const_for_fn)]
 fn close_all_menus(app: &mut AppState) {
     if app.sort_menu_open {
         app.sort_menu_open = false;

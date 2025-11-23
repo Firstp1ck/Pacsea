@@ -398,6 +398,7 @@ pub(super) fn handle_files_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool
 ///
 /// Details:
 /// - Increments/decrements scroll offset for the entire Summary tab content.
+#[allow(clippy::missing_const_for_fn)]
 pub(super) fn handle_summary_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight { summary_scroll, .. } = &mut app.modal {
         match m.kind {
@@ -430,6 +431,7 @@ pub(super) fn handle_summary_tab_scroll(m: MouseEvent, app: &mut AppState) -> bo
 ///
 /// Details:
 /// - Handles scroll up/down to move selection.
+#[allow(clippy::missing_const_for_fn)]
 pub(super) fn handle_services_tab_scroll(m: MouseEvent, app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight {
         service_info,
