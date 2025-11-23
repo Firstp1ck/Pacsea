@@ -6,3 +6,8 @@
 # Default: 25
 cognitive-complexity-threshold = 25
 
+# Too many lines threshold
+# Functions exceeding this threshold will trigger a warning
+# Default: 100
+too-many-lines-threshold = 150
+

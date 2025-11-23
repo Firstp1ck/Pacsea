@@ -153,7 +153,7 @@ pub fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<Str
                                 // Extract content before the closing paren
                                 let content_before_paren = &next_line[..paren_pos].trim();
                                 if !content_before_paren.is_empty() {
-                                    array_lines.push(content_before_paren.to_string());
+                                    array_lines.push((*content_before_paren).to_string());
                                 }
                                 break;
                             }
@@ -201,7 +201,9 @@ pub fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<Str
 
                         // Filter out .so files (virtual packages)
                         let dep_lower = dep_trimmed.to_lowercase();
-                        if dep_lower.ends_with(".so")
+                        if std::path::Path::new(&dep_lower)
+                            .extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("so"))
                             || dep_lower.contains(".so.")
                             || dep_lower.contains(".so=")
                         {
@@ -458,7 +460,7 @@ pub fn parse_pkgbuild_conflicts(pkgbuild: &str) -> Vec<String> {
                                 // Extract content before the closing paren
                                 let content_before_paren = &next_line[..paren_pos].trim();
                                 if !content_before_paren.is_empty() {
-                                    array_lines.push(content_before_paren.to_string());
+                                    array_lines.push((*content_before_paren).to_string());
                                 }
                                 break;
                             }
@@ -505,7 +507,9 @@ pub fn parse_pkgbuild_conflicts(pkgbuild: &str) -> Vec<String> {
 
                         // Filter out .so files (virtual packages)
                         let conflict_lower = conflict_trimmed.to_lowercase();
-                        if conflict_lower.ends_with(".so")
+                        if std::path::Path::new(&conflict_lower)
+                            .extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("so"))
                             || conflict_lower.contains(".so.")
                             || conflict_lower.contains(".so=")
                         {
@@ -538,15 +542,14 @@ pub fn parse_pkgbuild_conflicts(pkgbuild: &str) -> Vec<String> {
 
                         // Extract package name (remove version constraints if present)
                         // Use a simple approach: split on version operators
-                        let pkg_name = if let Some(pos) = conflict_trimmed.find(['>', '<', '=']) {
-                            conflict_trimmed[..pos].trim().to_string()
-                        } else {
-                            conflict_trimmed.to_string()
-                        };
-                        if !pkg_name.is_empty() {
-                            Some(pkg_name)
-                        } else {
+                        let pkg_name = conflict_trimmed.find(['>', '<', '=']).map_or_else(
+                            || conflict_trimmed.to_string(),
+                            |pos| conflict_trimmed[..pos].trim().to_string(),
+                        );
+                        if pkg_name.is_empty() {
                             None
+                        } else {
+                            Some(pkg_name)
                         }
                     })
                     .collect();

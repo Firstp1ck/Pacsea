@@ -15,7 +15,6 @@
 pub fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
     let mut backup_files = Vec::new();
     let mut in_backup_array = false;
-    let mut current_line = String::new();
 
     for line in pkgbuild.lines() {
         let line = line.trim();
@@ -28,7 +27,6 @@ pub fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
         // Look for backup= array declaration
         if line.starts_with("backup=") || line.starts_with("backup =") {
             in_backup_array = true;
-            current_line = line.to_string();
 
             // Check if array is on single line: backup=('file1' 'file2')
             if let Some(start) = line.find('(')
@@ -37,7 +35,6 @@ pub fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
                 let array_content = &line[start + 1..end];
                 parse_backup_array_content(array_content, &mut backup_files);
                 in_backup_array = false;
-                current_line.clear();
             } else if line.contains('(') {
                 // Multi-line array starting
                 if let Some(start) = line.find('(') {
@@ -47,9 +44,6 @@ pub fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
             }
         } else if in_backup_array {
             // Continuation of multi-line array
-            current_line.push(' ');
-            current_line.push_str(line);
-
             // Check if array ends
             if line.contains(')') {
                 if let Some(end) = line.rfind(')') {
@@ -57,7 +51,6 @@ pub fn parse_backup_from_pkgbuild(pkgbuild: &str) -> Vec<String> {
                     parse_backup_array_content(remaining, &mut backup_files);
                 }
                 in_backup_array = false;
-                current_line.clear();
             } else {
                 // Still in array, parse this line
                 parse_backup_array_content(line, &mut backup_files);
