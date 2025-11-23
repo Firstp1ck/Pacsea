@@ -107,6 +107,10 @@ pub struct Settings {
     /// When false, starts in insert mode (default).
     /// When true, starts in normal mode.
     pub search_startup_mode: bool,
+    /// Whether fuzzy search is enabled by default on startup.
+    /// When false, uses normal substring search (default).
+    /// When true, uses fuzzy matching (fzf-style).
+    pub fuzzy_search: bool,
 }
 
 impl Default for Settings {
@@ -151,6 +155,7 @@ impl Default for Settings {
             skip_preflight: false,
             locale: String::new(),      // Empty means auto-detect from system
             search_startup_mode: false, // Default to insert mode
+            fuzzy_search: false,        // Default to normal substring search
         }
     }
 }
@@ -325,6 +330,8 @@ pub struct KeyMap {
     pub search_normal_export: Vec<KeyChord>,
     /// Normal mode: open Available Updates window
     pub search_normal_updates: Vec<KeyChord>,
+    /// Toggle fuzzy search mode on/off
+    pub toggle_fuzzy: Vec<KeyChord>,
 
     // Recent
     pub recent_move_up: Vec<KeyChord>,
@@ -846,6 +853,10 @@ fn build_default_keymap() -> KeyMap {
         search_normal_import: search_normal.7,
         search_normal_export: search_normal.8,
         search_normal_updates: search_normal.9,
+        toggle_fuzzy: vec![KeyChord {
+            code: KeyCode::Char('f'),
+            mods: ctrl,
+        }],
         recent_move_up: recent.0,
         recent_move_down: recent.1,
         recent_find: recent.2,

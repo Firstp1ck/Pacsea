@@ -132,6 +132,59 @@ pub fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
 
 use crate::state::Source;
 
+/// Rank how well a package name matches a query using fuzzy matching (fzf-style) with a provided matcher.
+///
+/// Inputs:
+/// - `name`: Package name to match against
+/// - `query`: Query string to match
+/// - `matcher`: Reference to a `SkimMatcherV2` instance to reuse across multiple calls
+///
+/// Output:
+/// - `Some(score)` if the query matches the name (higher score = better match), `None` if no match
+///
+/// Details:
+/// - Uses the provided `fuzzy_matcher::skim::SkimMatcherV2` for fzf-style fuzzy matching
+/// - Returns scores where higher values indicate better matches
+/// - Returns `None` when the query doesn't match at all
+/// - This function is optimized for cases where the matcher can be reused across multiple calls
+#[must_use]
+pub fn fuzzy_match_rank_with_matcher(
+    name: &str,
+    query: &str,
+    matcher: &fuzzy_matcher::skim::SkimMatcherV2,
+) -> Option<i64> {
+    use fuzzy_matcher::FuzzyMatcher;
+
+    if query.trim().is_empty() {
+        return None;
+    }
+
+    matcher.fuzzy_match(name, query)
+}
+
+/// Rank how well a package name matches a query using fuzzy matching (fzf-style).
+///
+/// Inputs:
+/// - `name`: Package name to match against
+/// - `query`: Query string to match
+///
+/// Output:
+/// - `Some(score)` if the query matches the name (higher score = better match), `None` if no match
+///
+/// Details:
+/// - Uses `fuzzy_matcher::skim::SkimMatcherV2` for fzf-style fuzzy matching
+/// - Returns scores where higher values indicate better matches
+/// - Returns `None` when the query doesn't match at all
+/// - For performance-critical code that calls this function multiple times with the same query,
+///   consider using `fuzzy_match_rank_with_matcher` instead to reuse the matcher instance
+#[must_use]
+pub fn fuzzy_match_rank(name: &str, query: &str) -> Option<i64> {
+    use fuzzy_matcher::skim::SkimMatcherV2;
+
+    let matcher = SkimMatcherV2::default();
+    fuzzy_match_rank_with_matcher(name, query, &matcher)
+}
+
 /// Determine ordering weight for a package source.
 ///
 /// Lower values indicate higher priority. Used to sort results such that
@@ -572,6 +625,40 @@ mod tests {
         assert_eq!(match_rank("ripgrep", "rip"), 1);
         assert_eq!(match_rank("ripgrep", "pg"), 2);
         assert_eq!(match_rank("ripgrep", "zzz"), 3);
+    }
+
+    #[test]
+    /// What: Verify fuzzy matching returns scores for valid matches and None for non-matches.
+    ///
+    /// Inputs:
+    /// - Package names and queries covering exact matches, partial matches, and non-matches.
+    ///
+    /// Output:
+    /// - Fuzzy matching returns `Some(score)` for matches (higher = better) and `None` for non-matches.
+    ///
+    /// Details:
+    /// - Tests that fuzzy matching can find non-substring matches (e.g., "rg" matches "ripgrep").
+    /// - Verifies empty queries return `None`.
+    fn util_fuzzy_match_rank() {
+        // Exact match should return a score
+        assert!(fuzzy_match_rank("ripgrep", "ripgrep").is_some());
+
+        // Prefix match should return a score
+        assert!(fuzzy_match_rank("ripgrep", "rip").is_some());
+
+        // Fuzzy match (non-substring) should return a score
+        assert!(fuzzy_match_rank("ripgrep", "rg").is_some());
+
+        // Non-match should return None
+        assert!(fuzzy_match_rank("ripgrep", "xyz").is_none());
+
+        // Empty query should return None
+        assert!(fuzzy_match_rank("ripgrep", "").is_none());
+        assert!(fuzzy_match_rank("ripgrep", "   ").is_none());
+
+        // Case-insensitive matching
+        assert!(fuzzy_match_rank("RipGrep", "rg").is_some());
+        assert!(fuzzy_match_rank("RIPGREP", "rip").is_some());
     }
 
     #[test]

@@ -115,6 +115,9 @@ pub struct AppState {
     /// Whether Search pane is in Normal mode (Vim-like navigation) instead of Insert mode.
     pub search_normal_mode: bool,
 
+    /// Whether fuzzy search is enabled (fzf-style matching) instead of normal substring search.
+    pub fuzzy_search_enabled: bool,
+
     /// Caret position (in characters) within the `Search` input.
     /// Always clamped to the range 0..=`input.chars().count()`.
     pub search_caret: usize,
@@ -367,6 +370,8 @@ pub struct AppState {
     pub results_filter_artix_system_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the Manjaro filter toggle in the Results title (x, y, w, h).
     pub results_filter_manjaro_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the fuzzy search mode indicator in the Search title (x, y, w, h).
+    pub fuzzy_indicator_rect: Option<(u16, u16, u16, u16)>,
 
     // Background refresh of installed/explicit caches after package mutations
     /// If `Some`, keep polling pacman/yay to refresh installed/explicit caches until this time.

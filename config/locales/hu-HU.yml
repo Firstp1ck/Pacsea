@@ -54,6 +54,9 @@ hu-HU:
         clipboard: "Vágólap"
         aur_helper: "AUR-segéd"
         security: "Biztonság"
+    #TODO: Translate to Hungarian
+    search_mode_fuzzy: "FUZZY"
+    search_mode_normal: "NORMAL"
       
     titles:
       search: "Keresés"
@@ -372,8 +375,10 @@ hu-HU:
           confirm: "  Megerősítés"
           remove: "  Eltávolítás"
           clear: "  Törlés"
-          clear_input: "  Bemenet törlése"
+          # TODO: Translate in Hungarian
+          toggle_fuzzy: "  Toggle fuzzy search"
           toggle_normal: "  Normál mód ki-/bekapcsolása"
+          clear_input: "  Bemenet törlése"
           insert_mode: "  Beszúrás mód"
           select_left: "  Bal oldali kiválasztása"
           select_right: "  Jobb oldali kiválasztása"

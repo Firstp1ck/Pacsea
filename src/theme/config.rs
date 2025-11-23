@@ -23,10 +23,10 @@ pub use theme_loader::{load_theme_from_file, try_load_theme_with_diagnostics};
 
 // Re-export settings save functions
 pub use settings_save::{
-    save_mirror_count, save_scan_do_clamav, save_scan_do_custom, save_scan_do_semgrep,
-    save_scan_do_shellcheck, save_scan_do_sleuth, save_scan_do_trivy, save_scan_do_virustotal,
-    save_selected_countries, save_show_install_pane, save_show_keybinds_footer,
-    save_show_recent_pane, save_sort_mode, save_virustotal_api_key,
+    save_fuzzy_search, save_mirror_count, save_scan_do_clamav, save_scan_do_custom,
+    save_scan_do_semgrep, save_scan_do_shellcheck, save_scan_do_sleuth, save_scan_do_trivy,
+    save_scan_do_virustotal, save_selected_countries, save_show_install_pane,
+    save_show_keybinds_footer, save_show_recent_pane, save_sort_mode, save_virustotal_api_key,
 };
 
 // Re-export settings ensure/migration functions

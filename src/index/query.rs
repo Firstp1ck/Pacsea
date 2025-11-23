@@ -2,38 +2,62 @@ use crate::state::{PackageItem, Source};
 
 use super::idx;
 
-/// What: Search the official index for packages whose names contain `query`.
+/// What: Search the official index for packages whose names match `query`.
 ///
 /// Inputs:
 /// - `query`: Raw query string
+/// - `fuzzy`: When `true`, uses fuzzy matching (fzf-style); when `false`, uses substring matching
 ///
 /// Output:
 /// - Vector of `PackageItem`s populated from the index; enrichment is not performed here.
 ///   An empty or whitespace-only query returns an empty list.
+///   When fuzzy mode is enabled, items are returned with scores for sorting.
 ///
 /// Details:
-/// - Performs a case-insensitive substring match on package names and clones matching entries.
+/// - When `fuzzy` is `false`, performs a case-insensitive substring match on package names.
+/// - When `fuzzy` is `true`, uses fuzzy matching and returns items with match scores.
 #[must_use]
-pub fn search_official(query: &str) -> Vec<PackageItem> {
-    let ql = query.trim().to_lowercase();
+pub fn search_official(query: &str, fuzzy: bool) -> Vec<(PackageItem, Option<i64>)> {
+    let ql = query.trim();
     if ql.is_empty() {
         return Vec::new();
     }
     let mut items = Vec::new();
     if let Ok(g) = idx().read() {
+        // Create matcher once per search query for better performance
+        let fuzzy_matcher = if fuzzy {
+            Some(fuzzy_matcher::skim::SkimMatcherV2::default())
+        } else {
+            None
+        };
         for p in &g.pkgs {
-            let nl = p.name.to_lowercase();
-            if nl.contains(&ql) {
-                items.push(PackageItem {
-                    name: p.name.clone(),
-                    version: p.version.clone(),
-                    description: p.description.clone(),
-                    source: Source::Official {
-                        repo: p.repo.clone(),
-                        arch: p.arch.clone(),
+            let match_score = if fuzzy {
+                fuzzy_matcher
+                    .as_ref()
+                    .and_then(|m| crate::util::fuzzy_match_rank_with_matcher(&p.name, ql, m))
+            } else {
+                let nl = p.name.to_lowercase();
+                let ql_lower = ql.to_lowercase();
+                if nl.contains(&ql_lower) {
+                    Some(0) // Use 0 as placeholder score for substring matches
+                } else {
+                    None
+                }
+            };
+            if let Some(score) = match_score {
+                items.push((
+                    PackageItem {
+                        name: p.name.clone(),
+                        version: p.version.clone(),
+                        description: p.description.clone(),
+                        source: Source::Official {
+                            repo: p.repo.clone(),
+                            arch: p.arch.clone(),
+                        },
+                        popularity: None,
                     },
-                    popularity: None,
-                });
+                    Some(score),
+                ));
             }
         }
     }
@@ -114,7 +138,7 @@ mod tests {
                 description: "desc".to_string(),
             }];
         }
-        let res = super::search_official("   ");
+        let res = super::search_official("   ", false);
         assert!(res.is_empty());
     }
 
@@ -148,9 +172,9 @@ mod tests {
                 },
             ];
         }
-        let res = super::search_official("pac");
+        let res = super::search_official("pac", false);
         assert_eq!(res.len(), 1);
-        let item = &res[0];
+        let (item, _) = &res[0];
         assert_eq!(item.name, "PacSea");
         assert_eq!(item.version, "1.2.3");
         assert_eq!(item.description, "awesome");
@@ -239,5 +263,55 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "foo");
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    /// What: Verify fuzzy search finds non-substring matches and normal search still works.
+    ///
+    /// Inputs:
+    /// - Seed index with packages and test both fuzzy and normal search modes.
+    ///
+    /// Output:
+    /// - Fuzzy mode finds "ripgrep" with query "rg", normal mode does not.
+    /// - Normal mode finds substring matches as before.
+    ///
+    /// Details:
+    /// - Tests that fuzzy matching enables finding packages by character sequence matching.
+    fn search_official_fuzzy_vs_normal() {
+        if let Ok(mut g) = super::idx().write() {
+            g.pkgs = vec![
+                crate::index::OfficialPkg {
+                    name: "ripgrep".to_string(),
+                    repo: "core".to_string(),
+                    arch: "x86_64".to_string(),
+                    version: "1.0".to_string(),
+                    description: "fast grep".to_string(),
+                },
+                crate::index::OfficialPkg {
+                    name: "other".to_string(),
+                    repo: "extra".to_string(),
+                    arch: "any".to_string(),
+                    version: "0.1".to_string(),
+                    description: "meh".to_string(),
+                },
+            ];
+        }
+
+        // Normal mode: "rg" should not match "ripgrep" (not a substring)
+        let res_normal = super::search_official("rg", false);
+        assert_eq!(res_normal.len(), 0);
+
+        // Fuzzy mode: "rg" should match "ripgrep" (fuzzy match)
+        let res_fuzzy = super::search_official("rg", true);
+        assert_eq!(res_fuzzy.len(), 1);
+        let (item, score) = &res_fuzzy[0];
+        assert_eq!(item.name, "ripgrep");
+        assert!(score.is_some());
+
+        // Both modes should find "rip" (substring match)
+        let res_normal2 = super::search_official("rip", false);
+        assert_eq!(res_normal2.len(), 1);
+        let res_fuzzy2 = super::search_official("rip", true);
+        assert_eq!(res_fuzzy2.len(), 1);
     }
 }

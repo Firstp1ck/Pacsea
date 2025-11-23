@@ -10,24 +10,23 @@ use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
-/// What: Render the search input widget in the center of the middle row.
+/// What: Build input line spans with optional selection highlighting.
 ///
 /// Inputs:
-/// - `f`: Frame to render into
-/// - `app`: Application state (input, caret, selection, focus)
-/// - `area`: Target rectangle for the search input
+/// - `app`: Application state (input, caret, selection, focus, normal mode)
+/// - `search_focused`: Whether search pane is focused
+/// - `th`: Theme
 ///
 /// Output:
-/// - Draws the search input with optional text selection highlighting and sets cursor position.
+/// - Vector of spans for the input line
 ///
 /// Details:
 /// - Shows "> " prefix; in normal mode, highlights selected text with lavender background.
-/// - Cursor position is calculated based on caret index and character width.
-pub fn render_search(f: &mut Frame, app: &AppState, area: Rect) {
-    let th = theme();
-    let search_focused = matches!(app.focus, crate::state::Focus::Search);
-
-    // Build input line with optional selection highlight in Search normal mode
+fn build_input_spans<'a>(
+    app: &AppState,
+    search_focused: bool,
+    th: &'a crate::theme::Theme,
+) -> Vec<Span<'a>> {
     let mut input_spans: Vec<Span> = Vec::new();
     input_spans.push(Span::styled(
         "> ",
@@ -99,8 +98,28 @@ pub fn render_search(f: &mut Frame, app: &AppState, area: Rect) {
             Style::default().fg(if search_focused { th.text } else { th.subtext0 }),
         ));
     }
-    let input_line = Line::from(input_spans);
-    let search_title = if search_focused {
+    input_spans
+}
+
+/// What: Build title line with fuzzy/normal mode indicator.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `search_focused`: Whether search pane is focused
+/// - `th`: Theme
+///
+/// Output:
+/// - Tuple containing: title line with mode indicator, base title length, and mode text
+///
+/// Details:
+/// - Returns base title length for rectangle calculation
+/// - Returns mode text to avoid duplicate i18n lookups
+fn build_title_line<'a>(
+    app: &AppState,
+    search_focused: bool,
+    th: &'a crate::theme::Theme,
+) -> (Line<'a>, usize, String) {
+    let search_title_base = if search_focused {
         i18n::t(app, "app.titles.search_focused")
     } else {
         i18n::t(app, "app.titles.search")
@@ -110,6 +129,97 @@ pub fn render_search(f: &mut Frame, app: &AppState, area: Rect) {
     } else {
         th.overlay1
     };
+
+    // Calculate title length before building spans (needed for rectangle calculation)
+    let base_title_len = search_title_base.chars().count();
+
+    // Build title with fuzzy/normal indicator
+    let mut title_spans = vec![Span::styled(
+        search_title_base,
+        Style::default().fg(search_title_color),
+    )];
+
+    // Add fuzzy/normal mode indicator
+    let mode_text = if app.fuzzy_search_enabled {
+        i18n::t(app, "app.search_mode_fuzzy")
+    } else {
+        i18n::t(app, "app.search_mode_normal")
+    };
+    let mode_color = if app.fuzzy_search_enabled {
+        th.sapphire
+    } else {
+        th.subtext0
+    };
+    title_spans.push(Span::styled(
+        format!(" [{mode_text}]"),
+        Style::default().fg(mode_color),
+    ));
+    (Line::from(title_spans), base_title_len, mode_text)
+}
+
+/// What: Calculate and store fuzzy indicator rectangle.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `area`: Search input area
+/// - `base_title_len`: Length of base title text
+/// - `mode_text`: Mode indicator text
+///
+/// Output:
+/// - None (modifies app state)
+///
+/// Details:
+/// - Stores clickable rectangle for mouse interaction
+fn store_fuzzy_indicator_rect(
+    app: &mut AppState,
+    area: Rect,
+    base_title_len: usize,
+    mode_text: &str,
+) {
+    let mode_indicator_len = mode_text.chars().count() + 3; // +3 for " [ ]"
+    let max_indicator_width = mode_indicator_len.min(20);
+    let max_indicator_width_u16 = u16::try_from(max_indicator_width).unwrap_or(u16::MAX);
+    let available_width = area.width.saturating_sub(max_indicator_width_u16);
+    let title_end_x = area.x.saturating_add(1).saturating_add(
+        u16::try_from(
+            base_title_len
+                .min(available_width as usize)
+                .min(u16::MAX as usize),
+        )
+        .unwrap_or(u16::MAX),
+    );
+    app.fuzzy_indicator_rect = Some((
+        title_end_x,
+        area.y,
+        max_indicator_width_u16,
+        1, // height
+    ));
+}
+
+/// What: Render the search input widget in the center of the middle row.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state (input, caret, selection, focus, fuzzy indicator rect)
+/// - `area`: Target rectangle for the search input
+///
+/// Output:
+/// - Draws the search input with optional text selection highlighting and sets cursor position.
+///
+/// Details:
+/// - Shows "> " prefix; in normal mode, highlights selected text with lavender background.
+/// - Cursor position is calculated based on caret index and character width.
+/// - Records fuzzy indicator rectangle for mouse click detection.
+pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
+    let th = theme();
+    let search_focused = matches!(app.focus, crate::state::Focus::Search);
+
+    // Build input line with optional selection highlight in Search normal mode
+    let input_spans = build_input_spans(app, search_focused, &th);
+    let input_line = Line::from(input_spans);
+
+    // Build title with fuzzy/normal indicator
+    let (search_title, base_title_len, mode_text) = build_title_line(app, search_focused, &th);
     let input = Paragraph::new(input_line)
         .style(
             Style::default()
@@ -118,10 +228,7 @@ pub fn render_search(f: &mut Frame, app: &AppState, area: Rect) {
         )
         .block(
             Block::default()
-                .title(Span::styled(
-                    search_title,
-                    Style::default().fg(search_title_color),
-                ))
+                .title(search_title)
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(if search_focused {
@@ -131,6 +238,9 @@ pub fn render_search(f: &mut Frame, app: &AppState, area: Rect) {
                 })),
         );
     f.render_widget(input, area);
+
+    // Store clickable rectangle for fuzzy indicator (right side of title)
+    store_fuzzy_indicator_rect(app, area, base_title_len, &mode_text);
 
     // Cursor in input
     let right = area.x + area.width.saturating_sub(1);
@@ -203,7 +313,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &app, area);
+            render_search(f, &mut app, area);
         })
         .expect("Failed to render search pane");
 
@@ -236,7 +346,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &app, area);
+            render_search(f, &mut app, area);
         })
         .expect("Failed to render search pane without selection");
 
@@ -267,7 +377,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &app, area);
+            render_search(f, &mut app, area);
         })
         .expect("Failed to render search pane with selection");
 
@@ -296,7 +406,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &app, area);
+            render_search(f, &mut app, area);
         })
         .expect("Failed to render unfocused search pane");
 
@@ -325,7 +435,7 @@ mod tests {
 
         term.draw(|f| {
             let area = f.area();
-            render_search(f, &app, area);
+            render_search(f, &mut app, area);
         })
         .expect("failed to draw test terminal");
 

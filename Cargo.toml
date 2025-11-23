@@ -24,6 +24,7 @@ which = "8.0.0"
 reqwest = { version = "0.12", features = [] }
 futures = "0.3"
 syntect = "5.0"
+fuzzy-matcher = "0.3"
 
 [dev-dependencies]
 tempfile = "3.10"

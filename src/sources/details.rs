@@ -187,7 +187,9 @@ fn extract_fields(map: &std::collections::BTreeMap<String, String>) -> ParsedFie
 fn fill_missing_fields(name: &str, description: &mut String, architecture: &mut String) {
     if description.is_empty() || architecture.is_empty() {
         let mut from_idx = None;
-        for it in crate::index::search_official(name) {
+        // Use normal substring search for this helper (not fuzzy)
+        let official_results = crate::index::search_official(name, false);
+        for (it, _) in official_results {
             if it.name.eq_ignore_ascii_case(name) {
                 from_idx = Some(it);
                 break;

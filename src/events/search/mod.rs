@@ -55,6 +55,15 @@ pub fn handle_search_key(
 ) -> bool {
     let km = &app.keymap;
 
+    // Toggle fuzzy search mode (works in both insert and normal mode)
+    if super::utils::matches_any(&ke, &km.toggle_fuzzy) {
+        app.fuzzy_search_enabled = !app.fuzzy_search_enabled;
+        crate::theme::save_fuzzy_search(app.fuzzy_search_enabled);
+        // Re-trigger search with current query using new mode
+        crate::logic::send_query(app, query_tx);
+        return false;
+    }
+
     // Toggle Normal mode (configurable)
     if super::utils::matches_any(&ke, &km.search_normal_toggle) {
         app.search_normal_mode = !app.search_normal_mode;

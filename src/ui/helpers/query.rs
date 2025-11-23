@@ -23,7 +23,10 @@ use crate::state::AppState;
 /// Performs network I/O for AUR; tolerates errors.
 pub async fn fetch_first_match_for_query(q: String) -> Option<crate::state::PackageItem> {
     // Prefer exact match from official index, then from AUR, else first official, then first AUR
-    let official = crate::index::search_official(&q);
+    // Use normal substring search for this helper (not fuzzy)
+    let official_results = crate::index::search_official(&q, false);
+    let official: Vec<crate::state::PackageItem> =
+        official_results.into_iter().map(|(item, _)| item).collect();
     if let Some(off) = official
         .iter()
         .find(|it| it.name.eq_ignore_ascii_case(&q))

@@ -97,6 +97,8 @@ pub struct QueryInput {
     pub id: u64,
     /// Raw query text entered by the user.
     pub text: String,
+    /// Whether fuzzy search mode is enabled.
+    pub fuzzy: bool,
 }
 
 /// Results corresponding to a prior [`QueryInput`].

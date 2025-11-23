@@ -10,7 +10,7 @@
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, PackageItem};
+use crate::state::{AppState, PackageItem, QueryInput};
 
 mod details;
 mod filters;
@@ -43,6 +43,7 @@ mod tests;
 /// - `preview_tx`: Channel to request preview details for Recent pane interactions
 /// - `_add_tx`: Channel for adding items (used by Import button handler)
 /// - `pkgb_tx`: Channel to request PKGBUILD content for the current selection
+/// - `query_tx`: Channel to send search queries (for fuzzy toggle)
 ///
 /// Output:
 /// - `true` to request application exit (never used here); otherwise `false`.
@@ -64,6 +65,7 @@ pub fn handle_mouse_event(
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
     _add_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
 ) -> bool {
     // Ensure mouse capture is enabled (important after external terminal processes)
     crate::util::ensure_mouse_capture();
@@ -105,6 +107,21 @@ pub fn handle_mouse_event(
     // Filter toggle interactions
     if is_left_down && let Some(handled) = filters::handle_filters_mouse(mx, my, app) {
         return handled;
+    }
+
+    // Fuzzy search indicator toggle
+    if is_left_down
+        && let Some((x, y, w, h)) = app.fuzzy_indicator_rect
+        && mx >= x
+        && mx < x + w
+        && my >= y
+        && my < y + h
+    {
+        app.fuzzy_search_enabled = !app.fuzzy_search_enabled;
+        crate::theme::save_fuzzy_search(app.fuzzy_search_enabled);
+        // Re-trigger search with current query using new mode
+        crate::logic::send_query(app, query_tx);
+        return false;
     }
 
     // Pane interactions (Results, Recent, Install/Remove/Downgrade, PKGBUILD viewer)

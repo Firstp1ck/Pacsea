@@ -417,3 +417,17 @@ pub fn save_scan_do_custom(value: bool) {
 pub fn save_scan_do_sleuth(value: bool) {
     save_boolean_key("scan_do_sleuth", value);
 }
+
+/// What: Persist the fuzzy search toggle.
+///
+/// Inputs:
+/// - `value`: Whether fuzzy search should be enabled.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Delegates to `save_boolean_key("fuzzy_search", value)`.
+pub fn save_fuzzy_search(value: bool) {
+    save_boolean_key("fuzzy_search", value);
+}
