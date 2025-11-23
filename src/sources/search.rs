@@ -72,7 +72,7 @@ mod tests {
         let mut curl = bin.clone();
         curl.push("curl");
         // Shell variable syntax ${VAR:-default} - not a Rust format string
-        #[allow(clippy::all)]
+        #[allow(clippy::all, clippy::literal_string_with_formatting_args)]
         let script = r#"#!/usr/bin/env bash
 set -e
 state_dir="${PACSEA_FAKE_STATE_DIR:-.}"

@@ -41,7 +41,7 @@ pub struct SandboxTabContext<'a> {
     pub sandbox_info: &'a [crate::logic::sandbox::SandboxInfo],
     pub sandbox_tree_expanded: &'a HashSet<String>,
     pub sandbox_loaded: bool,
-    pub sandbox_error: &'a Option<String>,
+    pub sandbox_error: Option<&'a String>,
     pub selected_optdepends: &'a HashMap<String, HashSet<String>>,
     pub content_rect: Rect,
 }
@@ -103,7 +103,7 @@ fn determine_sandbox_state(app: &AppState, ctx: &SandboxTabContext) -> SandboxRe
     }
 
     // Handle error/loading/analyzing states
-    if let Some(err) = ctx.sandbox_error.as_ref() {
+    if let Some(err) = ctx.sandbox_error {
         return SandboxRenderState::Error(err.clone());
     } else if app.preflight_sandbox_resolving || app.sandbox_resolving {
         return SandboxRenderState::Loading;

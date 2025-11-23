@@ -142,7 +142,7 @@ fn build_display_items(
 /// - Returns optional line and number of lines added (0 or 2).
 fn render_sync_timestamp(
     app: &AppState,
-    sync_info: &Option<(u64, String, u8)>,
+    sync_info: Option<&(u64, String, u8)>,
 ) -> (Option<Line<'static>>, usize) {
     let th = theme();
     if let Some((_age_days, date_str, color_category)) = sync_info {
@@ -187,8 +187,8 @@ fn render_empty_state(
     app: &AppState,
     items: &[PackageItem],
     file_info: &[PackageFileInfo],
-    is_stale: &Option<bool>,
-    sync_info: &Option<(u64, String, u8)>,
+    is_stale: Option<&bool>,
+    sync_info: Option<&(u64, String, u8)>,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
@@ -775,7 +775,7 @@ fn render_file_list(
     )));
     lines.push(Line::from(""));
 
-    let (sync_line, sync_timestamp_lines) = render_sync_timestamp(app, ctx.sync_info);
+    let (sync_line, sync_timestamp_lines) = render_sync_timestamp(app, ctx.sync_info.as_ref());
     if let Some(line) = sync_line {
         lines.push(line);
         lines.push(Line::from(""));
@@ -846,7 +846,7 @@ pub fn render_files_tab(
     file_info: &[PackageFileInfo],
     file_selected: &mut usize,
     file_tree_expanded: &std::collections::HashSet<String>,
-    files_error: &Option<String>,
+    files_error: Option<&String>,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
     const STALE_THRESHOLD_DAYS: u64 = 7;
@@ -906,7 +906,7 @@ pub fn render_files_tab(
     let is_stale = crate::logic::files::is_file_db_stale(STALE_THRESHOLD_DAYS);
 
     if display_items.is_empty() {
-        render_empty_state(app, items, file_info, &is_stale, &sync_info)
+        render_empty_state(app, items, file_info, is_stale.as_ref(), sync_info.as_ref())
     } else {
         let ctx = FileListContext {
             file_info,

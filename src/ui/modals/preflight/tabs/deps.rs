@@ -235,7 +235,7 @@ fn render_empty_state(
     action: PreflightAction,
     items: &[PackageItem],
     is_resolving: bool,
-    deps_error: &Option<String>,
+    deps_error: Option<&String>,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
@@ -552,7 +552,7 @@ pub fn render_deps_tab(
     dependency_info: &[DependencyInfo],
     dep_selected: &mut usize,
     dep_tree_expanded: &HashSet<String>,
-    deps_error: &Option<String>,
+    deps_error: Option<&String>,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
     let th = theme();

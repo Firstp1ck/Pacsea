@@ -164,7 +164,7 @@ fn process_package_item<R: CommandRunner>(
     }
 
     let (notes, is_major_bump, is_downgrade) = analyze_version_changes(
-        &installed_version,
+        installed_version.as_ref(),
         &item.version,
         action,
         item.name.clone(),
@@ -289,7 +289,7 @@ fn calculate_install_delta(
 ///
 /// Details: Detects downgrades, major version bumps, and new installations.
 fn analyze_version_changes(
-    installed_version: &Option<String>,
+    installed_version: Option<&String>,
     target_version: &str,
     action: PreflightAction,
     package_name: String,

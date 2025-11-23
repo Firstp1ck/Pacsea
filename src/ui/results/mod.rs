@@ -120,7 +120,7 @@ pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     // Render status and sort menu, record rects (all mutate app)
     status::render_status(f, app, area);
-    let btn_x = app.sort_button_rect.map(|(x, _, _, _)| x).unwrap_or(area.x);
+    let btn_x = app.sort_button_rect.map_or(area.x, |(x, _, _, _)| x);
     sort_menu::render_sort_menu(f, app, area, btn_x);
     utils::record_results_rect(app, area);
 }

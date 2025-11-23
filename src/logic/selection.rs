@@ -24,15 +24,15 @@ pub fn move_sel_cached(
     if app.results.is_empty() {
         return;
     }
-    let len = app.results.len() as isize;
-    let mut idx = app.selected as isize + delta;
+    let len = isize::try_from(app.results.len()).unwrap_or(isize::MAX);
+    let mut idx = isize::try_from(app.selected).unwrap_or(0) + delta;
     if idx < 0 {
         idx = 0;
     }
     if idx >= len {
         idx = len - 1;
     }
-    app.selected = idx as usize;
+    app.selected = usize::try_from(idx).unwrap_or(0);
     app.list_state.select(Some(app.selected));
     if let Some(item) = app.results.get(app.selected).cloned() {
         // Focus details on the currently selected item only
@@ -73,9 +73,9 @@ pub fn move_sel_cached(
 
     // Debounce ring prefetch when scrolling fast (>5 items cumulatively)
     let abs_delta_usize: usize = if delta < 0 {
-        (-delta) as usize
+        usize::try_from(-delta).unwrap_or(0)
     } else {
-        delta as usize
+        usize::try_from(delta).unwrap_or(0)
     };
     if abs_delta_usize > 0 {
         let add = u32::try_from(abs_delta_usize.min(u32::MAX as usize))

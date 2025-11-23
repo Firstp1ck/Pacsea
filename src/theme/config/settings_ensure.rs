@@ -171,7 +171,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
-    let file_empty = meta.map(|m| m.len() == 0).unwrap_or(true);
+    let file_empty = meta.map_or(true, |m| m.len() == 0);
     let created_new = !file_exists || file_empty;
 
     let mut lines: Vec<String> = if file_exists && !file_empty {

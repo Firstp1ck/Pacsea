@@ -67,7 +67,7 @@ pub(super) fn handle_scan_config(
         },
         KeyCode::Enter => {
             let new_modal = handle_scan_config_confirm(
-                &app.pending_install_names,
+                app.pending_install_names.as_ref(),
                 app.dry_run,
                 *do_clamav,
                 *do_trivy,
@@ -175,7 +175,7 @@ pub(super) fn handle_virustotal_setup(
 /// - Persists scan settings and spawns AUR scans for pending packages
 #[allow(clippy::too_many_arguments)]
 fn handle_scan_config_confirm(
-    pending_install_names: &Option<Vec<String>>,
+    pending_install_names: Option<&Vec<String>>,
     dry_run: bool,
     do_clamav: bool,
     do_trivy: bool,
@@ -194,7 +194,7 @@ fn handle_scan_config_confirm(
         do_shellcheck,
         do_virustotal,
         do_custom,
-        pending_count = pending_install_names.as_ref().map_or(0, Vec::len),
+        pending_count = pending_install_names.map_or(0, |v| v.len()),
         "Scan Configuration confirmed"
     );
     crate::theme::save_scan_do_clamav(do_clamav);
@@ -206,7 +206,7 @@ fn handle_scan_config_confirm(
     crate::theme::save_scan_do_sleuth(do_sleuth);
 
     #[cfg(not(target_os = "windows"))]
-    if let Some(names) = pending_install_names.clone() {
+    if let Some(names) = pending_install_names.cloned() {
         tracing::info!(
             names = ?names,
             count = names.len(),

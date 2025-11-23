@@ -30,7 +30,7 @@ fn calculate_menu_dimensions(
 ) -> (u16, u16, u16) {
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
+        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
         .max()
         .unwrap_or(0);
     let max_num_width = u16::try_from(format!("{}", opts.len()).len()).unwrap_or(u16::MAX);
@@ -66,7 +66,7 @@ fn calculate_menu_rect(
 ) -> (Rect, (u16, u16, u16, u16)) {
     let rect_w = menu_width.saturating_add(2);
     let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
-    let button_x = button_rect.map(|(x, _, _, _)| x).unwrap_or(max_x);
+    let button_x = button_rect.map_or(max_x, |(x, _, _, _)| x);
     let menu_x = button_x.min(max_x);
     let menu_y = results_area.y.saturating_add(1);
     let rect = Rect {
@@ -273,7 +273,7 @@ fn render_config_menu(
 
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
+        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
         .max()
         .unwrap_or(0);
     let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
@@ -333,7 +333,7 @@ fn render_panels_menu(
 
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
+        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
         .max()
         .unwrap_or(0);
     let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
@@ -389,7 +389,7 @@ fn render_options_menu(
 
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
+        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
         .max()
         .unwrap_or(0);
     let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
@@ -478,7 +478,7 @@ fn render_artix_filter_menu(
 
     let widest = opts
         .iter()
-        .map(|(s, _)| u16::try_from(s.len()).unwrap_or(u16::MAX))
+        .map(|(s, _)| u16::try_from(s.len()).map_or(u16::MAX, |x| x))
         .max()
         .unwrap_or(0);
     let w = widest

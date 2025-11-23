@@ -68,7 +68,10 @@ pub fn byte_index_for_char(s: &str, ci: usize) -> usize {
     if ci >= cc {
         return s.len();
     }
-    s.char_indices().map(|(i, _)| i).nth(ci).unwrap_or(s.len())
+    s.char_indices()
+        .map(|(i, _)| i)
+        .nth(ci)
+        .map_or(s.len(), |i| i)
 }
 
 /// What: Advance selection in the Recent pane to the next/previous match of the pane-find pattern.

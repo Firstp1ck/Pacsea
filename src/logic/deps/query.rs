@@ -1,6 +1,7 @@
 //! Package querying functions for dependency resolution.
 
 use std::collections::HashSet;
+use std::hash::BuildHasher;
 use std::process::{Command, Stdio};
 
 /// What: Collect names of packages that have upgrades available via pacman.
@@ -123,7 +124,10 @@ pub fn get_installed_packages() -> HashSet<String> {
 /// - Uses `pacman -Qqo` to efficiently check if any installed package provides the name.
 /// - This is much faster than querying all packages upfront.
 /// - Returns the name of the providing package for debugging purposes.
-fn check_if_provided(name: &str, _installed: &HashSet<String>) -> Option<String> {
+fn check_if_provided<S: BuildHasher + Default>(
+    name: &str,
+    _installed: &HashSet<String, S>,
+) -> Option<String> {
     // Use pacman -Qqo to check which package provides this name
     // This is efficient - pacman does the lookup internally
     let output = Command::new("pacman")
@@ -166,7 +170,9 @@ fn check_if_provided(name: &str, _installed: &HashSet<String>) -> Option<String>
 /// - This function is kept for API compatibility but no longer builds the full provides set.
 /// - Provides are now checked on-demand using `check_if_provided()` for better performance.
 #[must_use]
-pub fn get_provided_packages(_installed: &HashSet<String>) -> HashSet<String> {
+pub fn get_provided_packages<S: BuildHasher + Default>(
+    _installed: &HashSet<String, S>,
+) -> HashSet<String> {
     // Return empty set - provides are now checked lazily on-demand
     // This avoids querying all installed packages upfront, which was very slow
     HashSet::new()
@@ -187,10 +193,10 @@ pub fn get_provided_packages(_installed: &HashSet<String>) -> HashSet<String> {
 /// - Then lazily checks if it's provided by any installed package using `pacman -Qqo`.
 /// - This handles cases like `rustup` providing `rust` efficiently without querying all packages upfront.
 #[must_use]
-pub fn is_package_installed_or_provided(
+pub fn is_package_installed_or_provided<S: BuildHasher + Default>(
     name: &str,
-    installed: &HashSet<String>,
-    _provided: &HashSet<String>,
+    installed: &HashSet<String, S>,
+    _provided: &HashSet<String, S>,
 ) -> bool {
     // First check if directly installed
     if installed.contains(name) {

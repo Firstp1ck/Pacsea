@@ -31,7 +31,7 @@ pub fn render_services_tab(
     service_info: &[ServiceImpact],
     service_selected: &mut usize,
     services_loaded: bool,
-    services_error: &Option<String>,
+    services_error: Option<&String>,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
     let th = theme();

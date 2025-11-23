@@ -39,7 +39,7 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
     // If file doesn't exist or is empty, initialize with skeleton
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
-    let file_empty = meta.map(|m| m.len() == 0).unwrap_or(true);
+    let file_empty = meta.map_or(true, |m| m.len() == 0);
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
@@ -118,7 +118,7 @@ fn save_boolean_key(key_norm: &str, value: bool) {
     // If file doesn't exist or is empty, initialize with skeleton
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
-    let file_empty = meta.map(|m| m.len() == 0).unwrap_or(true);
+    let file_empty = meta.map_or(true, |m| m.len() == 0);
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it
@@ -201,7 +201,7 @@ fn save_string_key(key_norm: &str, value: &str) {
     // If file doesn't exist or is empty, initialize with skeleton
     let meta = std::fs::metadata(&p).ok();
     let file_exists = meta.is_some();
-    let file_empty = meta.map(|m| m.len() == 0).unwrap_or(true);
+    let file_empty = meta.map_or(true, |m| m.len() == 0);
 
     let mut lines: Vec<String> = if file_exists && !file_empty {
         // File exists and has content - read it

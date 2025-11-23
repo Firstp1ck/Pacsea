@@ -23,7 +23,7 @@ Details:
 /// - Aggregates scores from `ShellCheck`, `ClamAV`, `Trivy`, `Semgrep`, `VirusTotal`, and Custom scans.
 /// - Calculates overall percentage and tier (LOW/MEDIUM/HIGH/CRITICAL).
 #[cfg(not(target_os = "windows"))]
-#[allow(clippy::all)] // Shell variable syntax ${VAR:-default} in raw strings - false positive
+#[allow(clippy::all, clippy::literal_string_with_formatting_args)] // Shell variable syntax ${VAR:-default} in raw strings - false positive
 pub fn add_overall_risk_calc(cmds: &mut Vec<String>) {
     cmds.push(
         r#"(
