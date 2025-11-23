@@ -44,7 +44,10 @@ fn merge_dependencies(
 
         // Merge status (keep worst - lower priority number = higher priority)
         // Conflicts take precedence
-        if !matches!(entry.status, crate_root::state::modal::DependencyStatus::Conflict { .. }) {
+        if !matches!(
+            entry.status,
+            crate_root::state::modal::DependencyStatus::Conflict { .. }
+        ) {
             let existing_priority = dependency_priority(&entry.status);
             let new_priority = dependency_priority(&dep.status);
             if new_priority < existing_priority {
@@ -56,11 +59,13 @@ fn merge_dependencies(
         // But never overwrite a Conflict status
         if !dep.version.is_empty()
             && dep.version != entry.version
-            && !matches!(entry.status, crate_root::state::modal::DependencyStatus::Conflict { .. })
+            && !matches!(
+                entry.status,
+                crate_root::state::modal::DependencyStatus::Conflict { .. }
+            )
+            && entry.version.is_empty()
         {
-            if entry.version.is_empty() {
-                entry.version = dep.version;
-            }
+            entry.version = dep.version;
         }
     }
 
