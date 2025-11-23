@@ -29,8 +29,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 ///
 /// Details:
 /// - Used as fallback when analysis fails to ensure package appears in results.
-#[allow(clippy::missing_const_for_fn)]
-fn create_empty_sandbox_info(name: String) -> SandboxInfo {
+const fn create_empty_sandbox_info(name: String) -> SandboxInfo {
     SandboxInfo {
         package_name: name,
         depends: Vec::new(),
