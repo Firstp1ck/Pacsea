@@ -201,6 +201,7 @@ cargo run
 - **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
+- **View AUR package comments**
 
 
 ### Other Potential Features
