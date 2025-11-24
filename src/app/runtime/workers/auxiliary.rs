@@ -83,7 +83,7 @@ pub fn spawn_auxiliary_workers(
     {
         // Save mirrors into the repository directory in the source tree and build the index via Arch API
         let repo_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("repository");
-        let index_path = official_index_path.clone();
+        let index_path = official_index_path.to_path_buf();
         let net_err = net_err_tx.clone();
         let index_notify = index_notify_tx.clone();
         tokio::spawn(async move {
