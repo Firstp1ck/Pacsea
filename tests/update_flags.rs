@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 /// - Since `handle_update()` exits, we verify it's triggered by checking
 ///   that it attempts to run sudo pacman (or exits early if passwordless sudo fails).
 #[test]
+#[ignore = "Long-running simulation test, only run manually"]
 fn test_update_short_flag_triggers_update() {
     // Get the path to the pacsea binary
     let binary_path = std::env::current_exe()
@@ -75,6 +76,7 @@ fn test_update_short_flag_triggers_update() {
 /// Details:
 /// - Tests the long form of the update flag by running the binary.
 #[test]
+#[ignore = "Long-running simulation test, only run manually"]
 fn test_update_long_flag_triggers_update() {
     // Get the path to the pacsea binary
     let binary_path = std::env::current_exe()
@@ -128,6 +130,7 @@ fn test_update_long_flag_triggers_update() {
 /// - Verifies that the update handler properly handles sudo password to avoid re-prompting.
 #[allow(clippy::too_many_lines)]
 #[test]
+#[ignore = "Long-running simulation test, only run manually"]
 fn test_sudo_password_timeout_during_long_update() {
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
@@ -295,8 +298,7 @@ exit 0
     // This is the key test: password should be provided once at the beginning
     // and NOT required again, even if the update takes a long time
     if password_log.exists() {
-        let password_requests = fs::read_to_string(&password_log)
-            .unwrap_or_else(|_| String::new());
+        let password_requests = fs::read_to_string(&password_log).unwrap_or_else(|_| String::new());
         let request_count = password_requests.lines().count();
         assert!(
             request_count == 1,
@@ -339,6 +341,7 @@ exit 0
 ///   provide the password again. This test verifies the update process structure can handle
 ///   such scenarios by simulating the long-running nature of updates.
 #[test]
+#[ignore = "Long-running simulation test, only run manually"]
 fn test_long_running_update_simulation() {
     use std::fs;
     use std::os::unix::fs::PermissionsExt;

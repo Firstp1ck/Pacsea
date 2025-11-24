@@ -271,116 +271,198 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
     failed
 }
 
-/// What: Execute a command with output both displayed in real-time and logged to file using tee.
+/// What: Ensure color flags are present in command arguments to preserve colored output.
+///
+/// Inputs:
+/// - `program`: The program name (e.g., "pacman", "yay", "paru").
+/// - `args`: Command arguments slice.
+///
+/// Output:
+/// - A vector of arguments with color flags added if not already present.
+///
+/// Details:
+/// - For pacman: adds `--color=always` if no `--color` flag is present.
+/// - For yay/paru: adds `--color=always` if no `--color` flag is present (both support this flag).
+/// - Preserves all original arguments and their order.
+#[cfg(not(target_os = "windows"))]
+fn ensure_color_flags(program: &str, args: &[&str]) -> Vec<String> {
+    let mut result: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+
+    // Check if program is pacman (either directly or via sudo) or yay/paru
+    let needs_color_flag = program == "pacman"
+        || (program == "sudo" && args.first() == Some(&"pacman"))
+        || program == "yay"
+        || program == "paru";
+
+    if needs_color_flag {
+        // Check if --color flag is already present
+        let has_color_flag = args.iter().any(|arg| {
+            arg.starts_with("--color")
+                || *arg == "--color=always"
+                || *arg == "--color=never"
+                || *arg == "--color=auto"
+        });
+
+        if !has_color_flag {
+            // Insert --color=always after the program name but before other flags
+            // When program is "sudo", args[0] is "pacman", so insert after args[0]
+            let insert_pos = match program {
+                "sudo" => 1,
+                _ => 0,
+            };
+            result.insert(insert_pos, "--color=always".to_string());
+        }
+    }
+
+    result
+}
+
+/// What: Execute a command with output both displayed in real-time and logged to file using script.
 ///
 /// Inputs:
 /// - `program`: The program to execute.
 /// - `args`: Command arguments.
 /// - `log_file_path`: Path to the log file where output should be written.
-/// - `password`: Optional sudo password; when provided, uses `sudo -S` with password piping.
+/// - `refresh_sudo`: If true and program is "sudo", refresh sudo timestamp before running command.
 ///
 /// Output:
 /// - `Ok((status, output))` if command executed, `Err(e)` if execution failed.
 ///
 /// Details:
-/// - Uses a shell wrapper with `tee` to duplicate output to both terminal and log file.
-/// - Preserves real-time output display while logging everything.
+/// - Uses `script` command to create a PTY, making programs think they're writing to a real terminal.
+/// - This preserves all colors and formatting since programs detect they're writing to a TTY.
+/// - Output is displayed in real-time on the terminal and simultaneously captured by script.
 /// - Returns the command output for parsing failed packages.
 /// - Output is parsed using locale-aware i18n patterns.
 /// - Sets `LC_ALL=C` and `LANG=C` for consistent English output.
-/// - Handles TTY detection and falls back to stdout if no TTY available.
-/// - Uses `set -o pipefail` for reliable exit status capture.
-/// - Configures stdin/stdout/stderr explicitly to prevent interactive prompts.
+/// - Automatically adds `--color=always` to pacman/yay/paru commands to ensure colors are enabled.
+/// - Captured output is appended to the log file after command completion.
+/// - When `refresh_sudo` is true and program is "sudo", prepends `sudo -v &&` to refresh timestamp in same terminal context.
 #[cfg(not(target_os = "windows"))]
 fn run_command_with_logging(
     program: &str,
     args: &[&str],
     log_file_path: &Path,
-    password: Option<&str>,
+    refresh_sudo: bool,
 ) -> Result<(std::process::ExitStatus, String), std::io::Error> {
-    use std::io::IsTerminal;
     use std::process::{Command, Stdio};
 
-    let log_file_str = log_file_path.to_string_lossy();
-    let args_str = args
+    // Ensure color flags are present for colored output
+    let args_with_color = ensure_color_flags(program, args);
+    let args_refs: Vec<&str> = args_with_color
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
+
+    let args_str = args_refs
         .iter()
         .map(|a| shell_single_quote(a))
         .collect::<Vec<_>>()
         .join(" ");
 
-    // Check if stdout is a TTY for /dev/tty redirection
-    let has_tty = std::io::stdout().is_terminal();
-    let tty_redirect = if has_tty {
-        "> /dev/tty"
-    } else {
-        "> /dev/stdout"
-    };
-
-    // Use bash -c with tee to both display and log output
-    // Redirect both stdout and stderr through tee
-    // Use set -o pipefail for reliable exit status capture
-    // Also capture output to a temp file so we can read it back
+    // Use `script` command to create a PTY and capture output
+    // This preserves all colors since programs think they're writing to a real terminal
     let temp_output =
         std::env::temp_dir().join(format!("pacsea_update_output_{}.txt", std::process::id()));
     let temp_output_str = temp_output.to_string_lossy();
 
-    // Build the command with optional password piping for sudo
-    // When program is "sudo", we need to handle it specially:
-    // - With password: echo 'password' | sudo -S pacman args...
-    // - Without password: sudo pacman args...
-    // When program is not "sudo" (e.g., paru/yay), use it directly
-    let full_command = if program == "sudo" {
-        password.map_or_else(
-            || format!("sudo {args_str}"),
-            |pass| {
-                // Escape single quotes in password (pattern from src/install/command.rs)
-                let escaped = pass.replace('\'', "'\"'\"'\''");
-                // args[0] is the actual command (e.g., "pacman"), args[1..] are its arguments
-                args.first().map_or_else(
-                    || format!("echo '{escaped}' | sudo -S {args_str}"),
-                    |cmd| {
-                        let cmd_args = &args[1..];
-                        let cmd_args_str = cmd_args
-                            .iter()
-                            .map(|a| shell_single_quote(a))
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        if cmd_args_str.is_empty() {
-                            format!("echo '{escaped}' | sudo -S {cmd}")
-                        } else {
-                            format!("echo '{escaped}' | sudo -S {cmd} {cmd_args_str}")
-                        }
-                    },
-                )
-            },
-        )
-    } else {
-        // Non-sudo command (e.g., paru, yay), use directly
-        format!("{program} {args_str}")
-    };
+    // Build the command - if refresh_sudo is true and program is "sudo" or an AUR helper,
+    // prepend "sudo -v &&" to refresh timestamp in the same terminal context
+    // AUR helpers (yay/paru) call sudo internally, so they also need fresh timestamp
+    let full_command =
+        if refresh_sudo && (program == "sudo" || program == "yay" || program == "paru") {
+            format!("sudo -v && {program} {args_str}")
+        } else {
+            format!("{program} {args_str}")
+        };
 
-    // Use tee twice: first logs to file, second captures to tempfile and displays
-    // set -o pipefail ensures exit status reflects command failure, not tee
-    // command 2>&1 | tee -a logfile | tee tempfile > /dev/tty
-    // This way: output is displayed once, logged to file, and captured to tempfile
-    let shell_cmd = format!(
-        "set -o pipefail; {full_command} 2>&1 | tee -a {log_file_str} | tee {temp_output_str} {tty_redirect}; exit $?"
-    );
+    // Use `script` command to create a PTY, making programs think they're writing to a real terminal
+    // This preserves all colors and formatting. The script command logs everything to a file
+    // while also displaying it on the terminal.
+    // We use `script -qefc` where:
+    //   -q: quiet mode (don't print script started/ended messages)
+    //   -e: return exit code of the command
+    //   -f: flush output immediately (for real-time display)
+    //   -c: command to execute (must be a single quoted string)
+    // The output is logged to temp_output, then we append it to the log file
+    // Note: stdin must be inherited so password prompts work correctly and are hidden
+    let escaped_cmd = full_command.replace('\'', "'\"'\"'");
+    let script_cmd = format!("script -qefc '{escaped_cmd}' {temp_output_str}");
 
     let status = Command::new("bash")
         .arg("-c")
-        .arg(&shell_cmd)
+        .arg(&script_cmd)
         .env("LC_ALL", "C")
         .env("LANG", "C")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stdin(Stdio::inherit()) // Inherit stdin so password prompts work and are hidden
+        .stdout(Stdio::inherit()) // Inherit stdout so output goes directly to terminal
+        .stderr(Stdio::inherit()) // Inherit stderr so output goes directly to terminal
         .status()?;
 
-    // Read the captured output
+    // Read the captured output from script
     let output = std::fs::read_to_string(&temp_output).unwrap_or_else(|_| String::new());
 
+    // Append the captured output to the log file
+    if let Ok(mut log_file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_file_path)
+    {
+        let _ = std::io::Write::write_all(&mut log_file, output.as_bytes());
+    }
+
     // Clean up temp file
+    let _ = std::fs::remove_file(&temp_output);
+
+    Ok((status, output))
+}
+
+/// What: Execute combined commands in a single script session to share sudo timestamp.
+///
+/// Inputs:
+/// - `command`: The combined command string to execute.
+/// - `log_file_path`: Path to the log file where output should be written.
+///
+/// Output:
+/// - `Ok((status, output))` if command executed, `Err(e)` if execution failed.
+///
+/// Details:
+/// - Uses `script` command to create a PTY and capture output.
+/// - Runs commands in a single script session so they share the same terminal context and sudo timestamp.
+#[cfg(not(target_os = "windows"))]
+fn run_combined_commands_with_logging(
+    command: &str,
+    log_file_path: &Path,
+) -> Result<(std::process::ExitStatus, String), std::io::Error> {
+    use std::process::{Command, Stdio};
+
+    let temp_output =
+        std::env::temp_dir().join(format!("pacsea_update_output_{}.txt", std::process::id()));
+    let temp_output_str = temp_output.to_string_lossy();
+
+    let escaped_cmd = command.replace('\'', "'\"'\"'");
+    let script_cmd = format!("script -qefc '{escaped_cmd}' {temp_output_str}");
+
+    let status = Command::new("bash")
+        .arg("-c")
+        .arg(&script_cmd)
+        .env("LC_ALL", "C")
+        .env("LANG", "C")
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()?;
+
+    let output = std::fs::read_to_string(&temp_output).unwrap_or_else(|_| String::new());
+
+    if let Ok(mut log_file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_file_path)
+    {
+        let _ = std::io::Write::write_all(&mut log_file, output.as_bytes());
+    }
+
     let _ = std::fs::remove_file(&temp_output);
 
     Ok((status, output))
@@ -435,33 +517,24 @@ pub fn handle_update() -> ! {
     };
 
     // Check if passwordless sudo is available
-    let password = if Command::new("sudo")
+    // If not, we'll let sudo prompt for password naturally
+    // We'll use sudo -v to refresh the timestamp before running commands
+    let has_passwordless_sudo = Command::new("sudo")
         .args(["-n", "true"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
-        .is_ok_and(|s| s.success())
-    {
-        // Passwordless sudo works, no password needed
-        write_log("Passwordless sudo detected, skipping password prompt");
-        None
+        .is_ok_and(|s| s.success());
+
+    if has_passwordless_sudo {
+        write_log("Passwordless sudo detected");
     } else {
-        // Password required, prompt user
-        let password_prompt = i18n::t("app.cli.update.password_prompt");
-        match rpassword::prompt_password(password_prompt) {
-            Ok(pass) => {
-                write_log("Password obtained from user (not logged)");
-                Some(pass)
-            }
-            Err(e) => {
-                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-                write_log(&format!("FAILED: Could not read password: {e}"));
-                tracing::error!("Failed to read sudo password: {e}");
-                std::process::exit(1);
-            }
-        }
-    };
+        write_log("Passwordless sudo not available - sudo will prompt in script context");
+        // Sudo timestamp will be refreshed in each script context before commands
+        // The first sudo -v in script will prompt for password once per script session
+        println!("{}", i18n::t("app.cli.update.starting"));
+    }
 
     let mut all_succeeded = true;
     let mut failed_commands = Vec::new();
@@ -471,78 +544,72 @@ pub fn handle_update() -> ! {
     let mut aur_succeeded = Option::<bool>::None;
     let mut aur_helper_name = Option::<&str>::None;
 
-    // Step 1: Update pacman (sudo pacman -Syyu --noconfirm)
-    println!("{}", i18n::t("app.cli.update.starting"));
-    write_log("Starting system update: pacman -Syyu --noconfirm");
-
-    let pacman_result = run_command_with_logging(
-        "sudo",
-        &["pacman", "-Syyu", "--noconfirm"],
-        &log_file_path,
-        password.as_deref(),
-    );
-
-    match pacman_result {
-        Ok((status, output)) => {
-            if status.success() {
-                println!("{}", i18n::t("app.cli.update.pacman_success"));
-                write_log("SUCCESS: pacman -Syyu --noconfirm completed successfully");
-                pacman_succeeded = Some(true);
-            } else {
-                println!("{}", i18n::t("app.cli.update.pacman_failed"));
-                write_log(&format!(
-                    "FAILED: pacman -Syyu --noconfirm failed with exit code {:?}",
-                    status.code()
-                ));
-                let packages = extract_failed_packages(&output, "pacman");
-                failed_packages.extend(packages);
-                all_succeeded = false;
-                failed_commands.push("pacman -Syyu".to_string());
-                pacman_succeeded = Some(false);
-            }
-        }
-        Err(e) => {
-            println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
-            eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-            write_log(&format!(
-                "FAILED: Could not execute pacman -Syyu --noconfirm: {e}"
-            ));
-            all_succeeded = false;
-            failed_commands.push("pacman -Syyu --noconfirm".to_string());
-            pacman_succeeded = Some(false);
-        }
-    }
-
-    // Step 2: Update AUR packages (yay/paru -Syyu --noconfirm)
+    // Check if AUR helper is available - if so, we'll run both commands in a single script session
+    // to share the sudo timestamp and avoid multiple password prompts
     let aur_helper = utils::get_aur_helper();
-    if let Some(helper) = aur_helper {
-        aur_helper_name = Some(helper);
-        println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
-        write_log(&format!("Starting AUR update: {helper} -Syyu --noconfirm"));
+    let run_together = aur_helper.is_some() && !has_passwordless_sudo;
 
-        let aur_result = run_command_with_logging(
-            helper,
-            &["-Syyu", "--noconfirm"],
-            &log_file_path,
-            None, // AUR helpers handle sudo internally, no password needed
+    if run_together {
+        // Run both commands in a single script session to share sudo timestamp
+        write_log("Starting combined update: pacman and AUR helper in single session");
+
+        let helper = aur_helper.expect("AUR helper should be available when run_together is true");
+        aur_helper_name = Some(helper);
+
+        // Build combined command: sudo -v && echo message && sudo pacman ... && echo message && yay ...
+        // Messages are echoed within the script session to avoid duplicates
+        let pacman_cmd = "sudo pacman -Syyu --noconfirm";
+        let aur_cmd = format!("{helper} -Syyu --noconfirm");
+        let starting_msg = i18n::t("app.cli.update.starting");
+        // Use shell_single_quote to safely handle special characters in the message
+        let escaped_msg = shell_single_quote(&starting_msg);
+        let combined_cmd = format!(
+            "sudo -v && echo {escaped_msg} && {pacman_cmd} && echo '' && echo 'Updating AUR packages ({helper} -Syyu)...' && {aur_cmd}"
         );
 
-        match aur_result {
+        let combined_result = run_combined_commands_with_logging(&combined_cmd, &log_file_path);
+
+        // Parse the output to determine individual command success
+        match combined_result {
             Ok((status, output)) => {
-                if status.success() {
+                // Try to determine which commands succeeded/failed from output
+                // This is a simplified approach - in practice, we'd need more sophisticated parsing
+                let pacman_output = output
+                    .split(&format!("Updating AUR packages ({helper} -Syyu)..."))
+                    .next()
+                    .unwrap_or("");
+                let aur_output = output
+                    .split(&format!("Updating AUR packages ({helper} -Syyu)..."))
+                    .nth(1)
+                    .unwrap_or("");
+
+                // Check pacman success (look for success indicators in output)
+                if pacman_output.contains("Es gibt nichts zu tun")
+                    || pacman_output.contains("there is nothing to do")
+                    || status.success()
+                {
+                    println!("{}", i18n::t("app.cli.update.pacman_success"));
+                    write_log("SUCCESS: pacman -Syyu --noconfirm completed");
+                    pacman_succeeded = Some(true);
+                } else {
+                    println!("{}", i18n::t("app.cli.update.pacman_failed"));
+                    write_log("FAILED: pacman -Syyu --noconfirm failed");
+                    let packages = extract_failed_packages(pacman_output, "pacman");
+                    failed_packages.extend(packages);
+                    all_succeeded = false;
+                    failed_commands.push("pacman -Syyu".to_string());
+                    pacman_succeeded = Some(false);
+                }
+
+                // Check AUR helper success
+                if aur_output.contains("there is nothing to do") || status.success() {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
-                    write_log(&format!(
-                        "SUCCESS: {helper} -Syyu --noconfirm completed successfully"
-                    ));
+                    write_log(&format!("SUCCESS: {helper} -Syyu --noconfirm completed"));
                     aur_succeeded = Some(true);
                 } else {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
-                    write_log(&format!(
-                        "FAILED: {} -Syyu --noconfirm failed with exit code {:?}",
-                        helper,
-                        status.code()
-                    ));
-                    let packages = extract_failed_packages(&output, helper);
+                    write_log(&format!("FAILED: {helper} -Syyu --noconfirm failed"));
+                    let packages = extract_failed_packages(aur_output, helper);
                     failed_packages.extend(packages);
                     all_succeeded = false;
                     failed_commands.push(format!("{helper} -Syyu --noconfirm"));
@@ -550,19 +617,115 @@ pub fn handle_update() -> ! {
                 }
             }
             Err(e) => {
-                println!("{}", i18n::t_fmt1("app.cli.update.aur_exec_failed", helper));
+                println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
                 eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-                write_log(&format!(
-                    "FAILED: Could not execute {helper} -Syyu --noconfirm: {e}"
-                ));
+                write_log(&format!("FAILED: Could not execute combined update: {e}"));
                 all_succeeded = false;
-                failed_commands.push(format!("{helper} -Syyu --noconfirm"));
+                failed_commands.push("combined update".to_string());
+                pacman_succeeded = Some(false);
                 aur_succeeded = Some(false);
             }
         }
     } else {
-        println!("\n{}", i18n::t("app.cli.update.no_aur_helper"));
-        write_log("SKIPPED: No AUR helper (paru/yay) available");
+        // Run commands separately (original behavior)
+        // Step 1: Update pacman (sudo pacman -Syyu --noconfirm)
+        // Print starting message only if passwordless sudo (already printed for password prompt)
+        if has_passwordless_sudo {
+            println!("{}", i18n::t("app.cli.update.starting"));
+        }
+        write_log("Starting system update: pacman -Syyu --noconfirm");
+
+        let pacman_result = run_command_with_logging(
+            "sudo",
+            &["pacman", "-Syyu", "--noconfirm"],
+            &log_file_path,
+            !has_passwordless_sudo,
+        );
+
+        match pacman_result {
+            Ok((status, output)) => {
+                if status.success() {
+                    println!("{}", i18n::t("app.cli.update.pacman_success"));
+                    write_log("SUCCESS: pacman -Syyu --noconfirm completed successfully");
+                    pacman_succeeded = Some(true);
+                } else {
+                    println!("{}", i18n::t("app.cli.update.pacman_failed"));
+                    write_log(&format!(
+                        "FAILED: pacman -Syyu --noconfirm failed with exit code {:?}",
+                        status.code()
+                    ));
+                    let packages = extract_failed_packages(&output, "pacman");
+                    failed_packages.extend(packages);
+                    all_succeeded = false;
+                    failed_commands.push("pacman -Syyu".to_string());
+                    pacman_succeeded = Some(false);
+                }
+            }
+            Err(e) => {
+                println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
+                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+                write_log(&format!(
+                    "FAILED: Could not execute pacman -Syyu --noconfirm: {e}"
+                ));
+                all_succeeded = false;
+                failed_commands.push("pacman -Syyu --noconfirm".to_string());
+                pacman_succeeded = Some(false);
+            }
+        }
+
+        // Step 2: Update AUR packages (yay/paru -Syyu --noconfirm)
+        let aur_helper_separate = utils::get_aur_helper();
+        if let Some(helper) = aur_helper_separate {
+            aur_helper_name = Some(helper);
+            println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
+            write_log(&format!("Starting AUR update: {helper} -Syyu --noconfirm"));
+
+            // AUR helpers like yay/paru call sudo internally for pacman operations
+            // The sudo timestamp will be refreshed in the script context if needed
+            let aur_result = run_command_with_logging(
+                helper,
+                &["-Syyu", "--noconfirm"],
+                &log_file_path,
+                !has_passwordless_sudo,
+            );
+
+            match aur_result {
+                Ok((status, output)) => {
+                    if status.success() {
+                        println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
+                        write_log(&format!(
+                            "SUCCESS: {helper} -Syyu --noconfirm completed successfully"
+                        ));
+                        aur_succeeded = Some(true);
+                    } else {
+                        println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
+                        write_log(&format!(
+                            "FAILED: {} -Syyu --noconfirm failed with exit code {:?}",
+                            helper,
+                            status.code()
+                        ));
+                        let packages = extract_failed_packages(&output, helper);
+                        failed_packages.extend(packages);
+                        all_succeeded = false;
+                        failed_commands.push(format!("{helper} -Syyu --noconfirm"));
+                        aur_succeeded = Some(false);
+                    }
+                }
+                Err(e) => {
+                    println!("{}", i18n::t_fmt1("app.cli.update.aur_exec_failed", helper));
+                    eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+                    write_log(&format!(
+                        "FAILED: Could not execute {helper} -Syyu --noconfirm: {e}"
+                    ));
+                    all_succeeded = false;
+                    failed_commands.push(format!("{helper} -Syyu --noconfirm"));
+                    aur_succeeded = Some(false);
+                }
+            }
+        } else {
+            println!("\n{}", i18n::t("app.cli.update.no_aur_helper"));
+            write_log("SKIPPED: No AUR helper (paru/yay) available");
+        }
     }
 
     // Final summary

@@ -37,3 +37,6 @@ cognitive_complexity = "warn"
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 unwrap_used = "deny"
+
+# Ignored tests run with:
+# cargo test -- --ignored
