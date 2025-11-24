@@ -330,32 +330,33 @@ fn run_command_with_logging(
     // - Without password: sudo pacman args...
     // When program is not "sudo" (e.g., paru/yay), use it directly
     let full_command = if program == "sudo" {
-        if let Some(pass) = password {
-            // Escape single quotes in password (pattern from src/install/command.rs)
-            let escaped = pass.replace('\'', "'\"'\"'\''");
-            // args[0] is the actual command (e.g., "pacman"), args[1..] are its arguments
-            if let Some(cmd) = args.first() {
-                let cmd_args = &args[1..];
-                let cmd_args_str = cmd_args
-                    .iter()
-                    .map(|a| shell_single_quote(a))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                if cmd_args_str.is_empty() {
-                    format!("echo '{}' | sudo -S {}", escaped, cmd)
-                } else {
-                    format!("echo '{}' | sudo -S {} {}", escaped, cmd, cmd_args_str)
-                }
-            } else {
-                format!("echo '{}' | sudo -S {}", escaped, args_str)
-            }
-        } else {
-            // No password, use sudo directly
-            format!("sudo {}", args_str)
-        }
+        password.map_or_else(
+            || format!("sudo {args_str}"),
+            |pass| {
+                // Escape single quotes in password (pattern from src/install/command.rs)
+                let escaped = pass.replace('\'', "'\"'\"'\''");
+                // args[0] is the actual command (e.g., "pacman"), args[1..] are its arguments
+                args.first().map_or_else(
+                    || format!("echo '{escaped}' | sudo -S {args_str}"),
+                    |cmd| {
+                        let cmd_args = &args[1..];
+                        let cmd_args_str = cmd_args
+                            .iter()
+                            .map(|a| shell_single_quote(a))
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        if cmd_args_str.is_empty() {
+                            format!("echo '{escaped}' | sudo -S {cmd}")
+                        } else {
+                            format!("echo '{escaped}' | sudo -S {cmd} {cmd_args_str}")
+                        }
+                    },
+                )
+            },
+        )
     } else {
         // Non-sudo command (e.g., paru, yay), use directly
-        format!("{} {}", program, args_str)
+        format!("{program} {args_str}")
     };
 
     // Use tee twice: first logs to file, second captures to tempfile and displays
@@ -363,8 +364,7 @@ fn run_command_with_logging(
     // command 2>&1 | tee -a logfile | tee tempfile > /dev/tty
     // This way: output is displayed once, logged to file, and captured to tempfile
     let shell_cmd = format!(
-        "set -o pipefail; {} 2>&1 | tee -a {} | tee {} {}; exit $?",
-        full_command, log_file_str, temp_output_str, tty_redirect
+        "set -o pipefail; {full_command} 2>&1 | tee -a {log_file_str} | tee {temp_output_str} {tty_redirect}; exit $?"
     );
 
     let status = Command::new("bash")
@@ -441,7 +441,7 @@ pub fn handle_update() -> ! {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
-        .map_or(false, |s| s.success())
+        .is_ok_and(|s| s.success())
     {
         // Passwordless sudo works, no password needed
         write_log("Passwordless sudo detected, skipping password prompt");

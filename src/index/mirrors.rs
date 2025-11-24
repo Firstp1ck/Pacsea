@@ -51,17 +51,19 @@ pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
         let mut https_urls: Vec<String> = Vec::new();
         if let Some(arr) = json.get("urls").and_then(|v| v.as_array()) {
             for u in arr {
-                let active = u.get("active").and_then(serde_json::Value::as_bool).unwrap_or(false);
+                let active = u
+                    .get("active")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false);
                 let url = u.get("url").and_then(|v| v.as_str()).unwrap_or_default();
                 let protocols = u
                     .get("protocols")
                     .and_then(|v| v.as_array())
                     .cloned()
                     .unwrap_or_default();
-                let has_https = protocols.iter().any(|p| {
-                    p.as_str()
-                        .is_some_and(|s| s.eq_ignore_ascii_case("https"))
-                });
+                let has_https = protocols
+                    .iter()
+                    .any(|p| p.as_str().is_some_and(|s| s.eq_ignore_ascii_case("https")));
                 if active && has_https && !url.is_empty() {
                     https_urls.push(url.to_string());
                 }
@@ -202,7 +204,10 @@ fn try_alternative_url_formats(
                     .and_then(|x| x.as_array())
                     .cloned()
                     .unwrap_or_default();
-                let alt_valid = alt_v.get("valid").and_then(serde_json::Value::as_bool).unwrap_or(true);
+                let alt_valid = alt_v
+                    .get("valid")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(true);
                 if alt_valid && !alt_results.is_empty() {
                     tracing::info!(
                         repo = repo,
