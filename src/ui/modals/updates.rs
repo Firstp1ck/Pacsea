@@ -71,6 +71,54 @@ fn calculate_modal_rect(area: Rect) -> Rect {
     }
 }
 
+/// What: Determine which tool will be used to install/update a package.
+///
+/// Inputs:
+/// - `pkg_name`: Name of the package
+///
+/// Output:
+/// - Returns "pacman" for official packages, "paru" or "yay" for AUR packages
+///
+/// Details:
+/// - Checks if package exists in official index first
+/// - For AUR packages, checks which helper is available (prefers paru)
+fn get_install_tool(pkg_name: &str) -> &'static str {
+    use std::process::{Command, Stdio};
+    
+    // Check if it's in official repos
+    if crate::index::find_package_by_name(pkg_name).is_some() {
+        return "pacman";
+    }
+    
+    // It's an AUR package, check which helper is available
+    // Check for paru first
+    if Command::new("paru")
+        .args(["--version"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .is_ok()
+    {
+        return "paru";
+    }
+    
+    // Fall back to yay
+    if Command::new("yay")
+        .args(["--version"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .is_ok()
+    {
+        return "yay";
+    }
+    
+    // Default to paru if neither is found (will prompt for installation)
+    "paru"
+}
+
 /// What: Build all three line vectors for update entries in a single pass.
 ///
 /// Inputs:
@@ -85,7 +133,7 @@ fn calculate_modal_rect(area: Rect) -> Rect {
 /// - Iterates over entries once to build all three line vectors simultaneously
 /// - Left pane: old versions with right padding (right-aligned)
 /// - Center pane: arrows with spacing (centered)
-/// - Right pane: new versions with left padding (left-aligned)
+/// - Right pane: new versions with tool label (left-aligned)
 /// - Highlights the selected entry with background color
 fn build_update_lines(
     entries: &[(String, String, String)],
@@ -98,6 +146,9 @@ fn build_update_lines(
 
     for (idx, (name, old_version, new_version)) in entries.iter().enumerate() {
         let is_selected = idx == selected;
+        
+        // Determine which tool will be used for this package
+        let tool = get_install_tool(name);
 
         // Build left pane line (old versions) - right-aligned with padding
         // Add cursor indicator "▶" for selected item with distinct styling
@@ -124,11 +175,26 @@ fn build_update_lines(
         let center_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
         center_lines.push(Line::from(Span::styled("     →     ", center_style)));
 
-        // Build right pane line (new versions) with padding
+        // Build right pane line (new versions) with tool label and padding
         // No background on span, block handles it for selected lines
-        let right_text = format!("     {name} - {new_version}");
-        let right_style = Style::default().fg(th.text);
-        right_lines.push(Line::from(Span::styled(right_text, right_style)));
+        let mut right_spans = Vec::new();
+        right_spans.push(Span::styled("     ", Style::default()));
+        right_spans.push(Span::styled(
+            format!("{name} - {new_version} "),
+            Style::default().fg(th.text),
+        ));
+        // Add tool label in a distinct color
+        let tool_color = match tool {
+            "pacman" => th.green,
+            "paru" => th.sapphire,
+            "yay" => th.yellow,
+            _ => th.overlay1,
+        };
+        right_spans.push(Span::styled(
+            format!("[{}]", tool),
+            Style::default().fg(tool_color).add_modifier(Modifier::BOLD),
+        ));
+        right_lines.push(Line::from(right_spans));
     }
 
     UpdateLines {

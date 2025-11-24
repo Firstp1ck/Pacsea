@@ -243,6 +243,7 @@ pub(super) fn handle_updates_modal(
                 // Click outside modal closes it
                 if mx < x || mx >= x + w || my < y || my >= y + h {
                     app.modal = crate::state::Modal::None;
+                    return Some(false); // Return immediately after closing
                 }
             }
             return Some(false);

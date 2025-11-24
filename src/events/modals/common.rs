@@ -2,7 +2,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::state::AppState;
+use crate::state::{AppState, PackageItem, Source};
 
 /// What: Handle key events for Alert modal.
 ///
@@ -241,7 +241,8 @@ pub(super) fn handle_news(
 /// - `true` if Esc was pressed (to stop propagation), otherwise `false`
 ///
 /// Details:
-/// - Handles Esc/Enter/q to close, j/k and arrow keys for selection navigation
+/// - Handles Esc/q to close, Enter to install/update selected package
+/// - Handles j/k and arrow keys for selection navigation
 /// - Auto-scrolls to keep selected item visible
 pub(super) fn handle_updates(
     ke: KeyEvent,
@@ -251,7 +252,44 @@ pub(super) fn handle_updates(
     selected: &mut usize,
 ) -> bool {
     match ke.code {
-        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.modal = crate::state::Modal::None;
+            return true; // Stop propagation
+        }
+        KeyCode::Enter => {
+            // Install/update the selected package
+            if let Some((pkg_name, _, new_version)) = entries.get(*selected) {
+                // Try to find the package in the official index first
+                let pkg_item = if let Some(mut pkg_item) = crate::index::find_package_by_name(pkg_name) {
+                    // Update the version to the new version
+                    pkg_item.version = new_version.clone();
+                    pkg_item
+                } else {
+                    // If not found in official repos, assume it's an AUR package
+                    PackageItem {
+                        name: pkg_name.clone(),
+                        version: new_version.clone(),
+                        description: String::new(),
+                        source: Source::Aur,
+                        popularity: None,
+                    }
+                };
+                
+                // Spawn the install command (which works for updates too)
+                #[cfg(not(target_os = "windows"))]
+                crate::install::spawn_install(&pkg_item, None, false);
+                #[cfg(target_os = "windows")]
+                crate::install::spawn_install(&pkg_item, None, false);
+                
+                tracing::info!(
+                    package = %pkg_name,
+                    source = match pkg_item.source {
+                        Source::Official { .. } => "official",
+                        Source::Aur => "aur",
+                    },
+                    "Update triggered from Updates modal"
+                );
+            }
             app.modal = crate::state::Modal::None;
             return true; // Stop propagation
         }
