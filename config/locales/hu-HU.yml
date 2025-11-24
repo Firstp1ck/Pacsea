@@ -661,6 +661,8 @@ hu-HU:
         error_prefix: "Hiba: {}"
       update:
         starting: "Csomagadatbázis frissítése (pacman -Syyu)…"
+        # TODO: Translate to Hungarian
+        password_prompt: "[sudo] password for {}: "
         pacman_success: "✓ A pacman-frissítés sikeresen befejeződött"
         pacman_failed: "✗ Nem sikerült a pacman-frissítés"
         pacman_exec_failed: "✗ Nem sikerült végrehajtani a pacman-frissítést"

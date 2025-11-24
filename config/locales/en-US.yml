@@ -658,6 +658,7 @@ en-US:
         error_prefix: "Error: {}"
       update:
         starting: "Updating system packages (pacman -Syyu)..."
+        password_prompt: "[sudo] password for {}: "
         pacman_success: "✓ Pacman update completed successfully"
         pacman_failed: "✗ Pacman update failed"
         pacman_exec_failed: "✗ Failed to execute pacman update"
