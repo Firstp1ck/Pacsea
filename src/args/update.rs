@@ -558,8 +558,23 @@ pub fn handle_update() -> ! {
 
         // Build combined command: sudo -v && echo message && sudo pacman ... && echo message && yay ...
         // Messages are echoed within the script session to avoid duplicates
-        let pacman_cmd = "sudo pacman -Syyu --noconfirm";
-        let aur_cmd = format!("{helper} -Syyu --noconfirm");
+        // Use ensure_color_flags to add --color=always for consistency with separate command execution
+        let pacman_args = ensure_color_flags("sudo", &["pacman", "-Syyu", "--noconfirm"]);
+        let pacman_args_str = pacman_args
+            .iter()
+            .map(|a| shell_single_quote(a))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let pacman_cmd = format!("sudo {pacman_args_str}");
+
+        let aur_args = ensure_color_flags(helper, &["-Syyu", "--noconfirm"]);
+        let aur_args_str = aur_args
+            .iter()
+            .map(|a| shell_single_quote(a))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let aur_cmd = format!("{helper} {aur_args_str}");
+
         let starting_msg = i18n::t("app.cli.update.starting");
         // Use shell_single_quote to safely handle special characters in the message
         let escaped_msg = shell_single_quote(&starting_msg);

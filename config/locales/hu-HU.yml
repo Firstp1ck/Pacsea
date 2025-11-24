@@ -676,8 +676,6 @@ hu-HU:
         failed_packages_log: "Sikertelenül telepített csomagok: {}"
         log_file: "Naplófájl: {}"
         error_prefix: "Hiba: {}"
-        # TODO Translate to hungarian
-        password_prompt: "Enter sudo password: "
         pacman_errors:
           target_not_found: "nem található cél"
           failed_to_commit: "nem sikerült véglegesíteni a tranzakciót"
