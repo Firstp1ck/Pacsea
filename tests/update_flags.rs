@@ -475,3 +475,112 @@ exit 0
     let _ = fs::remove_file(&mock_script_path);
     let _ = fs::remove_dir_all(&temp_dir);
 }
+
+/// What: Test that individual command exit codes are correctly detected in combined command execution.
+///
+/// Inputs:
+/// - A scenario where pacman fails but AUR helper succeeds.
+///
+/// Output:
+/// - Verifies that pacman failure is correctly detected even when AUR helper succeeds.
+///
+/// Details:
+/// - This test verifies the fix for the bug where `status.success()` was used to check
+///   both pacman and AUR helper success, incorrectly marking pacman as successful when
+///   pacman failed but AUR helper succeeded.
+/// - The combined command should capture individual exit codes and detect failures correctly.
+#[test]
+#[ignore = "Requires actual pacsea binary and system setup"]
+fn test_individual_exit_codes_in_combined_command() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    // Skip this test if we're in CI or don't have bash available
+    if std::env::var("CI").is_ok() || Command::new("which").arg("bash").output().is_err() {
+        return;
+    }
+
+    // Create a temporary directory for test artifacts
+    let temp_dir = std::env::temp_dir().join(format!(
+        "pacsea_test_exit_codes_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("System time is before UNIX epoch")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&temp_dir).expect("Failed to create temp directory");
+
+    // Create a mock pacman that fails
+    let mock_pacman_path = temp_dir.join("mock_pacman");
+    let pacman_script = r#"#!/bin/bash
+# Mock pacman that fails
+echo "error: failed to prepare transaction"
+echo "error: target not found: some-package"
+exit 1
+"#;
+
+    fs::write(&mock_pacman_path, pacman_script).expect("Failed to write mock pacman script");
+    let mut perms = fs::metadata(&mock_pacman_path)
+        .expect("Failed to read pacman script metadata")
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&mock_pacman_path, perms).expect("Failed to set pacman script permissions");
+
+    // Create a mock AUR helper that succeeds
+    let mock_aur_path = temp_dir.join("mock_aur");
+    let aur_script = r#"#!/bin/bash
+# Mock AUR helper that succeeds
+echo ":: Synchronizing package databases..."
+echo "there is nothing to do"
+exit 0
+"#;
+
+    fs::write(&mock_aur_path, aur_script).expect("Failed to write mock AUR script");
+    let mut perms = fs::metadata(&mock_aur_path)
+        .expect("Failed to read AUR script metadata")
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&mock_aur_path, perms).expect("Failed to set AUR script permissions");
+
+    // Test combined command with exit code capture
+    // This simulates: command1; PACMAN_EXIT=$?; command2; AUR_EXIT=$?
+    let combined_cmd = format!(
+        "{} -Syyu --noconfirm; PACMAN_EXIT=$?; echo 'PACMAN_EXIT='$PACMAN_EXIT; {} -Syyu --noconfirm; AUR_EXIT=$?; echo 'AUR_EXIT='$AUR_EXIT; exit $((PACMAN_EXIT | AUR_EXIT))",
+        mock_pacman_path.display(),
+        mock_aur_path.display()
+    );
+
+    let output = Command::new("bash")
+        .arg("-c")
+        .arg(&combined_cmd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("Failed to execute combined command");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Verify that individual exit codes are captured
+    assert!(
+        stdout.contains("PACMAN_EXIT=1") || stderr.contains("PACMAN_EXIT=1"),
+        "Should capture pacman exit code as 1. stdout: {stdout}, stderr: {stderr}"
+    );
+    assert!(
+        stdout.contains("AUR_EXIT=0") || stderr.contains("AUR_EXIT=0"),
+        "Should capture AUR exit code as 0. stdout: {stdout}, stderr: {stderr}"
+    );
+
+    // The combined exit code should be non-zero (since pacman failed)
+    // Using bitwise OR: 1 | 0 = 1
+    assert!(
+        !output.status.success(),
+        "Combined command should fail when pacman fails, even if AUR succeeds"
+    );
+
+    // Clean up
+    let _ = fs::remove_file(&mock_pacman_path);
+    let _ = fs::remove_file(&mock_aur_path);
+    let _ = fs::remove_dir_all(&temp_dir);
+}

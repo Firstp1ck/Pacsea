@@ -429,19 +429,32 @@ fn run_command_with_logging(
 /// Details:
 /// - Uses `script` command to create a PTY and capture output.
 /// - Runs commands in a single script session so they share the same terminal context and sudo timestamp.
+/// - Writes command to a temporary bash script file to avoid shell escaping issues with special characters like $?.
 #[cfg(not(target_os = "windows"))]
 fn run_combined_commands_with_logging(
     command: &str,
     log_file_path: &Path,
 ) -> Result<(std::process::ExitStatus, String), std::io::Error> {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
     use std::process::{Command, Stdio};
 
     let temp_output =
         std::env::temp_dir().join(format!("pacsea_update_output_{}.txt", std::process::id()));
     let temp_output_str = temp_output.to_string_lossy();
 
-    let escaped_cmd = command.replace('\'', "'\"'\"'");
-    let script_cmd = format!("script -qefc '{escaped_cmd}' {temp_output_str}");
+    // Write command to a temporary bash script to avoid escaping issues
+    let temp_script =
+        std::env::temp_dir().join(format!("pacsea_update_script_{}.sh", std::process::id()));
+    fs::write(&temp_script, format!("#!/bin/bash\n{command}\n"))?;
+
+    // Make script executable
+    let mut perms = fs::metadata(&temp_script)?.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&temp_script, perms)?;
+
+    let script_path_str = temp_script.to_string_lossy();
+    let script_cmd = format!("script -qefc 'bash {script_path_str}' {temp_output_str}");
 
     let status = Command::new("bash")
         .arg("-c")
@@ -463,7 +476,9 @@ fn run_combined_commands_with_logging(
         let _ = std::io::Write::write_all(&mut log_file, output.as_bytes());
     }
 
+    // Clean up temp files
     let _ = std::fs::remove_file(&temp_output);
+    let _ = std::fs::remove_file(&temp_script);
 
     Ok((status, output))
 }
@@ -578,8 +593,13 @@ pub fn handle_update() -> ! {
         let starting_msg = i18n::t("app.cli.update.starting");
         // Use shell_single_quote to safely handle special characters in the message
         let escaped_msg = shell_single_quote(&starting_msg);
+        // Build combined command with individual exit code capture
+        // Use ; between pacman and AUR sections so both commands always run regardless of individual success/failure
+        // Capture exit codes immediately after each command using a subshell to avoid issues with $? interpretation
+        // Format: sudo -v && echo ... && (pacman_cmd; pacman_exit=$?; echo "PACMAN_EXIT=$pacman_exit"); ...
+        // Using lowercase variable names and explicit assignment to avoid shell interpretation issues
         let combined_cmd = format!(
-            "sudo -v && echo {escaped_msg} && {pacman_cmd} && echo '' && echo 'Updating AUR packages ({helper} -Syyu)...' && {aur_cmd}"
+            "sudo -v && echo {escaped_msg} && ({pacman_cmd}; pacman_exit=$?; echo \"PACMAN_EXIT=$pacman_exit\"); echo ''; echo 'Updating AUR packages ({helper} -Syyu)...'; ({aur_cmd}; aur_exit=$?; echo \"AUR_EXIT=$aur_exit\")"
         );
 
         let combined_result = run_combined_commands_with_logging(&combined_cmd, &log_file_path);
@@ -587,8 +607,41 @@ pub fn handle_update() -> ! {
         // Parse the output to determine individual command success
         match combined_result {
             Ok((status, output)) => {
-                // Try to determine which commands succeeded/failed from output
-                // This is a simplified approach - in practice, we'd need more sophisticated parsing
+                // Extract individual exit codes from output
+                // Look for "PACMAN_EXIT=N" and "AUR_EXIT=N" patterns
+                let pacman_exit_code = output
+                    .lines()
+                    .find_map(|line| {
+                        if line.contains("PACMAN_EXIT=") {
+                            line.split("PACMAN_EXIT=")
+                                .nth(1)
+                                .and_then(|s| s.trim().parse::<i32>().ok())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| {
+                        // Fallback: if exit code not found, use global status (backward compatibility)
+                        i32::from(!status.success())
+                    });
+
+                let aur_exit_code = output
+                    .lines()
+                    .find_map(|line| {
+                        if line.contains("AUR_EXIT=") {
+                            line.split("AUR_EXIT=")
+                                .nth(1)
+                                .and_then(|s| s.trim().parse::<i32>().ok())
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_else(|| {
+                        // Fallback: if exit code not found, use global status (backward compatibility)
+                        i32::from(!status.success())
+                    });
+
+                // Split output for package extraction
                 let pacman_output = output
                     .split(&format!("Updating AUR packages ({helper} -Syyu)..."))
                     .next()
@@ -598,17 +651,20 @@ pub fn handle_update() -> ! {
                     .nth(1)
                     .unwrap_or("");
 
-                // Check pacman success (look for success indicators in output)
-                if pacman_output.contains("Es gibt nichts zu tun")
+                // Check pacman success using individual exit code
+                // Also check for "nothing to do" messages as success indicators
+                if pacman_exit_code == 0
+                    || pacman_output.contains("Es gibt nichts zu tun")
                     || pacman_output.contains("there is nothing to do")
-                    || status.success()
                 {
                     println!("{}", i18n::t("app.cli.update.pacman_success"));
                     write_log("SUCCESS: pacman -Syyu --noconfirm completed");
                     pacman_succeeded = Some(true);
                 } else {
                     println!("{}", i18n::t("app.cli.update.pacman_failed"));
-                    write_log("FAILED: pacman -Syyu --noconfirm failed");
+                    write_log(&format!(
+                        "FAILED: pacman -Syyu --noconfirm failed with exit code {pacman_exit_code}"
+                    ));
                     let packages = extract_failed_packages(pacman_output, "pacman");
                     failed_packages.extend(packages);
                     all_succeeded = false;
@@ -616,14 +672,16 @@ pub fn handle_update() -> ! {
                     pacman_succeeded = Some(false);
                 }
 
-                // Check AUR helper success
-                if aur_output.contains("there is nothing to do") || status.success() {
+                // Check AUR helper success using individual exit code
+                if aur_exit_code == 0 || aur_output.contains("there is nothing to do") {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
                     write_log(&format!("SUCCESS: {helper} -Syyu --noconfirm completed"));
                     aur_succeeded = Some(true);
                 } else {
                     println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
-                    write_log(&format!("FAILED: {helper} -Syyu --noconfirm failed"));
+                    write_log(&format!(
+                        "FAILED: {helper} -Syyu --noconfirm failed with exit code {aur_exit_code}"
+                    ));
                     let packages = extract_failed_packages(aur_output, helper);
                     failed_packages.extend(packages);
                     all_succeeded = false;
