@@ -451,13 +451,14 @@ pub fn handle_update() -> ! {
         use std::io::IsTerminal;
         if !std::io::stdin().is_terminal() {
             // Not in an interactive terminal (e.g., in tests or non-interactive environment)
-            let error_msg = "Password required but stdin is not a terminal. Cannot prompt for password.";
+            let error_msg =
+                "Password required but stdin is not a terminal. Cannot prompt for password.";
             eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", error_msg));
             write_log("FAILED: Password required but stdin is not a terminal");
             tracing::error!("Password required but stdin is not a terminal");
             std::process::exit(1);
         }
-        
+
         // Password required, prompt user
         // Get username to mimic sudo's password prompt format
         let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
