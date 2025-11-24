@@ -300,8 +300,8 @@ pub fn resolve_reverse_dependencies(targets: &[PackageItem]) -> ReverseDependenc
             for dependent in info.required_by.iter().filter(|name| !name.is_empty()) {
                 state.update_entry(dependent, &current, root, depth + 1);
 
-                if visited.insert(dependent.to_string()) {
-                    queue.push_back((dependent.to_string(), depth + 1));
+                if visited.insert(dependent.clone()) {
+                    queue.push_back((dependent.clone(), depth + 1));
                 }
             }
         }

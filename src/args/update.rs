@@ -277,6 +277,7 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
 /// - `program`: The program to execute.
 /// - `args`: Command arguments.
 /// - `log_file_path`: Path to the log file where output should be written.
+/// - `password`: Optional sudo password; when provided, uses `sudo -S` with password piping.
 ///
 /// Output:
 /// - `Ok((status, output))` if command executed, `Err(e)` if execution failed.
@@ -286,13 +287,19 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
 /// - Preserves real-time output display while logging everything.
 /// - Returns the command output for parsing failed packages.
 /// - Output is parsed using locale-aware i18n patterns.
+/// - Sets `LC_ALL=C` and `LANG=C` for consistent English output.
+/// - Handles TTY detection and falls back to stdout if no TTY available.
+/// - Uses `set -o pipefail` for reliable exit status capture.
+/// - Configures stdin/stdout/stderr explicitly to prevent interactive prompts.
 #[cfg(not(target_os = "windows"))]
 fn run_command_with_logging(
     program: &str,
     args: &[&str],
     log_file_path: &Path,
+    password: Option<&str>,
 ) -> Result<(std::process::ExitStatus, String), std::io::Error> {
-    use std::process::Command;
+    use std::io::IsTerminal;
+    use std::process::{Command, Stdio};
 
     let log_file_str = log_file_path.to_string_lossy();
     let args_str = args
@@ -301,22 +308,74 @@ fn run_command_with_logging(
         .collect::<Vec<_>>()
         .join(" ");
 
+    // Check if stdout is a TTY for /dev/tty redirection
+    let has_tty = std::io::stdout().is_terminal();
+    let tty_redirect = if has_tty {
+        "> /dev/tty"
+    } else {
+        "> /dev/stdout"
+    };
+
     // Use bash -c with tee to both display and log output
     // Redirect both stdout and stderr through tee
-    // Use PIPESTATUS[0] to get the exit status of the command, not tee
+    // Use set -o pipefail for reliable exit status capture
     // Also capture output to a temp file so we can read it back
     let temp_output =
         std::env::temp_dir().join(format!("pacsea_update_output_{}.txt", std::process::id()));
     let temp_output_str = temp_output.to_string_lossy();
 
+    // Build the command with optional password piping for sudo
+    // When program is "sudo", we need to handle it specially:
+    // - With password: echo 'password' | sudo -S pacman args...
+    // - Without password: sudo pacman args...
+    // When program is not "sudo" (e.g., paru/yay), use it directly
+    let full_command = if program == "sudo" {
+        if let Some(pass) = password {
+            // Escape single quotes in password (pattern from src/install/command.rs)
+            let escaped = pass.replace('\'', "'\"'\"'\''");
+            // args[0] is the actual command (e.g., "pacman"), args[1..] are its arguments
+            if let Some(cmd) = args.first() {
+                let cmd_args = &args[1..];
+                let cmd_args_str = cmd_args
+                    .iter()
+                    .map(|a| shell_single_quote(a))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if cmd_args_str.is_empty() {
+                    format!("echo '{}' | sudo -S {}", escaped, cmd)
+                } else {
+                    format!("echo '{}' | sudo -S {} {}", escaped, cmd, cmd_args_str)
+                }
+            } else {
+                format!("echo '{}' | sudo -S {}", escaped, args_str)
+            }
+        } else {
+            // No password, use sudo directly
+            format!("sudo {}", args_str)
+        }
+    } else {
+        // Non-sudo command (e.g., paru, yay), use directly
+        format!("{} {}", program, args_str)
+    };
+
     // Use tee twice: first logs to file, second captures to tempfile and displays
+    // set -o pipefail ensures exit status reflects command failure, not tee
     // command 2>&1 | tee -a logfile | tee tempfile > /dev/tty
     // This way: output is displayed once, logged to file, and captured to tempfile
     let shell_cmd = format!(
-        "{program} {args_str} 2>&1 | tee -a {log_file_str} | tee {temp_output_str} > /dev/tty; exit ${{PIPESTATUS[0]}}"
+        "set -o pipefail; {} 2>&1 | tee -a {} | tee {} {}; exit $?",
+        full_command, log_file_str, temp_output_str, tty_redirect
     );
 
-    let status = Command::new("bash").arg("-c").arg(&shell_cmd).status()?;
+    let status = Command::new("bash")
+        .arg("-c")
+        .arg(&shell_cmd)
+        .env("LC_ALL", "C")
+        .env("LANG", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .status()?;
 
     // Read the captured output
     let output = std::fs::read_to_string(&temp_output).unwrap_or_else(|_| String::new());
@@ -346,6 +405,7 @@ fn run_command_with_logging(
 pub fn handle_update() -> ! {
     use std::fs::OpenOptions;
     use std::io::Write;
+    use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     tracing::info!("System update requested from CLI");
@@ -374,6 +434,35 @@ pub fn handle_update() -> ! {
         }
     };
 
+    // Check if passwordless sudo is available
+    let password = if Command::new("sudo")
+        .args(["-n", "true"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_or(false, |s| s.success())
+    {
+        // Passwordless sudo works, no password needed
+        write_log("Passwordless sudo detected, skipping password prompt");
+        None
+    } else {
+        // Password required, prompt user
+        let password_prompt = i18n::t("app.cli.update.password_prompt");
+        match rpassword::prompt_password(password_prompt) {
+            Ok(pass) => {
+                write_log("Password obtained from user (not logged)");
+                Some(pass)
+            }
+            Err(e) => {
+                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+                write_log(&format!("FAILED: Could not read password: {e}"));
+                tracing::error!("Failed to read sudo password: {e}");
+                std::process::exit(1);
+            }
+        }
+    };
+
     let mut all_succeeded = true;
     let mut failed_commands = Vec::new();
     let mut failed_packages = Vec::new();
@@ -386,8 +475,12 @@ pub fn handle_update() -> ! {
     println!("{}", i18n::t("app.cli.update.starting"));
     write_log("Starting system update: pacman -Syyu --noconfirm");
 
-    let pacman_result =
-        run_command_with_logging("sudo", &["pacman", "-Syyu", "--noconfirm"], &log_file_path);
+    let pacman_result = run_command_with_logging(
+        "sudo",
+        &["pacman", "-Syyu", "--noconfirm"],
+        &log_file_path,
+        password.as_deref(),
+    );
 
     match pacman_result {
         Ok((status, output)) => {
@@ -427,8 +520,12 @@ pub fn handle_update() -> ! {
         println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
         write_log(&format!("Starting AUR update: {helper} -Syyu --noconfirm"));
 
-        let aur_result =
-            run_command_with_logging(helper, &["-Syyu", "--noconfirm"], &log_file_path);
+        let aur_result = run_command_with_logging(
+            helper,
+            &["-Syyu", "--noconfirm"],
+            &log_file_path,
+            None, // AUR helpers handle sudo internally, no password needed
+        );
 
         match aur_result {
             Ok((status, output)) => {

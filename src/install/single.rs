@@ -299,15 +299,16 @@ mod tests {
 /// Input:
 /// - `item`: Package metadata used to build the informational command.
 /// - `password`: Ignored; included for API parity.
-/// - `dry_run`: When `true`, uses PowerShell to simulate the install operation.
+/// - `dry_run`: When `true`, uses `PowerShell` to simulate the install operation.
 ///
 /// Output:
-/// - Launches a detached PowerShell window (if available) for dry-run simulation, or `cmd` window otherwise.
+/// - Launches a detached `PowerShell` window (if available) for dry-run simulation, or `cmd` window otherwise.
 ///
 /// Details:
-/// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the install with Write-Host.
+/// - When `dry_run` is true and `PowerShell` is available, uses `PowerShell` to simulate the install with Write-Host.
 /// - Logs the install attempt when not a dry run to keep audit behaviour consistent with Unix platforms.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
+#[allow(unused_variables, clippy::missing_const_for_fn)]
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     #[cfg(not(test))]
     {
@@ -318,7 +319,7 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
             let powershell_cmd = format!(
                 "Write-Host 'DRY RUN: Simulating install of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
                 item.name,
-                cmd_str.replace("'", "''")
+                cmd_str.replace('\'', "''")
             );
             let _ = Command::new("powershell.exe")
                 .args(["-NoProfile", "-Command", &powershell_cmd])

@@ -34,7 +34,7 @@ fn map_curl_error(code: Option<i32>, status: std::process::ExitStatus) -> String
             }
             #[cfg(not(unix))]
             {
-                format!("curl process failed: {:?}", status)
+                format!("curl process failed: {status:?}")
             }
         },
         |code| match code {

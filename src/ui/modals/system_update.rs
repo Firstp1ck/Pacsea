@@ -94,7 +94,7 @@ pub fn render_system_update(
         };
         lines.push(Line::from(vec![
             Span::styled(format!("{} ", mark(*on)), Style::default().fg(th.overlay1)),
-            Span::styled((*label).to_string(), style),
+            Span::styled((*label).clone(), style),
         ]));
     }
 

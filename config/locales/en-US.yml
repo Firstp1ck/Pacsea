@@ -673,6 +673,7 @@ en-US:
         failed_packages_log: "Failed packages: {}"
         log_file: "Log file: {}"
         error_prefix: "Error: {}"
+        password_prompt: "Enter sudo password: "
         pacman_errors:
           target_not_found: "target not found"
           failed_to_commit: "failed to commit transaction"

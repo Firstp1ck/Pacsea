@@ -55,13 +55,13 @@ fn handle_import_help_enter(add_tx: &mpsc::UnboundedSender<PackageItem>) {
             tracing::info!("import: thread started, opening file picker");
             #[cfg(target_os = "windows")]
             let path_opt: Option<String> = {
-                let script = r#"
+                let script = r"
         Add-Type -AssemblyName System.Windows.Forms
         $ofd = New-Object System.Windows.Forms.OpenFileDialog
         $ofd.Filter = 'Text Files (*.txt)|*.txt|All Files (*.*)|*.*'
         $ofd.Multiselect = $false
         if ($ofd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $ofd.FileName }
-        "#;
+        ";
                 let output = std::process::Command::new("powershell")
                     .args(["-NoProfile", "-Command", script])
                     .stdin(std::process::Stdio::null())

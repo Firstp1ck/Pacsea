@@ -674,6 +674,7 @@ de-DE:
         failed_packages_log: "Fehlgeschlagene Pakete: {}"
         log_file: "Protokolldatei: {}"
         error_prefix: "Fehler: {}"
+        password_prompt: "Sudo-Passwort eingeben: "
         pacman_errors:
           target_not_found: "ziel nicht gefunden"
           failed_to_commit: "fehler beim committen der transaktion"
