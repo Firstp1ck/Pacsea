@@ -159,7 +159,7 @@ fn build_update_lines(
         // Add tool label in a distinct color
         let tool_color = match tool {
             "pacman" => th.green,
-            "AUR" => th.sapphire,
+            "AUR" => th.yellow,
             _ => th.overlay1,
         };
         right_spans.push(Span::styled(
