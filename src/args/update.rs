@@ -333,11 +333,11 @@ fn run_command_with_logging(
         password.map_or_else(
             || format!("sudo {args_str}"),
             |pass| {
-                // Escape single quotes in password (pattern from src/install/command.rs)
-                let escaped = pass.replace('\'', "'\"'\"'\''");
+                // Use shell_single_quote for consistent password escaping
+                let escaped = shell_single_quote(pass);
                 // args[0] is the actual command (e.g., "pacman"), args[1..] are its arguments
                 args.first().map_or_else(
-                    || format!("echo '{escaped}' | sudo -S {args_str}"),
+                    || format!("echo {escaped} | sudo -S {args_str}"),
                     |cmd| {
                         let cmd_args = &args[1..];
                         let cmd_args_str = cmd_args
@@ -346,9 +346,9 @@ fn run_command_with_logging(
                             .collect::<Vec<_>>()
                             .join(" ");
                         if cmd_args_str.is_empty() {
-                            format!("echo '{escaped}' | sudo -S {cmd}")
+                            format!("echo {escaped} | sudo -S {cmd}")
                         } else {
-                            format!("echo '{escaped}' | sudo -S {cmd} {cmd_args_str}")
+                            format!("echo {escaped} | sudo -S {cmd} {cmd_args_str}")
                         }
                     },
                 )
@@ -363,8 +363,10 @@ fn run_command_with_logging(
     // set -o pipefail ensures exit status reflects command failure, not tee
     // command 2>&1 | tee -a logfile | tee tempfile > /dev/tty
     // This way: output is displayed once, logged to file, and captured to tempfile
+    let log_file_escaped = shell_single_quote(&log_file_str);
+    let temp_output_escaped = shell_single_quote(&temp_output_str);
     let shell_cmd = format!(
-        "set -o pipefail; {full_command} 2>&1 | tee -a {log_file_str} | tee {temp_output_str} {tty_redirect}; exit $?"
+        "set -o pipefail; {full_command} 2>&1 | tee -a {log_file_escaped} | tee {temp_output_escaped} {tty_redirect}"
     );
 
     let status = Command::new("bash")
@@ -384,6 +386,76 @@ fn run_command_with_logging(
     let _ = std::fs::remove_file(&temp_output);
 
     Ok((status, output))
+}
+
+/// What: Prompt user for sudo password and validate it is not empty.
+///
+/// Inputs:
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - `Some(password)` if password is valid and non-empty, `None` if passwordless sudo works.
+/// - Exits the process with code 1 if password is empty or cannot be read.
+///
+/// Details:
+/// - Prompts user for password using `rpassword::prompt_password`.
+/// - Validates that password is not empty (after trimming whitespace).
+/// - Empty passwords are rejected early to prevent sudo failures.
+#[cfg(not(target_os = "windows"))]
+fn prompt_and_validate_password(write_log: &dyn Fn(&str)) -> Option<String> {
+    use std::io::IsTerminal;
+    use std::process::Command;
+
+    // Check if passwordless sudo is available
+    if Command::new("sudo")
+        .args(["-n", "true"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+    {
+        // Passwordless sudo works, no password needed
+        write_log("Passwordless sudo detected, skipping password prompt");
+        return None;
+    }
+
+    // Password required, but check if stdin is available for interactive input
+    if !std::io::stdin().is_terminal() {
+        // Not in an interactive terminal (e.g., in tests or non-interactive environment)
+        let error_msg =
+            "Password required but stdin is not a terminal. Cannot prompt for password.";
+        eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", error_msg));
+        write_log("FAILED: Password required but stdin is not a terminal");
+        tracing::error!("Password required but stdin is not a terminal");
+        std::process::exit(1);
+    }
+
+    // Password required, prompt user
+    // Get username to mimic sudo's password prompt format
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    let password_prompt = i18n::t_fmt1("app.cli.update.password_prompt", &username);
+    match rpassword::prompt_password(&password_prompt) {
+        Ok(pass) => {
+            // Validate that password is not empty
+            // Empty passwords will cause sudo to fail, so reject them early
+            if pass.trim().is_empty() {
+                let error_msg = "Empty password provided. Password cannot be empty.";
+                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", error_msg));
+                write_log("FAILED: Empty password provided");
+                tracing::error!("Empty password provided");
+                std::process::exit(1);
+            }
+            write_log("Password obtained from user (not logged)");
+            Some(pass)
+        }
+        Err(e) => {
+            eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+            write_log(&format!("FAILED: Could not read password: {e}"));
+            tracing::error!("Failed to read sudo password: {e}");
+            std::process::exit(1);
+        }
+    }
 }
 
 /// What: Handle system update by running pacman and AUR helper updates, logging results.
@@ -434,48 +506,8 @@ pub fn handle_update() -> ! {
         }
     };
 
-    // Check if passwordless sudo is available
-    let password = if Command::new("sudo")
-        .args(["-n", "true"])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-    {
-        // Passwordless sudo works, no password needed
-        write_log("Passwordless sudo detected, skipping password prompt");
-        None
-    } else {
-        // Password required, but check if stdin is available for interactive input
-        use std::io::IsTerminal;
-        if !std::io::stdin().is_terminal() {
-            // Not in an interactive terminal (e.g., in tests or non-interactive environment)
-            let error_msg =
-                "Password required but stdin is not a terminal. Cannot prompt for password.";
-            eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", error_msg));
-            write_log("FAILED: Password required but stdin is not a terminal");
-            tracing::error!("Password required but stdin is not a terminal");
-            std::process::exit(1);
-        }
-
-        // Password required, prompt user
-        // Get username to mimic sudo's password prompt format
-        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
-        let password_prompt = i18n::t_fmt1("app.cli.update.password_prompt", &username);
-        match rpassword::prompt_password(&password_prompt) {
-            Ok(pass) => {
-                write_log("Password obtained from user (not logged)");
-                Some(pass)
-            }
-            Err(e) => {
-                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-                write_log(&format!("FAILED: Could not read password: {e}"));
-                tracing::error!("Failed to read sudo password: {e}");
-                std::process::exit(1);
-            }
-        }
-    };
+    // Prompt for password and validate it
+    let password = prompt_and_validate_password(&write_log);
 
     let mut all_succeeded = true;
     let mut failed_commands = Vec::new();
@@ -530,9 +562,10 @@ pub fn handle_update() -> ! {
     // Refresh sudo timestamp after pacman command so AUR helper can use it
     // This prevents a second password prompt when the AUR helper calls sudo internally
     if let Some(pass) = password {
-        // Escape single quotes in password (pattern from src/install/command.rs)
-        let escaped = pass.replace('\'', "'\"'\"'\''");
-        let refresh_cmd = format!("echo '{escaped}' | sudo -S -v");
+        // Use shell_single_quote for consistent password escaping
+        #[allow(clippy::needless_borrow)]
+        let escaped = shell_single_quote(&pass);
+        let refresh_cmd = format!("echo {escaped} | sudo -S -v");
         let _ = Command::new("bash")
             .arg("-c")
             .arg(&refresh_cmd)
