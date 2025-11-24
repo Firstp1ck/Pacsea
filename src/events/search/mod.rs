@@ -21,6 +21,9 @@ mod insert_mode;
 mod normal_mode;
 mod preflight_helpers;
 
+// Re-export preflight modal opener for use in other modules
+pub use preflight_helpers::open_preflight_modal;
+
 #[cfg(test)]
 mod tests;
 
