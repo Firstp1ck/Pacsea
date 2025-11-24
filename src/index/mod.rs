@@ -136,7 +136,7 @@ pub use update::update_in_background;
 #[must_use]
 pub fn find_package_by_name(name: &str) -> Option<crate::state::PackageItem> {
     use crate::state::{PackageItem, Source};
-    
+
     if let Ok(g) = idx().read() {
         for p in &g.pkgs {
             if p.name == name {

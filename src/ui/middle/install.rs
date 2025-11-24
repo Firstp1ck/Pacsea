@@ -42,7 +42,7 @@ where
         .filter_map(|(display_idx, &i)| packages.get(i).map(|p| (display_idx, p)))
         .map(|(display_idx, p)| {
             let (src, color) = match &p.source {
-                Source::Official { repo, .. } => (repo.to_string(), th.green),
+                Source::Official { repo, .. } => (repo.clone(), th.green),
                 Source::Aur => ("AUR".to_string(), th.yellow),
             };
             let mut segs: Vec<Span> = Vec::new();

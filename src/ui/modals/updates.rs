@@ -77,46 +77,19 @@ fn calculate_modal_rect(area: Rect) -> Rect {
 /// - `pkg_name`: Name of the package
 ///
 /// Output:
-/// - Returns "pacman" for official packages, "paru" or "yay" for AUR packages
+/// - Returns "pacman" for official packages, "AUR" for AUR packages
 ///
 /// Details:
 /// - Checks if package exists in official index first
-/// - For AUR packages, checks which helper is available (prefers paru)
+/// - For AUR packages, returns "AUR" regardless of which helper is installed
 fn get_install_tool(pkg_name: &str) -> &'static str {
-    use std::process::{Command, Stdio};
-    
     // Check if it's in official repos
     if crate::index::find_package_by_name(pkg_name).is_some() {
         return "pacman";
     }
-    
-    // It's an AUR package, check which helper is available
-    // Check for paru first
-    if Command::new("paru")
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok()
-    {
-        return "paru";
-    }
-    
-    // Fall back to yay
-    if Command::new("yay")
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok()
-    {
-        return "yay";
-    }
-    
-    // Default to paru if neither is found (will prompt for installation)
-    "paru"
+
+    // It's an AUR package
+    "AUR"
 }
 
 /// What: Build all three line vectors for update entries in a single pass.
@@ -146,7 +119,7 @@ fn build_update_lines(
 
     for (idx, (name, old_version, new_version)) in entries.iter().enumerate() {
         let is_selected = idx == selected;
-        
+
         // Determine which tool will be used for this package
         let tool = get_install_tool(name);
 
@@ -186,12 +159,11 @@ fn build_update_lines(
         // Add tool label in a distinct color
         let tool_color = match tool {
             "pacman" => th.green,
-            "paru" => th.sapphire,
-            "yay" => th.yellow,
+            "AUR" => th.sapphire,
             _ => th.overlay1,
         };
         right_spans.push(Span::styled(
-            format!("[{}]", tool),
+            format!("[{tool}]"),
             Style::default().fg(tool_color).add_modifier(Modifier::BOLD),
         ));
         right_lines.push(Line::from(right_spans));

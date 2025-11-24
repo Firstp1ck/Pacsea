@@ -115,7 +115,7 @@ impl ReverseResolverState {
         };
 
         let selected = self.target_names.contains(dependent);
-        match self.aggregated.entry(dependent.to_string()) {
+        match self.aggregated.entry(dependent.to_owned()) {
             Entry::Occupied(mut entry) => {
                 let data = entry.get_mut();
                 data.info = info;
@@ -300,8 +300,8 @@ pub fn resolve_reverse_dependencies(targets: &[PackageItem]) -> ReverseDependenc
             for dependent in info.required_by.iter().filter(|name| !name.is_empty()) {
                 state.update_entry(dependent, &current, root, depth + 1);
 
-                if visited.insert(dependent.to_string()) {
-                    queue.push_back((dependent.to_string(), depth + 1));
+                if visited.insert(dependent.to_owned()) {
+                    queue.push_back((dependent.to_owned(), depth + 1));
                 }
             }
         }
