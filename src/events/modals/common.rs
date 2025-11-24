@@ -260,37 +260,28 @@ pub(super) fn handle_updates(
             // Install/update the selected package
             if let Some((pkg_name, _, new_version)) = entries.get(*selected) {
                 // Try to find the package in the official index first
-                let pkg_item = if let Some(mut pkg_item) = crate::index::find_package_by_name(pkg_name) {
-                    // Update the version to the new version
-                    pkg_item.version = new_version.clone();
-                    pkg_item
-                } else {
-                    // If not found in official repos, assume it's an AUR package
-                    PackageItem {
-                        name: pkg_name.clone(),
-                        version: new_version.clone(),
-                        description: String::new(),
-                        source: Source::Aur,
-                        popularity: None,
-                    }
-                };
-                
-                // Spawn the install command (which works for updates too)
-                #[cfg(not(target_os = "windows"))]
-                crate::install::spawn_install(&pkg_item, None, false);
-                #[cfg(target_os = "windows")]
-                crate::install::spawn_install(&pkg_item, None, false);
-                
-                tracing::info!(
-                    package = %pkg_name,
-                    source = match pkg_item.source {
-                        Source::Official { .. } => "official",
-                        Source::Aur => "aur",
-                    },
-                    "Update triggered from Updates modal"
-                );
+                let pkg_item =
+                    if let Some(mut pkg_item) = crate::index::find_package_by_name(pkg_name) {
+                        // Update the version to the new version
+                        pkg_item.version.clone_from(new_version);
+                        pkg_item
+                    } else {
+                        // If not found in official repos, assume it's an AUR package
+                        PackageItem {
+                            name: pkg_name.clone(),
+                            version: new_version.clone(),
+                            description: String::new(),
+                            source: Source::Aur,
+                            popularity: None,
+                        }
+                    };
+
+                // Close Updates modal
+                app.modal = crate::state::Modal::None;
+
+                // Open Preflight modal for this package (respects skip_preflight setting)
+                crate::events::search::open_preflight_modal(app, vec![pkg_item], true);
             }
-            app.modal = crate::state::Modal::None;
             return true; // Stop propagation
         }
         KeyCode::Up | KeyCode::Char('k') => {
