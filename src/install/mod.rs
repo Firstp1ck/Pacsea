@@ -71,4 +71,7 @@ pub fn spawn_aur_scan_for_with_config(
 }
 pub use shell::spawn_shell_commands_in_terminal;
 pub use single::spawn_install;
-pub use utils::{command_on_path, shell_single_quote};
+pub use utils::command_on_path;
+
+#[cfg(not(target_os = "windows"))]
+pub use utils::shell_single_quote;

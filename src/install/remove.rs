@@ -417,8 +417,8 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
             tracing::info!(
                 names = %names_str,
                 total = names.len(),
-                dry_run = _dry_run,
-                mode = ?_cascade_mode,
+                dry_run = dry_run,
+                mode = ?cascade_mode,
                 "launched cmd for removal"
             );
         }

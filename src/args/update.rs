@@ -1,7 +1,11 @@
 //! Command-line update functionality.
 
-use crate::args::{i18n, utils};
+use crate::args::i18n;
+#[cfg(not(target_os = "windows"))]
+use crate::args::utils;
+#[cfg(not(target_os = "windows"))]
 use pacsea::install::shell_single_quote;
+#[cfg(not(target_os = "windows"))]
 use pacsea::theme;
 use std::path::Path;
 
@@ -282,6 +286,7 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
 /// - Preserves real-time output display while logging everything.
 /// - Returns the command output for parsing failed packages.
 /// - Output is parsed using locale-aware i18n patterns.
+#[cfg(not(target_os = "windows"))]
 fn run_command_with_logging(
     program: &str,
     args: &[&str],
@@ -336,6 +341,7 @@ fn run_command_with_logging(
 /// - Displays update progress output in real-time to the terminal.
 /// - Logs all command output and status messages to `update.log` in the config logs directory.
 /// - Informs user of final status and log file path.
+#[cfg(not(target_os = "windows"))]
 #[allow(clippy::too_many_lines)]
 pub fn handle_update() -> ! {
     use std::fs::OpenOptions;

@@ -147,8 +147,14 @@ pub fn process_args(args: &Args) -> bool {
     }
 
     // Handle system update (--update / -u)
+    #[cfg(not(target_os = "windows"))]
     if args.update {
         update::handle_update();
+    }
+    #[cfg(target_os = "windows")]
+    if args.update {
+        eprintln!("System update is not supported on Windows");
+        std::process::exit(1);
     }
 
     // Handle refresh flag
