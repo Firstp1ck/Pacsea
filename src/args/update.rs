@@ -296,12 +296,7 @@ fn ensure_color_flags(program: &str, args: &[&str]) -> Vec<String> {
 
     if needs_color_flag {
         // Check if --color flag is already present
-        let has_color_flag = args.iter().any(|arg| {
-            arg.starts_with("--color")
-                || *arg == "--color=always"
-                || *arg == "--color=never"
-                || *arg == "--color=auto"
-        });
+        let has_color_flag = args.iter().any(|arg| arg.starts_with("--color"));
 
         if !has_color_flag {
             // Insert --color=always after the program name but before other flags
