@@ -483,6 +483,570 @@ fn run_combined_commands_with_logging(
     Ok((status, output))
 }
 
+/// What: Update execution results.
+///
+/// Details:
+/// - Holds the results of update execution for both pacman and AUR helper.
+#[cfg(not(target_os = "windows"))]
+struct UpdateResults {
+    /// Whether all updates succeeded.
+    all_succeeded: bool,
+    /// Pacman update status.
+    pacman_succeeded: Option<bool>,
+    /// AUR helper update status.
+    aur_succeeded: Option<bool>,
+    /// Name of AUR helper used (if any).
+    aur_helper_name: Option<&'static str>,
+    /// List of failed commands.
+    failed_commands: Vec<String>,
+    /// List of failed packages.
+    failed_packages: Vec<String>,
+}
+
+/// What: Process pacman command results from combined output.
+///
+/// Inputs:
+/// - `pacman_output`: The pacman command output.
+/// - `pacman_exit_code_opt`: Optional exit code from pacman command.
+/// - `state`: Mutable state for update processing.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - Returns `bool` indicating pacman success status.
+///
+/// Details:
+/// - Checks if pacman command actually ran.
+/// - Evaluates success based on exit code and output content.
+/// - Always returns a boolean (false if command didn't run).
+#[cfg(not(target_os = "windows"))]
+fn process_pacman_result(
+    pacman_output: &str,
+    pacman_exit_code_opt: Option<i32>,
+    state: &mut UpdateState<'_>,
+    write_log: &dyn Fn(&str),
+) -> bool {
+    // Check if pacman command actually ran
+    // It ran if we have the exit code marker OR if there's meaningful output
+    let pacman_ran = pacman_exit_code_opt.is_some()
+        || (!pacman_output.trim().is_empty()
+            && (pacman_output.contains("Synchronizing")
+                || pacman_output.contains("Starting")
+                || pacman_output.contains("error:")
+                || pacman_output.contains("target not found")));
+
+    if pacman_ran {
+        // Pacman command ran - check its exit code
+        let pacman_exit_code = pacman_exit_code_opt.unwrap_or_else(|| {
+            // If exit code marker not found but command ran, check output for errors
+            i32::from(
+                pacman_output.contains("error:")
+                    || pacman_output.contains("failed")
+                    || pacman_output.contains("target not found"),
+            )
+        });
+
+        // Check pacman success using individual exit code
+        // Also check for "nothing to do" messages as success indicators
+        if pacman_exit_code == 0
+            || pacman_output.contains("Es gibt nichts zu tun")
+            || pacman_output.contains("there is nothing to do")
+        {
+            println!("{}", i18n::t("app.cli.update.pacman_success"));
+            write_log("SUCCESS: pacman -Syyu --noconfirm completed");
+            true
+        } else {
+            println!("{}", i18n::t("app.cli.update.pacman_failed"));
+            write_log(&format!(
+                "FAILED: pacman -Syyu --noconfirm failed with exit code {pacman_exit_code}"
+            ));
+            let packages = extract_failed_packages(pacman_output, "pacman");
+            state.failed_packages.extend(packages);
+            *state.all_succeeded = false;
+            state.failed_commands.push("pacman -Syyu".to_string());
+            false
+        }
+    } else {
+        // Pacman command didn't run (likely sudo -v failed or command structure issue)
+        println!("{}", i18n::t("app.cli.update.pacman_failed"));
+        write_log("FAILED: pacman -Syyu --noconfirm did not execute (command chain stopped early)");
+        *state.all_succeeded = false;
+        state.failed_commands.push("pacman -Syyu".to_string());
+        false
+    }
+}
+
+/// What: Mutable state for update processing.
+///
+/// Details:
+/// - Holds mutable references to state that needs to be updated during processing.
+#[cfg(not(target_os = "windows"))]
+struct UpdateState<'a> {
+    /// Overall success flag.
+    all_succeeded: &'a mut bool,
+    /// Failed commands list.
+    failed_commands: &'a mut Vec<String>,
+    /// Failed packages list.
+    failed_packages: &'a mut Vec<String>,
+}
+
+/// What: Parameters for AUR result processing.
+///
+/// Details:
+/// - Holds all parameters needed to process AUR helper results.
+#[cfg(not(target_os = "windows"))]
+struct AurProcessParams<'a> {
+    /// AUR helper command output.
+    aur_output: &'a str,
+    /// Optional exit code from AUR helper command.
+    aur_exit_code_opt: Option<i32>,
+    /// Full combined output for checking section markers.
+    output: &'a str,
+    /// Marker string indicating AUR section start.
+    aur_section_marker: &'a str,
+    /// AUR helper name.
+    helper: &'a str,
+    /// Whether pacman succeeded (affects AUR failure reporting).
+    pacman_succeeded: Option<bool>,
+}
+
+/// What: Process AUR helper command results from combined output.
+///
+/// Inputs:
+/// - `params`: Parameters for AUR result processing.
+/// - `state`: Mutable state for update processing.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - Returns `Option<bool>` indicating AUR helper success status (None if didn't run).
+///
+/// Details:
+/// - Checks if AUR helper command actually ran.
+/// - Evaluates success based on exit code and output content.
+/// - Handles case where AUR didn't run due to pacman failure.
+#[cfg(not(target_os = "windows"))]
+fn process_aur_result(
+    params: &AurProcessParams<'_>,
+    state: &mut UpdateState<'_>,
+    write_log: &dyn Fn(&str),
+) -> Option<bool> {
+    // Check if AUR helper command actually ran
+    // It ran if we have the exit code marker OR if the section marker exists with output
+    let aur_ran = params.aur_exit_code_opt.is_some()
+        || (params.output.contains(params.aur_section_marker)
+            && (!params.aur_output.trim().is_empty() || params.output.contains("AUR_EXIT=")));
+
+    if aur_ran {
+        // AUR helper command ran - check its exit code
+        let aur_exit_code = params.aur_exit_code_opt.unwrap_or_else(|| {
+            // If exit code marker not found but command ran, check output for errors
+            i32::from(
+                params.aur_output.contains("error:")
+                    || params.aur_output.contains("failed")
+                    || params.aur_output.contains(" - exit status"),
+            )
+        });
+
+        // Check AUR helper success using individual exit code
+        if aur_exit_code == 0 || params.aur_output.contains("there is nothing to do") {
+            println!(
+                "{}",
+                i18n::t_fmt1("app.cli.update.aur_success", params.helper)
+            );
+            write_log(&format!(
+                "SUCCESS: {} -Syyu --noconfirm completed",
+                params.helper
+            ));
+            Some(true)
+        } else {
+            println!(
+                "{}",
+                i18n::t_fmt1("app.cli.update.aur_failed", params.helper)
+            );
+            write_log(&format!(
+                "FAILED: {} -Syyu --noconfirm failed with exit code {aur_exit_code}",
+                params.helper
+            ));
+            let packages = extract_failed_packages(params.aur_output, params.helper);
+            state.failed_packages.extend(packages);
+            *state.all_succeeded = false;
+            state
+                .failed_commands
+                .push(format!("{} -Syyu --noconfirm", params.helper));
+            Some(false)
+        }
+    } else {
+        // AUR helper command didn't run (likely pacman failed early and chain stopped)
+        // Only report this as a failure if pacman also failed
+        // If pacman succeeded, AUR should have run, so this is unexpected
+        if params.pacman_succeeded == Some(false) {
+            // Pacman failed, so AUR not running is expected (chain stopped)
+            write_log(&format!(
+                "SKIPPED: {} -Syyu --noconfirm did not execute (pacman failed early)",
+                params.helper
+            ));
+            None // Mark as not run, not failed
+        } else {
+            // Pacman succeeded but AUR didn't run - this is unexpected
+            println!(
+                "{}",
+                i18n::t_fmt1("app.cli.update.aur_failed", params.helper)
+            );
+            write_log(&format!(
+                "FAILED: {} -Syyu --noconfirm did not execute (unexpected)",
+                params.helper
+            ));
+            *state.all_succeeded = false;
+            state
+                .failed_commands
+                .push(format!("{} -Syyu --noconfirm", params.helper));
+            Some(false)
+        }
+    }
+}
+
+/// What: Handle combined update execution (pacman and AUR helper in single session).
+///
+/// Inputs:
+/// - `helper`: The AUR helper name (`yay`/`paru`).
+/// - `log_file_path`: Path to the log file.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - Returns `UpdateResults` with execution results.
+///
+/// Details:
+/// - Runs both pacman and AUR helper in a single script session to share sudo timestamp.
+/// - Captures individual exit codes for each command.
+/// - Handles cases where commands may not run due to early failures.
+#[cfg(not(target_os = "windows"))]
+fn handle_combined_update(
+    helper: &'static str,
+    log_file_path: &Path,
+    write_log: &dyn Fn(&str),
+) -> UpdateResults {
+    let mut all_succeeded = true;
+    let mut failed_commands = Vec::new();
+    let mut failed_packages = Vec::new();
+
+    write_log("Starting combined update: pacman and AUR helper in single session");
+
+    // Build combined command: sudo -v && echo message && sudo pacman ... && echo message && yay ...
+    // Messages are echoed within the script session to avoid duplicates
+    // Use ensure_color_flags to add --color=always for consistency with separate command execution
+    let pacman_args = ensure_color_flags("sudo", &["pacman", "-Syyu", "--noconfirm"]);
+    let pacman_args_str = pacman_args
+        .iter()
+        .map(|a| shell_single_quote(a))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let pacman_cmd = format!("sudo {pacman_args_str}");
+
+    let aur_args = ensure_color_flags(helper, &["-Syyu", "--noconfirm"]);
+    let aur_args_str = aur_args
+        .iter()
+        .map(|a| shell_single_quote(a))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let aur_cmd = format!("{helper} {aur_args_str}");
+
+    let starting_msg = i18n::t("app.cli.update.starting");
+    // Use shell_single_quote to safely handle special characters in the message
+    let escaped_msg = shell_single_quote(&starting_msg);
+    // Build combined command with individual exit code capture
+    // Use ; between pacman and AUR sections so both commands always run regardless of individual success/failure
+    // Capture exit codes immediately after each command using a subshell to avoid issues with $? interpretation
+    // Format: sudo -v && echo ... && (pacman_cmd; pacman_exit=$?; echo "PACMAN_EXIT=$pacman_exit"); ...
+    // Using lowercase variable names and explicit assignment to avoid shell interpretation issues
+    let combined_cmd = format!(
+        "sudo -v && echo {escaped_msg} && ({pacman_cmd}; pacman_exit=$?; echo \"PACMAN_EXIT=$pacman_exit\"); echo ''; echo 'Updating AUR packages ({helper} -Syyu)...'; ({aur_cmd}; aur_exit=$?; echo \"AUR_EXIT=$aur_exit\")"
+    );
+
+    let combined_result = run_combined_commands_with_logging(&combined_cmd, log_file_path);
+
+    // Parse the output to determine individual command success
+    let (pacman_succeeded, aur_succeeded) = match combined_result {
+        Ok((_status, output)) => {
+            // Split output for package extraction first
+            let aur_section_marker = format!("Updating AUR packages ({helper} -Syyu)...");
+            let pacman_output = output.split(&aur_section_marker).next().unwrap_or("");
+            let aur_output = output.split(&aur_section_marker).nth(1).unwrap_or("");
+
+            // Extract individual exit codes from output
+            // Look for "PACMAN_EXIT=N" and "AUR_EXIT=N" patterns
+            // These markers are only present if the commands actually ran
+            let pacman_exit_code_opt = output.lines().find_map(|line| {
+                if line.contains("PACMAN_EXIT=") {
+                    line.split("PACMAN_EXIT=")
+                        .nth(1)
+                        .and_then(|s| s.trim().parse::<i32>().ok())
+                } else {
+                    None
+                }
+            });
+
+            let aur_exit_code_opt = output.lines().find_map(|line| {
+                if line.contains("AUR_EXIT=") {
+                    line.split("AUR_EXIT=")
+                        .nth(1)
+                        .and_then(|s| s.trim().parse::<i32>().ok())
+                } else {
+                    None
+                }
+            });
+
+            let mut state = UpdateState {
+                all_succeeded: &mut all_succeeded,
+                failed_commands: &mut failed_commands,
+                failed_packages: &mut failed_packages,
+            };
+            let pacman_succeeded =
+                process_pacman_result(pacman_output, pacman_exit_code_opt, &mut state, write_log);
+            let aur_params = AurProcessParams {
+                aur_output,
+                aur_exit_code_opt,
+                output: &output,
+                aur_section_marker: &aur_section_marker,
+                helper,
+                pacman_succeeded: Some(pacman_succeeded),
+            };
+            let aur_succeeded = process_aur_result(&aur_params, &mut state, write_log);
+
+            (Some(pacman_succeeded), aur_succeeded)
+        }
+        Err(e) => {
+            println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
+            eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+            write_log(&format!("FAILED: Could not execute combined update: {e}"));
+            all_succeeded = false;
+            failed_commands.push("combined update".to_string());
+            (Some(false), Some(false))
+        }
+    };
+
+    UpdateResults {
+        all_succeeded,
+        pacman_succeeded,
+        aur_succeeded,
+        aur_helper_name: Some(helper),
+        failed_commands,
+        failed_packages,
+    }
+}
+
+/// What: Handle separate update execution (pacman and AUR helper run separately).
+///
+/// Inputs:
+/// - `has_passwordless_sudo`: Whether passwordless sudo is available.
+/// - `log_file_path`: Path to the log file.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - Returns `UpdateResults` with execution results.
+///
+/// Details:
+/// - Runs pacman update first, then AUR helper update separately.
+/// - Each command runs in its own script session.
+#[cfg(not(target_os = "windows"))]
+fn handle_separate_updates(
+    has_passwordless_sudo: bool,
+    log_file_path: &Path,
+    write_log: &dyn Fn(&str),
+) -> UpdateResults {
+    let mut all_succeeded = true;
+    let mut failed_commands = Vec::new();
+    let mut failed_packages = Vec::new();
+    let pacman_succeeded: Option<bool>;
+    let mut aur_succeeded: Option<bool> = None;
+    let mut aur_helper_name: Option<&'static str> = None;
+
+    // Run commands separately (original behavior)
+    // Step 1: Update pacman (sudo pacman -Syyu --noconfirm)
+    // Print starting message only if passwordless sudo (already printed for password prompt)
+    if has_passwordless_sudo {
+        println!("{}", i18n::t("app.cli.update.starting"));
+    }
+    write_log("Starting system update: pacman -Syyu --noconfirm");
+
+    let pacman_result = run_command_with_logging(
+        "sudo",
+        &["pacman", "-Syyu", "--noconfirm"],
+        log_file_path,
+        !has_passwordless_sudo,
+    );
+
+    match pacman_result {
+        Ok((status, output)) => {
+            if status.success() {
+                println!("{}", i18n::t("app.cli.update.pacman_success"));
+                write_log("SUCCESS: pacman -Syyu --noconfirm completed successfully");
+                pacman_succeeded = Some(true);
+            } else {
+                println!("{}", i18n::t("app.cli.update.pacman_failed"));
+                write_log(&format!(
+                    "FAILED: pacman -Syyu --noconfirm failed with exit code {:?}",
+                    status.code()
+                ));
+                let packages = extract_failed_packages(&output, "pacman");
+                failed_packages.extend(packages);
+                all_succeeded = false;
+                failed_commands.push("pacman -Syyu".to_string());
+                pacman_succeeded = Some(false);
+            }
+        }
+        Err(e) => {
+            println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
+            eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+            write_log(&format!(
+                "FAILED: Could not execute pacman -Syyu --noconfirm: {e}"
+            ));
+            all_succeeded = false;
+            failed_commands.push("pacman -Syyu --noconfirm".to_string());
+            pacman_succeeded = Some(false);
+        }
+    }
+
+    // Step 2: Update AUR packages (yay/paru -Syyu --noconfirm)
+    let aur_helper_separate = utils::get_aur_helper();
+    if let Some(helper) = aur_helper_separate {
+        aur_helper_name = Some(helper);
+        println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
+        write_log(&format!("Starting AUR update: {helper} -Syyu --noconfirm"));
+
+        // AUR helpers like yay/paru call sudo internally for pacman operations
+        // The sudo timestamp will be refreshed in the script context if needed
+        let aur_result = run_command_with_logging(
+            helper,
+            &["-Syyu", "--noconfirm"],
+            log_file_path,
+            !has_passwordless_sudo,
+        );
+
+        match aur_result {
+            Ok((status, output)) => {
+                if status.success() {
+                    println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
+                    write_log(&format!(
+                        "SUCCESS: {helper} -Syyu --noconfirm completed successfully"
+                    ));
+                    aur_succeeded = Some(true);
+                } else {
+                    println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
+                    write_log(&format!(
+                        "FAILED: {} -Syyu --noconfirm failed with exit code {:?}",
+                        helper,
+                        status.code()
+                    ));
+                    let packages = extract_failed_packages(&output, helper);
+                    failed_packages.extend(packages);
+                    all_succeeded = false;
+                    failed_commands.push(format!("{helper} -Syyu --noconfirm"));
+                    aur_succeeded = Some(false);
+                }
+            }
+            Err(e) => {
+                println!("{}", i18n::t_fmt1("app.cli.update.aur_exec_failed", helper));
+                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+                write_log(&format!(
+                    "FAILED: Could not execute {helper} -Syyu --noconfirm: {e}"
+                ));
+                all_succeeded = false;
+                failed_commands.push(format!("{helper} -Syyu --noconfirm"));
+                aur_succeeded = Some(false);
+            }
+        }
+    } else {
+        println!("\n{}", i18n::t("app.cli.update.no_aur_helper"));
+        write_log("SKIPPED: No AUR helper (paru/yay) available");
+    }
+
+    UpdateResults {
+        all_succeeded,
+        pacman_succeeded,
+        aur_succeeded,
+        aur_helper_name,
+        failed_commands,
+        failed_packages,
+    }
+}
+
+/// What: Print update summary and exit with appropriate code.
+///
+/// Inputs:
+/// - `results`: `UpdateResults` containing all update execution results.
+/// - `log_file_path`: Path to the log file.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - Exits the process with appropriate exit code.
+///
+/// Details:
+/// - Prints final summary to console.
+/// - Logs summary to file.
+/// - Exits with code 0 on success, 1 on failure.
+#[cfg(not(target_os = "windows"))]
+fn print_update_summary(
+    results: &UpdateResults,
+    log_file_path: &Path,
+    write_log: &dyn Fn(&str),
+) -> ! {
+    // Final summary
+    println!("\n{}", i18n::t("app.cli.update.separator"));
+
+    // Show individual status for pacman and AUR helper
+    if results.pacman_succeeded == Some(true) {
+        println!("{}", i18n::t("app.cli.update.pacman_success"));
+    } else if results.pacman_succeeded == Some(false) {
+        println!("{}", i18n::t("app.cli.update.pacman_failed"));
+    }
+
+    if let Some(helper) = results.aur_helper_name {
+        if results.aur_succeeded == Some(true) {
+            println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
+        } else if results.aur_succeeded == Some(false) {
+            println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
+        }
+    }
+
+    // Show overall summary
+    if results.all_succeeded {
+        println!("\n{}", i18n::t("app.cli.update.all_success"));
+        write_log("SUMMARY: All updates completed successfully");
+    } else {
+        println!("\n{}", i18n::t("app.cli.update.completed_with_errors"));
+        write_log(&format!(
+            "SUMMARY: Update failed. Failed commands: {:?}",
+            results.failed_commands
+        ));
+        if !results.failed_packages.is_empty() {
+            println!("\n{}", i18n::t("app.cli.update.failed_packages"));
+            for pkg in &results.failed_packages {
+                println!("  - {pkg}");
+            }
+            write_log(&i18n::t_fmt1(
+                "app.cli.update.failed_packages_log",
+                format!("{:?}", results.failed_packages),
+            ));
+        }
+    }
+    let log_file_format = i18n::t("app.cli.update.log_file");
+    let clickable_path = format_clickable_path(log_file_path);
+    // Replace {} placeholder with clickable path
+    let log_file_message = log_file_format.replace("{}", &clickable_path);
+    println!("{log_file_message}");
+    write_log(&format!(
+        "Update process finished. Log file: {}",
+        log_file_path.display()
+    ));
+
+    if results.all_succeeded {
+        tracing::info!("System update completed successfully");
+        std::process::exit(0);
+    } else {
+        tracing::error!("System update completed with errors");
+        std::process::exit(1);
+    }
+}
+
 /// What: Handle system update by running pacman and AUR helper updates, logging results.
 ///
 /// Inputs:
@@ -498,7 +1062,6 @@ fn run_combined_commands_with_logging(
 /// - Logs all command output and status messages to `update.log` in the config logs directory.
 /// - Informs user of final status and log file path.
 #[cfg(not(target_os = "windows"))]
-#[allow(clippy::too_many_lines)]
 pub fn handle_update() -> ! {
     use std::fs::OpenOptions;
     use std::io::Write;
@@ -551,309 +1114,17 @@ pub fn handle_update() -> ! {
         println!("{}", i18n::t("app.cli.update.starting"));
     }
 
-    let mut all_succeeded = true;
-    let mut failed_commands = Vec::new();
-    let mut failed_packages = Vec::new();
-    #[allow(unused_assignments)]
-    let mut pacman_succeeded = Option::<bool>::None;
-    let mut aur_succeeded = Option::<bool>::None;
-    let mut aur_helper_name = Option::<&str>::None;
-
     // Check if AUR helper is available - if so, we'll run both commands in a single script session
     // to share the sudo timestamp and avoid multiple password prompts
     let aur_helper = utils::get_aur_helper();
     let run_together = aur_helper.is_some() && !has_passwordless_sudo;
 
-    if run_together {
-        // Run both commands in a single script session to share sudo timestamp
-        write_log("Starting combined update: pacman and AUR helper in single session");
-
+    let results = if run_together {
         let helper = aur_helper.expect("AUR helper should be available when run_together is true");
-        aur_helper_name = Some(helper);
-
-        // Build combined command: sudo -v && echo message && sudo pacman ... && echo message && yay ...
-        // Messages are echoed within the script session to avoid duplicates
-        // Use ensure_color_flags to add --color=always for consistency with separate command execution
-        let pacman_args = ensure_color_flags("sudo", &["pacman", "-Syyu", "--noconfirm"]);
-        let pacman_args_str = pacman_args
-            .iter()
-            .map(|a| shell_single_quote(a))
-            .collect::<Vec<_>>()
-            .join(" ");
-        let pacman_cmd = format!("sudo {pacman_args_str}");
-
-        let aur_args = ensure_color_flags(helper, &["-Syyu", "--noconfirm"]);
-        let aur_args_str = aur_args
-            .iter()
-            .map(|a| shell_single_quote(a))
-            .collect::<Vec<_>>()
-            .join(" ");
-        let aur_cmd = format!("{helper} {aur_args_str}");
-
-        let starting_msg = i18n::t("app.cli.update.starting");
-        // Use shell_single_quote to safely handle special characters in the message
-        let escaped_msg = shell_single_quote(&starting_msg);
-        // Build combined command with individual exit code capture
-        // Use ; between pacman and AUR sections so both commands always run regardless of individual success/failure
-        // Capture exit codes immediately after each command using a subshell to avoid issues with $? interpretation
-        // Format: sudo -v && echo ... && (pacman_cmd; pacman_exit=$?; echo "PACMAN_EXIT=$pacman_exit"); ...
-        // Using lowercase variable names and explicit assignment to avoid shell interpretation issues
-        let combined_cmd = format!(
-            "sudo -v && echo {escaped_msg} && ({pacman_cmd}; pacman_exit=$?; echo \"PACMAN_EXIT=$pacman_exit\"); echo ''; echo 'Updating AUR packages ({helper} -Syyu)...'; ({aur_cmd}; aur_exit=$?; echo \"AUR_EXIT=$aur_exit\")"
-        );
-
-        let combined_result = run_combined_commands_with_logging(&combined_cmd, &log_file_path);
-
-        // Parse the output to determine individual command success
-        match combined_result {
-            Ok((status, output)) => {
-                // Extract individual exit codes from output
-                // Look for "PACMAN_EXIT=N" and "AUR_EXIT=N" patterns
-                let pacman_exit_code = output
-                    .lines()
-                    .find_map(|line| {
-                        if line.contains("PACMAN_EXIT=") {
-                            line.split("PACMAN_EXIT=")
-                                .nth(1)
-                                .and_then(|s| s.trim().parse::<i32>().ok())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| {
-                        // Fallback: if exit code not found, use global status (backward compatibility)
-                        i32::from(!status.success())
-                    });
-
-                let aur_exit_code = output
-                    .lines()
-                    .find_map(|line| {
-                        if line.contains("AUR_EXIT=") {
-                            line.split("AUR_EXIT=")
-                                .nth(1)
-                                .and_then(|s| s.trim().parse::<i32>().ok())
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or_else(|| {
-                        // Fallback: if exit code not found, use global status (backward compatibility)
-                        i32::from(!status.success())
-                    });
-
-                // Split output for package extraction
-                let pacman_output = output
-                    .split(&format!("Updating AUR packages ({helper} -Syyu)..."))
-                    .next()
-                    .unwrap_or("");
-                let aur_output = output
-                    .split(&format!("Updating AUR packages ({helper} -Syyu)..."))
-                    .nth(1)
-                    .unwrap_or("");
-
-                // Check pacman success using individual exit code
-                // Also check for "nothing to do" messages as success indicators
-                if pacman_exit_code == 0
-                    || pacman_output.contains("Es gibt nichts zu tun")
-                    || pacman_output.contains("there is nothing to do")
-                {
-                    println!("{}", i18n::t("app.cli.update.pacman_success"));
-                    write_log("SUCCESS: pacman -Syyu --noconfirm completed");
-                    pacman_succeeded = Some(true);
-                } else {
-                    println!("{}", i18n::t("app.cli.update.pacman_failed"));
-                    write_log(&format!(
-                        "FAILED: pacman -Syyu --noconfirm failed with exit code {pacman_exit_code}"
-                    ));
-                    let packages = extract_failed_packages(pacman_output, "pacman");
-                    failed_packages.extend(packages);
-                    all_succeeded = false;
-                    failed_commands.push("pacman -Syyu".to_string());
-                    pacman_succeeded = Some(false);
-                }
-
-                // Check AUR helper success using individual exit code
-                if aur_exit_code == 0 || aur_output.contains("there is nothing to do") {
-                    println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
-                    write_log(&format!("SUCCESS: {helper} -Syyu --noconfirm completed"));
-                    aur_succeeded = Some(true);
-                } else {
-                    println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
-                    write_log(&format!(
-                        "FAILED: {helper} -Syyu --noconfirm failed with exit code {aur_exit_code}"
-                    ));
-                    let packages = extract_failed_packages(aur_output, helper);
-                    failed_packages.extend(packages);
-                    all_succeeded = false;
-                    failed_commands.push(format!("{helper} -Syyu --noconfirm"));
-                    aur_succeeded = Some(false);
-                }
-            }
-            Err(e) => {
-                println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
-                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-                write_log(&format!("FAILED: Could not execute combined update: {e}"));
-                all_succeeded = false;
-                failed_commands.push("combined update".to_string());
-                pacman_succeeded = Some(false);
-                aur_succeeded = Some(false);
-            }
-        }
+        handle_combined_update(helper, &log_file_path, &write_log)
     } else {
-        // Run commands separately (original behavior)
-        // Step 1: Update pacman (sudo pacman -Syyu --noconfirm)
-        // Print starting message only if passwordless sudo (already printed for password prompt)
-        if has_passwordless_sudo {
-            println!("{}", i18n::t("app.cli.update.starting"));
-        }
-        write_log("Starting system update: pacman -Syyu --noconfirm");
+        handle_separate_updates(has_passwordless_sudo, &log_file_path, &write_log)
+    };
 
-        let pacman_result = run_command_with_logging(
-            "sudo",
-            &["pacman", "-Syyu", "--noconfirm"],
-            &log_file_path,
-            !has_passwordless_sudo,
-        );
-
-        match pacman_result {
-            Ok((status, output)) => {
-                if status.success() {
-                    println!("{}", i18n::t("app.cli.update.pacman_success"));
-                    write_log("SUCCESS: pacman -Syyu --noconfirm completed successfully");
-                    pacman_succeeded = Some(true);
-                } else {
-                    println!("{}", i18n::t("app.cli.update.pacman_failed"));
-                    write_log(&format!(
-                        "FAILED: pacman -Syyu --noconfirm failed with exit code {:?}",
-                        status.code()
-                    ));
-                    let packages = extract_failed_packages(&output, "pacman");
-                    failed_packages.extend(packages);
-                    all_succeeded = false;
-                    failed_commands.push("pacman -Syyu".to_string());
-                    pacman_succeeded = Some(false);
-                }
-            }
-            Err(e) => {
-                println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
-                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-                write_log(&format!(
-                    "FAILED: Could not execute pacman -Syyu --noconfirm: {e}"
-                ));
-                all_succeeded = false;
-                failed_commands.push("pacman -Syyu --noconfirm".to_string());
-                pacman_succeeded = Some(false);
-            }
-        }
-
-        // Step 2: Update AUR packages (yay/paru -Syyu --noconfirm)
-        let aur_helper_separate = utils::get_aur_helper();
-        if let Some(helper) = aur_helper_separate {
-            aur_helper_name = Some(helper);
-            println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
-            write_log(&format!("Starting AUR update: {helper} -Syyu --noconfirm"));
-
-            // AUR helpers like yay/paru call sudo internally for pacman operations
-            // The sudo timestamp will be refreshed in the script context if needed
-            let aur_result = run_command_with_logging(
-                helper,
-                &["-Syyu", "--noconfirm"],
-                &log_file_path,
-                !has_passwordless_sudo,
-            );
-
-            match aur_result {
-                Ok((status, output)) => {
-                    if status.success() {
-                        println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
-                        write_log(&format!(
-                            "SUCCESS: {helper} -Syyu --noconfirm completed successfully"
-                        ));
-                        aur_succeeded = Some(true);
-                    } else {
-                        println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
-                        write_log(&format!(
-                            "FAILED: {} -Syyu --noconfirm failed with exit code {:?}",
-                            helper,
-                            status.code()
-                        ));
-                        let packages = extract_failed_packages(&output, helper);
-                        failed_packages.extend(packages);
-                        all_succeeded = false;
-                        failed_commands.push(format!("{helper} -Syyu --noconfirm"));
-                        aur_succeeded = Some(false);
-                    }
-                }
-                Err(e) => {
-                    println!("{}", i18n::t_fmt1("app.cli.update.aur_exec_failed", helper));
-                    eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
-                    write_log(&format!(
-                        "FAILED: Could not execute {helper} -Syyu --noconfirm: {e}"
-                    ));
-                    all_succeeded = false;
-                    failed_commands.push(format!("{helper} -Syyu --noconfirm"));
-                    aur_succeeded = Some(false);
-                }
-            }
-        } else {
-            println!("\n{}", i18n::t("app.cli.update.no_aur_helper"));
-            write_log("SKIPPED: No AUR helper (paru/yay) available");
-        }
-    }
-
-    // Final summary
-    println!("\n{}", i18n::t("app.cli.update.separator"));
-
-    // Show individual status for pacman and AUR helper
-    if pacman_succeeded == Some(true) {
-        println!("{}", i18n::t("app.cli.update.pacman_success"));
-    } else if pacman_succeeded == Some(false) {
-        println!("{}", i18n::t("app.cli.update.pacman_failed"));
-    }
-
-    if let Some(helper) = aur_helper_name {
-        if aur_succeeded == Some(true) {
-            println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
-        } else if aur_succeeded == Some(false) {
-            println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
-        }
-    }
-
-    // Show overall summary
-    if all_succeeded {
-        println!("\n{}", i18n::t("app.cli.update.all_success"));
-        write_log("SUMMARY: All updates completed successfully");
-    } else {
-        println!("\n{}", i18n::t("app.cli.update.completed_with_errors"));
-        write_log(&format!(
-            "SUMMARY: Update failed. Failed commands: {failed_commands:?}"
-        ));
-        if !failed_packages.is_empty() {
-            println!("\n{}", i18n::t("app.cli.update.failed_packages"));
-            for pkg in &failed_packages {
-                println!("  - {pkg}");
-            }
-            write_log(&i18n::t_fmt1(
-                "app.cli.update.failed_packages_log",
-                format!("{failed_packages:?}"),
-            ));
-        }
-    }
-    let log_file_format = i18n::t("app.cli.update.log_file");
-    let clickable_path = format_clickable_path(&log_file_path);
-    // Replace {} placeholder with clickable path
-    let log_file_message = log_file_format.replace("{}", &clickable_path);
-    println!("{log_file_message}");
-    write_log(&format!(
-        "Update process finished. Log file: {}",
-        log_file_path.display()
-    ));
-
-    if all_succeeded {
-        tracing::info!("System update completed successfully");
-        std::process::exit(0);
-    } else {
-        tracing::error!("System update completed with errors");
-        std::process::exit(1);
-    }
+    print_update_summary(&results, &log_file_path, &write_log);
 }
