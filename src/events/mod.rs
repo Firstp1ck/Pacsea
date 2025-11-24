@@ -18,7 +18,8 @@ mod recent;
 mod search;
 mod utils;
 
-// re-export intentionally omitted; handled internally
+// Re-export open_preflight_modal for use in tests and other modules
+pub use search::open_preflight_modal;
 
 /// What: Dispatch a single terminal event (keyboard/mouse) and mutate the [`AppState`].
 ///

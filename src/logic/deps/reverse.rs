@@ -115,7 +115,7 @@ impl ReverseResolverState {
         };
 
         let selected = self.target_names.contains(dependent);
-        match self.aggregated.entry(dependent.to_string()) {
+        match self.aggregated.entry(dependent.to_owned()) {
             Entry::Occupied(mut entry) => {
                 let data = entry.get_mut();
                 data.info = info;
