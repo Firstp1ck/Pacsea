@@ -9,6 +9,80 @@ use pacsea::install::shell_single_quote;
 use pacsea::theme;
 use std::path::Path;
 
+/// What: Format text with ANSI color codes if colors are enabled.
+///
+/// Inputs:
+/// - `text`: The text to format.
+/// - `color_code`: ANSI color code (e.g., "32" for green, "31" for red).
+/// - `no_color`: If true, returns text without color codes.
+///
+/// Output:
+/// - Colored text string if colors enabled, plain text otherwise.
+///
+/// Details:
+/// - Uses ANSI escape sequences for terminal colors.
+/// - Respects the `no_color` flag to disable coloring.
+#[cfg(not(target_os = "windows"))]
+fn colorize(text: &str, color_code: &str, no_color: bool) -> String {
+    if no_color {
+        text.to_string()
+    } else {
+        format!("\x1b[{color_code}m{text}\x1b[0m")
+    }
+}
+
+/// What: Format success messages in green.
+///
+/// Inputs:
+/// - `text`: The text to format.
+/// - `no_color`: If true, returns text without color codes.
+///
+/// Output:
+/// - Green colored text string if colors enabled, plain text otherwise.
+#[cfg(not(target_os = "windows"))]
+fn success_color(text: &str, no_color: bool) -> String {
+    colorize(text, "32", no_color) // Green
+}
+
+/// What: Format error messages in red.
+///
+/// Inputs:
+/// - `text`: The text to format.
+/// - `no_color`: If true, returns text without color codes.
+///
+/// Output:
+/// - Red colored text string if colors enabled, plain text otherwise.
+#[cfg(not(target_os = "windows"))]
+fn error_color(text: &str, no_color: bool) -> String {
+    colorize(text, "31", no_color) // Red
+}
+
+/// What: Format info messages in cyan.
+///
+/// Inputs:
+/// - `text`: The text to format.
+/// - `no_color`: If true, returns text without color codes.
+///
+/// Output:
+/// - Cyan colored text string if colors enabled, plain text otherwise.
+#[cfg(not(target_os = "windows"))]
+fn info_color(text: &str, no_color: bool) -> String {
+    colorize(text, "36", no_color) // Cyan
+}
+
+/// What: Format warning messages in yellow.
+///
+/// Inputs:
+/// - `text`: The text to format.
+/// - `no_color`: If true, returns text without color codes.
+///
+/// Output:
+/// - Yellow colored text string if colors enabled, plain text otherwise.
+#[cfg(not(target_os = "windows"))]
+fn warning_color(text: &str, no_color: bool) -> String {
+    colorize(text, "33", no_color) // Yellow
+}
+
 /// What: Format a file path as a clickable hyperlink in the terminal using OSC 8 escape sequences.
 ///
 /// Inputs:
@@ -461,7 +535,7 @@ fn prompt_and_validate_password(write_log: &dyn Fn(&str)) -> Option<String> {
 /// What: Handle system update by running pacman and AUR helper updates, logging results.
 ///
 /// Inputs:
-/// - None.
+/// - `no_color`: If true, disables colored output.
 ///
 /// Output:
 /// - Exits the process with appropriate exit code.
@@ -472,9 +546,10 @@ fn prompt_and_validate_password(write_log: &dyn Fn(&str)) -> Option<String> {
 /// - Displays update progress output in real-time to the terminal.
 /// - Logs all command output and status messages to `update.log` in the config logs directory.
 /// - Informs user of final status and log file path.
+/// - Uses colored output for success (green), error (red), info (cyan), and warning (yellow) messages.
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::too_many_lines)]
-pub fn handle_update() -> ! {
+pub fn handle_update(no_color: bool) -> ! {
     use std::fs::OpenOptions;
     use std::io::Write;
     use std::process::Command;
@@ -518,7 +593,10 @@ pub fn handle_update() -> ! {
     let mut aur_helper_name = Option::<&str>::None;
 
     // Step 1: Update pacman (sudo pacman -Syyu --noconfirm)
-    println!("{}", i18n::t("app.cli.update.starting"));
+    println!(
+        "{}",
+        info_color(&i18n::t("app.cli.update.starting"), no_color)
+    );
     write_log("Starting system update: pacman -Syyu --noconfirm");
 
     let pacman_result = run_command_with_logging(
@@ -531,11 +609,17 @@ pub fn handle_update() -> ! {
     match pacman_result {
         Ok((status, output)) => {
             if status.success() {
-                println!("{}", i18n::t("app.cli.update.pacman_success"));
+                println!(
+                    "{}",
+                    success_color(&i18n::t("app.cli.update.pacman_success"), no_color)
+                );
                 write_log("SUCCESS: pacman -Syyu --noconfirm completed successfully");
                 pacman_succeeded = Some(true);
             } else {
-                println!("{}", i18n::t("app.cli.update.pacman_failed"));
+                println!(
+                    "{}",
+                    error_color(&i18n::t("app.cli.update.pacman_failed"), no_color)
+                );
                 write_log(&format!(
                     "FAILED: pacman -Syyu --noconfirm failed with exit code {:?}",
                     status.code()
@@ -548,8 +632,14 @@ pub fn handle_update() -> ! {
             }
         }
         Err(e) => {
-            println!("{}", i18n::t("app.cli.update.pacman_exec_failed"));
-            eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+            println!(
+                "{}",
+                error_color(&i18n::t("app.cli.update.pacman_exec_failed"), no_color)
+            );
+            eprintln!(
+                "{}",
+                error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
+            );
             write_log(&format!(
                 "FAILED: Could not execute pacman -Syyu --noconfirm: {e}"
             ));
@@ -580,7 +670,13 @@ pub fn handle_update() -> ! {
     let aur_helper = utils::get_aur_helper();
     if let Some(helper) = aur_helper {
         aur_helper_name = Some(helper);
-        println!("\n{}", i18n::t_fmt1("app.cli.update.aur_starting", helper));
+        println!(
+            "\n{}",
+            info_color(
+                &i18n::t_fmt1("app.cli.update.aur_starting", helper),
+                no_color
+            )
+        );
         write_log(&format!("Starting AUR update: {helper} -Syyu --noconfirm"));
 
         let aur_result = run_command_with_logging(
@@ -593,13 +689,22 @@ pub fn handle_update() -> ! {
         match aur_result {
             Ok((status, output)) => {
                 if status.success() {
-                    println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
+                    println!(
+                        "{}",
+                        success_color(
+                            &i18n::t_fmt1("app.cli.update.aur_success", helper),
+                            no_color
+                        )
+                    );
                     write_log(&format!(
                         "SUCCESS: {helper} -Syyu --noconfirm completed successfully"
                     ));
                     aur_succeeded = Some(true);
                 } else {
-                    println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
+                    println!(
+                        "{}",
+                        error_color(&i18n::t_fmt1("app.cli.update.aur_failed", helper), no_color)
+                    );
                     write_log(&format!(
                         "FAILED: {} -Syyu --noconfirm failed with exit code {:?}",
                         helper,
@@ -613,8 +718,17 @@ pub fn handle_update() -> ! {
                 }
             }
             Err(e) => {
-                println!("{}", i18n::t_fmt1("app.cli.update.aur_exec_failed", helper));
-                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+                println!(
+                    "{}",
+                    error_color(
+                        &i18n::t_fmt1("app.cli.update.aur_exec_failed", helper),
+                        no_color
+                    )
+                );
+                eprintln!(
+                    "{}",
+                    error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
+                );
                 write_log(&format!(
                     "FAILED: Could not execute {helper} -Syyu --noconfirm: {e}"
                 ));
@@ -624,41 +738,71 @@ pub fn handle_update() -> ! {
             }
         }
     } else {
-        println!("\n{}", i18n::t("app.cli.update.no_aur_helper"));
+        println!(
+            "\n{}",
+            warning_color(&i18n::t("app.cli.update.no_aur_helper"), no_color)
+        );
         write_log("SKIPPED: No AUR helper (paru/yay) available");
     }
 
     // Final summary
-    println!("\n{}", i18n::t("app.cli.update.separator"));
+    println!(
+        "\n{}",
+        info_color(&i18n::t("app.cli.update.separator"), no_color)
+    );
 
     // Show individual status for pacman and AUR helper
     if pacman_succeeded == Some(true) {
-        println!("{}", i18n::t("app.cli.update.pacman_success"));
+        println!(
+            "{}",
+            success_color(&i18n::t("app.cli.update.pacman_success"), no_color)
+        );
     } else if pacman_succeeded == Some(false) {
-        println!("{}", i18n::t("app.cli.update.pacman_failed"));
+        println!(
+            "{}",
+            error_color(&i18n::t("app.cli.update.pacman_failed"), no_color)
+        );
     }
 
     if let Some(helper) = aur_helper_name {
         if aur_succeeded == Some(true) {
-            println!("{}", i18n::t_fmt1("app.cli.update.aur_success", helper));
+            println!(
+                "{}",
+                success_color(
+                    &i18n::t_fmt1("app.cli.update.aur_success", helper),
+                    no_color
+                )
+            );
         } else if aur_succeeded == Some(false) {
-            println!("{}", i18n::t_fmt1("app.cli.update.aur_failed", helper));
+            println!(
+                "{}",
+                error_color(&i18n::t_fmt1("app.cli.update.aur_failed", helper), no_color)
+            );
         }
     }
 
     // Show overall summary
     if all_succeeded {
-        println!("\n{}", i18n::t("app.cli.update.all_success"));
+        println!(
+            "\n{}",
+            success_color(&i18n::t("app.cli.update.all_success"), no_color)
+        );
         write_log("SUMMARY: All updates completed successfully");
     } else {
-        println!("\n{}", i18n::t("app.cli.update.completed_with_errors"));
+        println!(
+            "\n{}",
+            error_color(&i18n::t("app.cli.update.completed_with_errors"), no_color)
+        );
         write_log(&format!(
             "SUMMARY: Update failed. Failed commands: {failed_commands:?}"
         ));
         if !failed_packages.is_empty() {
-            println!("\n{}", i18n::t("app.cli.update.failed_packages"));
+            println!(
+                "\n{}",
+                warning_color(&i18n::t("app.cli.update.failed_packages"), no_color)
+            );
             for pkg in &failed_packages {
-                println!("  - {pkg}");
+                println!("  - {}", error_color(pkg, no_color));
             }
             write_log(&i18n::t_fmt1(
                 "app.cli.update.failed_packages_log",

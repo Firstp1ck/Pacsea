@@ -152,7 +152,7 @@ pub fn process_args(args: &Args) -> Option<bool> {
     // Handle system update (--update / -u)
     #[cfg(not(target_os = "windows"))]
     if args.update {
-        update::handle_update();
+        update::handle_update(args.no_color);
     }
     #[cfg(target_os = "windows")]
     if args.update {
