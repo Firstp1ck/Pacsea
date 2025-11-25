@@ -127,6 +127,7 @@ impl Default for AppState {
             updates_button_rect,
             updates_loading,
             refresh_updates,
+            pending_updates_modal,
         ) = defaults::default_clickable_rects_state();
 
         let (
@@ -308,6 +309,7 @@ impl Default for AppState {
             updates_button_rect,
             updates_loading,
             refresh_updates,
+            pending_updates_modal,
             pkgb_button_rect,
             pkgb_check_button_rect,
             pkgb_reload_button_rect,

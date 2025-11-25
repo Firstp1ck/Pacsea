@@ -179,6 +179,8 @@ pub struct AppState {
     pub updates_loading: bool,
     /// Flag to trigger refresh of updates list after package installation/update.
     pub refresh_updates: bool,
+    /// Flag to indicate that Updates modal should open after refresh completes.
+    pub pending_updates_modal: bool,
 
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.

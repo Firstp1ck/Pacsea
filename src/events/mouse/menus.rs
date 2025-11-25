@@ -45,7 +45,7 @@ fn handle_import_button(app: &mut AppState) -> bool {
 
 /// Handle click on Updates button.
 ///
-/// What: Opens the available updates modal with scrollable list.
+/// What: Opens the available updates modal with scrollable list and triggers refresh.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
@@ -56,55 +56,15 @@ fn handle_import_button(app: &mut AppState) -> bool {
 /// Details:
 /// - Loads updates from `~/.config/pacsea/lists/available_updates.txt`
 /// - Opens Updates modal with scroll support
+/// - Triggers a refresh of the updates list to ensure current data
+/// - Opens the modal only after refresh completes
 pub fn handle_updates_button(app: &mut AppState) -> bool {
-    let updates_file = crate::theme::lists_dir().join("available_updates.txt");
-
-    // Load updates from file and parse into structured format
-    let entries = if updates_file.exists() {
-        std::fs::read_to_string(&updates_file)
-            .ok()
-            .map(|content| {
-                content
-                    .lines()
-                    .filter_map(|line| {
-                        let trimmed = line.trim();
-                        if trimmed.is_empty() {
-                            None
-                        } else {
-                            // Parse format: "name - old_version -> name - new_version"
-                            trimmed.find(" -> ").and_then(|arrow_pos| {
-                                let before_arrow = trimmed[..arrow_pos].trim();
-                                let after_arrow = trimmed[arrow_pos + 4..].trim();
-
-                                // Parse "name - old_version" from before_arrow
-                                before_arrow.rfind(" - ").and_then(|old_dash_pos| {
-                                    let name = before_arrow[..old_dash_pos].trim().to_string();
-                                    let old_version =
-                                        before_arrow[old_dash_pos + 3..].trim().to_string();
-
-                                    // Parse "name - new_version" from after_arrow
-                                    // Use a different variable name to avoid confusion
-                                    after_arrow.rfind(" - ").map(|new_dash_pos| {
-                                        let new_version =
-                                            after_arrow[new_dash_pos + 3..].trim().to_string();
-                                        (name, old_version, new_version)
-                                    })
-                                })
-                            })
-                        }
-                    })
-                    .collect::<Vec<(String, String, String)>>()
-            })
-            .unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-
-    app.modal = crate::state::Modal::Updates {
-        entries,
-        scroll: 0,
-        selected: 0,
-    };
+    // Trigger refresh of updates list when button is clicked
+    app.refresh_updates = true;
+    app.updates_loading = true;
+    // Set flag to open modal after refresh completes
+    app.pending_updates_modal = true;
+    // Don't open modal yet - wait for refresh to complete
     false
 }
 
