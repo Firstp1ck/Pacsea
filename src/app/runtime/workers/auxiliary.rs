@@ -30,7 +30,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - Updates package index in background (Windows vs non-Windows handling)
 /// - Refreshes pacman caches (installed, explicit)
 /// - Spawns tick worker that sends events every 200ms
-/// - Checks for available package updates once at startup
+/// - Checks for available package updates once at startup and periodically every 30 seconds
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_auxiliary_workers(
     headless: bool,
@@ -120,6 +120,18 @@ pub fn spawn_auxiliary_workers(
     // Check for available package updates once at startup (skip in headless mode)
     if !headless {
         spawn_updates_worker(updates_tx.clone());
+
+        // Periodically refresh updates list every 30 seconds
+        let updates_tx_periodic = updates_tx.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(30));
+            // Skip the first tick to avoid immediate refresh after startup
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                spawn_updates_worker(updates_tx_periodic.clone());
+            }
+        });
     }
 
     // Spawn tick worker

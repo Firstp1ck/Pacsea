@@ -173,6 +173,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.services_req_tx,
                 &channels.sandbox_req_tx,
                 &channels.summary_req_tx,
+                &channels.updates_tx,
             );
             false
         }

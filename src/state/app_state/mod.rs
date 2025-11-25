@@ -177,6 +177,8 @@ pub struct AppState {
     pub updates_button_rect: Option<(u16, u16, u16, u16)>,
     /// Whether updates check is currently in progress.
     pub updates_loading: bool,
+    /// Flag to trigger refresh of updates list after package installation/update.
+    pub refresh_updates: bool,
 
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
