@@ -31,7 +31,7 @@ pub fn is_package_loading_preflight(app: &AppState, package_name: &str) -> bool 
     // Check dependency resolution
     // First check preflight-specific queue (when modal is open)
     if app.preflight_deps_resolving
-        && let Some(ref items) = app.preflight_deps_items
+        && let Some((ref items, _action)) = app.preflight_deps_items
         && items.iter().any(|p| p.name == package_name)
     {
         return true;

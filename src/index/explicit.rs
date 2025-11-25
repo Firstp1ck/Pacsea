@@ -1,22 +1,27 @@
 use std::collections::HashSet;
 
 use super::explicit_lock;
+use crate::state::InstalledPackagesMode;
 
-/// What: Refresh the process-wide cache of explicitly installed (leaf) package names via `pacman -Qetq`.
+/// What: Refresh the process-wide cache of explicitly installed package names.
 ///
 /// Inputs:
-/// - None (spawns a blocking task to run pacman)
+/// - `mode`: Filter mode for installed packages.
+///   - `LeafOnly`: Uses `pacman -Qetq` (explicitly installed AND not required)
+///   - `AllExplicit`: Uses `pacman -Qeq` (all explicitly installed)
 ///
 /// Output:
 /// - Updates the global explicit-name set; ignores errors.
 ///
 /// Details:
 /// - Converts command stdout into a `HashSet` and replaces the shared cache atomically.
-pub async fn refresh_explicit_cache() {
-    if let Ok(Ok(body)) = tokio::task::spawn_blocking(|| {
-        crate::util::pacman::run_pacman(&["-Qetq"]) // explicitly installed AND not required (leaf), names only
-    })
-    .await
+pub async fn refresh_explicit_cache(mode: InstalledPackagesMode) {
+    let args: &[&str] = match mode {
+        InstalledPackagesMode::LeafOnly => &["-Qetq"], // explicitly installed AND not required (leaf)
+        InstalledPackagesMode::AllExplicit => &["-Qeq"], // all explicitly installed
+    };
+    if let Ok(Ok(body)) =
+        tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(args)).await
     {
         let set: HashSet<String> = body.lines().map(|s| s.trim().to_string()).collect();
         if let Ok(mut g) = explicit_lock().write() {
@@ -166,7 +171,7 @@ exit 1
             std::env::set_var("PATH", &new_path);
         }
 
-        super::refresh_explicit_cache().await;
+        super::refresh_explicit_cache(crate::state::InstalledPackagesMode::LeafOnly).await;
 
         let _ = std::fs::remove_dir_all(&root);
 

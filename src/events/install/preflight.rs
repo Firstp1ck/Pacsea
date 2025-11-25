@@ -374,7 +374,10 @@ fn trigger_background_resolution(
                 "[Preflight] Setting preflight_deps_resolving=true for {} items (cache empty)",
                 items.len()
             );
-            app.preflight_deps_items = Some(items.to_vec());
+            app.preflight_deps_items = Some((
+                items.to_vec(),
+                crate::state::modal::PreflightAction::Install,
+            ));
             app.preflight_deps_resolving = true;
         }
     } else {

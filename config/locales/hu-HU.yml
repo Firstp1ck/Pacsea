@@ -505,6 +505,9 @@ hu-HU:
           data_will_update: "Az adatok még feldolgozás alatt állnak. A darabszám automatikusan frissül."
         deps:
           dependents_rely_on: "Függőségi csomagok: {} csomag is függ az eltávolítási listán szereplőtől"
+          # TODO: translate to Hungarian
+          no_deps_for_removal: "No reverse dependencies found. Packages can be safely removed."
+          meta_package_warning: "⚠ Note: '{}' is a meta-package. While nothing depends on it directly, removing it may affect your system's base installation state."
           dependencies_label: "Függőségek: {}"
           total: "összesen: {}"
           installed: "{} telepítve"

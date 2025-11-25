@@ -503,6 +503,8 @@ de-DE:
           data_will_update: "Daten werden noch aufgelöst. Zählungen werden automatisch aktualisiert."
         deps:
           dependents_rely_on: "Abhängige: {} Paket(e) hängen von der Entfernungsliste ab"
+          no_deps_for_removal: "Keine umgekehrten Abhängigkeiten gefunden. Pakete können sicher entfernt werden."
+          meta_package_warning: "⚠ Hinweis: '{}' ist ein Meta-Paket. Obwohl nichts direkt davon abhängt, kann das Entfernen den Basis-Installationszustand des Systems beeinflussen."
           dependencies_label: "Abhängigkeiten: {}"
           total: "{} gesamt"
           installed: "{} installiert"

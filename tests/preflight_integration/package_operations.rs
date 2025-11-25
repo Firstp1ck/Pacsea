@@ -623,7 +623,10 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
 
     // Simulate first package's dependency resolution still in progress
     app.preflight_deps_resolving = true;
-    app.preflight_deps_items = Some(vec![first_package.clone()]);
+    app.preflight_deps_items = Some((
+        vec![first_package.clone()],
+        crate_root::state::modal::PreflightAction::Install,
+    ));
 
     // Now add second package while first is still loading
     let second_package = crate_root::state::PackageItem {

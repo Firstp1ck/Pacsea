@@ -116,7 +116,8 @@ pub fn spawn_auxiliary_workers(
     if !headless {
         tokio::spawn(async move {
             pkgindex::refresh_installed_cache().await;
-            pkgindex::refresh_explicit_cache().await;
+            // Use default mode (LeafOnly) at startup; periodic refresh will use user's configured mode
+            pkgindex::refresh_explicit_cache(crate::state::InstalledPackagesMode::default()).await;
         });
     }
 

@@ -156,6 +156,53 @@ impl SortMode {
     }
 }
 
+/// Filter mode for installed packages in the "Installed" toggle.
+///
+/// What: Controls which packages are shown when viewing installed packages.
+/// - `LeafOnly`: Show only explicitly installed packages with no dependents (pacman -Qetq).
+/// - `AllExplicit`: Show all explicitly installed packages (pacman -Qeq).
+///
+/// Details:
+/// - `LeafOnly` is the default, showing packages safe to remove.
+/// - `AllExplicit` includes packages that other packages depend on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InstalledPackagesMode {
+    /// Show only leaf packages (explicitly installed, nothing depends on them).
+    #[default]
+    LeafOnly,
+    /// Show all explicitly installed packages.
+    AllExplicit,
+}
+
+impl InstalledPackagesMode {
+    /// Return the string key used in settings files for this mode.
+    ///
+    /// What: Map the enum variant to its persisted configuration key.
+    /// - Input: None; uses the receiver variant.
+    /// - Output: Static string representing the serialized value.
+    #[must_use]
+    pub const fn as_config_key(&self) -> &'static str {
+        match self {
+            Self::LeafOnly => "leaf",
+            Self::AllExplicit => "all",
+        }
+    }
+
+    /// Parse an installed packages mode from its settings key.
+    ///
+    /// What: Convert persisted config values back into `InstalledPackagesMode` variants.
+    /// - Input: `s` string slice containing the stored key (case-insensitive).
+    /// - Output: `Some(InstalledPackagesMode)` when a known variant matches; `None` otherwise.
+    #[must_use]
+    pub fn from_config_key(s: &str) -> Option<Self> {
+        match s.trim().to_lowercase().as_str() {
+            "leaf" | "leaf_only" => Some(Self::LeafOnly),
+            "all" | "all_explicit" => Some(Self::AllExplicit),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::SortMode;

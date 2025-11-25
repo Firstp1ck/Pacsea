@@ -8,7 +8,7 @@ struct DepsTabParams<'a> {
     dep_selected: &'a mut usize,
     install_list_deps: &'a [crate::state::modal::DependencyInfo],
     preflight_deps_resolving: bool,
-    preflight_deps_items: &'a mut Option<Vec<PackageItem>>,
+    preflight_deps_items: &'a mut Option<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     remove_preflight_summary_cleared: &'a mut bool,
 }
 
@@ -88,7 +88,17 @@ fn handle_deps_tab_switch(
         params.preflight_deps_resolving
     );
 
+    tracing::info!(
+        "[Preflight] handle_deps_tab_switch: dependency_info.len()={}, action={:?}, items={}",
+        params.dependency_info.len(),
+        action,
+        items.len()
+    );
+
     if params.dependency_info.is_empty() {
+        tracing::info!(
+            "[Preflight] handle_deps_tab_switch: dependency_info is empty, will trigger resolution"
+        );
         match action {
             crate::state::PreflightAction::Install => {
                 let item_names: std::collections::HashSet<String> =
@@ -114,7 +124,8 @@ fn handle_deps_tab_switch(
                         "[Preflight] Triggering background dependency resolution for {} packages",
                         items.len()
                     );
-                    *params.preflight_deps_items = Some(items.to_vec());
+                    *params.preflight_deps_items =
+                        Some((items.to_vec(), crate::state::PreflightAction::Install));
                     *params.remove_preflight_summary_cleared = true;
                     return true;
                 }
@@ -127,7 +138,15 @@ fn handle_deps_tab_switch(
                 *params.remove_preflight_summary_cleared = true;
             }
             crate::state::PreflightAction::Remove => {
-                // For remove action, reverse deps are computed on-demand
+                // Trigger reverse dependency resolution for removal
+                tracing::debug!(
+                    "[Preflight] Triggering background reverse dependency resolution for {} packages",
+                    items.len()
+                );
+                *params.preflight_deps_items =
+                    Some((items.to_vec(), crate::state::PreflightAction::Remove));
+                *params.remove_preflight_summary_cleared = true;
+                return true;
             }
         }
     } else {
@@ -338,7 +357,7 @@ pub(super) fn switch_preflight_tab(
     let preflight_deps_resolving_value = app.preflight_deps_resolving;
 
     // Prepare mutable state that will be updated
-    let mut preflight_deps_items = None;
+    let mut preflight_deps_items: Option<(Vec<PackageItem>, crate::state::PreflightAction)> = None;
     let mut preflight_files_items = None;
     let mut preflight_sandbox_items = None;
     let mut preflight_files_resolving = false;
@@ -378,10 +397,8 @@ pub(super) fn switch_preflight_tab(
                     preflight_deps_items: &mut preflight_deps_items,
                     remove_preflight_summary_cleared: &mut remove_preflight_summary_cleared,
                 };
-                let should_trigger = handle_deps_tab_switch(items, action, &mut deps_params);
-                if should_trigger {
-                    preflight_deps_items = Some(items.to_vec());
-                }
+                // handle_deps_tab_switch sets preflight_deps_items with the correct action
+                let _should_trigger = handle_deps_tab_switch(items, action, &mut deps_params);
             }
             crate::state::PreflightTab::Files => {
                 handle_files_tab_switch(
@@ -420,8 +437,13 @@ pub(super) fn switch_preflight_tab(
     }
 
     // Apply mutations after modal borrow is released
-    if let Some(items) = preflight_deps_items {
-        app.preflight_deps_items = Some(items);
+    if let Some((items, action)) = preflight_deps_items {
+        tracing::info!(
+            "[Preflight] switch_preflight_tab: Setting preflight_deps_items with {} items, action={:?}, setting preflight_deps_resolving=true",
+            items.len(),
+            action
+        );
+        app.preflight_deps_items = Some((items, action));
         app.preflight_deps_resolving = true;
     }
     if remove_preflight_summary_cleared {

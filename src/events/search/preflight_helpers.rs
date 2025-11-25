@@ -59,7 +59,10 @@ fn trigger_background_resolution(
     cached_files: &[crate::state::modal::PackageFileInfo],
 ) {
     if dependency_info.is_empty() {
-        app.preflight_deps_items = Some(items.to_vec());
+        app.preflight_deps_items = Some((
+            items.to_vec(),
+            crate::state::modal::PreflightAction::Install,
+        ));
         app.preflight_deps_resolving = true;
     }
     if cached_files.is_empty() {

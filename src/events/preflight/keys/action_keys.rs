@@ -189,7 +189,7 @@ pub(super) fn handle_shift_r_key(app: &mut AppState) -> bool {
     app.preflight_summary_resolving = true;
 
     if matches!(action, crate::state::PreflightAction::Install) {
-        app.preflight_deps_items = Some(items.clone());
+        app.preflight_deps_items = Some((items.clone(), crate::state::PreflightAction::Install));
         app.preflight_deps_resolving = true;
 
         app.preflight_files_items = Some(items.clone());

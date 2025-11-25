@@ -80,7 +80,10 @@ async fn preflight_handles_out_of_order_data_arrival() {
         crate_root::state::modal::PreflightAction::Install,
     ));
     app.preflight_summary_resolving = true;
-    app.preflight_deps_items = Some(test_packages.clone());
+    app.preflight_deps_items = Some((
+        test_packages.clone(),
+        crate_root::state::modal::PreflightAction::Install,
+    ));
     app.preflight_deps_resolving = true;
     app.preflight_files_items = Some(test_packages.clone());
     app.preflight_files_resolving = true;
@@ -401,7 +404,10 @@ async fn preflight_cancellation_aborts_in_flight_work() {
     app.install_list = test_packages.clone();
     app.preflight_cancelled
         .store(false, std::sync::atomic::Ordering::Relaxed);
-    app.preflight_deps_items = Some(test_packages.clone());
+    app.preflight_deps_items = Some((
+        test_packages.clone(),
+        crate_root::state::modal::PreflightAction::Install,
+    ));
     app.preflight_deps_resolving = true;
     app.preflight_files_items = Some(test_packages.clone());
     app.preflight_files_resolving = true;
