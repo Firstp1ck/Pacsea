@@ -174,11 +174,11 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
 /// - `output`: Raw command output bytes
 ///
 /// Output:
-/// - Vector of (`package_name`, `new_version`) tuples
+/// - Vector of (`package_name`, `old_version`, `new_version`) tuples
 ///
 /// Details:
-/// - Parses "package-name version" format
-fn parse_checkupdates(output: &[u8]) -> Vec<(String, String)> {
+/// - Parses `"package-name old_version -> new_version"` format
+fn parse_checkupdates(output: &[u8]) -> Vec<(String, String, String)> {
     String::from_utf8_lossy(output)
         .lines()
         .filter_map(|line| {
@@ -186,14 +186,20 @@ fn parse_checkupdates(output: &[u8]) -> Vec<(String, String)> {
             if trimmed.is_empty() {
                 None
             } else {
-                let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let name = parts[0].to_string();
-                    let new_version = parts[1].to_string();
-                    Some((name, new_version))
-                } else {
-                    None
-                }
+                // Parse "package-name old_version -> new_version" format
+                trimmed.find(" -> ").and_then(|arrow_pos| {
+                    let before_arrow = &trimmed[..arrow_pos];
+                    let after_arrow = &trimmed[arrow_pos + 4..];
+                    let parts: Vec<&str> = before_arrow.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let name = parts[0].to_string();
+                        let old_version = parts[1..].join(" "); // In case version has spaces
+                        let new_version = after_arrow.trim().to_string();
+                        Some((name, old_version, new_version))
+                    } else {
+                        None
+                    }
+                })
             }
         })
         .collect()
@@ -236,36 +242,6 @@ fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// What: Get installed version of a package using pacman -Q.
-///
-/// Inputs:
-/// - `name`: Package name
-///
-/// Output:
-/// - Installed version string, or "unknown" if not found
-fn get_installed_version(name: &str) -> String {
-    use std::process::{Command, Stdio};
-
-    Command::new("pacman")
-        .args(["-Q", name])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .ok()
-        .and_then(|output| {
-            if output.status.success() {
-                String::from_utf8_lossy(&output.stdout)
-                    .split_whitespace()
-                    .nth(1)
-                    .map(ToString::to_string)
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
 /// What: Process checkupdates output and add packages to collections.
 ///
 /// Inputs:
@@ -283,13 +259,10 @@ fn process_checkupdates_output(
                 let packages = parse_checkupdates(&output.stdout);
                 let count = packages.len();
 
-                // Get installed versions for packages from checkupdates
-                for (name, new_version) in packages {
-                    let installed_version = get_installed_version(&name);
-
+                // Parse checkupdates output which already contains old and new versions
+                for (name, old_version, new_version) in packages {
                     // Format: "name - old_version -> name - new_version"
-                    let formatted =
-                        format!("{name} - {installed_version} -> {name} - {new_version}");
+                    let formatted = format!("{name} - {old_version} -> {name} - {new_version}");
                     packages_map.insert(name.clone(), formatted);
                     packages_set.insert(name);
                 }
@@ -533,5 +506,82 @@ pub fn spawn_event_thread(
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_checkupdates;
+
+    /// What: Test that checkupdates parsing correctly extracts old and new versions.
+    ///
+    /// Inputs:
+    /// - Sample checkupdates output with format `"package-name old_version -> new_version"`
+    ///
+    /// Output:
+    /// - Verifies that `old_version` and `new_version` are correctly parsed and different
+    ///
+    /// Details:
+    /// - Tests parsing of checkupdates output format
+    #[test]
+    fn test_parse_checkupdates_extracts_correct_versions() {
+        let test_cases = vec![
+            ("bat 0.26.0-1 -> 0.26.0-2", "bat", "0.26.0-1", "0.26.0-2"),
+            (
+                "comgr 2:6.4.4-2 -> 2:7.1.0-1",
+                "comgr",
+                "2:6.4.4-2",
+                "2:7.1.0-1",
+            ),
+            (
+                "composable-kernel 6.4.4-1 -> 7.1.0-1",
+                "composable-kernel",
+                "6.4.4-1",
+                "7.1.0-1",
+            ),
+        ];
+
+        for (input, expected_name, expected_old, expected_new) in test_cases {
+            let output = input.as_bytes();
+            let entries = parse_checkupdates(output);
+
+            assert_eq!(entries.len(), 1, "Failed to parse: {input}");
+            let (name, old_version, new_version) = &entries[0];
+            assert_eq!(name, expected_name, "Wrong name for: {input}");
+            assert_eq!(old_version, expected_old, "Wrong old_version for: {input}");
+            assert_eq!(new_version, expected_new, "Wrong new_version for: {input}");
+        }
+    }
+
+    /// What: Test that checkupdates parsing handles multiple packages.
+    ///
+    /// Inputs:
+    /// - Multi-line checkupdates output
+    ///
+    /// Output:
+    /// - Verifies that all packages are parsed correctly
+    #[test]
+    fn test_parse_checkupdates_multiple_packages() {
+        let input = "bat 0.26.0-1 -> 0.26.0-2\ncomgr 2:6.4.4-2 -> 2:7.1.0-1\n";
+        let output = input.as_bytes();
+        let entries = parse_checkupdates(output);
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(
+            entries[0],
+            (
+                "bat".to_string(),
+                "0.26.0-1".to_string(),
+                "0.26.0-2".to_string()
+            )
+        );
+        assert_eq!(
+            entries[1],
+            (
+                "comgr".to_string(),
+                "2:6.4.4-2".to_string(),
+                "2:7.1.0-1".to_string()
+            )
+        );
     }
 }

@@ -79,8 +79,9 @@ pub fn build_install_command(
     match &item.source {
         Source::Official { .. } => {
             let reinstall = crate::index::is_installed(&item.name);
+            // For already installed packages, use -Sy to refresh database and upgrade in one command
             let base_cmd = if reinstall {
-                format!("pacman -S --noconfirm {}", item.name)
+                format!("pacman -Sy --noconfirm {}", item.name)
             } else {
                 format!("pacman -S --needed --noconfirm {}", item.name)
             };
@@ -93,11 +94,13 @@ pub fn build_install_command(
             if pass.is_empty() {
                 let bash = if reinstall {
                     format!(
-                        "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo {base_cmd}; fi); else echo 'Reinstall cancelled.'; fi){hold_tail}"
+                        "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy --noconfirm {}; fi); else echo 'Reinstall cancelled.'; fi){hold_tail}",
+                        item.name
                     )
                 } else {
                     format!(
-                        "(sudo {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo {base_cmd}; fi)){hold_tail}"
+                        "(sudo {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy --noconfirm {}; fi)){hold_tail}",
+                        item.name
                     )
                 };
                 (bash, true)
@@ -106,11 +109,13 @@ pub fn build_install_command(
                 let pipe = format!("echo '{escaped}' | ");
                 let bash = if reinstall {
                     format!(
-                        "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S pacman -Syy && {pipe}sudo -S {base_cmd}; fi); else echo 'Reinstall cancelled.'; fi){hold_tail}"
+                        "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S pacman -Syy --noconfirm {}; fi); else echo 'Reinstall cancelled.'; fi){hold_tail}",
+                        item.name
                     )
                 } else {
                     format!(
-                        "({pipe}sudo -S {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S pacman -Syy && {pipe}sudo -S {base_cmd}; fi)){hold_tail}"
+                        "({pipe}sudo -S {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S pacman -Syy --noconfirm {}; fi)){hold_tail}",
+                        item.name
                     )
                 };
                 (bash, true)
