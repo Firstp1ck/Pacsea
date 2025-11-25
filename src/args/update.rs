@@ -95,6 +95,7 @@ fn warning_color(text: &str, no_color: bool) -> String {
 /// - Uses OSC 8 escape sequences to create clickable links in modern terminals.
 /// - Converts the path to an absolute file:// URL.
 /// - Handles paths that may not exist yet by using absolute path resolution.
+#[allow(dead_code)] // Used in handle_update which is conditionally compiled
 fn format_clickable_path(path: &Path) -> String {
     // Try to get absolute path - canonicalize if file exists, otherwise resolve relative to current dir
     let absolute_path = if path.exists() {
@@ -130,7 +131,7 @@ fn format_clickable_path(path: &Path) -> String {
 /// Details:
 /// - Parses various pacman error patterns including "target not found", transaction failures, etc.
 /// - Handles both English and German error messages.
-#[allow(clippy::similar_names)]
+#[allow(clippy::similar_names, dead_code)] // Used in extract_failed_packages which is used in handle_update
 fn extract_failed_packages_from_pacman(output: &str) -> Vec<String> {
     let mut failed = Vec::new();
     let lines: Vec<&str> = output.lines().collect();
@@ -258,6 +259,7 @@ fn extract_failed_packages_from_pacman(output: &str) -> Vec<String> {
 /// - Parses yay/paru output for lines like "package - exit status X".
 /// - Uses locale-independent pattern matching (exit status pattern is universal).
 /// - Does not rely on locale-specific error messages.
+#[allow(dead_code)] // Used in handle_update which is conditionally compiled
 fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
     let mut failed = if helper == "pacman" {
         extract_failed_packages_from_pacman(output)
@@ -532,6 +534,61 @@ fn prompt_and_validate_password(write_log: &dyn Fn(&str)) -> Option<String> {
     }
 }
 
+/// What: Prompt user if they want to retry with force download database (-Syyu).
+///
+/// Inputs:
+/// - `prompt_text`: The prompt text to display.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - `true` if user wants to retry, `false` otherwise.
+///
+/// Details:
+/// - Prompts user with y/N question.
+/// - Returns true only if user explicitly types 'y' or 'Y'.
+/// - Returns false for any other input (including empty/Enter).
+#[cfg(not(target_os = "windows"))]
+fn prompt_retry_with_force(prompt_text: &str, write_log: &dyn Fn(&str)) -> bool {
+    use std::io::{self, IsTerminal, Write};
+
+    // Check if stdin is available for interactive input
+    if !io::stdin().is_terminal() {
+        // Not in an interactive terminal, default to no retry
+        write_log("Not in interactive terminal, skipping retry prompt (defaulting to no retry)");
+        return false;
+    }
+
+    // Print prompt without newline so answer appears on same line
+    print!("{}", prompt_text);
+    let _ = io::stdout().flush();
+
+    // Read single character response
+    let mut input = String::new();
+    match io::stdin().read_line(&mut input) {
+        Ok(_) => {
+            let trimmed = input.trim().to_lowercase();
+            let retry = trimmed == "y" || trimmed == "yes";
+            if retry {
+                write_log("User chose to retry with force download database (-Syyu)");
+            } else {
+                write_log("User chose not to retry with force download database");
+            }
+            retry
+        }
+        Err(e) => {
+            eprintln!(
+                "{}",
+                i18n::t_fmt1(
+                    "app.cli.update.error_prefix",
+                    &format!("Failed to read input: {e}")
+                )
+            );
+            write_log(&format!("FAILED: Could not read retry prompt input: {e}"));
+            false
+        }
+    }
+}
+
 /// What: Handle system update by running pacman and AUR helper updates, logging results.
 ///
 /// Inputs:
@@ -599,12 +656,35 @@ pub fn handle_update(no_color: bool) -> ! {
     );
     write_log("Starting system update: pacman -Syu --noconfirm");
 
-    let pacman_result = run_command_with_logging(
+    let mut pacman_result = run_command_with_logging(
         "sudo",
         &["pacman", "-Syu", "--noconfirm"],
         &log_file_path,
         password.as_deref(),
     );
+
+    // If pacman -Syu failed, ask user if they want to retry with -Syyu
+    if let Ok((status, _output)) = &pacman_result {
+        if !status.success() {
+            let retry_prompt = i18n::t("app.cli.update.retry_prompt_pacman");
+            if prompt_retry_with_force(&retry_prompt, &write_log) {
+                println!(
+                    "{}",
+                    info_color(
+                        "Retrying pacman update with force download database (-Syyu)...",
+                        no_color
+                    )
+                );
+                write_log("Retrying pacman update: pacman -Syyu --noconfirm");
+                pacman_result = run_command_with_logging(
+                    "sudo",
+                    &["pacman", "-Syyu", "--noconfirm"],
+                    &log_file_path,
+                    password.as_deref(),
+                );
+            }
+        }
+    }
 
     match pacman_result {
         Ok((status, output)) => {
@@ -613,7 +693,7 @@ pub fn handle_update(no_color: bool) -> ! {
                     "{}",
                     success_color(&i18n::t("app.cli.update.pacman_success"), no_color)
                 );
-                write_log("SUCCESS: pacman -Syu --noconfirm completed successfully");
+                write_log("SUCCESS: pacman update completed successfully");
                 pacman_succeeded = Some(true);
             } else {
                 println!(
@@ -621,7 +701,7 @@ pub fn handle_update(no_color: bool) -> ! {
                     error_color(&i18n::t("app.cli.update.pacman_failed"), no_color)
                 );
                 write_log(&format!(
-                    "FAILED: pacman -Syu --noconfirm failed with exit code {:?}",
+                    "FAILED: pacman update failed with exit code {:?}",
                     status.code()
                 ));
                 let packages = extract_failed_packages(&output, "pacman");
@@ -640,9 +720,7 @@ pub fn handle_update(no_color: bool) -> ! {
                 "{}",
                 error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
             );
-            write_log(&format!(
-                "FAILED: Could not execute pacman -Syu --noconfirm: {e}"
-            ));
+            write_log(&format!("FAILED: Could not execute pacman update: {e}"));
             all_succeeded = false;
             failed_commands.push("pacman -Syu --noconfirm".to_string());
             pacman_succeeded = Some(false);
@@ -679,12 +757,37 @@ pub fn handle_update(no_color: bool) -> ! {
         );
         write_log(&format!("Starting AUR update: {helper} -Syu --noconfirm"));
 
-        let aur_result = run_command_with_logging(
+        let mut aur_result = run_command_with_logging(
             helper,
             &["-Syu", "--noconfirm"],
             &log_file_path,
             None, // AUR helpers handle sudo internally, no password needed
         );
+
+        // If AUR helper -Syu failed, ask user if they want to retry with -Syyu
+        if let Ok((status, _output)) = &aur_result {
+            if !status.success() {
+                let retry_prompt = i18n::t_fmt1("app.cli.update.retry_prompt_aur", helper);
+                if prompt_retry_with_force(&retry_prompt, &write_log) {
+                    println!(
+                        "{}",
+                        info_color(
+                            &format!(
+                                "Retrying {helper} update with force download database (-Syyu)..."
+                            ),
+                            no_color
+                        )
+                    );
+                    write_log(&format!("Retrying AUR update: {helper} -Syyu --noconfirm"));
+                    aur_result = run_command_with_logging(
+                        helper,
+                        &["-Syyu", "--noconfirm"],
+                        &log_file_path,
+                        None, // AUR helpers handle sudo internally, no password needed
+                    );
+                }
+            }
+        }
 
         match aur_result {
             Ok((status, output)) => {
@@ -696,9 +799,7 @@ pub fn handle_update(no_color: bool) -> ! {
                             no_color
                         )
                     );
-                    write_log(&format!(
-                        "SUCCESS: {helper} -Syu --noconfirm completed successfully"
-                    ));
+                    write_log(&format!("SUCCESS: {helper} update completed successfully"));
                     aur_succeeded = Some(true);
                 } else {
                     println!(
@@ -706,7 +807,7 @@ pub fn handle_update(no_color: bool) -> ! {
                         error_color(&i18n::t_fmt1("app.cli.update.aur_failed", helper), no_color)
                     );
                     write_log(&format!(
-                        "FAILED: {} -Syu --noconfirm failed with exit code {:?}",
+                        "FAILED: {} update failed with exit code {:?}",
                         helper,
                         status.code()
                     ));
@@ -729,9 +830,7 @@ pub fn handle_update(no_color: bool) -> ! {
                     "{}",
                     error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
                 );
-                write_log(&format!(
-                    "FAILED: Could not execute {helper} -Syu --noconfirm: {e}"
-                ));
+                write_log(&format!("FAILED: Could not execute {helper} update: {e}"));
                 all_succeeded = false;
                 failed_commands.push(format!("{helper} -Syu --noconfirm"));
                 aur_succeeded = Some(false);
