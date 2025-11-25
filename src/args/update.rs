@@ -416,6 +416,8 @@ fn run_command_with_logging(
                 args.first().map_or_else(
                     || format!("echo {escaped} | sudo -S {args_str}"),
                     |cmd| {
+                        // Escape cmd for shell safety, even though currently only trusted values are passed
+                        let cmd_escaped = shell_single_quote(cmd);
                         let cmd_args = &args[1..];
                         let cmd_args_str = cmd_args
                             .iter()
@@ -423,9 +425,9 @@ fn run_command_with_logging(
                             .collect::<Vec<_>>()
                             .join(" ");
                         if cmd_args_str.is_empty() {
-                            format!("echo {escaped} | sudo -S {cmd}")
+                            format!("echo {escaped} | sudo -S {cmd_escaped}")
                         } else {
-                            format!("echo {escaped} | sudo -S {cmd} {cmd_args_str}")
+                            format!("echo {escaped} | sudo -S {cmd_escaped} {cmd_args_str}")
                         }
                     },
                 )
@@ -433,7 +435,9 @@ fn run_command_with_logging(
         )
     } else {
         // Non-sudo command (e.g., paru, yay), use directly
-        format!("{program} {args_str}")
+        // Escape program for shell safety, even though currently only trusted values are passed
+        let program_escaped = shell_single_quote(program);
+        format!("{program_escaped} {args_str}")
     };
 
     // Use tee twice: first logs to file, second captures to tempfile and displays
@@ -516,7 +520,8 @@ fn prompt_and_validate_password(write_log: &dyn Fn(&str)) -> Option<String> {
         Ok(pass) => {
             // Validate that password is not empty
             // Empty passwords will cause sudo to fail, so reject them early
-            if pass.trim().is_empty() {
+            let trimmed_pass = pass.trim();
+            if trimmed_pass.is_empty() {
                 let error_msg = "Empty password provided. Password cannot be empty.";
                 eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", error_msg));
                 write_log("FAILED: Empty password provided");
@@ -524,7 +529,8 @@ fn prompt_and_validate_password(write_log: &dyn Fn(&str)) -> Option<String> {
                 std::process::exit(1);
             }
             write_log("Password obtained from user (not logged)");
-            Some(pass)
+            // Return trimmed password to ensure consistency with validation
+            Some(trimmed_pass.to_string())
         }
         Err(e) => {
             eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));

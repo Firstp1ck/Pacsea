@@ -1,5 +1,8 @@
 use crate::state::{PackageItem, Source};
 
+#[cfg(not(target_os = "windows"))]
+use super::utils::shell_single_quote;
+
 /// What: Build the common AUR install body that prefers `paru` and falls back to `yay`.
 ///
 /// Input:
@@ -63,8 +66,8 @@ pub fn build_install_command(
                 let bash = format!("sudo {base_cmd}{hold_tail}");
                 (bash, true)
             } else {
-                let escaped = pass.replace('\'', "'\"'\"'\''");
-                let pipe = format!("echo '{escaped}' | ");
+                let escaped = shell_single_quote(pass);
+                let pipe = format!("echo {escaped} | ");
                 let bash = format!("{pipe}sudo -S {base_cmd}{hold_tail}");
                 (bash, true)
             }

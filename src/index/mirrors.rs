@@ -35,9 +35,6 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 ///
 /// # Errors
 /// - Returns an error if directory creation fails, curl request fails, or file I/O fails.
-///
-/// # Errors
-/// - Returns an error if directory creation fails, curl request fails, or file I/O fails.
 pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
     let repo_dir = repo_dir.to_path_buf();
     task::spawn_blocking(move || {
