@@ -82,10 +82,6 @@ pub(super) fn handle_preflight_exec(
         KeyCode::Enter => {
             // Compute real counts best-effort and show summary
             let data = crate::logic::compute_post_summary(items);
-            // If installation was successful, trigger refresh of updates list
-            if data.success {
-                app.refresh_updates = true;
-            }
             app.modal = crate::state::Modal::PostSummary {
                 success: data.success,
                 changed_files: data.changed_files,

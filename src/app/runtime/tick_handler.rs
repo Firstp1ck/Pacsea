@@ -443,7 +443,7 @@ pub fn handle_tick(
     maybe_flush_services_cache(app);
     maybe_flush_sandbox_cache(app);
 
-    // Refresh updates list if flag is set (after successful package installation/update)
+    // Refresh updates list if flag is set (manual refresh via button click)
     if app.refresh_updates {
         app.refresh_updates = false;
         app.updates_loading = true;
