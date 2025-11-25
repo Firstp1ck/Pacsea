@@ -68,7 +68,7 @@ pub fn render_optional_deps(
             Style::default().fg(th.overlay1),
         ));
         segs.push(Span::raw("  "));
-        segs.push(Span::styled(mark.to_string(), Style::default().fg(color)));
+        segs.push(Span::styled(mark.clone(), Style::default().fg(color)));
         if let Some(note) = &row.note {
             segs.push(Span::raw("  "));
             segs.push(Span::styled(

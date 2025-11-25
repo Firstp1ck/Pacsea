@@ -121,3 +121,37 @@ pub use persist::*;
 pub use query::*;
 #[cfg(not(windows))]
 pub use update::update_in_background;
+
+/// What: Find a package by name in the official index and return it as a `PackageItem`.
+///
+/// Inputs:
+/// - `name`: Package name to search for
+///
+/// Output:
+/// - `Some(PackageItem)` if the package is found in the official index, `None` otherwise.
+///
+/// Details:
+/// - Searches through the official package index for an exact name match.
+/// - Returns the first matching package found.
+#[must_use]
+pub fn find_package_by_name(name: &str) -> Option<crate::state::PackageItem> {
+    use crate::state::{PackageItem, Source};
+
+    if let Ok(g) = idx().read() {
+        for p in &g.pkgs {
+            if p.name == name {
+                return Some(PackageItem {
+                    name: p.name.clone(),
+                    version: p.version.clone(),
+                    description: p.description.clone(),
+                    source: Source::Official {
+                        repo: p.repo.clone(),
+                        arch: p.arch.clone(),
+                    },
+                    popularity: None,
+                });
+            }
+        }
+    }
+    None
+}

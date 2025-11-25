@@ -375,7 +375,7 @@ fn handle_installed_cache_polling(
                 for pkg in &pending_rm {
                     let config_dirs = crate::install::check_config_directories(pkg, &home);
                     for dir in config_dirs {
-                        found_configs.push((pkg.to_string(), dir));
+                        found_configs.push((pkg.clone(), dir));
                     }
                 }
 

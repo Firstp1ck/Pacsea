@@ -11,6 +11,7 @@
 //! - Large datasets and performance
 //! - Persistence across tabs
 //! - Conflict resolution
+//! - Skip preflight setting functionality
 
 #![cfg(test)]
 
@@ -26,5 +27,6 @@ mod large_datasets;
 mod package_operations;
 mod persistence;
 mod remove_operations;
+mod skip_preflight;
 mod tab_switching;
 mod tab_variations;
