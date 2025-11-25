@@ -59,15 +59,15 @@ fn test_update_short_flag_triggers_update() {
     let exit_code = output.status.code();
 
     // Verify that update was attempted by checking for:
-    // - Update-related messages in output (e.g., "Updating system packages", "pacman", "Syyu")
+    // - Update-related messages in output (e.g., "Updating system packages", "pacman", "Syu")
     // - Valid exit code (0 for success, 1 for failure)
     // - Or specific error messages indicating the update handler was triggered
     let has_update_message = stderr.contains("update")
         || stdout.contains("update")
         || stderr.contains("pacman")
         || stdout.contains("pacman")
-        || stderr.contains("Syyu")
-        || stdout.contains("Syyu")
+        || stderr.contains("Syu")
+        || stdout.contains("Syu")
         || stderr.contains("Updating")
         || stdout.contains("Updating")
         || stderr.contains("password")
@@ -125,15 +125,15 @@ fn test_update_long_flag_triggers_update() {
     let exit_code = output.status.code();
 
     // Verify that update was attempted by checking for:
-    // - Update-related messages in output (e.g., "Updating system packages", "pacman", "Syyu")
+    // - Update-related messages in output (e.g., "Updating system packages", "pacman", "Syu")
     // - Valid exit code (0 for success, 1 for failure)
     // - Or specific error messages indicating the update handler was triggered
     let has_update_message = stderr.contains("update")
         || stdout.contains("update")
         || stderr.contains("pacman")
         || stdout.contains("pacman")
-        || stderr.contains("Syyu")
-        || stdout.contains("Syyu")
+        || stderr.contains("Syu")
+        || stdout.contains("Syu")
         || stderr.contains("Updating")
         || stdout.contains("Updating")
         || stderr.contains("password")

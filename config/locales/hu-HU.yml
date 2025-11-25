@@ -678,9 +678,6 @@ hu-HU:
         failed_packages_log: "Sikertelenül telepített csomagok: {}"
         log_file: "Naplófájl: {}"
         error_prefix: "Hiba: {}"
-        # TODO: Translate to hungarian
-        retry_prompt_pacman: "Pacman update failed. Retry with force download database (-Syyu)? [y/N]: "
-        retry_prompt_aur: "{} update failed. Retry with force download database (-Syyu)? [y/N]: "
         pacman_errors:
           target_not_found: "nem található cél"
           failed_to_commit: "nem sikerült véglegesíteni a tranzakciót"
