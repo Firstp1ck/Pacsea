@@ -111,6 +111,9 @@ pub struct Settings {
     /// When false, uses normal substring search (default).
     /// When true, uses fuzzy matching (fzf-style).
     pub fuzzy_search: bool,
+    /// Refresh interval in seconds for checkupdates and AUR helper checks.
+    /// Default is 30 seconds. Set to a higher value to reduce resource usage on slow systems.
+    pub updates_refresh_interval: u64,
 }
 
 impl Default for Settings {
@@ -153,9 +156,10 @@ impl Default for Settings {
             news_unread_symbol: "∘".to_string(),
             preferred_terminal: String::new(),
             skip_preflight: false,
-            locale: String::new(),      // Empty means auto-detect from system
-            search_startup_mode: false, // Default to insert mode
-            fuzzy_search: false,        // Default to normal substring search
+            locale: String::new(),        // Empty means auto-detect from system
+            search_startup_mode: false,   // Default to insert mode
+            fuzzy_search: false,          // Default to normal substring search
+            updates_refresh_interval: 30, // Default to 30 seconds
         }
     }
 }

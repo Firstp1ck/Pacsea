@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 
 use crossterm::event::Event as CEvent;
@@ -23,6 +24,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `net_err_tx`: Channel sender for network errors
 /// - `index_notify_tx`: Channel sender for index update notifications
 /// - `updates_tx`: Channel sender for package updates
+/// - `updates_refresh_interval`: Refresh interval in seconds for checkupdates and AUR helper checks
 ///
 /// Details:
 /// - Fetches Arch status text once at startup and periodically every 120 seconds
@@ -30,7 +32,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - Updates package index in background (Windows vs non-Windows handling)
 /// - Refreshes pacman caches (installed, explicit)
 /// - Spawns tick worker that sends events every 200ms
-/// - Checks for available package updates once at startup and periodically every 30 seconds
+/// - Checks for available package updates once at startup and periodically at configured interval
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_auxiliary_workers(
     headless: bool,
@@ -42,6 +44,7 @@ pub fn spawn_auxiliary_workers(
     net_err_tx: &mpsc::UnboundedSender<String>,
     index_notify_tx: &mpsc::UnboundedSender<()>,
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
+    updates_refresh_interval: u64,
 ) {
     // Fetch Arch status text once at startup (skip in headless mode to avoid network delays)
     if !headless {
@@ -121,10 +124,10 @@ pub fn spawn_auxiliary_workers(
     if !headless {
         spawn_updates_worker(updates_tx.clone());
 
-        // Periodically refresh updates list every 30 seconds
+        // Periodically refresh updates list at configured interval
         let updates_tx_periodic = updates_tx.clone();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(30));
+            let mut interval = tokio::time::interval(Duration::from_secs(updates_refresh_interval));
             // Skip the first tick to avoid immediate refresh after startup
             interval.tick().await;
             loop {
@@ -349,6 +352,16 @@ fn process_qua_output(
     }
 }
 
+/// Static mutex to prevent concurrent update checks.
+///
+/// What: Tracks whether an update check is currently in progress.
+///
+/// Details:
+/// - Uses `OnceLock` for lazy initialization
+/// - Uses `tokio::sync::Mutex` for async-safe synchronization
+/// - Prevents overlapping file writes to `available_updates.txt`
+static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::new();
+
 /// What: Spawn background worker to check for available package updates.
 ///
 /// Inputs:
@@ -365,9 +378,25 @@ fn process_qua_output(
 /// - Sorts package names alphabetically
 /// - Saves list to `~/.config/pacsea/lists/available_updates.txt`
 /// - Sends `(count, sorted_list)` via channel
+/// - Uses synchronization to prevent concurrent update checks and file writes
 pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>) {
     let updates_tx_once = updates_tx;
+
     tokio::spawn(async move {
+        // Get mutex reference inside async block
+        let mutex = UPDATE_CHECK_IN_PROGRESS.get_or_init(|| tokio::sync::Mutex::new(false));
+
+        // Check if update check is already in progress
+        let mut in_progress = mutex.lock().await;
+        if *in_progress {
+            tracing::debug!("Update check already in progress, skipping concurrent call");
+            return;
+        }
+
+        // Set flag to indicate update check is in progress
+        *in_progress = true;
+        drop(in_progress); // Release lock before blocking operation
+
         let result = tokio::task::spawn_blocking(move || {
             use std::collections::HashSet;
             use std::process::{Command, Stdio};
@@ -445,6 +474,12 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
             (count, package_names)
         })
         .await;
+
+        // Reset flag when done (even on error)
+        let mutex = UPDATE_CHECK_IN_PROGRESS.get_or_init(|| tokio::sync::Mutex::new(false));
+        let mut in_progress = mutex.lock().await;
+        *in_progress = false;
+        drop(in_progress);
 
         match result {
             Ok((count, list)) => {

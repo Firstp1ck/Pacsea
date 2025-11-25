@@ -58,6 +58,7 @@ fn handle_import_button(app: &mut AppState) -> bool {
 /// - Opens Updates modal with scroll support
 /// - Triggers a refresh of the updates list to ensure current data
 /// - Opens the modal only after refresh completes
+#[allow(clippy::missing_const_for_fn)]
 pub fn handle_updates_button(app: &mut AppState) -> bool {
     // Trigger refresh of updates list when button is clicked
     app.refresh_updates = true;
@@ -664,6 +665,7 @@ pub(super) fn handle_menus_mouse(
 
 #[cfg(test)]
 mod tests {
+    use crate::util::parse_update_entry;
 
     /// What: Test that updates parsing correctly extracts old and new versions.
     ///
@@ -708,34 +710,8 @@ mod tests {
         ];
 
         for (input, expected_name, expected_old, expected_new) in test_cases {
-            let entries: Vec<(String, String, String)> = input
-                .lines()
-                .filter_map(|line| {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        // Parse format: "name - old_version -> name - new_version"
-                        trimmed.find(" -> ").and_then(|arrow_pos| {
-                            let before_arrow = trimmed[..arrow_pos].trim();
-                            let after_arrow = trimmed[arrow_pos + 4..].trim();
-
-                            // Parse "name - old_version" from before_arrow
-                            before_arrow.rfind(" - ").and_then(|dash_pos| {
-                                let name = before_arrow[..dash_pos].trim().to_string();
-                                let old_version = before_arrow[dash_pos + 3..].trim().to_string();
-
-                                // Parse "name - new_version" from after_arrow
-                                after_arrow.rfind(" - ").map(|dash_pos| {
-                                    let new_version =
-                                        after_arrow[dash_pos + 3..].trim().to_string();
-                                    (name, old_version, new_version)
-                                })
-                            })
-                        })
-                    }
-                })
-                .collect();
+            let entries: Vec<(String, String, String)> =
+                input.lines().filter_map(parse_update_entry).collect();
 
             assert_eq!(entries.len(), 1, "Failed to parse: {input}");
             let (name, old_version, new_version) = &entries[0];

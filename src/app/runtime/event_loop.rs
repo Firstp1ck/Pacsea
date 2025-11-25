@@ -3,6 +3,7 @@ use tokio::select;
 
 use crate::state::{AppState, Modal, PackageItem};
 use crate::ui::ui;
+use crate::util::parse_update_entry;
 
 use super::background::Channels;
 use super::handlers::{
@@ -14,16 +15,17 @@ use super::tick_handler::{
     handle_news, handle_pkgbuild_result, handle_status, handle_summary_result, handle_tick,
 };
 
-/// What: Parse updates entries from the available_updates.txt file.
+/// What: Parse updates entries from the `available_updates.txt` file.
 ///
 /// Inputs:
 /// - `updates_file`: Path to the updates file
 ///
 /// Output:
-/// - Vector of (name, old_version, new_version) tuples
+/// - Vector of (name, `old_version`, `new_version`) tuples
 ///
 /// Details:
-/// - Parses format: "name - old_version -> name - new_version"
+/// - Parses format: "name - `old_version` -> name - `new_version`"
+/// - Uses `parse_update_entry` helper function for parsing individual lines
 fn parse_updates_file(updates_file: &std::path::Path) -> Vec<(String, String, String)> {
     if updates_file.exists() {
         std::fs::read_to_string(updates_file)
@@ -31,32 +33,7 @@ fn parse_updates_file(updates_file: &std::path::Path) -> Vec<(String, String, St
             .map(|content| {
                 content
                     .lines()
-                    .filter_map(|line| {
-                        let trimmed = line.trim();
-                        if trimmed.is_empty() {
-                            None
-                        } else {
-                            // Parse format: "name - old_version -> name - new_version"
-                            trimmed.find(" -> ").and_then(|arrow_pos| {
-                                let before_arrow = trimmed[..arrow_pos].trim();
-                                let after_arrow = trimmed[arrow_pos + 4..].trim();
-
-                                // Parse "name - old_version" from before_arrow
-                                before_arrow.rfind(" - ").and_then(|old_dash_pos| {
-                                    let name = before_arrow[..old_dash_pos].trim().to_string();
-                                    let old_version =
-                                        before_arrow[old_dash_pos + 3..].trim().to_string();
-
-                                    // Parse "name - new_version" from after_arrow
-                                    after_arrow.rfind(" - ").map(|new_dash_pos| {
-                                        let new_version =
-                                            after_arrow[new_dash_pos + 3..].trim().to_string();
-                                        (name, old_version, new_version)
-                                    })
-                                })
-                            })
-                        }
-                    })
+                    .filter_map(parse_update_entry)
                     .collect::<Vec<(String, String, String)>>()
             })
             .unwrap_or_default()
@@ -240,7 +217,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             app.updates_count = Some(count);
             app.updates_list = list;
             app.updates_loading = false;
-            
+
             // If modal was pending, open it now with fresh data
             if app.pending_updates_modal {
                 app.pending_updates_modal = false;

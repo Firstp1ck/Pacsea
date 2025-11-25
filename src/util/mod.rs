@@ -479,6 +479,43 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
     args
 }
 
+/// What: Parse a single update entry line in the format "name - `old_version` -> name - `new_version`".
+///
+/// Inputs:
+/// - `line`: A trimmed line from the updates file
+///
+/// Output:
+/// - `Some((name, old_version, new_version))` if parsing succeeds, `None` otherwise
+///
+/// Details:
+/// - Parses format: "name - `old_version` -> name - `new_version`"
+/// - Returns `None` for empty lines or invalid formats
+/// - Uses `rfind` to find the last occurrence of " - " to handle package names that may contain dashes
+#[must_use]
+pub fn parse_update_entry(line: &str) -> Option<(String, String, String)> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    // Parse format: "name - old_version -> name - new_version"
+    trimmed.find(" -> ").and_then(|arrow_pos| {
+        let before_arrow = trimmed[..arrow_pos].trim();
+        let after_arrow = trimmed[arrow_pos + 4..].trim();
+
+        // Parse "name - old_version" from before_arrow
+        before_arrow.rfind(" - ").and_then(|old_dash_pos| {
+            let name = before_arrow[..old_dash_pos].trim().to_string();
+            let old_version = before_arrow[old_dash_pos + 3..].trim().to_string();
+
+            // Parse "name - new_version" from after_arrow
+            after_arrow.rfind(" - ").map(|new_dash_pos| {
+                let new_version = after_arrow[new_dash_pos + 3..].trim().to_string();
+                (name, old_version, new_version)
+            })
+        })
+    })
+}
+
 /// Return today's UTC date formatted as `YYYYMMDD` using only the standard library.
 ///
 /// This uses a simple conversion from Unix epoch seconds to a UTC calendar date,

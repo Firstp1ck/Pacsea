@@ -1,18 +1,18 @@
-//! Tests for skip_preflight setting functionality.
+//! Tests for `skip_preflight` setting functionality.
 //!
 //! Tests cover:
-//! - Preflight modal is opened when skip_preflight = false (default)
-//! - open_preflight_modal function is callable and handles packages correctly
+//! - Preflight modal is opened when `skip_preflight` = false (default)
+//! - `open_preflight_modal` function is callable and handles packages correctly
 
 use pacsea as crate_root;
 
-/// What: Test that open_preflight_modal is callable and doesn't panic.
+/// What: Test that `open_preflight_modal` is callable and doesn't panic.
 ///
 /// Details:
 /// - Creates a test app state
-/// - Calls open_preflight_modal with a test package
+/// - Calls `open_preflight_modal` with a test package
 /// - Verifies the function executes without panicking
-/// - Note: Actual skip_preflight behavior depends on settings file
+/// - Note: Actual `skip_preflight` behavior depends on settings file
 #[test]
 fn test_open_preflight_modal_callable() {
     // Create test app state
@@ -34,11 +34,11 @@ fn test_open_preflight_modal_callable() {
     // The actual modal state depends on skip_preflight setting in config
 }
 
-/// What: Test that open_preflight_modal handles multiple packages correctly.
+/// What: Test that `open_preflight_modal` handles multiple packages correctly.
 ///
 /// Details:
 /// - Creates a test app state
-/// - Calls open_preflight_modal with multiple test packages
+/// - Calls `open_preflight_modal` with multiple test packages
 /// - Verifies the function executes without panicking
 #[test]
 fn test_open_preflight_modal_multiple_packages() {
@@ -72,11 +72,11 @@ fn test_open_preflight_modal_multiple_packages() {
     // Verify the function executed (either opened modal or skipped based on settings)
 }
 
-/// What: Test that open_preflight_modal with use_cache=false works correctly.
+/// What: Test that `open_preflight_modal` with `use_cache=false` works correctly.
 ///
 /// Details:
 /// - Creates a test app state
-/// - Calls open_preflight_modal with use_cache=false
+/// - Calls `open_preflight_modal` with `use_cache=false`
 /// - Verifies the function executes without panicking
 #[test]
 fn test_open_preflight_modal_no_cache() {
@@ -124,7 +124,7 @@ fn test_updates_modal_initialization() {
 
     // Set up Updates modal
     app.modal = crate_root::state::Modal::Updates {
-        entries: entries.clone(),
+        entries,
         scroll: 0,
         selected: 0,
     };
