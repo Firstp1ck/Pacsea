@@ -280,6 +280,7 @@ pub fn spawn_summary_worker(
                                 risk_score: 0,
                                 risk_level: crate::state::modal::RiskLevel::Low,
                             },
+                            reverse_deps_report: None,
                         };
                         let _ = res_tx_error.send(minimal_summary);
                     }

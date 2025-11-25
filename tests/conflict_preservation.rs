@@ -61,6 +61,7 @@ fn create_preflight_modal(
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     }
 }
 

@@ -74,11 +74,13 @@ pub fn handle_summary_result(
         if let crate::state::Modal::Preflight {
             summary,
             header_chips,
+            cached_reverse_deps_report,
             ..
         } = &mut app.modal
         {
             *summary = Some(Box::new(summary_outcome.summary));
             *header_chips = summary_outcome.header;
+            *cached_reverse_deps_report = summary_outcome.reverse_deps_report;
         }
     }
     app.preflight_summary_resolving = false;
@@ -911,6 +913,7 @@ mod tests {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: crate::state::modal::CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         };
         app.preflight_summary_resolving = true;
         app.preflight_cancelled
@@ -945,6 +948,7 @@ mod tests {
                 risk_score: 10,
                 risk_level: crate::state::modal::RiskLevel::Low,
             },
+            reverse_deps_report: None,
         };
 
         handle_summary_result(&mut app, summary_outcome, &tick_tx);

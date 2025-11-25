@@ -385,10 +385,10 @@ pub fn sync_files(
 /// - Updates `service_info`, `service_selected`, and `services_loaded` if cache has new data
 ///
 /// Details:
-/// - Only syncs when action is Install and no resolution is in progress
+/// - Syncs for both Install and Remove actions when no resolution is in progress
 /// - Filters services to only those provided by current items
 /// - Handles cache file checking for empty results
-/// - For both Install and Remove actions, syncs resolved service impacts
+/// - Syncs resolved service impacts from background resolution
 pub fn sync_services(
     app: &AppState,
     items: &[PackageItem],

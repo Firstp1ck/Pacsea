@@ -43,14 +43,20 @@ const CORE_CRITICAL_PACKAGES: &[&str] = &[
 /// - `summary`: Structured data powering the Summary tab.
 /// - `header`: Condensed metrics displayed in the modal header and execution
 ///   sidebar.
+/// - `reverse_deps_report`: Optional reverse dependency report for Remove actions,
+///   cached to avoid redundant resolution when switching to the Deps tab.
 ///
 /// Details:
 /// - Bundled together so downstream code can reuse the derived chip data
 ///   without recomputation.
+/// - For Remove actions, the reverse dependency report is computed during summary
+///   computation and cached here to avoid recomputation when the user switches tabs.
 #[derive(Debug, Clone)]
 pub struct PreflightSummaryOutcome {
     pub summary: PreflightSummaryData,
     pub header: PreflightHeaderChips,
+    /// Cached reverse dependency report for Remove actions (None for Install actions).
+    pub reverse_deps_report: Option<crate::logic::deps::ReverseDependencyReport>,
 }
 
 /// What: Compute preflight summary data using the system command runner.
@@ -501,11 +507,13 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
     }
 
     // For Remove actions, resolve reverse dependencies to calculate risk
-    let dependent_count = if matches!(action, PreflightAction::Remove) {
+    // Cache the report to avoid redundant computation when switching to Deps tab
+    let (dependent_count, reverse_deps_report) = if matches!(action, PreflightAction::Remove) {
         let report = crate::logic::deps::resolve_reverse_dependencies(items);
-        report.dependencies.len()
+        let count = report.dependencies.len();
+        (count, Some(report))
     } else {
-        0
+        (0, None)
     };
 
     let (risk_reasons, risk_score, risk_level) = calculate_risk_metrics(
@@ -559,7 +567,11 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
         "Preflight summary computation complete"
     );
 
-    PreflightSummaryOutcome { summary, header }
+    PreflightSummaryOutcome {
+        summary,
+        header,
+        reverse_deps_report,
+    }
 }
 
 #[cfg(all(test, unix))]

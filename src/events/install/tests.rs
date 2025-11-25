@@ -100,6 +100,7 @@ fn install_enter_opens_confirm_install() {
             sandbox_error: _,
             selected_optdepends: _,
             cascade_mode: _,
+            cached_reverse_deps_report: _,
         } => {
             assert_eq!(items.len(), 1);
             assert_eq!(action, crate::state::PreflightAction::Install);

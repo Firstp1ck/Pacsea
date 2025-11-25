@@ -293,6 +293,7 @@ fn setup_preflight_app(
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
     app
 }
@@ -342,6 +343,7 @@ fn setup_preflight_app_with_services(
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
     app
 }
@@ -584,6 +586,7 @@ fn cached_dependencies_load_on_tab_switch() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Switch to Deps tab
@@ -649,6 +652,7 @@ fn cached_files_load_on_tab_switch() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Switch to Files tab (Right twice: Summary -> Deps -> Files)
@@ -793,6 +797,7 @@ fn dependencies_filtered_by_required_by_on_cache_load() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Switch to Deps tab
@@ -863,6 +868,7 @@ fn files_filtered_by_package_name_on_cache_load() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Switch to Files tab
@@ -928,6 +934,7 @@ fn test_f_key_file_sync_doesnt_close_tui() {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         },
         ..Default::default()
     };
@@ -981,6 +988,7 @@ fn test_p_key_proceed_install_doesnt_close_tui() {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         },
         ..Default::default()
     };
@@ -1033,7 +1041,8 @@ fn test_p_key_proceed_remove_doesnt_close_tui() {
             sandbox_loaded: false,
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
-            cascade_mode: CascadeMode::Cascade, // Allow proceeding without dependency info
+            cascade_mode: CascadeMode::Cascade,
+            cached_reverse_deps_report: None, // Allow proceeding without dependency info
         },
         ..Default::default()
     };
@@ -1088,6 +1097,7 @@ fn test_q_key_quit_modal_doesnt_close_tui() {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         },
         ..Default::default()
     };
@@ -1146,6 +1156,7 @@ fn test_esc_key_close_modal_doesnt_close_tui() {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         },
         ..Default::default()
     };
@@ -1203,6 +1214,7 @@ fn test_enter_key_doesnt_close_tui() {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         },
         ..Default::default()
     };
@@ -1280,6 +1292,7 @@ fn test_all_preflight_keys_return_false() {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         };
 
         let key_event = KeyEvent::new(key_code, KeyModifiers::empty());
@@ -1341,6 +1354,7 @@ fn test_keys_return_false_on_all_tabs() {
                 sandbox_error: None,
                 selected_optdepends: std::collections::HashMap::new(),
                 cascade_mode: CascadeMode::Basic,
+                cached_reverse_deps_report: None,
             },
             ..Default::default()
         };

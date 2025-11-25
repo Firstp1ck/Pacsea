@@ -119,6 +119,7 @@ fn preflight_remove_action_with_reverse_dependencies() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Test 1: Switch to Deps tab - should show reverse dependencies

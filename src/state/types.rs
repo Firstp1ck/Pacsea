@@ -205,7 +205,7 @@ impl InstalledPackagesMode {
 
 #[cfg(test)]
 mod tests {
-    use super::SortMode;
+    use super::{InstalledPackagesMode, SortMode};
 
     #[test]
     /// What: Validate `SortMode` converts to and from configuration keys, including legacy aliases.
@@ -249,6 +249,100 @@ mod tests {
             Some(SortMode::BestMatches)
         );
         assert_eq!(SortMode::from_config_key("unknown"), None);
+    }
+
+    #[test]
+    /// What: Validate `InstalledPackagesMode` converts to and from configuration keys, including aliases.
+    ///
+    /// Inputs:
+    /// - Known config keys, aliases, case variations, whitespace, and a deliberately unknown key.
+    ///
+    /// Output:
+    /// - Returns the expected enum variants for recognised keys and `None` for the unknown entry.
+    ///
+    /// Details:
+    /// - Guards against accidental regressions when tweaking the accepted key list or canonical names.
+    /// - Verifies roundtrip conversions and case-insensitive parsing.
+    fn state_installedpackagesmode_config_roundtrip_and_aliases() {
+        // Test as_config_key for both variants
+        assert_eq!(InstalledPackagesMode::LeafOnly.as_config_key(), "leaf");
+        assert_eq!(InstalledPackagesMode::AllExplicit.as_config_key(), "all");
+
+        // Test from_config_key with canonical keys
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("leaf"),
+            Some(InstalledPackagesMode::LeafOnly)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("all"),
+            Some(InstalledPackagesMode::AllExplicit)
+        );
+
+        // Test from_config_key with aliases
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("leaf_only"),
+            Some(InstalledPackagesMode::LeafOnly)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("all_explicit"),
+            Some(InstalledPackagesMode::AllExplicit)
+        );
+
+        // Test roundtrip conversions
+        assert_eq!(
+            InstalledPackagesMode::from_config_key(InstalledPackagesMode::LeafOnly.as_config_key()),
+            Some(InstalledPackagesMode::LeafOnly)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key(
+                InstalledPackagesMode::AllExplicit.as_config_key()
+            ),
+            Some(InstalledPackagesMode::AllExplicit)
+        );
+
+        // Test case insensitivity
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("LEAF"),
+            Some(InstalledPackagesMode::LeafOnly)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("Leaf"),
+            Some(InstalledPackagesMode::LeafOnly)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("LEAF_ONLY"),
+            Some(InstalledPackagesMode::LeafOnly)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("All"),
+            Some(InstalledPackagesMode::AllExplicit)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("ALL_EXPLICIT"),
+            Some(InstalledPackagesMode::AllExplicit)
+        );
+
+        // Test whitespace trimming
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("  leaf  "),
+            Some(InstalledPackagesMode::LeafOnly)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("  all  "),
+            Some(InstalledPackagesMode::AllExplicit)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("  leaf_only  "),
+            Some(InstalledPackagesMode::LeafOnly)
+        );
+        assert_eq!(
+            InstalledPackagesMode::from_config_key("  all_explicit  "),
+            Some(InstalledPackagesMode::AllExplicit)
+        );
+
+        // Test unknown key
+        assert_eq!(InstalledPackagesMode::from_config_key("unknown"), None);
+        assert_eq!(InstalledPackagesMode::from_config_key(""), None);
     }
 }
 

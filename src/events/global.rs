@@ -320,7 +320,8 @@ fn handle_help_overlay(app: &mut AppState) -> bool {
 /// - Reloads theme, settings, keybinds, and locale configuration from disk.
 /// - Shows a toast message on success or error modal on failure.
 /// - Updates app state with new settings and reloads translations if locale changed.
-/// - If `installed_packages_mode` changed, refreshes the explicit cache and triggers a query refresh.
+/// - If `installed_packages_mode` changed, refreshes the explicit cache in the background
+///   and triggers a query refresh after the cache refresh completes (to avoid race conditions).
 fn handle_reload_config(
     app: &mut AppState,
     query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
@@ -351,17 +352,22 @@ fn handle_reload_config(
             old_installed_mode,
             new_mode
         );
-        tokio::spawn(async move {
-            crate::index::refresh_explicit_cache(new_mode).await;
-        });
-        // Trigger query refresh to update results
+        // Prepare query input before spawning (to avoid race condition)
         let id = app.next_query_id;
         app.next_query_id += 1;
         app.latest_query_id = id;
-        let _ = query_tx.send(crate::state::QueryInput {
+        let query_input = crate::state::QueryInput {
             id,
             text: app.input.clone(),
             fuzzy: app.fuzzy_search_enabled,
+        };
+        // Clone query_tx to send query after cache refresh completes
+        let query_tx_clone = query_tx.clone();
+        tokio::spawn(async move {
+            // Refresh cache first
+            crate::index::refresh_explicit_cache(new_mode).await;
+            // Then send query to ensure results use the refreshed cache
+            let _ = query_tx_clone.send(query_input);
         });
     }
 

@@ -117,6 +117,7 @@ fn preflight_handles_partial_failures_correctly() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Test 1: Switch to Deps tab (successful) - should load data

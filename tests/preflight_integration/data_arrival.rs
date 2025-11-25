@@ -125,6 +125,7 @@ async fn preflight_handles_out_of_order_data_arrival() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Verify all stages are queued
@@ -323,6 +324,7 @@ async fn preflight_handles_out_of_order_data_arrival() {
             risk_score: 0,
             risk_level: crate_root::state::modal::RiskLevel::Low,
         },
+        reverse_deps_report: None,
     };
     let _ = summary_res_tx.send(summary_result.clone());
 
@@ -445,6 +447,7 @@ async fn preflight_cancellation_aborts_in_flight_work() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Verify work is queued

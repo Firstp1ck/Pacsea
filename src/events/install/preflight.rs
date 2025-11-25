@@ -545,6 +545,7 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: app.remove_cascade_mode,
+        cached_reverse_deps_report: None,
     };
     tracing::debug!(
         "[Install] Modal state set in {:?}",
@@ -622,6 +623,7 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: app.remove_cascade_mode,
+        cached_reverse_deps_report: None,
     };
     app.remove_preflight_summary = Vec::new(); // Will be populated when dependencies are resolved
     app.toast_message = Some(crate::i18n::t(app, "app.toasts.preflight_remove_list"));

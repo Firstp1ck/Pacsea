@@ -221,6 +221,7 @@ fn preflight_preserves_first_package_when_second_package_added() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Test 1: Verify Deps tab loads both packages correctly and detects conflicts
@@ -751,6 +752,7 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Test 1: Verify Deps tab loads both packages independently and detects conflicts

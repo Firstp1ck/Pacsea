@@ -80,6 +80,7 @@ pub fn extract_preflight_fields(modal: &mut Modal) -> Option<PreflightFields<'_>
         sandbox_error,
         selected_optdepends,
         cascade_mode,
+        cached_reverse_deps_report: _,
     } = modal
     else {
         return None;
