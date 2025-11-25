@@ -105,6 +105,8 @@ pub(super) type DefaultClickableRectsState = (
     Vec<String>,
     Option<(u16, u16, u16, u16)>,
     bool,
+    bool,
+    bool,
 );
 
 /// Type alias for default PKGBUILD state tuple.
@@ -360,7 +362,7 @@ pub(super) const fn default_scroll_prefetch_state() -> (u32, Option<Instant>, bo
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `updates_loading`.
+/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `updates_loading`, `refresh_updates`, `pending_updates_modal`.
 ///
 /// Details:
 /// - All rectangles start as None, updates check is loading by default.
@@ -377,6 +379,8 @@ pub(super) fn default_clickable_rects_state() -> DefaultClickableRectsState {
         Vec::new(),
         None,
         true,
+        false,
+        false,
     )
 }
 

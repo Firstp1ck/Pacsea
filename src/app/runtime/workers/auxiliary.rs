@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 
 use crossterm::event::Event as CEvent;
@@ -23,6 +24,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `net_err_tx`: Channel sender for network errors
 /// - `index_notify_tx`: Channel sender for index update notifications
 /// - `updates_tx`: Channel sender for package updates
+/// - `updates_refresh_interval`: Refresh interval in seconds for checkupdates and AUR helper checks
 ///
 /// Details:
 /// - Fetches Arch status text once at startup and periodically every 120 seconds
@@ -30,7 +32,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - Updates package index in background (Windows vs non-Windows handling)
 /// - Refreshes pacman caches (installed, explicit)
 /// - Spawns tick worker that sends events every 200ms
-/// - Checks for available package updates once at startup
+/// - Checks for available package updates once at startup and periodically at configured interval
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_auxiliary_workers(
     headless: bool,
@@ -42,6 +44,7 @@ pub fn spawn_auxiliary_workers(
     net_err_tx: &mpsc::UnboundedSender<String>,
     index_notify_tx: &mpsc::UnboundedSender<()>,
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
+    updates_refresh_interval: u64,
 ) {
     // Fetch Arch status text once at startup (skip in headless mode to avoid network delays)
     if !headless {
@@ -120,6 +123,18 @@ pub fn spawn_auxiliary_workers(
     // Check for available package updates once at startup (skip in headless mode)
     if !headless {
         spawn_updates_worker(updates_tx.clone());
+
+        // Periodically refresh updates list at configured interval
+        let updates_tx_periodic = updates_tx.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(updates_refresh_interval));
+            // Skip the first tick to avoid immediate refresh after startup
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                spawn_updates_worker(updates_tx_periodic.clone());
+            }
+        });
     }
 
     // Spawn tick worker
@@ -174,11 +189,11 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
 /// - `output`: Raw command output bytes
 ///
 /// Output:
-/// - Vector of (`package_name`, `new_version`) tuples
+/// - Vector of (`package_name`, `old_version`, `new_version`) tuples
 ///
 /// Details:
-/// - Parses "package-name version" format
-fn parse_checkupdates(output: &[u8]) -> Vec<(String, String)> {
+/// - Parses `"package-name old_version -> new_version"` format
+fn parse_checkupdates(output: &[u8]) -> Vec<(String, String, String)> {
     String::from_utf8_lossy(output)
         .lines()
         .filter_map(|line| {
@@ -186,14 +201,20 @@ fn parse_checkupdates(output: &[u8]) -> Vec<(String, String)> {
             if trimmed.is_empty() {
                 None
             } else {
-                let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let name = parts[0].to_string();
-                    let new_version = parts[1].to_string();
-                    Some((name, new_version))
-                } else {
-                    None
-                }
+                // Parse "package-name old_version -> new_version" format
+                trimmed.find(" -> ").and_then(|arrow_pos| {
+                    let before_arrow = &trimmed[..arrow_pos];
+                    let after_arrow = &trimmed[arrow_pos + 4..];
+                    let parts: Vec<&str> = before_arrow.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let name = parts[0].to_string();
+                        let old_version = parts[1..].join(" "); // In case version has spaces
+                        let new_version = after_arrow.trim().to_string();
+                        Some((name, old_version, new_version))
+                    } else {
+                        None
+                    }
+                })
             }
         })
         .collect()
@@ -236,36 +257,6 @@ fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// What: Get installed version of a package using pacman -Q.
-///
-/// Inputs:
-/// - `name`: Package name
-///
-/// Output:
-/// - Installed version string, or "unknown" if not found
-fn get_installed_version(name: &str) -> String {
-    use std::process::{Command, Stdio};
-
-    Command::new("pacman")
-        .args(["-Q", name])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .ok()
-        .and_then(|output| {
-            if output.status.success() {
-                String::from_utf8_lossy(&output.stdout)
-                    .split_whitespace()
-                    .nth(1)
-                    .map(ToString::to_string)
-            } else {
-                None
-            }
-        })
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
 /// What: Process checkupdates output and add packages to collections.
 ///
 /// Inputs:
@@ -283,13 +274,10 @@ fn process_checkupdates_output(
                 let packages = parse_checkupdates(&output.stdout);
                 let count = packages.len();
 
-                // Get installed versions for packages from checkupdates
-                for (name, new_version) in packages {
-                    let installed_version = get_installed_version(&name);
-
+                // Parse checkupdates output which already contains old and new versions
+                for (name, old_version, new_version) in packages {
                     // Format: "name - old_version -> name - new_version"
-                    let formatted =
-                        format!("{name} - {installed_version} -> {name} - {new_version}");
+                    let formatted = format!("{name} - {old_version} -> {name} - {new_version}");
                     packages_map.insert(name.clone(), formatted);
                     packages_set.insert(name);
                 }
@@ -364,6 +352,16 @@ fn process_qua_output(
     }
 }
 
+/// Static mutex to prevent concurrent update checks.
+///
+/// What: Tracks whether an update check is currently in progress.
+///
+/// Details:
+/// - Uses `OnceLock` for lazy initialization
+/// - Uses `tokio::sync::Mutex` for async-safe synchronization
+/// - Prevents overlapping file writes to `available_updates.txt`
+static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::new();
+
 /// What: Spawn background worker to check for available package updates.
 ///
 /// Inputs:
@@ -380,9 +378,25 @@ fn process_qua_output(
 /// - Sorts package names alphabetically
 /// - Saves list to `~/.config/pacsea/lists/available_updates.txt`
 /// - Sends `(count, sorted_list)` via channel
+/// - Uses synchronization to prevent concurrent update checks and file writes
 pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>) {
     let updates_tx_once = updates_tx;
+
     tokio::spawn(async move {
+        // Get mutex reference inside async block
+        let mutex = UPDATE_CHECK_IN_PROGRESS.get_or_init(|| tokio::sync::Mutex::new(false));
+
+        // Check if update check is already in progress
+        let mut in_progress = mutex.lock().await;
+        if *in_progress {
+            tracing::debug!("Update check already in progress, skipping concurrent call");
+            return;
+        }
+
+        // Set flag to indicate update check is in progress
+        *in_progress = true;
+        drop(in_progress); // Release lock before blocking operation
+
         let result = tokio::task::spawn_blocking(move || {
             use std::collections::HashSet;
             use std::process::{Command, Stdio};
@@ -461,6 +475,12 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
         })
         .await;
 
+        // Reset flag when done (even on error)
+        let mutex = UPDATE_CHECK_IN_PROGRESS.get_or_init(|| tokio::sync::Mutex::new(false));
+        let mut in_progress = mutex.lock().await;
+        *in_progress = false;
+        drop(in_progress);
+
         match result {
             Ok((count, list)) => {
                 let _ = updates_tx_once.send((count, list));
@@ -533,5 +553,82 @@ pub fn spawn_event_thread(
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_checkupdates;
+
+    /// What: Test that checkupdates parsing correctly extracts old and new versions.
+    ///
+    /// Inputs:
+    /// - Sample checkupdates output with format `"package-name old_version -> new_version"`
+    ///
+    /// Output:
+    /// - Verifies that `old_version` and `new_version` are correctly parsed and different
+    ///
+    /// Details:
+    /// - Tests parsing of checkupdates output format
+    #[test]
+    fn test_parse_checkupdates_extracts_correct_versions() {
+        let test_cases = vec![
+            ("bat 0.26.0-1 -> 0.26.0-2", "bat", "0.26.0-1", "0.26.0-2"),
+            (
+                "comgr 2:6.4.4-2 -> 2:7.1.0-1",
+                "comgr",
+                "2:6.4.4-2",
+                "2:7.1.0-1",
+            ),
+            (
+                "composable-kernel 6.4.4-1 -> 7.1.0-1",
+                "composable-kernel",
+                "6.4.4-1",
+                "7.1.0-1",
+            ),
+        ];
+
+        for (input, expected_name, expected_old, expected_new) in test_cases {
+            let output = input.as_bytes();
+            let entries = parse_checkupdates(output);
+
+            assert_eq!(entries.len(), 1, "Failed to parse: {input}");
+            let (name, old_version, new_version) = &entries[0];
+            assert_eq!(name, expected_name, "Wrong name for: {input}");
+            assert_eq!(old_version, expected_old, "Wrong old_version for: {input}");
+            assert_eq!(new_version, expected_new, "Wrong new_version for: {input}");
+        }
+    }
+
+    /// What: Test that checkupdates parsing handles multiple packages.
+    ///
+    /// Inputs:
+    /// - Multi-line checkupdates output
+    ///
+    /// Output:
+    /// - Verifies that all packages are parsed correctly
+    #[test]
+    fn test_parse_checkupdates_multiple_packages() {
+        let input = "bat 0.26.0-1 -> 0.26.0-2\ncomgr 2:6.4.4-2 -> 2:7.1.0-1\n";
+        let output = input.as_bytes();
+        let entries = parse_checkupdates(output);
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(
+            entries[0],
+            (
+                "bat".to_string(),
+                "0.26.0-1".to_string(),
+                "0.26.0-2".to_string()
+            )
+        );
+        assert_eq!(
+            entries[1],
+            (
+                "comgr".to_string(),
+                "2:6.4.4-2".to_string(),
+                "2:7.1.0-1".to_string()
+            )
+        );
     }
 }

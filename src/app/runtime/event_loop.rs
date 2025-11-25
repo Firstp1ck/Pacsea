@@ -3,6 +3,7 @@ use tokio::select;
 
 use crate::state::{AppState, Modal, PackageItem};
 use crate::ui::ui;
+use crate::util::parse_update_entry;
 
 use super::background::Channels;
 use super::handlers::{
@@ -13,6 +14,33 @@ use super::handlers::{
 use super::tick_handler::{
     handle_news, handle_pkgbuild_result, handle_status, handle_summary_result, handle_tick,
 };
+
+/// What: Parse updates entries from the `available_updates.txt` file.
+///
+/// Inputs:
+/// - `updates_file`: Path to the updates file
+///
+/// Output:
+/// - Vector of (name, `old_version`, `new_version`) tuples
+///
+/// Details:
+/// - Parses format: "name - `old_version` -> name - `new_version`"
+/// - Uses `parse_update_entry` helper function for parsing individual lines
+fn parse_updates_file(updates_file: &std::path::Path) -> Vec<(String, String, String)> {
+    if updates_file.exists() {
+        std::fs::read_to_string(updates_file)
+            .ok()
+            .map(|content| {
+                content
+                    .lines()
+                    .filter_map(parse_update_entry)
+                    .collect::<Vec<(String, String, String)>>()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    }
+}
 
 /// What: Handle batch of items added to install list.
 ///
@@ -173,6 +201,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.services_req_tx,
                 &channels.sandbox_req_tx,
                 &channels.summary_req_tx,
+                &channels.updates_tx,
             );
             false
         }
@@ -188,6 +217,18 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             app.updates_count = Some(count);
             app.updates_list = list;
             app.updates_loading = false;
+
+            // If modal was pending, open it now with fresh data
+            if app.pending_updates_modal {
+                app.pending_updates_modal = false;
+                let updates_file = crate::theme::lists_dir().join("available_updates.txt");
+                let entries = parse_updates_file(&updates_file);
+                app.modal = crate::state::Modal::Updates {
+                    entries,
+                    scroll: 0,
+                    selected: 0,
+                };
+            }
             false
         }
         else => false

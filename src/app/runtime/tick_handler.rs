@@ -431,6 +431,7 @@ pub fn handle_tick(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,
     )>,
+    updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
 ) {
     maybe_save_recent(app);
     maybe_flush_cache(app);
@@ -441,6 +442,13 @@ pub fn handle_tick(
     maybe_flush_files_cache(app);
     maybe_flush_services_cache(app);
     maybe_flush_sandbox_cache(app);
+
+    // Refresh updates list if flag is set (manual refresh via button click)
+    if app.refresh_updates {
+        app.refresh_updates = false;
+        app.updates_loading = true;
+        crate::app::runtime::workers::auxiliary::spawn_updates_worker(updates_tx.clone());
+    }
 
     handle_preflight_resolution(
         app,
@@ -561,6 +569,7 @@ mod tests {
         let (services_tx, _services_rx) = mpsc::unbounded_channel();
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
+        let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
 
         // Should not panic
         handle_tick(
@@ -573,6 +582,7 @@ mod tests {
             &services_tx,
             &sandbox_tx,
             &summary_tx,
+            &updates_tx,
         );
     }
 
@@ -615,6 +625,7 @@ mod tests {
         let (services_tx, _services_rx) = mpsc::unbounded_channel();
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
+        let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -626,6 +637,7 @@ mod tests {
             &services_tx,
             &sandbox_tx,
             &summary_tx,
+            &updates_tx,
         );
 
         // Queues should be cleared
@@ -673,6 +685,7 @@ mod tests {
         let (services_tx, _services_rx) = mpsc::unbounded_channel();
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
+        let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -684,6 +697,7 @@ mod tests {
             &services_tx,
             &sandbox_tx,
             &summary_tx,
+            &updates_tx,
         );
 
         // Request should be sent
