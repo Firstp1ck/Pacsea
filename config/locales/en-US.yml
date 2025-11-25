@@ -319,7 +319,7 @@ en-US:
         heading: "System Update"
         entries:
           update_arch_mirrors: "Update Arch Mirrors"
-          update_pacman: "Update Pacman (sudo pacman -Syyu)"
+          update_pacman: "Update Pacman (sudo pacman -Syu)"
           update_aur: "Update AUR (paru/yay)"
           remove_cache: "Remove Cache (pacman/yay)"
         country_label: "Country (Mirrors): "
@@ -657,11 +657,12 @@ en-US:
         log_file: "Log file: {}"
         error_prefix: "Error: {}"
       update:
-        starting: "Updating system packages (pacman -Syyu)..."
+        starting: "Updating system packages (pacman -Syu)..."
+        password_prompt: "[sudo] password for {}: "
         pacman_success: "✓ Pacman update completed successfully"
         pacman_failed: "✗ Pacman update failed"
         pacman_exec_failed: "✗ Failed to execute pacman update"
-        aur_starting: "Updating AUR packages ({} -Syyu)..."
+        aur_starting: "Updating AUR packages ({} -Syu)..."
         aur_success: "✓ {} update completed successfully"
         aur_failed: "✗ {} update failed"
         aur_exec_failed: "✗ Failed to execute {} update"

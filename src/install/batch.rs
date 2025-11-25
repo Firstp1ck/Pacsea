@@ -63,7 +63,7 @@ fn build_batch_install_command(
         )
     } else if !official.is_empty() {
         format!(
-            "(sudo pacman -S --needed --noconfirm {n} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo pacman -S --needed --noconfirm {n}; fi)){hold}",
+            "sudo pacman -S --needed --noconfirm {n}{hold}",
             n = official.join(" "),
             hold = hold_tail
         )
@@ -337,15 +337,16 @@ mod tests {
 ///
 /// Input:
 /// - `items`: Packages the user attempted to install.
-/// - `dry_run`: When `true`, uses PowerShell to simulate the install operation.
+/// - `dry_run`: When `true`, uses `PowerShell` to simulate the install operation.
 ///
 /// Output:
-/// - Launches a detached PowerShell window (if available) for dry-run simulation, or `cmd` window otherwise.
+/// - Launches a detached `PowerShell` window (if available) for dry-run simulation, or `cmd` window otherwise.
 ///
 /// Details:
-/// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the batch install with Write-Host.
+/// - When `dry_run` is true and `PowerShell` is available, uses `PowerShell` to simulate the batch install with Write-Host.
 /// - Always logs install attempts when not in `dry_run` to remain consistent with Unix behaviour.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
+#[allow(unused_variables, clippy::missing_const_for_fn)]
 pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
     #[cfg(not(test))]
     {
@@ -360,7 +361,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
             let powershell_cmd = format!(
                 "Write-Host 'DRY RUN: Simulating batch install of {}' -ForegroundColor Yellow; Write-Host 'Packages: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
                 names.len(),
-                names_str.replace("'", "''")
+                names_str.replace('\'', "''")
             );
             let _ = Command::new("powershell.exe")
                 .args(["-NoProfile", "-Command", &powershell_cmd])

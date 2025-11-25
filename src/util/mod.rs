@@ -22,12 +22,12 @@ use std::fmt::Write;
 pub fn ensure_mouse_capture() {
     // Skip mouse capture in headless/test mode to prevent escape sequences in test output
     if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {
-        return;
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        use crossterm::execute;
-        let _ = execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+    } else {
+        #[cfg(not(target_os = "windows"))]
+        {
+            use crossterm::execute;
+            let _ = execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+        }
     }
 }
 
@@ -337,7 +337,7 @@ pub fn open_file(path: &std::path::Path) {
             #[cfg(target_os = "windows")]
             {
                 // Use PowerShell to open file with default application
-                let path_str = path.display().to_string().replace("'", "''");
+                let path_str = path.display().to_string().replace('\'', "''");
                 let _ = std::process::Command::new("powershell.exe")
                     .args([
                         "-NoProfile",

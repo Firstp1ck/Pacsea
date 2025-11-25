@@ -46,6 +46,18 @@ By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
   ```bash
   cargo clippy --all-targets --all-features -- -D warnings
   ```
+  The project uses the following clippy settings (configured in `Cargo.toml`):
+  ```toml
+  [lints.clippy]
+  # Enable cognitive complexity lint to catch overly complex functions
+  cognitive_complexity = "warn"
+  pedantic = { level = "deny", priority = -1 }
+  nursery = { level = "deny", priority = -1 }
+  unwrap_used = "deny"
+  ```
+  Additional settings in `clippy.toml`:
+  - `cognitive-complexity-threshold = 25`
+  - `too-many-lines-threshold = 150`
 - Test:
   ```bash
   cargo test -- --test-threads=1

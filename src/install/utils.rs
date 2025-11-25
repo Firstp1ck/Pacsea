@@ -9,18 +9,19 @@
 ///
 /// Details:
 /// - Leverages `which::which`, inheriting its support for PATHEXT resolution.
+#[must_use]
 pub fn command_on_path(cmd: &str) -> bool {
     which::which(cmd).is_ok()
 }
 
 #[cfg(target_os = "windows")]
-/// What: Check if PowerShell is available on Windows.
+/// What: Check if `PowerShell` is available on Windows.
 ///
 /// Output:
-/// - `true` when PowerShell can be found on PATH; otherwise `false`.
+/// - `true` when `PowerShell` can be found on PATH; otherwise `false`.
 ///
 /// Details:
-/// - Checks for `powershell.exe` or `pwsh.exe` (PowerShell Core) on the system.
+/// - Checks for `powershell.exe` or `pwsh.exe` (`PowerShell` Core) on the system.
 pub fn is_powershell_available() -> bool {
     command_on_path("powershell.exe") || command_on_path("pwsh.exe")
 }

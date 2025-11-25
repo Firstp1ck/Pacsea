@@ -322,7 +322,7 @@ hu-HU:
         heading: "Rendszerfrissítés"
         entries:
           update_arch_mirrors: "Arch tükrök frissítése"
-          update_pacman: "Pacman-frissítés (sudo pacman -Syyu)"
+          update_pacman: "Pacman-frissítés (sudo pacman -Syu)"
           update_aur: "AUR frissítése (paru/yay)"
           remove_cache: "Gyorsítótár törlése (pacman/yay)"
         country_label: "Ország (Tükrök): "
@@ -660,11 +660,13 @@ hu-HU:
         log_file: "Naplófájl: {}"
         error_prefix: "Hiba: {}"
       update:
-        starting: "Csomagok frissítése (pacman -Syyu)…"
+        # TODO: Translate to Hungarian
+        password_prompt: "[sudo] password for {}: "
+        starting: "Csomagok frissítése (pacman -Syu)…"
         pacman_success: "✓ A csomagok sikeresen frissítve lettek a pacman paranccsal"
         pacman_failed: "✗ Nem sikerült frissíteni a csomagokat a pacman paranccsal"
         pacman_exec_failed: "✗ Nem sikerült végrehajtani a csomagok frissítését a pacman paranccsal"
-        aur_starting: "AUR-csomagok frissítése ({} -Syyu)…"
+        aur_starting: "AUR-csomagok frissítése ({} -Syu)…"
         aur_success: "✓ Az AUR-csomagok sikeresen frissítve lettek a(z) {} paranccsal"
         aur_failed: "✗ Az AUR-csomagokat nem sikerült frissíteni a(z) {} paranccsal"
         aur_exec_failed: "✗ Nem sikerült végrehajtani az AUR-csomagok frissítését a(z) {} paranccsal"

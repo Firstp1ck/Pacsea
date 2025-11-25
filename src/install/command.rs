@@ -1,5 +1,8 @@
 use crate::state::{PackageItem, Source};
 
+#[cfg(not(target_os = "windows"))]
+use super::utils::shell_single_quote;
+
 /// What: Build the common AUR install body that prefers `paru` and falls back to `yay`.
 ///
 /// Input:
@@ -10,48 +13,17 @@ use crate::state::{PackageItem, Source};
 /// - Parenthesised shell snippet `(if ... fi)` without the trailing hold suffix.
 ///
 /// Details:
-/// - Prompts for helper installation when neither `paru` nor `yay` is present.
-/// - Offers an interactive retry with `-Syy` after failures.
+/// - Prefers `paru` if available, otherwise falls back to `yay`.
+/// - Shows error message if no AUR helper is found.
 #[must_use]
 pub fn aur_install_body(flags: &str, n: &str) -> String {
     format!(
-        "(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
-            paru {flags} {n} || (echo; echo 'Install failed.'; \
-                read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
-                if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
-                    paru -Syy && paru {flags} {n}; \
-                fi); \
-          elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
-            yay {flags} {n} || (echo; echo 'Install failed.'; \
-                read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
-                if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
-                    yay -Syy && yay {flags} {n}; \
-                fi); \
+        "(if command -v paru >/dev/null 2>&1; then \
+            paru {flags} {n}; \
+          elif command -v yay >/dev/null 2>&1; then \
+            yay {flags} {n}; \
           else \
-            echo 'No AUR helper (paru/yay) found.'; echo; \
-            echo 'Choose AUR helper to install:'; \
-            echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; \
-            read -rp 'Enter 1/2/3: ' choice; \
-            case \"$choice\" in \
-              1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; \
-              2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; \
-              *) echo 'Cancelled.'; exit 1 ;; \
-            esac; \
-            if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
-              paru {flags} {n} || (echo; echo 'Install failed.'; \
-                  read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
-                  if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
-                      paru -Syy && paru {flags} {n}; \
-                  fi); \
-            elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
-              yay {flags} {n} || (echo; echo 'Install failed.'; \
-                  read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; \
-                  if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then \
-                      yay -Syy && yay {flags} {n}; \
-                  fi); \
-            else \
-              echo 'AUR helper installation failed or was cancelled.'; exit 1; \
-            fi; \
+            echo 'No AUR helper (paru/yay) found.'; \
           fi)"
     )
 }
@@ -67,9 +39,8 @@ pub fn aur_install_body(flags: &str, n: &str) -> String {
 /// - Tuple `(command_string, uses_sudo)` with a shell-ready command and whether it requires sudo.
 ///
 /// Details:
-/// - Detects already-installed packages to offer a reinstall prompt.
+/// - Uses `--needed` flag for new installs, omits it for reinstalls.
 /// - Adds a hold tail so spawned terminals remain open after completion.
-/// - Ensures pacman retries with `-Syy` when the user confirms after failure.
 #[must_use]
 pub fn build_install_command(
     item: &PackageItem,
@@ -92,32 +63,12 @@ pub fn build_install_command(
             }
             let pass = password.unwrap_or("");
             if pass.is_empty() {
-                let bash = if reinstall {
-                    format!(
-                        "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy --noconfirm {}; fi); else echo 'Reinstall cancelled.'; fi){hold_tail}",
-                        item.name
-                    )
-                } else {
-                    format!(
-                        "(sudo {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy --noconfirm {}; fi)){hold_tail}",
-                        item.name
-                    )
-                };
+                let bash = format!("sudo {base_cmd}{hold_tail}");
                 (bash, true)
             } else {
-                let escaped = pass.replace('\'', "'\"'\"'\''");
-                let pipe = format!("echo '{escaped}' | ");
-                let bash = if reinstall {
-                    format!(
-                        "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S pacman -Syy --noconfirm {}; fi); else echo 'Reinstall cancelled.'; fi){hold_tail}",
-                        item.name
-                    )
-                } else {
-                    format!(
-                        "({pipe}sudo -S {base_cmd} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {pipe}sudo -S pacman -Syy --noconfirm {}; fi)){hold_tail}",
-                        item.name
-                    )
-                };
+                let escaped = shell_single_quote(pass);
+                let pipe = format!("echo {escaped} | ");
+                let bash = format!("{pipe}sudo -S {base_cmd}{hold_tail}");
                 (bash, true)
             }
         }
@@ -135,14 +86,6 @@ pub fn build_install_command(
                     n = item.name,
                     hold = hold_tail,
                     flags = flags
-                )
-            } else if reinstall {
-                format!(
-                    "(read -rp 'Package is already installed. Reinstall? [y/N]: ' ans; \
-                      if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then {body}; \
-                      else echo 'Reinstall cancelled.'; fi){hold}",
-                    body = aur_install_body(flags, &item.name),
-                    hold = hold_tail
                 )
             } else {
                 format!(

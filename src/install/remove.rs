@@ -350,16 +350,17 @@ mod tests {
 ///
 /// Input:
 /// - `names`: Packages the user requested to remove.
-/// - `dry_run`: When `true`, uses PowerShell to simulate the removal operation.
+/// - `dry_run`: When `true`, uses `PowerShell` to simulate the removal operation.
 /// - `cascade_mode`: Removal mode used for display consistency.
 ///
 /// Output:
-/// - Launches a detached PowerShell window (if available) for dry-run simulation, or `cmd` window otherwise.
+/// - Launches a detached `PowerShell` window (if available) for dry-run simulation, or `cmd` window otherwise.
 ///
 /// Details:
-/// - When `dry_run` is true and PowerShell is available, uses PowerShell to simulate the removal with Write-Host.
+/// - When `dry_run` is true and `PowerShell` is available, uses `PowerShell` to simulate the removal with Write-Host.
 /// - Mirrors Unix logging by emitting an info trace, but performs no package operations.
 /// - During tests, this is a no-op to avoid opening real terminal windows.
+#[allow(unused_variables, clippy::missing_const_for_fn)]
 pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
     #[cfg(not(test))]
     {
@@ -383,7 +384,7 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
             let powershell_cmd = format!(
                 "Write-Host 'DRY RUN: Simulating removal of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
                 names_str,
-                cmd.replace("'", "''")
+                cmd.replace('\'', "''")
             );
             let _ = Command::new("powershell.exe")
                 .args(["-NoProfile", "-Command", &powershell_cmd])

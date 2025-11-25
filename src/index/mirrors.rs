@@ -32,6 +32,9 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 ///
 /// Details:
 /// - Persists the raw JSON for reference and keeps up to 40 active HTTPS mirrors in the list.
+///
+/// # Errors
+/// - Returns an error if directory creation fails, curl request fails, or file I/O fails.
 pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
     let repo_dir = repo_dir.to_path_buf();
     task::spawn_blocking(move || {
@@ -48,18 +51,19 @@ pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
         let mut https_urls: Vec<String> = Vec::new();
         if let Some(arr) = json.get("urls").and_then(|v| v.as_array()) {
             for u in arr {
-                let active = u.get("active").and_then(|v| v.as_bool()).unwrap_or(false);
+                let active = u
+                    .get("active")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false);
                 let url = u.get("url").and_then(|v| v.as_str()).unwrap_or_default();
                 let protocols = u
                     .get("protocols")
                     .and_then(|v| v.as_array())
                     .cloned()
                     .unwrap_or_default();
-                let has_https = protocols.iter().any(|p| {
-                    p.as_str()
-                        .map(|s| s.eq_ignore_ascii_case("https"))
-                        .unwrap_or(false)
-                });
+                let has_https = protocols
+                    .iter()
+                    .any(|p| p.as_str().is_some_and(|s| s.eq_ignore_ascii_case("https")));
                 if active && has_https && !url.is_empty() {
                     https_urls.push(url.to_string());
                 }
@@ -88,7 +92,7 @@ pub async fn fetch_mirrors_to_repo_dir(repo_dir: &Path) -> Result<PathBuf> {
     .await?
 }
 
-/// What: Parse a package object from JSON into an OfficialPkg.
+/// What: Parse a package object from JSON into an `OfficialPkg`.
 ///
 /// Inputs:
 /// - `obj`: JSON value representing a package.
@@ -200,7 +204,10 @@ fn try_alternative_url_formats(
                     .and_then(|x| x.as_array())
                     .cloned()
                     .unwrap_or_default();
-                let alt_valid = alt_v.get("valid").and_then(|x| x.as_bool()).unwrap_or(true);
+                let alt_valid = alt_v
+                    .get("valid")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(true);
                 if alt_valid && !alt_results.is_empty() {
                     tracing::info!(
                         repo = repo,
@@ -267,7 +274,7 @@ fn log_empty_results_debug(v: &serde_json::Value, repo: &str, page: usize, url: 
                 format!("{preview}...")
             }
         } else {
-            response_str.clone()
+            response_str
         };
         tracing::warn!(
             repo = repo,
@@ -275,14 +282,14 @@ fn log_empty_results_debug(v: &serde_json::Value, repo: &str, page: usize, url: 
             response_preview = %response_preview,
             "First page returned empty results - checking API response structure"
         );
-        if let Some(count) = v.get("count").and_then(|x| x.as_u64()) {
+        if let Some(count) = v.get("count").and_then(serde_json::Value::as_u64) {
             tracing::warn!(
                 repo = repo,
                 total_count = count,
                 "API reports total count but results array is empty"
             );
         }
-        if let Some(limit_val) = v.get("limit").and_then(|x| x.as_u64()) {
+        if let Some(limit_val) = v.get("limit").and_then(serde_json::Value::as_u64) {
             tracing::debug!(repo = repo, api_limit = limit_val, "API limit value");
         }
     }
@@ -324,7 +331,7 @@ fn fetch_package_page(
         .cloned()
         .unwrap_or_default();
 
-    if let Some(valid) = v.get("valid").and_then(|x| x.as_bool()) {
+    if let Some(valid) = v.get("valid").and_then(serde_json::Value::as_bool) {
         if !valid && results.is_empty() {
             let response_str = serde_json::to_string_pretty(&v)
                 .unwrap_or_else(|_| "Failed to serialize response".to_string());
@@ -466,7 +473,7 @@ pub async fn refresh_official_index_from_arch_api(
             );
             // Replace in-memory index and persist to disk
             if let Ok(mut guard) = idx().write() {
-                guard.pkgs = new_list.clone();
+                guard.pkgs.clone_from(&new_list);
                 tracing::debug!("Updated in-memory index");
             } else {
                 tracing::warn!("Failed to acquire write lock for index update");
@@ -477,12 +484,12 @@ pub async fn refresh_official_index_from_arch_api(
         }
         Ok(Err(e)) => {
             let msg = format!("Failed to fetch official index via API: {e}");
-            let _ = net_err_tx.send(msg.clone());
+            let _ = net_err_tx.send(msg);
             tracing::error!(error = %e, "Failed to fetch official index");
         }
         Err(join_err) => {
             let msg = format!("Task join error during index fetch: {join_err}");
-            let _ = net_err_tx.send(msg.clone());
+            let _ = net_err_tx.send(msg);
             tracing::error!(error = %join_err, "Task join error");
         }
     }
@@ -498,6 +505,9 @@ pub async fn refresh_official_index_from_arch_api(
 ///
 /// Details:
 /// - Attempts to run `curl --version` to verify curl is in PATH and executable.
+///
+/// # Errors
+/// - Returns an error if curl is not found in PATH or if the curl command fails.
 pub fn check_curl_availability() -> Result<()> {
     let output = std::process::Command::new("curl")
         .arg("--version")
@@ -523,6 +533,9 @@ pub fn check_curl_availability() -> Result<()> {
 ///
 /// Details:
 /// - Checks file existence, reads and parses JSON, and returns package count and file size.
+///
+/// # Errors
+/// - Returns an error if the file doesn't exist, is empty, cannot be read, or contains invalid JSON.
 pub fn verify_index_file(index_path: &Path) -> Result<(usize, u64)> {
     if !index_path.exists() {
         return Err(format!("Index file does not exist: {}", index_path.display()).into());
@@ -573,7 +586,7 @@ pub async fn refresh_windows_mirrors_and_index(
             let msg = format!(
                 "curl is not available: {e}. Windows index refresh requires curl to be installed and in PATH."
             );
-            let _ = net_err_tx.send(msg.clone());
+            let _ = net_err_tx.send(msg);
             tracing::error!(error = %e, "curl availability check failed");
             return;
         }
@@ -639,7 +652,7 @@ pub async fn refresh_windows_mirrors_and_index(
         }
         Err(e) => {
             let msg = format!("Index refresh completed but verification failed: {e}");
-            let _ = net_err_tx.send(msg.clone());
+            let _ = net_err_tx.send(msg);
             tracing::error!(
                 path = %persist_path.display(),
                 error = %e,
@@ -890,6 +903,9 @@ exit 1
 /// Details:
 /// - Fetches via HTTPS, writes the raw payload without decompressing, and ensures directories
 ///   exist before saving.
+///
+/// # Errors
+/// - Returns an error if directory creation fails, curl request fails, or file I/O fails.
 #[allow(dead_code)]
 pub async fn download_sync_db(repo_dir: &Path, repo: &str, arch: &str) -> Result<PathBuf> {
     let base = "https://geo.mirror.pkgbuild.com";

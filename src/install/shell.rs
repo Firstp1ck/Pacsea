@@ -444,10 +444,10 @@ mod tests {
 /// - `cmds`: Command fragments to present to the user.
 ///
 /// Output:
-/// - Launches a PowerShell window (if available and command contains "DRY RUN") for dry-run simulation, or `cmd` window otherwise.
+/// - Launches a `PowerShell` window (if available and command contains "DRY RUN") for dry-run simulation, or `cmd` window otherwise.
 ///
 /// Details:
-/// - When commands contain "DRY RUN" and PowerShell is available, uses PowerShell to simulate the operation.
+/// - When commands contain "DRY RUN" and `PowerShell` is available, uses `PowerShell` to simulate the operation.
 /// - Joins commands with `&&` for readability and uses `start` to detach the window.
 pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
     let msg = if cmds.is_empty() {
@@ -461,10 +461,9 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
 
     if is_dry_run && super::utils::is_powershell_available() {
         // Use PowerShell to simulate the operation
-        let escaped_msg = msg.replace("'", "''");
+        let escaped_msg = msg.replace('\'', "''");
         let powershell_cmd = format!(
-            "Write-Host '{}' -ForegroundColor Yellow; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
-            escaped_msg
+            "Write-Host '{escaped_msg}' -ForegroundColor Yellow; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')"
         );
         let _ = Command::new("powershell.exe")
             .args(["-NoProfile", "-Command", &powershell_cmd])

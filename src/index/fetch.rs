@@ -119,7 +119,7 @@ pub async fn fetch_official_pkg_names()
 ///
 /// Details:
 /// - Kept to satisfy cross-platform compilation; Windows uses the Arch API path instead.
-pub async fn fetch_official_pkg_names()
+pub fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
     Err("official package index fetch is not implemented on Windows yet".into())
 }
