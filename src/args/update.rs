@@ -559,7 +559,7 @@ fn prompt_retry_with_force(prompt_text: &str, write_log: &dyn Fn(&str)) -> bool 
     }
 
     // Print prompt without newline so answer appears on same line
-    print!("{}", prompt_text);
+    print!("{prompt_text}");
     let _ = io::stdout().flush();
 
     // Read single character response
@@ -580,7 +580,7 @@ fn prompt_retry_with_force(prompt_text: &str, write_log: &dyn Fn(&str)) -> bool 
                 "{}",
                 i18n::t_fmt1(
                     "app.cli.update.error_prefix",
-                    &format!("Failed to read input: {e}")
+                    format!("Failed to read input: {e}")
                 )
             );
             write_log(&format!("FAILED: Could not read retry prompt input: {e}"));
@@ -589,67 +589,46 @@ fn prompt_retry_with_force(prompt_text: &str, write_log: &dyn Fn(&str)) -> bool 
     }
 }
 
-/// What: Handle system update by running pacman and AUR helper updates, logging results.
+/// What: Result of running an update command.
 ///
-/// Inputs:
-/// - `no_color`: If true, disables colored output.
+/// Inputs: None
 ///
-/// Output:
-/// - Exits the process with appropriate exit code.
+/// Output: Struct containing success status, failed packages, and failed commands.
 ///
 /// Details:
-/// - Runs `sudo pacman -Syu --noconfirm` first to update official packages.
-/// - Then runs `yay -Syu --noconfirm` or `paru -Syu --noconfirm` (prefers paru) if available.
-/// - Displays update progress output in real-time to the terminal.
-/// - Logs all command output and status messages to `update.log` in the config logs directory.
-/// - Informs user of final status and log file path.
-/// - Uses colored output for success (green), error (red), info (cyan), and warning (yellow) messages.
+/// - Used to track the outcome of pacman and AUR helper updates.
 #[cfg(not(target_os = "windows"))]
-#[allow(clippy::too_many_lines)]
-pub fn handle_update(no_color: bool) -> ! {
-    use std::fs::OpenOptions;
-    use std::io::Write;
-    use std::process::Command;
-    use std::time::{SystemTime, UNIX_EPOCH};
+struct UpdateResult {
+    /// Whether the update succeeded.
+    succeeded: bool,
+    /// List of failed package names.
+    failed_packages: Vec<String>,
+    /// List of failed command descriptions.
+    failed_commands: Vec<String>,
+}
 
-    tracing::info!("System update requested from CLI");
-
-    // Get logs directory and create update.log path
-    let logs_dir = theme::logs_dir();
-    let log_file_path = logs_dir.join("update.log");
-
-    // Ensure log file exists and is writable
-    if let Some(parent) = log_file_path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-
-    // Helper function to write status messages to log file
-    let write_log = |message: &str| {
-        if let Ok(mut file) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_file_path)
-        {
-            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
-                |_| "unknown".to_string(),
-                |d| pacsea::util::ts_to_date(Some(i64::try_from(d.as_secs()).unwrap_or(0))),
-            );
-            let _ = writeln!(file, "[{timestamp}] {message}");
-        }
-    };
-
-    // Prompt for password and validate it
-    let password = prompt_and_validate_password(&write_log);
-
-    let mut all_succeeded = true;
-    let mut failed_commands = Vec::new();
-    let mut failed_packages = Vec::new();
-    #[allow(unused_assignments)]
-    let mut pacman_succeeded = Option::<bool>::None;
-    let mut aur_succeeded = Option::<bool>::None;
-    let mut aur_helper_name = Option::<&str>::None;
-
-    // Step 1: Update pacman (sudo pacman -Syu --noconfirm)
+/// What: Handle pacman update with retry logic and result processing.
+///
+/// Inputs:
+/// - `log_file_path`: Path to the log file.
+/// - `password`: Optional sudo password.
+/// - `no_color`: If true, disables colored output.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - `UpdateResult` containing success status, failed packages, and failed commands.
+///
+/// Details:
+/// - Runs `sudo pacman -Syu --noconfirm`.
+/// - If it fails, prompts user to retry with `-Syyu`.
+/// - Extracts failed packages from output.
+#[cfg(not(target_os = "windows"))]
+fn handle_pacman_update(
+    log_file_path: &Path,
+    password: Option<&str>,
+    no_color: bool,
+    write_log: &dyn Fn(&str),
+) -> UpdateResult {
     println!(
         "{}",
         info_color(&i18n::t("app.cli.update.starting"), no_color)
@@ -659,30 +638,30 @@ pub fn handle_update(no_color: bool) -> ! {
     let mut pacman_result = run_command_with_logging(
         "sudo",
         &["pacman", "-Syu", "--noconfirm"],
-        &log_file_path,
-        password.as_deref(),
+        log_file_path,
+        password,
     );
 
     // If pacman -Syu failed, ask user if they want to retry with -Syyu
-    if let Ok((status, _output)) = &pacman_result {
-        if !status.success() {
-            let retry_prompt = i18n::t("app.cli.update.retry_prompt_pacman");
-            if prompt_retry_with_force(&retry_prompt, &write_log) {
-                println!(
-                    "{}",
-                    info_color(
-                        "Retrying pacman update with force download database (-Syyu)...",
-                        no_color
-                    )
-                );
-                write_log("Retrying pacman update: pacman -Syyu --noconfirm");
-                pacman_result = run_command_with_logging(
-                    "sudo",
-                    &["pacman", "-Syyu", "--noconfirm"],
-                    &log_file_path,
-                    password.as_deref(),
-                );
-            }
+    if let Ok((status, _output)) = &pacman_result
+        && !status.success()
+    {
+        let retry_prompt = i18n::t("app.cli.update.retry_prompt_pacman");
+        if prompt_retry_with_force(&retry_prompt, write_log) {
+            println!(
+                "{}",
+                info_color(
+                    "Retrying pacman update with force download database (-Syyu)...",
+                    no_color
+                )
+            );
+            write_log("Retrying pacman update: pacman -Syyu --noconfirm");
+            pacman_result = run_command_with_logging(
+                "sudo",
+                &["pacman", "-Syyu", "--noconfirm"],
+                log_file_path,
+                password,
+            );
         }
     }
 
@@ -694,7 +673,11 @@ pub fn handle_update(no_color: bool) -> ! {
                     success_color(&i18n::t("app.cli.update.pacman_success"), no_color)
                 );
                 write_log("SUCCESS: pacman update completed successfully");
-                pacman_succeeded = Some(true);
+                UpdateResult {
+                    succeeded: true,
+                    failed_packages: Vec::new(),
+                    failed_commands: Vec::new(),
+                }
             } else {
                 println!(
                     "{}",
@@ -705,10 +688,11 @@ pub fn handle_update(no_color: bool) -> ! {
                     status.code()
                 ));
                 let packages = extract_failed_packages(&output, "pacman");
-                failed_packages.extend(packages);
-                all_succeeded = false;
-                failed_commands.push("pacman -Syu".to_string());
-                pacman_succeeded = Some(false);
+                UpdateResult {
+                    succeeded: false,
+                    failed_packages: packages,
+                    failed_commands: vec!["pacman -Syu".to_string()],
+                }
             }
         }
         Err(e) => {
@@ -721,127 +705,168 @@ pub fn handle_update(no_color: bool) -> ! {
                 error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
             );
             write_log(&format!("FAILED: Could not execute pacman update: {e}"));
-            all_succeeded = false;
-            failed_commands.push("pacman -Syu --noconfirm".to_string());
-            pacman_succeeded = Some(false);
+            UpdateResult {
+                succeeded: false,
+                failed_packages: Vec::new(),
+                failed_commands: vec!["pacman -Syu --noconfirm".to_string()],
+            }
+        }
+    }
+}
+
+/// What: Handle AUR helper update with retry logic and result processing.
+///
+/// Inputs:
+/// - `helper`: The AUR helper name (yay/paru).
+/// - `log_file_path`: Path to the log file.
+/// - `no_color`: If true, disables colored output.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - `UpdateResult` containing success status, failed packages, and failed commands.
+///
+/// Details:
+/// - Runs `{helper} -Syu --noconfirm`.
+/// - If it fails, prompts user to retry with `-Syyu`.
+/// - Extracts failed packages from output.
+#[cfg(not(target_os = "windows"))]
+fn handle_aur_update(
+    helper: &str,
+    log_file_path: &Path,
+    no_color: bool,
+    write_log: &dyn Fn(&str),
+) -> UpdateResult {
+    println!(
+        "\n{}",
+        info_color(
+            &i18n::t_fmt1("app.cli.update.aur_starting", helper),
+            no_color
+        )
+    );
+    write_log(&format!("Starting AUR update: {helper} -Syu --noconfirm"));
+
+    let mut aur_result = run_command_with_logging(
+        helper,
+        &["-Syu", "--noconfirm"],
+        log_file_path,
+        None, // AUR helpers handle sudo internally, no password needed
+    );
+
+    // If AUR helper -Syu failed, ask user if they want to retry with -Syyu
+    if let Ok((status, _output)) = &aur_result
+        && !status.success()
+    {
+        let retry_prompt = i18n::t_fmt1("app.cli.update.retry_prompt_aur", helper);
+        if prompt_retry_with_force(&retry_prompt, write_log) {
+            println!(
+                "{}",
+                info_color(
+                    &format!("Retrying {helper} update with force download database (-Syyu)..."),
+                    no_color
+                )
+            );
+            write_log(&format!("Retrying AUR update: {helper} -Syyu --noconfirm"));
+            aur_result = run_command_with_logging(
+                helper,
+                &["-Syyu", "--noconfirm"],
+                log_file_path,
+                None, // AUR helpers handle sudo internally, no password needed
+            );
         }
     }
 
-    // Refresh sudo timestamp after pacman command so AUR helper can use it
-    // This prevents a second password prompt when the AUR helper calls sudo internally
-    if let Some(pass) = password {
-        // Use shell_single_quote for consistent password escaping
-        #[allow(clippy::needless_borrow)]
-        let escaped = shell_single_quote(&pass);
-        let refresh_cmd = format!("echo {escaped} | sudo -S -v");
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(&refresh_cmd)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-        write_log("Refreshed sudo timestamp for AUR helper");
-    }
-
-    // Step 2: Update AUR packages (yay/paru -Syu --noconfirm)
-    let aur_helper = utils::get_aur_helper();
-    if let Some(helper) = aur_helper {
-        aur_helper_name = Some(helper);
-        println!(
-            "\n{}",
-            info_color(
-                &i18n::t_fmt1("app.cli.update.aur_starting", helper),
-                no_color
-            )
-        );
-        write_log(&format!("Starting AUR update: {helper} -Syu --noconfirm"));
-
-        let mut aur_result = run_command_with_logging(
-            helper,
-            &["-Syu", "--noconfirm"],
-            &log_file_path,
-            None, // AUR helpers handle sudo internally, no password needed
-        );
-
-        // If AUR helper -Syu failed, ask user if they want to retry with -Syyu
-        if let Ok((status, _output)) = &aur_result {
-            if !status.success() {
-                let retry_prompt = i18n::t_fmt1("app.cli.update.retry_prompt_aur", helper);
-                if prompt_retry_with_force(&retry_prompt, &write_log) {
-                    println!(
-                        "{}",
-                        info_color(
-                            &format!(
-                                "Retrying {helper} update with force download database (-Syyu)..."
-                            ),
-                            no_color
-                        )
-                    );
-                    write_log(&format!("Retrying AUR update: {helper} -Syyu --noconfirm"));
-                    aur_result = run_command_with_logging(
-                        helper,
-                        &["-Syyu", "--noconfirm"],
-                        &log_file_path,
-                        None, // AUR helpers handle sudo internally, no password needed
-                    );
-                }
-            }
-        }
-
-        match aur_result {
-            Ok((status, output)) => {
-                if status.success() {
-                    println!(
-                        "{}",
-                        success_color(
-                            &i18n::t_fmt1("app.cli.update.aur_success", helper),
-                            no_color
-                        )
-                    );
-                    write_log(&format!("SUCCESS: {helper} update completed successfully"));
-                    aur_succeeded = Some(true);
-                } else {
-                    println!(
-                        "{}",
-                        error_color(&i18n::t_fmt1("app.cli.update.aur_failed", helper), no_color)
-                    );
-                    write_log(&format!(
-                        "FAILED: {} update failed with exit code {:?}",
-                        helper,
-                        status.code()
-                    ));
-                    let packages = extract_failed_packages(&output, helper);
-                    failed_packages.extend(packages);
-                    all_succeeded = false;
-                    failed_commands.push(format!("{helper} -Syu --noconfirm"));
-                    aur_succeeded = Some(false);
-                }
-            }
-            Err(e) => {
+    match aur_result {
+        Ok((status, output)) => {
+            if status.success() {
                 println!(
                     "{}",
-                    error_color(
-                        &i18n::t_fmt1("app.cli.update.aur_exec_failed", helper),
+                    success_color(
+                        &i18n::t_fmt1("app.cli.update.aur_success", helper),
                         no_color
                     )
                 );
-                eprintln!(
+                write_log(&format!("SUCCESS: {helper} update completed successfully"));
+                UpdateResult {
+                    succeeded: true,
+                    failed_packages: Vec::new(),
+                    failed_commands: Vec::new(),
+                }
+            } else {
+                println!(
                     "{}",
-                    error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
+                    error_color(&i18n::t_fmt1("app.cli.update.aur_failed", helper), no_color)
                 );
-                write_log(&format!("FAILED: Could not execute {helper} update: {e}"));
-                all_succeeded = false;
-                failed_commands.push(format!("{helper} -Syu --noconfirm"));
-                aur_succeeded = Some(false);
+                write_log(&format!(
+                    "FAILED: {} update failed with exit code {:?}",
+                    helper,
+                    status.code()
+                ));
+                let packages = extract_failed_packages(&output, helper);
+                UpdateResult {
+                    succeeded: false,
+                    failed_packages: packages,
+                    failed_commands: vec![format!("{helper} -Syu --noconfirm")],
+                }
             }
         }
-    } else {
-        println!(
-            "\n{}",
-            warning_color(&i18n::t("app.cli.update.no_aur_helper"), no_color)
-        );
-        write_log("SKIPPED: No AUR helper (paru/yay) available");
+        Err(e) => {
+            println!(
+                "{}",
+                error_color(
+                    &i18n::t_fmt1("app.cli.update.aur_exec_failed", helper),
+                    no_color
+                )
+            );
+            eprintln!(
+                "{}",
+                error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
+            );
+            write_log(&format!("FAILED: Could not execute {helper} update: {e}"));
+            UpdateResult {
+                succeeded: false,
+                failed_packages: Vec::new(),
+                failed_commands: vec![format!("{helper} -Syu --noconfirm")],
+            }
+        }
+    }
+}
+
+/// What: Display final update summary and exit.
+///
+/// Inputs:
+/// - `pacman_result`: Result of pacman update.
+/// - `aur_result`: Optional result of AUR helper update.
+/// - `aur_helper_name`: Optional AUR helper name.
+/// - `log_file_path`: Path to the log file.
+/// - `no_color`: If true, disables colored output.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - Exits the process with appropriate exit code.
+///
+/// Details:
+/// - Displays individual status for pacman and AUR helper.
+/// - Shows overall summary and failed packages if any.
+/// - Displays log file path.
+#[cfg(not(target_os = "windows"))]
+fn display_summary_and_exit(
+    pacman_result: &UpdateResult,
+    aur_result: Option<&UpdateResult>,
+    aur_helper_name: Option<&str>,
+    log_file_path: &Path,
+    no_color: bool,
+    write_log: &dyn Fn(&str),
+) -> ! {
+    let all_succeeded = pacman_result.succeeded && aur_result.is_none_or(|r| r.succeeded);
+
+    let mut failed_commands = pacman_result.failed_commands.clone();
+    if let Some(aur) = aur_result {
+        failed_commands.extend_from_slice(&aur.failed_commands);
+    }
+
+    let mut failed_packages = pacman_result.failed_packages.clone();
+    if let Some(aur) = aur_result {
+        failed_packages.extend_from_slice(&aur.failed_packages);
     }
 
     // Final summary
@@ -851,20 +876,22 @@ pub fn handle_update(no_color: bool) -> ! {
     );
 
     // Show individual status for pacman and AUR helper
-    if pacman_succeeded == Some(true) {
+    if pacman_result.succeeded {
         println!(
             "{}",
             success_color(&i18n::t("app.cli.update.pacman_success"), no_color)
         );
-    } else if pacman_succeeded == Some(false) {
+    } else {
         println!(
             "{}",
             error_color(&i18n::t("app.cli.update.pacman_failed"), no_color)
         );
     }
 
-    if let Some(helper) = aur_helper_name {
-        if aur_succeeded == Some(true) {
+    if let Some(helper) = aur_helper_name
+        && let Some(aur) = aur_result
+    {
+        if aur.succeeded {
             println!(
                 "{}",
                 success_color(
@@ -872,7 +899,7 @@ pub fn handle_update(no_color: bool) -> ! {
                     no_color
                 )
             );
-        } else if aur_succeeded == Some(false) {
+        } else {
             println!(
                 "{}",
                 error_color(&i18n::t_fmt1("app.cli.update.aur_failed", helper), no_color)
@@ -910,7 +937,7 @@ pub fn handle_update(no_color: bool) -> ! {
         }
     }
     let log_file_format = i18n::t("app.cli.update.log_file");
-    let clickable_path = format_clickable_path(&log_file_path);
+    let clickable_path = format_clickable_path(log_file_path);
     // Replace {} placeholder with clickable path
     let log_file_message = log_file_format.replace("{}", &clickable_path);
     println!("{log_file_message}");
@@ -926,4 +953,104 @@ pub fn handle_update(no_color: bool) -> ! {
         tracing::error!("System update completed with errors");
         std::process::exit(1);
     }
+}
+
+/// What: Handle system update by running pacman and AUR helper updates, logging results.
+///
+/// Inputs:
+/// - `no_color`: If true, disables colored output.
+///
+/// Output:
+/// - Exits the process with appropriate exit code.
+///
+/// Details:
+/// - Runs `sudo pacman -Syu --noconfirm` first to update official packages.
+/// - Then runs `yay -Syu --noconfirm` or `paru -Syu --noconfirm` (prefers paru) if available.
+/// - Displays update progress output in real-time to the terminal.
+/// - Logs all command output and status messages to `update.log` in the config logs directory.
+/// - Informs user of final status and log file path.
+/// - Uses colored output for success (green), error (red), info (cyan), and warning (yellow) messages.
+#[cfg(not(target_os = "windows"))]
+pub fn handle_update(no_color: bool) -> ! {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    use std::process::Command;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    tracing::info!("System update requested from CLI");
+
+    // Get logs directory and create update.log path
+    let logs_dir = theme::logs_dir();
+    let log_file_path = logs_dir.join("update.log");
+
+    // Ensure log file exists and is writable
+    if let Some(parent) = log_file_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    // Helper function to write status messages to log file
+    let write_log = |message: &str| {
+        if let Ok(mut file) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_file_path)
+        {
+            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).map_or_else(
+                |_| "unknown".to_string(),
+                |d| pacsea::util::ts_to_date(Some(i64::try_from(d.as_secs()).unwrap_or(0))),
+            );
+            let _ = writeln!(file, "[{timestamp}] {message}");
+        }
+    };
+
+    // Prompt for password and validate it
+    let password = prompt_and_validate_password(&write_log);
+
+    // Step 1: Update pacman (sudo pacman -Syu --noconfirm)
+    let pacman_result =
+        handle_pacman_update(&log_file_path, password.as_deref(), no_color, &write_log);
+
+    // Refresh sudo timestamp after pacman command so AUR helper can use it
+    // This prevents a second password prompt when the AUR helper calls sudo internally
+    if let Some(pass) = password {
+        // Use shell_single_quote for consistent password escaping
+        #[allow(clippy::needless_borrow)]
+        let escaped = shell_single_quote(&pass);
+        let refresh_cmd = format!("echo {escaped} | sudo -S -v");
+        let _ = Command::new("bash")
+            .arg("-c")
+            .arg(&refresh_cmd)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        write_log("Refreshed sudo timestamp for AUR helper");
+    }
+
+    // Step 2: Update AUR packages (yay/paru -Syu --noconfirm)
+    let aur_helper = utils::get_aur_helper();
+    let (aur_result, aur_helper_name) = aur_helper.map_or_else(
+        || {
+            println!(
+                "\n{}",
+                warning_color(&i18n::t("app.cli.update.no_aur_helper"), no_color)
+            );
+            write_log("SKIPPED: No AUR helper (paru/yay) available");
+            (None, None)
+        },
+        |helper| {
+            let result = handle_aur_update(helper, &log_file_path, no_color, &write_log);
+            (Some(result), Some(helper))
+        },
+    );
+
+    // Display final summary and exit
+    display_summary_and_exit(
+        &pacman_result,
+        aur_result.as_ref(),
+        aur_helper_name,
+        &log_file_path,
+        no_color,
+        &write_log,
+    );
 }
