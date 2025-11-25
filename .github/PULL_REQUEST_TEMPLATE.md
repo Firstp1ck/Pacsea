@@ -1,4 +1,12 @@
-<!-- Thank you for contributing to Pacsea! Please read CONTRIBUTING.md before submitting. -->
+<!-- Thank you for contributing to Pacsea! 
+
+**Important references:**
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — Full contribution guidelines and PR process
+- [PR_DESCRIPTION.md](../Documents/PR_DESCRIPTION.md) — Detailed PR description template
+- [Development Wiki](https://github.com/Firstp1ck/Pacsea/wiki/Development) — Development tools and debugging
+
+Please ensure you've reviewed these before submitting your PR.
+-->
 
 ## Summary
 Briefly describe the problem and how your change solves it.
@@ -32,15 +40,36 @@ RUST_LOG=pacsea=debug cargo run -- --dry-run
 Include before/after images or a short GIF. Update files in `Images/` if relevant.
 
 ## Checklist
-- [ ] Code compiles locally
+
+**Code Quality:**
+- [ ] Code compiles locally (`cargo check`)
 - [ ] `cargo fmt --all` ran without changes
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings` is clean
 - [ ] `cargo test -- --test-threads=1` passes
+- [ ] Complexity checks pass for new code (`cargo test complexity -- --nocapture`)
+- [ ] All new functions/methods have rustdoc comments (What, Inputs, Output, Details)
+- [ ] No `unwrap()` or `expect()` in non-test code
+
+**Testing:**
 - [ ] Added or updated tests where it makes sense
-- [ ] Updated docs if behavior, options, or keybinds changed (README, config examples)
+- [ ] For bug fixes: created failing tests first, then fixed the issue
+- [ ] Tests are meaningful and cover the functionality
+
+**Documentation:**
+- [ ] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
+- [ ] Updated relevant wiki pages if needed:
+  - [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea)
+  - [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration)
+  - [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts)
+- [ ] Updated config examples in `config/` directory if config keys changed
 - [ ] For UI changes: included screenshots and updated `Images/` if applicable
-- [ ] Changes respect `--dry-run` and degrade gracefully if `pacman`/`paru`/`yay` are unavailable
-- [ ] If config keys changed: updated README sections for `settings.conf`, `theme.conf`, and `keybinds.conf`
+
+**Compatibility:**
+- [ ] Changes respect `--dry-run` flag
+- [ ] Code degrades gracefully if `pacman`/`paru`/`yay` are unavailable
+- [ ] No breaking changes (or clearly documented if intentional)
+
+**Other:**
 - [ ] Not a packaging change for AUR (otherwise propose in `pacsea-bin` or `pacsea-git` repos)
 
 ## Notes for reviewers
