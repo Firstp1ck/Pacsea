@@ -447,6 +447,7 @@ fn test_modal_preflight_renders() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: pacsea::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     let _terminal = render_ui_to_backend(backend, &mut app);

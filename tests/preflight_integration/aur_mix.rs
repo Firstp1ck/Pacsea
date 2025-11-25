@@ -187,6 +187,7 @@ fn preflight_handles_aur_and_official_package_mix() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Test 1: Deps tab - should show dependencies for both packages

@@ -374,7 +374,10 @@ fn trigger_background_resolution(
                 "[Preflight] Setting preflight_deps_resolving=true for {} items (cache empty)",
                 items.len()
             );
-            app.preflight_deps_items = Some(items.to_vec());
+            app.preflight_deps_items = Some((
+                items.to_vec(),
+                crate::state::modal::PreflightAction::Install,
+            ));
             app.preflight_deps_resolving = true;
         }
     } else {
@@ -542,6 +545,7 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: app.remove_cascade_mode,
+        cached_reverse_deps_report: None,
     };
     tracing::debug!(
         "[Install] Modal state set in {:?}",
@@ -619,6 +623,7 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: app.remove_cascade_mode,
+        cached_reverse_deps_report: None,
     };
     app.remove_preflight_summary = Vec::new(); // Will be populated when dependencies are resolved
     app.toast_message = Some(crate::i18n::t(app, "app.toasts.preflight_remove_list"));

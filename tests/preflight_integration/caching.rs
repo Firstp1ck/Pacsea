@@ -245,6 +245,7 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Verify initial state - modal should be empty

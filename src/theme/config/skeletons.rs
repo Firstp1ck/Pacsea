@@ -205,6 +205,13 @@ search_startup_mode = insert_mode\n\
 # Default is false (normal substring search)\n\
 fuzzy_search = false\n\
 \n\
+# Installed packages filter mode\n\
+# Controls which packages are shown when viewing installed packages\n\
+# Allowed values: leaf | all\n\
+# - leaf: Show only leaf packages (explicitly installed, nothing depends on them) - default\n\
+# - all: Show all explicitly installed packages (including those other packages depend on)\n\
+installed_packages_mode = leaf\n\
+\n\
 # Results sorting\n\
 # Allowed values: alphabetical | aur_popularity | best_matches\n\
 sort_mode = best_matches\n\

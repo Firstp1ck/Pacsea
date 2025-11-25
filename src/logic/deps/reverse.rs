@@ -15,7 +15,7 @@ use std::process::{Command, Stdio};
 ///
 /// Details:
 /// - Serves as the transfer structure between the resolution logic and the preflight modal renderer.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ReverseDependencyReport {
     /// Flattened dependency info reused by the Preflight modal UI.
     pub dependencies: Vec<DependencyInfo>,

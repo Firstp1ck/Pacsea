@@ -11,6 +11,36 @@ use crate::theme::theme;
 use crate::ui::modals::preflight::helpers::format_count_with_indicator;
 use std::collections::{HashMap, HashSet};
 
+/// Known meta-packages in Arch Linux that have no reverse dependencies
+/// but are important system components.
+const META_PACKAGES: &[&str] = &[
+    "base",
+    "base-devel",
+    "xorg",
+    "xorg-apps",
+    "xorg-drivers",
+    "xorg-fonts",
+    "plasma",
+    "plasma-meta",
+    "plasma-desktop",
+    "gnome",
+    "gnome-extra",
+    "kde-applications",
+    "kde-applications-meta",
+    "lxde",
+    "lxqt",
+    "mate",
+    "mate-extra",
+    "xfce4",
+    "xfce4-goodies",
+    "cinnamon",
+    "budgie-desktop",
+    "deepin",
+    "deepin-extra",
+    "i3",
+    "sway",
+];
+
 /// What: Dependency statistics grouped by status.
 ///
 /// Inputs: None (struct fields).
@@ -237,35 +267,20 @@ fn render_empty_state(
     is_resolving: bool,
     deps_error: Option<&String>,
 ) -> Vec<Line<'static>> {
+    tracing::debug!(
+        "[UI] render_empty_state: action={:?}, items={}, is_resolving={}, deps_error={:?}, preflight_deps_resolving={}, deps_resolving={}",
+        action,
+        items.len(),
+        is_resolving,
+        deps_error.is_some(),
+        app.preflight_deps_resolving,
+        app.deps_resolving
+    );
     let th = theme();
     let mut lines = Vec::new();
 
-    if !matches!(action, PreflightAction::Install) {
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.deps.no_deps_for_removal"),
-            Style::default().fg(th.subtext1),
-        )));
-        return lines;
-    }
-
-    if is_resolving {
-        for pkg_name in items.iter().map(|p| &p.name) {
-            let mut spans = Vec::new();
-            spans.push(Span::styled(
-                format!("▶ {pkg_name} "),
-                Style::default()
-                    .fg(th.overlay1)
-                    .add_modifier(Modifier::BOLD),
-            ));
-            spans.push(Span::styled("(0 deps)", Style::default().fg(th.subtext1)));
-            lines.push(Line::from(spans));
-        }
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            i18n::t(app, "app.modals.preflight.deps.resolving"),
-            Style::default().fg(th.yellow),
-        )));
-    } else if let Some(err_msg) = deps_error {
+    // Handle error state first (applies to both Install and Remove)
+    if let Some(err_msg) = deps_error {
         lines.push(Line::from(Span::styled(
             i18n::t_fmt1(app, "app.modals.preflight.deps.error", err_msg),
             Style::default().fg(th.red),
@@ -275,7 +290,11 @@ fn render_empty_state(
             i18n::t(app, "app.modals.preflight.deps.retry_hint"),
             Style::default().fg(th.subtext1),
         )));
-    } else {
+        return lines;
+    }
+
+    // Handle resolving state (applies to both Install and Remove)
+    if is_resolving {
         for pkg_name in items.iter().map(|p| &p.name) {
             let mut spans = Vec::new();
             spans.push(Span::styled(
@@ -284,15 +303,65 @@ fn render_empty_state(
                     .fg(th.overlay1)
                     .add_modifier(Modifier::BOLD),
             ));
-            spans.push(Span::styled("(0 deps)", Style::default().fg(th.subtext1)));
+            let deps_label = if matches!(action, PreflightAction::Remove) {
+                "(resolving dependents...)"
+            } else {
+                "(0 deps)"
+            };
+            spans.push(Span::styled(deps_label, Style::default().fg(th.subtext1)));
             lines.push(Line::from(spans));
         }
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             i18n::t(app, "app.modals.preflight.deps.resolving"),
-            Style::default().fg(th.subtext1),
+            Style::default().fg(th.yellow),
         )));
+        return lines;
     }
+
+    // Handle completed resolution with no dependencies found
+    if matches!(action, PreflightAction::Remove) {
+        // For Remove: no reverse dependencies means packages can be safely removed
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.preflight.deps.no_deps_for_removal"),
+            Style::default().fg(th.green),
+        )));
+
+        // Check for meta-packages and add warnings
+        for item in items {
+            if META_PACKAGES.contains(&item.name.as_str()) {
+                lines.push(Line::from(""));
+                lines.push(Line::from(Span::styled(
+                    i18n::t_fmt1(
+                        app,
+                        "app.modals.preflight.deps.meta_package_warning",
+                        &item.name,
+                    ),
+                    Style::default().fg(th.yellow),
+                )));
+            }
+        }
+
+        return lines;
+    }
+
+    // For Install: show packages with zero dependencies
+    for pkg_name in items.iter().map(|p| &p.name) {
+        let mut spans = Vec::new();
+        spans.push(Span::styled(
+            format!("▶ {pkg_name} "),
+            Style::default()
+                .fg(th.overlay1)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::styled("(0 deps)", Style::default().fg(th.subtext1)));
+        lines.push(Line::from(spans));
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        i18n::t(app, "app.modals.preflight.deps.resolving"),
+        Style::default().fg(th.subtext1),
+    )));
 
     lines
 }

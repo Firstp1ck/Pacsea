@@ -5,26 +5,65 @@ use crate::state::PackageItem;
 /// What: Spawn background worker for dependency resolution.
 ///
 /// Inputs:
-/// - `deps_req_rx`: Channel receiver for dependency resolution requests
+/// - `deps_req_rx`: Channel receiver for dependency resolution requests (with action)
 /// - `deps_res_tx`: Channel sender for dependency resolution responses
 ///
 /// Details:
 /// - Runs blocking dependency resolution in a thread pool
+/// - For Install action: calls `resolve_dependencies` for forward dependencies
+/// - For Remove action: calls `resolve_reverse_dependencies` for reverse dependencies
 /// - Always sends a result, even if the task panics, to ensure flags are reset
 pub fn spawn_dependency_worker(
-    mut deps_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    mut deps_req_rx: mpsc::UnboundedReceiver<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
 ) {
     let deps_res_tx_bg = deps_res_tx;
     tokio::spawn(async move {
-        while let Some(items) = deps_req_rx.recv().await {
+        tracing::info!("[Runtime] Dependency worker started, waiting for requests...");
+        while let Some((items, action)) = deps_req_rx.recv().await {
+            tracing::info!(
+                "[Runtime] Dependency worker received request: {} items, action={:?}",
+                items.len(),
+                action
+            );
             // Run blocking dependency resolution in a thread pool
             let items_clone = items.clone();
             let res_tx = deps_res_tx_bg.clone();
             let res_tx_error = deps_res_tx_bg.clone(); // Clone for error handling
             let handle = tokio::task::spawn_blocking(move || {
-                let deps = crate::logic::deps::resolve_dependencies(&items_clone);
-                let _ = res_tx.send(deps);
+                let deps = match action {
+                    crate::state::modal::PreflightAction::Install => {
+                        tracing::info!(
+                            "[Runtime] Resolving forward dependencies for {} packages",
+                            items_clone.len()
+                        );
+                        crate::logic::deps::resolve_dependencies(&items_clone)
+                    }
+                    crate::state::modal::PreflightAction::Remove => {
+                        tracing::info!(
+                            "[Runtime] Resolving reverse dependencies for {} packages",
+                            items_clone.len()
+                        );
+                        let report = crate::logic::deps::resolve_reverse_dependencies(&items_clone);
+                        tracing::info!(
+                            "[Runtime] Reverse dependency resolution completed: {} deps found",
+                            report.dependencies.len()
+                        );
+                        report.dependencies
+                    }
+                };
+                tracing::info!(
+                    "[Runtime] Dependency resolution done, sending {} deps to result channel",
+                    deps.len()
+                );
+                let send_result = res_tx.send(deps);
+                tracing::info!(
+                    "[Runtime] deps_res_tx.send result: {:?}",
+                    send_result.is_ok()
+                );
             });
             // CRITICAL: Always await and send a result, even if task panics
             // This ensures deps_resolving flag is always reset
@@ -95,23 +134,30 @@ pub fn spawn_file_worker(
 /// What: Spawn background worker for service impact resolution.
 ///
 /// Inputs:
-/// - `services_req_rx`: Channel receiver for service resolution requests
+/// - `services_req_rx`: Channel receiver for service resolution requests (with action)
 /// - `services_res_tx`: Channel sender for service resolution responses
 pub fn spawn_service_worker(
-    mut services_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    mut services_req_rx: mpsc::UnboundedReceiver<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     services_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::ServiceImpact>>,
 ) {
     let services_res_tx_bg = services_res_tx;
     tokio::spawn(async move {
-        while let Some(items) = services_req_rx.recv().await {
+        while let Some((items, action)) = services_req_rx.recv().await {
+            tracing::info!(
+                "[Runtime] Service worker received request: {} items, action={:?}",
+                items.len(),
+                action
+            );
             // Run blocking service resolution in a thread pool
             let items_clone = items.clone();
+            let action_clone = action;
             let res_tx = services_res_tx_bg.clone();
             tokio::task::spawn_blocking(move || {
-                let services = crate::logic::services::resolve_service_impacts(
-                    &items_clone,
-                    crate::state::modal::PreflightAction::Install,
-                );
+                let services =
+                    crate::logic::services::resolve_service_impacts(&items_clone, action_clone);
                 tracing::debug!(
                     "[Background] Sending service result: {} entries",
                     services.len()
@@ -234,6 +280,7 @@ pub fn spawn_summary_worker(
                                 risk_score: 0,
                                 risk_level: crate::state::modal::RiskLevel::Low,
                             },
+                            reverse_deps_report: None,
                         };
                         let _ = res_tx_error.send(minimal_summary);
                     }

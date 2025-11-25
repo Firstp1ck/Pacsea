@@ -114,6 +114,10 @@ pub struct Settings {
     /// Refresh interval in seconds for checkupdates and AUR helper checks.
     /// Default is 30 seconds. Set to a higher value to reduce resource usage on slow systems.
     pub updates_refresh_interval: u64,
+    /// Filter mode for installed packages display.
+    /// `LeafOnly` shows explicitly installed packages with no dependents.
+    /// `AllExplicit` shows all explicitly installed packages.
+    pub installed_packages_mode: crate::state::InstalledPackagesMode,
 }
 
 impl Default for Settings {
@@ -160,6 +164,7 @@ impl Default for Settings {
             search_startup_mode: false,   // Default to insert mode
             fuzzy_search: false,          // Default to normal substring search
             updates_refresh_interval: 30, // Default to 30 seconds
+            installed_packages_mode: crate::state::InstalledPackagesMode::LeafOnly,
         }
     }
 }

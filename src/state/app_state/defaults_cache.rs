@@ -32,7 +32,7 @@ pub(super) type DefaultCacheRefreshState = (
 #[allow(clippy::type_complexity)]
 pub(super) type DefaultPreflightState = (
     Option<(Vec<PackageItem>, PreflightAction)>,
-    Option<Vec<PackageItem>>,
+    Option<(Vec<PackageItem>, PreflightAction)>,
     Option<Vec<PackageItem>>,
     Option<Vec<PackageItem>>,
     Option<Vec<PackageItem>>,

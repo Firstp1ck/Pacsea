@@ -74,11 +74,13 @@ pub fn handle_summary_result(
         if let crate::state::Modal::Preflight {
             summary,
             header_chips,
+            cached_reverse_deps_report,
             ..
         } = &mut app.modal
         {
             *summary = Some(Box::new(summary_outcome.summary));
             *header_chips = summary_outcome.header;
+            *cached_reverse_deps_report = summary_outcome.reverse_deps_report;
         }
     }
     app.preflight_summary_resolving = false;
@@ -119,24 +121,43 @@ fn check_and_trigger_summary_resolution(
 /// What: Check and trigger dependency resolution if conditions are met.
 fn check_and_trigger_deps_resolution(
     app: &mut AppState,
-    deps_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
 ) {
-    if let Some(items) = app.preflight_deps_items.take()
+    // Log current state for debugging
+    if app.preflight_deps_items.is_some() || app.preflight_deps_resolving || app.deps_resolving {
+        tracing::info!(
+            "[Runtime] check_and_trigger_deps_resolution: preflight_deps_items={}, preflight_deps_resolving={}, deps_resolving={}",
+            app.preflight_deps_items
+                .as_ref()
+                .map_or(0, |(items, _)| items.len()),
+            app.preflight_deps_resolving,
+            app.deps_resolving
+        );
+    }
+
+    if let Some((items, action)) = app.preflight_deps_items.take()
         && app.preflight_deps_resolving
         && !app.deps_resolving
     {
-        tracing::debug!(
-            "[Runtime] Tick: Triggering dependency resolution for {} preflight items (preflight_deps_resolving={}, deps_resolving={})",
+        tracing::info!(
+            "[Runtime] Tick: Triggering dependency resolution for {} preflight items (action={:?}, preflight_deps_resolving={}, deps_resolving={})",
             items.len(),
+            action,
             app.preflight_deps_resolving,
             app.deps_resolving
         );
         app.deps_resolving = true;
-        let _ = deps_req_tx.send(items);
+        let send_result = deps_req_tx.send((items, action));
+        tracing::info!(
+            "[Runtime] Tick: deps_req_tx.send result: {:?}",
+            send_result.is_ok()
+        );
     } else if app.preflight_deps_items.is_some() {
-        tracing::debug!(
+        tracing::warn!(
             "[Runtime] Tick: NOT triggering deps - items={}, preflight_deps_resolving={}, deps_resolving={}",
-            app.preflight_deps_items.as_ref().map_or(0, Vec::len),
+            app.preflight_deps_items
+                .as_ref()
+                .map_or(0, |(items, _)| items.len()),
             app.preflight_deps_resolving,
             app.deps_resolving
         );
@@ -173,14 +194,24 @@ fn check_and_trigger_files_resolution(
 /// What: Check and trigger service resolution if conditions are met.
 fn check_and_trigger_services_resolution(
     app: &mut AppState,
-    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
 ) {
     if let Some(ref items) = app.preflight_services_items
         && app.preflight_services_resolving
         && !app.services_resolving
     {
+        // Get action from preflight modal state
+        let action = if let crate::state::Modal::Preflight { action, .. } = &app.modal {
+            *action
+        } else {
+            // Fallback to Install if modal state is unavailable
+            crate::state::modal::PreflightAction::Install
+        };
         app.services_resolving = true;
-        let _ = services_req_tx.send(items.clone());
+        let _ = services_req_tx.send((items.clone(), action));
     }
 }
 
@@ -228,9 +259,12 @@ fn check_and_trigger_sandbox_resolution(
 /// - Otherwise triggers resolution requests for each preflight stage
 fn handle_preflight_resolution(
     app: &mut AppState,
-    deps_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
     summary_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,
@@ -333,10 +367,11 @@ fn handle_installed_cache_polling(
 
     let maybe_pending_installs = app.pending_install_names.clone();
     let maybe_pending_removes = app.pending_remove_names.clone();
+    let installed_mode = app.installed_packages_mode;
     tokio::spawn(async move {
         // Refresh caches in background; ignore errors
         crate::index::refresh_installed_cache().await;
-        crate::index::refresh_explicit_cache().await;
+        crate::index::refresh_explicit_cache(installed_mode).await;
     });
     // Schedule next poll ~1s later
     app.next_installed_refresh_at = Some(now + Duration::from_millis(1000));
@@ -423,9 +458,12 @@ pub fn handle_tick(
     query_tx: &mpsc::UnboundedSender<QueryInput>,
     details_req_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_req_tx: &mpsc::UnboundedSender<PackageItem>,
-    deps_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
     summary_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,
@@ -612,7 +650,7 @@ mod tests {
             }],
             crate::state::modal::PreflightAction::Install,
         ));
-        app.preflight_deps_items = Some(vec![]);
+        app.preflight_deps_items = Some((vec![], crate::state::modal::PreflightAction::Install));
         app.preflight_files_items = Some(vec![]);
         app.preflight_services_items = Some(vec![]);
         app.preflight_sandbox_items = Some(vec![]);
@@ -620,7 +658,10 @@ mod tests {
         let (query_tx, _query_rx) = mpsc::unbounded_channel();
         let (details_tx, _details_rx) = mpsc::unbounded_channel();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
-        let (deps_tx, _deps_rx) = mpsc::unbounded_channel();
+        let (deps_tx, _deps_rx) = mpsc::unbounded_channel::<(
+            Vec<crate::state::PackageItem>,
+            crate::state::modal::PreflightAction,
+        )>();
         let (files_tx, _files_rx) = mpsc::unbounded_channel();
         let (services_tx, _services_rx) = mpsc::unbounded_channel();
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
@@ -872,6 +913,7 @@ mod tests {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: crate::state::modal::CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         };
         app.preflight_summary_resolving = true;
         app.preflight_cancelled
@@ -906,6 +948,7 @@ mod tests {
                 risk_score: 10,
                 risk_level: crate::state::modal::RiskLevel::Low,
             },
+            reverse_deps_report: None,
         };
 
         handle_summary_result(&mut app, summary_outcome, &tick_tx);

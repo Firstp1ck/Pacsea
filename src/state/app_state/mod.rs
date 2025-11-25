@@ -5,7 +5,8 @@ use std::{collections::HashMap, path::PathBuf, time::Instant};
 
 use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
-    ArchStatusColor, Focus, PackageDetails, PackageItem, RightPaneFocus, SortMode,
+    ArchStatusColor, Focus, InstalledPackagesMode, PackageDetails, PackageItem, RightPaneFocus,
+    SortMode,
 };
 use crate::theme::KeyMap;
 
@@ -271,6 +272,8 @@ pub struct AppState {
     // Results sorting UI
     /// Current sort mode for results.
     pub sort_mode: SortMode,
+    /// Filter mode for installed packages (leaf only vs all explicit).
+    pub installed_packages_mode: InstalledPackagesMode,
     /// Whether the sort dropdown is currently visible.
     pub sort_menu_open: bool,
     /// Clickable rectangle for the sort button in the Results title (x, y, w, h).
@@ -448,8 +451,8 @@ pub struct AppState {
     // Preflight modal background resolution requests
     /// Packages to resolve for preflight summary computation.
     pub preflight_summary_items: Option<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
-    /// Packages to resolve for preflight dependency analysis.
-    pub preflight_deps_items: Option<Vec<PackageItem>>,
+    /// Packages to resolve for preflight dependency analysis (with action for forward/reverse).
+    pub preflight_deps_items: Option<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     /// Packages to resolve for preflight file analysis.
     pub preflight_files_items: Option<Vec<PackageItem>>,
     /// Packages to resolve for preflight service analysis.

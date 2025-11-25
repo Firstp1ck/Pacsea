@@ -25,12 +25,13 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `index_notify_tx`: Channel sender for index update notifications
 /// - `updates_tx`: Channel sender for package updates
 /// - `updates_refresh_interval`: Refresh interval in seconds for checkupdates and AUR helper checks
+/// - `installed_packages_mode`: Filter mode for installed packages (leaf only vs all explicit)
 ///
 /// Details:
 /// - Fetches Arch status text once at startup and periodically every 120 seconds
 /// - Fetches Arch news once at startup, filtering out already-read items
 /// - Updates package index in background (Windows vs non-Windows handling)
-/// - Refreshes pacman caches (installed, explicit)
+/// - Refreshes pacman caches (installed, explicit) using the configured installed packages mode
 /// - Spawns tick worker that sends events every 200ms
 /// - Checks for available package updates once at startup and periodically at configured interval
 #[allow(clippy::too_many_arguments)]
@@ -45,6 +46,7 @@ pub fn spawn_auxiliary_workers(
     index_notify_tx: &mpsc::UnboundedSender<()>,
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
     updates_refresh_interval: u64,
+    installed_packages_mode: crate::state::InstalledPackagesMode,
 ) {
     // Fetch Arch status text once at startup (skip in headless mode to avoid network delays)
     if !headless {
@@ -114,9 +116,11 @@ pub fn spawn_auxiliary_workers(
 
     // Skip pacman cache refreshes in headless mode to avoid slow process spawning
     if !headless {
+        let mode = installed_packages_mode;
         tokio::spawn(async move {
             pkgindex::refresh_installed_cache().await;
-            pkgindex::refresh_explicit_cache().await;
+            // Use the configured mode from settings
+            pkgindex::refresh_explicit_cache(mode).await;
         });
     }
 

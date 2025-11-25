@@ -205,6 +205,7 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.show_keybinds_footer = prefs.show_keybinds_footer;
     app.search_normal_mode = prefs.search_startup_mode;
     app.fuzzy_search_enabled = prefs.fuzzy_search;
+    app.installed_packages_mode = prefs.installed_packages_mode;
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.
@@ -468,14 +469,24 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
 pub fn trigger_initial_resolutions(
     app: &mut AppState,
     flags: &InitFlags,
-    deps_req_tx: &tokio::sync::mpsc::UnboundedSender<Vec<PackageItem>>,
+    deps_req_tx: &tokio::sync::mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     files_req_tx: &tokio::sync::mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_tx: &tokio::sync::mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &tokio::sync::mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     sandbox_req_tx: &tokio::sync::mpsc::UnboundedSender<Vec<PackageItem>>,
 ) {
     if flags.needs_deps_resolution && !app.install_list.is_empty() {
         app.deps_resolving = true;
-        let _ = deps_req_tx.send(app.install_list.clone());
+        // Initial resolution is always for Install action (install_list)
+        let _ = deps_req_tx.send((
+            app.install_list.clone(),
+            crate::state::modal::PreflightAction::Install,
+        ));
     }
 
     if flags.needs_files_resolution && !app.install_list.is_empty() {
@@ -485,7 +496,10 @@ pub fn trigger_initial_resolutions(
 
     if flags.needs_services_resolution && !app.install_list.is_empty() {
         app.services_resolving = true;
-        let _ = services_req_tx.send(app.install_list.clone());
+        let _ = services_req_tx.send((
+            app.install_list.clone(),
+            crate::state::modal::PreflightAction::Install,
+        ));
     }
 
     if flags.needs_sandbox_resolution && !app.install_list.is_empty() {

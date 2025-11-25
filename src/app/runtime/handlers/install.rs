@@ -9,7 +9,7 @@ use crate::state::{AppState, PackageItem};
 /// Inputs:
 /// - `app`: Application state
 /// - `item`: Package item to add
-/// - `deps_req_tx`: Channel sender for dependency resolution requests
+/// - `deps_req_tx`: Channel sender for dependency resolution requests (with action)
 /// - `files_req_tx`: Channel sender for file resolution requests
 /// - `services_req_tx`: Channel sender for service resolution requests
 /// - `sandbox_req_tx`: Channel sender for sandbox resolution requests
@@ -20,22 +20,31 @@ use crate::state::{AppState, PackageItem};
 pub fn handle_add_to_install_list(
     app: &mut AppState,
     item: PackageItem,
-    deps_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
 ) {
     add_to_install_list(app, item);
-    // Trigger background dependency resolution for updated install list
+    // Trigger background dependency resolution for updated install list (Install action)
     if !app.install_list.is_empty() {
         app.deps_resolving = true;
-        let _ = deps_req_tx.send(app.install_list.clone());
+        let _ = deps_req_tx.send((
+            app.install_list.clone(),
+            crate::state::modal::PreflightAction::Install,
+        ));
         // Trigger background file resolution for updated install list
         app.files_resolving = true;
         let _ = files_req_tx.send(app.install_list.clone());
         // Trigger background service resolution for updated install list
         app.services_resolving = true;
-        let _ = services_req_tx.send(app.install_list.clone());
+        let _ = services_req_tx.send((
+            app.install_list.clone(),
+            crate::state::modal::PreflightAction::Install,
+        ));
         // Trigger background sandbox resolution for updated install list
         app.sandbox_resolving = true;
         let _ = sandbox_req_tx.send(app.install_list.clone());
@@ -84,29 +93,73 @@ impl HandlerConfig for DependencyHandlerConfig {
         // Sync dependencies to preflight modal if it's open (whether preflight or install list resolution)
         if let crate::state::Modal::Preflight {
             items,
+            action,
             dependency_info,
             ..
         } = &mut app.modal
         {
+            tracing::info!(
+                "[Runtime] sync_to_modal: action={:?}, results={}, items={}, was_preflight={}",
+                action,
+                results.len(),
+                items.len(),
+                was_preflight
+            );
+
             // Filter dependencies to only those required by current modal items
             let item_names: std::collections::HashSet<String> =
                 items.iter().map(|i| i.name.clone()).collect();
+
+            // Log first few results for debugging
+            for (i, dep) in results.iter().take(3).enumerate() {
+                tracing::info!(
+                    "[Runtime] sync_to_modal: result[{}] name={}, required_by={:?}",
+                    i,
+                    dep.name,
+                    dep.required_by
+                );
+            }
+
             let filtered_deps: Vec<_> = results
                 .iter()
                 .filter(|dep| {
-                    dep.required_by
+                    let matches = dep
+                        .required_by
                         .iter()
-                        .any(|req_by| item_names.contains(req_by))
+                        .any(|req_by| item_names.contains(req_by));
+                    if !matches && results.len() <= 10 {
+                        tracing::debug!(
+                            "[Runtime] sync_to_modal: dep {} required_by={:?} doesn't match items={:?}",
+                            dep.name,
+                            dep.required_by,
+                            item_names
+                        );
+                    }
+                    matches
                 })
                 .cloned()
                 .collect();
             let old_deps_len = dependency_info.len();
+            tracing::info!(
+                "[Runtime] sync_to_modal: filtered {} deps from {} results (items={:?})",
+                filtered_deps.len(),
+                results.len(),
+                item_names
+            );
             if filtered_deps.is_empty() {
-                tracing::debug!(
+                tracing::info!(
                     "[Runtime] No matching dependencies to sync (results={}, items={:?})",
                     results.len(),
                     item_names
                 );
+                // For Remove action with no matching deps, still update to empty
+                // This indicates no reverse dependencies found
+                if matches!(action, crate::state::PreflightAction::Remove) {
+                    tracing::info!(
+                        "[Runtime] Remove action: setting dependency_info to empty (no reverse deps)"
+                    );
+                    *dependency_info = Vec::new();
+                }
             } else {
                 tracing::info!(
                     "[Runtime] Syncing {} dependencies to preflight modal (was_preflight={}, modal had {} before)",
@@ -121,6 +174,8 @@ impl HandlerConfig for DependencyHandlerConfig {
                     old_deps_len
                 );
             }
+        } else {
+            tracing::debug!("[Runtime] sync_to_modal: Modal is not Preflight, skipping sync");
         }
     }
 
@@ -136,7 +191,7 @@ impl HandlerConfig for DependencyHandlerConfig {
 
     fn is_resolution_complete(&self, app: &AppState, results: &[Self::Result]) -> bool {
         // Check if preflight modal is open
-        if let crate::state::Modal::Preflight { items, .. } = &app.modal {
+        if let crate::state::Modal::Preflight { items, action, .. } = &app.modal {
             let item_names: std::collections::HashSet<String> =
                 items.iter().map(|i| i.name.clone()).collect();
 
@@ -144,6 +199,18 @@ impl HandlerConfig for DependencyHandlerConfig {
                 return true;
             }
 
+            // For Remove action: reverse dependency resolution is always complete when we get
+            // a result back. Having 0 results means no packages depend on the removal targets,
+            // which is a valid complete state.
+            if matches!(action, crate::state::PreflightAction::Remove) {
+                tracing::debug!(
+                    "[Runtime] handle_dependency_result: Remove action - resolution complete with {} results",
+                    results.len()
+                );
+                return true;
+            }
+
+            // For Install action: check if all items have been processed
             // Collect all packages that appear in required_by fields
             let result_packages: std::collections::HashSet<String> = results
                 .iter()
@@ -179,7 +246,7 @@ impl HandlerConfig for DependencyHandlerConfig {
         }
 
         // If no preflight modal, check preflight_deps_items
-        if let Some(ref install_items) = app.preflight_deps_items {
+        if let Some((ref install_items, ref action)) = app.preflight_deps_items {
             let item_names: std::collections::HashSet<String> =
                 install_items.iter().map(|i| i.name.clone()).collect();
 
@@ -187,6 +254,16 @@ impl HandlerConfig for DependencyHandlerConfig {
                 return true;
             }
 
+            // For Remove action: always complete when we get a result
+            if matches!(action, crate::state::PreflightAction::Remove) {
+                tracing::debug!(
+                    "[Runtime] handle_dependency_result: Remove action (no modal) - resolution complete with {} results",
+                    results.len()
+                );
+                return true;
+            }
+
+            // For Install action: check if all items have been processed
             // Collect all packages that appear in required_by fields
             let result_packages: std::collections::HashSet<String> = results
                 .iter()
@@ -276,7 +353,8 @@ mod tests {
         let mut app = new_app();
         app.install_list.clear();
 
-        let (deps_tx, mut deps_rx) = mpsc::unbounded_channel();
+        let (deps_tx, mut deps_rx) =
+            mpsc::unbounded_channel::<(Vec<PackageItem>, crate::state::modal::PreflightAction)>();
         let (files_tx, mut files_rx) = mpsc::unbounded_channel();
         let (services_tx, mut services_rx) = mpsc::unbounded_channel();
         let (sandbox_tx, mut sandbox_rx) = mpsc::unbounded_channel();
@@ -306,8 +384,13 @@ mod tests {
         assert!(app.files_resolving);
         assert!(app.services_resolving);
         assert!(app.sandbox_resolving);
-        // Requests should be sent
-        assert!(deps_rx.try_recv().is_ok());
+        // Requests should be sent (with Install action)
+        let (items, action) = deps_rx.try_recv().expect("deps request should be sent");
+        assert_eq!(items.len(), 1);
+        assert!(matches!(
+            action,
+            crate::state::modal::PreflightAction::Install
+        ));
         assert!(files_rx.try_recv().is_ok());
         assert!(services_rx.try_recv().is_ok());
         assert!(sandbox_rx.try_recv().is_ok());

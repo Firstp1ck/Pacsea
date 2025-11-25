@@ -96,6 +96,7 @@ pub async fn run(dry_run_flag: bool, refresh_result: Option<bool>) -> Result<()>
         &channels.index_notify_tx,
         &channels.updates_tx,
         updates_refresh_interval,
+        app.installed_packages_mode,
     );
 
     // Spawn event reading thread

@@ -154,6 +154,10 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(deps) = channels.deps_res_rx.recv() => {
+            tracing::info!(
+                "[Runtime] Event loop received dependency result: {} entries",
+                deps.len()
+            );
             handle_dependency_result(app, &deps, &channels.tick_tx);
             false
         }

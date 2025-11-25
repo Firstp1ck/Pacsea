@@ -69,7 +69,9 @@ pub fn handle_event(
         }
 
         // Handle global shortcuts and dropdown menus
-        if let Some(should_exit) = global::handle_global_key(*ke, app, details_tx, pkgb_tx) {
+        if let Some(should_exit) =
+            global::handle_global_key(*ke, app, details_tx, pkgb_tx, query_tx)
+        {
             if should_exit {
                 return true; // Exit requested
             }

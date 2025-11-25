@@ -102,6 +102,7 @@ fn preflight_syncs_cache_updates_during_modal_open() {
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
+        cached_reverse_deps_report: None,
     };
 
     // Test 1: Switch to Deps tab - should load initial cached data

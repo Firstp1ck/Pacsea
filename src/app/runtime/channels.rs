@@ -42,13 +42,15 @@ pub struct Channels {
     pub news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
     pub updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
     pub updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
-    pub deps_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
+    pub deps_req_tx:
+        mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     pub deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
     pub deps_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::DependencyInfo>>,
     pub files_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
     pub files_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::PackageFileInfo>>,
     pub files_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::PackageFileInfo>>,
-    pub services_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
+    pub services_req_tx:
+        mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     pub services_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::ServiceImpact>>,
     pub services_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::ServiceImpact>>,
     pub sandbox_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
@@ -86,16 +88,18 @@ struct DetailsChannels {
 
 /// What: Preflight-related channels (dependencies, files, services, sandbox, summary).
 struct PreflightChannels {
-    deps_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
-    deps_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    deps_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    deps_req_rx: mpsc::UnboundedReceiver<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
     deps_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::DependencyInfo>>,
     files_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
     files_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
     files_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::PackageFileInfo>>,
     files_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::PackageFileInfo>>,
-    services_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    services_req_tx:
+        mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    services_req_rx:
+        mpsc::UnboundedReceiver<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     services_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::ServiceImpact>>,
     services_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::ServiceImpact>>,
     sandbox_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
@@ -178,13 +182,15 @@ fn create_details_channels() -> DetailsChannels {
 /// Output:
 /// - Returns preflight channels
 fn create_preflight_channels() -> PreflightChannels {
-    let (deps_req_tx, deps_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
+    let (deps_req_tx, deps_req_rx) =
+        mpsc::unbounded_channel::<(Vec<PackageItem>, crate::state::modal::PreflightAction)>();
     let (deps_res_tx, deps_res_rx) =
         mpsc::unbounded_channel::<Vec<crate::state::modal::DependencyInfo>>();
     let (files_req_tx, files_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
     let (files_res_tx, files_res_rx) =
         mpsc::unbounded_channel::<Vec<crate::state::modal::PackageFileInfo>>();
-    let (services_req_tx, services_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
+    let (services_req_tx, services_req_rx) =
+        mpsc::unbounded_channel::<(Vec<PackageItem>, crate::state::modal::PreflightAction)>();
     let (services_res_tx, services_res_rx) =
         mpsc::unbounded_channel::<Vec<crate::state::modal::ServiceImpact>>();
     let (sandbox_req_tx, sandbox_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();

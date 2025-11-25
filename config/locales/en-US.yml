@@ -502,6 +502,8 @@ en-US:
           data_will_update: "Data is still resolving. Counts will update automatically."
         deps:
           dependents_rely_on: "Dependents: {} package(s) rely on the removal list"
+          no_deps_for_removal: "No reverse dependencies found. Packages can be safely removed."
+          meta_package_warning: "⚠ Note: '{}' is a meta-package. While nothing depends on it directly, removing it may affect your system's base installation state."
           dependencies_label: "Dependencies: {}"
           total: "{} total"
           installed: "{} installed"

@@ -445,6 +445,9 @@ pub enum Modal {
         selected_optdepends: std::collections::HashMap<String, std::collections::HashSet<String>>,
         /// Current cascade removal strategy for this session.
         cascade_mode: CascadeMode,
+        /// Cached reverse dependency report for Remove actions (populated during summary computation).
+        /// This avoids redundant resolution when switching to the Deps tab.
+        cached_reverse_deps_report: Option<crate::logic::deps::ReverseDependencyReport>,
     },
     /// Preflight execution screen with log and sticky sidebar.
     #[allow(dead_code)]
@@ -618,6 +621,7 @@ mod tests {
             sandbox_error: None,
             selected_optdepends: std::collections::HashMap::new(),
             cascade_mode: super::CascadeMode::Basic,
+            cached_reverse_deps_report: None,
         };
     }
 }

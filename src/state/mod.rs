@@ -11,8 +11,8 @@ pub mod types;
 pub use app_state::AppState;
 pub use modal::{Modal, PreflightAction, PreflightTab};
 pub use types::{
-    ArchStatusColor, Focus, NewsItem, PackageDetails, PackageItem, QueryInput, RightPaneFocus,
-    SearchResults, SortMode, Source,
+    ArchStatusColor, Focus, InstalledPackagesMode, NewsItem, PackageDetails, PackageItem,
+    QueryInput, RightPaneFocus, SearchResults, SortMode, Source,
 };
 
 #[cfg(test)]

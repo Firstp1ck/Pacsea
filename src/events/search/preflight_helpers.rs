@@ -59,7 +59,10 @@ fn trigger_background_resolution(
     cached_files: &[crate::state::modal::PackageFileInfo],
 ) {
     if dependency_info.is_empty() {
-        app.preflight_deps_items = Some(items.to_vec());
+        app.preflight_deps_items = Some((
+            items.to_vec(),
+            crate::state::modal::PreflightAction::Install,
+        ));
         app.preflight_deps_resolving = true;
     }
     if cached_files.is_empty() {
@@ -125,6 +128,7 @@ fn create_preflight_modal_with_cache(
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: app.remove_cascade_mode,
+        cached_reverse_deps_report: None,
     };
 }
 
@@ -176,6 +180,7 @@ fn create_preflight_modal_insert_mode(app: &mut AppState, items: Vec<PackageItem
         sandbox_error: None,
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: app.remove_cascade_mode,
+        cached_reverse_deps_report: None,
     };
 }
 
@@ -203,11 +208,14 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
     }
 
     if use_cache {
-        let crate::logic::preflight::PreflightSummaryOutcome { summary, header } =
-            crate::logic::preflight::compute_preflight_summary(
-                &items,
-                crate::state::PreflightAction::Install,
-            );
+        let crate::logic::preflight::PreflightSummaryOutcome {
+            summary,
+            header,
+            reverse_deps_report: _,
+        } = crate::logic::preflight::compute_preflight_summary(
+            &items,
+            crate::state::PreflightAction::Install,
+        );
         app.pending_service_plan.clear();
 
         let item_names: std::collections::HashSet<String> =

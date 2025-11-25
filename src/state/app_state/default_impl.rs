@@ -347,6 +347,7 @@ impl Default for AppState {
             preflight_tab_rects,
             preflight_content_rect,
             sort_mode,
+            installed_packages_mode: crate::state::types::InstalledPackagesMode::default(),
             sort_menu_open,
             sort_button_rect,
             sort_menu_rect,
