@@ -29,7 +29,6 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 - [Quick start](#quick-start)
 - [Features](#features)
 - [Usage](#usage)
-  - [Handy shortcuts](#handy-shortcuts)
 - [CLI Commands](#cli-commands)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
@@ -57,15 +56,16 @@ pacsea
 
 ## Features
 - **Security Scan for AUR Packages**: Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries
-- **Fuzzy Search**: Toggle flexible fuzzy search mode (`CTRL+F`) to find packages even without exact names
+- **Fuzzy Search**: Toggle flexible fuzzy search mode to find packages even without exact names
 - **Unified search**: Fast results across official repos and the AUR.
 - **Package Update Availability**: Automatic background checks with detailed version comparison view
 - **Keyboard‑first**: Minimal keystrokes, Vim‑friendly navigation.
-- **Queue & install**: Space to add, Enter to confirm installs. Press S in the confirm dialog to scan AUR packages before installing.
+- **Queue & install**: Add packages to queue and confirm installs. Run security scans for AUR packages before installing.
 - **Always‑visible details**: Open package links with a click.
 - **PKGBUILD preview**: Toggle viewer; copy PKGBUILD with one click.
 - **Persistent lists**: Recent searches and Install list are saved.
-- **Installed‑only mode**: Review and remove installed packages safely.
+- **Installed‑only mode**: Review and remove installed packages safely. Configure filter mode to show only leaf packages (default) or all explicitly installed packages.
+- **Package downgrade**: Downgrade installed packages to previous versions using the `downgrade` tool.
 - **Distro-aware updates**: Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, Artix, and standard Arch
 - **Helpful tools**: System update dialog with distro-aware mirror management and Arch News popup.
 
@@ -76,12 +76,10 @@ pacsea
 
 ![Scan configuration (v0.4.5)](Images/AUR_Scan_v0.4.5.png "Scan configuration (v0.4.5)")
 
-### New: Security scans for AUR
+### Security scans for AUR
 Pacsea adds a security‑first workflow for AUR installs. Before building you can run one or more checks — ClamAV (antivirus), Trivy (filesystem), Semgrep (static analysis), ShellCheck for PKGBUILD/.install, VirusTotal hash lookups, custom suspicious pattern scanning, and aur-sleuth (LLM audit). Scans generate a comprehensive summary showing infections, vulnerabilities by severity, Semgrep findings count, and VirusTotal statistics.
 
-**VirusTotal API Setup**: Configure your VirusTotal API key directly from the Optional Deps modal. Press Enter on the "Security: VirusTotal API" entry to open the API key page, then paste and save your key. The modal blocks main UI interactions to prevent accidental clicks/keys.
-
-Future implementation will include: Enhanced AI Security Scan (optional)
+**VirusTotal API Setup**: Configure your VirusTotal API key directly from the Optional Deps modal. The modal blocks main UI interactions to prevent accidental clicks/keys. For detailed setup instructions, see the [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea#security-scans-for-aur-packages) wiki page.
 
 ### System update dialog
 ![System update dialog (v0.4.1)](Images/SystemUpdateView_v0.4.5.png "System update dialog (v0.4.1)")
@@ -96,72 +94,52 @@ Future implementation will include: Enhanced AI Security Scan (optional)
   - mirror updaters (reflector, pacman-mirrors, eos-rankmirrors, cachyos-rate-mirrors), 
   - AUR helpers (paru, yay), and 
   - security utilities (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal API setup, aur-sleuth). 
-- Quickly see what's installed and press Enter to install missing packages.
+- Quickly see what's installed and install missing packages directly from the modal.
 
 ![TUI Optional Deps (v0.4.5)](Images/Optional_Deps_v0.4.5.png "TUI Optional Deps (v0.4.5)")
 
 ## Usage
-1. Start typing to search (press `CTRL+F` to toggle fuzzy search mode).
-2. Move with ↑/↓ or PageUp/PageDown.
-3. Press Space to add to the Install list.
-4. Press Enter to install (or confirm the Install list).
-5. **For AUR packages**: Press S in the confirm dialog to scan before installing.
-6. Press F1 or ? anytime for a help overlay.
-7. **PKGBUILD copy**: For the "Copy PKGBUILD" button, install `wl-clipboard` (Wayland) or `xclip` (X11). 
-  The copied PKGBUILD includes a suffix configured in `settings.conf` (`clipboard_suffix`).
-8. Check for available updates using the "Updates available" button at the top of the interface.
 
-### Handy shortcuts
-- **Help**: F1 or ?
-- **Fuzzy search**: Ctrl+F (toggle mode)
-- **Reload config**: Ctrl+R
-- **Switch panes**: Tab , ← / →
-- **Change sorting**: Shift+Tab
-- **Add / Install**: Space / Enter
-- **Clear search**: Shift+Del (in insert mode)
-- **Close popup**: q
-- **Toggle PKGBUILD viewer**: Ctrl+X (or click the label)
-- **Quit**: Ctrl+C
+Pacsea provides a keyboard-first interface for searching, queueing, and installing packages. For detailed usage instructions, keyboard shortcuts, and workflows, see the [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea) wiki page.
+
+**Quick overview:**
+- Type to search packages across official repos and AUR
+- Queue packages for installation
+- Review packages before installing with the Preflight modal
+- Run security scans for AUR packages
+- Manage installed packages, including removal and downgrade
+
+For a complete reference of all keyboard shortcuts, see the [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts) wiki page.
 
 ### PKGBUILD preview
 ![PKGBUILD preview (v0.4.1)](Images/PKGBUILD_v0.4.5.png "PKGBUILD preview (v0.4.1)")
 
 ## CLI Commands
 
-Pacsea supports powerful command-line operations, allowing you to manage packages without launching the TUI:
+Pacsea supports powerful command-line operations, allowing you to manage packages without launching the TUI. For a complete list of all CLI commands, options, and detailed usage instructions, see the [CLI Commands](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea#cli-commands) section in the wiki.
 
-```bash
-pacsea -s <query>              # Search packages
-pacsea -i <package1> <package2>  # Install packages
-pacsea -u                       # System update
-pacsea -l                       # List installed packages
-pacsea -n                       # Show Arch news
-```
-
-For a complete list of all CLI commands and options, see the [CLI Commands wiki page](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea#cli-commands) or run:
-
-```bash
-pacsea --help
-```
-
-> **Note**: All CLI commands exit after completion and don't launch the TUI interface. Except if explicitly mentioned.
+You can also run `pacsea --help` to see all available commands and options.
 
 ## Configuration
-- Config lives in `~/.config/pacsea/` as three files:
-  - `settings.conf` — app behavior (layout, defaults, visibility)
-  - `theme.conf` — colors and styling
-  - `keybinds.conf` — keyboard shortcuts
-- Press **Ctrl+R** in the app to reload your theme (`theme.conf`). Settings and keybinds (`settings.conf`, `keybinds.conf`) are read fresh from disk automatically — no reload needed.
 
-For example configuration files, see the [`config/`](config/) directory:
-- [`config/settings.conf`](config/settings.conf) — app behavior (layout, defaults, visibility, scans, news, etc.)
-- [`config/theme.conf`](config/theme.conf) — colors and styling with multiple theme examples
-- [`config/keybinds.conf`](config/keybinds.conf) — keyboard shortcuts for all actions
+Pacsea uses three configuration files located in `~/.config/pacsea/`:
+- `settings.conf` — app behavior (layout, defaults, visibility, scans, news, etc.)
+- `theme.conf` — colors and styling
+- `keybinds.conf` — keyboard shortcuts
+
+For complete configuration documentation, including all available settings, theme customization, and keybind configuration, see the [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration) wiki page.
+
+Example configuration files are available in the [`config/`](config/) directory.
 
 ![Settings overview (v0.4.1)](Images/Settings_v0.4.1.png "Settings overview (v0.4.1)")
 
 ### Preflight Modal
-By default Pacsea shows a Preflight review modal before installs/removals. This allows you to inspect dependencies, files, config conflicts, and optionally run AUR security scans.
+
+By default, Pacsea shows a Preflight review modal before installs/removals. This allows you to inspect dependencies, files, config conflicts, and optionally run AUR security scans.
+
+**For Install actions**: Review dependencies that will be installed, files that will be added, and optionally run security scans for AUR packages.
+
+**For Remove actions**: Review reverse dependencies (packages that depend on what you're removing), affected services, and files that will be removed. Meta-packages show warnings when they have no reverse dependencies, as removal may affect system state.
 
 The Install list shows all packages queued for installation. You can export your list to a file or import packages from a previously saved list. The blue refresh icon next to each package indicates the loading/update status.
 
@@ -171,10 +149,7 @@ The Install list shows all packages queued for installation. You can export your
 
 ![Preflight sandbox (v0.5.0)](Images/Preflight_sandbox_v0.5.0.png "Preflight sandbox (v0.5.0)")
 
-To skip this modal, change the following key in `~/.config/pacsea/settings.conf`:
-```
-skip_preflight = true
-```
+For detailed information about the Preflight modal, including how to configure it, see the [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea#security-scans-for-aur-packages) wiki page.
 
 ### Panels hidden
 ![Panels hidden (v0.4.1)](Images/PaneHided_v0.4.5.png "Panels hidden (v0.4.1)")
@@ -187,8 +162,8 @@ cargo run
 ```
 
 ## Troubleshooting
-- **AUR search errors**: Check your network and try again.
-- **Installs don’t start**: Ensure you have a terminal installed (e.g. alacritty, kitty, xterm) and `sudo` working in a terminal.
+
+For troubleshooting common issues, solutions, and diagnostic information, see the [Troubleshooting](https://github.com/Firstp1ck/Pacsea/wiki/Troubleshooting) wiki page.
 
 ## Roadmap
 - Vote or suggest features: [Feature discussion](https://github.com/Firstp1ck/Pacsea/discussions/11)
