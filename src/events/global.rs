@@ -311,6 +311,7 @@ fn handle_help_overlay(app: &mut AppState) -> bool {
 ///
 /// Inputs:
 /// - `app`: Mutable application state
+/// - `query_tx`: Channel sender for query input (to refresh results when installed mode changes)
 ///
 /// Output:
 /// - `false` if config was reloaded
@@ -319,7 +320,11 @@ fn handle_help_overlay(app: &mut AppState) -> bool {
 /// - Reloads theme, settings, keybinds, and locale configuration from disk.
 /// - Shows a toast message on success or error modal on failure.
 /// - Updates app state with new settings and reloads translations if locale changed.
-fn handle_reload_config(app: &mut AppState) -> bool {
+/// - If `installed_packages_mode` changed, refreshes the explicit cache and triggers a query refresh.
+fn handle_reload_config(
+    app: &mut AppState,
+    query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
+) -> bool {
     let mut errors = Vec::new();
 
     // Reload theme
@@ -330,11 +335,34 @@ fn handle_reload_config(app: &mut AppState) -> bool {
     // Reload settings and keybinds
     let new_settings = settings();
     let old_locale = app.locale.clone();
+    let old_installed_mode = app.installed_packages_mode;
     apply_settings_to_app_state(app, &new_settings);
 
     // Reload locale if it changed
     if new_settings.locale != old_locale {
         initialize_locale_system(app, &new_settings.locale, &new_settings);
+    }
+
+    // Refresh explicit cache if installed packages mode changed
+    if app.installed_packages_mode != old_installed_mode {
+        let new_mode = app.installed_packages_mode;
+        tracing::info!(
+            "[Config] installed_packages_mode changed from {:?} to {:?}, refreshing cache",
+            old_installed_mode,
+            new_mode
+        );
+        tokio::spawn(async move {
+            crate::index::refresh_explicit_cache(new_mode).await;
+        });
+        // Trigger query refresh to update results
+        let id = app.next_query_id;
+        app.next_query_id += 1;
+        app.latest_query_id = id;
+        let _ = query_tx.send(crate::state::QueryInput {
+            id,
+            text: app.input.clone(),
+            fuzzy: app.fuzzy_search_enabled,
+        });
     }
 
     // Show result
@@ -528,6 +556,7 @@ fn handle_menu_numeric_selection(
 /// - `app`: Mutable application state
 /// - `details_tx`: Channel to request package details
 /// - `pkgb_tx`: Channel to request PKGBUILD content
+/// - `query_tx`: Channel to send search queries
 ///
 /// Output:
 /// - `Some(true)` for exit, `Some(false)` if handled, `None` if not matched
@@ -539,6 +568,7 @@ fn handle_global_keybinds(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
 ) -> Option<bool> {
     let km = &app.keymap;
 
@@ -551,7 +581,7 @@ fn handle_global_keybinds(
 
     // Configuration reload
     if matches_keybind(ke, &km.reload_config) {
-        return Some(handle_reload_config(app));
+        return Some(handle_reload_config(app, query_tx));
     }
 
     // Exit
@@ -627,6 +657,7 @@ fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
 /// - `app`: Mutable application state shared across panes and modals
 /// - `details_tx`: Channel used to request package detail refreshes
 /// - `pkgb_tx`: Channel used to request PKGBUILD content for the focused result
+/// - `query_tx`: Channel to send search queries
 ///
 /// Output:
 /// - `Some(true)` when the caller should exit (e.g., global exit keybind triggered)
@@ -643,6 +674,7 @@ pub(super) fn handle_global_key(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
 ) -> Option<bool> {
     // First: handle ESC to close dropdown menus
     if ke.code == KeyCode::Esc
@@ -652,7 +684,7 @@ pub(super) fn handle_global_key(
     }
 
     // Second: handle global keybinds (help, theme reload, exit, PKGBUILD, sort)
-    if let Some(result) = handle_global_keybinds(&ke, app, details_tx, pkgb_tx) {
+    if let Some(result) = handle_global_keybinds(&ke, app, details_tx, pkgb_tx, query_tx) {
         return Some(result);
     }
 
@@ -699,12 +731,14 @@ mod tests {
 
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
 
         let exit = handle_global_key(
             KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
             &mut app,
             &details_tx,
             &pkgb_tx,
+            &query_tx,
         );
 
         assert_eq!(exit, Some(false));
@@ -730,12 +764,14 @@ mod tests {
         let mut app = new_app();
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
 
         let exit = handle_global_key(
             KeyEvent::new(KeyCode::F(1), KeyModifiers::empty()),
             &mut app,
             &details_tx,
             &pkgb_tx,
+            &query_tx,
         );
 
         assert_eq!(exit, Some(false));
@@ -767,12 +803,14 @@ mod tests {
 
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (pkgb_tx, mut pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
 
         let exit = handle_global_key(
             KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL),
             &mut app,
             &details_tx,
             &pkgb_tx,
+            &query_tx,
         );
 
         assert_eq!(exit, Some(false));
@@ -797,12 +835,14 @@ mod tests {
         let mut app = new_app();
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
 
         let exit = handle_global_key(
             KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
             &mut app,
             &details_tx,
             &pkgb_tx,
+            &query_tx,
         );
 
         assert_eq!(exit, Some(true));

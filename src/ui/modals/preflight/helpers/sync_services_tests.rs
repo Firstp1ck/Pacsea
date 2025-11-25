@@ -5,21 +5,24 @@ use crate::state::AppState;
 use crate::state::modal::{PreflightAction, ServiceImpact, ServiceRestartDecision};
 use crate::state::{PackageItem, Source};
 
-/// What: Test `sync_services` marks services as loaded for Remove action.
+/// What: Test `sync_services` behavior for Remove action when no cached services exist.
 ///
 /// Inputs:
 /// - `action`: `PreflightAction::Remove`
 /// - `service_info`: Empty vector
 /// - `services_loaded`: false
+/// - No cached services in app state
+/// - No cache file exists
 ///
 /// Output:
 /// - `service_info` remains unchanged
-/// - `services_loaded` is set to true
+/// - `services_loaded` remains false (services will be resolved in background)
 ///
 /// Details:
-/// - Verifies that services are marked as loaded for remove actions (no resolution needed).
+/// - Verifies that for Remove actions, services are not marked as loaded immediately
+///   when no cached services exist, allowing background resolution to proceed.
 #[test]
-fn test_sync_services_mark_loaded_for_remove() {
+fn test_sync_services_for_remove_without_cache() {
     let app = AppState::default();
     let items = vec![PackageItem {
         name: "test-pkg".to_string(),
@@ -43,7 +46,8 @@ fn test_sync_services_mark_loaded_for_remove() {
     );
 
     assert!(service_info.is_empty());
-    assert!(services_loaded);
+    // services_loaded should remain false when no cache exists, allowing background resolution
+    assert!(!services_loaded);
 }
 
 /// What: Test `sync_services` filters services by providers.
