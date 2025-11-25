@@ -334,7 +334,13 @@ package_marker = front
 # Locale code for translations (e.g., \"en-US\", \"de-DE\").
 # Leave empty to auto-detect from system locale (LANG/LC_ALL environment variables).
 # Available locales: en-US, de-DE, hu-HU (more coming soon)
-locale = \n";
+locale = \n\
+\n\
+# Updates refresh interval\n\
+# Time in seconds between checkupdates and AUR helper checks.\n\
+# Default is 30 seconds. Increase this value on systems with slow I/O or many packages to reduce resource usage.\n\
+# Minimum value is 1 second.\n\
+updates_refresh_interval = 30\n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\

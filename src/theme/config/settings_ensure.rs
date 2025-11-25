@@ -73,6 +73,9 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
             "insert_mode"
         }
         .to_string(),
+        "updates_refresh_interval" | "updates_interval" | "refresh_interval" => {
+            prefs.updates_refresh_interval.to_string()
+        }
         "scan_do_clamav" | "scan_do_trivy" | "scan_do_semgrep" | "scan_do_shellcheck"
         | "scan_do_virustotal" | "scan_do_custom" | "scan_do_sleuth" => {
             // Scan keys default to true

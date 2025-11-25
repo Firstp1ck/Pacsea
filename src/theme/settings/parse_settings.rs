@@ -156,6 +156,12 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
                 let lv = val.to_ascii_lowercase();
                 settings.fuzzy_search = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
             }
+            "updates_refresh_interval" | "updates_interval" | "refresh_interval" => {
+                if let Ok(v) = val.parse::<u64>() {
+                    // Ensure minimum value of 1 second to prevent invalid intervals
+                    settings.updates_refresh_interval = v.max(1);
+                }
+            }
             // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
             _ => {}
         }
