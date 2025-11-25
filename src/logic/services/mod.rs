@@ -79,7 +79,8 @@ pub fn resolve_service_impacts(
     });
 
     // Second pass: detect binaries that impact active units (heuristic enhancement)
-    if matches!(action, PreflightAction::Install) && !active_units.is_empty() {
+    // For both Install and Remove: detect which active services use binaries from packages
+    if !active_units.is_empty() {
         // Get ExecStart paths for all active services
         let active_service_binaries = fetch_active_service_binaries(&active_units);
 
@@ -106,8 +107,15 @@ pub fn resolve_service_impacts(
                                     unit_to_providers.entry(unit_name.clone()).or_default();
                                 if !providers.iter().any(|name| name == &item.name) {
                                     providers.push(item.name.clone());
+                                    let action_desc = if matches!(action, PreflightAction::Install)
+                                    {
+                                        "installing"
+                                    } else {
+                                        "removing"
+                                    };
                                     tracing::debug!(
-                                        "Detected binary impact: package {} provides {} used by active service {}",
+                                        "Detected binary impact: {} package {} provides {} used by active service {}",
+                                        action_desc,
                                         item.name,
                                         binary,
                                         unit_name
@@ -133,6 +141,8 @@ pub fn resolve_service_impacts(
         .map(|(unit_name, mut providers)| {
             providers.sort();
             let is_active = active_units.contains(&unit_name);
+            // For Install: services need restart after installing new packages
+            // For Remove: services will break if active (warn user, but no restart decision needed)
             let needs_restart = matches!(action, PreflightAction::Install) && is_active;
             let recommended_decision = if needs_restart {
                 ServiceRestartDecision::Restart

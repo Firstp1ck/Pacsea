@@ -20,6 +20,8 @@ struct ServicesTabParams<'a> {
     install_list_services: &'a [crate::state::modal::ServiceImpact],
     services_cache_path: &'a std::path::PathBuf,
     services_resolving: bool,
+    preflight_services_items: &'a mut Option<Vec<PackageItem>>,
+    preflight_services_resolving: &'a mut bool,
 }
 
 /// Parameters for handling sandbox tab switch.
@@ -242,10 +244,7 @@ fn handle_services_tab_switch(
     action: crate::state::PreflightAction,
     params: &mut ServicesTabParams<'_>,
 ) {
-    if params.service_info.is_empty()
-        && matches!(action, crate::state::PreflightAction::Install)
-        && !params.services_resolving
-    {
+    if params.service_info.is_empty() && !params.services_resolving {
         let cache_exists = if items.is_empty() {
             false
         } else {
@@ -253,13 +252,25 @@ fn handle_services_tab_switch(
             crate::app::services_cache::load_cache(params.services_cache_path, &signature).is_some()
         };
         if cache_exists {
-            if params.install_list_services.is_empty() {
-                // Skip if services list is empty
-            } else {
+            if !params.install_list_services.is_empty() {
                 *params.service_info = params.install_list_services.to_vec();
                 *params.service_selected = 0;
-                *params.services_loaded = true;
             }
+            // Cache exists (empty or not) - mark as loaded
+            tracing::debug!(
+                "[Preflight] Services cache exists, marking as loaded ({} services)",
+                params.service_info.len()
+            );
+            *params.services_loaded = true;
+        } else {
+            // No cache exists - trigger background resolution for both Install and Remove
+            tracing::debug!(
+                "[Preflight] Triggering background service resolution for {} packages (action={:?})",
+                items.len(),
+                action
+            );
+            *params.preflight_services_items = Some(items.to_vec());
+            *params.preflight_services_resolving = true;
         }
     }
 }
@@ -359,8 +370,10 @@ pub(super) fn switch_preflight_tab(
     // Prepare mutable state that will be updated
     let mut preflight_deps_items: Option<(Vec<PackageItem>, crate::state::PreflightAction)> = None;
     let mut preflight_files_items = None;
+    let mut preflight_services_items = None;
     let mut preflight_sandbox_items = None;
     let mut preflight_files_resolving = false;
+    let mut preflight_services_resolving = false;
     let mut preflight_sandbox_resolving = false;
     let mut remove_preflight_summary_cleared = false;
 
@@ -418,6 +431,8 @@ pub(super) fn switch_preflight_tab(
                     install_list_services,
                     services_cache_path: &services_cache_path,
                     services_resolving,
+                    preflight_services_items: &mut preflight_services_items,
+                    preflight_services_resolving: &mut preflight_services_resolving,
                 };
                 handle_services_tab_switch(items, action, &mut services_params);
             }
@@ -452,6 +467,10 @@ pub(super) fn switch_preflight_tab(
     if let Some(items) = preflight_files_items {
         app.preflight_files_items = Some(items);
         app.preflight_files_resolving = preflight_files_resolving;
+    }
+    if let Some(items) = preflight_services_items {
+        app.preflight_services_items = Some(items);
+        app.preflight_services_resolving = preflight_services_resolving;
     }
     if let Some(items) = preflight_sandbox_items {
         app.preflight_sandbox_items = Some(items);

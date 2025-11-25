@@ -22,7 +22,10 @@ pub fn handle_add_to_install_list(
     item: PackageItem,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
 ) {
     add_to_install_list(app, item);
@@ -38,7 +41,10 @@ pub fn handle_add_to_install_list(
         let _ = files_req_tx.send(app.install_list.clone());
         // Trigger background service resolution for updated install list
         app.services_resolving = true;
-        let _ = services_req_tx.send(app.install_list.clone());
+        let _ = services_req_tx.send((
+            app.install_list.clone(),
+            crate::state::modal::PreflightAction::Install,
+        ));
         // Trigger background sandbox resolution for updated install list
         app.sandbox_resolving = true;
         let _ = sandbox_req_tx.send(app.install_list.clone());

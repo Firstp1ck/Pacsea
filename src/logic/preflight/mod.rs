@@ -359,6 +359,8 @@ fn check_core_package(
 /// - `state`: Processing state with accumulated flags.
 /// - `pacnew_candidates`: Count of packages that may produce .pacnew files.
 /// - `service_restart_units`: List of services that need restart.
+/// - `action`: Preflight action (Install vs Remove).
+/// - `dependent_count`: Number of packages that depend on packages being removed (for Remove actions).
 ///
 /// Output: Tuple of (`risk_reasons`, `risk_score`, `risk_level`).
 ///
@@ -367,6 +369,8 @@ fn calculate_risk_metrics(
     state: &ProcessingState,
     pacnew_candidates: usize,
     service_restart_units: &[String],
+    action: PreflightAction,
+    dependent_count: usize,
 ) -> (Vec<String>, u8, RiskLevel) {
     let mut risk_reasons = Vec::new();
     let mut risk_score: u8 = 0;
@@ -390,6 +394,20 @@ fn calculate_risk_metrics(
     if !service_restart_units.is_empty() {
         risk_reasons.push("Services likely require restart (+1)".to_string());
         risk_score = risk_score.saturating_add(1);
+    }
+    // For Remove actions, add risk when removing packages with dependencies
+    if matches!(action, PreflightAction::Remove) && dependent_count > 0 {
+        let risk_points = if dependent_count >= 5 {
+            3 // High risk for many dependencies
+        } else if dependent_count >= 2 {
+            2 // Medium risk for multiple dependencies
+        } else {
+            1 // Low risk for single dependency
+        };
+        risk_reasons.push(format!(
+            "Removing packages with {dependent_count} dependent package(s) (+{risk_points})"
+        ));
+        risk_score = risk_score.saturating_add(risk_points);
     }
 
     let risk_level = match risk_score {
@@ -482,8 +500,21 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
         );
     }
 
-    let (risk_reasons, risk_score, risk_level) =
-        calculate_risk_metrics(&state, pacnew_candidates, &service_restart_units);
+    // For Remove actions, resolve reverse dependencies to calculate risk
+    let dependent_count = if matches!(action, PreflightAction::Remove) {
+        let report = crate::logic::deps::resolve_reverse_dependencies(items);
+        report.dependencies.len()
+    } else {
+        0
+    };
+
+    let (risk_reasons, risk_score, risk_level) = calculate_risk_metrics(
+        &state,
+        pacnew_candidates,
+        &service_restart_units,
+        action,
+        dependent_count,
+    );
 
     let summary_notes = build_summary_notes(&state);
     let mut summary_warnings = Vec::new();

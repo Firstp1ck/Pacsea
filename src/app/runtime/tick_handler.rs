@@ -192,14 +192,24 @@ fn check_and_trigger_files_resolution(
 /// What: Check and trigger service resolution if conditions are met.
 fn check_and_trigger_services_resolution(
     app: &mut AppState,
-    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
 ) {
     if let Some(ref items) = app.preflight_services_items
         && app.preflight_services_resolving
         && !app.services_resolving
     {
+        // Get action from preflight modal state
+        let action = if let crate::state::Modal::Preflight { action, .. } = &app.modal {
+            *action
+        } else {
+            // Fallback to Install if modal state is unavailable
+            crate::state::modal::PreflightAction::Install
+        };
         app.services_resolving = true;
-        let _ = services_req_tx.send(items.clone());
+        let _ = services_req_tx.send((items.clone(), action));
     }
 }
 
@@ -249,7 +259,10 @@ fn handle_preflight_resolution(
     app: &mut AppState,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
     summary_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,
@@ -445,7 +458,10 @@ pub fn handle_tick(
     pkgb_req_tx: &mpsc::UnboundedSender<PackageItem>,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     sandbox_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
     summary_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,

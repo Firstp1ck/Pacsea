@@ -474,7 +474,10 @@ pub fn trigger_initial_resolutions(
         crate::state::modal::PreflightAction,
     )>,
     files_req_tx: &tokio::sync::mpsc::UnboundedSender<Vec<PackageItem>>,
-    services_req_tx: &tokio::sync::mpsc::UnboundedSender<Vec<PackageItem>>,
+    services_req_tx: &tokio::sync::mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     sandbox_req_tx: &tokio::sync::mpsc::UnboundedSender<Vec<PackageItem>>,
 ) {
     if flags.needs_deps_resolution && !app.install_list.is_empty() {
@@ -493,7 +496,10 @@ pub fn trigger_initial_resolutions(
 
     if flags.needs_services_resolution && !app.install_list.is_empty() {
         app.services_resolving = true;
-        let _ = services_req_tx.send(app.install_list.clone());
+        let _ = services_req_tx.send((
+            app.install_list.clone(),
+            crate::state::modal::PreflightAction::Install,
+        ));
     }
 
     if flags.needs_sandbox_resolution && !app.install_list.is_empty() {

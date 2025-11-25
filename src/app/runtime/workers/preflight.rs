@@ -134,23 +134,30 @@ pub fn spawn_file_worker(
 /// What: Spawn background worker for service impact resolution.
 ///
 /// Inputs:
-/// - `services_req_rx`: Channel receiver for service resolution requests
+/// - `services_req_rx`: Channel receiver for service resolution requests (with action)
 /// - `services_res_tx`: Channel sender for service resolution responses
 pub fn spawn_service_worker(
-    mut services_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    mut services_req_rx: mpsc::UnboundedReceiver<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     services_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::ServiceImpact>>,
 ) {
     let services_res_tx_bg = services_res_tx;
     tokio::spawn(async move {
-        while let Some(items) = services_req_rx.recv().await {
+        while let Some((items, action)) = services_req_rx.recv().await {
+            tracing::info!(
+                "[Runtime] Service worker received request: {} items, action={:?}",
+                items.len(),
+                action
+            );
             // Run blocking service resolution in a thread pool
             let items_clone = items.clone();
+            let action_clone = action;
             let res_tx = services_res_tx_bg.clone();
             tokio::task::spawn_blocking(move || {
-                let services = crate::logic::services::resolve_service_impacts(
-                    &items_clone,
-                    crate::state::modal::PreflightAction::Install,
-                );
+                let services =
+                    crate::logic::services::resolve_service_impacts(&items_clone, action_clone);
                 tracing::debug!(
                     "[Background] Sending service result: {} entries",
                     services.len()

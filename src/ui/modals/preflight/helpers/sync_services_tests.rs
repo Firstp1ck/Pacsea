@@ -5,19 +5,21 @@ use crate::state::AppState;
 use crate::state::modal::{PreflightAction, ServiceImpact, ServiceRestartDecision};
 use crate::state::{PackageItem, Source};
 
-/// What: Test `sync_services` early return for Remove action.
+/// What: Test `sync_services` marks services as loaded for Remove action.
 ///
 /// Inputs:
 /// - `action`: `PreflightAction::Remove`
 /// - `service_info`: Empty vector
+/// - `services_loaded`: false
 ///
 /// Output:
 /// - `service_info` remains unchanged
+/// - `services_loaded` is set to true
 ///
 /// Details:
-/// - Verifies that service sync is skipped for remove actions.
+/// - Verifies that services are marked as loaded for remove actions (no resolution needed).
 #[test]
-fn test_sync_services_early_return_remove() {
+fn test_sync_services_mark_loaded_for_remove() {
     let app = AppState::default();
     let items = vec![PackageItem {
         name: "test-pkg".to_string(),
@@ -41,7 +43,7 @@ fn test_sync_services_early_return_remove() {
     );
 
     assert!(service_info.is_empty());
-    assert!(!services_loaded);
+    assert!(services_loaded);
 }
 
 /// What: Test `sync_services` filters services by providers.
