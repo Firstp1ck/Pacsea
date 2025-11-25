@@ -303,12 +303,12 @@ exit 0
     fs::set_permissions(&mock_pacman_path, perms).expect("Failed to set pacman script permissions");
 
     // Test the scenario: password provided once, used for long-running update
-    // This simulates: echo 'password' | sudo -S pacman -Syyu --noconfirm
+    // This simulates: echo 'password' | sudo -S pacman -Syu --noconfirm
     let start = Instant::now();
     let output = Command::new("bash")
         .arg("-c")
         .arg(format!(
-            "echo 'testpassword' | {} {} -Syyu --noconfirm",
+            "echo 'testpassword' | {} {} -Syu --noconfirm",
             mock_sudo_path.display(),
             mock_pacman_path.display()
         ))
@@ -411,7 +411,7 @@ fn test_long_running_update_simulation() {
     let mock_script_path = temp_dir.join("mock_pacman_update.sh");
     let script_content = r#"#!/bin/bash
 # Simulate a long-running update process
-# In real scenario, this would be: sudo pacman -Syyu --noconfirm
+# In real scenario, this would be: sudo pacman -Syu --noconfirm
 # If this takes longer than sudo's timestamp_timeout (default 15 minutes),
 # sudo will require password re-entry
 echo ":: Synchronizing package databases..."
@@ -587,7 +587,7 @@ exit 0
     // Test combined command with exit code capture
     // This simulates: command1; PACMAN_EXIT=$?; command2; AUR_EXIT=$?
     let combined_cmd = format!(
-        "{} -Syyu --noconfirm; PACMAN_EXIT=$?; echo 'PACMAN_EXIT='$PACMAN_EXIT; {} -Syyu --noconfirm; AUR_EXIT=$?; echo 'AUR_EXIT='$AUR_EXIT; exit $((PACMAN_EXIT | AUR_EXIT))",
+        "{} -Syu --noconfirm; PACMAN_EXIT=$?; echo 'PACMAN_EXIT='$PACMAN_EXIT; {} -Syu --noconfirm; AUR_EXIT=$?; echo 'AUR_EXIT='$AUR_EXIT; exit $((PACMAN_EXIT | AUR_EXIT))",
         mock_pacman_path.display(),
         mock_aur_path.display()
     );
