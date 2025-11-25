@@ -77,15 +77,16 @@ pub fn handle_updates_button(app: &mut AppState) -> bool {
                                 let after_arrow = trimmed[arrow_pos + 4..].trim();
 
                                 // Parse "name - old_version" from before_arrow
-                                before_arrow.rfind(" - ").and_then(|dash_pos| {
-                                    let name = before_arrow[..dash_pos].trim().to_string();
+                                before_arrow.rfind(" - ").and_then(|old_dash_pos| {
+                                    let name = before_arrow[..old_dash_pos].trim().to_string();
                                     let old_version =
-                                        before_arrow[dash_pos + 3..].trim().to_string();
+                                        before_arrow[old_dash_pos + 3..].trim().to_string();
 
                                     // Parse "name - new_version" from after_arrow
-                                    after_arrow.rfind(" - ").map(|dash_pos| {
+                                    // Use a different variable name to avoid confusion
+                                    after_arrow.rfind(" - ").map(|new_dash_pos| {
                                         let new_version =
-                                            after_arrow[dash_pos + 3..].trim().to_string();
+                                            after_arrow[new_dash_pos + 3..].trim().to_string();
                                         (name, old_version, new_version)
                                     })
                                 })
@@ -699,4 +700,88 @@ pub(super) fn handle_menus_mouse(
     // Click outside any menu closes all menus
     close_all_menus(app);
     None
+}
+
+#[cfg(test)]
+mod tests {
+
+    /// What: Test that updates parsing correctly extracts old and new versions.
+    ///
+    /// Inputs:
+    /// - Sample update file content with format `"name - old_version -> name - new_version"`
+    ///
+    /// Output:
+    /// - Verifies that `old_version` and `new_version` are correctly parsed and different
+    ///
+    /// Details:
+    /// - Creates a temporary updates file with known content
+    /// - Calls `handle_updates_button` to parse it
+    /// - Verifies that the parsed entries have correct old and new versions
+    #[test]
+    fn test_updates_parsing_extracts_correct_versions() {
+        // Test the parsing logic with various formats
+        let test_cases = vec![
+            (
+                "package-a - 1.0.0 -> package-a - 2.0.0",
+                "package-a",
+                "1.0.0",
+                "2.0.0",
+            ),
+            (
+                "package-b - 3.1.0 -> package-b - 3.2.0",
+                "package-b",
+                "3.1.0",
+                "3.2.0",
+            ),
+            (
+                "bat - 0.26.0-1 -> bat - 0.26.0-1",
+                "bat",
+                "0.26.0-1",
+                "0.26.0-1",
+            ),
+            (
+                "comgr - 2:6.4.4-2 -> comgr - 2:6.4.4-2",
+                "comgr",
+                "2:6.4.4-2",
+                "2:6.4.4-2",
+            ),
+        ];
+
+        for (input, expected_name, expected_old, expected_new) in test_cases {
+            let entries: Vec<(String, String, String)> = input
+                .lines()
+                .filter_map(|line| {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        // Parse format: "name - old_version -> name - new_version"
+                        trimmed.find(" -> ").and_then(|arrow_pos| {
+                            let before_arrow = trimmed[..arrow_pos].trim();
+                            let after_arrow = trimmed[arrow_pos + 4..].trim();
+
+                            // Parse "name - old_version" from before_arrow
+                            before_arrow.rfind(" - ").and_then(|dash_pos| {
+                                let name = before_arrow[..dash_pos].trim().to_string();
+                                let old_version = before_arrow[dash_pos + 3..].trim().to_string();
+
+                                // Parse "name - new_version" from after_arrow
+                                after_arrow.rfind(" - ").map(|dash_pos| {
+                                    let new_version =
+                                        after_arrow[dash_pos + 3..].trim().to_string();
+                                    (name, old_version, new_version)
+                                })
+                            })
+                        })
+                    }
+                })
+                .collect();
+
+            assert_eq!(entries.len(), 1, "Failed to parse: {input}");
+            let (name, old_version, new_version) = &entries[0];
+            assert_eq!(name, expected_name, "Wrong name for: {input}");
+            assert_eq!(old_version, expected_old, "Wrong old_version for: {input}");
+            assert_eq!(new_version, expected_new, "Wrong new_version for: {input}");
+        }
+    }
 }

@@ -17,7 +17,7 @@ use pacsea as crate_root;
 fn test_open_preflight_modal_callable() {
     // Create test app state
     let mut app = crate_root::state::AppState::default();
-    
+
     // Create a test package
     let test_package = crate_root::state::PackageItem {
         name: "test-pkg".to_string(),
@@ -26,10 +26,10 @@ fn test_open_preflight_modal_callable() {
         source: crate_root::state::Source::Aur,
         popularity: None,
     };
-    
+
     // Call open_preflight_modal - should not panic
     crate_root::events::open_preflight_modal(&mut app, vec![test_package], true);
-    
+
     // Verify the function executed (either opened modal or skipped based on settings)
     // The actual modal state depends on skip_preflight setting in config
 }
@@ -44,7 +44,7 @@ fn test_open_preflight_modal_callable() {
 fn test_open_preflight_modal_multiple_packages() {
     // Create test app state
     let mut app = crate_root::state::AppState::default();
-    
+
     // Create test packages
     let test_packages = vec![
         crate_root::state::PackageItem {
@@ -65,10 +65,10 @@ fn test_open_preflight_modal_multiple_packages() {
             popularity: None,
         },
     ];
-    
+
     // Call open_preflight_modal - should not panic
     crate_root::events::open_preflight_modal(&mut app, test_packages, true);
-    
+
     // Verify the function executed (either opened modal or skipped based on settings)
 }
 
@@ -82,7 +82,7 @@ fn test_open_preflight_modal_multiple_packages() {
 fn test_open_preflight_modal_no_cache() {
     // Create test app state
     let mut app = crate_root::state::AppState::default();
-    
+
     // Create a test package
     let test_package = crate_root::state::PackageItem {
         name: "test-pkg".to_string(),
@@ -91,10 +91,10 @@ fn test_open_preflight_modal_no_cache() {
         source: crate_root::state::Source::Aur,
         popularity: None,
     };
-    
+
     // Call open_preflight_modal with use_cache=false - should not panic
     crate_root::events::open_preflight_modal(&mut app, vec![test_package], false);
-    
+
     // Verify the function executed (either opened modal or skipped based on settings)
 }
 
@@ -107,23 +107,35 @@ fn test_open_preflight_modal_no_cache() {
 fn test_updates_modal_initialization() {
     // Create test app state
     let mut app = crate_root::state::AppState::default();
-    
+
     // Create test update entries
     let entries = vec![
-        ("test-pkg".to_string(), "1.0.0".to_string(), "1.1.0".to_string()),
-        ("another-pkg".to_string(), "2.0.0".to_string(), "2.1.0".to_string()),
+        (
+            "test-pkg".to_string(),
+            "1.0.0".to_string(),
+            "1.1.0".to_string(),
+        ),
+        (
+            "another-pkg".to_string(),
+            "2.0.0".to_string(),
+            "2.1.0".to_string(),
+        ),
     ];
-    
+
     // Set up Updates modal
     app.modal = crate_root::state::Modal::Updates {
         entries: entries.clone(),
         scroll: 0,
         selected: 0,
     };
-    
+
     // Verify modal state
     match &app.modal {
-        crate_root::state::Modal::Updates { entries: modal_entries, scroll, selected } => {
+        crate_root::state::Modal::Updates {
+            entries: modal_entries,
+            scroll,
+            selected,
+        } => {
             assert_eq!(modal_entries.len(), 2);
             assert_eq!(modal_entries[0].0, "test-pkg");
             assert_eq!(modal_entries[1].0, "another-pkg");
@@ -133,4 +145,3 @@ fn test_updates_modal_initialization() {
         _ => panic!("Expected Updates modal"),
     }
 }
-

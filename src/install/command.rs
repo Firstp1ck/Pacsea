@@ -47,8 +47,9 @@ pub fn build_install_command(
     match &item.source {
         Source::Official { .. } => {
             let reinstall = crate::index::is_installed(&item.name);
+            // For already installed packages, use -Sy to refresh database and upgrade in one command
             let base_cmd = if reinstall {
-                format!("pacman -S --noconfirm {}", item.name)
+                format!("pacman -Sy --noconfirm {}", item.name)
             } else {
                 format!("pacman -S --needed --noconfirm {}", item.name)
             };
