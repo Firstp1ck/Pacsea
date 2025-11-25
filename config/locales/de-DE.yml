@@ -51,6 +51,7 @@ de-DE:
         clipboard: "Zwischenablage"
         aur_helper: "AUR-Helfer"
         security: "Sicherheit"
+        downgrade: "Downgrade-Tool"
     search_mode_fuzzy: "FUZZY"
     search_mode_normal: "NORMAL"
 

@@ -51,6 +51,7 @@ en-US:
         clipboard: "Clipboard"
         aur_helper: "AUR Helper"
         security: "Security"
+        downgrade: "Downgrade-Tool"
     search_mode_fuzzy: "FUZZY"
     search_mode_normal: "NORMAL"
 

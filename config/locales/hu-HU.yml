@@ -54,6 +54,8 @@ hu-HU:
         clipboard: "Vágólap"
         aur_helper: "AUR-segéd"
         security: "Biztonság"
+        # TODO: Translate to hungarian
+        downgrade: "Downgrade-Tool"
     search_mode_fuzzy: "KÖZELÍTŐ"
     search_mode_normal: "NORMÁL"
       

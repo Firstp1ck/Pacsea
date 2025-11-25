@@ -492,6 +492,29 @@ fn build_security_scanner_rows(
     ));
 }
 
+/// What: Build downgrade package row for the optional deps modal.
+///
+/// Inputs:
+/// - `app`: Application state for i18n
+/// - `rows`: Mutable vector to append rows to
+///
+/// Output:
+/// - Appends downgrade row to the provided vector
+///
+/// Details:
+/// - Checks if the downgrade package is installed and adds a row for it
+fn build_downgrade_rows(app: &AppState, rows: &mut Vec<crate::state::types::OptionalDepRow>) {
+    let installed = is_tool_installed("downgrade", "downgrade");
+    rows.push(create_optional_dep_row(
+        app,
+        "app.optional_deps.categories.downgrade",
+        "downgrade",
+        "downgrade".to_string(),
+        installed,
+        None,
+    ));
+}
+
 /// Build optional dependencies rows for the `OptionalDeps` modal.
 ///
 /// What: Scan the system for installed editors, terminals, clipboard tools, mirror managers,
@@ -512,6 +535,7 @@ fn build_security_scanner_rows(
 /// - AUR helper: Shows installed `paru`/`yay` if present, or both if neither installed.
 /// - Security scanners: Always includes `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, `VirusTotal API` setup,
 ///   and `aur-sleuth` setup. Marks installed items as non-selectable.
+/// - Downgrade: Includes the `downgrade` package for package downgrade functionality.
 pub fn build_optional_deps_rows(app: &AppState) -> Vec<crate::state::types::OptionalDepRow> {
     let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();
 
@@ -521,6 +545,7 @@ pub fn build_optional_deps_rows(app: &AppState) -> Vec<crate::state::types::Opti
     build_mirror_rows(&mut rows);
     build_aur_helper_rows(app, &mut rows);
     build_security_scanner_rows(app, &mut rows);
+    build_downgrade_rows(app, &mut rows);
 
     rows
 }
