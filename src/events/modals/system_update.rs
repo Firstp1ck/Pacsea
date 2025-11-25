@@ -162,10 +162,18 @@ fn handle_system_update_enter(
     }
     if do_pacman {
         cmds.push("sudo pacman -Syu --noconfirm".to_string());
-        cmds.push("sudo pacman -Syu --noconfirm".to_string());
     }
     if do_aur {
-        cmds.push("(if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syu --noconfirm; else echo 'No AUR helper (paru/yay) found.'; echo; echo 'Choose AUR helper to install:'; echo '  1) paru'; echo '  2) yay'; echo '  3) cancel'; read -rp 'Enter 1/2/3: ' choice; case \"$choice\" in 1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; 2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; *) echo 'Cancelled.'; exit 1 ;; esac; if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then paru -Syu --noconfirm; elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then yay -Syu --noconfirm; else echo 'AUR helper installation failed or was cancelled.'; exit 1; fi; fi)".to_string());
+        cmds.push(
+            "if command -v paru >/dev/null 2>&1; then \
+                paru -Syu --noconfirm; \
+            elif command -v yay >/dev/null 2>&1; then \
+                yay -Syu --noconfirm; \
+            else \
+                echo 'No AUR helper (paru/yay) found.'; \
+            fi"
+            .to_string(),
+        );
     }
     if do_cache {
         cmds.push("sudo pacman -Sc --noconfirm".to_string());

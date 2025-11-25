@@ -571,6 +571,87 @@ pub fn handle_update() -> ! {
     let mut aur_helper_name = Option::<&str>::None;
 
     // Step 1: Update pacman (sudo pacman -Syu --noconfirm)
+        return None;
+    }
+
+    // Password required, but check if stdin is available for interactive input
+    if !std::io::stdin().is_terminal() {
+        // Not in an interactive terminal (e.g., in tests or non-interactive environment)
+        let error_msg =
+            "Password required but stdin is not a terminal. Cannot prompt for password.";
+        eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", error_msg));
+        write_log("FAILED: Password required but stdin is not a terminal");
+        tracing::error!("Password required but stdin is not a terminal");
+        std::process::exit(1);
+    }
+
+    // Password required, prompt user
+    // Get username to mimic sudo's password prompt format
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    let password_prompt = i18n::t_fmt1("app.cli.update.password_prompt", &username);
+    match rpassword::prompt_password(&password_prompt) {
+        Ok(pass) => {
+            // Validate that password is not empty
+            // Empty passwords will cause sudo to fail, so reject them early
+            if pass.trim().is_empty() {
+                let error_msg = "Empty password provided. Password cannot be empty.";
+                eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", error_msg));
+                write_log("FAILED: Empty password provided");
+                tracing::error!("Empty password provided");
+                std::process::exit(1);
+            }
+            write_log("Password obtained from user (not logged)");
+            Some(pass)
+        }
+        Err(e) => {
+            eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
+            write_log(&format!("FAILED: Could not read password: {e}"));
+            tracing::error!("Failed to read sudo password: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+
+/// What: Result of running an update command.
+///
+/// Inputs: None
+///
+/// Output: Struct containing success status, failed packages, and failed commands.
+///
+/// Details:
+/// - Used to track the outcome of pacman and AUR helper updates.
+#[cfg(not(target_os = "windows"))]
+struct UpdateResult {
+    /// Whether the update succeeded.
+    succeeded: bool,
+    /// List of failed package names.
+    failed_packages: Vec<String>,
+    /// List of failed command descriptions.
+    failed_commands: Vec<String>,
+}
+
+/// What: Handle pacman update and result processing.
+///
+/// Inputs:
+/// - `log_file_path`: Path to the log file.
+/// - `password`: Optional sudo password.
+/// - `no_color`: If true, disables colored output.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - `UpdateResult` containing success status, failed packages, and failed commands.
+///
+/// Details:
+/// - Runs `sudo pacman -Syu --noconfirm`.
+/// - Extracts failed packages from output if it fails.
+#[cfg(not(target_os = "windows"))]
+fn handle_pacman_update(
+    log_file_path: &Path,
+    password: Option<&str>,
+    no_color: bool,
+    write_log: &dyn Fn(&str),
+) -> UpdateResult {
     println!(
         "{}",
         info_color(&i18n::t("app.cli.update.starting"), no_color)
@@ -578,10 +659,14 @@ pub fn handle_update() -> ! {
     write_log("Starting system update: pacman -Syu --noconfirm");
 
     let pacman_result = run_command_with_logging(
+    let pacman_result = run_command_with_logging(
         "sudo",
         &["pacman", "-Syu", "--noconfirm"],
         &log_file_path,
         password.as_deref(),
+    );
+        log_file_path,
+        password,
     );
 
     match pacman_result {
@@ -646,6 +731,37 @@ pub fn handle_update() -> ! {
             )
         );
         write_log(&format!("Starting AUR update: {helper} -Syu --noconfirm"));
+}
+
+/// What: Handle AUR helper update and result processing.
+///
+/// Inputs:
+/// - `helper`: The AUR helper name (yay/paru).
+/// - `log_file_path`: Path to the log file.
+/// - `no_color`: If true, disables colored output.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - `UpdateResult` containing success status, failed packages, and failed commands.
+///
+/// Details:
+/// - Runs `{helper} -Syu --noconfirm`.
+/// - Extracts failed packages from output if it fails.
+#[cfg(not(target_os = "windows"))]
+fn handle_aur_update(
+    helper: &str,
+    log_file_path: &Path,
+    no_color: bool,
+    write_log: &dyn Fn(&str),
+) -> UpdateResult {
+    println!(
+        "\n{}",
+        info_color(
+            &i18n::t_fmt1("app.cli.update.aur_starting", helper),
+            no_color
+        )
+    );
+    write_log(&format!("Starting AUR update: {helper} -Syu --noconfirm"));
 
         let aur_result = run_command_with_logging(
             helper,
@@ -653,6 +769,12 @@ pub fn handle_update() -> ! {
             &log_file_path,
             None, // AUR helpers handle sudo internally, no password needed
         );
+    let aur_result = run_command_with_logging(
+        helper,
+        &["-Syu", "--noconfirm"],
+        log_file_path,
+        None, // AUR helpers handle sudo internally, no password needed
+    );
 
         match aur_result {
             Ok((status, output)) => {
