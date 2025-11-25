@@ -161,99 +161,18 @@ fn handle_system_update_enter(
         cmds.push(distro::mirror_update_command(countries_arg, mirror_count));
     }
     if do_pacman {
-        // Wrap pacman command with retry logic: if -Syu fails, extract and show failed packages, then prompt to retry with -Syyu
-        cmds.push(
-            "( \
-                TMP_OUTPUT=$(mktemp); \
-                sudo pacman -Syu --noconfirm 2>&1 | tee \"$TMP_OUTPUT\"; \
-                EXIT_CODE=${PIPESTATUS[0]}; \
-                if [ $EXIT_CODE -ne 0 ]; then \
-                    echo ''; \
-                    echo 'Pacman update failed.'; \
-                    echo ''; \
-                    FAILED_PKGS=$(grep -oE 'error: target not found: [^[:space:]]+' \"$TMP_OUTPUT\" 2>/dev/null | sed 's/error: target not found: //' | sort -u); \
-                    if [ -n \"$FAILED_PKGS\" ]; then \
-                        echo 'Failed packages:'; \
-                        echo \"$FAILED_PKGS\" | while read -r pkg; do echo \"  - $pkg\"; done; \
-                        echo ''; \
-                    fi; \
-                    rm -f \"$TMP_OUTPUT\"; \
-                    echo -n 'Retry with force download database (-Syyu)? [y/N]: '; \
-                    read -r response; \
-                    if [ \"$response\" = \"y\" ] || [ \"$response\" = \"Y\" ]; then \
-                        echo 'Retrying pacman update with force download database (-Syyu)...'; \
-                        sudo pacman -Syyu --noconfirm; \
-                    fi; \
-                else \
-                    rm -f \"$TMP_OUTPUT\"; \
-                fi \
-            )"
-                .to_string(),
-        );
+        cmds.push("sudo pacman -Syu --noconfirm".to_string());
     }
     if do_aur {
-        // Wrap AUR helper command with retry logic: if -Syu fails, extract and show failed packages, then prompt to retry with -Syyu
-        // This wraps the entire AUR helper detection and update logic
         cmds.push(
-            "( \
-                extract_failed_aur_packages() { \
-                    local output=\"$1\"; \
-                    echo \"$output\" | grep -E ' - exit status [1-9]' | sed 's/ - exit status.*//' | sed 's/^->[[:space:]]*//' | sed 's/^[[:space:]]*//' | sort -u | grep -v '^$'; \
-                }; \
-                run_aur_update() { \
-                    local helper=\"$1\"; \
-                    TMP_OUTPUT=$(mktemp); \
-                    $helper -Syu --noconfirm 2>&1 | tee \"$TMP_OUTPUT\"; \
-                    local exit_code=${PIPESTATUS[0]}; \
-                    if [ $exit_code -ne 0 ]; then \
-                        echo ''; \
-                        echo \"$helper update failed.\"; \
-                        echo ''; \
-                        FAILED_PKGS=$(extract_failed_aur_packages \"$(cat \"$TMP_OUTPUT\")\"); \
-                        if [ -n \"$FAILED_PKGS\" ]; then \
-                            echo 'Failed packages:'; \
-                            echo \"$FAILED_PKGS\" | while read -r pkg; do echo \"  - $pkg\"; done; \
-                            echo ''; \
-                        fi; \
-                        rm -f \"$TMP_OUTPUT\"; \
-                        echo -n \"Retry with force download database (-Syyu)? [y/N]: \"; \
-                        read -r response; \
-                        if [ \"$response\" = \"y\" ] || [ \"$response\" = \"Y\" ]; then \
-                            echo \"Retrying $helper update with force download database (-Syyu)...\"; \
-                            $helper -Syyu --noconfirm; \
-                        fi; \
-                    else \
-                        rm -f \"$TMP_OUTPUT\"; \
-                    fi; \
-                }; \
-                if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
-                    run_aur_update paru; \
-                elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
-                    run_aur_update yay; \
-                else \
-                    echo 'No AUR helper (paru/yay) found.'; \
-                    echo; \
-                    echo 'Choose AUR helper to install:'; \
-                    echo '  1) paru'; \
-                    echo '  2) yay'; \
-                    echo '  3) cancel'; \
-                    read -rp 'Enter 1/2/3: ' choice; \
-                    case \"$choice\" in \
-                        1) rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si ;; \
-                        2) rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si ;; \
-                        *) echo 'Cancelled.'; exit 1 ;; \
-                    esac; \
-                    if command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1; then \
-                        run_aur_update paru; \
-                    elif command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1; then \
-                        run_aur_update yay; \
-                    else \
-                        echo 'AUR helper installation failed or was cancelled.'; \
-                        exit 1; \
-                    fi; \
-                fi \
-            )"
-                .to_string(),
+            "if command -v paru >/dev/null 2>&1; then \
+                paru -Syu --noconfirm; \
+            elif command -v yay >/dev/null 2>&1; then \
+                yay -Syu --noconfirm; \
+            else \
+                echo 'No AUR helper (paru/yay) found.'; \
+            fi"
+            .to_string(),
         );
     }
     if do_cache {

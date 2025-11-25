@@ -63,7 +63,7 @@ fn build_batch_install_command(
         )
     } else if !official.is_empty() {
         format!(
-            "(sudo pacman -S --needed --noconfirm {n} || (echo; echo 'Install failed.'; read -rp 'Retry with force database sync (-Syy)? [y/N]: ' ans; if [ \"$ans\" = \"y\" ] || [ \"$ans\" = \"Y\" ]; then sudo pacman -Syy && sudo pacman -S --needed --noconfirm {n}; fi)){hold}",
+            "sudo pacman -S --needed --noconfirm {n}{hold}",
             n = official.join(" "),
             hold = hold_tail
         )
