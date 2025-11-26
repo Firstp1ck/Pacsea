@@ -271,6 +271,8 @@ mod tests {
                 arch: "x86_64".into(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
         super::spawn_install(&pkg, None, true);
         std::thread::sleep(std::time::Duration::from_millis(50));

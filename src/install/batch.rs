@@ -316,6 +316,8 @@ mod tests {
                     arch: "x86_64".into(),
                 },
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             },
             crate::state::PackageItem {
                 name: "fd".into(),
@@ -326,6 +328,8 @@ mod tests {
                     arch: "x86_64".into(),
                 },
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             },
         ];
         super::spawn_install_all(&items, true);
