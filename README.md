@@ -195,6 +195,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 - **Available Update button. Opens a Preview with old and new version. -> done;**
   - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
 - **Commandline Flags -u and --update use set "Update System" from the TUI settings.**
+- **Ability to maintain your AUR packages**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
