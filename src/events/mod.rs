@@ -122,8 +122,15 @@ pub fn handle_event(
 
         // Search pane focused (delegated)
         if matches!(app.focus, Focus::Search) {
-            let should_exit =
-                search::handle_search_key(*ke, app, query_tx, details_tx, add_tx, preview_tx);
+            let should_exit = search::handle_search_key(
+                *ke,
+                app,
+                query_tx,
+                details_tx,
+                add_tx,
+                preview_tx,
+                comments_tx,
+            );
             return should_exit;
         }
 

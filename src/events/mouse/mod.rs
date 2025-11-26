@@ -135,9 +135,16 @@ pub fn handle_mouse_event(
     }
 
     // Pane interactions (Results, Recent, Install/Remove/Downgrade, PKGBUILD viewer)
-    if let Some(handled) =
-        panes::handle_panes_mouse(m, mx, my, is_left_down, app, details_tx, preview_tx)
-    {
+    if let Some(handled) = panes::handle_panes_mouse(
+        m,
+        mx,
+        my,
+        is_left_down,
+        app,
+        details_tx,
+        preview_tx,
+        comments_tx,
+    ) {
         return handled;
     }
 

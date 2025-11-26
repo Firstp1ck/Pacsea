@@ -33,6 +33,7 @@ pub fn handle_insert_mode(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     add_tx: &mpsc::UnboundedSender<PackageItem>,
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) -> bool {
     let km = &app.keymap;
 
@@ -116,16 +117,16 @@ pub fn handle_insert_mode(
             send_query(app, query_tx);
         }
         _ if matches_any(&ke, &km.search_move_up) => {
-            move_sel_cached(app, -1, details_tx);
+            move_sel_cached(app, -1, details_tx, comments_tx);
         }
         _ if matches_any(&ke, &km.search_move_down) => {
-            move_sel_cached(app, 1, details_tx);
+            move_sel_cached(app, 1, details_tx, comments_tx);
         }
         _ if matches_any(&ke, &km.search_page_up) => {
-            move_sel_cached(app, -10, details_tx);
+            move_sel_cached(app, -10, details_tx, comments_tx);
         }
         _ if matches_any(&ke, &km.search_page_down) => {
-            move_sel_cached(app, 10, details_tx);
+            move_sel_cached(app, 10, details_tx, comments_tx);
         }
         _ if matches_any(&ke, &km.search_insert_clear) => {
             // Clear entire search input

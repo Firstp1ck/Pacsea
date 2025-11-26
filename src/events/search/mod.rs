@@ -48,6 +48,7 @@ mod tests;
 /// - Pane navigation: Left/Right and configured `pane_next` cycle focus across panes and subpanes,
 ///   differing slightly when installed-only mode is active.
 /// - PKGBUILD reload is handled via debounced requests scheduled in the selection logic.
+/// - Comments are automatically updated when package changes and comments are visible.
 pub fn handle_search_key(
     ke: KeyEvent,
     app: &mut AppState,
@@ -55,6 +56,7 @@ pub fn handle_search_key(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     add_tx: &mpsc::UnboundedSender<PackageItem>,
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) -> bool {
     let km = &app.keymap;
 
@@ -75,9 +77,25 @@ pub fn handle_search_key(
 
     // Normal mode: Vim-like navigation without editing input
     if app.search_normal_mode {
-        return normal_mode::handle_normal_mode(ke, app, query_tx, details_tx, add_tx, preview_tx);
+        return normal_mode::handle_normal_mode(
+            ke,
+            app,
+            query_tx,
+            details_tx,
+            add_tx,
+            preview_tx,
+            comments_tx,
+        );
     }
 
     // Insert mode (default for Search)
-    insert_mode::handle_insert_mode(ke, app, query_tx, details_tx, add_tx, preview_tx)
+    insert_mode::handle_insert_mode(
+        ke,
+        app,
+        query_tx,
+        details_tx,
+        add_tx,
+        preview_tx,
+        comments_tx,
+    )
 }

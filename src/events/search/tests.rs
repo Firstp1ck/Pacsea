@@ -39,6 +39,7 @@ fn search_insert_typing_and_backspace() {
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
 
     let _ = handle_search_key(
         KeyEvent::new(KeyCode::Char('r'), KeyModifiers::empty()),
@@ -47,6 +48,7 @@ fn search_insert_typing_and_backspace() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     let _ = handle_search_key(
         KeyEvent::new(KeyCode::Char('g'), KeyModifiers::empty()),
@@ -55,6 +57,7 @@ fn search_insert_typing_and_backspace() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     let _ = handle_search_key(
         KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty()),
@@ -63,6 +66,7 @@ fn search_insert_typing_and_backspace() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert_eq!(app.input, "r");
     // At least one query should have been sent
@@ -87,6 +91,7 @@ fn search_normal_mode_selection() {
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
 
     // Toggle into normal mode (Esc by default per KeyMap)
     let _ = handle_search_key(
@@ -96,6 +101,7 @@ fn search_normal_mode_selection() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     // Select right (default 'l')
     let _ = handle_search_key(
@@ -105,6 +111,7 @@ fn search_normal_mode_selection() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert!(app.search_select_anchor.is_some());
     // Select left (default 'h')
@@ -115,6 +122,7 @@ fn search_normal_mode_selection() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert!(app.search_caret <= crate::events::utils::char_count(&app.input));
 }
@@ -187,6 +195,7 @@ fn search_normal_mode_deletion() {
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
 
     // Enter normal mode
     app.search_normal_mode = true;
@@ -203,6 +212,7 @@ fn search_normal_mode_deletion() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
 
     // Should have deleted "hello"
@@ -233,6 +243,7 @@ fn search_normal_mode_clear() {
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
 
     // Enter normal mode
     app.search_normal_mode = true;
@@ -250,6 +261,7 @@ fn search_normal_mode_clear() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
 
     assert_eq!(app.input, "");
@@ -278,6 +290,7 @@ fn search_mode_toggle() {
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
 
     // Configure toggle key (default Esc)
     app.keymap.search_normal_toggle = vec![KeyChord {
@@ -293,6 +306,7 @@ fn search_mode_toggle() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert!(app.search_normal_mode);
 
@@ -304,6 +318,7 @@ fn search_mode_toggle() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert!(!app.search_normal_mode);
     // Note: Selection anchor is cleared when entering insert mode via search_normal_insert key,
@@ -398,6 +413,7 @@ fn search_insert_mode_space_adds_items() {
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, mut arx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
 
     // Test normal mode: should send to add_tx
     app.installed_only_mode = false;
@@ -408,6 +424,7 @@ fn search_insert_mode_space_adds_items() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     let received = arx.try_recv().ok();
     assert!(received.is_some());
@@ -429,6 +446,7 @@ fn search_insert_mode_space_adds_items() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert!(app.remove_list.iter().any(|p| p.name == "test-package"));
 }
@@ -491,6 +509,7 @@ fn search_normal_mode_navigation() {
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
 
     // Move down (j)
     let _ = handle_search_key(
@@ -500,6 +519,7 @@ fn search_normal_mode_navigation() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert_eq!(app.selected, 2);
 
@@ -511,6 +531,7 @@ fn search_normal_mode_navigation() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert_eq!(app.selected, 1);
 
@@ -523,6 +544,7 @@ fn search_normal_mode_navigation() {
         &dtx,
         &atx,
         &ptx,
+        &comments_tx,
     );
     assert_eq!(app.selected, 0);
 }

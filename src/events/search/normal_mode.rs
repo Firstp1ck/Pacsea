@@ -253,43 +253,44 @@ fn handle_navigation(
     ke: &KeyEvent,
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) -> bool {
     let km = &app.keymap;
 
     // Check keymap-based arrow keys first (works same in normal and insert mode)
     if matches_any(ke, &km.search_move_up) {
-        move_sel_cached(app, -1, details_tx);
+        move_sel_cached(app, -1, details_tx, comments_tx);
         return true;
     }
     if matches_any(ke, &km.search_move_down) {
-        move_sel_cached(app, 1, details_tx);
+        move_sel_cached(app, 1, details_tx, comments_tx);
         return true;
     }
     if matches_any(ke, &km.search_page_up) {
-        move_sel_cached(app, -10, details_tx);
+        move_sel_cached(app, -10, details_tx, comments_tx);
         return true;
     }
     if matches_any(ke, &km.search_page_down) {
-        move_sel_cached(app, 10, details_tx);
+        move_sel_cached(app, 10, details_tx, comments_tx);
         return true;
     }
 
     // Vim-like navigation (j/k, Ctrl+D/U)
     match (ke.code, ke.modifiers) {
         (KeyCode::Char('j'), _) => {
-            move_sel_cached(app, 1, details_tx);
+            move_sel_cached(app, 1, details_tx, comments_tx);
             true
         }
         (KeyCode::Char('k'), _) => {
-            move_sel_cached(app, -1, details_tx);
+            move_sel_cached(app, -1, details_tx, comments_tx);
             true
         }
         (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
-            move_sel_cached(app, 10, details_tx);
+            move_sel_cached(app, 10, details_tx, comments_tx);
             true
         }
         (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
-            move_sel_cached(app, -10, details_tx);
+            move_sel_cached(app, -10, details_tx, comments_tx);
             true
         }
         _ => false,
@@ -468,6 +469,7 @@ pub fn handle_normal_mode(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     add_tx: &mpsc::UnboundedSender<PackageItem>,
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) -> bool {
     // Handle numeric selection for config menu (1-9)
     if let KeyCode::Char(ch) = ke.code
@@ -541,7 +543,7 @@ pub fn handle_normal_mode(
     }
 
     // Handle navigation keys
-    if handle_navigation(&ke, app, details_tx) {
+    if handle_navigation(&ke, app, details_tx, comments_tx) {
         return false;
     }
 

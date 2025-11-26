@@ -50,6 +50,7 @@ fn handle_results_pane(
     is_left_down: bool,
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) -> bool {
     if !is_in_rect(mx, my, app.results_rect) {
         return false;
@@ -70,11 +71,11 @@ fn handle_results_pane(
 
     match m.kind {
         MouseEventKind::ScrollUp => {
-            move_sel_cached(app, -1, details_tx);
+            move_sel_cached(app, -1, details_tx, comments_tx);
             true
         }
         MouseEventKind::ScrollDown => {
-            move_sel_cached(app, 1, details_tx);
+            move_sel_cached(app, 1, details_tx, comments_tx);
             true
         }
         _ => is_left_down,
@@ -447,6 +448,7 @@ fn handle_comments_scroll(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) -
 /// - Install/Remove panes: Left click focuses pane and selects item; scroll wheel moves selection.
 /// - Downgrade pane: Left click focuses pane and selects item; scroll wheel moves selection.
 /// - PKGBUILD viewer: Scroll wheel scrolls the PKGBUILD content.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn handle_panes_mouse(
     m: MouseEvent,
     mx: u16,
@@ -455,6 +457,7 @@ pub(super) fn handle_panes_mouse(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) -> Option<bool> {
     // Handle clicks first (they return early when handled)
     if is_left_down {
@@ -467,7 +470,7 @@ pub(super) fn handle_panes_mouse(
     }
 
     // Handle scroll events (execute handlers, they don't return early)
-    handle_results_pane(m, mx, my, is_left_down, app, details_tx);
+    handle_results_pane(m, mx, my, is_left_down, app, details_tx, comments_tx);
     handle_recent_pane(m, mx, my, app, preview_tx);
     handle_install_scroll(m, mx, my, app, details_tx);
     handle_downgrade_scroll(m, mx, my, app, details_tx);
