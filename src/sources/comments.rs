@@ -1,6 +1,5 @@
 //! AUR package comments fetching via web scraping.
 
-use chrono::Datelike;
 use scraper::{ElementRef, Html, Selector};
 use std::time::Duration;
 
@@ -328,71 +327,28 @@ fn get_timezone_abbreviation(local_dt: &chrono::DateTime<chrono::Local>) -> Stri
     }
 }
 
-/// What: Get timezone abbreviation from UTC offset and date (for DST-aware abbreviations).
+/// What: Get timezone abbreviation from UTC offset and date.
 ///
 /// Inputs:
 /// - `offset_hours`: UTC offset in hours (e.g., 1, 2, -5).
-/// - `date`: Date to determine if DST is active.
+/// - `date`: Date (unused, kept for API compatibility).
 ///
 /// Output:
-/// - `Some(String)` with timezone abbreviation if known; `None` otherwise.
+/// - `Some(String)` with timezone abbreviation if unambiguous; `None` otherwise.
 ///
 /// Details:
-/// - Maps common UTC offsets to timezone abbreviations (CET/CEST, EST/EDT, etc.)
-/// - Considers DST based on the date (roughly March-October for Northern Hemisphere)
-fn get_tz_abbr_from_offset(offset_hours: i32, date: chrono::NaiveDate) -> Option<String> {
-    let month = date.month();
-    // Rough DST period: March (3) to October (10) for Northern Hemisphere
-    let is_dst = (3..=10).contains(&month);
-
+/// - Returns `None` for DST-affected timezones to avoid incorrect abbreviations
+/// - DST transition dates vary by year and region (e.g., US: second Sunday in March, first Sunday in November)
+/// - Month-based DST detection is inaccurate and can show wrong abbreviations near transitions
+/// - When `None` is returned, the caller falls back to UTC offset format (e.g., "UTC-5")
+/// - Only returns `Some` for unambiguous timezones like UTC
+fn get_tz_abbr_from_offset(offset_hours: i32, _date: chrono::NaiveDate) -> Option<String> {
+    // Only return abbreviations for unambiguous timezones
+    // For DST-affected timezones, return None to use UTC offset format instead
+    // This avoids incorrect abbreviations near DST transition dates
     match offset_hours {
-        1 => {
-            // Central European Time (winter) - UTC+1
-            Some("CET".to_string()) // Central European Time
-        }
-        2 => {
-            // Central European Summer Time (summer) - UTC+2
-            // Could also be EET (Eastern European Time) in winter, but CEST is more common
-            if is_dst {
-                Some("CEST".to_string()) // Central European Summer Time
-            } else {
-                Some("EET".to_string()) // Eastern European Time (winter)
-            }
-        }
-        -5 => {
-            // Eastern Time (US)
-            if is_dst {
-                Some("EDT".to_string()) // Eastern Daylight Time
-            } else {
-                Some("EST".to_string()) // Eastern Standard Time
-            }
-        }
-        -6 => {
-            // Central Time (US)
-            if is_dst {
-                Some("CDT".to_string()) // Central Daylight Time
-            } else {
-                Some("CST".to_string()) // Central Standard Time
-            }
-        }
-        -7 => {
-            // Mountain Time (US)
-            if is_dst {
-                Some("MDT".to_string()) // Mountain Daylight Time
-            } else {
-                Some("MST".to_string()) // Mountain Standard Time
-            }
-        }
-        -8 => {
-            // Pacific Time (US)
-            if is_dst {
-                Some("PDT".to_string()) // Pacific Daylight Time
-            } else {
-                Some("PST".to_string()) // Pacific Standard Time
-            }
-        }
         0 => Some("UTC".to_string()),
-        _ => None, // Unknown offset, return None to use UTC offset format
+        _ => None, // Return None for all other offsets to use UTC offset format
     }
 }
 
@@ -569,4 +525,119 @@ fn convert_element_to_markdown(element: &ElementRef) -> String {
         .replace("&nbsp;", " ");
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What: Test that DST-affected timezones return None to use UTC offset format.
+    ///
+    /// Inputs:
+    /// - Various dates and offsets for DST-affected timezones
+    ///
+    /// Output:
+    /// - Function should return None to fall back to UTC offset format
+    ///
+    /// Details:
+    /// - DST transition dates vary by year and region
+    /// - US DST: second Sunday in March to first Sunday in November
+    /// - Month-based detection is inaccurate, so we use UTC offset format instead
+    #[test]
+    fn test_dst_affected_timezones_return_none() {
+        // Test various dates that would be incorrectly handled by month-based DST detection
+        let test_cases = vec![
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .expect("valid test date"),
+                -5,
+            ), // Early March (before DST starts)
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 15)
+                    .expect("valid test date"),
+                -5,
+            ), // Mid March (after DST starts)
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 10, 31)
+                    .expect("valid test date"),
+                -5,
+            ), // Late October (DST still active)
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 11, 4)
+                    .expect("valid test date"),
+                -5,
+            ), // Early November (after DST ends)
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 11, 15)
+                    .expect("valid test date"),
+                -5,
+            ), // Mid November (after DST ends)
+            // Test other US timezones
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .expect("valid test date"),
+                -6,
+            ), // Central Time
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .expect("valid test date"),
+                -7,
+            ), // Mountain Time
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .expect("valid test date"),
+                -8,
+            ), // Pacific Time
+            // Test European timezones
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .expect("valid test date"),
+                1,
+            ), // CET/CEST
+            (
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
+                    .expect("valid test date"),
+                2,
+            ), // CEST/EET
+        ];
+
+        for (date, offset) in test_cases {
+            let result = get_tz_abbr_from_offset(offset, date);
+            // Should return None to use UTC offset format
+            // This is safer than guessing DST based on month ranges
+            assert!(
+                result.is_none(),
+                "Should return None for DST-affected timezones to use UTC offset format. Date: {date:?}, Offset: {offset}, Got: {result:?}"
+            );
+        }
+    }
+
+    /// What: Test that UTC (offset 0) returns the correct abbreviation.
+    ///
+    /// Inputs:
+    /// - Offset: 0 (UTC)
+    /// - Various dates
+    ///
+    /// Output:
+    /// - Should return "UTC" since it's unambiguous
+    ///
+    /// Details:
+    /// - UTC is not affected by DST, so it's safe to return the abbreviation
+    #[test]
+    fn test_utc_returns_abbreviation() {
+        let test_dates = vec![
+            chrono::NaiveDate::from_ymd_opt(2024, 1, 1).expect("valid test date"),
+            chrono::NaiveDate::from_ymd_opt(2024, 6, 15).expect("valid test date"),
+            chrono::NaiveDate::from_ymd_opt(2024, 12, 31).expect("valid test date"),
+        ];
+
+        for date in test_dates {
+            let result = get_tz_abbr_from_offset(0, date);
+            assert_eq!(
+                result,
+                Some("UTC".to_string()),
+                "UTC should always return 'UTC' abbreviation. Date: {date:?}, Got: {result:?}"
+            );
+        }
+    }
 }
