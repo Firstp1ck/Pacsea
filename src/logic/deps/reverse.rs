@@ -457,6 +457,32 @@ fn convert_entry(name: String, entry: AggregatedEntry) -> DependencyInfo {
     }
 }
 
+/// What: Check if a package has any installed packages in its "Required By" field.
+///
+/// Inputs:
+/// - `name`: Package name to check.
+///
+/// Output:
+/// - Returns `true` if the package has at least one installed package in its "Required By" field, `false` otherwise.
+///
+/// Details:
+/// - Runs `pacman -Qi` to query package information and parses the "Required By" field.
+/// - Checks each package in "Required By" against the installed package cache.
+/// - Returns `false` if the package is not installed or if querying fails.
+#[must_use]
+pub fn has_installed_required_by(name: &str) -> bool {
+    match fetch_pkg_info(name) {
+        Ok(info) => info
+            .required_by
+            .iter()
+            .any(|pkg| crate::index::is_installed(pkg)),
+        Err(err) => {
+            tracing::debug!("Failed to query pacman -Qi {}: {}", name, err);
+            false
+        }
+    }
+}
+
 /// What: Query pacman for detailed information about an installed package.
 ///
 /// Inputs:
@@ -726,5 +752,24 @@ mod tests {
         let list = split_ws_or_none(Some(&"foo bar".to_string()));
         assert_eq!(list, vec!["foo", "bar"]);
         assert!(split_ws_or_none(None).is_empty());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    /// What: Verify `has_installed_required_by` correctly identifies packages with installed dependents.
+    ///
+    /// Inputs:
+    /// - Package name that may or may not be installed.
+    ///
+    /// Output:
+    /// - Returns `false` for non-existent packages, `true` if package has installed packages in "Required By".
+    ///
+    /// Details:
+    /// - Tests the function with a non-existent package (should return false).
+    /// - Note: Testing with real packages requires system state and is better suited for integration tests.
+    fn has_installed_required_by_returns_false_for_nonexistent_package() {
+        // Test with a package that definitely doesn't exist
+        let result = has_installed_required_by("this-package-definitely-does-not-exist-12345");
+        assert!(!result, "should return false for non-existent package");
     }
 }

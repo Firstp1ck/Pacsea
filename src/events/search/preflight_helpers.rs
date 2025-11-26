@@ -210,13 +210,23 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
                 && crate::index::is_installed(&item.name)
         });
 
+        // For single package updates, only show warning if package has installed packages in "Required By"
         if has_versions && reinstall_any {
-            // Show confirmation modal for batch updates
-            app.modal = crate::state::Modal::ConfirmBatchUpdate {
-                items,
-                dry_run: app.dry_run,
-            };
-            return;
+            // Check if any package being updated has installed packages in "Required By"
+            let has_installed_required_by = items.iter().any(|item| {
+                matches!(item.source, crate::state::Source::Official { .. })
+                    && crate::index::is_installed(&item.name)
+                    && crate::logic::deps::has_installed_required_by(&item.name)
+            });
+
+            if has_installed_required_by {
+                // Show confirmation modal for batch updates
+                app.modal = crate::state::Modal::ConfirmBatchUpdate {
+                    items,
+                    dry_run: app.dry_run,
+                };
+                return;
+            }
         }
 
         crate::install::spawn_install_all(&items, app.dry_run);

@@ -21,7 +21,9 @@ use std::collections::{HashMap, HashSet};
 use utils::dependency_priority;
 
 pub use query::{get_installed_packages, get_provided_packages, is_package_installed_or_provided};
-pub use reverse::{ReverseDependencyReport, resolve_reverse_dependencies};
+pub use reverse::{
+    ReverseDependencyReport, has_installed_required_by, resolve_reverse_dependencies,
+};
 pub use status::{get_installed_version, version_satisfies};
 
 /// What: Check and process conflicts for a package.
