@@ -54,8 +54,7 @@ hu-HU:
         clipboard: "Vágólap"
         aur_helper: "AUR-segéd"
         security: "Biztonság"
-        # TODO: Translate to hungarian
-        downgrade: "Downgrade-Tool"
+        downgrade: "Visszafejlesztő-eszköz"
     search_mode_fuzzy: "KÖZELÍTŐ"
     search_mode_normal: "NORMÁL"
       
@@ -507,9 +506,8 @@ hu-HU:
           data_will_update: "Az adatok még feldolgozás alatt állnak. A darabszám automatikusan frissül."
         deps:
           dependents_rely_on: "Függőségi csomagok: {} csomag is függ az eltávolítási listán szereplőtől"
-          # TODO: translate to Hungarian
-          no_deps_for_removal: "No reverse dependencies found. Packages can be safely removed."
-          meta_package_warning: "⚠ Note: '{}' is a meta-package. While nothing depends on it directly, removing it may affect your system's base installation state."
+          no_deps_for_removal: "Nem találhatók fordított függőségek. A csomagok biztonságosan eltávolíthatók."
+          meta_package_warning: "⚠ Megjegyzés: A(z) „{}” egy metacsomag. Bár semmi sem függ közvetlenül tőle, az eltávolítása hatással lehet a rendszer alapvető telepítési állapotára."
           dependencies_label: "Függőségek: {}"
           total: "összesen: {}"
           installed: "{} telepítve"
@@ -665,8 +663,7 @@ hu-HU:
         log_file: "Naplófájl: {}"
         error_prefix: "Hiba: {}"
       update:
-        # TODO: Translate to Hungarian
-        password_prompt: "[sudo] password for {}: "
+        password_prompt: "[sudo] jelszó a következőhöz: {}: "
         starting: "Csomagok frissítése (pacman -Syu)…"
         pacman_success: "✓ A csomagok sikeresen frissítve lettek a pacman paranccsal"
         pacman_failed: "✗ Nem sikerült frissíteni a csomagokat a pacman paranccsal"
