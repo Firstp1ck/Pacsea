@@ -548,55 +548,45 @@ mod tests {
         // Test various dates that would be incorrectly handled by month-based DST detection
         let test_cases = vec![
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid test date"),
                 -5,
             ), // Early March (before DST starts)
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 3, 15)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 15).expect("valid test date"),
                 -5,
             ), // Mid March (after DST starts)
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 10, 31)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 10, 31).expect("valid test date"),
                 -5,
             ), // Late October (DST still active)
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 11, 4)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 11, 4).expect("valid test date"),
                 -5,
             ), // Early November (after DST ends)
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 11, 15)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 11, 15).expect("valid test date"),
                 -5,
             ), // Mid November (after DST ends)
             // Test other US timezones
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid test date"),
                 -6,
             ), // Central Time
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid test date"),
                 -7,
             ), // Mountain Time
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid test date"),
                 -8,
             ), // Pacific Time
             // Test European timezones
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid test date"),
                 1,
             ), // CET/CEST
             (
-                chrono::NaiveDate::from_ymd_opt(2024, 3, 1)
-                    .expect("valid test date"),
+                chrono::NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid test date"),
                 2,
             ), // CEST/EET
         ];
