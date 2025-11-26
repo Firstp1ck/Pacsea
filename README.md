@@ -63,6 +63,7 @@ pacsea
 - **Queue & install**: Add packages to queue and confirm installs. Run security scans for AUR packages before installing.
 - **Always‑visible details**: Open package links with a click.
 - **PKGBUILD preview**: Toggle viewer; copy PKGBUILD with one click.
+- **AUR Comments viewer**: View community comments for AUR packages with markdown support, clickable URLs, and automatic updates when navigating packages.
 - **Persistent lists**: Recent searches and Install list are saved.
 - **Installed‑only mode**: Review and remove installed packages safely. Configure filter mode to show only leaf packages (default) or all explicitly installed packages.
 - **Package downgrade**: Downgrade installed packages to previous versions using the `downgrade` tool.
@@ -113,6 +114,9 @@ For a complete reference of all keyboard shortcuts, see the [Keyboard Shortcuts]
 
 ### PKGBUILD preview
 ![PKGBUILD preview (v0.4.1)](Images/PKGBUILD_v0.4.5.png "PKGBUILD preview (v0.4.1)")
+
+### AUR Comments viewer
+View community comments for AUR packages directly in Pacsea. Comments are automatically fetched and displayed with markdown formatting support, clickable URLs, and user profile links. The comments pane splits the Package Info area and updates automatically when navigating between packages. Toggle comments visibility with `Ctrl+T` or click the "Show comments" button in Package Info.
 
 ## CLI Commands
 
@@ -176,7 +180,6 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 - **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
-- **View AUR package comments**
 - **Vote for AUR packages via SSH connection**
 
 
