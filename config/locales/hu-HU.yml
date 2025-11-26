@@ -506,7 +506,7 @@ hu-HU:
           data_will_update: "Az adatok még feldolgozás alatt állnak. A darabszám automatikusan frissül."
         deps:
           dependents_rely_on: "Függőségi csomagok: {} csomag is függ az eltávolítási listán szereplőtől"
-          no_deps_for_removal: "Nem találhatók ellentétes függőségek. A csomagok biztonságosan eltávolíthatók."
+          no_deps_for_removal: "Nem találhatók fordított függőségek. A csomagok biztonságosan eltávolíthatók."
           meta_package_warning: "⚠ Megjegyzés: A(z) „{}” egy metacsomag. Bár semmi sem függ közvetlenül tőle, az eltávolítása hatással lehet a rendszer alapvető telepítési állapotára."
           dependencies_label: "Függőségek: {}"
           total: "összesen: {}"
