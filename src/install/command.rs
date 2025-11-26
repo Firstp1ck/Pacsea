@@ -39,7 +39,6 @@ pub fn aur_install_body(flags: &str, n: &str) -> String {
 ///
 /// Details:
 /// - Uses `--needed` flag for new installs, omits it for reinstalls.
-/// - For updates from the Updates modal (installed package with version set), syncs database first with `-Sy`.
 /// - Adds a hold tail so spawned terminals remain open after completion.
 #[must_use]
 pub fn build_install_command(
@@ -50,8 +49,6 @@ pub fn build_install_command(
     match &item.source {
         Source::Official { .. } => {
             let reinstall = crate::index::is_installed(&item.name);
-            // For already installed packages, use -Syy to force refresh database and upgrade in one command
-            // -Syy forces a full database refresh even if it was recently synced, ensuring we see the latest updates
             let base_cmd = if reinstall {
                 format!("pacman -S --noconfirm {}", item.name)
             } else {
