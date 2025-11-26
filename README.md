@@ -177,7 +177,8 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 ### Potential future Features
 
 ### Community Suggestions: Priority Features
-- **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
+- **View AUR package comments** (on going)
+- **Vote for AUR packages via SSH connection**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
 - **Vote for AUR packages via SSH connection**
