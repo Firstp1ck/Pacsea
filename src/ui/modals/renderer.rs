@@ -7,6 +7,32 @@ use crate::ui::modals::{
     updates,
 };
 
+/// What: Render `ConfirmBatchUpdate` modal and return reconstructed state.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state
+/// - `area`: Full screen area
+/// - `ctx`: Context struct containing all `ConfirmBatchUpdate` fields (taken by value)
+///
+/// Output:
+/// - Returns reconstructed `Modal::ConfirmBatchUpdate` variant
+///
+/// Details:
+/// - Delegates to `confirm::render_confirm_batch_update` and reconstructs the modal variant
+fn render_confirm_batch_update_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: ConfirmBatchUpdateContext,
+) -> Modal {
+    confirm::render_confirm_batch_update(f, app, area, &ctx.items);
+    Modal::ConfirmBatchUpdate {
+        items: ctx.items,
+        dry_run: ctx.dry_run,
+    }
+}
+
 /// What: Context struct grouping `PreflightExec` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -109,6 +135,18 @@ struct ConfirmInstallContext {
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmRemoveContext {
     items: Vec<crate::state::PackageItem>,
+}
+
+/// What: Context struct grouping `ConfirmBatchUpdate` modal fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from Modal variant).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+struct ConfirmBatchUpdateContext {
+    items: Vec<crate::state::PackageItem>,
+    dry_run: bool,
 }
 
 /// What: Context struct grouping News modal fields to reduce data flow complexity.
@@ -233,6 +271,10 @@ impl ModalRenderer for Modal {
             Self::ConfirmRemove { items } => {
                 let ctx = ConfirmRemoveContext { items };
                 render_confirm_remove_modal(f, app, area, ctx)
+            }
+            Self::ConfirmBatchUpdate { items, dry_run } => {
+                let ctx = ConfirmBatchUpdateContext { items, dry_run };
+                render_confirm_batch_update_modal(f, app, area, ctx)
             }
             Self::SystemUpdate {
                 do_mirrors,

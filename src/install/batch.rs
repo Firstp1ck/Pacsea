@@ -73,7 +73,7 @@ fn build_batch_install_command(
         if has_versions && reinstall_any {
             // Coming from updates window - sync database first, then install
             format!(
-                "sudo bash -c 'pacman -Syy --noconfirm && pacman -S --noconfirm {n}'{hold}",
+                "sudo bash -c 'pacman -Sy --noconfirm && pacman -S --noconfirm {n}'{hold}",
                 n = official.join(" "),
                 hold = hold_tail
             )

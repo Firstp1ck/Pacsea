@@ -444,12 +444,13 @@ fn run_command_with_logging(
 
     // Use tee twice: first logs to file, second captures to tempfile and displays
     // set -o pipefail ensures exit status reflects command failure, not tee
+    // Use stdbuf -oL -eL to force line buffering so progress output appears immediately
     // command 2>&1 | tee -a logfile | tee tempfile > /dev/tty
     // This way: output is displayed once, logged to file, and captured to tempfile
     let log_file_escaped = shell_single_quote(&log_file_str);
     let temp_output_escaped = shell_single_quote(&temp_output_str);
     let shell_cmd = format!(
-        "set -o pipefail; {full_command} 2>&1 | tee -a {log_file_escaped} | tee {temp_output_escaped} {tty_redirect}"
+        "set -o pipefail; stdbuf -oL -eL {full_command} 2>&1 | tee -a {log_file_escaped} | tee {temp_output_escaped} {tty_redirect}"
     );
 
     let status = Command::new("bash")

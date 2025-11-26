@@ -276,6 +276,24 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
     }
 
     if let Some(packages) = install_targets {
+        // Check if this is a batch update scenario requiring confirmation
+        let has_versions = packages.iter().any(|item| {
+            matches!(item.source, crate::state::Source::Official { .. }) && !item.version.is_empty()
+        });
+        let reinstall_any = packages.iter().any(|item| {
+            matches!(item.source, crate::state::Source::Official { .. })
+                && crate::index::is_installed(&item.name)
+        });
+
+        if has_versions && reinstall_any {
+            // Show confirmation modal for batch updates
+            app.modal = crate::state::Modal::ConfirmBatchUpdate {
+                items: packages,
+                dry_run: app.dry_run,
+            };
+            return false; // Don't close modal yet, wait for confirmation
+        }
+
         crate::install::spawn_install_all(&packages, app.dry_run);
         close_modal = true;
     } else if let Some(names) = removal_names {

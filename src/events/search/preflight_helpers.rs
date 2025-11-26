@@ -201,6 +201,24 @@ fn create_preflight_modal_insert_mode(app: &mut AppState, items: Vec<PackageItem
 pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cache: bool) {
     if crate::theme::settings().skip_preflight {
         // Direct install of single item
+        // Check if this is a batch update scenario requiring confirmation
+        let has_versions = items.iter().any(|item| {
+            matches!(item.source, crate::state::Source::Official { .. }) && !item.version.is_empty()
+        });
+        let reinstall_any = items.iter().any(|item| {
+            matches!(item.source, crate::state::Source::Official { .. })
+                && crate::index::is_installed(&item.name)
+        });
+
+        if has_versions && reinstall_any {
+            // Show confirmation modal for batch updates
+            app.modal = crate::state::Modal::ConfirmBatchUpdate {
+                items,
+                dry_run: app.dry_run,
+            };
+            return;
+        }
+
         crate::install::spawn_install_all(&items, app.dry_run);
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.installing_skipped"));
         app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));

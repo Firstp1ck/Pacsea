@@ -395,6 +395,11 @@ pub enum Modal {
     /// Confirmation dialog for installing the given items.
     #[allow(dead_code)]
     ConfirmInstall { items: Vec<PackageItem> },
+    /// Confirmation dialog for batch updates that may cause dependency conflicts.
+    ConfirmBatchUpdate {
+        items: Vec<PackageItem>,
+        dry_run: bool,
+    },
     /// Preflight summary before executing any action.
     Preflight {
         items: Vec<PackageItem>,

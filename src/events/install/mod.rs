@@ -308,13 +308,31 @@ fn handle_enter_key(app: &mut AppState) {
     let skip = crate::theme::settings().skip_preflight || skip_preflight_for_modals;
     if !app.installed_only_mode && !app.install_list.is_empty() {
         if skip {
-            crate::install::spawn_install_all(&app.install_list, app.dry_run);
-            app.toast_message = Some(crate::i18n::t(
-                app,
-                "app.toasts.installing_preflight_skipped",
-            ));
-            app.toast_expires_at =
-                Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+            // Check if this is a batch update scenario requiring confirmation
+            let has_versions = app.install_list.iter().any(|item| {
+                matches!(item.source, crate::state::Source::Official { .. })
+                    && !item.version.is_empty()
+            });
+            let reinstall_any = app.install_list.iter().any(|item| {
+                matches!(item.source, crate::state::Source::Official { .. })
+                    && crate::index::is_installed(&item.name)
+            });
+
+            if has_versions && reinstall_any {
+                // Show confirmation modal for batch updates
+                app.modal = crate::state::Modal::ConfirmBatchUpdate {
+                    items: app.install_list.clone(),
+                    dry_run: app.dry_run,
+                };
+            } else {
+                crate::install::spawn_install_all(&app.install_list, app.dry_run);
+                app.toast_message = Some(crate::i18n::t(
+                    app,
+                    "app.toasts.installing_preflight_skipped",
+                ));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+            }
         } else {
             open_preflight_install_modal(app);
         }

@@ -118,6 +118,8 @@ fn handle_confirm_install_enter(
             }
         }
     } else {
+        // Note: batch updates confirmation is handled in preflight or install handlers
+        // This path is for ConfirmInstall modal which doesn't have AppState access
         crate::install::spawn_install_all(&list, dry_run);
         if !dry_run {
             *refresh_installed_until =

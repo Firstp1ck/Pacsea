@@ -214,6 +214,45 @@ pub(super) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, moda
     false
 }
 
+/// What: Handle key events for `ConfirmBatchUpdate` modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `ConfirmBatchUpdate` modal variant
+///
+/// Output:
+/// - `true` if Esc/q was pressed (to stop propagation), otherwise `false`
+///
+/// Details:
+/// - Handles Esc/q to cancel, Enter to continue with batch update
+pub(super) fn handle_confirm_batch_update_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ConfirmBatchUpdate { items, dry_run } = modal {
+        match ke.code {
+            KeyCode::Esc | KeyCode::Char('q' | 'Q') => {
+                // Cancel update
+                app.modal = crate::state::Modal::None;
+                return true;
+            }
+            KeyCode::Enter => {
+                // Continue with batch update
+                let items_clone = items.clone();
+                let dry_run_clone = *dry_run;
+                app.modal = crate::state::Modal::None;
+                // Proceed with the actual install
+                crate::install::spawn_install_all(&items_clone, dry_run_clone);
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// What: Handle key events for Help modal.
 ///
 /// Inputs:
