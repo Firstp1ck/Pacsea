@@ -72,10 +72,10 @@ async fn main() {
     }
 
     // Process command-line arguments (may exit early for search/clear-cache)
-    let refresh_result = args::process_args(&args);
+    let _ = args::process_args(&args);
 
     tracing::info!(dry_run = args.dry_run, "Pacsea starting");
-    if let Err(err) = app::run(args.dry_run, refresh_result).await {
+    if let Err(err) = app::run(args.dry_run).await {
         tracing::error!(error = ?err, "Application error");
     }
     tracing::info!("Pacsea exited");

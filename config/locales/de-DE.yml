@@ -304,11 +304,6 @@ de-DE:
         title_configuration_error: " Konfigurationsfehler "
         title_clipboard_copy: " Zwischenablage kopieren "
         title_connection_issue: " Verbindungsproblem "
-      refresh:
-        header: "Paketdatenbank-Aktualisierung"
-        title: " Paketdatenbank-Aktualisierung "
-        success: "✓ Paketdatenbank-Aktualisierung erfolgreich abgeschlossen"
-        failure: "✗ Paketdatenbank-Aktualisierung mit Fehlern abgeschlossen"
       confirm_install:
         title: " Installation bestätigen "
         heading: "Installation bestätigen"
@@ -654,21 +649,6 @@ de-DE:
         footer_hint: "r: zurücksetzen  •  s: Dienste neu starten  •  Enter/Esc: schließen"
 
     cli:
-      refresh:
-        starting: "Aktualisiere Paketdatenbank (pacman -Sy)..."
-        pacman_success: "✓ Pacman-Datenbank erfolgreich aktualisiert"
-        pacman_failed: "✗ Pacman-Datenbankaktualisierung fehlgeschlagen"
-        pacman_exec_failed: "✗ Fehler beim Ausführen der Pacman-Datenbankaktualisierung"
-        aur_starting: "Aktualisiere AUR-Datenbank ({} -Sy)..."
-        aur_success: "✓ {} Datenbank erfolgreich aktualisiert"
-        aur_failed: "✗ {} Datenbankaktualisierung fehlgeschlagen"
-        aur_exec_failed: "✗ Fehler beim Ausführen der {} Datenbankaktualisierung"
-        no_aur_helper: "Kein AUR-Helfer (paru/yay) gefunden, überspringe AUR-Datenbankaktualisierung"
-        separator: "============================================================"
-        all_success: "✓ Paketdatenbankaktualisierung erfolgreich abgeschlossen"
-        completed_with_errors: "✗ Paketdatenbankaktualisierung mit Fehlern abgeschlossen"
-        log_file: "Protokolldatei: {}"
-        error_prefix: "Fehler: {}"
       update:
         starting: "Aktualisiere Systempakete (pacman -Syu)..."
         password_prompt: "[sudo] Passwort für {}: "

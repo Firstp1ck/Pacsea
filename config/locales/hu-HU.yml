@@ -307,11 +307,6 @@ hu-HU:
         title_configuration_error: " Konfigurációs hiba "
         title_clipboard_copy: " Másolás a vágólapra "
         title_connection_issue: " Kapcsolati probléma "
-      refresh:
-        header: "Csomag-adatbázis frissítése"
-        title: " Csomag-adatbázis frissítése "
-        success: "✓ A csomag-adatbázis frissítése sikeresen befejeződött"
-        failure: "✗ A csomag-adatbázis frissítése sikertelenül fejeződött be"
       confirm_install:
         title: " Telepítés megerősítése "
         heading: "Telepítés megerősítése"
@@ -656,21 +651,6 @@ hu-HU:
         footer_hint: "r: visszaállítás • s: szolgáltatások újraindítása • Enter/Esc: bezárás"
 
     cli:
-      refresh:
-        starting: "Csomagadatbázis frissítése (pacman -Sy)…"
-        pacman_success: "✓ Az adatbázis sikeresen frissítve lett a pacman paranccsal"
-        pacman_failed: "✗ Nem sikerült frissíteni az adatbázist a pacman paranccsal"
-        pacman_exec_failed: "✗ Nem sikerült végrehajtani az adatbázis frissítését a pacman paranccsal"
-        aur_starting: "AUR-adatbázis frissítése ({} -Sy)…"
-        aur_success: "✓ Az AUR-adatbázis sikeresen frissítve lett a(z) {} paranccsal"
-        aur_failed: "✗ Az AUR-adatbázist nem sikerült frissíteni a(z) {} paranccsal"
-        aur_exec_failed: "✗ Nem sikerült végrehajtani az AUR-adatbázis frissítését a(z) {} paranccsal"
-        no_aur_helper: "Nem található AUR-segéd (paru/yay), az AUR-adatbázis frissítésének kihagyása"
-        separator: "============================================================"
-        all_success: "✓ A csomagadatbázis frissítése sikeresen befejeződött"
-        completed_with_errors: "✗ A csomagadatbázis frissítése hibákkal fejeződött be"
-        log_file: "Naplófájl: {}"
-        error_prefix: "Hiba: {}"
       update:
         password_prompt: "[sudo] jelszó a következőhöz: {}: "
         starting: "Csomagok frissítése (pacman -Syu)…"
