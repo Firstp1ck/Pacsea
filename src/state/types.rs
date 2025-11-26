@@ -41,6 +41,12 @@ pub struct PackageItem {
     /// AUR popularity score when available (AUR only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub popularity: Option<f64>,
+    /// Timestamp when package was flagged out-of-date (AUR only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub out_of_date: Option<u64>,
+    /// Whether package is orphaned (no active maintainer) (AUR only).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub orphaned: bool,
 }
 
 /// Full set of details for a package, suitable for a dedicated information
@@ -88,6 +94,12 @@ pub struct PackageDetails {
     /// AUR popularity score when available (AUR only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub popularity: Option<f64>,
+    /// Timestamp when package was flagged out-of-date (AUR only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub out_of_date: Option<u64>,
+    /// Whether package is orphaned (no active maintainer) (AUR only).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub orphaned: bool,
 }
 
 /// Search query sent to the background search worker.
@@ -400,4 +412,10 @@ pub struct OptionalDepRow {
     /// Optional note for environment/distro constraints (e.g., "Wayland", "X11", "Manjaro only").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+}
+
+/// Helper function for serde to skip serializing false boolean values.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+const fn is_false(b: &bool) -> bool {
+    !(*b)
 }

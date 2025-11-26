@@ -54,6 +54,8 @@ pub fn handle_search_results(
                         description: String::new(),
                         source: src,
                         popularity: None,
+                        out_of_date: None,
+                        orphaned: false,
                     });
                 }
             }

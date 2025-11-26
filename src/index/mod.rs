@@ -149,6 +149,8 @@ pub fn find_package_by_name(name: &str) -> Option<crate::state::PackageItem> {
                         arch: p.arch.clone(),
                     },
                     popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
                 });
             }
         }

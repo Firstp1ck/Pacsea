@@ -134,6 +134,8 @@ fn handle_import_help_enter(add_tx: &mpsc::UnboundedSender<PackageItem>) {
                             description: String::new(),
                             source: src,
                             popularity: None,
+                            out_of_date: None,
+                            orphaned: false,
                         };
                         let _ = add_tx_clone.send(item);
                         imported += 1;

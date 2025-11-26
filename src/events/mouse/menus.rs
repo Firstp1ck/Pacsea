@@ -354,6 +354,8 @@ fn handle_installed_only_toggle(
                     description: String::new(),
                     source: src,
                     popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
                 });
             }
         }

@@ -228,6 +228,25 @@ pub fn build_list_item(
         ));
     }
     segs.push(Span::styled(format!("{src} "), Style::default().fg(color)));
+    // Add AUR status markers (out-of-date and orphaned) for AUR packages
+    if matches!(package.source, Source::Aur) {
+        if package.out_of_date.is_some() {
+            segs.push(Span::styled(
+                "[OOD] ",
+                Style::default()
+                    .fg(theme.red)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+        if package.orphaned {
+            segs.push(Span::styled(
+                "[ORPHAN] ",
+                Style::default()
+                    .fg(theme.red)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+    }
     segs.push(Span::styled(
         package.name.clone(),
         Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
@@ -286,6 +305,8 @@ mod tests {
             description: String::new(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
 
         // Initially not in any list
@@ -301,6 +322,8 @@ mod tests {
             description: String::new(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
         let status = check_package_in_lists(&package, &app);
         assert!(status.in_install);
@@ -344,6 +367,8 @@ mod tests {
             description: "Test description".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
 
         let item = build_list_item(&package, &app, &theme, &prefs, false);
@@ -362,6 +387,8 @@ mod tests {
             description: "Test description".to_string(),
             source: Source::Aur,
             popularity: Some(1.5),
+            out_of_date: None,
+            orphaned: false,
         };
 
         let item = build_list_item(&package, &app, &theme, &prefs, true);

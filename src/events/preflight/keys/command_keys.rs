@@ -220,6 +220,8 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
                                         arch: String::new(),
                                     },
                                     popularity: None,
+                                    out_of_date: None,
+                                    orphaned: false,
                                 });
                             }
                         }
