@@ -62,11 +62,28 @@ fn build_batch_install_command(
             hold = hold_tail
         )
     } else if !official.is_empty() {
-        format!(
-            "sudo pacman -S --needed --noconfirm {n}{hold}",
-            n = official.join(" "),
-            hold = hold_tail
-        )
+        // Check if any packages have version info (coming from updates window)
+        let has_versions = items
+            .iter()
+            .any(|item| matches!(item.source, Source::Official { .. }) && !item.version.is_empty());
+        let reinstall_any = items.iter().any(|item| {
+            matches!(item.source, Source::Official { .. }) && crate::index::is_installed(&item.name)
+        });
+
+        if has_versions && reinstall_any {
+            // Coming from updates window - sync database first, then install
+            format!(
+                "sudo bash -c 'pacman -Syy --noconfirm && pacman -S --noconfirm {n}'{hold}",
+                n = official.join(" "),
+                hold = hold_tail
+            )
+        } else {
+            format!(
+                "sudo pacman -S --needed --noconfirm {n}{hold}",
+                n = official.join(" "),
+                hold = hold_tail
+            )
+        }
     } else {
         format!("echo nothing to install{hold_tail}")
     }
