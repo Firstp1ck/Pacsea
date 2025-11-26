@@ -55,6 +55,8 @@ pub fn search_official(query: &str, fuzzy: bool) -> Vec<(PackageItem, Option<i64
                             arch: p.arch.clone(),
                         },
                         popularity: None,
+                        out_of_date: None,
+                        orphaned: false,
                     },
                     Some(score),
                 ));
@@ -89,6 +91,8 @@ pub fn all_official() -> Vec<PackageItem> {
                     arch: p.arch.clone(),
                 },
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             });
         }
     }

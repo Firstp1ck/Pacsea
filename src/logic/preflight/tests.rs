@@ -74,6 +74,8 @@ fn summary_identifies_core_major_bump() {
             arch: "x86_64".into(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
 
     let outcome = compute_preflight_summary_with_runner(&[item], PreflightAction::Install, &runner);
@@ -137,6 +139,8 @@ fn summary_handles_aur_without_metadata() {
         description: "AUR utility".into(),
         source: Source::Aur,
         popularity: Some(42.0),
+        out_of_date: None,
+        orphaned: false,
     };
 
     let outcome = compute_preflight_summary_with_runner(&[item], PreflightAction::Install, &runner);

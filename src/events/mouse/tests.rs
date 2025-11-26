@@ -44,6 +44,8 @@ fn click_pkgb_toggle_opens() {
         description: String::new(),
         source: crate::state::Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.selected = 0;
     app.pkgb_button_rect = Some((10, 10, 5, 1));
@@ -83,6 +85,8 @@ fn click_pkgb_toggle_closes_and_resets() {
         description: String::new(),
         source: crate::state::Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.selected = 0;
     app.pkgb_button_rect = Some((10, 10, 5, 1));

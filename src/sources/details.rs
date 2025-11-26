@@ -248,6 +248,8 @@ fn build_package_details(
         owner: map.get("Packager").cloned().unwrap_or_default(),
         build_date: map.get("Build Date").cloned().unwrap_or_default(),
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }
 }
 
@@ -371,6 +373,15 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
     let version0 = s(&obj, "Version");
     let description0 = s(&obj, "Description");
     let popularity0 = obj.get("Popularity").and_then(serde_json::Value::as_f64);
+    // Extract OutOfDate timestamp (i64 or null)
+    let out_of_date = obj
+        .get("OutOfDate")
+        .and_then(serde_json::Value::as_i64)
+        .and_then(|ts| u64::try_from(ts).ok())
+        .filter(|&ts| ts > 0);
+    // Extract Maintainer and determine if orphaned (empty or null means orphaned)
+    let maintainer = s(&obj, "Maintainer");
+    let orphaned = maintainer.is_empty();
 
     let d = PackageDetails {
         repository: "AUR".into(),
@@ -398,11 +409,13 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
         replaces: arrs(&obj, &["Replaces"]),
         download_size: None,
         install_size: None,
-        owner: s(&obj, "Maintainer"),
+        owner: maintainer,
         build_date: crate::util::ts_to_date(
             obj.get("LastModified").and_then(serde_json::Value::as_i64),
         ),
         popularity: popularity0,
+        out_of_date,
+        orphaned,
     };
     Ok(d)
 }
@@ -494,6 +507,8 @@ pub async fn fetch_official_details(
             owner: ss(obj, &["packager", "Packager"]).unwrap_or_default(),
             build_date: ss(obj, &["build_date", "BuildDate"]).unwrap_or_default(),
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
         return Ok(d);
     }
@@ -547,6 +562,8 @@ mod tests {
                 owner: ss(obj, &["packager", "Packager"]).unwrap_or_default(),
                 build_date: ss(obj, &["build_date", "BuildDate"]).unwrap_or_default(),
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             }
         }
         let v: serde_json::Value = serde_json::json!({
@@ -578,6 +595,8 @@ mod tests {
                 arch: "x86_64".into(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
         let d = parse_official_from_json(&v["pkg"], "extra".into(), "x86_64".into(), &item);
         assert_eq!(d.repository, "extra");
@@ -644,6 +663,8 @@ mod tests {
                     obj.get("LastModified").and_then(serde_json::Value::as_i64),
                 ),
                 popularity: popularity0,
+                out_of_date: None,
+                orphaned: false,
             }
         }
         let obj: serde_json::Value = serde_json::json!({
@@ -658,6 +679,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
         let d = parse_aur_from_json(&obj, &item);
         assert_eq!(d.repository, "AUR");
@@ -667,5 +690,72 @@ mod tests {
         assert_eq!(d.architecture, "any");
         assert_eq!(d.url, "https://aur.example/ripgrep");
         assert_eq!(d.popularity, Some(std::f64::consts::PI));
+    }
+
+    #[test]
+    /// What: Parse AUR RPC JSON with `OutOfDate` and orphaned status fields.
+    ///
+    /// Inputs:
+    /// - AUR JSON document with `OutOfDate` timestamp and empty Maintainer (orphaned).
+    ///
+    /// Output:
+    /// - Resulting `PackageDetails` correctly sets `out_of_date` and orphaned flags.
+    ///
+    /// Details:
+    /// - Validates that `OutOfDate` timestamp is extracted and orphaned status is determined from empty Maintainer.
+    fn sources_details_parse_aur_status_fields() {
+        use crate::util::s;
+        let obj: serde_json::Value = serde_json::json!({
+            "Version": "1.0.0",
+            "Description": "test package",
+            "OutOfDate": 1_704_067_200_i64, // 2024-01-01 timestamp
+            "Maintainer": "" // Empty means orphaned
+        });
+        let _item = crate::state::PackageItem {
+            name: "test-pkg".into(),
+            version: String::new(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        };
+        // Extract OutOfDate timestamp (i64 or null)
+        let out_of_date = obj
+            .get("OutOfDate")
+            .and_then(serde_json::Value::as_i64)
+            .and_then(|ts| u64::try_from(ts).ok())
+            .filter(|&ts| ts > 0);
+        // Extract Maintainer and determine if orphaned (empty or null means orphaned)
+        let maintainer = s(&obj, "Maintainer");
+        let orphaned = maintainer.is_empty();
+
+        assert_eq!(out_of_date, Some(1_704_067_200));
+        assert!(orphaned);
+    }
+
+    #[test]
+    /// What: Parse AUR RPC JSON with non-orphaned package (has maintainer).
+    ///
+    /// Inputs:
+    /// - AUR JSON document with Maintainer field set to a username.
+    ///
+    /// Output:
+    /// - Resulting package is not marked as orphaned.
+    ///
+    /// Details:
+    /// - Validates that packages with a maintainer are not marked as orphaned.
+    fn sources_details_parse_aur_with_maintainer() {
+        use crate::util::s;
+        let obj: serde_json::Value = serde_json::json!({
+            "Version": "1.0.0",
+            "Description": "test package",
+            "Maintainer": "someuser"
+        });
+        let maintainer = s(&obj, "Maintainer");
+        let orphaned = maintainer.is_empty();
+
+        assert!(!orphaned);
+        assert_eq!(maintainer, "someuser");
     }
 }

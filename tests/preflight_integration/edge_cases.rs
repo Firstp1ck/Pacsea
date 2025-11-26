@@ -36,6 +36,8 @@ fn preflight_handles_empty_results_gracefully() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
 
     // All caches are empty (no dependencies, files, services, sandbox)

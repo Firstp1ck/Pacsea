@@ -54,6 +54,8 @@ pub fn handle_search_results(
                         description: String::new(),
                         source: src,
                         popularity: None,
+                        out_of_date: None,
+                        orphaned: false,
                     });
                 }
             }
@@ -223,6 +225,8 @@ mod tests {
             description: "Old".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
 
         let (details_tx, _details_rx) = mpsc::unbounded_channel();
@@ -236,6 +240,8 @@ mod tests {
                 description: "New".to_string(),
                 source: Source::Aur,
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             }],
         };
 
@@ -268,6 +274,8 @@ mod tests {
             description: "Old".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
 
         let (details_tx, _details_rx) = mpsc::unbounded_channel();
@@ -281,6 +289,8 @@ mod tests {
                 description: "New".to_string(),
                 source: Source::Aur,
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             }],
         };
 
@@ -332,6 +342,8 @@ mod tests {
             owner: String::new(),
             build_date: String::new(),
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
 
         handle_details_update(&mut app, &details, &tick_tx);
@@ -380,6 +392,8 @@ mod tests {
             owner: String::new(),
             build_date: String::new(),
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
         app.details_cache
             .insert("test-package".to_string(), cached_details);
@@ -392,6 +406,8 @@ mod tests {
             description: "Test".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
 
         handle_preview(&mut app, item, &details_tx);

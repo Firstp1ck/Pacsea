@@ -1,5 +1,6 @@
 //! Command-line update functionality.
 
+#[cfg(not(target_os = "windows"))]
 use crate::args::i18n;
 #[cfg(not(target_os = "windows"))]
 use crate::args::utils;
@@ -7,6 +8,7 @@ use crate::args::utils;
 use pacsea::install::shell_single_quote;
 #[cfg(not(target_os = "windows"))]
 use pacsea::theme;
+#[cfg(not(target_os = "windows"))]
 use std::path::Path;
 
 /// What: Format text with ANSI color codes if colors are enabled.

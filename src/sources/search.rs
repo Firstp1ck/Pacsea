@@ -30,12 +30,23 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
                     if name.is_empty() {
                         continue;
                     }
+                    // Extract OutOfDate timestamp (i64 or null)
+                    let out_of_date = pkg
+                        .get("OutOfDate")
+                        .and_then(serde_json::Value::as_i64)
+                        .and_then(|ts| u64::try_from(ts).ok())
+                        .filter(|&ts| ts > 0);
+                    // Extract Maintainer and determine if orphaned (empty or null means orphaned)
+                    let maintainer = s(pkg, "Maintainer");
+                    let orphaned = maintainer.is_empty();
                     items.push(PackageItem {
                         name,
                         version,
                         description,
                         source: Source::Aur,
                         popularity,
+                        out_of_date,
+                        orphaned,
                     });
                 }
             }
@@ -78,7 +89,7 @@ set -e
 state_dir="${PACSEA_FAKE_STATE_DIR:-.}"
 if [[ ! -f "$state_dir/pacsea_search_called" ]]; then
   : > "$state_dir/pacsea_search_called"
-  echo '{"results":[{"Name":"yay","Version":"12","Description":"AUR helper","Popularity":3.14}]}'
+  echo '{"results":[{"Name":"yay","Version":"12","Description":"AUR helper","Popularity":3.14,"OutOfDate":null,"Maintainer":"someuser"}]}'
 else
   exit 22
 fi
@@ -111,6 +122,9 @@ fi
             errs
         );
         assert!(errs.is_empty());
+        // Verify status fields are parsed correctly
+        assert_eq!(items[0].out_of_date, None);
+        assert!(!items[0].orphaned);
 
         // Call again to exercise error path
         let (_items2, errs2) = super::fetch_all_with_errors("yay".into()).await;

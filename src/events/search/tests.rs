@@ -338,6 +338,8 @@ fn helpers_navigate_pane_directions() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     });
     navigate_pane(&mut app, "right", &dtx, &ptx);
     assert!(matches!(app.focus, crate::state::Focus::Install));
@@ -353,6 +355,8 @@ fn helpers_navigate_pane_directions() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     });
     navigate_pane(&mut app, "right", &dtx, &ptx);
     assert!(matches!(app.focus, crate::state::Focus::Install));
@@ -384,6 +388,8 @@ fn search_insert_mode_space_adds_items() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
     app.results.push(test_item.clone());
     app.selected = 0;
@@ -450,6 +456,8 @@ fn search_normal_mode_navigation() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate::state::PackageItem {
             name: "pkg2".to_string(),
@@ -460,6 +468,8 @@ fn search_normal_mode_navigation() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate::state::PackageItem {
             name: "pkg3".to_string(),
@@ -470,6 +480,8 @@ fn search_normal_mode_navigation() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
     app.selected = 1;

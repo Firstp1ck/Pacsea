@@ -43,6 +43,8 @@ fn preflight_handles_large_datasets_correctly() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
     }
     for i in 1..=4 {
@@ -52,6 +54,8 @@ fn preflight_handles_large_datasets_correctly() {
             description: String::new(),
             source: crate_root::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
     }
 

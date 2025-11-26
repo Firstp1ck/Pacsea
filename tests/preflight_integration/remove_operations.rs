@@ -36,6 +36,8 @@ fn preflight_remove_action_with_reverse_dependencies() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
 
     // Set packages in remove list

@@ -101,6 +101,8 @@ mod tests {
             owner: String::new(),
             build_date: String::new(),
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
         // Show PKGBUILD area
         app.pkgb_visible = true;

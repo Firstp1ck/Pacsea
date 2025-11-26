@@ -14,6 +14,8 @@ fn create_test_package(
         description: String::new(),
         source,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }
 }
 

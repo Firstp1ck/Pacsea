@@ -540,6 +540,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
 
         // Set up cached services
@@ -647,6 +649,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
 
         // Set up cached services from Install action (with needs_restart=true)

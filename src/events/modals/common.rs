@@ -273,6 +273,8 @@ pub(super) fn handle_updates(
                             description: String::new(),
                             source: Source::Aur,
                             popularity: None,
+                            out_of_date: None,
+                            orphaned: false,
                         }
                     };
 

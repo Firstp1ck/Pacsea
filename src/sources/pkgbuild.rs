@@ -166,6 +166,8 @@ mod tests {
             description: String::new(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
         let txt = super::fetch_pkgbuild_fast(&item)
             .await
@@ -260,6 +262,8 @@ mod tests {
                     arch: "x86_64".into(),
                 },
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             };
             super::fetch_pkgbuild_fast(&item)
                 .await

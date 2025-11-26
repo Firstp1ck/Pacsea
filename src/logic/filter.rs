@@ -96,6 +96,8 @@ mod tests {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }
     }
 
@@ -120,6 +122,8 @@ mod tests {
                     description: String::new(),
                     source: Source::Aur,
                     popularity: Some(1.0),
+                    out_of_date: None,
+                    orphaned: false,
                 },
                 item_official("core1", "core"),
                 item_official("extra1", "extra"),
@@ -160,6 +164,8 @@ mod tests {
                         arch: "x86_64".into(),
                     },
                     popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
                 },
                 PackageItem {
                     name: "ey".into(),
@@ -170,6 +176,8 @@ mod tests {
                         arch: "x86_64".into(),
                     },
                     popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
                 },
                 item_official("core1", "core"),
             ],
@@ -215,6 +223,8 @@ mod tests {
                         arch: "x86_64".into(),
                     },
                     popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
                 },
                 item_official("core1", "core"),
             ],

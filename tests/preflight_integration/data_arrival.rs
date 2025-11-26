@@ -32,6 +32,8 @@ async fn preflight_handles_out_of_order_data_arrival() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate_root::state::PackageItem {
             name: "test-package-2".to_string(),
@@ -42,6 +44,8 @@ async fn preflight_handles_out_of_order_data_arrival() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
 
@@ -394,6 +398,8 @@ async fn preflight_cancellation_aborts_in_flight_work() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
 
     // Set up channels

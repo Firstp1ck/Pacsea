@@ -468,6 +468,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.all_results = app.results.clone();
         app.selected = 0;

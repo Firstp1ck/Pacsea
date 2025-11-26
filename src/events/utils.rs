@@ -394,6 +394,8 @@ mod tests {
                 description: "fast search".into(),
                 source: crate::state::Source::Aur,
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             },
             crate::state::PackageItem {
                 name: "fd".into(),
@@ -401,6 +403,8 @@ mod tests {
                 description: "find".into(),
                 source: crate::state::Source::Aur,
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             },
         ];
         app.pane_find = Some("rip".into());
@@ -429,6 +433,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.selected = 0;
         let (tx, mut rx) = mpsc::unbounded_channel();

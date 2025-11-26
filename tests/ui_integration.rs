@@ -173,6 +173,8 @@ fn test_ui_renders_with_results() {
             description: "A test package".to_string(),
             source: Source::Aur,
             popularity: Some(42.5),
+            out_of_date: None,
+            orphaned: false,
         },
         PackageItem {
             name: "another-package".to_string(),
@@ -183,6 +185,8 @@ fn test_ui_renders_with_results() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
     app.all_results = app.results.clone();
@@ -212,6 +216,8 @@ fn test_ui_renders_with_details() {
         description: "Test".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.selected = 0;
     app.list_state.select(Some(0));
@@ -237,6 +243,8 @@ fn test_ui_renders_with_details() {
         owner: "testuser".to_string(),
         build_date: "2024-01-01".to_string(),
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
 
     let _terminal = render_ui_to_backend(backend, &mut app);
@@ -261,6 +269,8 @@ fn test_ui_renders_middle_row() {
         description: "To install".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.install_state.select(Some(0));
 
@@ -299,6 +309,8 @@ fn test_layout_maximum_sizes() {
         description: "Test".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.selected = 0;
     app.list_state.select(Some(0));
@@ -326,6 +338,8 @@ fn test_layout_responsive() {
             description: "Test".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.selected = 0;
         app.list_state.select(Some(0));
@@ -422,6 +436,8 @@ fn test_modal_preflight_renders() {
             description: "Test".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }],
         action: pacsea::state::modal::PreflightAction::Install,
         tab: pacsea::state::modal::PreflightTab::Summary,
@@ -468,6 +484,8 @@ fn test_modal_confirm_renders() {
             description: "Test".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }],
     };
 
@@ -493,6 +511,8 @@ fn test_results_selection_highlighting() {
             description: "First".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         PackageItem {
             name: "pkg2".to_string(),
@@ -500,6 +520,8 @@ fn test_results_selection_highlighting() {
             description: "Second".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
     app.all_results = app.results.clone();
@@ -572,6 +594,8 @@ fn test_url_button_rect_set() {
         description: "Test".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.selected = 0;
     app.list_state.select(Some(0));
@@ -612,6 +636,8 @@ fn test_ui_very_large_terminal() {
         description: "Test".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.selected = 0;
     app.list_state.select(Some(0));
@@ -636,6 +662,8 @@ fn test_ui_long_package_names() {
         description: "Test".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.selected = 0;
     app.list_state.select(Some(0));
@@ -675,6 +703,8 @@ fn test_ui_installed_only_mode() {
         description: "To downgrade".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.downgrade_state.select(Some(0));
 
@@ -684,6 +714,8 @@ fn test_ui_installed_only_mode() {
         description: "To remove".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.remove_state.select(Some(0));
 
@@ -704,6 +736,8 @@ fn test_ui_resize_handling() {
         description: "Test".to_string(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     app.selected = 0;
     app.list_state.select(Some(0));

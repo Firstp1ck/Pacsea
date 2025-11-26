@@ -25,6 +25,8 @@ fn test_sync_files_early_return_wrong_tab() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let tab = PreflightTab::Summary;
     let mut file_info = Vec::new();
@@ -88,6 +90,8 @@ fn test_sync_files_filters_by_package_name() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let tab = PreflightTab::Files;
     let mut file_info = Vec::new();
@@ -134,6 +138,8 @@ fn test_sync_files_resets_selection_when_files_change() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let tab = PreflightTab::Files;
     let mut file_info = Vec::new();

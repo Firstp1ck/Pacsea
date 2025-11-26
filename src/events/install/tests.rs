@@ -62,6 +62,8 @@ fn install_enter_opens_confirm_install() {
         description: String::new(),
         source: crate::state::Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
@@ -176,6 +178,8 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
             arch: "x86_64".into(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
@@ -244,6 +248,8 @@ fn install_delete_removes_item() {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         PackageItem {
             name: "fd".into(),
@@ -251,6 +257,8 @@ fn install_delete_removes_item() {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
     app.install_state.select(Some(0));

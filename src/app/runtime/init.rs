@@ -666,6 +666,8 @@ mod tests {
             description: "Test".to_string(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
 
         let flags = InitFlags {

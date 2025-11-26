@@ -94,6 +94,8 @@ mod tests {
                     arch: "x86_64".into(),
                 },
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             }],
         };
         term.draw(|f| {

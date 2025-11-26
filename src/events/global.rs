@@ -85,6 +85,8 @@ fn handle_options_installed_only_toggle(
                     description: String::new(),
                     source: src,
                     popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
                 });
             }
         }
@@ -804,6 +806,8 @@ mod tests {
             description: "fast search".into(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.selected = 0;
 

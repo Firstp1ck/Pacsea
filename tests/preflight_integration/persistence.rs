@@ -38,6 +38,8 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate_root::state::PackageItem {
             name: "test-package-2".to_string(),
@@ -48,6 +50,8 @@ fn preflight_persists_service_restart_decisions_across_tabs() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
 
@@ -485,6 +489,8 @@ fn preflight_persists_optional_dependencies_selection() {
             description: String::new(),
             source: crate_root::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate_root::state::PackageItem {
             name: "test-aur-pkg-2".to_string(),
@@ -492,6 +498,8 @@ fn preflight_persists_optional_dependencies_selection() {
             description: String::new(),
             source: crate_root::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
 

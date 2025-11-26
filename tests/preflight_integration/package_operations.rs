@@ -37,6 +37,8 @@ fn preflight_preserves_first_package_when_second_package_added() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
 
     // Pre-populate cache with first package's data
@@ -120,6 +122,8 @@ fn preflight_preserves_first_package_when_second_package_added() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
 
     // Add second package's data to cache (simulating it being resolved)
@@ -577,6 +581,8 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
 
     // Simulate first package being added and starting to load
@@ -639,6 +645,8 @@ fn preflight_independent_loading_when_packages_added_sequentially() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
 
     // Update install list to include both packages
