@@ -353,10 +353,20 @@ fn handle_space_key(
 /// Details:
 /// - Opens preflight modal for the selected package using configured key or Enter.
 fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
+    // Don't open preflight if Ctrl is held (might be Ctrl+M interpreted as Enter)
+    if ke.modifiers.contains(KeyModifiers::CONTROL) {
+        tracing::debug!(
+            "[NormalMode] Key with Ctrl detected in handle_preflight_open, ignoring (likely Ctrl+M): code={:?}",
+            ke.code
+        );
+        return false;
+    }
+
     let should_open = matches_any(ke, &app.keymap.search_install)
         || matches!(ke.code, KeyCode::Char('\n') | KeyCode::Enter);
 
     if should_open && let Some(item) = app.results.get(app.selected).cloned() {
+        tracing::debug!("[NormalMode] Opening preflight for package: {}", item.name);
         open_preflight_modal(app, vec![item], true);
         return true;
     }

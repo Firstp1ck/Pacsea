@@ -181,6 +181,13 @@ fn build_global_bindings(
         lines,
         app,
         th,
+        km.comments_toggle.first().copied(),
+        "app.modals.help.key_labels.show_comments",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
         km.change_sort.first().copied(),
         "app.modals.help.key_labels.change_sorting",
     );

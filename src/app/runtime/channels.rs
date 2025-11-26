@@ -36,6 +36,11 @@ pub struct Channels {
     pub pkgb_req_tx: mpsc::UnboundedSender<PackageItem>,
     pub pkgb_res_tx: mpsc::UnboundedSender<(String, String)>,
     pub pkgb_res_rx: mpsc::UnboundedReceiver<(String, String)>,
+    pub comments_req_tx: mpsc::UnboundedSender<String>,
+    pub comments_res_tx:
+        mpsc::UnboundedSender<(String, Result<Vec<crate::state::types::AurComment>, String>)>,
+    pub comments_res_rx:
+        mpsc::UnboundedReceiver<(String, Result<Vec<crate::state::types::AurComment>, String>)>,
     pub status_tx: mpsc::UnboundedSender<(String, ArchStatusColor)>,
     pub status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
     pub news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
@@ -129,6 +134,12 @@ struct UtilityChannels {
     pkgb_req_rx: mpsc::UnboundedReceiver<PackageItem>,
     pkgb_res_tx: mpsc::UnboundedSender<(String, String)>,
     pkgb_res_rx: mpsc::UnboundedReceiver<(String, String)>,
+    comments_req_tx: mpsc::UnboundedSender<String>,
+    comments_req_rx: mpsc::UnboundedReceiver<String>,
+    comments_res_tx:
+        mpsc::UnboundedSender<(String, Result<Vec<crate::state::types::AurComment>, String>)>,
+    comments_res_rx:
+        mpsc::UnboundedReceiver<(String, Result<Vec<crate::state::types::AurComment>, String>)>,
     status_tx: mpsc::UnboundedSender<(String, ArchStatusColor)>,
     status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
     news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
@@ -236,6 +247,9 @@ fn create_utility_channels() -> UtilityChannels {
     let (index_notify_tx, index_notify_rx) = mpsc::unbounded_channel::<()>();
     let (pkgb_req_tx, pkgb_req_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_res_tx, pkgb_res_rx) = mpsc::unbounded_channel::<(String, String)>();
+    let (comments_req_tx, comments_req_rx) = mpsc::unbounded_channel::<String>();
+    let (comments_res_tx, comments_res_rx) =
+        mpsc::unbounded_channel::<(String, Result<Vec<crate::state::types::AurComment>, String>)>();
     let (status_tx, status_rx) = mpsc::unbounded_channel::<(String, ArchStatusColor)>();
     let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
     let (updates_tx, updates_rx) = mpsc::unbounded_channel::<(usize, Vec<String>)>();
@@ -254,6 +268,10 @@ fn create_utility_channels() -> UtilityChannels {
         pkgb_req_rx,
         pkgb_res_tx,
         pkgb_res_rx,
+        comments_req_tx,
+        comments_req_rx,
+        comments_res_tx,
+        comments_res_rx,
         status_tx,
         status_rx,
         news_tx,
@@ -287,6 +305,10 @@ impl Channels {
         crate::app::runtime::workers::details::spawn_pkgbuild_worker(
             utility_channels.pkgb_req_rx,
             utility_channels.pkgb_res_tx.clone(),
+        );
+        crate::app::runtime::workers::comments::spawn_comments_worker(
+            utility_channels.comments_req_rx,
+            utility_channels.comments_res_tx.clone(),
         );
         crate::app::runtime::workers::preflight::spawn_dependency_worker(
             preflight_channels.deps_req_rx,
@@ -337,6 +359,9 @@ impl Channels {
             pkgb_req_tx: utility_channels.pkgb_req_tx,
             pkgb_res_tx: utility_channels.pkgb_res_tx,
             pkgb_res_rx: utility_channels.pkgb_res_rx,
+            comments_req_tx: utility_channels.comments_req_tx,
+            comments_res_tx: utility_channels.comments_res_tx,
+            comments_res_rx: utility_channels.comments_res_rx,
             status_tx: utility_channels.status_tx,
             status_rx: utility_channels.status_rx,
             news_tx: utility_channels.news_tx,

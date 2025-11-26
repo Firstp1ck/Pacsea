@@ -89,12 +89,25 @@ pub fn handle_insert_mode(
             app.search_select_anchor = None;
             send_query(app, query_tx);
         }
-        (KeyCode::Char('\n') | KeyCode::Enter, _) => {
+        // Handle Enter - but NOT if it's actually Ctrl+M (which some terminals send as Enter)
+        (KeyCode::Char('\n') | KeyCode::Enter, m) => {
+            // Don't open preflight if Ctrl is held (might be Ctrl+M interpreted as Enter)
+            if m.contains(KeyModifiers::CONTROL) {
+                tracing::debug!(
+                    "[InsertMode] Enter with Ctrl detected, ignoring (likely Ctrl+M interpreted as Enter)"
+                );
+                return false;
+            }
             if let Some(item) = app.results.get(app.selected).cloned() {
+                tracing::debug!(
+                    "[InsertMode] Enter pressed, opening preflight for package: {}",
+                    item.name
+                );
                 open_preflight_modal(app, vec![item], false);
             }
         }
-        (KeyCode::Char(ch), _) => {
+        // Only handle character input if no modifiers are present (to allow global keybinds with modifiers)
+        (KeyCode::Char(ch), m) if m.is_empty() => {
             app.input.push(ch);
             app.last_input_change = std::time::Instant::now();
             app.last_saved_value = None;

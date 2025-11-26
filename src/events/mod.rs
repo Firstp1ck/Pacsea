@@ -3,7 +3,7 @@
 //! This module re-exports `handle_event` and delegates pane-specific logic
 //! and mouse handling to submodules to keep files small and maintainable.
 
-use crossterm::event::{Event as CEvent, KeyEventKind};
+use crossterm::event::{Event as CEvent, KeyCode, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
 use crate::state::{AppState, Focus, PackageItem, QueryInput};
@@ -39,6 +39,7 @@ pub use search::open_preflight_modal;
 /// - Handles active modal interactions first (Alert/SystemUpdate/ConfirmInstall/ConfirmRemove/Help/News).
 /// - Supports global shortcuts (help overlay, theme reload, exit, PKGBUILD viewer toggle, change sort).
 /// - Delegates pane-specific handling to `search`, `recent`, and `install` submodules.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_event(
     ev: &CEvent,
     app: &mut AppState,
@@ -47,13 +48,50 @@ pub fn handle_event(
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
     add_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) -> bool {
     if let CEvent::Key(ke) = ev {
         if ke.kind != KeyEventKind::Press {
             return false;
         }
 
-        // Handle Preflight modal first (it's the largest)
+        // Log Ctrl+T for debugging
+        if ke.code == KeyCode::Char('t') && ke.modifiers.contains(KeyModifiers::CONTROL) {
+            tracing::debug!(
+                "[Event] Ctrl+T key event: code={:?}, mods={:?}, modal={:?}, focus={:?}",
+                ke.code,
+                ke.modifiers,
+                app.modal,
+                app.focus
+            );
+        }
+
+        // Check for global keybinds first (even when preflight is open)
+        // This allows global shortcuts like Ctrl+T to work regardless of modal state
+        if let Some(should_exit) =
+            global::handle_global_key(*ke, app, details_tx, pkgb_tx, comments_tx, query_tx)
+        {
+            if ke.code == KeyCode::Char('t') && ke.modifiers.contains(KeyModifiers::CONTROL) {
+                tracing::debug!(
+                    "[Event] Global handler returned should_exit={}",
+                    should_exit
+                );
+            }
+            if should_exit {
+                return true; // Exit requested
+            }
+            // Key was handled by global shortcuts, don't process further
+            return false;
+        }
+
+        // Log if Ctrl+T wasn't handled by global handler
+        if ke.code == KeyCode::Char('t') && ke.modifiers.contains(KeyModifiers::CONTROL) {
+            tracing::warn!(
+                "[Event] Ctrl+T was NOT handled by global handler, continuing to other handlers"
+            );
+        }
+
+        // Handle Preflight modal (it's the largest)
         if matches!(app.modal, crate::state::Modal::Preflight { .. }) {
             return preflight::handle_preflight_key(*ke, app);
         }
@@ -65,17 +103,6 @@ pub fn handle_event(
 
         // If any modal remains open after handling above, consume the key to prevent main window interaction
         if !matches!(app.modal, crate::state::Modal::None) {
-            return false;
-        }
-
-        // Handle global shortcuts and dropdown menus
-        if let Some(should_exit) =
-            global::handle_global_key(*ke, app, details_tx, pkgb_tx, query_tx)
-        {
-            if should_exit {
-                return true; // Exit requested
-            }
-            // Key was handled by global shortcuts, don't process further
             return false;
         }
 
@@ -107,7 +134,14 @@ pub fn handle_event(
     // Mouse handling delegated
     if let CEvent::Mouse(m) = ev {
         return mouse::handle_mouse_event(
-            *m, app, details_tx, preview_tx, add_tx, pkgb_tx, query_tx,
+            *m,
+            app,
+            details_tx,
+            preview_tx,
+            add_tx,
+            pkgb_tx,
+            comments_tx,
+            query_tx,
         );
     }
     false
@@ -185,7 +219,17 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::empty(),
         });
-        let _ = super::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+        let _ = super::handle_event(
+            &click_options,
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+            &comments_tx,
+        );
         assert!(app.options_menu_open);
         app.options_menu_rect = Some((5, 6, 20, 3));
         let click_menu_update = CEvent::Mouse(MouseEvent {
@@ -194,6 +238,7 @@ mod tests {
             row: 7,
             modifiers: KeyModifiers::empty(),
         });
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let _ = super::handle_event(
             &click_menu_update,
             &mut app,
@@ -202,9 +247,20 @@ mod tests {
             &ptx,
             &atx,
             &pkgb_tx,
+            &comments_tx,
         );
         let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
-        let _ = super::handle_event(&enter, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+        let _ = super::handle_event(
+            &enter,
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+            &comments_tx,
+        );
         // Wait for file to be created with retries
         let mut attempts = 0;
         while !out_path.exists() && attempts < 50 {
@@ -332,13 +388,14 @@ mod tests {
 
     /// Type alias for application communication channels tuple.
     ///
-    /// Contains 5 `UnboundedSender` channels for query, details, preview, add, and pkgbuild operations.
+    /// Contains 6 `UnboundedSender` channels for query, details, preview, add, pkgbuild, and comments operations.
     type AppChannels = (
         tokio::sync::mpsc::UnboundedSender<QueryInput>,
         tokio::sync::mpsc::UnboundedSender<PackageItem>,
         tokio::sync::mpsc::UnboundedSender<PackageItem>,
         tokio::sync::mpsc::UnboundedSender<PackageItem>,
         tokio::sync::mpsc::UnboundedSender<PackageItem>,
+        tokio::sync::mpsc::UnboundedSender<String>,
     );
 
     /// Type alias for setup app result tuple.
@@ -386,7 +443,8 @@ mod tests {
         let (ptx, _prx) = mpsc::unbounded_channel();
         let (atx, _arx) = mpsc::unbounded_channel();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
-        (app, (qtx, dtx, ptx, atx, pkgb_tx))
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel();
+        (app, (qtx, dtx, ptx, atx, pkgb_tx, comments_tx))
     }
 
     /// What: Open optional deps modal via UI interactions.
@@ -415,6 +473,7 @@ mod tests {
             &channels.2,
             &channels.3,
             &channels.4,
+            &channels.5,
         );
         assert!(app.options_menu_open);
 
@@ -430,6 +489,7 @@ mod tests {
             &channels.2,
             &channels.3,
             &channels.4,
+            &channels.5,
         );
     }
 
@@ -588,7 +648,17 @@ mod tests {
             row: 5,
             modifiers: KeyModifiers::empty(),
         });
-        let _ = super::handle_event(&click_options, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+        let _ = super::handle_event(
+            &click_options,
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+            &comments_tx,
+        );
         assert!(app.options_menu_open);
 
         // Press '4' to open Optional Deps
@@ -596,7 +666,17 @@ mod tests {
             crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
         key_four_event.kind = KeyEventKind::Press;
         let key_four = CEvent::Key(key_four_event);
-        let _ = super::handle_event(&key_four, &mut app, &qtx, &dtx, &ptx, &atx, &pkgb_tx);
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+        let _ = super::handle_event(
+            &key_four,
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+            &comments_tx,
+        );
 
         match &app.modal {
             crate::state::Modal::OptionalDeps { rows, .. } => {

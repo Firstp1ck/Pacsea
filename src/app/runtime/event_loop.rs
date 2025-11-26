@@ -12,7 +12,8 @@ use super::handlers::{
     handle_service_result,
 };
 use super::tick_handler::{
-    handle_news, handle_pkgbuild_result, handle_status, handle_summary_result, handle_tick,
+    handle_comments_result, handle_news, handle_pkgbuild_result, handle_status,
+    handle_summary_result, handle_tick,
 };
 
 /// What: Parse updates entries from the `available_updates.txt` file.
@@ -125,6 +126,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.preview_tx,
                 &channels.add_tx,
                 &channels.pkgb_req_tx,
+                &channels.comments_req_tx,
             )
         }
         Some(()) = channels.index_notify_rx.recv() => {
@@ -184,6 +186,10 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
         }
         Some((pkgname, text)) = channels.pkgb_res_rx.recv() => {
             handle_pkgbuild_result(app, pkgname, text, &channels.tick_tx);
+            false
+        }
+        Some((pkgname, result)) = channels.comments_res_rx.recv() => {
+            handle_comments_result(app, pkgname, result, &channels.tick_tx);
             false
         }
         Some(summary_outcome) = channels.summary_res_rx.recv() => {

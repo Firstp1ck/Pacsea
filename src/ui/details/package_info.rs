@@ -191,9 +191,12 @@ fn calculate_button_rects(
 ) {
     app.url_button_rect = None;
     app.pkgb_button_rect = None;
+    app.comments_button_rect = None;
 
     let show_pkgb = crate::i18n::t(app, "app.details.show_pkgbuild").to_lowercase();
     let hide_pkgb = crate::i18n::t(app, "app.details.hide_pkgbuild").to_lowercase();
+    let show_comments = crate::i18n::t(app, "app.details.show_comments").to_lowercase();
+    let hide_comments = crate::i18n::t(app, "app.details.hide_comments").to_lowercase();
 
     let mut cur_y = ctx.content_y;
     for (vis_idx, vis_line) in visible_lines.iter().enumerate() {
@@ -225,6 +228,11 @@ fn calculate_button_rects(
                     calculate_pkgbuild_button_rect(&txt, ctx.content_x, cur_y, ctx.inner_w)
             {
                 app.pkgb_button_rect = Some(rect);
+            } else if (lowered.contains(&show_comments) || lowered.contains(&hide_comments))
+                && let Some(rect) =
+                    calculate_pkgbuild_button_rect(&txt, ctx.content_x, cur_y, ctx.inner_w)
+            {
+                app.comments_button_rect = Some(rect);
             }
         }
 

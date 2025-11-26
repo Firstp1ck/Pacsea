@@ -414,6 +414,36 @@ pub struct OptionalDepRow {
     pub note: Option<String>,
 }
 
+/// AUR package comment data structure.
+///
+/// What: Represents a single comment from an AUR package page.
+///
+/// Inputs: None (data structure).
+///
+/// Output: None (data structure).
+///
+/// Details:
+/// - Contains author, date, and content of a comment.
+/// - Includes optional timestamp for reliable chronological sorting.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct AurComment {
+    /// Comment author username.
+    pub author: String,
+    /// Human-readable date string.
+    pub date: String,
+    /// Unix timestamp for sorting (None if parsing failed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date_timestamp: Option<i64>,
+    /// URL from the date link (None if not available).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date_url: Option<String>,
+    /// Comment content text.
+    pub content: String,
+    /// Whether this comment is pinned (shown at the top).
+    #[serde(default)]
+    pub pinned: bool,
+}
+
 /// Helper function for serde to skip serializing false boolean values.
 #[allow(clippy::trivially_copy_pass_by_ref)]
 const fn is_false(b: &bool) -> bool {

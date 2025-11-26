@@ -43,6 +43,45 @@ pub fn handle_pkgbuild_result(
     let _ = tick_tx.send(());
 }
 
+/// What: Handle comments result event.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `pkgname`: Package name
+/// - `result`: Comments result (Ok with comments or Err with error message)
+/// - `tick_tx`: Channel sender for tick events
+///
+/// Details:
+/// - Updates comments if still focused on the same package
+/// - Sets loading state to false and error state if applicable
+pub fn handle_comments_result(
+    app: &mut AppState,
+    pkgname: String,
+    result: Result<Vec<crate::state::types::AurComment>, String>,
+    tick_tx: &mpsc::UnboundedSender<()>,
+) {
+    if app.details_focus.as_deref() == Some(pkgname.as_str())
+        || app.results.get(app.selected).map(|i| i.name.as_str()) == Some(pkgname.as_str())
+    {
+        app.comments_loading = false;
+        match result {
+            Ok(comments) => {
+                app.comments = comments;
+                app.comments_package_name = Some(pkgname);
+                app.comments_fetched_at = Some(Instant::now());
+                app.comments_error = None;
+            }
+            Err(error) => {
+                app.comments.clear();
+                app.comments_package_name = None;
+                app.comments_fetched_at = None;
+                app.comments_error = Some(error);
+            }
+        }
+    }
+    let _ = tick_tx.send(());
+}
+
 /// What: Handle preflight summary result event.
 ///
 /// Inputs:

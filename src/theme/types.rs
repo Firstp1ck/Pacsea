@@ -293,6 +293,8 @@ pub struct KeyMap {
     pub exit: Vec<KeyChord>,
     /// Global: Show/Hide PKGBUILD viewer
     pub show_pkgbuild: Vec<KeyChord>,
+    /// Global: Show/Hide AUR comments viewer
+    pub comments_toggle: Vec<KeyChord>,
     /// Global: Change results sorting mode
     pub change_sort: Vec<KeyChord>,
     pub pane_next: Vec<KeyChord>,
@@ -374,8 +376,9 @@ pub struct KeyMap {
 
 /// Type alias for global key bindings tuple.
 ///
-/// Contains 8 `Vec<KeyChord>` for `help_overlay`, `reload_config`, `exit`, `show_pkgbuild`, `change_sort`, and pane navigation keys.
+/// Contains 9 `Vec<KeyChord>` for `help_overlay`, `reload_config`, `exit`, `show_pkgbuild`, `comments_toggle`, `change_sort`, and pane navigation keys.
 type GlobalKeys = (
+    Vec<KeyChord>,
     Vec<KeyChord>,
     Vec<KeyChord>,
     Vec<KeyChord>,
@@ -481,6 +484,10 @@ fn default_global_keys(none: KeyModifiers, ctrl: KeyModifiers) -> GlobalKeys {
         }],
         vec![KeyChord {
             code: Char('x'),
+            mods: ctrl,
+        }],
+        vec![KeyChord {
+            code: Char('t'),
             mods: ctrl,
         }],
         vec![KeyChord {
@@ -835,10 +842,11 @@ fn build_default_keymap() -> KeyMap {
         reload_config: global.1,
         exit: global.2,
         show_pkgbuild: global.3,
-        change_sort: global.4,
-        pane_next: global.5,
-        pane_left: global.6,
-        pane_right: global.7,
+        comments_toggle: global.4,
+        change_sort: global.5,
+        pane_next: global.6,
+        pane_left: global.7,
+        pane_right: global.8,
         config_menu_toggle: dropdown.0,
         options_menu_toggle: dropdown.1,
         panels_menu_toggle: dropdown.2,

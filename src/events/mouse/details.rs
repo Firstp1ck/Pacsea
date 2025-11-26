@@ -88,6 +88,76 @@ fn handle_pkgb_toggle_click(
     true
 }
 
+/// Handle comments toggle button click.
+///
+/// What: Opens or closes the comments viewer and requests content when opening.
+///
+/// Inputs:
+/// - `mx`: Mouse X coordinate (column)
+/// - `my`: Mouse Y coordinate (row)
+/// - `app`: Mutable application state
+/// - `comments_tx`: Channel to request comments content
+///
+/// Output:
+/// - `true` if the click was handled, `false` otherwise.
+fn handle_comments_toggle_click(
+    mx: u16,
+    my: u16,
+    app: &mut AppState,
+    comments_tx: &mpsc::UnboundedSender<String>,
+) -> bool {
+    if !is_point_in_rect(mx, my, app.comments_button_rect) {
+        return false;
+    }
+
+    // Only allow for AUR packages
+    let is_aur = app
+        .results
+        .get(app.selected)
+        .is_some_and(|item| matches!(item.source, crate::state::Source::Aur));
+
+    if !is_aur {
+        return false;
+    }
+
+    app.mouse_disabled_in_details = false;
+    if app.comments_visible {
+        // Close if already open
+        app.comments_visible = false;
+        app.comments.clear();
+        app.comments_package_name = None;
+        app.comments_fetched_at = None;
+        app.comments_scroll = 0;
+        app.comments_rect = None;
+        app.comments_loading = false;
+        app.comments_error = None;
+    } else {
+        // Open and (re)load
+        app.comments_visible = true;
+        app.comments_scroll = 0;
+        app.comments_error = None;
+        if let Some(item) = app.results.get(app.selected) {
+            // Check if we have cached comments for this package
+            if app
+                .comments_package_name
+                .as_ref()
+                .is_some_and(|cached_name| cached_name == &item.name && !app.comments.is_empty())
+            {
+                // Use cached comments
+                app.comments_loading = false;
+                return true;
+            }
+            // Request new comments
+            app.comments.clear();
+            app.comments_package_name = None;
+            app.comments_fetched_at = None;
+            app.comments_loading = true;
+            let _ = comments_tx.send(item.name.clone());
+        }
+    }
+    true
+}
+
 /// Copy PKGBUILD text to clipboard using wl-copy or xclip.
 ///
 /// What: Attempts to copy text to clipboard using Wayland (wl-copy) or X11 (xclip) tools.
@@ -277,6 +347,91 @@ fn handle_text_selection_block(mx: u16, my: u16, app: &mut AppState) -> bool {
     true
 }
 
+/// Handle URL click in comments.
+///
+/// What: Opens a URL from comments when clicked.
+///
+/// Inputs:
+/// - `mx`: Mouse X coordinate (column)
+/// - `my`: Mouse Y coordinate (row)
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if a URL was clicked and opened, `false` otherwise.
+fn handle_comment_url_click(mx: u16, my: u16, app: &AppState) -> bool {
+    // Check if click is within comments area
+    if !is_point_in_rect(mx, my, app.comments_rect) {
+        return false;
+    }
+
+    // Check if click matches any URL position
+    for (url_x, url_y, url_width, url) in &app.comments_urls {
+        if mx >= *url_x && mx < url_x.saturating_add(*url_width) && my == *url_y {
+            crate::util::open_url(url);
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Handle author name click in comments.
+///
+/// What: Opens the AUR profile page for the clicked author.
+///
+/// Inputs:
+/// - `mx`: Mouse X coordinate (column)
+/// - `my`: Mouse Y coordinate (row)
+/// - `app`: Application state
+///
+/// Output:
+/// - `true` if an author was clicked and profile opened, `false` otherwise.
+fn handle_comment_author_click(mx: u16, my: u16, app: &AppState) -> bool {
+    // Check if click is within comments area
+    if !is_point_in_rect(mx, my, app.comments_rect) {
+        return false;
+    }
+
+    // Check if click matches any author position
+    for (author_x, author_y, author_width, username) in &app.comments_authors {
+        if mx >= *author_x && mx < author_x.saturating_add(*author_width) && my == *author_y {
+            let profile_url = format!("https://aur.archlinux.org/account/{username}");
+            crate::util::open_url(&profile_url);
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Handle date click in comments.
+///
+/// What: Opens the URL associated with the clicked date.
+///
+/// Inputs:
+/// - `mx`: Mouse X coordinate (column)
+/// - `my`: Mouse Y coordinate (row)
+/// - `app`: Application state (read-only)
+///
+/// Output:
+/// - `true` if the click was handled, `false` otherwise.
+fn handle_comment_date_click(mx: u16, my: u16, app: &AppState) -> bool {
+    // Check if click is within comments area
+    if !is_point_in_rect(mx, my, app.comments_rect) {
+        return false;
+    }
+
+    // Check if click matches any date position
+    for (date_x, date_y, date_width, url) in &app.comments_dates {
+        if mx >= *date_x && mx < date_x.saturating_add(*date_width) && my == *date_y {
+            crate::util::open_url(url);
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Handle mouse events for the details pane.
 ///
 /// What: Process mouse interactions within the package details pane, including URL clicks,
@@ -291,6 +446,7 @@ fn handle_text_selection_block(mx: u16, my: u16, app: &mut AppState) -> bool {
 /// - `shift`: Whether the Shift modifier is active
 /// - `app`: Mutable application state containing details pane state and UI rectangles
 /// - `pkgb_tx`: Channel to request PKGBUILD content when opening the viewer
+/// - `comments_tx`: Channel to request comments content when opening the viewer
 ///
 /// Output:
 /// - `Some(bool)` if the event was handled (consumed by details pane), `None` if not handled.
@@ -298,7 +454,11 @@ fn handle_text_selection_block(mx: u16, my: u16, app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - URL clicks: Ctrl+Shift+LeftClick on URL button opens the URL via `xdg-open`.
+/// - Comment URL clicks: Left click on URLs in comments opens them in the default browser.
+/// - Comment author clicks: Left click on author names in comments opens their AUR profile page.
+/// - Comment date clicks: Left click on dates in comments opens the associated URL.
 /// - PKGBUILD toggle: Left click on toggle button opens/closes the PKGBUILD viewer and requests content.
+/// - Comments toggle: Left click on toggle button opens/closes the comments viewer and requests content (AUR only).
 /// - Copy PKGBUILD: Left click on copy button copies PKGBUILD to clipboard (wl-copy/xclip).
 /// - Reload PKGBUILD: Left click on reload button schedules a debounced reload.
 /// - Scroll: Mouse wheel scrolls the details content when within the details rectangle.
@@ -313,15 +473,30 @@ pub(super) fn handle_details_mouse(
     shift: bool,
     app: &mut AppState,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) -> Option<bool> {
     // Handle modifier-clicks in details first, even when selection is enabled
     if is_left_down && ctrl && shift && handle_url_click(mx, my, app) {
         return Some(false);
     }
 
+    // Handle comment URL, author, and date clicks (before other button clicks)
+    if is_left_down && handle_comment_url_click(mx, my, app) {
+        return Some(false);
+    }
+    if is_left_down && handle_comment_author_click(mx, my, app) {
+        return Some(false);
+    }
+    if is_left_down && handle_comment_date_click(mx, my, app) {
+        return Some(false);
+    }
+
     // Handle button clicks
     if is_left_down {
         if handle_pkgb_toggle_click(mx, my, app, pkgb_tx) {
+            return Some(false);
+        }
+        if handle_comments_toggle_click(mx, my, app, comments_tx) {
             return Some(false);
         }
         if handle_copy_pkgb_click(mx, my, app) {

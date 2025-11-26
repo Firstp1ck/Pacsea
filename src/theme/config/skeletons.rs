@@ -360,6 +360,7 @@ keybind_help = ?\n\
 keybind_reload_config = CTRL+R\n\
 keybind_exit = CTRL+Q\n\
 keybind_show_pkgbuild = CTRL+X\n\
+keybind_comments_toggle = CTRL+T\n\
 \n\
 # GLOBAL — Pane switching\n\
 keybind_pane_left = Left\n\

@@ -84,6 +84,10 @@ fn apply_global_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setti
             assign_keybind(chord, &mut settings.keymap.show_pkgbuild);
             true
         }
+        "keybind_comments_toggle" | "keybind_show_comments" | "keybind_toggle_comments" => {
+            assign_keybind(chord, &mut settings.keymap.comments_toggle);
+            true
+        }
         "keybind_change_sort" | "keybind_sort" => {
             assign_keybind(chord, &mut settings.keymap.change_sort);
             true

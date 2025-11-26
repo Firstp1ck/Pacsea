@@ -392,6 +392,38 @@ fn handle_pkgbuild_scroll(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) -
     }
 }
 
+/// What: Handle comments viewer scroll interactions.
+///
+/// Inputs:
+/// - `m`: Mouse event
+/// - `mx`: Mouse X coordinate
+/// - `my`: Mouse Y coordinate
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if event was handled, `false` otherwise
+///
+/// Details:
+/// - Scroll wheel scrolls the comments content.
+#[allow(clippy::missing_const_for_fn)]
+fn handle_comments_scroll(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) -> bool {
+    if !is_in_rect(mx, my, app.comments_rect) {
+        return false;
+    }
+
+    match m.kind {
+        MouseEventKind::ScrollUp => {
+            app.comments_scroll = app.comments_scroll.saturating_sub(1);
+            true
+        }
+        MouseEventKind::ScrollDown => {
+            app.comments_scroll = app.comments_scroll.saturating_add(1);
+            true
+        }
+        _ => false,
+    }
+}
+
 /// Handle mouse events for panes (Results, Recent, Install/Remove/Downgrade, PKGBUILD viewer).
 ///
 /// What: Process mouse interactions within list panes for selection, scrolling, and focus changes.
@@ -440,6 +472,7 @@ pub(super) fn handle_panes_mouse(
     handle_install_scroll(m, mx, my, app, details_tx);
     handle_downgrade_scroll(m, mx, my, app, details_tx);
     handle_pkgbuild_scroll(m, mx, my, app);
+    handle_comments_scroll(m, mx, my, app);
 
     None
 }

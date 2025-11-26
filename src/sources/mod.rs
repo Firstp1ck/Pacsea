@@ -1,5 +1,6 @@
 //! Network and system data retrieval module split into submodules.
 
+mod comments;
 mod details;
 mod news;
 mod pkgbuild;
@@ -8,6 +9,7 @@ pub mod status;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+pub use comments::fetch_aur_comments;
 pub use details::fetch_details;
 pub use news::fetch_arch_news;
 pub use pkgbuild::fetch_pkgbuild_fast;

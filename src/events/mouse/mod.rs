@@ -58,6 +58,7 @@ mod tests;
 /// - Recent/Install/Remove/Downgrade panes: Scroll moves selection; click focuses/sets selection.
 /// - Import/Export buttons: Import opens a system file picker to enqueue names; Export writes the
 ///   current Install list to a timestamped file and shows a toast.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_mouse_event(
     m: MouseEvent,
     app: &mut AppState,
@@ -65,6 +66,7 @@ pub fn handle_mouse_event(
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
     _add_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
     query_tx: &mpsc::UnboundedSender<QueryInput>,
 ) -> bool {
     // Ensure mouse capture is enabled (important after external terminal processes)
@@ -93,9 +95,17 @@ pub fn handle_mouse_event(
     }
 
     // Details pane interactions (URL, PKGBUILD buttons, scroll)
-    if let Some(handled) =
-        details::handle_details_mouse(m, mx, my, is_left_down, ctrl, shift, app, pkgb_tx)
-    {
+    if let Some(handled) = details::handle_details_mouse(
+        m,
+        mx,
+        my,
+        is_left_down,
+        ctrl,
+        shift,
+        app,
+        pkgb_tx,
+        comments_tx,
+    ) {
         return handled;
     }
 
