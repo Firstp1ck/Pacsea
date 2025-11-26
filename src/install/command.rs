@@ -1,6 +1,5 @@
 use crate::state::{PackageItem, Source};
 
-#[cfg(not(target_os = "windows"))]
 use super::utils::shell_single_quote;
 
 /// What: Build the common AUR install body that prefers `paru` and falls back to `yay`.

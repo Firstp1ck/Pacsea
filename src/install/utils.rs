@@ -115,7 +115,6 @@ pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Opt
     None
 }
 
-#[cfg(not(target_os = "windows"))]
 /// What: Safely single-quote an arbitrary string for POSIX shells.
 ///
 /// Input:
