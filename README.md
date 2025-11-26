@@ -173,7 +173,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 ### Potential future Features
 
 ### Community Suggestions: Priority Features
-- **Add Flags in result pane for packages that are: not maintained, orphaned and outdated**
+- **Add Flags in result pane for packages that are: not maintained, orphaned and outdated** (on going)
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
 - **View AUR package comments**
