@@ -1,7 +1,7 @@
 //! AUR package comments fetching via web scraping.
 
 use chrono::Datelike;
-use scraper::{Html, Selector};
+use scraper::{ElementRef, Html, Selector};
 use std::time::Duration;
 
 use crate::state::types::AurComment;
@@ -62,7 +62,7 @@ pub async fn fetch_aur_comments(pkgname: String) -> Result<Vec<AurComment>> {
     let date_selector =
         Selector::parse("a.date").map_err(|e| format!("Failed to parse date selector: {e}"))?;
 
-    let p_selector =
+    let _p_selector =
         Selector::parse("p").map_err(|e| format!("Failed to parse paragraph selector: {e}"))?;
 
     // Find the "Latest Comments" heading to separate pinned from regular comments
@@ -139,6 +139,7 @@ pub async fn fetch_aur_comments(pkgname: String) -> Result<Vec<AurComment>> {
         );
 
         // Get content by finding the corresponding content div by ID
+        // We extract formatted text to preserve markdown-like structures
         let content = comment_id
             .and_then(|id| id.strip_prefix("comment-"))
             .and_then(|comment_id_str| {
@@ -146,18 +147,9 @@ pub async fn fetch_aur_comments(pkgname: String) -> Result<Vec<AurComment>> {
             })
             .and_then(|content_id_selector| document.select(&content_id_selector).next())
             .map_or_else(String::new, |div| {
-                // Extract text from all <p> tags
-                let paragraphs: Vec<String> = div
-                    .select(&p_selector)
-                    .map(|p| p.text().collect::<String>().trim().to_string())
-                    .collect();
-
-                if paragraphs.is_empty() {
-                    // Fallback: get all text from the div
-                    div.text().collect::<String>().trim().to_string()
-                } else {
-                    paragraphs.join("\n")
-                }
+                // Parse HTML and extract formatted text
+                // This preserves markdown-like structures (bold, italic, code, links, etc.)
+                html_to_formatted_text(div)
             });
 
         // Skip empty comments
@@ -454,4 +446,127 @@ fn parse_date_to_timestamp(date_str: &str) -> Option<i64> {
     }
 
     None
+}
+
+/// What: Convert HTML content to formatted text preserving markdown-like structures.
+///
+/// Inputs:
+/// - `element`: HTML element to parse
+///
+/// Output:
+/// - Formatted text string with markdown-like syntax for bold, italic, code, etc.
+///
+/// Details:
+/// - Converts HTML tags to markdown-like syntax:
+///   - `<strong>`, `<b>` → `**text**`
+///   - `<em>`, `<i>` → `*text*`
+///   - `<code>` → `` `text` ``
+///   - `<pre>` → preserves code blocks with triple backticks
+///   - `<a>` → preserves links as `[text](url)`
+///   - `<p>` → newlines between paragraphs
+fn html_to_formatted_text(element: ElementRef) -> String {
+    let mut result = String::new();
+
+    // Process paragraphs to preserve structure
+    let p_selector = Selector::parse("p").ok();
+    if let Some(ref p_sel) = p_selector {
+        let paragraphs: Vec<_> = element.select(p_sel).collect();
+        if !paragraphs.is_empty() {
+            for (i, para) in paragraphs.iter().enumerate() {
+                if i > 0 {
+                    result.push('\n');
+                }
+                result.push_str(&convert_element_to_markdown(para));
+            }
+            return result.trim().to_string();
+        }
+    }
+
+    // If no paragraphs, process the whole element
+    result = convert_element_to_markdown(&element);
+    result.trim().to_string()
+}
+
+/// Convert an HTML element to markdown-like syntax by processing nested elements.
+fn convert_element_to_markdown(element: &ElementRef) -> String {
+    let html = element.html();
+    let mut working_html = html;
+
+    // Process <pre> blocks first (code blocks)
+    let pre_selector = Selector::parse("pre").ok();
+    if let Some(ref pre_sel) = pre_selector {
+        for pre in element.select(pre_sel) {
+            let text = pre.text().collect::<String>();
+            let pre_html = pre.html();
+            let replacement = format!("```\n{}\n```", text.trim());
+            working_html = working_html.replace(&pre_html, &replacement);
+        }
+    }
+
+    // Process <a> tags (links)
+    let a_selector = Selector::parse("a").ok();
+    if let Some(ref a_sel) = a_selector {
+        for link in element.select(a_sel) {
+            let text = link.text().collect::<String>().trim().to_string();
+            if let Some(href) = link.value().attr("href") {
+                let link_html = link.html();
+                let replacement = format!("[{text}]({href})");
+                working_html = working_html.replace(&link_html, &replacement);
+            }
+        }
+    }
+
+    // Process <strong> and <b> tags (bold)
+    let strong_selector = Selector::parse("strong, b").ok();
+    if let Some(ref strong_sel) = strong_selector {
+        for bold in element.select(strong_sel) {
+            let text = bold.text().collect::<String>().trim().to_string();
+            if !text.is_empty() {
+                let bold_html = bold.html();
+                let replacement = format!("**{text}**");
+                working_html = working_html.replace(&bold_html, &replacement);
+            }
+        }
+    }
+
+    // Process <em> and <i> tags (italic)
+    let em_selector = Selector::parse("em, i").ok();
+    if let Some(ref em_sel) = em_selector {
+        for italic in element.select(em_sel) {
+            let text = italic.text().collect::<String>().trim().to_string();
+            if !text.is_empty() {
+                let italic_html = italic.html();
+                let replacement = format!("*{text}*");
+                working_html = working_html.replace(&italic_html, &replacement);
+            }
+        }
+    }
+
+    // Process <code> tags
+    let code_selector = Selector::parse("code").ok();
+    if let Some(ref code_sel) = code_selector {
+        for code in element.select(code_sel) {
+            let text = code.text().collect::<String>().trim().to_string();
+            if !text.is_empty() {
+                let code_html = code.html();
+                let replacement = format!("`{text}`");
+                working_html = working_html.replace(&code_html, &replacement);
+            }
+        }
+    }
+
+    // Parse the modified HTML and extract text (this removes remaining HTML tags)
+    let temp_doc = Html::parse_fragment(&working_html);
+    let mut result = temp_doc.root_element().text().collect::<String>();
+
+    // Decode HTML entities
+    result = result
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&nbsp;", " ");
+
+    result
 }

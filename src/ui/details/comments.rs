@@ -100,6 +100,233 @@ fn find_url_end(text: &str, start: usize) -> Option<usize> {
     if end > start { Some(end) } else { None }
 }
 
+/// What: Detect markdown-style links in text: [text](url)
+///
+/// Inputs:
+/// - `text`: Text to search for markdown links
+///
+/// Output:
+/// - Vector of (`start_pos`, `end_pos`, `url_string`) tuples
+fn detect_markdown_links(text: &str) -> Vec<(usize, usize, String)> {
+    let mut links = Vec::new();
+    let text_bytes = text.as_bytes();
+    let mut i = 0;
+
+    while i < text_bytes.len() {
+        // Look for [text](url) pattern
+        if text_bytes[i] == b'['
+            && let Some(bracket_end) = text[i + 1..].find(']')
+        {
+            let bracket_end = i + 1 + bracket_end;
+            if bracket_end + 1 < text_bytes.len()
+                && text_bytes[bracket_end + 1] == b'('
+                && let Some(paren_end) = text[bracket_end + 2..].find(')')
+            {
+                let paren_end = bracket_end + 2 + paren_end;
+                let url = text[bracket_end + 2..paren_end].to_string();
+                links.push((i, paren_end + 1, url));
+                i = paren_end + 1;
+                continue;
+            }
+        }
+        i += 1;
+    }
+
+    links
+}
+
+/// What: Render content with markdown-like formatting (bold, italic, code, links).
+///
+/// This is similar to `render_content_with_urls` but also handles markdown formatting.
+fn render_content_with_formatting<'a>(
+    content: &'a str,
+    urls: &[(usize, usize, String)],
+    content_width: usize,
+    th: &'a crate::theme::Theme,
+    start_x: u16,
+    start_y: u16,
+    url_positions: &mut Vec<(u16, u16, u16, String)>,
+) -> Vec<Line<'a>> {
+    // Parse markdown-like formatting and create styled segments
+    let segments = parse_markdown_segments(content, urls, th);
+
+    // Build lines with word wrapping
+    let mut lines = Vec::new();
+    let mut current_line_spans: Vec<Span> = Vec::new();
+    let mut current_line_width = 0;
+    let mut current_y = start_y;
+
+    for (text, style, is_url, url_string) in segments {
+        let words: Vec<&str> = text.split_whitespace().collect();
+
+        for word in words {
+            let word_width = word.width();
+            let separator_width = usize::from(current_line_width > 0);
+            let test_width = current_line_width + separator_width + word_width;
+
+            if test_width > content_width && !current_line_spans.is_empty() {
+                // Wrap to new line
+                lines.push(Line::from(current_line_spans.clone()));
+                current_line_spans.clear();
+                current_line_width = 0;
+                current_y += 1;
+            }
+
+            // Track URL position if this is a URL
+            if is_url && let Some(ref url) = url_string {
+                let url_x = start_x
+                    + u16::try_from(current_line_width).unwrap_or(u16::MAX)
+                    + u16::from(current_line_width > 0);
+                let url_width = u16::try_from(word_width).unwrap_or(u16::MAX);
+                url_positions.push((url_x, current_y, url_width, url.clone()));
+            }
+
+            if current_line_width > 0 {
+                current_line_spans.push(Span::raw(" "));
+                current_line_width += 1;
+            }
+
+            current_line_spans.push(Span::styled(word.to_string(), style));
+            current_line_width += word_width;
+        }
+    }
+
+    // Add final line if not empty
+    if !current_line_spans.is_empty() {
+        lines.push(Line::from(current_line_spans));
+    }
+
+    lines
+}
+
+/// Parse markdown-like syntax and return segments with styling information.
+/// Returns: (text, style, `is_url`, `url_string_opt`)
+fn parse_markdown_segments<'a>(
+    content: &'a str,
+    urls: &[(usize, usize, String)],
+    th: &'a crate::theme::Theme,
+) -> Vec<(String, Style, bool, Option<String>)> {
+    use ratatui::style::{Modifier, Style};
+    let mut segments = Vec::new();
+    let mut i = 0;
+    let content_bytes = content.as_bytes();
+
+    while i < content_bytes.len() {
+        // Check if we're at a URL position
+        if let Some((start, end, url)) = urls.iter().find(|(s, _e, _)| *s == i) {
+            segments.push((
+                content[*start..*end].to_string(),
+                Style::default()
+                    .fg(th.mauve)
+                    .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
+                true,
+                Some(url.clone()),
+            ));
+            i = *end;
+            continue;
+        }
+
+        // Check for code blocks: ```...```
+        if i + 3 <= content_bytes.len()
+            && &content_bytes[i..i + 3] == b"```"
+            && let Some(end) = content[i + 3..].find("```")
+        {
+            let end = i + 3 + end + 3;
+            let code = content[i + 3..end - 3].trim();
+            segments.push((
+                code.to_string(),
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+                false,
+                None,
+            ));
+            i = end;
+            continue;
+        }
+
+        // Check for inline code: `code`
+        if content_bytes[i] == b'`'
+            && let Some(end) = content[i + 1..].find('`')
+        {
+            let end = i + 1 + end + 1;
+            let code = content[i + 1..end - 1].trim();
+            segments.push((
+                code.to_string(),
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+                false,
+                None,
+            ));
+            i = end;
+            continue;
+        }
+
+        // Check for bold: **text**
+        if i + 2 <= content_bytes.len()
+            && &content_bytes[i..i + 2] == b"**"
+            && let Some(end) = content[i + 2..].find("**")
+        {
+            let end = i + 2 + end + 2;
+            let text = content[i + 2..end - 2].trim();
+            segments.push((
+                text.to_string(),
+                Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+                false,
+                None,
+            ));
+            i = end;
+            continue;
+        }
+
+        // Check for italic: *text* (but not **text**)
+        if content_bytes[i] == b'*'
+            && (i + 1 >= content_bytes.len() || content_bytes[i + 1] != b'*')
+            && let Some(end) = content[i + 1..].find('*')
+        {
+            let end = i + 1 + end + 1;
+            let text = content[i + 1..end - 1].trim();
+            segments.push((
+                text.to_string(),
+                Style::default().fg(th.text).add_modifier(Modifier::ITALIC),
+                false,
+                None,
+            ));
+            i = end;
+            continue;
+        }
+
+        // Regular text - find next formatting marker
+        let next_marker = find_next_marker(content, i);
+        let end = next_marker.unwrap_or(content.len());
+        if end > i {
+            let text = content[i..end].trim();
+            if !text.is_empty() {
+                segments.push((text.to_string(), Style::default().fg(th.text), false, None));
+            }
+        }
+        i = end.max(i + 1);
+    }
+
+    segments
+}
+
+/// Find the next markdown formatting marker position.
+fn find_next_marker(content: &str, start: usize) -> Option<usize> {
+    let markers = ["**", "`", "```", "["];
+    let mut min_pos = None;
+
+    for marker in &markers {
+        if let Some(pos) = content[start..].find(marker) {
+            let pos = start + pos;
+            min_pos = Some(min_pos.map_or(pos, |m: usize| m.min(pos)));
+        }
+    }
+
+    min_pos
+}
+
 /// What: Render content text with URL detection and styling, with word wrapping.
 ///
 /// Inputs:
@@ -119,6 +346,7 @@ fn find_url_end(text: &str, start: usize) -> Option<usize> {
 /// - Styles URLs with underline and mauve color.
 /// - Preserves word boundaries when wrapping.
 /// - Tracks URL screen positions for click detection.
+#[allow(dead_code)]
 fn render_content_with_urls<'a>(
     content: &'a str,
     urls: &[(usize, usize, String)],
@@ -387,13 +615,15 @@ pub fn render_comments(f: &mut Frame, app: &mut AppState, comments_area: Rect) {
                     )));
                     current_y += 1;
                 } else {
-                    // Detect URLs in content
+                    // Detect URLs in content (including markdown-style links)
                     let urls = detect_urls(content);
+                    let markdown_urls = detect_markdown_links(content);
+                    let all_urls: Vec<_> = urls.into_iter().chain(markdown_urls).collect();
 
-                    // Render content with URL styling and track positions
-                    let content_lines = render_content_with_urls(
+                    // Render content with formatting (markdown-like syntax) and URL styling
+                    let content_lines = render_content_with_formatting(
                         content,
-                        &urls,
+                        &all_urls,
                         content_width,
                         &th,
                         content_x,
