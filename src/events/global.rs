@@ -431,6 +431,65 @@ fn handle_toggle_pkgbuild(
     false
 }
 
+/// What: Handle comments toggle keybind.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `comments_tx`: Channel to request comments content
+///
+/// Output:
+/// - `false` (doesn't exit app)
+///
+/// Details:
+/// - Toggles comments viewer visibility
+/// - Clears comments when closing
+/// - Sends request via channel when opening (only if AUR package)
+fn handle_toggle_comments(app: &mut AppState, comments_tx: &mpsc::UnboundedSender<String>) -> bool {
+    // Only allow for AUR packages
+    let is_aur = app
+        .results
+        .get(app.selected)
+        .is_some_and(|item| matches!(item.source, crate::state::Source::Aur));
+
+    if !is_aur {
+        return false;
+    }
+
+    if app.comments_visible {
+        app.comments_visible = false;
+        app.comments.clear();
+        app.comments_package_name = None;
+        app.comments_fetched_at = None;
+        app.comments_scroll = 0;
+        app.comments_rect = None;
+        app.comments_loading = false;
+        app.comments_error = None;
+    } else {
+        app.comments_visible = true;
+        app.comments_scroll = 0;
+        app.comments_error = None;
+        if let Some(item) = app.results.get(app.selected) {
+            // Check if we have cached comments for this package
+            if app
+                .comments_package_name
+                .as_ref()
+                .is_some_and(|cached_name| cached_name == &item.name && !app.comments.is_empty())
+            {
+                // Use cached comments
+                app.comments_loading = false;
+                return false;
+            }
+            // Request new comments
+            app.comments.clear();
+            app.comments_package_name = None;
+            app.comments_fetched_at = None;
+            app.comments_loading = true;
+            let _ = comments_tx.send(item.name.clone());
+        }
+    }
+    false
+}
+
 /// What: Handle sort mode change keybind.
 ///
 /// Inputs:
@@ -557,13 +616,14 @@ fn handle_menu_numeric_selection(
     }
 }
 
-/// What: Handle global keybinds (help, theme reload, exit, PKGBUILD, sort).
+/// What: Handle global keybinds (help, theme reload, exit, PKGBUILD, comments, sort).
 ///
 /// Inputs:
 /// - `ke`: Key event from crossterm
 /// - `app`: Mutable application state
 /// - `details_tx`: Channel to request package details
 /// - `pkgb_tx`: Channel to request PKGBUILD content
+/// - `comments_tx`: Channel to request comments content
 /// - `query_tx`: Channel to send search queries
 ///
 /// Output:
@@ -576,9 +636,27 @@ fn handle_global_keybinds(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
     query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
 ) -> Option<bool> {
     let km = &app.keymap;
+
+    // Log Ctrl+T specifically for debugging
+    if ke.code == KeyCode::Char('t') && ke.modifiers.contains(KeyModifiers::CONTROL) {
+        tracing::debug!(
+            "[Keybind] Ctrl+T detected: code={:?}, mods={:?}, keybind_match={}, comments_toggle_keybinds={:?}",
+            ke.code,
+            ke.modifiers,
+            matches_keybind(ke, &km.comments_toggle),
+            km.comments_toggle
+        );
+    }
+
+    // Comments toggle - check FIRST before other keybinds to ensure it's not intercepted
+    if matches_keybind(ke, &km.comments_toggle) {
+        tracing::debug!("[Keybind] Comments toggle matched, calling handle_toggle_comments");
+        return Some(handle_toggle_comments(app, comments_tx));
+    }
 
     // Help overlay (only if no modal is active, except Preflight which handles its own help)
     if !matches!(app.modal, crate::state::Modal::Preflight { .. })
@@ -665,6 +743,7 @@ fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
 /// - `app`: Mutable application state shared across panes and modals
 /// - `details_tx`: Channel used to request package detail refreshes
 /// - `pkgb_tx`: Channel used to request PKGBUILD content for the focused result
+/// - `comments_tx`: Channel used to request comments content for the focused result
 /// - `query_tx`: Channel to send search queries
 ///
 /// Output:
@@ -674,7 +753,7 @@ fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
 ///
 /// Details:
 /// - Gives precedence to closing dropdown menus on `Esc` before other bindings.
-/// - Routes configured global chords (help overlay, theme reload, exit, PKGBUILD toggle, sort cycle).
+/// - Routes configured global chords (help overlay, theme reload, exit, PKGBUILD toggle, comments toggle, sort cycle).
 /// - When sort mode changes it persists the preference, re-sorts results, and refreshes details.
 /// - Supports menu number shortcuts (1-9) for Options/Panels/Config dropdowns while they are open.
 pub(super) fn handle_global_key(
@@ -682,6 +761,7 @@ pub(super) fn handle_global_key(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
     query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
 ) -> Option<bool> {
     // First: handle ESC to close dropdown menus
@@ -691,8 +771,10 @@ pub(super) fn handle_global_key(
         return Some(result);
     }
 
-    // Second: handle global keybinds (help, theme reload, exit, PKGBUILD, sort)
-    if let Some(result) = handle_global_keybinds(&ke, app, details_tx, pkgb_tx, query_tx) {
+    // Second: handle global keybinds (help, theme reload, exit, PKGBUILD, comments, sort)
+    if let Some(result) =
+        handle_global_keybinds(&ke, app, details_tx, pkgb_tx, comments_tx, query_tx)
+    {
         return Some(result);
     }
 
@@ -739,6 +821,7 @@ mod tests {
 
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
 
         let exit = handle_global_key(
@@ -746,6 +829,7 @@ mod tests {
             &mut app,
             &details_tx,
             &pkgb_tx,
+            &comments_tx,
             &query_tx,
         );
 
@@ -772,6 +856,7 @@ mod tests {
         let mut app = new_app();
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
 
         let exit = handle_global_key(
@@ -779,6 +864,7 @@ mod tests {
             &mut app,
             &details_tx,
             &pkgb_tx,
+            &comments_tx,
             &query_tx,
         );
 
@@ -813,6 +899,7 @@ mod tests {
 
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (pkgb_tx, mut pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
 
         let exit = handle_global_key(
@@ -820,6 +907,7 @@ mod tests {
             &mut app,
             &details_tx,
             &pkgb_tx,
+            &comments_tx,
             &query_tx,
         );
 
@@ -845,6 +933,7 @@ mod tests {
         let mut app = new_app();
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
 
         let exit = handle_global_key(
@@ -852,6 +941,7 @@ mod tests {
             &mut app,
             &details_tx,
             &pkgb_tx,
+            &comments_tx,
             &query_tx,
         );
 

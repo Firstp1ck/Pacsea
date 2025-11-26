@@ -205,6 +205,35 @@ pub struct AppState {
     /// Content rectangle of the PKGBUILD viewer (x, y, w, h) when visible.
     pub pkgb_rect: Option<(u16, u16, u16, u16)>,
 
+    // AUR comments viewer state
+    /// Rectangle of the clickable "Show comments" / "Hide comments" button in terminal cell coordinates.
+    pub comments_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Whether the comments viewer is visible (details pane split).
+    pub comments_visible: bool,
+    /// The fetched comments data when available.
+    pub comments: Vec<crate::state::types::AurComment>,
+    /// Name of the package that the comments are currently for.
+    pub comments_package_name: Option<String>,
+    /// Timestamp when comments were last fetched (for cache invalidation).
+    pub comments_fetched_at: Option<Instant>,
+    /// Scroll offset (lines) for the comments viewer.
+    pub comments_scroll: u16,
+    /// Content rectangle of the comments viewer (x, y, w, h) when visible.
+    pub comments_rect: Option<(u16, u16, u16, u16)>,
+    /// Whether comments are currently being fetched.
+    pub comments_loading: bool,
+    /// Error message if comments fetch failed.
+    pub comments_error: Option<String>,
+    /// URLs in comments with their screen positions for click detection.
+    /// Vector of (`x`, `y`, `width`, `url_string`) tuples.
+    pub comments_urls: Vec<(u16, u16, u16, String)>,
+    /// Author names in comments with their screen positions for click detection.
+    /// Vector of (`x`, `y`, `width`, `username`) tuples.
+    pub comments_authors: Vec<(u16, u16, u16, String)>,
+    /// Dates in comments with their screen positions and URLs for click detection.
+    /// Vector of (`x`, `y`, `width`, `url_string`) tuples.
+    pub comments_dates: Vec<(u16, u16, u16, String)>,
+
     // Transient toast message (bottom-right)
     /// Optional short-lived info message rendered at the bottom-right corner.
     pub toast_message: Option<String>,

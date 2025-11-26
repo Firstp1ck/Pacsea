@@ -124,6 +124,23 @@ pub(super) type DefaultPkgbuildState = (
     Option<(u16, u16, u16, u16)>,
 );
 
+/// Type alias for default comments state tuple.
+#[allow(clippy::type_complexity)]
+pub(super) type DefaultCommentsState = (
+    Option<(u16, u16, u16, u16)>,
+    bool,
+    Vec<crate::state::types::AurComment>,
+    Option<String>,
+    Option<Instant>,
+    u16,
+    Option<(u16, u16, u16, u16)>,
+    bool,
+    Option<String>,
+    Vec<(u16, u16, u16, String)>,
+    Vec<(u16, u16, u16, String)>,
+    Vec<(u16, u16, u16, String)>,
+);
+
 /// Type alias for default mouse hit-test state tuple.
 #[allow(clippy::type_complexity)]
 pub(super) type DefaultMouseHitTestState = (
@@ -395,6 +412,32 @@ pub(super) fn default_clickable_rects_state() -> DefaultClickableRectsState {
 /// - PKGBUILD viewer is hidden by default, all rectangles start as None.
 pub(super) const fn default_pkgbuild_state() -> DefaultPkgbuildState {
     (None, None, None, false, None, None, None, None, 0, None)
+}
+
+/// What: Create default comments state.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Tuple of comments fields: `comments_button_rect`, `comments_visible`, `comments`, `comments_package_name`, `comments_fetched_at`, `comments_scroll`, `comments_rect`, `comments_loading`, `comments_error`, `comments_urls`, `comments_authors`.
+///
+/// Details:
+/// - Comments viewer is hidden by default, all rectangles start as None.
+pub(super) const fn default_comments_state() -> DefaultCommentsState {
+    (
+        None,
+        false,
+        Vec::new(),
+        None,
+        None,
+        0,
+        None,
+        false,
+        None,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    )
 }
 
 /// What: Create default toast message state.

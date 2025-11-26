@@ -120,24 +120,28 @@ pub fn calculate_footer_height(app: &AppState, bottom_container: Rect) -> u16 {
     base_help_h.saturating_add(nm_rows).saturating_add(2)
 }
 
-/// What: Compute layout rectangles for package details, PKGBUILD, and optional footer.
+/// What: Compute layout rectangles for package details, PKGBUILD, comments, and optional footer.
 ///
 /// Inputs:
-/// - `app`: Application state controlling PKGBUILD visibility and footer toggle
+/// - `app`: Application state controlling PKGBUILD and comments visibility and footer toggle
 /// - `bottom_container`: Rect covering the full details section (including footer space)
 /// - `footer_height`: Height previously reserved for the footer
 ///
 /// Output:
-/// - Tuple of `(content_container, details_area, pkgb_area_opt, show_keybinds)` describing splits.
+/// - Tuple of `(content_container, details_area, pkgb_area_opt, comments_area_opt, show_keybinds)` describing splits.
 ///
 /// Details:
-/// - Reserves footer space only when toggled on and space allows; splits remaining area evenly when
-///   PKGBUILD view is active.
+/// - Reserves footer space only when toggled on and space allows
+/// - When only PKGBUILD visible: Package info 50%, PKGBUILD 50%
+/// - When only comments visible: Package info 50%, Comments 50%
+/// - When both visible: Package info 50%, remaining 50% split vertically between PKGBUILD and Comments (25% each)
 pub fn calculate_layout_areas(
     app: &AppState,
     bottom_container: Rect,
     footer_height: u16,
-) -> (Rect, Rect, Option<Rect>, bool) {
+) -> (Rect, Rect, Option<Rect>, Option<Rect>, bool) {
+    use ratatui::layout::{Constraint, Direction, Layout};
+
     // Minimum height for Package Info content (including borders: 2 lines)
     const MIN_PACKAGE_INFO_H: u16 = 3; // 1 visible line + 2 borders
 
@@ -154,21 +158,48 @@ pub fn calculate_layout_areas(
         width: bottom_container.width,
         height: bottom_container.height.saturating_sub(help_h),
     };
-    let (details_area, pkgb_area_opt) = if app.pkgb_visible {
-        use ratatui::layout::{Constraint, Direction, Layout};
-        let split = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(content_container);
-        (split[0], Some(split[1]))
-    } else {
-        (content_container, None)
-    };
+
+    let (details_area, pkgb_area_opt, comments_area_opt) =
+        match (app.pkgb_visible, app.comments_visible) {
+            (true, true) => {
+                // Both visible: Package info 50%, PKGBUILD 25%, Comments 25%
+                let split = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Percentage(50),
+                        Constraint::Percentage(25),
+                        Constraint::Percentage(25),
+                    ])
+                    .split(content_container);
+                (split[0], Some(split[1]), Some(split[2]))
+            }
+            (true, false) => {
+                // Only PKGBUILD visible: Package info 50%, PKGBUILD 50%
+                let split = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(content_container);
+                (split[0], Some(split[1]), None)
+            }
+            (false, true) => {
+                // Only comments visible: Package info 50%, Comments 50%
+                let split = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(content_container);
+                (split[0], None, Some(split[1]))
+            }
+            (false, false) => {
+                // Neither visible: Package info takes full width
+                (content_container, None, None)
+            }
+        };
 
     (
         content_container,
         details_area,
         pkgb_area_opt,
+        comments_area_opt,
         show_keybinds,
     )
 }

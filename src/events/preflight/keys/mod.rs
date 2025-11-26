@@ -51,7 +51,14 @@ fn handle_keys_needing_app(ke: KeyEvent, app: &mut AppState) -> bool {
         KeyCode::Char('f' | 'F') => handle_f_key(app),
         KeyCode::Char('s' | 'S') => handle_s_key(app),
         KeyCode::Char('d') => handle_dry_run_key(app),
-        KeyCode::Char('m') => handle_m_key(app),
+        KeyCode::Char('m') => {
+            // Only handle 'm' if no modifiers are present (to allow Ctrl+M for global keybinds)
+            if ke.modifiers.is_empty() {
+                handle_m_key(app)
+            } else {
+                false
+            }
+        }
         KeyCode::Char('p') => handle_p_key(app),
         KeyCode::Char('c') => handle_c_key(app),
         KeyCode::Char('q') => handle_q_key(app),

@@ -26,6 +26,8 @@ futures = "0.3"
 syntect = "5.0"
 fuzzy-matcher = "0.3"
 rpassword = "7.4.0"
+scraper = "0.20"
+chrono = "0.4"
 
 [dev-dependencies]
 tempfile = "3.10"

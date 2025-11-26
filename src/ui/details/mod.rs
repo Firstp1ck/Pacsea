@@ -2,29 +2,30 @@ use ratatui::{Frame, prelude::Rect};
 
 use crate::state::AppState;
 
+mod comments;
 mod footer;
 mod layout;
 mod package_info;
 mod pkgbuild;
 mod pkgbuild_highlight;
 
-/// What: Render the bottom details pane, footer, and optional PKGBUILD viewer.
+/// What: Render the bottom details pane, footer, optional PKGBUILD viewer, and optional comments viewer.
 ///
 /// Inputs:
 /// - `f`: Frame to render into
-/// - `app`: Mutable application state (details, PKGBUILD, footer flags)
+/// - `app`: Mutable application state (details, PKGBUILD, comments, footer flags)
 /// - `area`: Target rectangle for the details section
 ///
 /// Output:
-/// - Draws package information, optional PKGBUILD, and footer while updating mouse hit-test rects.
+/// - Draws package information, optional PKGBUILD, optional comments, and footer while updating mouse hit-test rects.
 ///
 /// Details:
-/// - Computes layout splits for details, PKGBUILD, and footer; records rects on [`AppState`] for
-///   URL/PKGBUILD interaction and toggles footer visibility based on available height.
+/// - Computes layout splits for details, PKGBUILD, comments, and footer; records rects on [`AppState`] for
+///   URL/PKGBUILD/comments interaction and toggles footer visibility based on available height.
 pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Calculate footer height and layout areas
     let footer_height = layout::calculate_footer_height(app, area);
-    let (_content_container, details_area, pkgb_area_opt, show_keybinds) =
+    let (_content_container, details_area, pkgb_area_opt, comments_area_opt, show_keybinds) =
         layout::calculate_layout_areas(app, area, footer_height);
 
     // Render Package Info pane
@@ -33,6 +34,11 @@ pub fn render_details(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Render PKGBUILD pane if visible
     if let Some(pkgb_area) = pkgb_area_opt {
         pkgbuild::render_pkgbuild(f, app, pkgb_area);
+    }
+
+    // Render comments pane if visible
+    if let Some(comments_area) = comments_area_opt {
+        comments::render_comments(f, app, comments_area);
     }
 
     // Render footer/keybinds if enabled and there's space

@@ -8,6 +8,7 @@ use crate::state::{AppState, PackageItem};
 /// - `app`: Mutable application state (results, selection, caches, scroll heuristics).
 /// - `delta`: Signed offset to apply to the current selection index.
 /// - `details_tx`: Channel used to request lazy loading of package details.
+/// - `comments_tx`: Channel used to request AUR package comments.
 ///
 /// Output:
 /// - Updates selection-related state, potentially sends detail requests, and adjusts gating flags.
@@ -19,11 +20,13 @@ use crate::state::{AppState, PackageItem};
 /// Details:
 /// - Clamps the selection to valid bounds, refreshes placeholder metadata, and reuses cached entries.
 /// - Schedules PKGBUILD reloads when necessary and tracks scroll velocity to throttle prefetching.
+/// - Updates comments when package changes and comments are visible (only for AUR packages).
 /// - Switches between selected-only gating during fast scrolls and wide ring prefetch for slower navigation.
 pub fn move_sel_cached(
     app: &mut AppState,
     delta: isize,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
 ) {
     if app.results.is_empty() {
         return;
@@ -71,6 +74,36 @@ pub fn move_sel_cached(
                 app.pkgb_reload_requested_at = Some(std::time::Instant::now());
                 app.pkgb_reload_requested_for = Some(item.name.clone());
                 app.pkgb_text = None; // Clear old PKGBUILD while loading
+            }
+        }
+
+        // Auto-update comments if visible and for a different package (only for AUR packages)
+        if app.comments_visible && matches!(item.source, crate::state::Source::Aur) {
+            let needs_update = app
+                .comments_package_name
+                .as_deref()
+                .is_none_or(|cached_name| cached_name != item.name.as_str());
+            if needs_update {
+                // Check if we have cached comments for this package
+                if app
+                    .comments_package_name
+                    .as_ref()
+                    .is_some_and(|cached_name| {
+                        cached_name == &item.name && !app.comments.is_empty()
+                    })
+                {
+                    // Use cached comments, just reset scroll
+                    app.comments_scroll = 0;
+                } else {
+                    // Request new comments
+                    app.comments.clear();
+                    app.comments_package_name = None;
+                    app.comments_fetched_at = None;
+                    app.comments_scroll = 0;
+                    app.comments_loading = true;
+                    app.comments_error = None;
+                    let _ = comments_tx.send(item.name.clone());
+                }
             }
         }
     }
@@ -156,7 +189,8 @@ mod tests {
         };
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        move_sel_cached(&mut app, 1, &tx);
+        let (comments_tx, _comments_rx) = tokio::sync::mpsc::unbounded_channel();
+        move_sel_cached(&mut app, 1, &tx, &comments_tx);
         assert_eq!(app.selected, 1);
         assert_eq!(app.details.repository.to_lowercase(), "core");
         assert_eq!(app.details.architecture.to_lowercase(), "x86_64");
@@ -165,9 +199,9 @@ mod tests {
             .ok()
             .flatten();
         assert!(got.is_some());
-        move_sel_cached(&mut app, -100, &tx);
+        move_sel_cached(&mut app, -100, &tx, &comments_tx);
         assert_eq!(app.selected, 0);
-        move_sel_cached(&mut app, 0, &tx);
+        move_sel_cached(&mut app, 0, &tx, &comments_tx);
         assert_eq!(app.details.repository, "AUR");
         assert_eq!(app.details.architecture, "any");
     }
@@ -198,7 +232,8 @@ mod tests {
             },
         );
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        move_sel_cached(&mut app, 0, &tx);
+        let (comments_tx, _comments_rx) = tokio::sync::mpsc::unbounded_channel();
+        move_sel_cached(&mut app, 0, &tx, &comments_tx);
         let none = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
             .await
             .ok()
@@ -234,7 +269,8 @@ mod tests {
             ..Default::default()
         };
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel::<crate::state::PackageItem>();
-        move_sel_cached(&mut app, 6, &tx);
+        let (comments_tx, _comments_rx) = tokio::sync::mpsc::unbounded_channel();
+        move_sel_cached(&mut app, 6, &tx, &comments_tx);
         assert!(app.need_ring_prefetch);
         assert!(app.ring_resume_at.is_some());
         crate::logic::set_allowed_only_selected(&app);

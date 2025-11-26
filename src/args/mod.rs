@@ -7,7 +7,6 @@ pub mod install;
 pub mod list;
 pub mod news;
 pub mod package;
-pub mod refresh;
 pub mod remove;
 pub mod search;
 pub mod update;

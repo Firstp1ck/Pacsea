@@ -39,7 +39,7 @@
 //!         .init();
 //!
 //!     // Drive the full TUI runtime (set `true` for dry-run install previews)
-//!     app::run(false, None).await?;
+//!     app::run(false).await?;
 //!     Ok(())
 //! }
 //! ```

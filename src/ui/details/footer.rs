@@ -156,7 +156,7 @@ fn build_section_header(label: String, label_color: ratatui::style::Color) -> Ve
 /// - Returns vector of spans for GLOBALS section.
 ///
 /// Details:
-/// - Includes exit, help, reload theme, show pkgbuild, change sort, and normal mode toggle.
+/// - Includes exit, help, reload theme, show pkgbuild, show comments, change sort, and normal mode toggle.
 fn build_globals_section(
     app: &AppState,
     th: &Theme,
@@ -195,6 +195,13 @@ fn build_globals_section(
         km.show_pkgbuild.first(),
         key_style,
         &i18n::t(app, "app.actions.show_hide_pkgbuild"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.comments_toggle.first(),
+        key_style,
+        &i18n::t(app, "app.actions.show_hide_comments"),
         sep_style,
     );
     add_keybind_entry(

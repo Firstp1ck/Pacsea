@@ -143,6 +143,21 @@ impl Default for AppState {
             pkgb_rect,
         ) = defaults::default_pkgbuild_state();
 
+        let (
+            comments_button_rect,
+            comments_visible,
+            comments,
+            comments_package_name,
+            comments_fetched_at,
+            comments_scroll,
+            comments_rect,
+            comments_loading,
+            comments_error,
+            comments_urls,
+            comments_authors,
+            comments_dates,
+        ) = defaults::default_comments_state();
+
         let (toast_message, toast_expires_at) = defaults::default_toast_state();
 
         let (
@@ -320,6 +335,18 @@ impl Default for AppState {
             pkgb_reload_requested_for,
             pkgb_scroll,
             pkgb_rect,
+            comments_button_rect,
+            comments_visible,
+            comments,
+            comments_package_name,
+            comments_fetched_at,
+            comments_scroll,
+            comments_rect,
+            comments_loading,
+            comments_error,
+            comments_urls,
+            comments_authors,
+            comments_dates,
             toast_message,
             toast_expires_at,
             layout_left_pct,

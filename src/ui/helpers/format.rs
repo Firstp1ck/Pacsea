@@ -161,6 +161,25 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
             .fg(th.mauve)
             .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
     )]));
+
+    // Add a clickable helper line to Show/Hide Comments below PKGBUILD button (AUR packages only)
+    let is_aur = app
+        .results
+        .get(app.selected)
+        .is_some_and(|item| matches!(item.source, crate::state::Source::Aur));
+    if is_aur {
+        let comments_label = if app.comments_visible {
+            i18n::t(app, "app.details.hide_comments")
+        } else {
+            i18n::t(app, "app.details.show_comments")
+        };
+        lines.push(Line::from(vec![Span::styled(
+            comments_label,
+            Style::default()
+                .fg(th.mauve)
+                .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
+        )]));
+    }
     lines
 }
 

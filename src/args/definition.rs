@@ -69,10 +69,6 @@ pub struct Args {
     #[arg(long, short = 'a')]
     pub all_news: bool,
 
-    /// Update package database before starting
-    #[arg(short = 'y', long)]
-    pub refresh: bool,
-
     /// Clear all cache files (dependencies, files, services, sandbox) and exit
     #[arg(long)]
     pub clear_cache: bool,
@@ -100,17 +96,15 @@ pub struct Args {
 /// - `args`: Parsed command-line arguments.
 ///
 /// Output:
-/// - Returns `Some(success)` if refresh was run (true = success, false = failure), `None` if refresh was not run.
+/// - Returns `None` (no longer returns refresh result).
 ///
 /// Details:
 /// - Handles search mode (exits immediately).
 /// - Handles clear cache flag (exits immediately).
-/// - Handles refresh flag (updates package database, then continues to TUI).
 /// - Logs warnings for unimplemented flags (install, remove, update, news).
-/// - Returns the refresh result so the TUI can display a popup notification.
 #[allow(unused_imports)]
 pub fn process_args(args: &Args) -> Option<bool> {
-    use crate::args::{cache, install, list, news, refresh, remove, search, update};
+    use crate::args::{cache, install, list, news, remove, search, update};
 
     // Handle command-line search mode
     if let Some(search_query) = &args.search {
@@ -160,21 +154,10 @@ pub fn process_args(args: &Args) -> Option<bool> {
         std::process::exit(1);
     }
 
-    // Handle refresh flag
-    #[cfg(not(target_os = "windows"))]
-    let refresh_result = if args.refresh {
-        Some(refresh::handle_refresh())
-    } else {
-        None
-    };
-
-    #[cfg(target_os = "windows")]
-    let refresh_result = None;
-
     // Handle news flag
     if args.news {
         news::handle_news(args.unread, args.read, args.all_news);
     }
 
-    refresh_result
+    None
 }

@@ -30,8 +30,6 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// Inputs:
 /// - `dry_run_flag`: When `true`, install/remove/downgrade actions are displayed but not executed
 ///   (overrides the config default for the session).
-/// - `refresh_result`: `Some(true)` if package database refresh succeeded, `Some(false)` if it failed,
-///   `None` if refresh was not run. Used to display a popup notification when starting the TUI.
 ///
 /// Output:
 /// - `Ok(())` when the UI exits cleanly; `Err` on unrecoverable terminal or runtime errors.
@@ -50,8 +48,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 ///   update results, details, ring-prefetch, PKGBUILD viewer, installed-only mode, and modals.
 /// - Persistence: Debounces and periodically writes recent, details cache, and install list.
 /// - Cleanup: Flushes pending writes and restores terminal modes before returning.
-/// - If refresh was run, displays an Alert modal with the success/failure status.
-pub async fn run(dry_run_flag: bool, refresh_result: Option<bool>) -> Result<()> {
+pub async fn run(dry_run_flag: bool) -> Result<()> {
     let headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
     if !headless {
         setup_terminal()?;
@@ -66,17 +63,6 @@ pub async fn run(dry_run_flag: bool, refresh_result: Option<bool>) -> Result<()>
 
     // Initialize application state (loads settings, caches, etc.)
     let init_flags = initialize_app_state(&mut app, dry_run_flag, headless);
-
-    // Show refresh result popup if refresh was run
-    if let Some(success) = refresh_result {
-        use crate::i18n;
-        let message = if success {
-            i18n::t(&app, "app.modals.refresh.success")
-        } else {
-            i18n::t(&app, "app.modals.refresh.failure")
-        };
-        app.modal = crate::state::Modal::Alert { message };
-    }
 
     // Create channels and spawn background workers
     let mut channels = Channels::new(app.official_index_path.clone());

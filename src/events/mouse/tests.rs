@@ -53,6 +53,7 @@ fn click_pkgb_toggle_opens() {
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_tx, mut pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
     let ev = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -60,7 +61,7 @@ fn click_pkgb_toggle_opens() {
         row: 10,
         modifiers: KeyModifiers::empty(),
     };
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &qtx);
+    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
     assert!(app.pkgb_visible);
     assert!(pkgb_rx.try_recv().ok().is_some());
 }
@@ -100,6 +101,7 @@ fn click_pkgb_toggle_closes_and_resets() {
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
     // Click inside the toggle area to hide
     let ev = MouseEvent {
@@ -108,7 +110,7 @@ fn click_pkgb_toggle_closes_and_resets() {
         row: 10,
         modifiers: KeyModifiers::empty(),
     };
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &qtx);
+    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
 
     assert!(!app.pkgb_visible);
     assert!(app.pkgb_text.is_none());
@@ -137,6 +139,7 @@ fn click_aur_filter_toggles() {
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
 
     let ev = MouseEvent {
@@ -146,7 +149,7 @@ fn click_aur_filter_toggles() {
         modifiers: KeyModifiers::empty(),
     };
 
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &qtx);
+    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
     assert!(app.results_filter_show_aur);
 }
 
@@ -179,6 +182,7 @@ fn click_artix_filter_all_on_turns_all_off() {
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
 
     let ev = MouseEvent {
@@ -188,7 +192,7 @@ fn click_artix_filter_all_on_turns_all_off() {
         modifiers: KeyModifiers::empty(),
     };
 
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &qtx);
+    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
     assert!(!app.results_filter_show_artix_omniverse);
     assert!(!app.results_filter_show_artix_universe);
     assert!(!app.results_filter_show_artix_lib32);
@@ -227,6 +231,7 @@ fn click_artix_filter_some_off_turns_all_on() {
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
 
     let ev = MouseEvent {
@@ -236,7 +241,7 @@ fn click_artix_filter_some_off_turns_all_on() {
         modifiers: KeyModifiers::empty(),
     };
 
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &qtx);
+    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
     assert!(app.results_filter_show_artix_omniverse);
     assert!(app.results_filter_show_artix_universe);
     assert!(app.results_filter_show_artix_lib32);
@@ -270,6 +275,7 @@ fn click_artix_filter_toggles_dropdown() {
     let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
     let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
 
     let ev = MouseEvent {
@@ -279,6 +285,6 @@ fn click_artix_filter_toggles_dropdown() {
         modifiers: KeyModifiers::empty(),
     };
 
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &qtx);
+    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
     assert!(app.artix_filter_menu_open);
 }
