@@ -126,6 +126,8 @@ mod tests {
                 arch: "x86_64".into(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
 
         let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
@@ -162,6 +164,8 @@ mod tests {
             description: String::new(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
 
         let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);

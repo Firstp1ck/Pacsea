@@ -260,6 +260,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
         app.remove_list.push(crate::state::PackageItem {
             name: "remove-pkg".to_string(),
@@ -267,6 +269,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
 
         term.draw(|f| {

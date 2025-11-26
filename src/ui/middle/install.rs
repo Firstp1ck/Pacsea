@@ -326,6 +326,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
 
         term.draw(|f| {
@@ -400,6 +402,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
         app.install_list.push(crate::state::PackageItem {
             name: "package2".to_string(),
@@ -407,6 +411,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         });
         app.install_state.select(Some(0));
 

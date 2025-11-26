@@ -322,6 +322,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.install_dirty = true;
         app.last_install_change = Some(std::time::Instant::now());
@@ -369,6 +371,8 @@ mod tests {
                 arch: "x86_64".into(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.install_list_deps = vec![DependencyInfo {
             name: "gcc-libs".into(),
@@ -454,6 +458,8 @@ mod tests {
             description: String::new(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.install_list_files = vec![PackageFileInfo {
             name: "ripgrep".into(),

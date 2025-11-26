@@ -776,6 +776,8 @@ fn confirm_install_esc_closes_modal() {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }],
     };
 
@@ -808,6 +810,8 @@ fn confirm_remove_esc_closes_modal() {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }],
     };
 
@@ -841,6 +845,8 @@ fn confirm_remove_enter_closes_modal() {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }],
     };
 

@@ -28,6 +28,8 @@ fn test_sync_sandbox_early_return_remove() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Remove;
     let tab = PreflightTab::Sandbox;
@@ -67,6 +69,8 @@ fn test_sync_sandbox_early_return_wrong_tab() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Install;
     let tab = PreflightTab::Summary;

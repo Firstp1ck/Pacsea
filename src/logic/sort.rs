@@ -96,6 +96,8 @@ mod tests {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }
     }
     fn item_aur(name: &str, pop: Option<f64>) -> crate::state::PackageItem {
@@ -105,6 +107,8 @@ mod tests {
             description: format!("{name} desc"),
             source: crate::state::Source::Aur,
             popularity: pop,
+            out_of_date: None,
+            orphaned: false,
         }
     }
 

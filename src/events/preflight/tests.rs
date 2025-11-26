@@ -38,6 +38,8 @@ fn pkg(name: &str) -> PackageItem {
             arch: "x86_64".into(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }
 }
 

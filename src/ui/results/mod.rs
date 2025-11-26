@@ -287,6 +287,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: Some(1.0),
+            out_of_date: None,
+            orphaned: false,
         }];
         app.arch_status_text = "All systems operational".into();
         app.arch_status_color = crate::state::ArchStatusColor::Operational;

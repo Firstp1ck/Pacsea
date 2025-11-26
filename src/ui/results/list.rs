@@ -233,17 +233,13 @@ pub fn build_list_item(
         if package.out_of_date.is_some() {
             segs.push(Span::styled(
                 "[OOD] ",
-                Style::default()
-                    .fg(theme.red)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(theme.red).add_modifier(Modifier::BOLD),
             ));
         }
         if package.orphaned {
             segs.push(Span::styled(
                 "[ORPHAN] ",
-                Style::default()
-                    .fg(theme.red)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(theme.red).add_modifier(Modifier::BOLD),
             ));
         }
     }

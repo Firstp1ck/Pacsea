@@ -33,7 +33,7 @@ pub async fn fetch_all_with_errors(query: String) -> (Vec<PackageItem>, Vec<Stri
                     // Extract OutOfDate timestamp (i64 or null)
                     let out_of_date = pkg
                         .get("OutOfDate")
-                        .and_then(|v| v.as_i64())
+                        .and_then(serde_json::Value::as_i64)
                         .and_then(|ts| u64::try_from(ts).ok())
                         .filter(|&ts| ts > 0);
                     // Extract Maintainer and determine if orphaned (empty or null means orphaned)

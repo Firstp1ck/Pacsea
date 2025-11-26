@@ -40,6 +40,8 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate_root::state::PackageItem {
             name: "package-2".to_string(),
@@ -50,6 +52,8 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate_root::state::PackageItem {
             name: "aur-package".to_string(),
@@ -57,6 +61,8 @@ fn preflight_all_tabs_load_correctly_when_conflicts_present() {
             description: String::new(),
             source: crate_root::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
 

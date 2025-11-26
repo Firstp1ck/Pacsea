@@ -172,6 +172,8 @@ mod tests {
                     arch: "x86_64".into(),
                 },
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             },
             PackageItem {
                 name: "fd".into(),
@@ -179,6 +181,8 @@ mod tests {
                 description: String::new(),
                 source: Source::Aur,
                 popularity: Some(42.0),
+                out_of_date: None,
+                orphaned: false,
             },
         ]
     }

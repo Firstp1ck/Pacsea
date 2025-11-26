@@ -376,7 +376,7 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
     // Extract OutOfDate timestamp (i64 or null)
     let out_of_date = obj
         .get("OutOfDate")
-        .and_then(|v| v.as_i64())
+        .and_then(serde_json::Value::as_i64)
         .and_then(|ts| u64::try_from(ts).ok())
         .filter(|&ts| ts > 0);
     // Extract Maintainer and determine if orphaned (empty or null means orphaned)
@@ -409,7 +409,7 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
         replaces: arrs(&obj, &["Replaces"]),
         download_size: None,
         install_size: None,
-        owner: maintainer.clone(),
+        owner: maintainer,
         build_date: crate::util::ts_to_date(
             obj.get("LastModified").and_then(serde_json::Value::as_i64),
         ),
@@ -693,25 +693,25 @@ mod tests {
     }
 
     #[test]
-    /// What: Parse AUR RPC JSON with OutOfDate and orphaned status fields.
+    /// What: Parse AUR RPC JSON with `OutOfDate` and orphaned status fields.
     ///
     /// Inputs:
-    /// - AUR JSON document with OutOfDate timestamp and empty Maintainer (orphaned).
+    /// - AUR JSON document with `OutOfDate` timestamp and empty Maintainer (orphaned).
     ///
     /// Output:
-    /// - Resulting `PackageDetails` correctly sets out_of_date and orphaned flags.
+    /// - Resulting `PackageDetails` correctly sets `out_of_date` and orphaned flags.
     ///
     /// Details:
-    /// - Validates that OutOfDate timestamp is extracted and orphaned status is determined from empty Maintainer.
+    /// - Validates that `OutOfDate` timestamp is extracted and orphaned status is determined from empty Maintainer.
     fn sources_details_parse_aur_status_fields() {
         use crate::util::s;
         let obj: serde_json::Value = serde_json::json!({
             "Version": "1.0.0",
             "Description": "test package",
-            "OutOfDate": 1704067200i64, // 2024-01-01 timestamp
+            "OutOfDate": 1_704_067_200_i64, // 2024-01-01 timestamp
             "Maintainer": "" // Empty means orphaned
         });
-        let item = crate::state::PackageItem {
+        let _item = crate::state::PackageItem {
             name: "test-pkg".into(),
             version: String::new(),
             description: String::new(),
@@ -723,14 +723,14 @@ mod tests {
         // Extract OutOfDate timestamp (i64 or null)
         let out_of_date = obj
             .get("OutOfDate")
-            .and_then(|v| v.as_i64())
+            .and_then(serde_json::Value::as_i64)
             .and_then(|ts| u64::try_from(ts).ok())
             .filter(|&ts| ts > 0);
         // Extract Maintainer and determine if orphaned (empty or null means orphaned)
         let maintainer = s(&obj, "Maintainer");
         let orphaned = maintainer.is_empty();
 
-        assert_eq!(out_of_date, Some(1704067200));
+        assert_eq!(out_of_date, Some(1_704_067_200));
         assert!(orphaned);
     }
 

@@ -37,6 +37,8 @@ fn preflight_syncs_cache_updates_during_modal_open() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
 
     // Initially, only dependencies are cached

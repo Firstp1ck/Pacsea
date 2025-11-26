@@ -120,6 +120,8 @@ mod tests {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }
     }
 
@@ -144,6 +146,8 @@ mod tests {
                     description: String::new(),
                     source: crate::state::Source::Aur,
                     popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
                 },
                 item_official("pkg2", "core"),
             ],

@@ -37,6 +37,8 @@ fn preflight_handles_partial_failures_correctly() {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
 
     // Pre-populate cache with dependencies (successful)

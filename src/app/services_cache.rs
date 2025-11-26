@@ -122,6 +122,8 @@ mod tests {
                     arch: "x86_64".into(),
                 },
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             },
             PackageItem {
                 name: "nginx".into(),
@@ -132,6 +134,8 @@ mod tests {
                     arch: "x86_64".into(),
                 },
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             },
         ]
     }

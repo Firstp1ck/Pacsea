@@ -806,6 +806,8 @@ mod tests {
             description: "fast search".into(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.selected = 0;
 

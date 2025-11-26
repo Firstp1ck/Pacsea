@@ -39,6 +39,8 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate_root::state::PackageItem {
             name: "test-package-2".to_string(),
@@ -49,6 +51,8 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate_root::state::PackageItem {
             name: "test-aur-package".to_string(),
@@ -56,6 +60,8 @@ fn preflight_loads_cached_data_when_packages_already_in_install_list() {
             description: String::new(),
             source: crate_root::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
 

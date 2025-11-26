@@ -188,6 +188,8 @@ mod tests {
             description: String::new(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }]
     }
 

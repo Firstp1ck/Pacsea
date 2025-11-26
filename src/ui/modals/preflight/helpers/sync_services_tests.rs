@@ -30,6 +30,8 @@ fn test_sync_services_for_remove_without_cache() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Remove;
     let mut service_info = Vec::new();
@@ -90,6 +92,8 @@ fn test_sync_services_filters_by_providers() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Install;
     let mut service_info = Vec::new();
@@ -158,6 +162,8 @@ fn test_sync_services_adjusts_selection_out_of_bounds() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Install;
     let mut service_info = Vec::new();

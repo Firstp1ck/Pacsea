@@ -365,6 +365,8 @@ mod tests {
             description: "Test".to_string(),
             source: Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         };
 
         handle_add_to_install_list(

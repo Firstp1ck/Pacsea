@@ -647,6 +647,8 @@ mod tests {
                 description: String::new(),
                 source: crate::state::Source::Aur,
                 popularity: None,
+                out_of_date: None,
+                orphaned: false,
             }],
             crate::state::modal::PreflightAction::Install,
         ));
@@ -715,6 +717,8 @@ mod tests {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         }];
         app.selected = 0;
 

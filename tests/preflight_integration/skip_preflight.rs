@@ -25,6 +25,8 @@ fn test_open_preflight_modal_callable() {
         description: "Test package".to_string(),
         source: crate_root::state::Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
 
     // Call open_preflight_modal - should not panic
@@ -53,6 +55,8 @@ fn test_open_preflight_modal_multiple_packages() {
             description: "Test package 1".to_string(),
             source: crate_root::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
         crate_root::state::PackageItem {
             name: "pkg2".to_string(),
@@ -63,6 +67,8 @@ fn test_open_preflight_modal_multiple_packages() {
                 arch: "x86_64".to_string(),
             },
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
 
@@ -90,6 +96,8 @@ fn test_open_preflight_modal_no_cache() {
         description: "Test package".to_string(),
         source: crate_root::state::Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
 
     // Call open_preflight_modal with use_cache=false - should not panic

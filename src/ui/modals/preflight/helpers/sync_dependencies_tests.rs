@@ -27,6 +27,8 @@ fn test_sync_dependencies_early_return_remove() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Remove;
     let tab = PreflightTab::Deps;
@@ -65,6 +67,8 @@ fn test_sync_dependencies_early_return_wrong_tab() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Install;
     let tab = PreflightTab::Summary;
@@ -131,6 +135,8 @@ fn test_sync_dependencies_filters_by_required_by() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Install;
     let tab = PreflightTab::Deps;
@@ -185,6 +191,8 @@ fn test_sync_dependencies_resets_selection_on_first_load() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Install;
     let tab = PreflightTab::Deps;
@@ -251,6 +259,8 @@ fn test_sync_dependencies_preserves_selection_on_subsequent_load() {
         description: String::new(),
         source: Source::Aur,
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }];
     let action = PreflightAction::Install;
     let tab = PreflightTab::Deps;

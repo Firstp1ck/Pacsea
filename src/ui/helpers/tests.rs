@@ -200,6 +200,8 @@ fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
             arch: "x86_64".to_string(),
         },
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     }
 }
 
@@ -232,6 +234,8 @@ fn filtered_indices_and_details_lines() {
             description: String::new(),
             source: crate::state::Source::Aur,
             popularity: None,
+            out_of_date: None,
+            orphaned: false,
         },
     ];
     app.focus = crate::state::Focus::Install;
@@ -260,6 +264,8 @@ fn filtered_indices_and_details_lines() {
         owner: "owner".into(),
         build_date: "date".into(),
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
     let th = crate::theme::theme();
     let lines = format_details_lines(&app, 80, &th);
@@ -321,6 +327,8 @@ fn details_lines_sizes_and_lists() {
         owner: String::new(),
         build_date: String::new(),
         popularity: None,
+        out_of_date: None,
+        orphaned: false,
     };
     let th = crate::theme::theme();
     let lines = format_details_lines(&app, 80, &th);
