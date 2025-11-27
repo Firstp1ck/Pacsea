@@ -189,6 +189,7 @@ fn add_summary_commands(cmds: &mut Vec<String>, _pkg: &str) {
     summary::add_semgrep_summary(cmds);
     summary::add_shellcheck_summary(cmds);
     summary::add_shellcheck_risk_summary(cmds);
+    summary::add_sleuth_summary(cmds);
     summary::add_custom_and_vt_summary(cmds);
     cmds.push("echo".to_string());
     cmds.push("echo \"Pacsea: scan finished. Working directory preserved: $work\"".to_string());

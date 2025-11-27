@@ -100,7 +100,96 @@ pub fn add_sleuth_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- aur-sleuth audit (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🔎] aur-sleuth audit (optional)\\033[0m'".to_string());
     cmds.push("echo -e '\\033[2mPlease wait... This may take a while...\\033[0m'".to_string());
-    cmds.push("(if [ \"${PACSEA_SCAN_DO_SLEUTH:-1}\" = \"1\" ]; then A_SLEUTH=\"$(command -v aur-sleuth 2>/dev/null || true)\"; if [ -z \"$A_SLEUTH\" ] && [ -x \"${HOME}/.local/bin/aur-sleuth\" ]; then A_SLEUTH=\"${HOME}/.local/bin/aur-sleuth\"; fi; if [ -z \"$A_SLEUTH\" ] && [ -x \"/usr/local/bin/aur-sleuth\" ]; then A_SLEUTH=\"/usr/local/bin/aur-sleuth\"; fi; if [ -z \"$A_SLEUTH\" ] && [ -x \"/usr/bin/aur-sleuth\" ]; then A_SLEUTH=\"/usr/bin/aur-sleuth\"; fi; if [ -n \"$A_SLEUTH\" ]; then cfg=\"${XDG_CONFIG_HOME:-$HOME/.config}/pacsea/settings.conf\"; if [ -f \"$cfg\" ]; then get_key() { awk -F= -v k=\"$1\" 'tolower($0) ~ \"^[[:space:]]*\"k\"[[:space:]]*=\" {sub(/#.*/,\"\",$2); gsub(/^[[:space:]]+|[[:space:]]+$/,\"\",$2); print $2; exit }' \"$cfg\"; }; HP=$(get_key http_proxy); [ -n \"$HP\" ] && export http_proxy=\"$HP\"; XP=$(get_key https_proxy); [ -n \"$XP\" ] && export https_proxy=\"$XP\"; AP=$(get_key all_proxy); [ -n \"$AP\" ] && export ALL_PROXY=\"$AP\"; NP=$(get_key no_proxy); [ -n \"$NP\" ] && export NO_PROXY=\"$NP\"; CAB=$(get_key requests_ca_bundle); [ -n \"$CAB\" ] && export REQUESTS_CA_BUNDLE=\"$CAB\"; SCF=$(get_key ssl_cert_file); [ -n \"$SCF\" ] && export SSL_CERT_FILE=\"$SCF\"; CCB=$(get_key curl_ca_bundle); [ -n \"$CCB\" ] && export CURL_CA_BUNDLE=\"$CCB\"; PIPIDX=$(get_key pip_index_url); [ -n \"$PIPIDX\" ] && export PIP_INDEX_URL=\"$PIPIDX\"; PIPEX=$(get_key pip_extra_index_url); [ -n \"$PIPEX\" ] && export PIP_EXTRA_INDEX_URL=\"$PIPEX\"; PIPTH=$(get_key pip_trusted_host); [ -n \"$PIPTH\" ] && export PIP_TRUSTED_HOST=\"$PIPTH\"; UVCA=$(get_key uv_http_ca_certs); [ -n \"$UVCA\" ] && export UV_HTTP_CA_CERTS=\"$UVCA\"; fi; \"$A_SLEUTH\" --pkgdir . || echo 'aur-sleuth failed; see output above'; else echo 'aur-sleuth not found (checked PATH, ~/.local/bin, /usr/local/bin, /usr/bin)'; fi; else echo 'aur-sleuth: skipped by config'; fi)".to_string());
+    cmds.push(
+        r#"(if [ "${PACSEA_SCAN_DO_SLEUTH:-1}" = "1" ]; then
+  # Find aur-sleuth binary in common locations
+  A_SLEUTH="$(command -v aur-sleuth 2>/dev/null || true)";
+  if [ -z "$A_SLEUTH" ] && [ -x "${HOME}/.local/bin/aur-sleuth" ]; then
+    A_SLEUTH="${HOME}/.local/bin/aur-sleuth";
+  fi;
+  if [ -z "$A_SLEUTH" ] && [ -x "/usr/local/bin/aur-sleuth" ]; then
+    A_SLEUTH="/usr/local/bin/aur-sleuth";
+  fi;
+  if [ -z "$A_SLEUTH" ] && [ -x "/usr/bin/aur-sleuth" ]; then
+    A_SLEUTH="/usr/bin/aur-sleuth";
+  fi;
+  
+  if [ -n "$A_SLEUTH" ]; then
+    # Load proxy and certificate settings from config
+    cfg="${XDG_CONFIG_HOME:-$HOME/.config}/pacsea/settings.conf";
+    if [ -f "$cfg" ]; then
+      get_key() {
+        awk -F= -v k="$1" 'tolower($0) ~ "^[[:space:]]*"k"[[:space:]]*=" {
+          sub(/#.*/,"",$2);
+          gsub(/^[[:space:]]+|[[:space:]]+$/,"",$2);
+          print $2;
+          exit
+        }' "$cfg";
+      };
+      HP=$(get_key http_proxy); [ -n "$HP" ] && export http_proxy="$HP";
+      XP=$(get_key https_proxy); [ -n "$XP" ] && export https_proxy="$XP";
+      AP=$(get_key all_proxy); [ -n "$AP" ] && export ALL_PROXY="$AP";
+      NP=$(get_key no_proxy); [ -n "$NP" ] && export NO_PROXY="$NP";
+      CAB=$(get_key requests_ca_bundle); [ -n "$CAB" ] && export REQUESTS_CA_BUNDLE="$CAB";
+      SCF=$(get_key ssl_cert_file); [ -n "$SCF" ] && export SSL_CERT_FILE="$SCF";
+      CCB=$(get_key curl_ca_bundle); [ -n "$CCB" ] && export CURL_CA_BUNDLE="$CCB";
+      PIPIDX=$(get_key pip_index_url); [ -n "$PIPIDX" ] && export PIP_INDEX_URL="$PIPIDX";
+      PIPEX=$(get_key pip_extra_index_url); [ -n "$PIPEX" ] && export PIP_EXTRA_INDEX_URL="$PIPEX";
+      PIPTH=$(get_key pip_trusted_host); [ -n "$PIPTH" ] && export PIP_TRUSTED_HOST="$PIPTH";
+      UVCA=$(get_key uv_http_ca_certs); [ -n "$UVCA" ] && export UV_HTTP_CA_CERTS="$UVCA";
+    fi;
+    
+    # Run aur-sleuth directly in a separate terminal
+    # Use script command to capture output while preserving TUI functionality
+    WORK_DIR=$(pwd);
+    SLEUTH_OUTPUT_FILE="./.pacsea_sleuth.txt";
+    # Use script -f (flush) -q (quiet) to capture output without breaking TUI
+    if command -v script >/dev/null 2>&1; then
+      SLEUTH_CMD="cd $(printf '%q' "$WORK_DIR") && script -f -q $(printf '%q' "$SLEUTH_OUTPUT_FILE") -c \"$(printf '%q' "$A_SLEUTH") --pkgdir .\"; echo ''; echo 'Press Enter to close this window...'; read -r _;";
+    else
+      # Fallback: run directly without output capture
+      SLEUTH_CMD="cd $(printf '%q' "$WORK_DIR") && $(printf '%q' "$A_SLEUTH") --pkgdir .; echo ''; echo 'Press Enter to close this window...'; read -r _;";
+    fi;
+    
+    # Find an available terminal and spawn aur-sleuth in it
+    TERM_FOUND=false;
+    if command -v gnome-terminal >/dev/null 2>&1; then
+      gnome-terminal -- bash -lc "$SLEUTH_CMD" 2>&1 && TERM_FOUND=true;
+    elif command -v alacritty >/dev/null 2>&1; then
+      alacritty -e bash -lc "$SLEUTH_CMD" 2>&1 && TERM_FOUND=true;
+    elif command -v kitty >/dev/null 2>&1; then
+      kitty bash -lc "$SLEUTH_CMD" 2>&1 && TERM_FOUND=true;
+    elif command -v xterm >/dev/null 2>&1; then
+      xterm -hold -e bash -lc "$SLEUTH_CMD" 2>&1 && TERM_FOUND=true;
+    elif command -v konsole >/dev/null 2>&1; then
+      konsole -e bash -lc "$SLEUTH_CMD" 2>&1 && TERM_FOUND=true;
+    elif command -v tilix >/dev/null 2>&1; then
+      tilix -e bash -lc "$SLEUTH_CMD" 2>&1 && TERM_FOUND=true;
+    elif command -v mate-terminal >/dev/null 2>&1; then
+      mate-terminal -- bash -lc "$SLEUTH_CMD" 2>&1 && TERM_FOUND=true;
+    elif command -v xfce4-terminal >/dev/null 2>&1; then
+      SLEUTH_CMD_QUOTED=$(printf '%q' "$SLEUTH_CMD");
+      xfce4-terminal --command "bash -lc $SLEUTH_CMD_QUOTED" 2>&1 && TERM_FOUND=true;
+    fi;
+    
+    if [ "$TERM_FOUND" = "true" ]; then
+      echo "aur-sleuth launched in separate terminal window.";
+      echo "The scan will continue in the background. You can close the terminal when done.";
+      # Don't wait - let the user control when to close the terminal
+      # The output file will be available when the scan completes
+    else
+      echo "No suitable terminal found. Running aur-sleuth in current terminal...";
+      # When running in current terminal, we can capture output
+      ("$A_SLEUTH" --pkgdir . 2>&1 | tee ./.pacsea_sleuth.txt) || echo 'aur-sleuth failed; see output above';
+    fi;
+  else
+    echo 'aur-sleuth not found (checked PATH, ~/.local/bin, /usr/local/bin, /usr/bin)';
+  fi;
+else
+  echo 'aur-sleuth: skipped by config';
+fi)"#
+            .to_string(),
+    );
 }
 
 /// What: Add `ShellCheck` lint commands to command vector.

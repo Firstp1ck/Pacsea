@@ -240,6 +240,30 @@ fi"#
     );
 }
 
+/// What: Add aur-sleuth summary commands to command vector.
+///
+/// Input:
+/// - `cmds`: Mutable reference to command vector to append to.
+///
+/// Output:
+/// - Appends aur-sleuth summary commands to the vector.
+#[cfg(not(target_os = "windows"))]
+pub fn add_sleuth_summary(cmds: &mut Vec<String>) {
+    cmds.push(
+        r#"if [ -f ./.pacsea_sleuth.txt ]; then
+  status_line=$(grep -E '^Status:' ./.pacsea_sleuth.txt | head -n1);
+  if [ -n "$status_line" ]; then
+    echo "aur-sleuth: $status_line";
+  else
+    echo 'aur-sleuth: scan completed';
+  fi;
+else
+  echo 'aur-sleuth: not run';
+fi"#
+        .to_string(),
+    );
+}
+
 /// What: Add custom scan and `VirusTotal` summary commands to command vector.
 ///
 /// Input:
