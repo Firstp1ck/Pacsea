@@ -114,7 +114,6 @@ fn handle_file_result_with_logging(
 /// Details:
 /// - Waits for and processes a single message from any channel
 /// - Returns `true` when an event handler indicates exit (e.g., quit command)
-#[allow(clippy::too_many_lines)]
 async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -> bool {
     select! {
         Some(ev) = channels.event_rx.recv() => {

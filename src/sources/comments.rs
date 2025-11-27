@@ -7,6 +7,22 @@ use crate::state::types::AurComment;
 
 type Result<T> = super::Result<T>;
 
+/// Context for extracting comment data from HTML elements.
+struct CommentExtractionContext<'a> {
+    /// Parsed HTML document
+    document: &'a Html,
+    /// Selector for date elements
+    date_selector: &'a Selector,
+    /// Package name for URL construction
+    pkgname: &'a str,
+    /// Full HTML text for pinned detection
+    html_text: &'a str,
+    /// Whether pinned section exists
+    has_pinned_section: bool,
+    /// Position of "Latest Comments" heading
+    latest_comments_pos: Option<usize>,
+}
+
 /// What: Fetch AUR package comments by scraping the AUR package page.
 ///
 /// Inputs:
@@ -61,9 +77,6 @@ pub async fn fetch_aur_comments(pkgname: String) -> Result<Vec<AurComment>> {
     let date_selector =
         Selector::parse("a.date").map_err(|e| format!("Failed to parse date selector: {e}"))?;
 
-    let _p_selector =
-        Selector::parse("p").map_err(|e| format!("Failed to parse paragraph selector: {e}"))?;
-
     // Find the "Latest Comments" heading to separate pinned from regular comments
     // Pinned comments appear before this heading
     let heading_selector = Selector::parse("h3, h2, h4")
@@ -99,122 +112,202 @@ pub async fn fetch_aur_comments(pkgname: String) -> Result<Vec<AurComment>> {
             continue; // Skip duplicate
         }
 
-        // Extract the full header text to parse author
-        let header_text = header.text().collect::<String>();
-
-        // Extract author: text before " commented on"
-        let author = header_text.find(" commented on ").map_or_else(
-            || {
-                // Fallback: try to find author in links or text nodes
-                header_text
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or("Unknown")
-                    .to_string()
-            },
-            |pos| header_text[..pos].trim().to_string(),
-        );
-
-        // Extract date and URL from <a class="date"> inside the header
-        let base_url = format!("https://aur.archlinux.org/packages/{pkgname}");
-        let (date_text, date_url) = header.select(&date_selector).next().map_or_else(
-            || (String::new(), None),
-            |e| {
-                let text = e.text().collect::<String>().trim().to_string();
-                let url = e.value().attr("href").map(|href| {
-                    // Convert relative URLs to absolute
-                    if href.starts_with("http://") || href.starts_with("https://") {
-                        href.to_string()
-                    } else if href.starts_with('#') {
-                        // Fragment-only URL: combine with package page URL
-                        format!("{base_url}{href}")
-                    } else {
-                        // Relative path: prepend AUR domain
-                        format!("https://aur.archlinux.org{href}")
-                    }
-                });
-                (text, url)
-            },
-        );
-
-        // Get content by finding the corresponding content div by ID
-        // We extract formatted text to preserve markdown-like structures
-        let content = comment_id
-            .and_then(|id| id.strip_prefix("comment-"))
-            .and_then(|comment_id_str| {
-                Selector::parse(&format!("div#comment-{comment_id_str}-content")).ok()
-            })
-            .and_then(|content_id_selector| document.select(&content_id_selector).next())
-            .map_or_else(String::new, |div| {
-                // Parse HTML and extract formatted text
-                // This preserves markdown-like structures (bold, italic, code, links, etc.)
-                html_to_formatted_text(div)
-            });
-
-        // Skip empty comments
-        if content.is_empty() && author == "Unknown" {
-            continue;
-        }
-
-        // Parse date to timestamp
-        let date_timestamp = parse_date_to_timestamp(&date_text);
-
-        // Convert UTC date to local timezone for display
-        let local_date = convert_utc_to_local_date(&date_text);
-
-        // Determine if this comment is pinned
-        // Pinned comments appear before the "Latest Comments" heading in the HTML
-        // We check the position of the comment header in the HTML text relative to "Latest Comments"
-        let is_pinned = if has_pinned_section && let Some(latest_pos) = latest_comments_pos {
-            comment_id.map_or(index < 10, |id| {
-                html_text
-                    .find(id)
-                    .map_or(index < 10, |comment_pos| comment_pos < latest_pos)
-            })
-        } else {
-            false
+        // Extract comment data from header
+        let context = CommentExtractionContext {
+            document: &document,
+            date_selector: &date_selector,
+            pkgname: &pkgname,
+            html_text: &html_text,
+            has_pinned_section,
+            latest_comments_pos,
         };
-
-        comments.push(AurComment {
-            author,
-            date: local_date,
-            date_timestamp,
-            date_url,
-            content,
-            pinned: is_pinned,
-        });
+        if let Some(comment) = extract_comment_from_header(header, comment_id, index, &context) {
+            comments.push(comment);
+        }
     }
 
+    // Separate, sort, and combine comments
+    Ok(separate_and_sort_comments(comments))
+}
+
+/// What: Extract comment data from a header element.
+///
+/// Inputs:
+/// - `header`: Header element containing comment metadata
+/// - `comment_id`: Optional comment ID from header attribute
+/// - `index`: Index of header in collection
+/// - `context`: Extraction context with document, selectors, and metadata
+///
+/// Output:
+/// - `Some(AurComment)` if comment is valid; `None` if empty/invalid
+///
+/// Details:
+/// - Extracts author, date, URL, content, and pinned status
+/// - Skips empty comments with unknown authors
+fn extract_comment_from_header(
+    header: &ElementRef,
+    comment_id: Option<&str>,
+    index: usize,
+    context: &CommentExtractionContext,
+) -> Option<AurComment> {
+    // Extract the full header text to parse author
+    let header_text = header.text().collect::<String>();
+
+    // Extract author: text before " commented on"
+    let author = header_text.find(" commented on ").map_or_else(
+        || {
+            // Fallback: try to find author in links or text nodes
+            header_text
+                .split_whitespace()
+                .next()
+                .unwrap_or("Unknown")
+                .to_string()
+        },
+        |pos| header_text[..pos].trim().to_string(),
+    );
+
+    // Extract date and URL from <a class="date"> inside the header
+    let base_url = format!("https://aur.archlinux.org/packages/{}", context.pkgname);
+    let (date_text, date_url) = header.select(context.date_selector).next().map_or_else(
+        || (String::new(), None),
+        |e| {
+            let text = e.text().collect::<String>().trim().to_string();
+            let url = e.value().attr("href").map(|href| {
+                // Convert relative URLs to absolute
+                if href.starts_with("http://") || href.starts_with("https://") {
+                    href.to_string()
+                } else if href.starts_with('#') {
+                    // Fragment-only URL: combine with package page URL
+                    format!("{base_url}{href}")
+                } else {
+                    // Relative path: prepend AUR domain
+                    format!("https://aur.archlinux.org{href}")
+                }
+            });
+            (text, url)
+        },
+    );
+
+    // Get content by finding the corresponding content div by ID
+    // We extract formatted text to preserve markdown-like structures
+    let comment_content = comment_id
+        .and_then(|id| id.strip_prefix("comment-"))
+        .and_then(|comment_id_str| {
+            Selector::parse(&format!("div#comment-{comment_id_str}-content")).ok()
+        })
+        .and_then(|content_id_selector| context.document.select(&content_id_selector).next())
+        .map_or_else(String::new, |div| {
+            // Parse HTML and extract formatted text
+            // This preserves markdown-like structures (bold, italic, code, links, etc.)
+            html_to_formatted_text(div)
+        });
+
+    // Skip empty comments
+    if comment_content.is_empty() && author == "Unknown" {
+        return None;
+    }
+
+    // Parse date to timestamp
+    let date_timestamp = parse_date_to_timestamp(&date_text);
+
+    // Convert UTC date to local timezone for display
+    let local_date = convert_utc_to_local_date(&date_text);
+
+    // Determine if this comment is pinned
+    let is_pinned = determine_pinned_status(comment_id, index, context);
+
+    Some(AurComment {
+        author,
+        date: local_date,
+        date_timestamp,
+        date_url,
+        content: comment_content,
+        pinned: is_pinned,
+    })
+}
+
+/// What: Determine if a comment is pinned based on its position in the HTML.
+///
+/// Inputs:
+/// - `comment_id`: Optional comment ID
+/// - `index`: Index of comment in collection
+/// - `context`: Extraction context with HTML text and pinned section info
+///
+/// Output:
+/// - `true` if comment is pinned; `false` otherwise
+///
+/// Details:
+/// - Pinned comments appear before the "Latest Comments" heading
+/// - Uses comment position in HTML relative to "Latest Comments" heading
+fn determine_pinned_status(
+    comment_id: Option<&str>,
+    index: usize,
+    context: &CommentExtractionContext,
+) -> bool {
+    if !context.has_pinned_section {
+        return false;
+    }
+
+    let Some(latest_pos) = context.latest_comments_pos else {
+        return false;
+    };
+
+    comment_id.map_or(index < 10, |id| {
+        context
+            .html_text
+            .find(id)
+            .map_or(index < 10, |comment_pos| comment_pos < latest_pos)
+    })
+}
+
+/// What: Separate pinned and regular comments, sort them, and combine.
+///
+/// Inputs:
+/// - `comments`: Vector of all comments
+///
+/// Output:
+/// - Vector with pinned comments first, then regular, both sorted by date descending
+///
+/// Details:
+/// - Separates comments into pinned and regular
+/// - Sorts each group by date descending (latest first)
+/// - Combines with pinned first
+fn separate_and_sort_comments(comments: Vec<AurComment>) -> Vec<AurComment> {
     // Separate pinned and regular comments
     let mut pinned_comments: Vec<AurComment> =
         comments.iter().filter(|c| c.pinned).cloned().collect();
     let mut regular_comments: Vec<AurComment> =
         comments.into_iter().filter(|c| !c.pinned).collect();
 
-    // Sort pinned comments by date descending (latest first)
-    pinned_comments.sort_by(|a, b| {
-        match (a.date_timestamp, b.date_timestamp) {
-            (Some(ts_a), Some(ts_b)) => ts_b.cmp(&ts_a), // Descending order
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => b.date.cmp(&a.date), // Fallback to string comparison
-        }
-    });
-
-    // Sort regular comments by date descending (latest first)
-    regular_comments.sort_by(|a, b| {
-        match (a.date_timestamp, b.date_timestamp) {
-            (Some(ts_a), Some(ts_b)) => ts_b.cmp(&ts_a), // Descending order
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => b.date.cmp(&a.date), // Fallback to string comparison
-        }
-    });
+    // Sort both groups by date descending
+    sort_comments_by_date(&mut pinned_comments);
+    sort_comments_by_date(&mut regular_comments);
 
     // Combine: pinned first, then regular
     pinned_comments.extend(regular_comments);
+    pinned_comments
+}
 
-    Ok(pinned_comments)
+/// What: Sort comments by date descending (latest first).
+///
+/// Inputs:
+/// - `comments`: Mutable reference to comments vector to sort
+///
+/// Output:
+/// - Comments are sorted in-place by date descending
+///
+/// Details:
+/// - Uses timestamp for sorting if available
+/// - Falls back to string comparison if timestamp is missing
+fn sort_comments_by_date(comments: &mut [AurComment]) {
+    comments.sort_by(|a, b| {
+        match (a.date_timestamp, b.date_timestamp) {
+            (Some(ts_a), Some(ts_b)) => ts_b.cmp(&ts_a), // Descending order
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => b.date.cmp(&a.date), // Fallback to string comparison
+        }
+    });
 }
 
 /// What: Convert UTC date string from AUR to local timezone string.

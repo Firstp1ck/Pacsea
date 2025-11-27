@@ -447,6 +447,145 @@ fn build_summary_notes(state: &ProcessingState) -> Vec<String> {
     notes
 }
 
+/// What: Process all package items and populate processing state.
+///
+/// Inputs:
+/// - `items`: Packages to process.
+/// - `action`: Install vs. remove context.
+/// - `runner`: Command execution abstraction.
+/// - `state`: Mutable state accumulator.
+///
+/// Output: Updates `state` in place.
+///
+/// Details: Batch fetches installed versions/sizes and processes each package.
+fn process_all_packages<R: CommandRunner>(
+    items: &[PackageItem],
+    action: PreflightAction,
+    runner: &R,
+    state: &mut ProcessingState,
+) {
+    let installed_versions = batch_fetch_installed_versions(runner, items);
+    let installed_sizes = batch_fetch_installed_sizes(runner, items);
+
+    for (idx, item) in items.iter().enumerate() {
+        let installed_version = installed_versions
+            .get(idx)
+            .and_then(|v| v.as_ref().ok())
+            .cloned();
+        let installed_size = installed_sizes
+            .get(idx)
+            .and_then(|s| s.as_ref().ok())
+            .copied();
+
+        process_package_item(
+            item,
+            action,
+            runner,
+            installed_version,
+            installed_size,
+            state,
+        );
+    }
+}
+
+/// What: Resolve reverse dependencies for Remove actions.
+///
+/// Inputs:
+/// - `items`: Packages being removed.
+/// - `action`: Preflight action (Install vs Remove).
+///
+/// Output: Tuple of (`dependent_count`, `reverse_deps_report`).
+///
+/// Details: Returns (0, None) for Install actions, resolves and counts for Remove actions.
+fn resolve_reverse_deps(
+    items: &[PackageItem],
+    action: PreflightAction,
+) -> (usize, Option<crate::logic::deps::ReverseDependencyReport>) {
+    if matches!(action, PreflightAction::Remove) {
+        let report = crate::logic::deps::resolve_reverse_dependencies(items);
+        let count = report.dependencies.len();
+        (count, Some(report))
+    } else {
+        (0, None)
+    }
+}
+
+/// What: Build summary data structure from processing state and risk metrics.
+///
+/// Inputs:
+/// - `state`: Processing state with accumulated data.
+/// - `items`: Original package items (for count).
+/// - `risk_reasons`: Risk reason strings.
+/// - `risk_score`: Calculated risk score.
+/// - `risk_level`: Calculated risk level.
+///
+/// Output: [`PreflightSummaryData`] structure.
+///
+/// Details: Constructs the complete summary data structure.
+fn build_summary_data(
+    state: ProcessingState,
+    items: &[PackageItem],
+    risk_reasons: &[String],
+    risk_score: u8,
+    risk_level: RiskLevel,
+) -> PreflightSummaryData {
+    let summary_notes = build_summary_notes(&state);
+    let mut summary_warnings = Vec::new();
+    if summary_warnings.is_empty() {
+        summary_warnings.extend(risk_reasons.iter().cloned());
+    }
+
+    PreflightSummaryData {
+        packages: state.packages,
+        package_count: items.len(),
+        aur_count: state.aur_count,
+        download_bytes: state.total_download_bytes,
+        install_delta_bytes: state.total_install_delta_bytes,
+        risk_score,
+        risk_level,
+        risk_reasons: risk_reasons.to_vec(),
+        major_bump_packages: state.major_bump_packages,
+        core_system_updates: state.core_system_updates,
+        pacnew_candidates: 0,
+        pacsave_candidates: 0,
+        config_warning_packages: Vec::new(),
+        service_restart_units: Vec::new(),
+        summary_warnings,
+        summary_notes,
+    }
+}
+
+/// What: Build header chips from extracted state values and risk metrics.
+///
+/// Inputs:
+/// - `package_count`: Number of packages.
+/// - `download_bytes`: Total download size in bytes.
+/// - `install_delta_bytes`: Total install size delta in bytes.
+/// - `aur_count`: Number of AUR packages.
+/// - `risk_score`: Calculated risk score.
+/// - `risk_level`: Calculated risk level.
+///
+/// Output: [`PreflightHeaderChips`] structure.
+///
+/// Details: Constructs the header chip metrics.
+const fn build_header_chips(
+    package_count: usize,
+    download_bytes: u64,
+    install_delta_bytes: i64,
+    aur_count: usize,
+    risk_score: u8,
+    risk_level: RiskLevel,
+) -> PreflightHeaderChips {
+    PreflightHeaderChips {
+        package_count,
+        download_bytes,
+        install_delta_bytes,
+        aur_count,
+        risk_score,
+        risk_level,
+    }
+}
+
 /// What: Compute preflight summary data using a custom command runner.
 ///
 /// Inputs:
@@ -476,87 +615,23 @@ pub fn compute_preflight_summary_with_runner<R: CommandRunner>(
     let start_time = std::time::Instant::now();
 
     let mut state = ProcessingState::new(items.len());
+    process_all_packages(items, action, runner, &mut state);
 
-    let pacnew_candidates = 0usize;
-    let pacsave_candidates = 0usize;
-    let config_warning_packages = Vec::new();
-    let service_restart_units = Vec::new();
+    let (dependent_count, reverse_deps_report) = resolve_reverse_deps(items, action);
 
-    // Batch fetch installed versions and sizes for all packages
-    let installed_versions = batch_fetch_installed_versions(runner, items);
-    let installed_sizes = batch_fetch_installed_sizes(runner, items);
+    let (risk_reasons, risk_score, risk_level) =
+        calculate_risk_metrics(&state, 0, &[], action, dependent_count);
 
-    for (idx, item) in items.iter().enumerate() {
-        let installed_version = installed_versions
-            .get(idx)
-            .and_then(|v| v.as_ref().ok())
-            .cloned();
-        let installed_size = installed_sizes
-            .get(idx)
-            .and_then(|s| s.as_ref().ok())
-            .copied();
-
-        process_package_item(
-            item,
-            action,
-            runner,
-            installed_version,
-            installed_size,
-            &mut state,
-        );
-    }
-
-    // For Remove actions, resolve reverse dependencies to calculate risk
-    // Cache the report to avoid redundant computation when switching to Deps tab
-    let (dependent_count, reverse_deps_report) = if matches!(action, PreflightAction::Remove) {
-        let report = crate::logic::deps::resolve_reverse_dependencies(items);
-        let count = report.dependencies.len();
-        (count, Some(report))
-    } else {
-        (0, None)
-    };
-
-    let (risk_reasons, risk_score, risk_level) = calculate_risk_metrics(
-        &state,
-        pacnew_candidates,
-        &service_restart_units,
-        action,
-        dependent_count,
+    let header = build_header_chips(
+        items.len(),
+        state.total_download_bytes,
+        state.total_install_delta_bytes,
+        state.aur_count,
+        risk_score,
+        risk_level,
     );
 
-    let summary_notes = build_summary_notes(&state);
-    let mut summary_warnings = Vec::new();
-    if summary_warnings.is_empty() {
-        summary_warnings.extend(risk_reasons.iter().cloned());
-    }
-
-    let summary = PreflightSummaryData {
-        packages: state.packages,
-        package_count: items.len(),
-        aur_count: state.aur_count,
-        download_bytes: state.total_download_bytes,
-        install_delta_bytes: state.total_install_delta_bytes,
-        risk_score,
-        risk_level,
-        risk_reasons: risk_reasons.clone(),
-        major_bump_packages: state.major_bump_packages,
-        core_system_updates: state.core_system_updates,
-        pacnew_candidates,
-        pacsave_candidates,
-        config_warning_packages,
-        service_restart_units,
-        summary_warnings,
-        summary_notes,
-    };
-
-    let header = PreflightHeaderChips {
-        package_count: items.len(),
-        download_bytes: state.total_download_bytes,
-        install_delta_bytes: state.total_install_delta_bytes,
-        aur_count: state.aur_count,
-        risk_score,
-        risk_level,
-    };
+    let summary = build_summary_data(state, items, &risk_reasons, risk_score, risk_level);
 
     let elapsed = start_time.elapsed();
     let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);

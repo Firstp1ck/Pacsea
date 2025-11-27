@@ -155,37 +155,21 @@ fn assert_preflight_modal(
     }
 }
 
-#[test]
-/// What: Verify that conflicts are not overwritten when new packages are added to install list sequentially.
+/// Creates pacsea-bin's dependencies including conflicts with pacsea and pacsea-git.
 ///
-/// Inputs:
-/// - pacsea-bin added first with conflicts (pacsea, pacsea-git)
-/// - jujutsu-git added second with conflicts (jujutsu)
-/// - Both packages may have overlapping dependencies
+/// What: Creates a test dependency list for pacsea-bin package.
 ///
-/// Output:
-/// - pacsea-bin's conflicts remain present after jujutsu-git is added
-/// - jujutsu-git's conflicts are also detected
-/// - No conflicts are overwritten by dependency merging
+/// Inputs: None (uses hardcoded test data).
 ///
-/// Details:
-/// - Tests the fix for conflict status preservation during dependency merging
-/// - Verifies that conflicts take precedence over dependency statuses
-/// - Ensures timing of package addition doesn't affect conflict detection
-#[allow(clippy::too_many_lines)]
-fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
-    unsafe {
-        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
-    }
-
-    let mut app = crate_root::state::AppState::default();
-
-    // Step 1: Add pacsea-bin first
-    let pacsea_bin = create_test_package("pacsea-bin", "0.5.1", crate_root::state::Source::Aur);
-
-    // Pre-populate cache with pacsea-bin's conflicts
-    // pacsea-bin conflicts with pacsea and pacsea-git
-    app.install_list_deps = vec![
+/// Output: Vector of `DependencyInfo` entries containing:
+/// - Conflict entries for "pacsea" and "pacsea-git"
+/// - Regular dependency entry for "common-dep"
+///
+/// Details: This helper function creates test data for pacsea-bin that includes
+/// conflicts with pacsea and pacsea-git, plus a regular dependency to test
+/// that conflicts aren't overwritten by dependency merging.
+fn create_pacsea_bin_dependencies() -> Vec<crate_root::state::modal::DependencyInfo> {
+    vec![
         // pacsea-bin's conflict with pacsea
         crate_root::state::modal::DependencyInfo {
             name: "pacsea".to_string(),
@@ -227,67 +211,27 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
             is_core: false,
             is_system: false,
         },
-    ];
+    ]
+}
 
-    app.install_list = vec![pacsea_bin.clone()];
-    app.preflight_cancelled
-        .store(false, std::sync::atomic::Ordering::Relaxed);
-
-    app.modal = create_preflight_modal(
-        vec![pacsea_bin.clone()],
-        crate_root::state::PreflightAction::Install,
-        crate_root::state::PreflightTab::Deps,
-    );
-
-    // Verify pacsea-bin's conflicts are detected
-    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
-    let (_, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
-
-    let conflicts_after_first: Vec<_> = dependency_info
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.status,
-                crate_root::state::modal::DependencyStatus::Conflict { .. }
-            )
-        })
-        .collect();
-    assert_eq!(
-        conflicts_after_first.len(),
-        2,
-        "Should have 2 conflicts after adding pacsea-bin"
-    );
-    assert!(
-        conflicts_after_first
-            .iter()
-            .any(|c| c.name == "pacsea" && c.required_by.contains(&"pacsea-bin".to_string())),
-        "pacsea-bin should conflict with pacsea"
-    );
-    assert!(
-        conflicts_after_first
-            .iter()
-            .any(|c| c.name == "pacsea-git" && c.required_by.contains(&"pacsea-bin".to_string())),
-        "pacsea-bin should conflict with pacsea-git"
-    );
-
-    // Step 2: Simulate that pacsea-bin's conflicts are now cached in install_list_deps
-    // This simulates the real scenario where the first package's dependencies were resolved
-    // and cached before the second package is added
-
-    // Step 3: Add jujutsu-git (which might have dependencies that could overwrite conflicts)
-    let jujutsu_git = create_test_package("jujutsu-git", "0.1.0", crate_root::state::Source::Aur);
-
-    // CRITICAL TEST: Simulate the scenario where jujutsu-git's dependencies are resolved
-    // and need to be merged with existing cached entries from pacsea-bin.
-    // The key test is: when jujutsu-git depends on "pacsea" (which is already a conflict
-    // from pacsea-bin), the merge should preserve the conflict status, not overwrite it.
-
-    // Add jujutsu-git's conflicts and dependencies to cache
-    // jujutsu-git conflicts with jujutsu
-    // jujutsu-git might also depend on common-dep (to test conflict preservation)
-    // IMPORTANT: jujutsu-git might also depend on "pacsea" (which is already a conflict)
-    // This tests that the cached conflict from pacsea-bin is not overwritten
-    app.install_list_deps.extend(vec![
+/// Creates jujutsu-git's dependencies including conflicts and overlapping dependencies.
+///
+/// What: Creates a test dependency list for jujutsu-git package.
+///
+/// Inputs: None (uses hardcoded test data).
+///
+/// Output: Vector of `DependencyInfo` entries containing:
+/// - Conflict entry for "jujutsu"
+/// - Dependency entry for "pacsea" (critical test case - already a conflict from pacsea-bin)
+/// - Dependency entry for "common-dep" (overlaps with pacsea-bin)
+/// - Unique dependency entry for "jujutsu-dep"
+///
+/// Details: This helper function creates test data for jujutsu-git that includes
+/// a critical test case where jujutsu-git depends on "pacsea", which is already
+/// a conflict from pacsea-bin. This tests that conflict statuses are preserved
+/// during dependency merging and not overwritten by `ToInstall` dependencies.
+fn create_jujutsu_git_dependencies() -> Vec<crate_root::state::modal::DependencyInfo> {
+    vec![
         // jujutsu-git's conflict with jujutsu
         crate_root::state::modal::DependencyInfo {
             name: "jujutsu".to_string(),
@@ -345,35 +289,68 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
             is_core: false,
             is_system: false,
         },
-    ]);
+    ]
+}
 
-    // Update install list to include both packages
-    app.install_list = vec![pacsea_bin.clone(), jujutsu_git.clone()];
-
-    // CRITICAL: Simulate the actual dependency resolution that happens when a new package is added
-    // In the real code, resolve_dependencies() is called, which processes conflicts first,
-    // then resolves dependencies and merges them. The merge_dependency function must preserve
-    // existing conflict statuses even when new dependencies are added.
-
-    // Simulate what happens: jujutsu-git's dependencies need to be merged with existing cached entries
-    // The key test is that "pacsea" (already a Conflict from pacsea-bin) should remain a Conflict
-    // even though jujutsu-git has it as a ToInstall dependency
-
-    // Update modal to include both packages
-    app.modal = create_preflight_modal(
-        vec![pacsea_bin, jujutsu_git],
-        crate_root::state::PreflightAction::Install,
-        crate_root::state::PreflightTab::Deps,
+/// Verifies that pacsea-bin's conflicts are correctly detected.
+///
+/// What: Validates that pacsea-bin's conflicts are properly detected in the dependency list.
+///
+/// Inputs:
+/// - `dependency_info`: Slice of `DependencyInfo` entries to check
+///
+/// Output: None (panics on assertion failure).
+///
+/// Details: Checks that pacsea-bin has exactly 2 conflicts: one with "pacsea"
+/// and one with "pacsea-git". Both conflicts must be marked as Conflict status
+/// and have "pacsea-bin" in their `required_by` list.
+fn verify_pacsea_bin_conflicts(dependency_info: &[crate_root::state::modal::DependencyInfo]) {
+    let conflicts: Vec<_> = dependency_info
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.status,
+                crate_root::state::modal::DependencyStatus::Conflict { .. }
+            )
+        })
+        .collect();
+    assert_eq!(
+        conflicts.len(),
+        2,
+        "Should have 2 conflicts after adding pacsea-bin"
     );
+    assert!(
+        conflicts
+            .iter()
+            .any(|c| c.name == "pacsea" && c.required_by.contains(&"pacsea-bin".to_string())),
+        "pacsea-bin should conflict with pacsea"
+    );
+    assert!(
+        conflicts
+            .iter()
+            .any(|c| c.name == "pacsea-git" && c.required_by.contains(&"pacsea-bin".to_string())),
+        "pacsea-bin should conflict with pacsea-git"
+    );
+}
 
-    // Step 4: Verify conflicts are still present after adding jujutsu-git
-    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
-    let (items, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
-
-    assert_eq!(items.len(), 2, "Should have 2 packages in install list");
-
-    // CRITICAL TEST: Verify pacsea-bin's conflicts are still present (not overwritten)
-    // Even though jujutsu-git might have "pacsea" as a dependency, it should remain a Conflict
+/// Verifies that pacsea-bin's conflicts are preserved after adding jujutsu-git.
+///
+/// What: Validates that pacsea-bin's cached conflicts are not overwritten when
+/// jujutsu-git is added with overlapping dependencies.
+///
+/// Inputs:
+/// - `dependency_info`: Slice of `DependencyInfo` entries to check
+///
+/// Output: None (panics on assertion failure).
+///
+/// Details: This is a critical test that verifies conflict preservation during
+/// dependency merging. Even though jujutsu-git might have "pacsea" as a `ToInstall`
+/// dependency, the existing Conflict status from pacsea-bin must be preserved.
+/// Verifies that pacsea-bin still has 2 conflicts and that "pacsea" remains a Conflict
+/// with pacsea-bin in its `required_by` list.
+fn verify_pacsea_bin_conflicts_preserved(
+    dependency_info: &[crate_root::state::modal::DependencyInfo],
+) {
     let pacsea_conflicts: Vec<_> = dependency_info
         .iter()
         .filter(|d| {
@@ -414,8 +391,21 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
         pacsea_conflicts.iter().any(|c| c.name == "pacsea-git"),
         "pacsea-bin should still conflict with pacsea-git"
     );
+}
 
-    // Verify jujutsu-git's conflicts are also detected
+/// Verifies that jujutsu-git's conflicts are correctly detected.
+///
+/// What: Validates that jujutsu-git's conflicts are properly detected in the dependency list.
+///
+/// Inputs:
+/// - `dependency_info`: Slice of `DependencyInfo` entries to check
+///
+/// Output: None (panics on assertion failure).
+///
+/// Details: Checks that jujutsu-git has exactly 1 conflict with "jujutsu".
+/// The conflict must be marked as Conflict status and have "jujutsu-git" in
+/// its `required_by` list.
+fn verify_jujutsu_git_conflicts(dependency_info: &[crate_root::state::modal::DependencyInfo]) {
     let jujutsu_conflicts: Vec<_> = dependency_info
         .iter()
         .filter(|d| {
@@ -434,8 +424,28 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
         jujutsu_conflicts.iter().any(|c| c.name == "jujutsu"),
         "jujutsu-git should conflict with jujutsu"
     );
+}
 
-    // Verify total conflicts count
+/// Verifies the total number of conflicts matches expected count.
+///
+/// What: Validates that the total number of Conflict entries in the dependency list
+/// matches the expected count.
+///
+/// Inputs:
+/// - `dependency_info`: Slice of `DependencyInfo` entries to check
+/// - `expected_count`: Expected number of conflicts
+/// - message: Custom assertion message for better test failure diagnostics
+///
+/// Output: None (panics on assertion failure).
+///
+/// Details: Counts all `DependencyInfo` entries with Conflict status and asserts
+/// that the count matches the expected value. Used to verify that conflicts
+/// are not lost during dependency merging operations.
+fn verify_total_conflicts(
+    dependency_info: &[crate_root::state::modal::DependencyInfo],
+    expected_count: usize,
+    message: &str,
+) {
     let all_conflicts_count = dependency_info
         .iter()
         .filter(|d| {
@@ -445,12 +455,24 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
             )
         })
         .count();
-    assert_eq!(
-        all_conflicts_count, 3,
-        "Should have 3 total conflicts (2 from pacsea-bin, 1 from jujutsu-git)"
-    );
+    assert_eq!(all_conflicts_count, expected_count, "{message}");
+}
 
-    // Verify that common-dep is not a conflict (it's a regular dependency)
+/// Verifies that common-dep is not a conflict and is required by pacsea-bin.
+///
+/// What: Validates that common-dep is correctly identified as a regular dependency
+/// (not a conflict) and is associated with pacsea-bin.
+///
+/// Inputs:
+/// - `dependency_info`: Slice of `DependencyInfo` entries to check
+///
+/// Output: None (panics on assertion failure).
+///
+/// Details: Verifies that "common-dep" exists in the dependency list with `ToInstall`
+/// status (not Conflict). Also checks that pacsea-bin is in the `required_by` list,
+/// either directly or in a merged entry. This ensures that regular dependencies
+/// are not incorrectly marked as conflicts during merging.
+fn verify_common_dep_not_conflict(dependency_info: &[crate_root::state::modal::DependencyInfo]) {
     let common_dep = dependency_info
         .iter()
         .find(|d| d.name == "common-dep")
@@ -472,25 +494,117 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
             ),
         "common-dep should be required by pacsea-bin (directly or in merged entry)"
     );
+}
+
+/// Verifies that conflicts persist through multiple tab switches.
+///
+/// What: Simulates tab switching in the preflight modal and returns the dependency
+/// information after the switches to verify conflicts are preserved.
+///
+/// Inputs:
+/// - app: Mutable reference to `AppState` to perform tab switching operations
+///
+/// Output: Vector of `DependencyInfo` entries after tab switches.
+///
+/// Details: Performs tab switches from Deps to Summary and back to Deps to simulate
+/// user interaction. Returns the dependency information after these operations to
+/// allow verification that conflicts persist through UI state changes. This tests
+/// that cached conflict data is not lost during tab navigation.
+fn verify_conflicts_after_tab_switches(
+    app: &mut crate_root::state::AppState,
+) -> Vec<crate_root::state::modal::DependencyInfo> {
+    switch_preflight_tab(app, crate_root::state::PreflightTab::Summary);
+    switch_preflight_tab(app, crate_root::state::PreflightTab::Deps);
+
+    let (_, _, _, dependency_info_after_switch, _, _, _, _, _) = assert_preflight_modal(app);
+    dependency_info_after_switch.clone()
+}
+
+#[test]
+/// What: Verify that conflicts are not overwritten when new packages are added to install list sequentially.
+///
+/// Inputs:
+/// - pacsea-bin added first with conflicts (pacsea, pacsea-git)
+/// - jujutsu-git added second with conflicts (jujutsu)
+/// - Both packages may have overlapping dependencies
+///
+/// Output:
+/// - pacsea-bin's conflicts remain present after jujutsu-git is added
+/// - jujutsu-git's conflicts are also detected
+/// - No conflicts are overwritten by dependency merging
+///
+/// Details:
+/// - Tests the fix for conflict status preservation during dependency merging
+/// - Verifies that conflicts take precedence over dependency statuses
+/// - Ensures timing of package addition doesn't affect conflict detection
+fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
+    unsafe {
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    }
+
+    let mut app = crate_root::state::AppState::default();
+
+    // Step 1: Add pacsea-bin first
+    let pacsea_bin = create_test_package("pacsea-bin", "0.5.1", crate_root::state::Source::Aur);
+    app.install_list_deps = create_pacsea_bin_dependencies();
+    app.install_list = vec![pacsea_bin.clone()];
+    app.preflight_cancelled
+        .store(false, std::sync::atomic::Ordering::Relaxed);
+
+    app.modal = create_preflight_modal(
+        vec![pacsea_bin.clone()],
+        crate_root::state::PreflightAction::Install,
+        crate_root::state::PreflightTab::Deps,
+    );
+
+    // Verify pacsea-bin's conflicts are detected
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
+    let (_, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
+    verify_pacsea_bin_conflicts(dependency_info);
+
+    // Step 2: Simulate that pacsea-bin's conflicts are now cached in install_list_deps
+    // This simulates the real scenario where the first package's dependencies were resolved
+    // and cached before the second package is added
+
+    // Step 3: Add jujutsu-git (which might have dependencies that could overwrite conflicts)
+    let jujutsu_git = create_test_package("jujutsu-git", "0.1.0", crate_root::state::Source::Aur);
+
+    // CRITICAL TEST: Simulate the scenario where jujutsu-git's dependencies are resolved
+    // and need to be merged with existing cached entries from pacsea-bin.
+    // The key test is: when jujutsu-git depends on "pacsea" (which is already a conflict
+    // from pacsea-bin), the merge should preserve the conflict status, not overwrite it.
+    app.install_list_deps
+        .extend(create_jujutsu_git_dependencies());
+    app.install_list = vec![pacsea_bin.clone(), jujutsu_git.clone()];
+
+    // Update modal to include both packages
+    app.modal = create_preflight_modal(
+        vec![pacsea_bin, jujutsu_git],
+        crate_root::state::PreflightAction::Install,
+        crate_root::state::PreflightTab::Deps,
+    );
+
+    // Step 4: Verify conflicts are still present after adding jujutsu-git
+    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
+    let (items, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
+
+    assert_eq!(items.len(), 2, "Should have 2 packages in install list");
+
+    verify_pacsea_bin_conflicts_preserved(dependency_info);
+    verify_jujutsu_git_conflicts(dependency_info);
+    verify_total_conflicts(
+        dependency_info,
+        3,
+        "Should have 3 total conflicts (2 from pacsea-bin, 1 from jujutsu-git)",
+    );
+    verify_common_dep_not_conflict(dependency_info);
 
     // Step 5: Verify conflicts persist through multiple tab switches
-    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Summary);
-    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
-
-    let (_, _, _, dependency_info_after_switch, _, _, _, _, _) = assert_preflight_modal(&app);
-
-    let conflicts_after_switch_count = dependency_info_after_switch
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.status,
-                crate_root::state::modal::DependencyStatus::Conflict { .. }
-            )
-        })
-        .count();
-    assert_eq!(
-        conflicts_after_switch_count, 3,
-        "Should still have 3 conflicts after tab switches"
+    let dependency_info_after_switch = verify_conflicts_after_tab_switches(&mut app);
+    verify_total_conflicts(
+        &dependency_info_after_switch,
+        3,
+        "Should still have 3 conflicts after tab switches",
     );
 
     // Verify pacsea-bin's conflicts are still intact

@@ -5,7 +5,6 @@
 
 mod deps_cache;
 mod files_cache;
-mod news;
 mod persist;
 mod recent;
 mod runtime;

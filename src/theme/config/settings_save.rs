@@ -431,18 +431,3 @@ pub fn save_scan_do_sleuth(value: bool) {
 pub fn save_fuzzy_search(value: bool) {
     save_boolean_key("fuzzy_search", value);
 }
-
-/// What: Persist the installed packages filter mode.
-///
-/// Inputs:
-/// - `mode`: The installed packages mode (leaf or all).
-///
-/// Output:
-/// - None.
-///
-/// Details:
-/// - Delegates to `save_string_key("installed_packages_mode", mode.as_config_key())`.
-#[allow(dead_code)] // Will be used when UI toggle is implemented
-pub fn save_installed_packages_mode(mode: crate::state::InstalledPackagesMode) {
-    save_string_key("installed_packages_mode", mode.as_config_key());
-}

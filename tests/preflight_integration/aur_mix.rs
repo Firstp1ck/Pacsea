@@ -1,34 +1,18 @@
-//! //! Tests for AUR and official package mixing.
+//! Tests for AUR and official package mixing.
 
 use pacsea as crate_root;
 
-#[test]
-/// What: Verify that preflight modal handles mix of AUR and official packages correctly.
+/// What: Create test packages (official and AUR) for testing.
 ///
-/// Inputs:
-/// - Mix of AUR and official packages in `install_list`
-/// - Different loading characteristics for each type
-/// - Preflight modal opened with both types
+/// Inputs: None
 ///
 /// Output:
-/// - Sandbox tab only shows AUR packages
-/// - Other tabs (Deps, Files, Services) show all packages
-/// - AUR-specific features (sandbox) work correctly
-/// - Official packages are excluded from sandbox
+/// - Vector containing one official and one AUR test package
 ///
 /// Details:
-/// - Tests that filtering works correctly for AUR vs official packages
-/// - Verifies sandbox tab only displays AUR packages
-/// - Ensures other tabs display all packages regardless of source
-#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
-fn preflight_handles_aur_and_official_package_mix() {
-    unsafe {
-        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
-    }
-
-    let mut app = crate_root::state::AppState::default();
-
-    let test_packages = vec![
+/// - Creates minimal test packages with different sources
+fn create_test_packages() -> Vec<crate_root::state::PackageItem> {
+    vec![
         crate_root::state::PackageItem {
             name: "test-official-package".to_string(),
             version: "1.0.0".to_string(),
@@ -50,8 +34,24 @@ fn preflight_handles_aur_and_official_package_mix() {
             out_of_date: None,
             orphaned: false,
         },
-    ];
+    ]
+}
 
+/// What: Setup test app state with pre-populated cache data.
+///
+/// Inputs:
+/// - `app`: Application state to populate
+/// - `test_packages`: Test packages to use
+///
+/// Output:
+/// - App state with all cache data populated
+///
+/// Details:
+/// - Pre-populates dependencies, files, services, and sandbox info
+fn setup_test_app_state(
+    app: &mut crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+) {
     // Pre-populate cache with dependencies for both packages
     app.install_list_deps = vec![
         crate_root::state::modal::DependencyInfo {
@@ -152,14 +152,26 @@ fn preflight_handles_aur_and_official_package_mix() {
         optdepends: vec![],
     }];
 
-    // Set packages in install list
-    app.install_list = test_packages.clone();
+    app.install_list = test_packages.to_vec();
     app.preflight_cancelled
         .store(false, std::sync::atomic::Ordering::Relaxed);
+}
 
-    // Open preflight modal
-    app.modal = crate_root::state::Modal::Preflight {
-        items: test_packages.clone(),
+/// What: Initialize preflight modal with test packages.
+///
+/// Inputs:
+/// - `test_packages`: Test packages to include
+///
+/// Output:
+/// - Preflight modal state initialized with test packages
+///
+/// Details:
+/// - Creates modal with Install action and Summary tab
+fn create_test_preflight_modal(
+    test_packages: &[crate_root::state::PackageItem],
+) -> crate_root::state::Modal {
+    crate_root::state::Modal::Preflight {
+        items: test_packages.to_vec(),
         action: crate_root::state::PreflightAction::Install,
         tab: crate_root::state::PreflightTab::Summary,
         summary: None,
@@ -192,9 +204,21 @@ fn preflight_handles_aur_and_official_package_mix() {
         selected_optdepends: std::collections::HashMap::new(),
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
         cached_reverse_deps_report: None,
-    };
+    }
+}
 
-    // Test 1: Deps tab - should show dependencies for both packages
+/// What: Test and verify dependencies tab shows both packages.
+///
+/// Inputs:
+/// - `app`: Application state with modal
+///
+/// Output:
+/// - Verifies dependencies are correctly displayed
+///
+/// Details:
+/// - Switches to Deps tab and syncs data
+/// - Asserts both packages have dependencies
+fn test_deps_tab(app: &mut crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         items,
         action,
@@ -206,7 +230,6 @@ fn preflight_handles_aur_and_official_package_mix() {
     {
         *tab = crate_root::state::PreflightTab::Deps;
 
-        // Simulate sync_dependencies logic
         if matches!(*action, crate_root::state::PreflightAction::Install) {
             let item_names: std::collections::HashSet<String> =
                 items.iter().map(|i| i.name.clone()).collect();
@@ -251,8 +274,20 @@ fn preflight_handles_aur_and_official_package_mix() {
     } else {
         panic!("Expected Preflight modal");
     }
+}
 
-    // Test 2: Files tab - should show files for both packages
+/// What: Test and verify files tab shows both packages.
+///
+/// Inputs:
+/// - `app`: Application state with modal
+///
+/// Output:
+/// - Verifies files are correctly displayed
+///
+/// Details:
+/// - Switches to Files tab and syncs data
+/// - Asserts both packages have files
+fn test_files_tab(app: &mut crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         items,
         tab,
@@ -263,7 +298,6 @@ fn preflight_handles_aur_and_official_package_mix() {
     {
         *tab = crate_root::state::PreflightTab::Files;
 
-        // Simulate sync_files logic
         let item_names: std::collections::HashSet<String> =
             items.iter().map(|i| i.name.clone()).collect();
         let cached_files: Vec<_> = app
@@ -295,8 +329,20 @@ fn preflight_handles_aur_and_official_package_mix() {
     } else {
         panic!("Expected Preflight modal");
     }
+}
 
-    // Test 3: Services tab - should show services for both packages
+/// What: Test and verify services tab shows both packages.
+///
+/// Inputs:
+/// - `app`: Application state with modal
+///
+/// Output:
+/// - Verifies services are correctly displayed
+///
+/// Details:
+/// - Switches to Services tab and syncs data
+/// - Asserts both packages have services
+fn test_services_tab(app: &mut crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         items,
         action,
@@ -309,7 +355,6 @@ fn preflight_handles_aur_and_official_package_mix() {
     {
         *tab = crate_root::state::PreflightTab::Services;
 
-        // Simulate sync_services logic
         if matches!(*action, crate_root::state::PreflightAction::Install) {
             let item_names: std::collections::HashSet<String> =
                 items.iter().map(|i| i.name.clone()).collect();
@@ -354,8 +399,21 @@ fn preflight_handles_aur_and_official_package_mix() {
     } else {
         panic!("Expected Preflight modal");
     }
+}
 
-    // Test 4: Sandbox tab - should ONLY show AUR package (official excluded)
+/// What: Test and verify sandbox tab shows only AUR package.
+///
+/// Inputs:
+/// - `app`: Application state with modal
+///
+/// Output:
+/// - Verifies sandbox only contains AUR package
+///
+/// Details:
+/// - Switches to Sandbox tab and syncs data
+/// - Filters to only AUR packages
+/// - Asserts only AUR package is in sandbox
+fn test_sandbox_tab(app: &mut crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         items,
         action,
@@ -367,9 +425,7 @@ fn preflight_handles_aur_and_official_package_mix() {
     {
         *tab = crate_root::state::PreflightTab::Sandbox;
 
-        // Simulate sync_sandbox logic - should filter to only AUR packages
         if matches!(*action, crate_root::state::PreflightAction::Install) {
-            // Filter items to only AUR packages
             let aur_items: Vec<_> = items
                 .iter()
                 .filter(|p| matches!(p.source, crate_root::state::Source::Aur))
@@ -410,7 +466,6 @@ fn preflight_handles_aur_and_official_package_mix() {
             sandbox_info[0].package_name, "test-aur-package",
             "Sandbox should only contain AUR package"
         );
-        // Verify official package is NOT in sandbox
         assert!(
             !sandbox_info
                 .iter()
@@ -420,8 +475,20 @@ fn preflight_handles_aur_and_official_package_mix() {
     } else {
         panic!("Expected Preflight modal");
     }
+}
 
-    // Final verification: All tabs show correct data
+/// What: Verify all tabs show correct data.
+///
+/// Inputs:
+/// - `app`: Application state with modal
+///
+/// Output:
+/// - Verifies final state of all tabs
+///
+/// Details:
+/// - Asserts deps, files, services show both packages
+/// - Asserts sandbox shows only AUR package
+fn verify_all_tabs(app: &crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         dependency_info,
         file_info,
@@ -430,12 +497,10 @@ fn preflight_handles_aur_and_official_package_mix() {
         ..
     } = &app.modal
     {
-        // Deps, Files, Services should show both packages
         assert_eq!(dependency_info.len(), 2, "Deps should show both packages");
         assert_eq!(file_info.len(), 2, "Files should show both packages");
         assert_eq!(service_info.len(), 2, "Services should show both packages");
 
-        // Sandbox should only show AUR package
         assert_eq!(
             sandbox_info.len(),
             1,
@@ -448,4 +513,40 @@ fn preflight_handles_aur_and_official_package_mix() {
     } else {
         panic!("Expected Preflight modal");
     }
+}
+
+#[test]
+/// What: Verify that preflight modal handles mix of AUR and official packages correctly.
+///
+/// Inputs:
+/// - Mix of AUR and official packages in `install_list`
+/// - Different loading characteristics for each type
+/// - Preflight modal opened with both types
+///
+/// Output:
+/// - Sandbox tab only shows AUR packages
+/// - Other tabs (Deps, Files, Services) show all packages
+/// - AUR-specific features (sandbox) work correctly
+/// - Official packages are excluded from sandbox
+///
+/// Details:
+/// - Tests that filtering works correctly for AUR vs official packages
+/// - Verifies sandbox tab only displays AUR packages
+/// - Ensures other tabs display all packages regardless of source
+fn preflight_handles_aur_and_official_package_mix() {
+    unsafe {
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    }
+
+    let mut app = crate_root::state::AppState::default();
+    let test_packages = create_test_packages();
+
+    setup_test_app_state(&mut app, &test_packages);
+    app.modal = create_test_preflight_modal(&test_packages);
+
+    test_deps_tab(&mut app);
+    test_files_tab(&mut app);
+    test_services_tab(&mut app);
+    test_sandbox_tab(&mut app);
+    verify_all_tabs(&app);
 }

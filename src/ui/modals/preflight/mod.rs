@@ -73,19 +73,20 @@ fn build_preflight_content_lines(
     fields: &mut extract::PreflightFields,
     content_rect: Rect,
 ) -> Vec<Line<'static>> {
-    let (header_chips_line, tab_header_line) = render_tab_header(
+    let mut ctx = header::TabHeaderContext {
         app,
         content_rect,
-        *fields.tab,
-        fields.header_chips,
-        fields.items,
-        fields.summary.as_ref().map(AsRef::as_ref),
-        fields.dependency_info,
-        fields.file_info,
-        *fields.services_loaded,
-        fields.sandbox_info,
-        *fields.sandbox_loaded,
-    );
+        current_tab: *fields.tab,
+        header_chips: fields.header_chips,
+        items: fields.items,
+        summary: fields.summary.as_ref().map(AsRef::as_ref),
+        dependency_info: fields.dependency_info,
+        file_info: fields.file_info,
+        services_loaded: *fields.services_loaded,
+        sandbox_info: fields.sandbox_info,
+        sandbox_loaded: *fields.sandbox_loaded,
+    };
+    let (header_chips_line, tab_header_line) = render_tab_header(&mut ctx);
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(header_chips_line);
     lines.push(tab_header_line);

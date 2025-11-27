@@ -3,26 +3,18 @@
 use pacsea as crate_root;
 use tokio::sync::mpsc;
 
-#[tokio::test]
-/// What: Verify that preflight modal handles out-of-order data arrival correctly.
+/// What: Creates test packages for testing.
 ///
-/// Inputs:
-/// - Preflight modal opened with multiple packages
-/// - Background resolution stages complete in non-sequential order (e.g., Files before Deps)
+/// Inputs: None (uses hardcoded test data).
 ///
 /// Output:
-/// - Modal state correctly reflects data as it arrives, regardless of order
-/// - All stages eventually show as complete
-#[allow(clippy::too_many_lines)]
-async fn preflight_handles_out_of_order_data_arrival() {
-    unsafe {
-        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
-    }
-
-    let mut app = crate_root::state::AppState::default();
-
-    // Create test packages
-    let test_packages = vec![
+/// - Vector of `PackageItem` instances for testing
+///
+/// Details:
+/// - Creates two packages: `test-package-1` from the `core` repository and `test-package-2` from the `extra` repository
+/// - Used to simulate multiple packages in preflight tests
+fn create_test_packages() -> Vec<crate_root::state::PackageItem> {
+    vec![
         crate_root::state::PackageItem {
             name: "test-package-1".to_string(),
             version: "1.0.0".to_string(),
@@ -47,57 +39,49 @@ async fn preflight_handles_out_of_order_data_arrival() {
             out_of_date: None,
             orphaned: false,
         },
-    ];
+    ]
+}
 
-    // Set up channels for runtime (simulating result channels)
-    let (_deps_req_tx, _deps_req_rx) =
-        mpsc::unbounded_channel::<Vec<crate_root::state::PackageItem>>();
-    let (deps_res_tx, mut deps_res_rx) =
-        mpsc::unbounded_channel::<Vec<crate_root::state::modal::DependencyInfo>>();
-    let (_files_req_tx, _files_req_rx) =
-        mpsc::unbounded_channel::<Vec<crate_root::state::PackageItem>>();
-    let (files_res_tx, mut files_res_rx) =
-        mpsc::unbounded_channel::<Vec<crate_root::state::modal::PackageFileInfo>>();
-    let (_services_req_tx, _services_req_rx) =
-        mpsc::unbounded_channel::<Vec<crate_root::state::PackageItem>>();
-    let (services_res_tx, mut services_res_rx) =
-        mpsc::unbounded_channel::<Vec<crate_root::state::modal::ServiceImpact>>();
-    let (_sandbox_req_tx, _sandbox_req_rx) =
-        mpsc::unbounded_channel::<Vec<crate_root::state::PackageItem>>();
-    let (_sandbox_res_tx, _sandbox_res_rx) =
-        mpsc::unbounded_channel::<Vec<crate_root::logic::sandbox::SandboxInfo>>();
-    let (_summary_req_tx, _summary_req_rx) = mpsc::unbounded_channel::<(
-        Vec<crate_root::state::PackageItem>,
-        crate_root::state::modal::PreflightAction,
-    )>();
-    let (summary_res_tx, mut summary_res_rx) =
-        mpsc::unbounded_channel::<crate_root::logic::preflight::PreflightSummaryOutcome>();
-
-    // Open preflight modal (simulate what happens in events/install.rs)
-    app.install_list = test_packages.clone();
+/// What: Sets up preflight modal state with all stages queued.
+///
+/// Inputs:
+/// - `app`: `AppState` to configure
+/// - `test_packages`: Packages to use for preflight
+///
+/// Output: None (modifies `app` in place).
+///
+/// Details:
+/// - Initializes the preflight modal with all stages marked as resolving (summary, deps, files, services)
+/// - Sets up empty data structures for all modal fields
+/// - Resets cancellation flag to false
+/// - Queues all resolution stages for parallel processing
+fn setup_preflight_modal(
+    app: &mut crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+) {
+    app.install_list = test_packages.to_vec();
     app.preflight_cancelled
         .store(false, std::sync::atomic::Ordering::Relaxed);
 
     // Queue all stages (simulating parallel kick-off)
     app.preflight_summary_items = Some((
-        test_packages.clone(),
+        test_packages.to_vec(),
         crate_root::state::modal::PreflightAction::Install,
     ));
     app.preflight_summary_resolving = true;
     app.preflight_deps_items = Some((
-        test_packages.clone(),
+        test_packages.to_vec(),
         crate_root::state::modal::PreflightAction::Install,
     ));
     app.preflight_deps_resolving = true;
-    app.preflight_files_items = Some(test_packages.clone());
+    app.preflight_files_items = Some(test_packages.to_vec());
     app.preflight_files_resolving = true;
-    app.preflight_services_items = Some(test_packages.clone());
+    app.preflight_services_items = Some(test_packages.to_vec());
     app.preflight_services_resolving = true;
-    // No sandbox items (no AUR packages)
 
     // Create modal state
     app.modal = crate_root::state::Modal::Preflight {
-        items: test_packages.clone(),
+        items: test_packages.to_vec(),
         action: crate_root::state::PreflightAction::Install,
         tab: crate_root::state::PreflightTab::Summary,
         summary: None,
@@ -131,20 +115,27 @@ async fn preflight_handles_out_of_order_data_arrival() {
         cascade_mode: crate_root::state::modal::CascadeMode::Basic,
         cached_reverse_deps_report: None,
     };
+}
 
-    // Verify all stages are queued
-    assert!(app.preflight_summary_resolving);
-    assert!(app.preflight_deps_resolving);
-    assert!(app.preflight_files_resolving);
-    assert!(app.preflight_services_resolving);
-
-    // Simulate out-of-order completion:
-    // 1. Files completes first (fastest)
-    // 2. Services completes second
-    // 3. Deps completes third
-    // 4. Summary completes last (slowest)
-
-    // Step 1: Files completes first
+/// What: Processes files result and verifies it was loaded.
+///
+/// Inputs:
+/// - `app`: `AppState` to update
+/// - `files_res_tx`: Sender for files result
+/// - `files_res_rx`: Receiver for files result
+///
+/// Output: None (modifies `app` in place and asserts on state).
+///
+/// Details:
+/// - Sends a test files result through the channel and receives it
+/// - Simulates the runtime handler behavior for processing files results
+/// - Updates app state if not cancelled, clearing resolving flags
+/// - Verifies files are properly loaded in the preflight modal
+async fn process_and_verify_files_result(
+    app: &mut crate_root::state::AppState,
+    files_res_tx: &mpsc::UnboundedSender<Vec<crate_root::state::modal::PackageFileInfo>>,
+    files_res_rx: &mut mpsc::UnboundedReceiver<Vec<crate_root::state::modal::PackageFileInfo>>,
+) {
     let files_result = vec![crate_root::state::modal::PackageFileInfo {
         name: "test-package-1".to_string(),
         files: vec![],
@@ -186,8 +177,27 @@ async fn preflight_handles_out_of_order_data_arrival() {
         !app.preflight_files_resolving,
         "Files resolving flag should be cleared"
     );
+}
 
-    // Step 2: Services completes second
+/// What: Processes services result and verifies it was loaded.
+///
+/// Inputs:
+/// - `app`: `AppState` to update
+/// - `services_res_tx`: Sender for services result
+/// - `services_res_rx`: Receiver for services result
+///
+/// Output: None (modifies `app` in place and asserts on state).
+///
+/// Details:
+/// - Sends a test services result through the channel and receives it
+/// - Simulates the runtime handler behavior for processing services results
+/// - Updates app state if not cancelled, marking services as loaded and clearing resolving flags
+/// - Verifies services are properly loaded in the preflight modal
+async fn process_and_verify_services_result(
+    app: &mut crate_root::state::AppState,
+    services_res_tx: &mpsc::UnboundedSender<Vec<crate_root::state::modal::ServiceImpact>>,
+    services_res_rx: &mut mpsc::UnboundedReceiver<Vec<crate_root::state::modal::ServiceImpact>>,
+) {
     let services_result = vec![crate_root::state::modal::ServiceImpact {
         unit_name: "test.service".to_string(),
         providers: vec!["test-package-1".to_string()],
@@ -238,8 +248,30 @@ async fn preflight_handles_out_of_order_data_arrival() {
         !app.preflight_services_resolving,
         "Services resolving flag should be cleared"
     );
+}
 
-    // Step 3: Deps completes third
+/// What: Processes deps result and verifies it was loaded.
+///
+/// Inputs:
+/// - `app`: `AppState` to update
+/// - `deps_res_tx`: Sender for deps result
+/// - `deps_res_rx`: Receiver for deps result
+/// - `test_packages`: Packages to filter dependencies
+///
+/// Output: None (modifies `app` in place and asserts on state).
+///
+/// Details:
+/// - Sends a test dependencies result through the channel and receives it
+/// - Simulates the runtime handler behavior for processing dependencies results
+/// - Filters dependencies to only include those required by the test packages
+/// - Updates app state if not cancelled, clearing resolving flags
+/// - Verifies dependencies are properly loaded in the preflight modal
+async fn process_and_verify_deps_result(
+    app: &mut crate_root::state::AppState,
+    deps_res_tx: &mpsc::UnboundedSender<Vec<crate_root::state::modal::DependencyInfo>>,
+    deps_res_rx: &mut mpsc::UnboundedReceiver<Vec<crate_root::state::modal::DependencyInfo>>,
+    test_packages: &[crate_root::state::PackageItem],
+) {
     let deps_result = vec![crate_root::state::modal::DependencyInfo {
         name: "test-dep".to_string(),
         version: "1.0.0".to_string(),
@@ -299,8 +331,31 @@ async fn preflight_handles_out_of_order_data_arrival() {
         !app.preflight_deps_resolving,
         "Deps resolving flag should be cleared"
     );
+}
 
-    // Step 4: Summary completes last
+/// What: Processes summary result and verifies it was loaded.
+///
+/// Inputs:
+/// - `app`: `AppState` to update
+/// - `summary_res_tx`: Sender for summary result
+/// - `summary_res_rx`: Receiver for summary result
+/// - `test_packages`: Packages used for preflight
+///
+/// Output: None (modifies `app` in place and asserts on state).
+///
+/// Details:
+/// - Sends a test summary result with package count and header chips through the channel and receives it
+/// - Simulates the runtime handler behavior for processing summary results
+/// - Updates app state if not cancelled, clearing resolving flags
+/// - Verifies summary is properly loaded in the preflight modal
+async fn process_and_verify_summary_result(
+    app: &mut crate_root::state::AppState,
+    summary_res_tx: &mpsc::UnboundedSender<crate_root::logic::preflight::PreflightSummaryOutcome>,
+    summary_res_rx: &mut mpsc::UnboundedReceiver<
+        crate_root::logic::preflight::PreflightSummaryOutcome,
+    >,
+    test_packages: &[crate_root::state::PackageItem],
+) {
     let summary_result = crate_root::logic::preflight::PreflightSummaryOutcome {
         summary: crate_root::state::modal::PreflightSummaryData {
             packages: vec![],
@@ -358,8 +413,20 @@ async fn preflight_handles_out_of_order_data_arrival() {
         !app.preflight_summary_resolving,
         "Summary resolving flag should be cleared"
     );
+}
 
-    // Final verification: all stages should be complete
+/// What: Verifies that all preflight stages are complete.
+///
+/// Inputs:
+/// - `app`: `AppState` to verify
+///
+/// Output: None (panics on assertion failure).
+///
+/// Details:
+/// - Verifies that all four resolution stages (summary, deps, files, services) have their resolving flags set to false
+/// - Ensures all item queues are cleared
+/// - This confirms the preflight modal has finished all background work
+fn verify_all_stages_complete(app: &crate_root::state::AppState) {
     assert!(!app.preflight_summary_resolving);
     assert!(!app.preflight_deps_resolving);
     assert!(!app.preflight_files_resolving);
@@ -368,6 +435,77 @@ async fn preflight_handles_out_of_order_data_arrival() {
     assert!(app.preflight_deps_items.is_none());
     assert!(app.preflight_files_items.is_none());
     assert!(app.preflight_services_items.is_none());
+}
+
+#[tokio::test]
+/// What: Verify that preflight modal handles out-of-order data arrival correctly.
+///
+/// Inputs:
+/// - Preflight modal opened with multiple packages
+/// - Background resolution stages complete in non-sequential order (e.g., Files before Deps)
+///
+/// Output:
+/// - Modal state correctly reflects data as it arrives, regardless of order
+/// - All stages eventually show as complete
+async fn preflight_handles_out_of_order_data_arrival() {
+    unsafe {
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    }
+
+    let mut app = crate_root::state::AppState::default();
+    let test_packages = create_test_packages();
+
+    // Set up channels for runtime (simulating result channels)
+    let (_deps_req_tx, _deps_req_rx) =
+        mpsc::unbounded_channel::<Vec<crate_root::state::PackageItem>>();
+    let (deps_res_tx, mut deps_res_rx) =
+        mpsc::unbounded_channel::<Vec<crate_root::state::modal::DependencyInfo>>();
+    let (_files_req_tx, _files_req_rx) =
+        mpsc::unbounded_channel::<Vec<crate_root::state::PackageItem>>();
+    let (files_res_tx, mut files_res_rx) =
+        mpsc::unbounded_channel::<Vec<crate_root::state::modal::PackageFileInfo>>();
+    let (_services_req_tx, _services_req_rx) =
+        mpsc::unbounded_channel::<Vec<crate_root::state::PackageItem>>();
+    let (services_res_tx, mut services_res_rx) =
+        mpsc::unbounded_channel::<Vec<crate_root::state::modal::ServiceImpact>>();
+    let (_sandbox_req_tx, _sandbox_req_rx) =
+        mpsc::unbounded_channel::<Vec<crate_root::state::PackageItem>>();
+    let (_sandbox_res_tx, _sandbox_res_rx) =
+        mpsc::unbounded_channel::<Vec<crate_root::logic::sandbox::SandboxInfo>>();
+    let (_summary_req_tx, _summary_req_rx) = mpsc::unbounded_channel::<(
+        Vec<crate_root::state::PackageItem>,
+        crate_root::state::modal::PreflightAction,
+    )>();
+    let (summary_res_tx, mut summary_res_rx) =
+        mpsc::unbounded_channel::<crate_root::logic::preflight::PreflightSummaryOutcome>();
+
+    // Open preflight modal and queue all stages
+    setup_preflight_modal(&mut app, &test_packages);
+
+    // Verify all stages are queued
+    assert!(app.preflight_summary_resolving);
+    assert!(app.preflight_deps_resolving);
+    assert!(app.preflight_files_resolving);
+    assert!(app.preflight_services_resolving);
+
+    // Simulate out-of-order completion:
+    // 1. Files completes first (fastest)
+    // 2. Services completes second
+    // 3. Deps completes third
+    // 4. Summary completes last (slowest)
+    process_and_verify_files_result(&mut app, &files_res_tx, &mut files_res_rx).await;
+    process_and_verify_services_result(&mut app, &services_res_tx, &mut services_res_rx).await;
+    process_and_verify_deps_result(&mut app, &deps_res_tx, &mut deps_res_rx, &test_packages).await;
+    process_and_verify_summary_result(
+        &mut app,
+        &summary_res_tx,
+        &mut summary_res_rx,
+        &test_packages,
+    )
+    .await;
+
+    // Final verification: all stages should be complete
+    verify_all_stages_complete(&app);
 }
 
 #[tokio::test]

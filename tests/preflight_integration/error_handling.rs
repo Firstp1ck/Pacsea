@@ -1,31 +1,19 @@
-//! //! Tests for error handling and partial failures.
+//! Tests for error handling and partial failures.
 
 use pacsea as crate_root;
 
-#[test]
-/// What: Verify that preflight modal handles partial failures correctly.
+/// What: Set up test app state with pre-populated cache data.
 ///
 /// Inputs:
-/// - Packages in `install_list`
-/// - Some tabs resolve successfully (Deps, Files)
-/// - One tab fails (Services with error)
-/// - User switches between tabs
+/// - None (uses hardcoded test data)
 ///
 /// Output:
-/// - Successful tabs display data correctly
-/// - Failed tab displays error message
-/// - Other tabs remain functional despite one failure
+/// - `AppState` with test packages, dependencies, files, and services error
 ///
 /// Details:
-/// - Tests edge case where resolution fails for one tab but succeeds for others
-/// - Verifies error messages are shown correctly
-/// - Ensures failures don't affect other tabs
-#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
-fn preflight_handles_partial_failures_correctly() {
-    unsafe {
-        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
-    }
-
+/// - Creates test package and pre-populates cache with successful deps/files
+/// - Sets up services failure state
+fn setup_test_app_state() -> crate_root::state::AppState {
     let mut app = crate_root::state::AppState::default();
 
     let test_packages = vec![crate_root::state::PackageItem {
@@ -85,7 +73,7 @@ fn preflight_handles_partial_failures_correctly() {
     app.preflight_cancelled
         .store(false, std::sync::atomic::Ordering::Relaxed);
 
-    // Open preflight modal
+    // Open preflight modal with services error
     app.modal = crate_root::state::Modal::Preflight {
         items: test_packages.clone(),
         action: crate_root::state::PreflightAction::Install,
@@ -122,7 +110,20 @@ fn preflight_handles_partial_failures_correctly() {
         cached_reverse_deps_report: None,
     };
 
-    // Test 1: Switch to Deps tab (successful) - should load data
+    app
+}
+
+/// What: Sync dependencies tab data from app cache.
+///
+/// Inputs:
+/// - `app`: Application state with cached dependencies
+///
+/// Output:
+/// - Updates modal `dependency_info` with filtered dependencies
+///
+/// Details:
+/// - Simulates `sync_dependencies` logic
+fn sync_dependencies_tab(app: &mut crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         items,
         action,
@@ -134,7 +135,6 @@ fn preflight_handles_partial_failures_correctly() {
     {
         *tab = crate_root::state::PreflightTab::Deps;
 
-        // Simulate sync_dependencies logic
         if matches!(*action, crate_root::state::PreflightAction::Install) {
             let item_names: std::collections::HashSet<String> =
                 items.iter().map(|i| i.name.clone()).collect();
@@ -154,26 +154,19 @@ fn preflight_handles_partial_failures_correctly() {
             }
         }
     }
+}
 
-    if let crate_root::state::Modal::Preflight {
-        tab,
-        dependency_info,
-        deps_error,
-        ..
-    } = &app.modal
-    {
-        assert_eq!(
-            *tab,
-            crate_root::state::PreflightTab::Deps,
-            "Should be on Deps tab"
-        );
-        assert!(!dependency_info.is_empty(), "Dependencies should be loaded");
-        assert!(deps_error.is_none(), "Deps should not have error");
-    } else {
-        panic!("Expected Preflight modal");
-    }
-
-    // Test 2: Switch to Files tab (successful) - should load data
+/// What: Sync files tab data from app cache.
+///
+/// Inputs:
+/// - `app`: Application state with cached files
+///
+/// Output:
+/// - Updates modal `file_info` with filtered files
+///
+/// Details:
+/// - Simulates `sync_files` logic
+fn sync_files_tab(app: &mut crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         items,
         tab,
@@ -184,7 +177,6 @@ fn preflight_handles_partial_failures_correctly() {
     {
         *tab = crate_root::state::PreflightTab::Files;
 
-        // Simulate sync_files logic
         let item_names: std::collections::HashSet<String> =
             items.iter().map(|i| i.name.clone()).collect();
         let cached_files: Vec<_> = app
@@ -198,7 +190,67 @@ fn preflight_handles_partial_failures_correctly() {
             *file_selected = 0;
         }
     }
+}
 
+/// What: Switch to Services tab.
+///
+/// Inputs:
+/// - `app`: Application state
+///
+/// Output:
+/// - Updates modal tab to Services
+///
+/// Details:
+/// - Only switches tab, doesn't sync data
+fn switch_to_services_tab(app: &mut crate_root::state::AppState) {
+    if let crate_root::state::Modal::Preflight { tab, .. } = &mut app.modal {
+        *tab = crate_root::state::PreflightTab::Services;
+    }
+}
+
+/// What: Verify Deps tab state after sync.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `expected_message`: Optional custom assertion message
+///
+/// Output:
+/// - Panics if assertions fail
+///
+/// Details:
+/// - Verifies tab is on Deps, dependencies are loaded, and no error exists
+fn verify_deps_tab(app: &crate_root::state::AppState, expected_message: &str) {
+    if let crate_root::state::Modal::Preflight {
+        tab,
+        dependency_info,
+        deps_error,
+        ..
+    } = &app.modal
+    {
+        assert_eq!(
+            *tab,
+            crate_root::state::PreflightTab::Deps,
+            "Should be on Deps tab"
+        );
+        assert!(!dependency_info.is_empty(), "Dependencies should be loaded");
+        assert!(deps_error.is_none(), "{expected_message}");
+    } else {
+        panic!("Expected Preflight modal");
+    }
+}
+
+/// What: Verify Files tab state after sync.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `expected_message`: Optional custom assertion message
+///
+/// Output:
+/// - Panics if assertions fail
+///
+/// Details:
+/// - Verifies tab is on Files, files are loaded, and no error exists
+fn verify_files_tab(app: &crate_root::state::AppState, expected_message: &str) {
     if let crate_root::state::Modal::Preflight {
         tab,
         file_info,
@@ -212,16 +264,23 @@ fn preflight_handles_partial_failures_correctly() {
             "Should be on Files tab"
         );
         assert!(!file_info.is_empty(), "Files should be loaded");
-        assert!(files_error.is_none(), "Files should not have error");
+        assert!(files_error.is_none(), "{expected_message}");
     } else {
         panic!("Expected Preflight modal");
     }
+}
 
-    // Test 3: Switch to Services tab (failed) - should show error
-    if let crate_root::state::Modal::Preflight { tab, .. } = &mut app.modal {
-        *tab = crate_root::state::PreflightTab::Services;
-    }
-
+/// What: Verify Services tab shows error state.
+///
+/// Inputs:
+/// - `app`: Application state
+///
+/// Output:
+/// - Panics if assertions fail
+///
+/// Details:
+/// - Verifies tab is on Services, services are empty, not loaded, and error exists
+fn verify_services_tab_error(app: &crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         tab,
         service_info,
@@ -235,7 +294,6 @@ fn preflight_handles_partial_failures_correctly() {
             crate_root::state::PreflightTab::Services,
             "Should be on Services tab"
         );
-        // Services should be empty and have error
         assert!(service_info.is_empty(), "Services should be empty (failed)");
         assert!(!*services_loaded, "Services should not be marked as loaded");
         assert!(
@@ -252,112 +310,20 @@ fn preflight_handles_partial_failures_correctly() {
     } else {
         panic!("Expected Preflight modal");
     }
+}
 
-    // Test 4: Switch back to Deps tab - should still work despite Services failure
-    if let crate_root::state::Modal::Preflight {
-        items,
-        action,
-        tab,
-        dependency_info,
-        dep_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Deps;
-
-        // Re-sync to ensure data persists
-        if matches!(*action, crate_root::state::PreflightAction::Install) {
-            let item_names: std::collections::HashSet<String> =
-                items.iter().map(|i| i.name.clone()).collect();
-            let filtered: Vec<_> = app
-                .install_list_deps
-                .iter()
-                .filter(|dep| {
-                    dep.required_by
-                        .iter()
-                        .any(|req_by| item_names.contains(req_by))
-                })
-                .cloned()
-                .collect();
-            if !filtered.is_empty() {
-                *dependency_info = filtered;
-                *dep_selected = 0;
-            }
-        }
-    }
-
-    if let crate_root::state::Modal::Preflight {
-        tab,
-        dependency_info,
-        deps_error,
-        ..
-    } = &app.modal
-    {
-        assert_eq!(
-            *tab,
-            crate_root::state::PreflightTab::Deps,
-            "Should be back on Deps tab"
-        );
-        assert!(
-            !dependency_info.is_empty(),
-            "Dependencies should still be loaded"
-        );
-        assert!(
-            deps_error.is_none(),
-            "Deps should not have error (unaffected by Services failure)"
-        );
-    } else {
-        panic!("Expected Preflight modal");
-    }
-
-    // Test 5: Switch back to Files tab - should still work despite Services failure
-    if let crate_root::state::Modal::Preflight {
-        items,
-        tab,
-        file_info,
-        file_selected,
-        ..
-    } = &mut app.modal
-    {
-        *tab = crate_root::state::PreflightTab::Files;
-
-        // Re-sync to ensure data persists
-        let item_names: std::collections::HashSet<String> =
-            items.iter().map(|i| i.name.clone()).collect();
-        let cached_files: Vec<_> = app
-            .install_list_files
-            .iter()
-            .filter(|file_info| item_names.contains(&file_info.name))
-            .cloned()
-            .collect();
-        if !cached_files.is_empty() {
-            *file_info = cached_files;
-            *file_selected = 0;
-        }
-    }
-
-    if let crate_root::state::Modal::Preflight {
-        tab,
-        file_info,
-        files_error,
-        ..
-    } = &app.modal
-    {
-        assert_eq!(
-            *tab,
-            crate_root::state::PreflightTab::Files,
-            "Should be back on Files tab"
-        );
-        assert!(!file_info.is_empty(), "Files should still be loaded");
-        assert!(
-            files_error.is_none(),
-            "Files should not have error (unaffected by Services failure)"
-        );
-    } else {
-        panic!("Expected Preflight modal");
-    }
-
-    // Final verification: Successful tabs unaffected by failure
+/// What: Verify final state - successful tabs unaffected by failure.
+///
+/// Inputs:
+/// - `app`: Application state
+///
+/// Output:
+/// - Panics if assertions fail
+///
+/// Details:
+/// - Verifies successful tabs (Deps, Files) have data and no errors
+/// - Verifies failed tab (Services) has error and no data
+fn verify_final_state(app: &crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         dependency_info,
         file_info,
@@ -385,4 +351,59 @@ fn preflight_handles_partial_failures_correctly() {
     } else {
         panic!("Expected Preflight modal");
     }
+}
+
+#[test]
+/// What: Verify that preflight modal handles partial failures correctly.
+///
+/// Inputs:
+/// - Packages in `install_list`
+/// - Some tabs resolve successfully (Deps, Files)
+/// - One tab fails (Services with error)
+/// - User switches between tabs
+///
+/// Output:
+/// - Successful tabs display data correctly
+/// - Failed tab displays error message
+/// - Other tabs remain functional despite one failure
+///
+/// Details:
+/// - Tests edge case where resolution fails for one tab but succeeds for others
+/// - Verifies error messages are shown correctly
+/// - Ensures failures don't affect other tabs
+fn preflight_handles_partial_failures_correctly() {
+    unsafe {
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    }
+
+    let mut app = setup_test_app_state();
+
+    // Test 1: Switch to Deps tab (successful) - should load data
+    sync_dependencies_tab(&mut app);
+    verify_deps_tab(&app, "Deps should not have error");
+
+    // Test 2: Switch to Files tab (successful) - should load data
+    sync_files_tab(&mut app);
+    verify_files_tab(&app, "Files should not have error");
+
+    // Test 3: Switch to Services tab (failed) - should show error
+    switch_to_services_tab(&mut app);
+    verify_services_tab_error(&app);
+
+    // Test 4: Switch back to Deps tab - should still work despite Services failure
+    sync_dependencies_tab(&mut app);
+    verify_deps_tab(
+        &app,
+        "Deps should not have error (unaffected by Services failure)",
+    );
+
+    // Test 5: Switch back to Files tab - should still work despite Services failure
+    sync_files_tab(&mut app);
+    verify_files_tab(
+        &app,
+        "Files should not have error (unaffected by Services failure)",
+    );
+
+    // Final verification: Successful tabs unaffected by failure
+    verify_final_state(&app);
 }

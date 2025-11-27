@@ -157,22 +157,24 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
             }
             // Split by whitespace, filter out empty strings and .so files (virtual packages)
             // Also filter out tokens that don't look like package names
-            #[allow(clippy::case_sensitive_file_extension_comparisons)]
             return deps_str
                 .split_whitespace()
                 .map(|s| s.trim().to_string())
                 .filter(|s| {
-                    if s.is_empty() {
-                        return false;
-                    }
-                    // Filter out .so files (virtual packages)
-                    // Patterns: "libedit.so=0-64", "libgit2.so", "libfoo.so.1"
-                    let s_lower = s.to_lowercase();
-                    if s_lower.ends_with(".so")
-                        || s_lower.contains(".so.")
-                        || s_lower.contains(".so=")
+                    #[allow(clippy::case_sensitive_file_extension_comparisons)]
                     {
-                        return false;
+                        if s.is_empty() {
+                            return false;
+                        }
+                        // Filter out .so files (virtual packages)
+                        // Patterns: "libedit.so=0-64", "libgit2.so", "libfoo.so.1"
+                        let s_lower = s.to_lowercase();
+                        if s_lower.ends_with(".so")
+                            || s_lower.contains(".so.")
+                            || s_lower.contains(".so=")
+                        {
+                            return false;
+                        }
                     }
                     // Filter out common words that might appear in descriptions
                     // These are not valid package names
@@ -211,73 +213,6 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
         }
     }
     Vec::new()
-}
-
-/// What: Normalize dependency names from `pacman -Sp` or helper outputs.
-///
-/// Inputs:
-/// - `text`: Multi-line command output containing potential dependency entries.
-///
-/// Output:
-/// - Returns a vector of cleaned package names with virtual or malformed entries removed.
-///
-/// Details:
-/// - Handles repository prefixes, download URLs, and shared-library provides while extracting canonical names.
-#[allow(dead_code, clippy::case_sensitive_file_extension_comparisons)]
-pub(super) fn parse_dependency_output(text: &str) -> Vec<String> {
-    text.lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                return None;
-            }
-
-            // Handle full URLs/paths (e.g., "/mirror/archlinux/extra/os/x86_64/package-1.0-1-x86_64.pkg.tar.zst")
-            if line.contains(".pkg.tar.zst") {
-                // Extract package name from path
-                // Format: .../package-name-version-revision-arch.pkg.tar.zst
-                if let Some(pkg_start) = line.rfind('/') {
-                    let filename = &line[pkg_start + 1..];
-                    if let Some(pkg_end) = filename.find(".pkg.tar.zst") {
-                        let pkg_with_ver = &filename[..pkg_end];
-                        // Extract package name (everything before the last version-like segment)
-                        // e.g., "jujutsu-0.35.0-1-x86_64" -> "jujutsu"
-                        if let Some(name_end) = pkg_with_ver.rfind('-') {
-                            // Try to find where version starts (look for pattern like "-1-x86_64" or version numbers)
-                            let potential_name = &pkg_with_ver[..name_end];
-                            // Check if there's another dash (version-revision-arch pattern)
-                            if let Some(ver_start) = potential_name.rfind('-') {
-                                // Might be "package-version-revision-arch", extract just package
-                                return Some(potential_name[..ver_start].to_string());
-                            }
-                            return Some(potential_name.to_string());
-                        }
-                        return Some(pkg_with_ver.to_string());
-                    }
-                }
-                return None;
-            }
-
-            // Handle .so files (shared libraries) - these are virtual packages
-            // Skip them as they're not actual package dependencies
-            let line_lower = line.to_lowercase();
-            if line_lower.ends_with(".so") || line_lower.contains(".so.") {
-                return None;
-            }
-
-            // Handle repo/package format (e.g., "core/glibc" -> "glibc")
-            if let Some(slash_pos) = line.find('/') {
-                let after_slash = &line[slash_pos + 1..];
-                // Check if it's still a valid package name (not a path)
-                if !after_slash.contains('/') && !after_slash.contains("http") {
-                    return Some(after_slash.to_string());
-                }
-            }
-
-            // Plain package name
-            Some(line.to_string())
-        })
-        .collect()
 }
 
 /// What: Extract conflict specifications from the `pacman -Si` "Conflicts With" field.

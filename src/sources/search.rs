@@ -84,10 +84,10 @@ mod tests {
         curl.push("curl");
         // Shell variable syntax ${VAR:-default} - not a Rust format string
         #[allow(clippy::all, clippy::literal_string_with_formatting_args)]
-        let script = r#"#!/usr/bin/env bash
+        let script = r#"#!/bin/sh
 set -e
 state_dir="${PACSEA_FAKE_STATE_DIR:-.}"
-if [[ ! -f "$state_dir/pacsea_search_called" ]]; then
+if [ ! -f "$state_dir/pacsea_search_called" ]; then
   : > "$state_dir/pacsea_search_called"
   echo '{"results":[{"Name":"yay","Version":"12","Description":"AUR helper","Popularity":3.14,"OutOfDate":null,"Maintainer":"someuser"}]}'
 else
