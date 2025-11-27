@@ -111,6 +111,8 @@ fi
         unsafe {
             std::env::set_var("PATH", &new_path);
             std::env::set_var("PACSEA_FAKE_STATE_DIR", bin.to_string_lossy().to_string());
+            // Enable curl PATH lookup override so our fake curl is used instead of /usr/bin/curl
+            std::env::set_var("PACSEA_CURL_PATH", "1");
         }
         // Ensure PATH is set before executing commands
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -132,7 +134,10 @@ fi
         let (_items2, errs2) = super::fetch_all_with_errors("yay".into()).await;
         assert!(!errs2.is_empty());
 
-        unsafe { std::env::set_var("PATH", &old_path) };
+        unsafe {
+            std::env::set_var("PATH", &old_path);
+            std::env::remove_var("PACSEA_CURL_PATH");
+        }
         let _ = std::fs::remove_dir_all(&root);
     }
 }

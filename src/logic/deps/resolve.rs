@@ -866,6 +866,8 @@ exit 1
             unsafe { std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin") };
         }
         let _guard = PathGuard::push(dir.path());
+        // Enable curl PATH lookup override so our fake curl is used instead of /usr/bin/curl
+        unsafe { std::env::set_var("PACSEA_CURL_PATH", "1") };
         // Small delay to ensure PATH is propagated to child processes
         std::thread::sleep(std::time::Duration::from_millis(10));
         write_executable(
@@ -906,6 +908,9 @@ exit 1
         let provided = HashSet::new();
         let deps = resolve_package_deps("pkg", &Source::Aur, &installed, &provided, &upgradable)
             .expect("resolve succeeds");
+
+        // Clean up env var
+        unsafe { std::env::remove_var("PACSEA_CURL_PATH") };
 
         assert_eq!(deps.len(), 2);
         let mut names: Vec<&str> = deps.iter().map(|d| d.name.as_str()).collect();

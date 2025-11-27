@@ -24,13 +24,22 @@ static CURL_PATH: OnceLock<String> = OnceLock::new();
 /// - Path to curl binary (absolute path if found, otherwise "curl" for PATH lookup)
 ///
 /// Details:
+/// - If `PACSEA_CURL_PATH` env var is set, returns "curl" to use PATH lookup (for testing)
 /// - On Unix: Checks `/usr/bin/curl`, `/bin/curl`, `/usr/local/bin/curl`
 /// - On Windows: Checks system paths (System32, Git, MSYS2, Cygwin, Chocolatey)
 ///   and user paths (Scoop, `WinGet`, local installs)
 /// - Falls back to PATH lookup if no absolute path is found
-/// - Result is cached for performance using `OnceLock`
+/// - Result is cached for performance using `OnceLock` (except when env override is set)
 /// - Defense-in-depth measure against PATH hijacking attacks
 fn get_curl_path() -> &'static str {
+    // Check for test override BEFORE using cache - allows tests to inject fake curl
+    // This check is outside OnceLock so it's evaluated on every call
+    if std::env::var("PACSEA_CURL_PATH").is_ok() {
+        // Leak a static string for the "curl" fallback in test mode
+        // This is intentional: tests need a consistent &'static str return type
+        return Box::leak(Box::new("curl".to_string()));
+    }
+
     CURL_PATH.get_or_init(|| {
         // Check common absolute paths first (defense-in-depth against PATH hijacking)
         #[cfg(unix)]

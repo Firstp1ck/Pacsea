@@ -247,6 +247,8 @@ mod tests {
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
+        // Enable curl PATH lookup override so our fake curl is used instead of /usr/bin/curl
+        unsafe { std::env::set_var("PACSEA_CURL_PATH", "1") };
 
         // Set HOME to empty directory to avoid finding cached PKGBUILDs
         let old_home = std::env::var("HOME").unwrap_or_default();
@@ -276,6 +278,7 @@ mod tests {
 
         unsafe { std::env::set_var("PATH", &old_path) };
         unsafe { std::env::set_var("HOME", &old_home) };
+        unsafe { std::env::remove_var("PACSEA_CURL_PATH") };
         let _ = std::fs::remove_dir_all(&root);
     }
 }
