@@ -732,7 +732,6 @@ fn refresh_sudo_timestamp(password: Option<&str>, write_log: &(dyn Fn(&str) + Se
     use std::process::Command;
 
     if let Some(pass) = password {
-        #[allow(clippy::needless_borrow)]
         let escaped = shell_single_quote(pass);
         let refresh_cmd = format!("echo {escaped} | sudo -S -v");
         let _ = Command::new("bash")

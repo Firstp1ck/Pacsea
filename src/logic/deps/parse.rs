@@ -157,22 +157,24 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
             }
             // Split by whitespace, filter out empty strings and .so files (virtual packages)
             // Also filter out tokens that don't look like package names
-            #[allow(clippy::case_sensitive_file_extension_comparisons)]
             return deps_str
                 .split_whitespace()
                 .map(|s| s.trim().to_string())
                 .filter(|s| {
-                    if s.is_empty() {
-                        return false;
-                    }
-                    // Filter out .so files (virtual packages)
-                    // Patterns: "libedit.so=0-64", "libgit2.so", "libfoo.so.1"
-                    let s_lower = s.to_lowercase();
-                    if s_lower.ends_with(".so")
-                        || s_lower.contains(".so.")
-                        || s_lower.contains(".so=")
+                    #[allow(clippy::case_sensitive_file_extension_comparisons)]
                     {
-                        return false;
+                        if s.is_empty() {
+                            return false;
+                        }
+                        // Filter out .so files (virtual packages)
+                        // Patterns: "libedit.so=0-64", "libgit2.so", "libfoo.so.1"
+                        let s_lower = s.to_lowercase();
+                        if s_lower.ends_with(".so")
+                            || s_lower.contains(".so.")
+                            || s_lower.contains(".so=")
+                        {
+                            return false;
+                        }
                     }
                     // Filter out common words that might appear in descriptions
                     // These are not valid package names

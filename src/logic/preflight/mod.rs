@@ -568,8 +568,7 @@ fn build_summary_data(
 /// Output: [`PreflightHeaderChips`] structure.
 ///
 /// Details: Constructs the header chip metrics.
-#[allow(clippy::missing_const_for_fn)]
-fn build_header_chips(
+const fn build_header_chips(
     package_count: usize,
     download_bytes: u64,
     install_delta_bytes: i64,
