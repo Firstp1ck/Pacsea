@@ -108,7 +108,6 @@ pub async fn fetch_official_pkg_names()
 }
 
 #[cfg(windows)]
-#[allow(dead_code)]
 /// What: Placeholder for fetching official packages on Windows.
 ///
 /// Inputs:

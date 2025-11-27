@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 /// What: Return today's UTC date as (year, month, day) using Rust's standard library.
 ///
 /// Inputs:
@@ -6,7 +5,6 @@
 ///
 /// Output:
 /// - `Some((year, month, day))` when available; `None` if the conversion fails.
-#[cfg_attr(not(test), allow(dead_code))]
 pub fn today_ymd_utc() -> Option<(i32, u32, u32)> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -83,7 +81,6 @@ const fn is_leap_year(year: i32) -> bool {
 ///
 /// Details:
 /// - Supports both abbreviated and full month names.
-#[cfg_attr(not(test), allow(dead_code))]
 fn parse_month_name(m_s: &str) -> Option<u32> {
     match m_s {
         "Jan" | "January" => Some(1),
@@ -112,7 +109,6 @@ fn parse_month_name(m_s: &str) -> Option<u32> {
 ///
 /// Output:
 /// - `Some((y, m, d))` for recognized and valid dates; `None` otherwise.
-#[cfg_attr(not(test), allow(dead_code))]
 #[allow(clippy::many_single_char_names)]
 pub fn parse_news_date_to_ymd(s: &str) -> Option<(i32, u32, u32)> {
     let t = s.trim();

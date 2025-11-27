@@ -18,7 +18,6 @@ pub struct PreflightFields<'a> {
     pub action: &'a PreflightAction,
     pub tab: &'a PreflightTab,
     pub summary: &'a Option<Box<PreflightSummaryData>>,
-    #[allow(dead_code)] // Used indirectly via app.modal in scroll calculation
     pub summary_scroll: u16,
     pub header_chips: &'a PreflightHeaderChips,
     pub dependency_info: &'a mut Vec<DependencyInfo>,

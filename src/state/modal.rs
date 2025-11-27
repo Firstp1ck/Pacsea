@@ -393,7 +393,6 @@ pub enum Modal {
     /// Informational alert with a non-interactive message.
     Alert { message: String },
     /// Confirmation dialog for installing the given items.
-    #[allow(dead_code)]
     ConfirmInstall { items: Vec<PackageItem> },
     /// Confirmation dialog for batch updates that may cause dependency conflicts.
     ConfirmBatchUpdate {
@@ -455,7 +454,6 @@ pub enum Modal {
         cached_reverse_deps_report: Option<crate::logic::deps::ReverseDependencyReport>,
     },
     /// Preflight execution screen with log and sticky sidebar.
-    #[allow(dead_code)]
     PreflightExec {
         items: Vec<PackageItem>,
         action: PreflightAction,
@@ -478,7 +476,6 @@ pub enum Modal {
     /// Help overlay with keybindings. Non-interactive; dismissed with Esc/Enter.
     Help,
     /// Confirmation dialog for removing the given items.
-    #[allow(dead_code)]
     ConfirmRemove { items: Vec<PackageItem> },
     /// System update dialog with multi-select options and optional country.
     SystemUpdate {

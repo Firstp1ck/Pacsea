@@ -906,7 +906,6 @@ exit 1
 ///
 /// # Errors
 /// - Returns an error if directory creation fails, curl request fails, or file I/O fails.
-#[allow(dead_code)]
 pub async fn download_sync_db(repo_dir: &Path, repo: &str, arch: &str) -> Result<PathBuf> {
     let base = "https://geo.mirror.pkgbuild.com";
     let url = format!("{base}/{repo}/os/{arch}/{repo}.db");

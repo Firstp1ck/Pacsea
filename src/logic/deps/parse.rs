@@ -223,7 +223,7 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
 ///
 /// Details:
 /// - Handles repository prefixes, download URLs, and shared-library provides while extracting canonical names.
-#[allow(dead_code, clippy::case_sensitive_file_extension_comparisons)]
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 pub(super) fn parse_dependency_output(text: &str) -> Vec<String> {
     text.lines()
         .filter_map(|line| {

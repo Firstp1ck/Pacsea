@@ -11,7 +11,6 @@ Details:
 - Mirrors package scan but omits clone steps, operating on existing directory
 */
 
-#[cfg_attr(not(test), allow(dead_code))]
 #[cfg(not(target_os = "windows"))]
 /// What: Build the in-place scan pipeline for an existing directory.
 ///
