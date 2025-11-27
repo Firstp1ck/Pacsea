@@ -52,6 +52,7 @@ pub enum PackageMarker {
     End,
 }
 
+/// User-configurable application settings parsed from `pacsea.conf`.
 #[derive(Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Settings {
