@@ -481,12 +481,7 @@ fn build_comment_content(
         Line::from(
             line.spans
                 .iter()
-                .map(|span| {
-                    Span::styled(
-                        span.content.to_string(),
-                        span.style,
-                    )
-                })
+                .map(|span| Span::styled(span.content.to_string(), span.style))
                 .collect::<Vec<_>>(),
         )
     })
@@ -564,7 +559,7 @@ fn build_comment_items(
     // Clone comments to avoid borrowing conflicts with mutable app access
     let comments_to_render: Vec<_> = app.comments[scroll_offset..].to_vec();
     let mut items = Vec::new();
-    
+
     for comment in comments_to_render {
         let (item, new_y) =
             render_single_comment(&comment, th, content_x, content_width, current_y, app);

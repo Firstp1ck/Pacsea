@@ -586,6 +586,7 @@ fn store_content_rect(app: &mut AppState, content_rect: Rect) {
 ///
 /// Details: Groups all data needed for tab header rendering.
 /// This struct is available for future refactoring to reduce parameter count.
+#[allow(dead_code)]
 struct TabHeaderContext<'a> {
     app: &'a mut AppState,
     content_rect: Rect,
