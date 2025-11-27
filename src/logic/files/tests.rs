@@ -142,10 +142,15 @@ fn resolve_install_files_marks_changed_and_new_entries() {
     }
     let dir = tempdir().expect("tempdir");
     let _path_guard = PathGuard::push(dir.path());
+    // Small delay to ensure PATH is propagated to child processes
+    std::thread::sleep(std::time::Duration::from_millis(10));
     write_executable(
         dir.path(),
         "pacman",
         r#"#!/bin/sh
+if [ "$1" = "--version" ]; then
+exit 0
+fi
 if [ "$1" = "-Fl" ]; then
 cat <<'EOF'
 pkg /etc/app.conf
@@ -226,10 +231,15 @@ fn resolve_remove_files_marks_pacsave_candidates() {
     }
     let dir = tempdir().expect("tempdir");
     let _path_guard = PathGuard::push(dir.path());
+    // Small delay to ensure PATH is propagated to child processes
+    std::thread::sleep(std::time::Duration::from_millis(10));
     write_executable(
         dir.path(),
         "pacman",
         r#"#!/bin/sh
+if [ "$1" = "--version" ]; then
+exit 0
+fi
 if [ "$1" = "-Ql" ]; then
 cat <<'EOF'
 pkg /etc/app.conf

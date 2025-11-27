@@ -242,7 +242,7 @@ mod tests {
                 .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        let _ = fs::create_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("Failed to create test directory");
         let mut out_path = dir.clone();
         out_path.push("args.txt");
         let mut term_path = dir.clone();

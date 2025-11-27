@@ -799,10 +799,15 @@ mod tests {
             unsafe { std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin") };
         }
         let _guard = PathGuard::push(dir.path());
+        // Small delay to ensure PATH is propagated to child processes
+        std::thread::sleep(std::time::Duration::from_millis(10));
         write_executable(
             dir.path(),
             "pacman",
             r#"#!/bin/sh
+if [ "$1" = "--version" ]; then
+exit 0
+fi
 if [ "$1" = "-Si" ]; then
 cat <<'EOF'
 Name            : pkg
@@ -861,6 +866,8 @@ exit 1
             unsafe { std::env::set_var("PATH", "/usr/bin:/bin:/usr/local/bin") };
         }
         let _guard = PathGuard::push(dir.path());
+        // Small delay to ensure PATH is propagated to child processes
+        std::thread::sleep(std::time::Duration::from_millis(10));
         write_executable(
             dir.path(),
             "paru",
@@ -878,9 +885,21 @@ fi
 exit 1
 "#,
         );
-        write_executable(dir.path(), "yay", "#!/bin/sh\nexit 1\n");
-        write_executable(dir.path(), "pacman", "#!/bin/sh\nexit 1\n");
-        write_executable(dir.path(), "curl", "#!/bin/sh\nexit 1\n");
+        write_executable(
+            dir.path(),
+            "yay",
+            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then exit 0; fi\nexit 1\n",
+        );
+        write_executable(
+            dir.path(),
+            "pacman",
+            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then exit 0; fi\nexit 1\n",
+        );
+        write_executable(
+            dir.path(),
+            "curl",
+            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then exit 0; fi\nexit 1\n",
+        );
 
         let installed = HashSet::new();
         let upgradable = HashSet::new();
