@@ -10,4 +10,3 @@ Output:
 Details:
 - Mirrors package scan but omits clone steps, operating on existing directory
 */
-

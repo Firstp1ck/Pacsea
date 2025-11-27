@@ -1,37 +1,19 @@
-//! //! Tests for large datasets handling.
+//! Tests for large datasets handling.
 
 use super::helpers::*;
 use pacsea as crate_root;
 
-#[test]
-/// What: Verify that preflight modal handles large datasets correctly.
+/// What: Create a large set of test packages (mix of official and AUR).
 ///
 /// Inputs:
-/// - 10+ packages in `install_list` (mix of official and AUR)
-/// - Each package has 3-5 dependencies
-/// - Each package has 2-3 files
-/// - Each package has 1-2 services
-/// - AUR packages have sandbox info
-/// - User switches between all tabs
+/// - None
 ///
 /// Output:
-/// - All tabs load and display correctly with large datasets
-/// - Navigation works correctly (selection indices, tree expansion)
-/// - Data integrity is maintained (correct counts, no corruption)
+/// - Vector of 12 test packages (8 official, 4 AUR)
 ///
 /// Details:
-/// - Tests performance and correctness with large datasets
-/// - Verifies that many packages don't cause data corruption
-/// - Ensures navigation remains functional with many items
-#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
-fn preflight_handles_large_datasets_correctly() {
-    unsafe {
-        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
-    }
-
-    let mut app = crate_root::state::AppState::default();
-
-    // Create 12 test packages (mix of official and AUR)
+/// - Creates packages with varying properties for testing
+fn create_large_test_packages() -> Vec<crate_root::state::PackageItem> {
     let mut test_packages = Vec::new();
     for i in 1..=8 {
         test_packages.push(crate_root::state::PackageItem {
@@ -58,10 +40,26 @@ fn preflight_handles_large_datasets_correctly() {
             orphaned: false,
         });
     }
+    test_packages
+}
 
-    // Pre-populate cache with dependencies (3-5 per package)
+/// What: Populate app cache with dependencies for test packages.
+///
+/// Inputs:
+/// - `app`: Application state to populate
+/// - `test_packages`: Packages to create dependencies for
+///
+/// Output:
+/// - Total count of dependencies created
+///
+/// Details:
+/// - Creates 3-5 dependencies per package
+fn populate_dependencies(
+    app: &mut crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+) -> usize {
     let mut expected_dep_count = 0;
-    for pkg in &test_packages {
+    for pkg in test_packages {
         let dep_count = if pkg.name.contains("official") { 4 } else { 3 };
         for j in 1..=dep_count {
             app.install_list_deps
@@ -84,10 +82,26 @@ fn preflight_handles_large_datasets_correctly() {
             expected_dep_count += 1;
         }
     }
+    expected_dep_count
+}
 
-    // Pre-populate cache with files (2-3 per package)
+/// What: Populate app cache with files for test packages.
+///
+/// Inputs:
+/// - `app`: Application state to populate
+/// - `test_packages`: Packages to create files for
+///
+/// Output:
+/// - Total count of files created
+///
+/// Details:
+/// - Creates 2-3 files per package
+fn populate_files(
+    app: &mut crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+) -> usize {
     let mut expected_file_count = 0;
-    for pkg in &test_packages {
+    for pkg in test_packages {
         let file_count = if pkg.name.contains("official") { 3 } else { 2 };
         let mut files = Vec::new();
         for j in 1..=file_count {
@@ -95,7 +109,7 @@ fn preflight_handles_large_datasets_correctly() {
                 path: format!("/usr/bin/{}-file-{}", pkg.name, j),
                 change_type: crate_root::state::modal::FileChangeType::New,
                 package: pkg.name.clone(),
-                is_config: j == file_count, // Last file is config
+                is_config: j == file_count,
                 predicted_pacnew: false,
                 predicted_pacsave: false,
             });
@@ -114,10 +128,26 @@ fn preflight_handles_large_datasets_correctly() {
             });
         expected_file_count += file_count;
     }
+    expected_file_count
+}
 
-    // Pre-populate cache with services (1-2 per package)
+/// What: Populate app cache with services for test packages.
+///
+/// Inputs:
+/// - `app`: Application state to populate
+/// - `test_packages`: Packages to create services for
+///
+/// Output:
+/// - Total count of services created
+///
+/// Details:
+/// - Creates 1-2 services per package
+fn populate_services(
+    app: &mut crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+) -> usize {
     let mut expected_service_count = 0;
-    for pkg in &test_packages {
+    for pkg in test_packages {
         let service_count = if pkg.name.contains("official") { 2 } else { 1 };
         for j in 1..=service_count {
             app.install_list_services
@@ -132,10 +162,26 @@ fn preflight_handles_large_datasets_correctly() {
             expected_service_count += 1;
         }
     }
+    expected_service_count
+}
 
-    // Pre-populate cache with sandbox info (only for AUR packages)
+/// What: Populate app cache with sandbox info for AUR packages.
+///
+/// Inputs:
+/// - `app`: Application state to populate
+/// - `test_packages`: Packages to create sandbox info for
+///
+/// Output:
+/// - Total count of sandbox entries created
+///
+/// Details:
+/// - Only creates sandbox info for AUR packages
+fn populate_sandbox(
+    app: &mut crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+) -> usize {
     let mut expected_sandbox_count = 0;
-    for pkg in &test_packages {
+    for pkg in test_packages {
         if matches!(pkg.source, crate_root::state::Source::Aur) {
             app.install_list_sandbox
                 .push(crate_root::logic::sandbox::SandboxInfo {
@@ -153,29 +199,34 @@ fn preflight_handles_large_datasets_correctly() {
             expected_sandbox_count += 1;
         }
     }
+    expected_sandbox_count
+}
 
-    // Set packages in install list
-    app.install_list = test_packages.clone();
-    app.preflight_cancelled
-        .store(false, std::sync::atomic::Ordering::Relaxed);
-
-    // Open preflight modal
-    app.modal = create_preflight_modal(
-        test_packages.clone(),
-        crate_root::state::PreflightAction::Install,
-        crate_root::state::PreflightTab::Summary,
-    );
-
-    // Test 1: Deps tab - should load all dependencies
-    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Deps);
-    let (_, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(&app);
+/// What: Test that the Deps tab loads and displays all dependencies correctly.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `test_packages`: Test packages to verify
+/// - `expected_dep_count`: Expected total dependency count
+///
+/// Output:
+/// - None (panics on failure)
+///
+/// Details:
+/// - Verifies dependency count and that each package has correct dependencies
+fn test_deps_tab(
+    app: &mut crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+    expected_dep_count: usize,
+) {
+    switch_preflight_tab(app, crate_root::state::PreflightTab::Deps);
+    let (_, _, _, dependency_info, _, _, _, _, _) = assert_preflight_modal(app);
     assert_eq!(
         dependency_info.len(),
         expected_dep_count,
         "Should have all dependencies loaded"
     );
-    // Verify all packages have their dependencies
-    for pkg in &test_packages {
+    for pkg in test_packages {
         let expected = if pkg.name.contains("official") { 4 } else { 3 };
         assert_eq!(
             dependency_info
@@ -188,43 +239,94 @@ fn preflight_handles_large_datasets_correctly() {
             expected
         );
     }
+}
 
-    // Test 2: Files tab - should load all files
-    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Files);
-    let (_, _, _, _, file_info, _, _, _, _) = assert_preflight_modal(&app);
+/// What: Test that the Files tab loads and displays all files correctly.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `test_packages`: Test packages to verify
+/// - `expected_file_count`: Expected total file count
+///
+/// Output:
+/// - None (panics on failure)
+///
+/// Details:
+/// - Verifies file info count and total file count
+fn test_files_tab(
+    app: &mut crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+    expected_file_count: usize,
+) {
+    switch_preflight_tab(app, crate_root::state::PreflightTab::Files);
+    let (_, _, _, _, file_info, _, _, _, _) = assert_preflight_modal(app);
     assert_eq!(
         file_info.len(),
         test_packages.len(),
         "Should have file info for all packages"
     );
-    // Verify total file count
     let total_files: usize = file_info.iter().map(|f| f.files.len()).sum();
     assert_eq!(
         total_files, expected_file_count,
         "Should have all files loaded"
     );
+}
 
-    // Test 3: Services tab - should load all services
-    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Services);
-    let (_, _, _, _, _, service_info, _, services_loaded, _) = assert_preflight_modal(&app);
+/// What: Test that the Services tab loads and displays all services correctly.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `expected_service_count`: Expected total service count
+///
+/// Output:
+/// - None (panics on failure)
+///
+/// Details:
+/// - Verifies service count and that services are marked as loaded
+fn test_services_tab(app: &mut crate_root::state::AppState, expected_service_count: usize) {
+    switch_preflight_tab(app, crate_root::state::PreflightTab::Services);
+    let (_, _, _, _, _, service_info, _, services_loaded, _) = assert_preflight_modal(app);
     assert_eq!(
         service_info.len(),
         expected_service_count,
         "Should have all services loaded"
     );
     assert!(*services_loaded, "Services should be marked as loaded");
+}
 
-    // Test 4: Sandbox tab - should load sandbox info for AUR packages only
-    switch_preflight_tab(&mut app, crate_root::state::PreflightTab::Sandbox);
-    let (_, _, _, _, _, _, sandbox_info, _, sandbox_loaded) = assert_preflight_modal(&app);
+/// What: Test that the Sandbox tab loads and displays sandbox info correctly.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `expected_sandbox_count`: Expected total sandbox count
+///
+/// Output:
+/// - None (panics on failure)
+///
+/// Details:
+/// - Verifies sandbox count and that sandbox is marked as loaded
+fn test_sandbox_tab(app: &mut crate_root::state::AppState, expected_sandbox_count: usize) {
+    switch_preflight_tab(app, crate_root::state::PreflightTab::Sandbox);
+    let (_, _, _, _, _, _, sandbox_info, _, sandbox_loaded) = assert_preflight_modal(app);
     assert_eq!(
         sandbox_info.len(),
         expected_sandbox_count,
         "Should have sandbox info for all AUR packages"
     );
     assert!(*sandbox_loaded, "Sandbox should be marked as loaded");
+}
 
-    // Test 5: Verify navigation works (selection indices)
+/// What: Test that navigation works correctly with selection indices.
+///
+/// Inputs:
+/// - `app`: Application state
+///
+/// Output:
+/// - None (panics on failure)
+///
+/// Details:
+/// - Verifies that selection indices remain within bounds
+fn test_navigation(app: &mut crate_root::state::AppState) {
     if let crate_root::state::Modal::Preflight {
         dependency_info,
         file_info,
@@ -245,7 +347,7 @@ fn preflight_handles_large_datasets_correctly() {
             *service_selected = service_info.len().saturating_sub(1);
         }
     }
-    let (_, _, _, dependency_info, file_info, service_info, _, _, _) = assert_preflight_modal(&app);
+    let (_, _, _, dependency_info, file_info, service_info, _, _, _) = assert_preflight_modal(app);
     if !dependency_info.is_empty()
         && let crate_root::state::Modal::Preflight { dep_selected, .. } = &app.modal
     {
@@ -272,10 +374,32 @@ fn preflight_handles_large_datasets_correctly() {
             "Service selection should be within bounds"
         );
     }
+}
 
-    // Final verification: All data is correct and no corruption
+/// What: Verify data integrity - all packages should have their data.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `test_packages`: Test packages to verify
+/// - `expected_dep_count`: Expected dependency count
+/// - `expected_service_count`: Expected service count
+/// - `expected_sandbox_count`: Expected sandbox count
+///
+/// Output:
+/// - None (panics on failure)
+///
+/// Details:
+/// - Verifies all counts match expected values
+/// - Verifies each package has its dependencies, files, services, and sandbox info
+fn verify_data_integrity(
+    app: &crate_root::state::AppState,
+    test_packages: &[crate_root::state::PackageItem],
+    expected_dep_count: usize,
+    expected_service_count: usize,
+    expected_sandbox_count: usize,
+) {
     let (_, _, _, dependency_info, file_info, service_info, sandbox_info, _, _) =
-        assert_preflight_modal(&app);
+        assert_preflight_modal(app);
     assert_eq!(
         dependency_info.len(),
         expected_dep_count,
@@ -297,8 +421,7 @@ fn preflight_handles_large_datasets_correctly() {
         "Sandbox count should match expected"
     );
 
-    // Verify data integrity - all packages should have their data
-    for pkg in &test_packages {
+    for pkg in test_packages {
         assert!(
             dependency_info
                 .iter()
@@ -324,4 +447,61 @@ fn preflight_handles_large_datasets_correctly() {
             );
         }
     }
+}
+
+#[test]
+/// What: Verify that preflight modal handles large datasets correctly.
+///
+/// Inputs:
+/// - 10+ packages in `install_list` (mix of official and AUR)
+/// - Each package has 3-5 dependencies
+/// - Each package has 2-3 files
+/// - Each package has 1-2 services
+/// - AUR packages have sandbox info
+/// - User switches between all tabs
+///
+/// Output:
+/// - All tabs load and display correctly with large datasets
+/// - Navigation works correctly (selection indices, tree expansion)
+/// - Data integrity is maintained (correct counts, no corruption)
+///
+/// Details:
+/// - Tests performance and correctness with large datasets
+/// - Verifies that many packages don't cause data corruption
+/// - Ensures navigation remains functional with many items
+fn preflight_handles_large_datasets_correctly() {
+    unsafe {
+        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    }
+
+    let mut app = crate_root::state::AppState::default();
+    let test_packages = create_large_test_packages();
+
+    let expected_dep_count = populate_dependencies(&mut app, &test_packages);
+    let expected_file_count = populate_files(&mut app, &test_packages);
+    let expected_service_count = populate_services(&mut app, &test_packages);
+    let expected_sandbox_count = populate_sandbox(&mut app, &test_packages);
+
+    app.install_list = test_packages.clone();
+    app.preflight_cancelled
+        .store(false, std::sync::atomic::Ordering::Relaxed);
+
+    app.modal = create_preflight_modal(
+        test_packages.clone(),
+        crate_root::state::PreflightAction::Install,
+        crate_root::state::PreflightTab::Summary,
+    );
+
+    test_deps_tab(&mut app, &test_packages, expected_dep_count);
+    test_files_tab(&mut app, &test_packages, expected_file_count);
+    test_services_tab(&mut app, expected_service_count);
+    test_sandbox_tab(&mut app, expected_sandbox_count);
+    test_navigation(&mut app);
+    verify_data_integrity(
+        &app,
+        &test_packages,
+        expected_dep_count,
+        expected_service_count,
+        expected_sandbox_count,
+    );
 }

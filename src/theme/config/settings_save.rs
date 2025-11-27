@@ -431,4 +431,3 @@ pub fn save_scan_do_sleuth(value: bool) {
 pub fn save_fuzzy_search(value: bool) {
     save_boolean_key("fuzzy_search", value);
 }
-

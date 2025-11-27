@@ -213,7 +213,6 @@ pub(super) fn parse_pacman_si_deps(text: &str) -> Vec<String> {
     Vec::new()
 }
 
-
 /// What: Extract conflict specifications from the `pacman -Si` "Conflicts With" field.
 ///
 /// Inputs:

@@ -142,7 +142,6 @@ Before committing, ensure all of the following pass:
 4. Ensure tests are meaningful and cover the functionality
 
 **Test guidelines:**
-- Use `#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]` for complex integration tests if needed
 - Tests should be deterministic and not rely on external state
 - Use `--dry-run` in tests that would modify the system
 

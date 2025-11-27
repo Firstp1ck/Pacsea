@@ -5,8 +5,252 @@
 //! These tests verify that the update flags are parsed correctly and simulate
 //! a long-running update scenario where sudo may timeout and require password re-entry.
 
-use std::process::{Command, Stdio};
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
+
+/// Mock pacman script content that simulates a long-running update.
+const MOCK_PACMAN_SCRIPT: &str = r#"#!/bin/bash
+# Simulate a long-running pacman update
+echo ":: Synchronizing package databases..."
+sleep 2
+echo ":: Starting full system upgrade..."
+sleep 2
+echo "resolving dependencies..."
+sleep 1
+echo "looking for conflicting packages..."
+sleep 1
+echo ""
+echo "Packages (5) to upgrade:"
+echo "  core/systemd  250.4-1 -> 251.1-1"
+echo "  core/linux    6.8.0-1 -> 6.9.0-1"
+echo "  extra/firefox 120.0-1 -> 121.0-1"
+echo "  extra/vim     9.0.2000-1 -> 9.1.0000-1"
+echo "  aur/custom-pkg 1.0.0-1 -> 2.0.0-1"
+echo ""
+sleep 2
+echo ":: Proceeding with installation..."
+sleep 2
+echo "(5/5) checking package integrity..."
+sleep 1
+echo "(5/5) loading package files..."
+sleep 1
+echo "(5/5) checking for file conflicts..."
+sleep 1
+echo "(5/5) checking available disk space..."
+sleep 1
+echo "(5/5) upgrading systemd..."
+sleep 2
+echo "(5/5) upgrading linux..."
+sleep 2
+echo "(5/5) upgrading firefox..."
+sleep 2
+echo "(5/5) upgrading vim..."
+sleep 2
+echo "(5/5) upgrading custom-pkg..."
+sleep 2
+echo ""
+echo "Total download size: 500.00 MiB"
+echo "Total installed size: 1200.00 MiB"
+echo "Net upgrade size: 700.00 MiB"
+echo ""
+echo ":: Running post-transaction hooks..."
+sleep 1
+echo "(1/3) Updating systemd service files..."
+sleep 1
+echo "(2/3) Reloading system manager configuration..."
+sleep 1
+echo "(3/3) Updating font cache..."
+sleep 1
+echo ""
+echo "System upgrade completed successfully."
+exit 0
+"#;
+
+/// What: Create a temporary directory with a unique name for test artifacts.
+///
+/// Inputs:
+/// - `prefix`: Prefix for the directory name.
+///
+/// Output:
+/// - Returns the path to the created temporary directory.
+///
+/// Details:
+/// - Creates a directory in the system temp directory with a unique name
+///   based on the process ID and current timestamp.
+fn create_test_temp_dir(prefix: &str) -> PathBuf {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "pacsea_test_{}_{}_{}",
+        prefix,
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("System time is before UNIX epoch")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&temp_dir).expect("Failed to create temp directory");
+    temp_dir
+}
+
+/// What: Make a script file executable.
+///
+/// Inputs:
+/// - `script_path`: Path to the script file.
+///
+/// Output:
+/// - Sets the executable permission on the file.
+///
+/// Details:
+/// - Sets the file mode to 0o755 to make it executable.
+fn make_script_executable(script_path: &Path) {
+    let mut perms = fs::metadata(script_path)
+        .expect("Failed to read script metadata")
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(script_path, perms).expect("Failed to set script permissions");
+}
+
+/// What: Create a mock sudo script that tracks password requests.
+///
+/// Inputs:
+/// - `script_path`: Path where the script should be created.
+/// - `password_log_path`: Path to the password log file.
+///
+/// Output:
+/// - Creates an executable mock sudo script at the specified path.
+///
+/// Details:
+/// - The script simulates sudo behavior that requires password via stdin
+///   and logs password requests to verify it's only asked once.
+fn create_mock_sudo_script(script_path: &Path, password_log_path: &Path) {
+    let password_log_str = password_log_path.to_string_lossy();
+    let sudo_script = format!(
+        r#"#!/bin/bash
+# Mock sudo that simulates password requirement and timeout
+# This simulates the scenario where sudo requires password at the beginning
+# and should NOT require it again even if the update takes a long time
+
+PASSWORD_LOG="{password_log_str}"
+
+# Check if password was provided via stdin (sudo -S)
+if [ -t 0 ]; then
+    # No stdin, passwordless sudo attempt
+    echo "Passwordless sudo not available" >&2
+    exit 1
+fi
+
+# Read password from stdin
+read -r PASSWORD < /dev/stdin
+
+# Log password request (without the actual password)
+echo "$(date +%s): Password provided" >> "$PASSWORD_LOG"
+
+# Simulate sudo timestamp - in real scenario, this would be set by sudo
+# For testing, we simulate that the password is valid for the entire update
+# The actual implementation should handle this by using sudo -v to refresh timestamp
+# or by providing password once and using it for all commands
+
+# Execute the actual command (simulate pacman update)
+exec "$@"
+"#
+    );
+
+    fs::write(script_path, sudo_script).expect("Failed to write mock sudo script");
+    make_script_executable(script_path);
+}
+
+/// What: Create a mock pacman script that simulates a long-running update.
+///
+/// Inputs:
+/// - `script_path`: Path where the script should be created.
+///
+/// Output:
+/// - Creates an executable mock pacman script at the specified path.
+///
+/// Details:
+/// - Uses the shared `MOCK_PACMAN_SCRIPT` content to create the script.
+fn create_mock_pacman_script(script_path: &Path) {
+    fs::write(script_path, MOCK_PACMAN_SCRIPT).expect("Failed to write mock pacman script");
+    make_script_executable(script_path);
+}
+
+/// What: Run the mock update command and verify the results.
+///
+/// Inputs:
+/// - `mock_sudo_path`: Path to the mock sudo script.
+/// - `mock_pacman_path`: Path to the mock pacman script.
+/// - `password_log_path`: Path to the password log file.
+///
+/// Output:
+/// - Returns the command output and duration.
+///
+/// Details:
+/// - Executes the mock update command and measures execution time.
+/// - Verifies that the update completed successfully and took at least 20 seconds.
+/// - Verifies that password was only requested once.
+/// - Verifies that output contains expected update messages.
+fn run_and_verify_sudo_timeout_test(
+    mock_sudo_path: &Path,
+    mock_pacman_path: &Path,
+    password_log_path: &Path,
+) -> (Output, Duration) {
+    let start = Instant::now();
+    let output = Command::new("bash")
+        .arg("-c")
+        .arg(format!(
+            "echo 'testpassword' | {} {} -Syu --noconfirm",
+            mock_sudo_path.display(),
+            mock_pacman_path.display()
+        ))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("Failed to execute mock update");
+
+    let duration = start.elapsed();
+
+    // Verify the update completed successfully
+    assert!(
+        output.status.success(),
+        "Mock update should complete successfully"
+    );
+
+    // Verify it took a reasonable amount of time (simulating long-running update)
+    assert!(
+        duration >= Duration::from_secs(20),
+        "Mock update should take at least 20 seconds. Actual duration: {duration:?}"
+    );
+
+    // Verify password was only requested ONCE (not multiple times)
+    assert!(
+        password_log_path.exists(),
+        "Password log file should exist. This indicates the mock sudo script failed to create the log file, \
+         which means the password tracking mechanism is not working correctly."
+    );
+
+    let password_requests = fs::read_to_string(password_log_path).unwrap_or_else(|_| String::new());
+    let request_count = password_requests.lines().count();
+    assert!(
+        request_count == 1,
+        "Password should be requested only once, but was requested {request_count} times. \
+         This indicates the implementation may not properly handle sudo timeout during long updates."
+    );
+
+    // Verify output contains expected update messages
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Synchronizing package databases"),
+        "Output should contain synchronization message"
+    );
+    assert!(
+        stdout.contains("System upgrade completed successfully"),
+        "Output should contain success message"
+    );
+
+    (output, duration)
+}
 
 /// What: Verify that the `-u` short flag triggers the update handler.
 ///
@@ -165,13 +409,9 @@ fn test_update_long_flag_triggers_update() {
 ///   3. Password should NOT be required again (implementation should handle this)
 /// - The test creates a mock sudo wrapper that simulates password requirement and timeout.
 /// - Verifies that the update handler properly handles sudo password to avoid re-prompting.
-#[allow(clippy::too_many_lines)]
 #[test]
 #[ignore = "Long-running simulation test, only run manually"]
 fn test_sudo_password_timeout_during_long_update() {
-    use std::fs;
-    use std::os::unix::fs::PermissionsExt;
-
     // Skip this test if we're in CI or don't have bash/sudo available
     if std::env::var("CI").is_ok()
         || Command::new("which").arg("bash").output().is_err()
@@ -180,184 +420,18 @@ fn test_sudo_password_timeout_during_long_update() {
         return;
     }
 
-    // Create a temporary directory for test artifacts
-    let temp_dir = std::env::temp_dir().join(format!(
-        "pacsea_test_sudo_timeout_{}_{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("System time is before UNIX epoch")
-            .as_nanos()
-    ));
-    fs::create_dir_all(&temp_dir).expect("Failed to create temp directory");
-
-    // Create a mock sudo wrapper that:
-    // 1. Requires password via stdin (simulating sudo -S)
-    // 2. Has a short timestamp timeout (simulating sudo timeout)
-    // 3. Tracks password requests to verify it's only asked once
+    let temp_dir = create_test_temp_dir("sudo_timeout");
     let password_log = temp_dir.join("password_requests.log");
-    let password_log_str = password_log.to_string_lossy();
     let mock_sudo_path = temp_dir.join("mock_sudo");
-    let sudo_script = format!(
-        r#"#!/bin/bash
-# Mock sudo that simulates password requirement and timeout
-# This simulates the scenario where sudo requires password at the beginning
-# and should NOT require it again even if the update takes a long time
-
-PASSWORD_LOG="{password_log_str}"
-
-# Check if password was provided via stdin (sudo -S)
-if [ -t 0 ]; then
-    # No stdin, passwordless sudo attempt
-    echo "Passwordless sudo not available" >&2
-    exit 1
-fi
-
-# Read password from stdin
-read -r PASSWORD < /dev/stdin
-
-# Log password request (without the actual password)
-echo "$(date +%s): Password provided" >> "$PASSWORD_LOG"
-
-# Simulate sudo timestamp - in real scenario, this would be set by sudo
-# For testing, we simulate that the password is valid for the entire update
-# The actual implementation should handle this by using sudo -v to refresh timestamp
-# or by providing password once and using it for all commands
-
-# Execute the actual command (simulate pacman update)
-exec "$@"
-"#
-    );
-
-    fs::write(&mock_sudo_path, sudo_script).expect("Failed to write mock sudo script");
-    let mut perms = fs::metadata(&mock_sudo_path)
-        .expect("Failed to read sudo script metadata")
-        .permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(&mock_sudo_path, perms).expect("Failed to set sudo script permissions");
-
-    // Create a mock pacman that simulates a long-running update
     let mock_pacman_path = temp_dir.join("mock_pacman");
-    let pacman_script = r#"#!/bin/bash
-# Simulate a long-running pacman update
-echo ":: Synchronizing package databases..."
-sleep 2
-echo ":: Starting full system upgrade..."
-sleep 2
-echo "resolving dependencies..."
-sleep 1
-echo "looking for conflicting packages..."
-sleep 1
-echo ""
-echo "Packages (5) to upgrade:"
-echo "  core/systemd  250.4-1 -> 251.1-1"
-echo "  core/linux    6.8.0-1 -> 6.9.0-1"
-echo "  extra/firefox 120.0-1 -> 121.0-1"
-echo "  extra/vim     9.0.2000-1 -> 9.1.0000-1"
-echo "  aur/custom-pkg 1.0.0-1 -> 2.0.0-1"
-echo ""
-sleep 2
-echo ":: Proceeding with installation..."
-sleep 2
-echo "(5/5) checking package integrity..."
-sleep 1
-echo "(5/5) loading package files..."
-sleep 1
-echo "(5/5) checking for file conflicts..."
-sleep 1
-echo "(5/5) checking available disk space..."
-sleep 1
-echo "(5/5) upgrading systemd..."
-sleep 2
-echo "(5/5) upgrading linux..."
-sleep 2
-echo "(5/5) upgrading firefox..."
-sleep 2
-echo "(5/5) upgrading vim..."
-sleep 2
-echo "(5/5) upgrading custom-pkg..."
-sleep 2
-echo ""
-echo "Total download size: 500.00 MiB"
-echo "Total installed size: 1200.00 MiB"
-echo "Net upgrade size: 700.00 MiB"
-echo ""
-echo ":: Running post-transaction hooks..."
-sleep 1
-echo "(1/3) Updating systemd service files..."
-sleep 1
-echo "(2/3) Reloading system manager configuration..."
-sleep 1
-echo "(3/3) Updating font cache..."
-sleep 1
-echo ""
-echo "System upgrade completed successfully."
-exit 0
-"#;
 
-    fs::write(&mock_pacman_path, pacman_script).expect("Failed to write mock pacman script");
-    let mut perms = fs::metadata(&mock_pacman_path)
-        .expect("Failed to read pacman script metadata")
-        .permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(&mock_pacman_path, perms).expect("Failed to set pacman script permissions");
+    create_mock_sudo_script(&mock_sudo_path, &password_log);
+    create_mock_pacman_script(&mock_pacman_path);
 
     // Test the scenario: password provided once, used for long-running update
     // This simulates: echo 'password' | sudo -S pacman -Syu --noconfirm
-    let start = Instant::now();
-    let output = Command::new("bash")
-        .arg("-c")
-        .arg(format!(
-            "echo 'testpassword' | {} {} -Syu --noconfirm",
-            mock_sudo_path.display(),
-            mock_pacman_path.display()
-        ))
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .expect("Failed to execute mock update");
-
-    let duration = start.elapsed();
-
-    // Verify the update completed successfully
-    assert!(
-        output.status.success(),
-        "Mock update should complete successfully"
-    );
-
-    // Verify it took a reasonable amount of time (simulating long-running update)
-    assert!(
-        duration >= Duration::from_secs(20),
-        "Mock update should take at least 20 seconds. Actual duration: {duration:?}"
-    );
-
-    // Verify password was only requested ONCE (not multiple times)
-    // This is the key test: password should be provided once at the beginning
-    // and NOT required again, even if the update takes a long time
-    assert!(
-        password_log.exists(),
-        "Password log file should exist. This indicates the mock sudo script failed to create the log file, \
-         which means the password tracking mechanism is not working correctly."
-    );
-
-    let password_requests = fs::read_to_string(&password_log).unwrap_or_else(|_| String::new());
-    let request_count = password_requests.lines().count();
-    assert!(
-        request_count == 1,
-        "Password should be requested only once, but was requested {request_count} times. \
-         This indicates the implementation may not properly handle sudo timeout during long updates."
-    );
-
-    // Verify output contains expected update messages
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Synchronizing package databases"),
-        "Output should contain synchronization message"
-    );
-    assert!(
-        stdout.contains("System upgrade completed successfully"),
-        "Output should contain success message"
-    );
+    let (_output, _duration) =
+        run_and_verify_sudo_timeout_test(&mock_sudo_path, &mock_pacman_path, &password_log);
 
     // Clean up
     let _ = fs::remove_file(&mock_sudo_path);
@@ -384,97 +458,16 @@ exit 0
 #[test]
 #[ignore = "Long-running simulation test, only run manually"]
 fn test_long_running_update_simulation() {
-    use std::fs;
-    use std::os::unix::fs::PermissionsExt;
-
     // Skip this test if we're in CI or don't have bash available
     if std::env::var("CI").is_ok() || Command::new("which").arg("bash").output().is_err() {
         return;
     }
 
-    // Create a temporary directory for test artifacts
-    let temp_dir = std::env::temp_dir().join(format!(
-        "pacsea_test_update_{}_{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("System time is before UNIX epoch")
-            .as_nanos()
-    ));
-    fs::create_dir_all(&temp_dir).expect("Failed to create temp directory");
-
-    // Create a mock script that simulates a long-running update
-    // This script will sleep for a short time (simulating long operation)
-    // and then exit successfully
-    // In a real scenario, this would take much longer (potentially >15 minutes),
-    // which could cause sudo's timestamp to expire, requiring password re-entry
+    let temp_dir = create_test_temp_dir("update");
     let mock_script_path = temp_dir.join("mock_pacman_update.sh");
-    let script_content = r#"#!/bin/bash
-# Simulate a long-running update process
-# In real scenario, this would be: sudo pacman -Syu --noconfirm
-# If this takes longer than sudo's timestamp_timeout (default 15 minutes),
-# sudo will require password re-entry
-echo ":: Synchronizing package databases..."
-sleep 2
-echo ":: Starting full system upgrade..."
-sleep 2
-echo "resolving dependencies..."
-sleep 1
-echo "looking for conflicting packages..."
-sleep 1
-echo ""
-echo "Packages (5) to upgrade:"
-echo "  core/systemd  250.4-1 -> 251.1-1"
-echo "  core/linux    6.8.0-1 -> 6.9.0-1"
-echo "  extra/firefox 120.0-1 -> 121.0-1"
-echo "  extra/vim     9.0.2000-1 -> 9.1.0000-1"
-echo "  aur/custom-pkg 1.0.0-1 -> 2.0.0-1"
-echo ""
-sleep 2
-echo ":: Proceeding with installation..."
-sleep 2
-echo "(5/5) checking package integrity..."
-sleep 1
-echo "(5/5) loading package files..."
-sleep 1
-echo "(5/5) checking for file conflicts..."
-sleep 1
-echo "(5/5) checking available disk space..."
-sleep 1
-echo "(5/5) upgrading systemd..."
-sleep 2
-echo "(5/5) upgrading linux..."
-sleep 2
-echo "(5/5) upgrading firefox..."
-sleep 2
-echo "(5/5) upgrading vim..."
-sleep 2
-echo "(5/5) upgrading custom-pkg..."
-sleep 2
-echo ""
-echo "Total download size: 500.00 MiB"
-echo "Total installed size: 1200.00 MiB"
-echo "Net upgrade size: 700.00 MiB"
-echo ""
-echo ":: Running post-transaction hooks..."
-sleep 1
-echo "(1/3) Updating systemd service files..."
-sleep 1
-echo "(2/3) Reloading system manager configuration..."
-sleep 1
-echo "(3/3) Updating font cache..."
-sleep 1
-echo ""
-echo "System upgrade completed successfully."
-exit 0
-"#;
 
-    fs::write(&mock_script_path, script_content).expect("Failed to write mock script");
-    let mut perms = fs::metadata(&mock_script_path)
-        .expect("Failed to read script metadata")
-        .permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(&mock_script_path, perms).expect("Failed to set script permissions");
+    fs::write(&mock_script_path, MOCK_PACMAN_SCRIPT).expect("Failed to write mock script");
+    make_script_executable(&mock_script_path);
 
     // Test that the script runs and takes a reasonable amount of time
     // (simulating a long-running update)
