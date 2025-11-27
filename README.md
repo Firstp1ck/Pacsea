@@ -180,8 +180,6 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 - **Vote for AUR packages via SSH connection**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
-- **Vote for AUR packages via SSH connection**
-
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does**
