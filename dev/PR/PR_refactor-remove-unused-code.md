@@ -1,17 +1,8 @@
-<!-- Thank you for contributing to Pacsea! 
-
-**Important references:**
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — Full contribution guidelines and PR process
-- [PR_DESCRIPTION.md](../Documents/PR_DESCRIPTION.md) — Detailed PR description template
-- [Development Wiki](https://github.com/Firstp1ck/Pacsea/wiki/Development) — Development tools and debugging
-
-Please ensure you've reviewed these before submitting your PR.
--->
-
 ## Summary
-This PR removes unused code annotations and refactors comment handling logic for better maintainability. The changes include:
+This PR removes unused code annotations and refactors code for better maintainability. The changes include:
 - Removal of unnecessary `#[allow(dead_code)]` annotations across the codebase
 - Introduction of `CommentExtractionContext` struct to streamline HTML data extraction
+- Introduction of `TabHeaderContext` struct to simplify tab header rendering
 - Refactoring of comment rendering functions for improved readability
 - Better separation of concerns for loading, error, and empty state items
 - Improved handling of pinned comments and their display logic
@@ -68,6 +59,10 @@ None - this is a refactoring PR with no functional changes.
    - Refactored comment rendering functions for better readability and maintainability, including separating concerns for building loading, error, and empty state items
    - Improved the handling of pinned comments and their display logic in the comments viewer
 
+3. **f318916f** - refactor: simplify tab header rendering
+   - Introduced `TabHeaderContext` struct to consolidate parameters and reduce function arguments
+   - Updated `render_tab_header` to use a single context parameter for better code clarity
+
 ### Files Changed
 - `dev/AGENTS.md` (new file)
 - `src/app/news.rs`
@@ -83,5 +78,4 @@ None - this is a refactoring PR with no functional changes.
 - `src/ui/modals/preflight/header.rs`
 - `src/ui/modals/preflight/helpers/extract.rs`
 
-**Total:** 13 files changed, 588 insertions(+), 430 deletions(-)
 
