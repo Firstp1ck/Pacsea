@@ -1,3 +1,5 @@
+//! Builds shell commands for installing packages via pacman or AUR helpers.
+
 use crate::state::{PackageItem, Source};
 
 use super::utils::shell_single_quote;
