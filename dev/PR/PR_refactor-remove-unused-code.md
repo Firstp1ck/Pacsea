@@ -1,13 +1,16 @@
 ## Summary
-This PR removes unused code annotations and refactors code for better maintainability. The changes include:
-- Removal of unnecessary `#[allow(dead_code)]` annotations across the codebase
-- Introduction of `CommentExtractionContext` struct to streamline HTML data extraction
-- Introduction of `TabHeaderContext` struct to simplify tab header rendering
-- Refactoring of comment rendering functions for improved readability
-- Better separation of concerns for loading, error, and empty state items
-- Improved handling of pinned comments and their display logic
+This PR removes dead code and unused modules while improving code organization and documentation. The changes include:
+- **Bug fix**: Fixed preflight tabs not resolving when opening a second package directly from results pane without searching in between
+- **Dead code removal**: Deleted unused `news.rs` module (date parsing functions that were no longer used)
+- **Unused code cleanup**: Removed `#[allow(dead_code)]` and `#[allow(clippy::needless_borrow)]` annotations across the codebase
+- **Code refactoring**: Improved comment handling with `CommentExtractionContext` struct for HTML data extraction
+- **UI improvements**: Introduced `TabHeaderContext` struct to consolidate tab header rendering parameters
+- **Function optimizations**: Updated `build_header_chips` to be a `const fn`, improving performance
+- **Code quality**: Removed unused functions, streamlined comments, and improved documentation
+- **Test updates**: Comprehensive test refactoring to align with code changes (4,354 insertions, 3,112 deletions)
 
 ## Type of change
+- [x] bugfix (non-breaking change which fixes an issue)
 - [x] refactor (no functional change)
 
 ## How to test
@@ -39,43 +42,29 @@ RUST_LOG=pacsea=debug cargo run -- --dry-run
 - [ ] No breaking changes (or clearly documented if intentional)
 
 ## Notes for reviewers
-- This is a refactoring PR focused on code cleanup and improved structure
-- The main changes are in comment handling logic (`src/sources/comments.rs`, `src/ui/details/comments.rs`)
-- Removed `#[allow(dead_code)]` annotations from multiple files, indicating actual dead code was removed
-- Added `dev/AGENTS.md` file for development documentation
+- This is a comprehensive refactoring PR focused on removing dead code and improving maintainability
+- **Bug fix**: Fixed `preflight_cancelled` flag not being reset when opening preflight with `use_cache = true` in `open_preflight_modal()`. This caused preflight tabs to not resolve when opening a second package directly from results pane without searching in between.
+- **Significant changes**: Deletion of unused `news.rs` module (178 lines removed) which contained date parsing functions
+- **Main refactoring areas**:
+  - Comment handling: `src/sources/comments.rs` and `src/ui/details/comments.rs` (291 and 488 line files refactored)
+  - Preflight logic: `src/logic/preflight/mod.rs` (183 lines changed)
+  - Arguments handling: `src/args/update.rs` (326 lines refactored)
+  - Directory scanning: `src/install/scan/dir.rs` (95 lines removed - dead code)
+- **Code cleanup**: Removed `#[allow(dead_code)]` annotations from multiple files, indicating actual dead code was removed
+- **Documentation improvements**: Added `dev/AGENTS.md` and improved code comments throughout
+- **Test updates**: All 14 test files refactored to align with code changes (totaling ~1,242 net additions)
 
 ## Breaking changes
-None - this is a refactoring PR with no functional changes.
-
-## Additional context
-
-### Commits
-1. **ea8b13ee** - added agents.md file for dev
-   - Added development documentation file `dev/AGENTS.md`
-
-2. **5c22df34** - refactor: clean up dead code and improve comment handling
-   - Removed unnecessary `#[allow(dead_code)]` annotations from various functions and structs across the codebase
-   - Enhanced the comment fetching logic by introducing a `CommentExtractionContext` struct to streamline data extraction from HTML elements
-   - Refactored comment rendering functions for better readability and maintainability, including separating concerns for building loading, error, and empty state items
-   - Improved the handling of pinned comments and their display logic in the comments viewer
-
-3. **f318916f** - refactor: simplify tab header rendering
-   - Introduced `TabHeaderContext` struct to consolidate parameters and reduce function arguments
-   - Updated `render_tab_header` to use a single context parameter for better code clarity
+None - this is a refactoring PR with a bug fix but no breaking changes. The `news.rs` module deletion is safe as those functions were not used anywhere in the codebase. The bug fix for `preflight_cancelled` flag is backwards compatible.
 
 ### Files Changed
-- `dev/AGENTS.md` (new file)
-- `src/app/news.rs`
-- `src/index/fetch.rs`
-- `src/index/mirrors.rs`
-- `src/install/scan/dir.rs`
-- `src/logic/deps/parse.rs`
-- `src/logic/preflight/mod.rs`
-- `src/sources/comments.rs`
-- `src/state/modal.rs`
-- `src/theme/config/settings_save.rs`
-- `src/ui/details/comments.rs`
-- `src/ui/modals/preflight/header.rs`
-- `src/ui/modals/preflight/helpers/extract.rs`
+**Bug Fix:**
+- `src/events/search/preflight_helpers.rs` - Added `preflight_cancelled` flag reset in `use_cache` branch + 5 new unit tests
+
+**Deleted/Removed:**
+- `src/app/news.rs` (178 lines) - unused date parsing functions
+
+**Test Files (14 refactored):**
+- All test files in `tests/` and `tests/preflight_integration/` updated to align with codebase changes
 
 

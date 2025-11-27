@@ -236,6 +236,10 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
     }
 
     if use_cache {
+        // Reset cancellation flag when opening new preflight
+        app.preflight_cancelled
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+
         let crate::logic::preflight::PreflightSummaryOutcome {
             summary,
             header,
@@ -279,4 +283,243 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
         "Preflight opened".to_string()
     });
     app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What: Provide a baseline `AppState` for preflight helper tests.
+    ///
+    /// Inputs: None
+    ///
+    /// Output: Fresh `AppState` with default values.
+    fn new_app() -> AppState {
+        AppState::default()
+    }
+
+    /// What: Create a test package item for testing.
+    ///
+    /// Inputs:
+    /// - `name`: Package name
+    ///
+    /// Output: A test `PackageItem` with official source.
+    fn test_package(name: &str) -> PackageItem {
+        PackageItem {
+            name: name.to_string(),
+            version: "1.0.0".to_string(),
+            description: "Test package".to_string(),
+            source: crate::state::Source::Official {
+                repo: "extra".to_string(),
+                arch: "x86_64".to_string(),
+            },
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }
+    }
+
+    #[test]
+    /// What: Verify that `trigger_background_resolution` sets resolution flags correctly.
+    ///
+    /// Inputs:
+    /// - App state
+    /// - Empty `dependency_info` and `cached_files`
+    ///
+    /// Output:
+    /// - Resolution flags and items are set
+    ///
+    /// Details:
+    /// - Tests that background resolution is properly triggered when caches are empty.
+    fn trigger_background_resolution_sets_flags_when_cache_empty() {
+        let mut app = new_app();
+        let items = vec![test_package("test-pkg")];
+
+        trigger_background_resolution(&mut app, &items, &[], &[]);
+
+        // Flags should be set
+        assert!(app.preflight_deps_resolving);
+        assert!(app.preflight_files_resolving);
+        assert!(app.preflight_services_resolving);
+        // Items should be queued
+        assert!(app.preflight_deps_items.is_some());
+        assert!(app.preflight_files_items.is_some());
+        assert!(app.preflight_services_items.is_some());
+    }
+
+    #[test]
+    /// What: Verify that `trigger_background_resolution` does not set deps flag when cache has deps.
+    ///
+    /// Inputs:
+    /// - App state
+    /// - Non-empty `dependency_info`
+    ///
+    /// Output:
+    /// - Deps resolution flag and items are not set
+    ///
+    /// Details:
+    /// - Tests that existing cached deps prevent re-resolution.
+    fn trigger_background_resolution_skips_deps_when_cached() {
+        let mut app = new_app();
+        let items = vec![test_package("test-pkg")];
+        let cached_deps = vec![crate::state::modal::DependencyInfo {
+            name: "cached-dep".to_string(),
+            version: "1.0".to_string(),
+            status: crate::state::modal::DependencyStatus::ToInstall,
+            source: crate::state::modal::DependencySource::Official {
+                repo: "extra".to_string(),
+            },
+            required_by: vec!["test-pkg".to_string()],
+            depends_on: Vec::new(),
+            is_core: false,
+            is_system: false,
+        }];
+
+        trigger_background_resolution(&mut app, &items, &cached_deps, &[]);
+
+        // Deps should not be triggered (cache has data)
+        assert!(!app.preflight_deps_resolving);
+        assert!(app.preflight_deps_items.is_none());
+        // Files should still be triggered (cache empty)
+        assert!(app.preflight_files_resolving);
+        assert!(app.preflight_files_items.is_some());
+    }
+
+    #[test]
+    /// What: Verify `create_preflight_modal_insert_mode` resets `preflight_cancelled` flag.
+    ///
+    /// Inputs:
+    /// - App state with `preflight_cancelled` set to true
+    ///
+    /// Output:
+    /// - `preflight_cancelled` is reset to false
+    ///
+    /// Details:
+    /// - Tests the insert mode path resets the cancellation flag.
+    fn create_preflight_modal_insert_mode_resets_cancelled() {
+        let mut app = new_app();
+        app.preflight_cancelled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        let items = vec![test_package("test-pkg")];
+
+        create_preflight_modal_insert_mode(&mut app, items);
+
+        // Cancelled flag should be reset
+        assert!(
+            !app.preflight_cancelled
+                .load(std::sync::atomic::Ordering::Relaxed)
+        );
+    }
+
+    #[test]
+    /// What: Verify `filter_cached_dependencies` returns only matching deps.
+    ///
+    /// Inputs:
+    /// - App state with cached dependencies
+    /// - Set of item names to filter by
+    ///
+    /// Output:
+    /// - Only dependencies matching the item names are returned
+    ///
+    /// Details:
+    /// - Tests that dependency filtering works correctly.
+    fn filter_cached_dependencies_returns_matching() {
+        let mut app = new_app();
+        app.install_list_deps = vec![
+            crate::state::modal::DependencyInfo {
+                name: "dep-a".to_string(),
+                version: "1.0".to_string(),
+                status: crate::state::modal::DependencyStatus::ToInstall,
+                source: crate::state::modal::DependencySource::Official {
+                    repo: "extra".to_string(),
+                },
+                required_by: vec!["pkg-a".to_string()],
+                depends_on: Vec::new(),
+                is_core: false,
+                is_system: false,
+            },
+            crate::state::modal::DependencyInfo {
+                name: "dep-b".to_string(),
+                version: "1.0".to_string(),
+                status: crate::state::modal::DependencyStatus::ToInstall,
+                source: crate::state::modal::DependencySource::Official {
+                    repo: "extra".to_string(),
+                },
+                required_by: vec!["pkg-b".to_string()],
+                depends_on: Vec::new(),
+                is_core: false,
+                is_system: false,
+            },
+        ];
+
+        let mut item_names = std::collections::HashSet::new();
+        item_names.insert("pkg-a".to_string());
+
+        let result = filter_cached_dependencies(&app, &item_names);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "dep-a");
+    }
+
+    #[test]
+    /// What: Verify `filter_cached_files` returns only matching files.
+    ///
+    /// Inputs:
+    /// - App state with cached file info
+    /// - Set of item names to filter by
+    ///
+    /// Output:
+    /// - Only file info matching the item names are returned
+    ///
+    /// Details:
+    /// - Tests that file filtering works correctly.
+    fn filter_cached_files_returns_matching() {
+        let mut app = new_app();
+        app.install_list_files = vec![
+            crate::state::modal::PackageFileInfo {
+                name: "pkg-a".to_string(),
+                files: vec![crate::state::modal::FileChange {
+                    path: "/usr/bin/a".to_string(),
+                    change_type: crate::state::modal::FileChangeType::New,
+                    package: "pkg-a".to_string(),
+                    is_config: false,
+                    predicted_pacnew: false,
+                    predicted_pacsave: false,
+                }],
+                total_count: 1,
+                new_count: 1,
+                changed_count: 0,
+                removed_count: 0,
+                config_count: 0,
+                pacnew_candidates: 0,
+                pacsave_candidates: 0,
+            },
+            crate::state::modal::PackageFileInfo {
+                name: "pkg-b".to_string(),
+                files: vec![crate::state::modal::FileChange {
+                    path: "/usr/bin/b".to_string(),
+                    change_type: crate::state::modal::FileChangeType::New,
+                    package: "pkg-b".to_string(),
+                    is_config: false,
+                    predicted_pacnew: false,
+                    predicted_pacsave: false,
+                }],
+                total_count: 1,
+                new_count: 1,
+                changed_count: 0,
+                removed_count: 0,
+                config_count: 0,
+                pacnew_candidates: 0,
+                pacsave_candidates: 0,
+            },
+        ];
+
+        let mut item_names = std::collections::HashSet::new();
+        item_names.insert("pkg-a".to_string());
+
+        let result = filter_cached_files(&app, &item_names);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "pkg-a");
+    }
 }
