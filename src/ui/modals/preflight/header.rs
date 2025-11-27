@@ -584,103 +584,77 @@ fn store_content_rect(app: &mut AppState, content_rect: Rect) {
 ///
 /// Output: None (struct definition).
 ///
-/// Details: Groups all data needed for tab header rendering.
-/// This struct is available for future refactoring to reduce parameter count.
-#[allow(dead_code)]
-struct TabHeaderContext<'a> {
-    app: &'a mut AppState,
-    content_rect: Rect,
-    current_tab: PreflightTab,
-    header_chips: &'a PreflightHeaderChips,
-    items: &'a [crate::state::PackageItem],
-    summary: &'a Option<Box<crate::state::modal::PreflightSummaryData>>,
-    dependency_info: &'a [crate::state::modal::DependencyInfo],
-    file_info: &'a [crate::state::modal::PackageFileInfo],
-    services_loaded: bool,
-    sandbox_info: &'a [crate::logic::sandbox::SandboxInfo],
-    sandbox_loaded: bool,
+/// Details: Groups all data needed for tab header rendering to reduce parameter count.
+pub struct TabHeaderContext<'a> {
+    pub app: &'a mut AppState,
+    pub content_rect: Rect,
+    pub current_tab: PreflightTab,
+    pub header_chips: &'a PreflightHeaderChips,
+    pub items: &'a [crate::state::PackageItem],
+    pub summary: Option<&'a crate::state::modal::PreflightSummaryData>,
+    pub dependency_info: &'a [crate::state::modal::DependencyInfo],
+    pub file_info: &'a [crate::state::modal::PackageFileInfo],
+    pub services_loaded: bool,
+    pub sandbox_info: &'a [crate::logic::sandbox::SandboxInfo],
+    pub sandbox_loaded: bool,
 }
 
 /// What: Render tab header with progress indicators and calculate tab rectangles.
 ///
 /// Inputs:
-/// - `app`: Application state (for i18n and storing tab rects).
-/// - `content_rect`: Content area rectangle.
-/// - `tab`: Current active tab.
-/// - `header_chips`: Header chip data.
-/// - `items`: Packages in the preflight modal (for checking completion).
-/// - `summary`: Summary data (for completion status).
-/// - `dependency_info`: Dependency info (for completion status).
-/// - `file_info`: File info (for completion status).
-/// - `services_loaded`: Whether services are loaded.
-/// - `sandbox_info`: Sandbox info (for completion status).
-/// - `sandbox_loaded`: Whether sandbox is loaded.
+/// - `ctx`: Context containing all data needed for rendering.
 ///
 /// Output:
-/// - Returns a `Line` containing the tab header with progress indicators.
+/// - Returns a tuple of `(Line, Line)` containing the header chips and tab header lines.
 ///
 /// Details:
 /// - Calculates completion status for each tab and displays progress indicators.
 /// - Checks if data is complete for ALL packages, not just if any data exists.
 /// - Stores tab rectangles in `app.preflight_tab_rects` for mouse click detection.
 /// - Stores content area rectangle in `app.preflight_content_rect`.
-#[allow(clippy::too_many_arguments)]
-pub fn render_tab_header(
-    app: &mut AppState,
-    content_rect: Rect,
-    tab: PreflightTab,
-    header_chips: &PreflightHeaderChips,
-    items: &[crate::state::PackageItem],
-    summary: Option<&crate::state::modal::PreflightSummaryData>,
-    dependency_info: &[crate::state::modal::DependencyInfo],
-    file_info: &[crate::state::modal::PackageFileInfo],
-    services_loaded: bool,
-    sandbox_info: &[crate::logic::sandbox::SandboxInfo],
-    sandbox_loaded: bool,
-) -> (Line<'static>, Line<'static>) {
+pub fn render_tab_header(ctx: &mut TabHeaderContext<'_>) -> (Line<'static>, Line<'static>) {
     let th = theme();
-    let current_tab = tab;
 
-    // Option 1: Extract data preparation
-    let (item_names, aur_items) = extract_package_sets(items);
+    // Extract data preparation
+    let (item_names, aur_items) = extract_package_sets(ctx.items);
 
     // Build tab labels
-    let tab_labels = build_tab_labels(app);
+    let tab_labels = build_tab_labels(ctx.app);
 
-    // Option 2: Extract status calculation
+    // Extract status calculation
     let statuses = calculate_all_tab_statuses(
-        app,
+        ctx.app,
         &item_names,
         &aur_items,
-        summary,
-        dependency_info,
-        file_info,
-        services_loaded,
-        sandbox_info,
-        sandbox_loaded,
+        ctx.summary,
+        ctx.dependency_info,
+        ctx.file_info,
+        ctx.services_loaded,
+        ctx.sandbox_info,
+        ctx.sandbox_loaded,
     );
 
     // Track completion order (for highlighting)
     let completion_order = build_completion_order(&statuses);
 
     // Initialize tab rectangles
-    app.preflight_tab_rects = [None; 5];
+    ctx.app.preflight_tab_rects = [None; 5];
 
-    // Option 3: Extract tab rendering loop
+    // Extract tab rendering loop
     let tab_spans = build_tab_header_spans(
         &tab_labels,
         &statuses,
-        current_tab,
+        ctx.current_tab,
         &completion_order,
-        content_rect,
+        ctx.content_rect,
         &th,
-        &mut app.preflight_tab_rects,
+        &mut ctx.app.preflight_tab_rects,
     );
 
-    // Option 5: Extract rectangle storage
-    store_content_rect(app, content_rect);
+    // Extract rectangle storage
+    store_content_rect(ctx.app, ctx.content_rect);
 
-    let header_chips_line = render_header_chips(app, header_chips);
+    let header_chips_line = render_header_chips(ctx.app, ctx.header_chips);
     let tab_header_line = Line::from(tab_spans);
 
     (header_chips_line, tab_header_line)
