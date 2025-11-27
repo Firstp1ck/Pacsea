@@ -1,3 +1,5 @@
+//! PKGBUILD fetching with rate limiting and caching.
+
 use crate::logic::files::get_pkgbuild_from_cache;
 use crate::state::{PackageItem, Source};
 use crate::util::percent_encode;

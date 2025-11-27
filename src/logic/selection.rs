@@ -1,3 +1,5 @@
+//! Selection movement and detail coordination during navigation.
+
 use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};

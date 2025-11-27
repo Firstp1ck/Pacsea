@@ -1,3 +1,5 @@
+//! Post-transaction summary computation for file changes and service impacts.
+
 use crate::state::PackageItem;
 
 /// What: Minimal data required to populate the `PostSummary` modal.

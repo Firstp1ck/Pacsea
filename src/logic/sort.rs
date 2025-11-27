@@ -1,3 +1,5 @@
+//! Result sorting with selection preservation across sort modes.
+
 use crate::state::{AppState, SortMode, Source};
 
 /// What: Apply the currently selected sorting mode to `app.results` in-place.

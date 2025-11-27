@@ -1,3 +1,5 @@
+//! Package details fetching from official repositories and AUR.
+
 use serde_json::Value;
 
 use crate::state::{PackageDetails, PackageItem, Source};

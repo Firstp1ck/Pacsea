@@ -1,3 +1,5 @@
+//! Arch Linux status page parsing and monitoring.
+
 use crate::state::ArchStatusColor;
 use std::fmt::Write;
 

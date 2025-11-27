@@ -1,3 +1,5 @@
+//! Package filtering logic for repository and AUR results.
+
 use crate::state::{AppState, PackageItem, Source};
 
 #[inline]

@@ -1,3 +1,5 @@
+//! Proactive detail fetching for packages near the current selection.
+
 use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};

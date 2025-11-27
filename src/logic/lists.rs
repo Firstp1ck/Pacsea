@@ -1,3 +1,5 @@
+//! Management of install, remove, and downgrade package lists.
+
 use crate::state::{AppState, PackageItem};
 
 /// What: Add a `PackageItem` to the install list if it is not already present.

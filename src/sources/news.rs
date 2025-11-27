@@ -1,3 +1,5 @@
+//! Arch Linux news fetching and parsing.
+
 use crate::state::NewsItem;
 
 type Result<T> = super::Result<T>;

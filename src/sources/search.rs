@@ -1,3 +1,5 @@
+//! AUR search query execution and result parsing.
+
 use crate::state::{PackageItem, Source};
 use crate::util::{percent_encode, s};
 

@@ -1,3 +1,5 @@
+//! Access control for package detail loading to optimize performance.
+
 use std::collections::HashSet;
 use std::sync::{OnceLock, RwLock};
 
