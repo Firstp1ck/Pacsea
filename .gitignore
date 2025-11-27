@@ -39,6 +39,7 @@ AUR_BUILD/
 semgrep-bin/
 */logs/*
 *.lnk
+.*cache/
 
 repository/
 
