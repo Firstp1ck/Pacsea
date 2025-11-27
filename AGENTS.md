@@ -125,6 +125,23 @@ If you add or change config keys:
 - **Do NOT update README, unless explicitly asked**
 - Focus on code implementation and inline documentation (rustdoc comments)
 
+## Pull Request File Management
+- **PR file location**: PR files are stored in `dev/PR/` directory
+- **PR file template**: Use `.github/PULL_REQUEST_TEMPLATE.md` as the template when creating new PR files
+- **Creating PR files**:
+  - If no PR file exists in `dev/PR/` for the current branch, create one based on the template
+  - Name the file following the pattern `PR_<branch-name>.md` or `PR_<description>.md`
+  - Fill in all relevant sections from the template
+- **Updating PR files**:
+  - If a PR file already exists, **always update it** when changes are made to the codebase
+  - Document changes relative to the main branch only (not intermediate changes within the current branch)
+  - When a change is reversed, **remove it from the PR file** (do not document reversals)
+  - Keep the PR file synchronized with the actual state of changes in the branch
+- **Change documentation**:
+  - Only document changes that differ from the main branch
+  - Do not document intermediate iterations or changes that were later reverted
+  - Focus on the final state of changes that will be merged
+
 ## Complexity Thresholds
 - **Cyclomatic complexity**: Must be < 25 for all new functions
 - **Data flow complexity**: Must be < 25 for all new functions
