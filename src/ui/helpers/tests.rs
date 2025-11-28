@@ -116,6 +116,7 @@ fn init_results_translations(translations: &mut std::collections::HashMap<String
         "app.results.buttons.config_lists".to_string(),
         "Config/Lists".to_string(),
     );
+    translations.insert("app.results.buttons.menu".to_string(), "Menu".to_string());
     translations.insert("app.results.filters.aur".to_string(), "AUR".to_string());
     translations.insert("app.results.filters.core".to_string(), "core".to_string());
     translations.insert("app.results.filters.extra".to_string(), "extra".to_string());

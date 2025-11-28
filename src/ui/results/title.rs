@@ -24,6 +24,7 @@ struct TitleI18nStrings {
     options_button: String,
     panels_button: String,
     config_button: String,
+    menu_button: String,
     filter_aur: String,
     filter_core: String,
     filter_extra: String,
@@ -55,6 +56,7 @@ fn build_title_i18n_strings(app: &AppState) -> TitleI18nStrings {
         options_button: i18n::t(app, "app.results.buttons.options"),
         panels_button: i18n::t(app, "app.results.buttons.panels"),
         config_button: i18n::t(app, "app.results.buttons.config_lists"),
+        menu_button: i18n::t(app, "app.results.buttons.menu"),
         filter_aur: i18n::t(app, "app.results.filters.aur"),
         filter_core: i18n::t(app, "app.results.filters.core"),
         filter_extra: i18n::t(app, "app.results.filters.extra"),
@@ -504,23 +506,40 @@ fn render_manjaro_filter(
     spans
 }
 
-/// What: Render right-aligned buttons (Config/Lists, Panels, Options).
+/// What: Render right-aligned buttons (Config/Lists, Panels, Options) or collapsed Menu button.
 ///
 /// Inputs:
 /// - `i18n`: Pre-computed i18n strings
 /// - `menu_states`: Menu open/closed states
-/// - `pad`: Padding space before buttons
+/// - `pad`: Padding space before buttons (for all three buttons case)
+/// - `use_collapsed_menu`: Whether to render collapsed menu button instead of individual buttons
+/// - `menu_button_label`: Label for the collapsed menu button
+/// - `menu_pad`: Padding space for collapsed menu button (calculated separately)
 ///
 /// Output: Vector of spans for right-aligned buttons.
 ///
-/// Details: Renders Config/Lists, Panels, and Options buttons with padding if space is available.
+/// Details: Renders either all three buttons or a single collapsed Menu button based on available space.
 fn render_right_aligned_buttons(
     i18n: &TitleI18nStrings,
     menu_states: &MenuStates,
     pad: u16,
+    use_collapsed_menu: bool,
+    menu_button_label: &str,
+    menu_pad: u16,
 ) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
-    if pad >= 1 {
+    if use_collapsed_menu {
+        // Render collapsed menu button if we have space for it
+        if menu_pad >= 1 {
+            spans.push(Span::raw(" ".repeat(menu_pad as usize)));
+            let menu_btn_style = get_button_style(menu_states.collapsed_menu_open);
+            spans.extend(render_button_with_underline(
+                menu_button_label,
+                menu_btn_style,
+            ));
+        }
+    } else if pad >= 1 {
+        // Render all three buttons if we have space
         spans.push(Span::raw(" ".repeat(pad as usize)));
         let config_button_label = format!("{} v", i18n.config_button);
         let cfg_btn_style = get_button_style(menu_states.config_menu_open);
@@ -641,6 +660,9 @@ fn build_title_spans_from_values(
         &i18n,
         menu_states,
         layout_info.pad,
+        layout_info.use_collapsed_menu,
+        &layout_info.menu_button_label,
+        layout_info.menu_pad,
     ));
 
     title_spans
@@ -659,11 +681,14 @@ struct TitleLayoutInfo {
     options_button_label: String,
     panels_button_label: String,
     config_button_label: String,
+    menu_button_label: String,
     core_labels: CoreFilterLabels,
     optional_labels: OptionalReposLabels,
     inner_width: u16,
     show_artix_specific_repos: bool,
     pad: u16,
+    use_collapsed_menu: bool,
+    menu_pad: u16,
 }
 
 /// What: Layout state tracker for recording rectangles.
@@ -748,6 +773,7 @@ fn calculate_title_layout_info(
     let options_button_label = format!("{} v", i18n.options_button);
     let panels_button_label = format!("{} v", i18n.panels_button);
     let config_button_label = format!("{} v", i18n.config_button);
+    let menu_button_label = format!("{} v", i18n.menu_button);
 
     let core_labels = CoreFilterLabels {
         aur: format!("[{}]", i18n.filter_aur),
@@ -778,6 +804,7 @@ fn calculate_title_layout_info(
     let options_w = u16::try_from(options_button_label.width()).unwrap_or(u16::MAX);
     let panels_w = u16::try_from(panels_button_label.width()).unwrap_or(u16::MAX);
     let config_w = u16::try_from(config_button_label.width()).unwrap_or(u16::MAX);
+    let menu_w = u16::try_from(menu_button_label.width()).unwrap_or(u16::MAX);
     let right_w = config_w
         .saturating_add(1)
         .saturating_add(panels_w)
@@ -787,6 +814,7 @@ fn calculate_title_layout_info(
 
     // If not enough space, hide Artix-specific repo filters (keep generic Artix filter)
     let mut show_artix_specific_repos = true;
+    let mut final_consumed_left = consumed_left;
     if pad < 1 {
         // Recalculate without Artix-specific repo filters
         let repos_without_specific = OptionalRepos {
@@ -808,11 +836,36 @@ fn calculate_title_layout_info(
         if optional_repos.has_artix {
             consumed_without_specific = consumed_without_specific.saturating_add(3);
         }
-        pad = inner_width.saturating_sub(consumed_without_specific.saturating_add(right_w));
-        if pad >= 1 {
+        let new_pad = inner_width.saturating_sub(consumed_without_specific.saturating_add(right_w));
+        if new_pad >= 1 {
             show_artix_specific_repos = false;
+            pad = new_pad;
+            final_consumed_left = consumed_without_specific;
         }
     }
+
+    // Determine if we should use collapsed menu instead of individual buttons
+    // Decision logic:
+    // - pad is the remaining space after accounting for final_consumed_left + right_w
+    // - If pad >= 1: we have space for all three buttons (use_collapsed_menu = false)
+    // - If pad < 1: check if we have space for collapsed menu
+    //   Calculate space needed for collapsed menu: final_consumed_left + menu_w
+    //   If inner_width >= (final_consumed_left + menu_w + 1): use collapsed menu
+    //   Otherwise: show nothing
+    let use_collapsed_menu = if pad < 1 {
+        // Not enough space for all three buttons, check if collapsed menu fits
+        let space_needed_for_menu = final_consumed_left.saturating_add(menu_w).saturating_add(1);
+        inner_width >= space_needed_for_menu
+    } else {
+        false
+    };
+
+    // Calculate padding for collapsed menu (space after accounting for consumed_left + menu_w)
+    let menu_pad = if use_collapsed_menu {
+        inner_width.saturating_sub(final_consumed_left.saturating_add(menu_w))
+    } else {
+        pad
+    };
 
     TitleLayoutInfo {
         results_title_text,
@@ -820,11 +873,14 @@ fn calculate_title_layout_info(
         options_button_label,
         panels_button_label,
         config_button_label,
+        menu_button_label,
         core_labels,
         optional_labels,
         inner_width,
         show_artix_specific_repos,
         pad,
+        use_collapsed_menu,
+        menu_pad,
     }
 }
 
@@ -988,7 +1044,7 @@ fn record_optional_repo_rects(
     }
 }
 
-/// What: Record rectangles for right-aligned buttons (Config/Lists, Panels, Options).
+/// What: Record rectangles for right-aligned buttons (Config/Lists, Panels, Options) or collapsed Menu button.
 ///
 /// Inputs:
 /// - `app`: Mutable application state (rects will be updated)
@@ -998,14 +1054,30 @@ fn record_optional_repo_rects(
 ///
 /// Output: Updates app with right-aligned button rectangles.
 ///
-/// Details: Records rectangles for Config/Lists, Panels, and Options buttons at the right edge.
+/// Details: Records rectangles for either all three buttons or the collapsed Menu button based on available space.
 fn record_right_aligned_button_rects(
     app: &mut AppState,
     area: Rect,
     layout_info: &TitleLayoutInfo,
     btn_y: u16,
 ) {
-    if layout_info.pad >= 1 {
+    if layout_info.use_collapsed_menu {
+        // Record collapsed menu button rect if we have space for it
+        if layout_info.menu_pad >= 1 {
+            let menu_w = u16::try_from(layout_info.menu_button_label.width()).unwrap_or(u16::MAX);
+            let menu_x = area
+                .x
+                .saturating_add(1) // left border inset
+                .saturating_add(layout_info.inner_width.saturating_sub(menu_w));
+            app.collapsed_menu_button_rect = Some((menu_x, btn_y, menu_w, 1));
+        } else {
+            app.collapsed_menu_button_rect = None;
+        }
+        // Clear individual button rects
+        app.config_button_rect = None;
+        app.options_button_rect = None;
+        app.panels_button_rect = None;
+    } else if layout_info.pad >= 1 {
         // Record clickable rects at the computed right edge (Panels to the left of Options)
         // Use Unicode display width, not byte length, to handle wide characters
         let options_w = u16::try_from(layout_info.options_button_label.width()).unwrap_or(u16::MAX);
@@ -1020,10 +1092,13 @@ fn record_right_aligned_button_rects(
         app.config_button_rect = Some((cfg_x, btn_y, config_w, 1));
         app.options_button_rect = Some((opt_x, btn_y, options_w, 1));
         app.panels_button_rect = Some((pan_x, btn_y, panels_w, 1));
+        // Clear collapsed menu button rect
+        app.collapsed_menu_button_rect = None;
     } else {
         app.config_button_rect = None;
         app.options_button_rect = None;
         app.panels_button_rect = None;
+        app.collapsed_menu_button_rect = None;
     }
 }
 

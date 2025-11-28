@@ -187,6 +187,9 @@ pub(super) type DefaultSortingMenusState = (
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
+    bool,
+    Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
 );
 
 /// What: Create default filter state (all filters enabled).
@@ -513,7 +516,7 @@ pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of sorting/menu fields: `sort_mode`, `sort_menu_open`, `sort_button_rect`, `sort_menu_rect`, `sort_menu_auto_close_at`, `options_menu_open`, `options_button_rect`, `options_menu_rect`, `panels_menu_open`, `panels_button_rect`, `panels_menu_rect`, `config_menu_open`, `artix_filter_menu_open`, `artix_filter_menu_rect`, `config_button_rect`, `config_menu_rect`.
+/// - Tuple of sorting/menu fields: `sort_mode`, `sort_menu_open`, `sort_button_rect`, `sort_menu_rect`, `sort_menu_auto_close_at`, `options_menu_open`, `options_button_rect`, `options_menu_rect`, `panels_menu_open`, `panels_button_rect`, `panels_menu_rect`, `config_menu_open`, `artix_filter_menu_open`, `artix_filter_menu_rect`, `config_button_rect`, `config_menu_rect`, `collapsed_menu_open`, `collapsed_menu_button_rect`, `collapsed_menu_rect`.
 ///
 /// Details:
 /// - All menus are closed by default, sort mode is `SortMode::RepoThenName`.
@@ -533,6 +536,9 @@ pub(super) const fn default_sorting_menus_state() -> DefaultSortingMenusState {
         false,
         false,
         None,
+        None,
+        None,
+        false,
         None,
         None,
     )

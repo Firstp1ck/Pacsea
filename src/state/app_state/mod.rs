@@ -342,6 +342,14 @@ pub struct AppState {
     /// Inner content rectangle of the Artix filter dropdown menu when visible (x, y, w, h).
     pub artix_filter_menu_rect: Option<(u16, u16, u16, u16)>,
 
+    // Collapsed menu dropdown UI (when window is too narrow for all three buttons)
+    /// Whether the collapsed menu dropdown is currently visible.
+    pub collapsed_menu_open: bool,
+    /// Clickable rectangle for the collapsed menu button in the Results title (x, y, w, h).
+    pub collapsed_menu_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Inner content rectangle of the collapsed menu dropdown when visible (x, y, w, h).
+    pub collapsed_menu_rect: Option<(u16, u16, u16, u16)>,
+
     /// Whether Results is currently showing only explicitly installed packages.
     pub installed_only_mode: bool,
     /// Which right subpane is focused when installed-only mode splits the pane.

@@ -507,6 +507,88 @@ fn render_artix_filter_menu(
     f.render_widget(menu, rect);
 }
 
+/// What: Render collapsed menu dropdown (contains Config/Lists, Panels, Options).
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state
+/// - `results_area`: Available area for positioning
+/// - `th`: Theme colors
+///
+/// Output:
+/// - Updates `app.collapsed_menu_rect` if menu is rendered
+///
+/// Details:
+/// - Menu is right-aligned to the button's right edge.
+fn render_collapsed_menu(
+    f: &mut Frame,
+    app: &mut AppState,
+    results_area: Rect,
+    th: crate::theme::Theme,
+) {
+    app.collapsed_menu_rect = None;
+    if !app.collapsed_menu_open {
+        return;
+    }
+
+    let opts: Vec<String> = vec![
+        i18n::t(app, "app.results.collapsed_menu.options.config_lists"),
+        i18n::t(app, "app.results.collapsed_menu.options.panels"),
+        i18n::t(app, "app.results.collapsed_menu.options.options"),
+    ];
+
+    let widest = opts
+        .iter()
+        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
+        .max()
+        .unwrap_or(0);
+    let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
+
+    // Right-align menu to where "Options" button would be (rightmost position)
+    let rect_w = w.saturating_add(2);
+    // Calculate where Options button would be positioned (rightmost)
+    // Match the calculation from title.rs: inner_width = area.width - 2, opt_x = area.x + 1 + inner_width - options_w
+    let options_button_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
+    let options_w = u16::try_from(options_button_label.width()).unwrap_or(u16::MAX);
+    let inner_width = results_area.width.saturating_sub(2);
+    let opt_x = results_area
+        .x
+        .saturating_add(1) // left border inset
+        .saturating_add(inner_width.saturating_sub(options_w));
+    // Position menu so its right edge aligns with Options button's right edge
+    let opt_right = opt_x.saturating_add(options_w);
+    let menu_x = opt_right.saturating_sub(rect_w);
+    // Clamp to viewport boundaries
+    let min_x = results_area.x.saturating_add(1);
+    let max_x = results_area
+        .x
+        .saturating_add(results_area.width)
+        .saturating_sub(rect_w);
+    let menu_x = menu_x.max(min_x).min(max_x);
+    let menu_y = results_area.y.saturating_add(1);
+
+    let rect = Rect {
+        x: menu_x,
+        y: menu_y,
+        width: rect_w,
+        height: h,
+    };
+    let inner_rect = (rect.x + 1, rect.y + 1, w, h.saturating_sub(2));
+    app.collapsed_menu_rect = Some(inner_rect);
+
+    let spacing = 2u16;
+    let lines = build_numbered_menu_lines(&opts, widest, max_num_width, w, spacing, th);
+    let menu = create_menu_block(
+        lines,
+        "app.results.menus.menu.first_letter",
+        "app.results.menus.menu.suffix",
+        app,
+        th,
+    );
+    f.render_widget(Clear, rect);
+    f.render_widget(menu, rect);
+}
+
 /// What: Render dropdown menus (Config/Lists, Panels, Options) on the overlay layer.
 ///
 /// Inputs:
@@ -526,4 +608,5 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
     render_panels_menu(f, app, results_area, th);
     render_options_menu(f, app, results_area, th);
     render_artix_filter_menu(f, app, results_area, th);
+    render_collapsed_menu(f, app, results_area, th);
 }
