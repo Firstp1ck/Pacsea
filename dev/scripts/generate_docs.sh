@@ -38,6 +38,7 @@ set -e
 COLOR_RESET=$(tput sgr0)
 COLOR_BOLD=$(tput bold)
 COLOR_GREEN=$(tput setaf 2)
+# shellcheck disable=SC2034  # Used in printf statements
 COLOR_YELLOW=$(tput setaf 3)
 COLOR_BLUE=$(tput setaf 4)
 
