@@ -844,6 +844,47 @@ fn calculate_title_layout_info(
         }
     }
 
+    // Check if we need to hide Artix filters when using collapsed menu
+    // This must be done before determining collapsed menu to ensure consistency
+    // If we might use collapsed menu (pad < 1), check if Artix filters fit
+    if pad < 1 && show_artix_specific_repos {
+        // Calculate space needed with all filters
+        let space_for_collapsed_menu_with_filters =
+            consumed_left.saturating_add(menu_w).saturating_add(1);
+
+        // Recalculate without Artix-specific repo filters to check space
+        let repos_without_specific = OptionalRepos {
+            has_eos: optional_repos.has_eos,
+            has_cachyos: optional_repos.has_cachyos,
+            has_artix: optional_repos.has_artix,
+            has_artix_omniverse: false,
+            has_artix_universe: false,
+            has_artix_lib32: false,
+            has_artix_galaxy: false,
+            has_artix_world: false,
+            has_artix_system: false,
+            has_manjaro: optional_repos.has_manjaro,
+        };
+        let mut consumed_without_specific = base_consumed.saturating_add(
+            calculate_optional_repos_width(&repos_without_specific, &optional_labels),
+        );
+        // Add 3 extra chars for " v" dropdown indicator if artix is present
+        if optional_repos.has_artix {
+            consumed_without_specific = consumed_without_specific.saturating_add(3);
+        }
+        let space_for_collapsed_menu_without_filters = consumed_without_specific
+            .saturating_add(menu_w)
+            .saturating_add(1);
+
+        // If there's not enough space with filters but enough without, hide them
+        if inner_width < space_for_collapsed_menu_with_filters
+            && inner_width >= space_for_collapsed_menu_without_filters
+        {
+            show_artix_specific_repos = false;
+            final_consumed_left = consumed_without_specific;
+        }
+    }
+
     // Determine if we should use collapsed menu instead of individual buttons
     // Decision logic:
     // - pad is the remaining space after accounting for final_consumed_left + right_w
@@ -859,43 +900,6 @@ fn calculate_title_layout_info(
     } else {
         false
     };
-
-    // If using collapsed menu, also check if we need to hide Artix filters
-    // This prevents filters from expanding when window narrows
-    if use_collapsed_menu && show_artix_specific_repos {
-        // Check if there's enough space for Artix filters with collapsed menu
-        let space_needed_with_filters = consumed_left.saturating_add(menu_w).saturating_add(1);
-        if inner_width < space_needed_with_filters {
-            // Not enough space with filters, recalculate without them
-            let repos_without_specific = OptionalRepos {
-                has_eos: optional_repos.has_eos,
-                has_cachyos: optional_repos.has_cachyos,
-                has_artix: optional_repos.has_artix,
-                has_artix_omniverse: false,
-                has_artix_universe: false,
-                has_artix_lib32: false,
-                has_artix_galaxy: false,
-                has_artix_world: false,
-                has_artix_system: false,
-                has_manjaro: optional_repos.has_manjaro,
-            };
-            let mut consumed_without_specific = base_consumed.saturating_add(
-                calculate_optional_repos_width(&repos_without_specific, &optional_labels),
-            );
-            // Add 3 extra chars for " v" dropdown indicator if artix is present
-            if optional_repos.has_artix {
-                consumed_without_specific = consumed_without_specific.saturating_add(3);
-            }
-            let space_needed_without_filters = consumed_without_specific
-                .saturating_add(menu_w)
-                .saturating_add(1);
-            // Only hide if there's enough space without them
-            if inner_width >= space_needed_without_filters {
-                show_artix_specific_repos = false;
-                final_consumed_left = consumed_without_specific;
-            }
-        }
-    }
 
     // Calculate padding for collapsed menu (space after accounting for consumed_left + menu_w)
     let menu_pad = if use_collapsed_menu {
