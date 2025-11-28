@@ -244,6 +244,7 @@ de-DE:
         options: "Optionen"
         panels: "Panels"
         config_lists: "Konfiguration/Listen"
+        menu: "Menu"
       menus:
         config_lists:
           first_letter: "K"
@@ -254,6 +255,14 @@ de-DE:
         options:
           first_letter: "O"
           suffix: "ptionen "
+        menu:
+          first_letter: "M"
+          suffix: "enu "
+      collapsed_menu:
+        options:
+          config_lists: "Konfiguration/Listen"
+          panels: "Panels"
+          options: "Optionen"
       filters:
         aur: "AUR"
         core: "core"

@@ -5,6 +5,14 @@
 
 set -euo pipefail
 
+# Colors for output (harmonized with Makefile)
+COLOR_RESET=$(tput sgr0)
+# shellcheck disable=SC2034  # Used in printf statements
+COLOR_BOLD=$(tput bold)
+COLOR_GREEN=$(tput setaf 2)
+COLOR_YELLOW=$(tput setaf 3)
+COLOR_BLUE=$(tput setaf 4)
+
 # Configuration variables
 OUTPUT_FILE="${OUTPUT_FILE:-../ControlFlow_Diagram.md}"
 DIAGRAM_THEME="${DIAGRAM_THEME:-default}"
@@ -29,14 +37,15 @@ analyze_code() {
     local runtime_file="$src_path/app/runtime.rs"
     
     if [[ ! -f "$runtime_file" ]]; then
-        echo "❌ Error: Could not find $runtime_file" >&2
+        printf "%b❌ Error: Could not find %s%b\n" "$COLOR_YELLOW" "$runtime_file" "$COLOR_RESET" >&2
         return 1
     fi
     
     # Extract main select! branches
-    local select_start=$(grep -n "select!" "$runtime_file" | head -1 | cut -d: -f1)
+    local select_start
+    select_start=$(grep -n "select!" "$runtime_file" | head -1 | cut -d: -f1)
     if [[ -z "$select_start" ]]; then
-        echo "❌ Error: Could not find main select! block in $runtime_file" >&2
+        printf "%b❌ Error: Could not find main select! block in %s%b\n" "$COLOR_YELLOW" "$runtime_file" "$COLOR_RESET" >&2
         return 1
     fi
     
@@ -44,22 +53,24 @@ analyze_code() {
     echo "# Extracted from code analysis" >&2
     
     # Extract channel receives in select! block
-    local branches=$(sed -n "${select_start},/^[[:space:]]*}$/p" "$runtime_file" | \
+    local branches
+    branches=$(sed -n "${select_start},/^[[:space:]]*}$/p" "$runtime_file" | \
         grep -E "(Some\([^)]+\) = [^=]+\.recv\(\)|Some\(_\) = [^=]+\.recv\(\))" | \
         sed 's/.*Some(\([^)]*\))[[:space:]]*=[[:space:]]*\([^[:space:]]*\)\.recv().*/SELECT_BRANCH:\2:\1/' | \
         sed 's/.*Some(_)[[:space:]]*=[[:space:]]*\([^[:space:]]*\)\.recv().*/SELECT_BRANCH:\1:_/')
     
     # Extract worker spawns
-    local workers=$(grep -n "tokio::spawn" "$runtime_file" | \
+    local workers
+    workers=$(grep -n "tokio::spawn" "$runtime_file" | \
         grep -E "(details|deps|files|services|sandbox|pkgb|news|status|tick|query)" | \
         sed 's/.*\(details\|deps\|files\|services\|sandbox\|pkgb\|news\|status\|tick\|query\)[^[:space:]]*/\1_worker/i')
     
     # Return success if we found something
     if [[ -n "$branches" ]] || [[ -n "$workers" ]]; then
-        echo "✓ Found control flow patterns in code" >&2
+        printf "%b✓ Found control flow patterns in code%b\n" "$COLOR_GREEN" "$COLOR_RESET" >&2
         return 0
     else
-        echo "⚠ Warning: Could not extract control flow patterns, but continuing with basic diagram generation." >&2
+        printf "%b⚠ Warning: Could not extract control flow patterns, but continuing with basic diagram generation.%b\n" "$COLOR_YELLOW" "$COLOR_RESET" >&2
         return 0  # Still return success, as we can generate a basic diagram
     fi
 }
@@ -107,10 +118,12 @@ generate_diagram() {
     echo ""
     
     # Extract actual branches from code
-    local select_start=$(grep -n "select!" "$runtime_file" | head -1 | cut -d: -f1)
+    local select_start
+    select_start=$(grep -n "select!" "$runtime_file" | head -1 | cut -d: -f1)
     if [[ -n "$select_start" ]]; then
         # Find the end of the select! block (look for closing brace at same indentation)
-        local select_end=$(awk -v start="$select_start" '
+        local select_end
+        select_end=$(awk -v start="$select_start" '
             NR >= start {
                 if (match($0, /^[[:space:]]*select![[:space:]]*\{/)) { depth=1; next }
                 if (match($0, /\{/)) { depth++ }
@@ -124,11 +137,12 @@ generate_diagram() {
             sed -n "${select_start},${select_end}p" "$runtime_file" | \
             grep -E "Some\([^)]+\) = [^=]+\.recv\(\)" | \
             sed -E 's/.*Some\(([^)]+)\)[[:space:]]*=[[:space:]]*([^[:space:]]+)_rx\.recv\(\).*/\2:\1/' | \
-            while IFS=: read -r channel var; do
+            while IFS=: read -r channel _; do
                 if [[ -n "$channel" ]]; then
-                    local handler_name=$(echo "$channel" | sed 's/_res$//' | sed 's/_rx$//' | sed 's/_notify$//' | sed 's/_//g')
+                    local handler_name
+                    handler_name=$(echo "$channel" | sed 's/_res$//' | sed 's/_rx$//' | sed 's/_notify$//' | sed 's/_//g')
                     # Capitalize first letter
-                    handler_name=$(echo "$handler_name" | sed 's/^\(.\)/\U\1/')
+                    handler_name="${handler_name^}"
                     
                     # Determine handler type based on channel name
                     if [[ "$channel" =~ _res$ ]]; then
@@ -148,14 +162,16 @@ generate_diagram() {
     echo "    SelectEvents -->|Event Received| HandleEvent[events::handle_event]"
     
     # Try to extract actual branches, but include common ones as fallback
-    local found_branches=false
     if [[ -n "$select_start" ]] && [[ -n "$select_end" ]]; then
-        local extracted=$(sed -n "${select_start},${select_end}p" "$runtime_file" | \
+        local extracted
+        extracted=$(sed -n "${select_start},${select_end}p" "$runtime_file" | \
             grep -E "Some\([^)]+\) = [^=]+\.recv\(\)" | \
             sed -E 's/.*Some\(([^)]+)\)[[:space:]]*=[[:space:]]*([^[:space:]]+)_rx\.recv\(\).*/\2:\1/' | \
             head -1)
+        # extracted is checked but not used further - this is intentional for future use
+        # shellcheck disable=SC2034
         if [[ -n "$extracted" ]]; then
-            found_branches=true
+            : # Branch extraction successful
         fi
     fi
     
@@ -334,7 +350,7 @@ generate_markdown() {
                 -e "s/COLOR_SHUTDOWN/$COLOR_SHUTDOWN/g" \
                 -e "s/COLOR_END/$COLOR_END/g"
         else
-            echo "❌ Error: Could not analyze codebase. Please check that $src_path exists and contains the runtime.rs file." >&2
+            printf "%b❌ Error: Could not analyze codebase. Please check that %s exists and contains the runtime.rs file.%b\n" "$COLOR_YELLOW" "$src_path" "$COLOR_RESET" >&2
             exit 1
         fi
         
@@ -344,13 +360,13 @@ generate_markdown() {
         fi
     } > "$OUTPUT_FILE_ABS"
     
-    echo "✓ Generated markdown file: $OUTPUT_FILE_ABS"
+    printf "%b✓ Generated markdown file: %s%b\n" "$COLOR_GREEN" "$OUTPUT_FILE_ABS" "$COLOR_RESET"
 }
 
 # Function to export to PNG if mermaid-cli is available
 export_to_png() {
     if ! command -v mmdc &> /dev/null; then
-        echo "⚠ Warning: mermaid-cli (mmdc) not found. Skipping PNG export."
+        printf "%b⚠ Warning: mermaid-cli (mmdc) not found. Skipping PNG export.%b\n" "$COLOR_YELLOW" "$COLOR_RESET"
         echo "  Install with: npm install -g @mermaid-js/mermaid-cli"
         return 1
     fi
@@ -364,13 +380,14 @@ export_to_png() {
         theme_flag="--theme light"
     fi
     
-    echo "Exporting to PNG (theme: $PNG_THEME)..."
+    printf "%bExporting to PNG (theme: %s)...%b\n" "$COLOR_BLUE" "$PNG_THEME" "$COLOR_RESET"
+    # shellcheck disable=SC2086  # theme_flag may be empty or contain multiple words
     mmdc -i "$OUTPUT_FILE_ABS" -o "$png_output" $theme_flag 2>/dev/null || {
-        echo "⚠ Warning: PNG export failed. Continuing..."
+        printf "%b⚠ Warning: PNG export failed. Continuing...%b\n" "$COLOR_YELLOW" "$COLOR_RESET"
         return 1
     }
     
-    echo "✓ Generated PNG file: $png_output"
+    printf "%b✓ Generated PNG file: %s%b\n" "$COLOR_GREEN" "$png_output" "$COLOR_RESET"
 }
 
 # Parse command line arguments
@@ -465,7 +482,7 @@ EOF
             exit 0
             ;;
         *)
-            echo "Unknown option: $1" >&2
+            printf "%bUnknown option: %s%b\n" "$COLOR_YELLOW" "$1" "$COLOR_RESET" >&2
             echo "Use --help for usage information" >&2
             exit 1
             ;;
@@ -504,5 +521,5 @@ if [[ "$EXPORT_PNG" == "true" ]]; then
     export_to_png
 fi
 
-echo "✓ Done!"
+printf "%b✓ Done!%b\n" "$COLOR_GREEN" "$COLOR_RESET"
 

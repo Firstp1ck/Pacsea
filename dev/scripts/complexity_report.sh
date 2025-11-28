@@ -4,6 +4,13 @@
 #
 # This script analyzes the complexity of Rust code in the Pacsea project by running
 # complexity tests and generating a summary report highlighting the most complex functions.
+
+# Colors for output (harmonized with Makefile)
+COLOR_RESET=$(tput sgr0)
+COLOR_BOLD=$(tput bold)
+COLOR_GREEN=$(tput setaf 2)
+COLOR_YELLOW=$(tput setaf 3)
+COLOR_BLUE=$(tput setaf 4)
 #
 # What it does:
 #   1. Runs cargo test complexity to execute complexity analysis tests
@@ -12,11 +19,11 @@
 #   4. Identifies the top 3 most complex functions in two categories:
 #      - Cyclomatic Complexity: Measures control flow complexity (branches, loops, conditions)
 #      - Data Flow Complexity: Measures data dependency and state management complexity
-#   5. Generates a readable report saved to complexity_report.txt
+#   5. Generates a readable report saved to dev/scripts/complexity_report.txt
 #
 # Output:
 #   - Report is displayed in the terminal (via tee)
-#   - Also saved to: complexity_report.txt
+#   - Also saved to: dev/scripts/complexity_report.txt
 #   - Shows full complexity analysis plus a summary of top 3 most complex functions
 #
 # Metrics explained:
@@ -29,7 +36,7 @@
 #
 # Usage:
 #   ./complexity_report.sh
-#   cat complexity_report.txt  # View the saved report
+#   cat dev/scripts/complexity_report.txt  # View the saved report
 #
 # Requirements:
 #   - Rust toolchain (cargo)
@@ -37,7 +44,12 @@
 #   - Project must compile and tests must run successfully
 #
 
-cargo test complexity -- --nocapture 2>&1 | grep -vE "(^running|^test result:|^test tests::|Finished.*test.*profile|Running unittests|Running tests/)" | sed '/^$/N;/^\n$/d' | awk '
+# Get the script directory to save report in the same location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPORT_FILE="$SCRIPT_DIR/complexity_report.txt"
+
+printf "%bRunning complexity tests...%b\n" "$COLOR_BLUE" "$COLOR_RESET" >&2
+cargo test complexity -- --nocapture 2>&1 | grep -vE "(^running|^test result:|^test tests::|Finished.*test.*profile|Running unittests|Running tests/)" | sed '/^$/N;/^\n$/d' | awk -v reset="$COLOR_RESET" -v bold="$COLOR_BOLD" -v green="$COLOR_GREEN" -v yellow="$COLOR_YELLOW" -v blue="$COLOR_BLUE" '
   /^=== Cyclomatic Complexity Report ===/ { section="cyclomatic"; delete top3_cyclomatic; count_cyc=0 }
   /^=== Data Flow Complexity Report/ { section="dataflow"; delete top3_dataflow; count_df=0 }
   /^=== Top 10 Most Complex Functions ===/ && section=="cyclomatic" { in_top10=1; count_cyc=0; next }
@@ -49,12 +61,15 @@ cargo test complexity -- --nocapture 2>&1 | grep -vE "(^running|^test result:|^t
   END {
     for (i=1; i<=line_count; i++) print lines[i]
     print ""
-    print "=== Evaluation Summary: Top 3 Highest Scores ==="
+    print bold "=== Evaluation Summary: Top 3 Highest Scores ===" reset
     print ""
-    print "Cyclomatic Complexity - Top 3 Functions:"
+    print bold "Cyclomatic Complexity - Top 3 Functions:" reset
     for (i=1; i<=3; i++) if (top3_cyclomatic[i]) print top3_cyclomatic[i]
     print ""
-    print "Data Flow Complexity - Top 3 Functions:"
+    print bold "Data Flow Complexity - Top 3 Functions:" reset
     for (i=1; i<=3; i++) if (top3_dataflow[i]) print top3_dataflow[i]
   }
-' | tee complexity_report.txt
+' | tee "$REPORT_FILE"
+
+echo "" >&2
+printf "%bReport saved to: %s%b\n" "$COLOR_BLUE" "$REPORT_FILE" "$COLOR_RESET" >&2

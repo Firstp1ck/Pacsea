@@ -181,6 +181,7 @@ pub fn extract_render_context(app: &AppState) -> RenderContext {
             config_menu_open: app.config_menu_open,
             panels_menu_open: app.panels_menu_open,
             options_menu_open: app.options_menu_open,
+            collapsed_menu_open: app.collapsed_menu_open,
         },
         filter_states: FilterStates {
             show_aur: app.results_filter_show_aur,

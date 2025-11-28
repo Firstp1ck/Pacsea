@@ -14,6 +14,12 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+// ANSI color codes (harmonized with Makefile)
+const COLOR_RESET: &str = "\x1b[0m";
+const COLOR_BOLD: &str = "\x1b[1m";
+const COLOR_BLUE: &str = "\x1b[34m";
+const COLOR_YELLOW: &str = "\x1b[33m";
+
 /// Represents complexity metrics for a single function or method.
 #[derive(Debug, Clone)]
 struct FunctionComplexity {
@@ -359,7 +365,11 @@ fn calculate_project_complexity()
                     results.insert(file.clone(), complexity);
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to analyze {}: {}", file.display(), e);
+                    eprintln!(
+                        "{COLOR_YELLOW}Warning:{COLOR_RESET} Failed to analyze {}: {}",
+                        file.display(),
+                        e
+                    );
                 }
             }
         }
@@ -373,7 +383,11 @@ fn calculate_project_complexity()
                     results.insert(file.clone(), complexity);
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to analyze {}: {}", file.display(), e);
+                    eprintln!(
+                        "{COLOR_YELLOW}Warning:{COLOR_RESET} Failed to analyze {}: {}",
+                        file.display(),
+                        e
+                    );
                 }
             }
         }
@@ -475,7 +489,7 @@ mod tests {
             .filter(|f| f.complexity >= MODERATE_COMPLEXITY && f.complexity < HIGH_COMPLEXITY)
             .count();
 
-        println!("\n=== Complexity Distribution ===");
+        println!("\n{COLOR_BOLD}{COLOR_BLUE}=== Complexity Distribution ==={COLOR_RESET}");
         println!("Very High (≥{VERY_HIGH_COMPLEXITY}): {very_high}");
         println!(
             "High ({}..{}): {}",
@@ -497,7 +511,9 @@ mod tests {
 
         // List functions with very high complexity
         if very_high > 0 {
-            println!("\n=== Functions with Very High Complexity (≥{VERY_HIGH_COMPLEXITY}) ===");
+            println!(
+                "\n{COLOR_BOLD}{COLOR_YELLOW}=== Functions with Very High Complexity (≥{VERY_HIGH_COMPLEXITY}) ==={COLOR_RESET}"
+            );
             for func in all_functions
                 .iter()
                 .filter(|f| f.complexity >= VERY_HIGH_COMPLEXITY)
@@ -605,12 +621,15 @@ mod tests {
         // OPTION 5: FILE-LEVEL - Prevent individual files from becoming too complex
         // Recommended: No single file should have average complexity > 15
         // This is a warning only (doesn't fail the test)
+        // Note: Only warn for files with multiple functions. For single-function files,
+        // the individual function complexity check is more appropriate.
         for (file_path, file_comp) in &file_complexities {
-            if file_comp.avg_complexity > MAX_FILE_AVG_COMPLEXITY {
+            if file_comp.functions.len() > 1 && file_comp.avg_complexity > MAX_FILE_AVG_COMPLEXITY {
                 eprintln!(
-                    "Warning: File {} has high average complexity: {:.2}",
+                    "{COLOR_YELLOW}Warning:{COLOR_RESET} File {} has high average complexity: {:.2} ({} functions)",
                     file_path.display(),
-                    file_comp.avg_complexity
+                    file_comp.avg_complexity,
+                    file_comp.functions.len()
                 );
             }
         }

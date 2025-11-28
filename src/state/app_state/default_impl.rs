@@ -210,6 +210,9 @@ impl Default for AppState {
             artix_filter_menu_rect,
             config_button_rect,
             config_menu_rect,
+            collapsed_menu_open,
+            collapsed_menu_button_rect,
+            collapsed_menu_rect,
         ) = defaults::default_sorting_menus_state();
 
         let (installed_only_mode, right_pane_focus, package_marker) =
@@ -390,6 +393,9 @@ impl Default for AppState {
             artix_filter_menu_rect,
             config_button_rect,
             config_menu_rect,
+            collapsed_menu_open,
+            collapsed_menu_button_rect,
+            collapsed_menu_rect,
             installed_only_mode,
             right_pane_focus,
             package_marker,

@@ -244,6 +244,7 @@ en-US:
         options: "Options"
         panels: "Panels"
         config_lists: "Config/Lists"
+        menu: "Menu"
       menus:
         config_lists:
           first_letter: "C"
@@ -254,6 +255,14 @@ en-US:
         options:
           first_letter: "O"
           suffix: "ptions "
+        menu:
+          first_letter: "M"
+          suffix: "enu "
+      collapsed_menu:
+        options:
+          config_lists: "Config/Lists"
+          panels: "Panels"
+          options: "Options"
       filters:
         aur: "AUR"
         core: "core"

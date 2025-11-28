@@ -221,6 +221,27 @@ fn handle_panels_button(app: &mut AppState) -> bool {
     false
 }
 
+/// Handle click on collapsed menu button.
+///
+/// What: Toggles collapsed menu and closes other menus.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `false` if handled
+#[allow(clippy::missing_const_for_fn)]
+fn handle_collapsed_menu_button(app: &mut AppState) -> bool {
+    app.collapsed_menu_open = !app.collapsed_menu_open;
+    if app.collapsed_menu_open {
+        app.options_menu_open = false;
+        app.config_menu_open = false;
+        app.panels_menu_open = false;
+        app.artix_filter_menu_open = false;
+    }
+    false
+}
+
 /// Handle click inside sort menu.
 ///
 /// What: Changes sort mode based on clicked row and refreshes results.
@@ -567,6 +588,54 @@ fn handle_panels_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<boo
     }
 }
 
+/// Handle click inside collapsed menu.
+///
+/// What: Opens the appropriate menu based on clicked row.
+///
+/// Inputs:
+/// - `mx`: Mouse X coordinate
+/// - `my`: Mouse Y coordinate
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(false)` if handled, `None` otherwise
+///
+/// Details:
+/// - Row 0: Opens Config/Lists menu
+/// - Row 1: Opens Panels menu
+/// - Row 2: Opens Options menu
+#[allow(clippy::missing_const_for_fn)]
+fn handle_collapsed_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<bool> {
+    if let Some((_x, y, _w, _h)) = app.collapsed_menu_rect {
+        let row = my.saturating_sub(y) as usize;
+        app.collapsed_menu_open = false;
+        match row {
+            0 => {
+                app.config_menu_open = true;
+                app.options_menu_open = false;
+                app.panels_menu_open = false;
+                app.artix_filter_menu_open = false;
+            }
+            1 => {
+                app.panels_menu_open = true;
+                app.options_menu_open = false;
+                app.config_menu_open = false;
+                app.artix_filter_menu_open = false;
+            }
+            2 => {
+                app.options_menu_open = true;
+                app.panels_menu_open = false;
+                app.config_menu_open = false;
+                app.artix_filter_menu_open = false;
+            }
+            _ => return None,
+        }
+        Some(false)
+    } else {
+        None
+    }
+}
+
 /// Close all open menus.
 ///
 /// What: Closes all menus when clicking outside any menu.
@@ -587,6 +656,9 @@ fn close_all_menus(app: &mut AppState) {
     }
     if app.config_menu_open {
         app.config_menu_open = false;
+    }
+    if app.collapsed_menu_open {
+        app.collapsed_menu_open = false;
     }
 }
 
@@ -645,6 +717,9 @@ pub(super) fn handle_menus_mouse(
     if point_in_rect(mx, my, app.panels_button_rect) {
         return Some(handle_panels_button(app));
     }
+    if point_in_rect(mx, my, app.collapsed_menu_button_rect) {
+        return Some(handle_collapsed_menu_button(app));
+    }
 
     // Check menu clicks if menus are open
     if app.sort_menu_open && point_in_rect(mx, my, app.sort_menu_rect) {
@@ -658,6 +733,9 @@ pub(super) fn handle_menus_mouse(
     }
     if app.panels_menu_open && point_in_rect(mx, my, app.panels_menu_rect) {
         return handle_panels_menu_click(mx, my, app);
+    }
+    if app.collapsed_menu_open && point_in_rect(mx, my, app.collapsed_menu_rect) {
+        return handle_collapsed_menu_click(mx, my, app);
     }
 
     // Click outside any menu closes all menus

@@ -38,6 +38,14 @@
 
 set -e
 
+# Colors for output (harmonized with Makefile)
+COLOR_RESET=$(tput sgr0)
+# shellcheck disable=SC2034  # Used in printf statements
+COLOR_BOLD=$(tput bold)
+COLOR_GREEN=$(tput setaf 2)
+COLOR_YELLOW=$(tput setaf 3)
+COLOR_BLUE=$(tput setaf 4)
+
 # Change to script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -47,26 +55,26 @@ mkdir -p "$MODULES_DIR"
 
 # Check if cargo-modules is installed
 if ! command -v cargo-modules &> /dev/null; then
-    echo "Installing cargo-modules..."
+    printf "%bInstalling cargo-modules...%b\n" "$COLOR_BLUE" "$COLOR_RESET"
     cargo install cargo-modules
 fi
 
 # Change to project root (find Cargo.toml)
 PROJECT_ROOT="$(cd "$SCRIPT_DIR" && while [ ! -f "Cargo.toml" ] && [ "$PWD" != "/" ]; do cd ..; done && pwd)"
 if [ ! -f "$PROJECT_ROOT/Cargo.toml" ]; then
-    echo "Error: Could not find Cargo.toml. Please run this script from the Pacsea project directory."
+    printf "%bError: Could not find Cargo.toml. Please run this script from the Pacsea project directory.%b\n" "$COLOR_YELLOW" "$COLOR_RESET" >&2
     exit 1
 fi
 cd "$PROJECT_ROOT"
 
-echo "Generating module tree (library)..."
+printf "%bGenerating module tree (library)...%b\n" "$COLOR_BLUE" "$COLOR_RESET"
 cargo modules structure --lib > "$MODULES_DIR/module_tree.txt"
-echo "Module tree saved to $MODULES_DIR/module_tree.txt"
+printf "%bModule tree saved to %s%b\n" "$COLOR_GREEN" "$MODULES_DIR/module_tree.txt" "$COLOR_RESET"
 
 echo ""
-echo "Generating module dependency graphs for each subfolder (requires Graphviz)..."
+printf "%bGenerating module dependency graphs for each subfolder (requires Graphviz)...%b\n" "$COLOR_BLUE" "$COLOR_RESET"
 if ! command -v dot &> /dev/null; then
-    echo "Graphviz not found. Install with:"
+    printf "%bGraphviz not found. Install with:%b\n" "$COLOR_YELLOW" "$COLOR_RESET"
     echo "  - Linux: sudo pacman -Sgraphviz"
     echo "  - Windows: choco install graphviz"
     echo "  - macOS: brew install graphviz"
@@ -86,20 +94,20 @@ generate_module_graph() {
     mkdir -p "$module_dir"
     
     echo ""
-    echo "Generating graph for module: $module_name"
-    echo "  Output directory: $module_dir"
+    printf "%bGenerating graph for module: %s%b\n" "$COLOR_BLUE" "$module_name" "$COLOR_RESET"
+    printf "  Output directory: %s\n" "$module_dir"
     
     # Generate DOT format
     local dot_file="$module_dir/module_graph.dot"
     cargo modules dependencies --lib --focus-on "$focus_path" --no-externs > "$dot_file" 2>/dev/null || {
-        echo "  Warning: Failed to generate DOT for $module_name, skipping..."
+        printf "  %bWarning: Failed to generate DOT for %s, skipping...%b\n" "$COLOR_YELLOW" "$module_name" "$COLOR_RESET"
         rmdir "$module_dir" 2>/dev/null || true
         return 1
     }
     
     # Check if DOT file has content (more than just header)
     if [ ! -s "$dot_file" ] || [ "$(wc -l < "$dot_file")" -lt 3 ]; then
-        echo "  No dependencies found for $module_name, skipping graph generation..."
+        printf "  %bNo dependencies found for %s, skipping graph generation...%b\n" "$COLOR_YELLOW" "$module_name" "$COLOR_RESET"
         rm -f "$dot_file"
         rmdir "$module_dir" 2>/dev/null || true
         return 1
@@ -129,7 +137,7 @@ generate_module_graph() {
         -Earrowsize=0.8 \
         -Elabeldistance=2.5 \
         "$dot_file" > "$module_dir/module_graph.png" 2>/dev/null; then
-        echo "  PNG saved: $module_dir/module_graph.png"
+        printf "  %bPNG saved: %s%b\n" "$COLOR_GREEN" "$module_dir/module_graph.png" "$COLOR_RESET"
     fi
     
     # Generate optimized SVG version - larger size with performance optimizations
@@ -158,7 +166,7 @@ generate_module_graph() {
         -Earrowsize=0.7 \
         -Elabeldistance=2.5 \
         "$dot_file" > "$module_dir/module_graph.svg" 2>/dev/null; then
-        echo "  SVG saved: $module_dir/module_graph.svg"
+        printf "  %bSVG saved: %s%b\n" "$COLOR_GREEN" "$module_dir/module_graph.svg" "$COLOR_RESET"
     fi
 }
 
@@ -168,6 +176,6 @@ for folder in "${SUBFOLDERS[@]}"; do
 done
 
 echo ""
-echo "All module graphs generated in subdirectories of: $MODULES_DIR"
-echo "Each module has its own folder containing: module_graph.dot, module_graph.png, module_graph.svg"
+printf "%bAll module graphs generated in subdirectories of: %s%b\n" "$COLOR_GREEN" "$MODULES_DIR" "$COLOR_RESET"
+printf "Each module has its own folder containing: module_graph.dot, module_graph.png, module_graph.svg\n"
 
