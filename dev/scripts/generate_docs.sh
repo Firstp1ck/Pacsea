@@ -34,14 +34,21 @@
 
 set -e
 
-echo "Generating Rust documentation..."
+# Colors for output (harmonized with Makefile)
+COLOR_RESET=$(tput sgr0)
+COLOR_BOLD=$(tput bold)
+COLOR_GREEN=$(tput setaf 2)
+COLOR_YELLOW=$(tput setaf 3)
+COLOR_BLUE=$(tput setaf 4)
+
+printf "%bGenerating Rust documentation...%b\n" "$COLOR_BLUE" "$COLOR_RESET"
 cargo doc --no-deps --document-private-items
 
-echo "Documentation generated in target/doc/"
-echo "Open with: cargo doc --open"
+printf "%bDocumentation generated in target/doc/%b\n" "$COLOR_GREEN" "$COLOR_RESET"
+printf "%bOpen with: cargo doc --open%b\n" "$COLOR_BLUE" "$COLOR_RESET"
 
 # Optional: Generate dependency tree
 echo ""
-echo "Dependency tree:"
+printf "%bDependency tree:%b\n" "$COLOR_BOLD" "$COLOR_RESET"
 cargo tree --depth 2
 

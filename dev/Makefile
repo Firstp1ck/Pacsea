@@ -14,12 +14,12 @@
 # Default target
 .DEFAULT_GOAL := help
 
-# Colors for output
-COLOR_RESET := \033[0m
-COLOR_BOLD := \033[1m
-COLOR_GREEN := \033[32m
-COLOR_YELLOW := \033[33m
-COLOR_BLUE := \033[34m
+# Colors for output (using tput for portability)
+COLOR_RESET := $(shell tput sgr0)
+COLOR_BOLD := $(shell tput bold)
+COLOR_GREEN := $(shell tput setaf 2)
+COLOR_YELLOW := $(shell tput setaf 3)
+COLOR_BLUE := $(shell tput setaf 4)
 
 # Scripts directory (relative to dev/)
 SCRIPTS_DIR := scripts
@@ -27,91 +27,91 @@ SCRIPTS_DIR := scripts
 ##@ Development Commands
 
 help: ## Display this help message
-	@echo "$(COLOR_BOLD)Available targets:$(COLOR_RESET)"
-	@echo ""
+	@printf "%bAvailable targets:%b\n" "$(COLOR_BOLD)" "$(COLOR_RESET)"
+	@printf "\n"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(COLOR_GREEN)%-20s$(COLOR_RESET) %s\n", $$1, $$2}'
-	@echo ""
+		awk 'BEGIN {FS = ":.*?## "; green="$(COLOR_GREEN)"; reset="$(COLOR_RESET)"}; {printf "  %s%-20s%s %s\n", green, $$1, reset, $$2}'
+	@printf "\n"
 
 fmt: ## Format all Rust code
-	@echo "$(COLOR_BLUE)Formatting code...$(COLOR_RESET)"
+	@printf "%bFormatting code...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo fmt --all
 
 clippy: ## Run clippy linter with all targets and features
-	@echo "$(COLOR_BLUE)Running clippy...$(COLOR_RESET)"
+	@printf "%bRunning clippy...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo clippy --all-targets --all-features -- -D warnings
 
 check: ## Check if code compiles without building
-	@echo "$(COLOR_BLUE)Checking compilation...$(COLOR_RESET)"
+	@printf "%bChecking compilation...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo check
 
 test: ## Run all tests with single thread
-	@echo "$(COLOR_BLUE)Running tests...$(COLOR_RESET)"
+	@printf "%bRunning tests...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo test -- --test-threads=1
 
 test-ignored: ## Run ignored tests
-	@echo "$(COLOR_BLUE)Running ignored tests...$(COLOR_RESET)"
+	@printf "%bRunning ignored tests...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo test -- --ignored --test-threads=1
 
 build: ## Build debug version
-	@echo "$(COLOR_BLUE)Building debug version...$(COLOR_RESET)"
+	@printf "%bBuilding debug version...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo build
 
 release: ## Build release version
-	@echo "$(COLOR_BLUE)Building release version...$(COLOR_RESET)"
+	@printf "%bBuilding release version...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo build --release
 
 install: ## Install the binary (release mode)
-	@echo "$(COLOR_BLUE)Installing binary...$(COLOR_RESET)"
+	@printf "%bInstalling binary...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo install --path .
 
 ##@ Quality Checks
 
 pre-commit: fmt clippy check test ## Run all pre-commit checks (fmt, clippy, check, test)
-	@echo "$(COLOR_GREEN)✓ All pre-commit checks passed!$(COLOR_RESET)"
+	@printf "%b✓ All pre-commit checks passed!%b\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
 
 all: pre-commit ## Alias for pre-commit
 
 ##@ Analysis Scripts
 
 cognitive: ## Run clippy cognitive complexity analysis
-	@echo "$(COLOR_BLUE)Running cognitive complexity analysis...$(COLOR_RESET)"
+	@printf "%bRunning cognitive complexity analysis...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	@bash $(SCRIPTS_DIR)/clippy_cognitive_complexity.sh
 
 errors: ## Analyze and report clippy errors
-	@echo "$(COLOR_BLUE)Analyzing clippy errors...$(COLOR_RESET)"
+	@printf "%bAnalyzing clippy errors...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	@bash $(SCRIPTS_DIR)/clippy_errors.sh
 
 complexity: ## Generate code complexity report
-	@echo "$(COLOR_BLUE)Generating complexity report...$(COLOR_RESET)"
+	@printf "%bGenerating complexity report...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	@bash $(SCRIPTS_DIR)/complexity_report.sh
 
 ##@ Documentation & Diagrams
 
 docs: ## Generate Rust documentation
-	@echo "$(COLOR_BLUE)Generating documentation...$(COLOR_RESET)"
+	@printf "%bGenerating documentation...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	@bash $(SCRIPTS_DIR)/generate_docs.sh
 
 docs-open: docs ## Generate and open documentation in browser
-	@echo "$(COLOR_BLUE)Opening documentation...$(COLOR_RESET)"
+	@printf "%bOpening documentation...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo doc --open
 
 module-structure: ## Generate module structure diagrams
-	@echo "$(COLOR_BLUE)Generating module structure...$(COLOR_RESET)"
+	@printf "%bGenerating module structure...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	@bash $(SCRIPTS_DIR)/module_structure.sh
 
 controlflow: ## Generate control flow diagram
-	@echo "$(COLOR_BLUE)Generating control flow diagram...$(COLOR_RESET)"
+	@printf "%bGenerating control flow diagram...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	@bash $(SCRIPTS_DIR)/generate_controlflow_diagram.sh
 
 ##@ Cleanup
 
 clean: ## Remove build artifacts
-	@echo "$(COLOR_BLUE)Cleaning build artifacts...$(COLOR_RESET)"
+	@printf "%bCleaning build artifacts...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo clean
 
 clean-all: clean ## Remove all build artifacts and generated files
-	@echo "$(COLOR_BLUE)Cleaning all generated files...$(COLOR_RESET)"
+	@printf "%bCleaning all generated files...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	@rm -rf target/
 	@rm -f $(SCRIPTS_DIR)/*.txt
 	@rm -rf $(SCRIPTS_DIR)/Modules/
@@ -119,10 +119,29 @@ clean-all: clean ## Remove all build artifacts and generated files
 ##@ Combined Targets
 
 quality: cognitive errors complexity ## Run all quality analysis scripts
-	@echo "$(COLOR_GREEN)✓ Quality analysis complete!$(COLOR_RESET)"
+	@printf "%b✓ Quality analysis complete!%b\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
 
 analysis: quality ## Alias for quality
 
 full-check: pre-commit quality ## Run all checks and quality analysis
-	@echo "$(COLOR_GREEN)✓ Full check complete!$(COLOR_RESET)"
+	@printf "\n"
+	@printf "%b═══════════════════════════════════════════════════════════════%b\n" "$(COLOR_BOLD)" "$(COLOR_RESET)"
+	@printf "%b                    Full Check Summary%b\n" "$(COLOR_BOLD)" "$(COLOR_RESET)"
+	@printf "%b═══════════════════════════════════════════════════════════════%b\n" "$(COLOR_BOLD)" "$(COLOR_RESET)"
+	@printf "\n"
+	@printf "%bPre-commit Checks:%b\n" "$(COLOR_BOLD)" "$(COLOR_RESET)"
+	@printf "  %b✓%b Formatting (cargo fmt --all)\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "  %b✓%b Linting (cargo clippy --all-targets --all-features)\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "  %b✓%b Compilation (cargo check)\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "  %b✓%b Tests (cargo test -- --test-threads=1)\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "\n"
+	@printf "%bQuality Analysis:%b\n" "$(COLOR_BOLD)" "$(COLOR_RESET)"
+	@printf "  %b✓%b Cognitive Complexity Analysis\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "  %b✓%b Clippy Errors Analysis\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "  %b✓%b Code Complexity Report\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "\n"
+	@printf "%b═══════════════════════════════════════════════════════════════%b\n" "$(COLOR_BOLD)" "$(COLOR_RESET)"
+	@printf "%b✓ All checks passed successfully!%b\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "%b═══════════════════════════════════════════════════════════════%b\n" "$(COLOR_BOLD)" "$(COLOR_RESET)"
+	@printf "\n"
 

@@ -17,6 +17,13 @@
 
 set -euo pipefail
 
+# Colors for output (harmonized with Makefile)
+COLOR_RESET=$(tput sgr0)
+COLOR_BOLD=$(tput bold)
+COLOR_GREEN=$(tput setaf 2)
+COLOR_YELLOW=$(tput setaf 3)
+COLOR_BLUE=$(tput setaf 4)
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
@@ -24,7 +31,7 @@ cd "$PROJECT_ROOT"
 
 REPORT_FILE="$SCRIPT_DIR/clippy_cognitive_complexity_report.txt"
 
-echo "Running cargo clippy to check for cognitive complexity issues..."
+printf "%bRunning cargo clippy to check for cognitive complexity issues...%b\n" "$COLOR_BLUE" "$COLOR_RESET"
 echo ""
 
 # Run clippy and capture output
@@ -32,7 +39,7 @@ CLIPPY_OUTPUT=$(cargo clippy --all-targets --all-features -- -D warnings 2>&1 ||
 
 # Check if clippy found any cognitive complexity issues
 if ! echo "$CLIPPY_OUTPUT" | grep -q "cognitive complexity"; then
-    echo "✓ No cognitive complexity issues found!" | tee "$REPORT_FILE"
+    printf "%b✓ No cognitive complexity issues found!%b\n" "$COLOR_GREEN" "$COLOR_RESET" | tee "$REPORT_FILE"
     exit 0
 fi
 
@@ -216,5 +223,5 @@ echo "$CLIPPY_OUTPUT"
 } | tee "$REPORT_FILE"
 
 echo ""
-echo "Report saved to: $REPORT_FILE"
+printf "%bReport saved to: %s%b\n" "$COLOR_BLUE" "$REPORT_FILE" "$COLOR_RESET"
 

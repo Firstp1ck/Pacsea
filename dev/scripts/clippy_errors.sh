@@ -2,12 +2,19 @@
 
 # Script to analyze Clippy errors and output formatted statistics
 
+# Colors for output (harmonized with Makefile)
+COLOR_RESET=$(tput sgr0)
+COLOR_BOLD=$(tput bold)
+COLOR_GREEN=$(tput setaf 2)
+COLOR_YELLOW=$(tput setaf 3)
+COLOR_BLUE=$(tput setaf 4)
+
 # Always output clippy_errors.txt in the same directory as this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT_FILE="${SCRIPT_DIR}/clippy_errors.txt"
 TEMP_FILE=$(mktemp)
 
-echo "Running cargo clippy (this may take a moment)..." >&2
+printf "%bRunning cargo clippy (this may take a moment)...%b\n" "$COLOR_BLUE" "$COLOR_RESET" >&2
 
 # Run clippy and extract all error messages
 cargo clippy --all-targets --all-features -- -D warnings 2>&1 | \
@@ -23,7 +30,7 @@ COMPILE_ERRORS=$(grep "could not compile" "$TEMP_FILE" | \
     sort | uniq -c | sort -rn)
 
 # Output clippy lints
-echo "=== Clippy Lints ===" | tee "$OUTPUT_FILE"
+printf "%b=== Clippy Lints ===%b\n" "$COLOR_BOLD" "$COLOR_RESET" | tee "$OUTPUT_FILE"
 if [ -n "$CLIPPY_LINTS" ]; then
     echo "$CLIPPY_LINTS" | \
         awk '{
@@ -42,7 +49,7 @@ fi
 
 # Output compilation errors separately
 echo "" | tee -a "$OUTPUT_FILE"
-echo "=== Compilation Errors ===" | tee -a "$OUTPUT_FILE"
+printf "%b=== Compilation Errors ===%b\n" "$COLOR_BOLD" "$COLOR_RESET" | tee -a "$OUTPUT_FILE"
 if [ -n "$COMPILE_ERRORS" ]; then
     echo "$COMPILE_ERRORS" | \
         awk '{
@@ -62,5 +69,5 @@ fi
 rm -f "$TEMP_FILE"
 
 echo "" >&2
-echo "Results saved to: $OUTPUT_FILE" >&2
+printf "%bResults saved to: %s%b\n" "$COLOR_BLUE" "$OUTPUT_FILE" "$COLOR_RESET" >&2
 

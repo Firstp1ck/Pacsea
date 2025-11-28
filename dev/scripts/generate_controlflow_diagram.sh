@@ -5,6 +5,13 @@
 
 set -euo pipefail
 
+# Colors for output (harmonized with Makefile)
+COLOR_RESET=$(tput sgr0)
+COLOR_BOLD=$(tput bold)
+COLOR_GREEN=$(tput setaf 2)
+COLOR_YELLOW=$(tput setaf 3)
+COLOR_BLUE=$(tput setaf 4)
+
 # Configuration variables
 OUTPUT_FILE="${OUTPUT_FILE:-../ControlFlow_Diagram.md}"
 DIAGRAM_THEME="${DIAGRAM_THEME:-default}"
@@ -29,14 +36,14 @@ analyze_code() {
     local runtime_file="$src_path/app/runtime.rs"
     
     if [[ ! -f "$runtime_file" ]]; then
-        echo "❌ Error: Could not find $runtime_file" >&2
+        printf "%b❌ Error: Could not find %s%b\n" "$COLOR_YELLOW" "$runtime_file" "$COLOR_RESET" >&2
         return 1
     fi
     
     # Extract main select! branches
     local select_start=$(grep -n "select!" "$runtime_file" | head -1 | cut -d: -f1)
     if [[ -z "$select_start" ]]; then
-        echo "❌ Error: Could not find main select! block in $runtime_file" >&2
+        printf "%b❌ Error: Could not find main select! block in %s%b\n" "$COLOR_YELLOW" "$runtime_file" "$COLOR_RESET" >&2
         return 1
     fi
     
@@ -56,10 +63,10 @@ analyze_code() {
     
     # Return success if we found something
     if [[ -n "$branches" ]] || [[ -n "$workers" ]]; then
-        echo "✓ Found control flow patterns in code" >&2
+        printf "%b✓ Found control flow patterns in code%b\n" "$COLOR_GREEN" "$COLOR_RESET" >&2
         return 0
     else
-        echo "⚠ Warning: Could not extract control flow patterns, but continuing with basic diagram generation." >&2
+        printf "%b⚠ Warning: Could not extract control flow patterns, but continuing with basic diagram generation.%b\n" "$COLOR_YELLOW" "$COLOR_RESET" >&2
         return 0  # Still return success, as we can generate a basic diagram
     fi
 }
@@ -334,7 +341,7 @@ generate_markdown() {
                 -e "s/COLOR_SHUTDOWN/$COLOR_SHUTDOWN/g" \
                 -e "s/COLOR_END/$COLOR_END/g"
         else
-            echo "❌ Error: Could not analyze codebase. Please check that $src_path exists and contains the runtime.rs file." >&2
+            printf "%b❌ Error: Could not analyze codebase. Please check that %s exists and contains the runtime.rs file.%b\n" "$COLOR_YELLOW" "$src_path" "$COLOR_RESET" >&2
             exit 1
         fi
         
@@ -344,13 +351,13 @@ generate_markdown() {
         fi
     } > "$OUTPUT_FILE_ABS"
     
-    echo "✓ Generated markdown file: $OUTPUT_FILE_ABS"
+    printf "%b✓ Generated markdown file: %s%b\n" "$COLOR_GREEN" "$OUTPUT_FILE_ABS" "$COLOR_RESET"
 }
 
 # Function to export to PNG if mermaid-cli is available
 export_to_png() {
     if ! command -v mmdc &> /dev/null; then
-        echo "⚠ Warning: mermaid-cli (mmdc) not found. Skipping PNG export."
+        printf "%b⚠ Warning: mermaid-cli (mmdc) not found. Skipping PNG export.%b\n" "$COLOR_YELLOW" "$COLOR_RESET"
         echo "  Install with: npm install -g @mermaid-js/mermaid-cli"
         return 1
     fi
@@ -364,13 +371,13 @@ export_to_png() {
         theme_flag="--theme light"
     fi
     
-    echo "Exporting to PNG (theme: $PNG_THEME)..."
+    printf "%bExporting to PNG (theme: %s)...%b\n" "$COLOR_BLUE" "$PNG_THEME" "$COLOR_RESET"
     mmdc -i "$OUTPUT_FILE_ABS" -o "$png_output" $theme_flag 2>/dev/null || {
-        echo "⚠ Warning: PNG export failed. Continuing..."
+        printf "%b⚠ Warning: PNG export failed. Continuing...%b\n" "$COLOR_YELLOW" "$COLOR_RESET"
         return 1
     }
     
-    echo "✓ Generated PNG file: $png_output"
+    printf "%b✓ Generated PNG file: %s%b\n" "$COLOR_GREEN" "$png_output" "$COLOR_RESET"
 }
 
 # Parse command line arguments
@@ -465,7 +472,7 @@ EOF
             exit 0
             ;;
         *)
-            echo "Unknown option: $1" >&2
+            printf "%bUnknown option: %s%b\n" "$COLOR_YELLOW" "$1" "$COLOR_RESET" >&2
             echo "Use --help for usage information" >&2
             exit 1
             ;;
@@ -504,5 +511,5 @@ if [[ "$EXPORT_PNG" == "true" ]]; then
     export_to_png
 fi
 
-echo "✓ Done!"
+printf "%b✓ Done!%b\n" "$COLOR_GREEN" "$COLOR_RESET"
 
