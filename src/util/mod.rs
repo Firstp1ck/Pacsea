@@ -12,13 +12,19 @@ pub mod srcinfo;
 use serde_json::Value;
 use std::fmt::Write;
 
-/// Ensure mouse capture is enabled for the TUI.
+/// What: Ensure mouse capture is enabled for the TUI.
 ///
-/// This function should be called after spawning external processes (like terminals)
-/// that might disable mouse capture. It's safe to call multiple times.
+/// Inputs:
+/// - None.
 ///
-/// In headless/test mode (`PACSEA_TEST_HEADLESS=1`), this is a no-op to prevent mouse
-/// escape sequences from appearing in test output.
+/// Output:
+/// - No return value; enables mouse capture on stdout if not in headless mode.
+///
+/// Details:
+/// - Should be called after spawning external processes (like terminals) that might disable mouse capture.
+/// - Safe to call multiple times.
+/// - In headless/test mode (`PACSEA_TEST_HEADLESS=1`), this is a no-op to prevent mouse escape sequences from appearing in test output.
+/// - On Windows, this is a no-op as mouse capture is handled differently.
 pub fn ensure_mouse_capture() {
     // Skip mouse capture in headless/test mode to prevent escape sequences in test output
     if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {
@@ -31,17 +37,19 @@ pub fn ensure_mouse_capture() {
     }
 }
 
-/// Percent-encode a string for use in URLs.
+/// What: Percent-encode a string for use in URLs according to RFC 3986.
 ///
-/// Encoding rules:
+/// Inputs:
+/// - `input`: String to encode.
 ///
-/// - Unreserved characters as per RFC 3986 (`A-Z`, `a-z`, `0-9`, `-`, `.`, `_`, `~`)
-///   are left as-is.
+/// Output:
+/// - Returns a percent-encoded string where reserved characters are escaped.
+///
+/// Details:
+/// - Unreserved characters as per RFC 3986 (`A-Z`, `a-z`, `0-9`, `-`, `.`, `_`, `~`) are left as-is.
 /// - Space is encoded as `%20` (not `+`).
 /// - All other bytes are encoded as two uppercase hexadecimal digits prefixed by `%`.
-///
-/// The function operates on raw bytes from the input string. Any non-ASCII bytes
-/// are hex-escaped.
+/// - Operates on raw bytes from the input string; any non-ASCII bytes are hex-escaped.
 #[must_use]
 pub fn percent_encode(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
@@ -60,9 +68,17 @@ pub fn percent_encode(input: &str) -> String {
     out
 }
 
-/// Extract a string value from a JSON object by key, defaulting to empty string.
+/// What: Extract a string value from a JSON object by key, defaulting to empty string.
 ///
-/// Returns `""` if the key is missing or not a string.
+/// Inputs:
+/// - `v`: JSON value to extract from.
+/// - `key`: Key to look up in the JSON object.
+///
+/// Output:
+/// - Returns the string value if found, or an empty string if the key is missing or not a string.
+///
+/// Details:
+/// - Returns `""` if the key is missing or the value is not a string type.
 #[must_use]
 pub fn s(v: &Value, key: &str) -> String {
     v.get(key)
@@ -70,10 +86,18 @@ pub fn s(v: &Value, key: &str) -> String {
         .unwrap_or_default()
         .to_owned()
 }
-/// Extract the first available string from a list of candidate keys.
+/// What: Extract the first available string from a list of candidate keys.
 ///
-/// Returns `Some(String)` for the first key that maps to a JSON string, or `None`
-/// if none match.
+/// Inputs:
+/// - `v`: JSON value to extract from.
+/// - `keys`: Array of candidate keys to try in order.
+///
+/// Output:
+/// - Returns `Some(String)` for the first key that maps to a JSON string, or `None` if none match.
+///
+/// Details:
+/// - Tries keys in the order provided and returns the first match.
+/// - Returns `None` if no key maps to a string value.
 #[must_use]
 pub fn ss(v: &Value, keys: &[&str]) -> Option<String> {
     for k in keys {
@@ -83,10 +107,20 @@ pub fn ss(v: &Value, keys: &[&str]) -> Option<String> {
     }
     None
 }
-/// Extract an array of strings from a JSON object by trying keys in order.
+/// What: Extract an array of strings from a JSON object by trying keys in order.
 ///
-/// Returns the first found array as `Vec<String>`, filtering out non-string elements.
-/// If no array of strings is found, returns an empty vector.
+/// Inputs:
+/// - `v`: JSON value to extract from.
+/// - `keys`: Array of candidate keys to try in order.
+///
+/// Output:
+/// - Returns the first found array as `Vec<String>`, filtering out non-string elements.
+/// - Returns an empty vector if no array of strings is found.
+///
+/// Details:
+/// - Tries keys in the order provided and returns the first array found.
+/// - Filters out non-string elements from the array.
+/// - Returns an empty vector if no key maps to an array or if all elements are non-string.
 #[must_use]
 pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
     for k in keys {
@@ -99,15 +133,22 @@ pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
     }
     Vec::new()
 }
-/// Extract an unsigned 64-bit integer by trying multiple keys and representations.
+/// What: Extract an unsigned 64-bit integer by trying multiple keys and representations.
 ///
-/// Accepts any of the following representations for the first matching key:
+/// Inputs:
+/// - `v`: JSON value to extract from.
+/// - `keys`: Array of candidate keys to try in order.
 ///
-/// - JSON `u64`
-/// - JSON `i64` convertible to `u64`
-/// - String that parses as `u64`
+/// Output:
+/// - Returns `Some(u64)` if a valid value is found, or `None` if no usable value is found.
 ///
-/// Returns `None` if no usable value is found.
+/// Details:
+/// - Accepts any of the following representations for the first matching key:
+///   - JSON `u64`
+///   - JSON `i64` convertible to `u64`
+///   - String that parses as `u64`
+/// - Tries keys in the order provided and returns the first match.
+/// - Returns `None` if no key maps to a convertible value.
 #[must_use]
 pub fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
     for k in keys {
@@ -185,17 +226,18 @@ pub fn fuzzy_match_rank(name: &str, query: &str) -> Option<i64> {
     fuzzy_match_rank_with_matcher(name, query, &matcher)
 }
 
-/// Determine ordering weight for a package source.
+/// What: Determine ordering weight for a package source.
 ///
-/// Lower values indicate higher priority. Used to sort results such that
-/// official repositories precede AUR, and core repos precede others.
+/// Inputs:
+/// - `src`: Package source to rank.
 ///
-/// Order:
+/// Output:
+/// - Returns a `u8` weight where lower values indicate higher priority.
 ///
-/// - `core` => 0
-/// - `extra` => 1
-/// - other official repos => 2
-/// - AUR => 3
+/// Details:
+/// - Used to sort results such that official repositories precede AUR, and core repos precede others.
+/// - Order: `core` => 0, `extra` => 1, other official repos => 2, AUR => 3.
+/// - Case-insensitive comparison for repository names.
 #[must_use]
 pub fn repo_order(src: &Source) -> u8 {
     match src {
@@ -211,16 +253,18 @@ pub fn repo_order(src: &Source) -> u8 {
         Source::Aur => 3,
     }
 }
-/// Rank how well a package name matches a query (lower is better).
+/// What: Rank how well a package name matches a query (lower is better).
 ///
-/// Expects `query_lower` to be lowercase; the name is lowercased internally.
+/// Inputs:
+/// - `name`: Package name to match against.
+/// - `query_lower`: Query string (must be lowercase).
 ///
-/// Ranking:
+/// Output:
+/// - Returns a `u8` rank: 0 = exact match, 1 = prefix match, 2 = substring match, 3 = no match.
 ///
-/// - 0: exact match
-/// - 1: prefix match (`starts_with`)
-/// - 2: substring match (`contains`)
-/// - 3: no match
+/// Details:
+/// - Expects `query_lower` to be lowercase; the name is lowercased internally.
+/// - Returns 3 (no match) if the query is empty.
 #[must_use]
 pub fn match_rank(name: &str, query_lower: &str) -> u8 {
     let n = name.to_lowercase();
@@ -238,14 +282,19 @@ pub fn match_rank(name: &str, query_lower: &str) -> u8 {
     3
 }
 
-/// Convert an optional Unix timestamp (seconds) to a UTC date-time string.
+/// What: Convert an optional Unix timestamp (seconds) to a UTC date-time string.
 ///
+/// Inputs:
+/// - `ts`: Optional Unix timestamp in seconds since epoch.
+///
+/// Output:
+/// - Returns a formatted string `YYYY-MM-DD HH:MM:SS` (UTC), or empty string for `None`, or numeric string for negative timestamps.
+///
+/// Details:
 /// - Returns an empty string for `None`.
 /// - Negative timestamps are returned as their numeric string representation.
-/// - Output format: `YYYY-MM-DD HH:MM:SS` (UTC)
-///
-/// This implementation performs a simple conversion using loops and does not
-/// account for leap seconds.
+/// - Output format: `YYYY-MM-DD HH:MM:SS` (UTC).
+/// - This implementation performs a simple conversion using loops and does not account for leap seconds.
 #[must_use]
 pub fn ts_to_date(ts: Option<i64>) -> String {
     let Some(t) = ts else {
@@ -324,12 +373,18 @@ const fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
-/// Open a file in the default editor (cross-platform).
+/// What: Open a file in the default editor (cross-platform).
 ///
-/// On Windows, uses `PowerShell`'s `Invoke-Item` to open files with the default application.
-/// On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
+/// Inputs:
+/// - `path`: Path to the file to open.
 ///
-/// This function spawns the command in a background thread and ignores errors.
+/// Output:
+/// - No return value; spawns a background process to open the file.
+///
+/// Details:
+/// - On Windows, uses `PowerShell`'s `Invoke-Item` to open files with the default application, with fallback to `cmd start`.
+/// - On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
+/// - Spawns the command in a background thread and ignores errors.
 pub fn open_file(path: &std::path::Path) {
     std::thread::spawn({
         let path = path.to_path_buf();
@@ -380,13 +435,19 @@ pub fn open_file(path: &std::path::Path) {
     });
 }
 
-/// Open a URL in the default browser (cross-platform).
+/// What: Open a URL in the default browser (cross-platform).
 ///
-/// On Windows, uses `cmd /c start`.
-/// On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
+/// Inputs:
+/// - `url`: URL string to open.
 ///
-/// This function spawns the command in a background thread and ignores errors.
-/// During tests, this is a no-op to avoid opening real browser windows.
+/// Output:
+/// - No return value; spawns a background process to open the URL.
+///
+/// Details:
+/// - On Windows, uses `cmd /c start`, with fallback to `PowerShell` `Start-Process`.
+/// - On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
+/// - Spawns the command in a background thread and ignores errors.
+/// - During tests, this is a no-op to avoid opening real browser windows.
 #[cfg_attr(test, allow(unused_variables))]
 #[allow(clippy::missing_const_for_fn)]
 pub fn open_url(url: &str) {
@@ -516,10 +577,18 @@ pub fn parse_update_entry(line: &str) -> Option<(String, String, String)> {
     })
 }
 
-/// Return today's UTC date formatted as `YYYYMMDD` using only the standard library.
+/// What: Return today's UTC date formatted as `YYYYMMDD` using only the standard library.
 ///
-/// This uses a simple conversion from Unix epoch seconds to a UTC calendar date,
-/// matching the same leap-year logic as `ts_to_date`.
+/// Inputs:
+/// - None (uses current system time).
+///
+/// Output:
+/// - Returns a string in format `YYYYMMDD` representing today's date in UTC.
+///
+/// Details:
+/// - Uses a simple conversion from Unix epoch seconds to a UTC calendar date.
+/// - Matches the same leap-year logic as `ts_to_date`.
+/// - Falls back to epoch date (1970-01-01) if system time is before 1970.
 #[must_use]
 pub fn today_yyyymmdd_utc() -> String {
     let secs = std::time::SystemTime::now()
