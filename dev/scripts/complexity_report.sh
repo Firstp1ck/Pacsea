@@ -19,11 +19,11 @@ COLOR_BLUE=$(tput setaf 4)
 #   4. Identifies the top 3 most complex functions in two categories:
 #      - Cyclomatic Complexity: Measures control flow complexity (branches, loops, conditions)
 #      - Data Flow Complexity: Measures data dependency and state management complexity
-#   5. Generates a readable report saved to complexity_report.txt
+#   5. Generates a readable report saved to dev/scripts/complexity_report.txt
 #
 # Output:
 #   - Report is displayed in the terminal (via tee)
-#   - Also saved to: complexity_report.txt
+#   - Also saved to: dev/scripts/complexity_report.txt
 #   - Shows full complexity analysis plus a summary of top 3 most complex functions
 #
 # Metrics explained:
@@ -36,13 +36,17 @@ COLOR_BLUE=$(tput setaf 4)
 #
 # Usage:
 #   ./complexity_report.sh
-#   cat complexity_report.txt  # View the saved report
+#   cat dev/scripts/complexity_report.txt  # View the saved report
 #
 # Requirements:
 #   - Rust toolchain (cargo)
 #   - Complexity tests must be defined in tests/ directory
 #   - Project must compile and tests must run successfully
 #
+
+# Get the script directory to save report in the same location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPORT_FILE="$SCRIPT_DIR/complexity_report.txt"
 
 printf "%bRunning complexity tests...%b\n" "$COLOR_BLUE" "$COLOR_RESET" >&2
 cargo test complexity -- --nocapture 2>&1 | grep -vE "(^running|^test result:|^test tests::|Finished.*test.*profile|Running unittests|Running tests/)" | sed '/^$/N;/^\n$/d' | awk -v reset="$COLOR_RESET" -v bold="$COLOR_BOLD" -v green="$COLOR_GREEN" -v yellow="$COLOR_YELLOW" -v blue="$COLOR_BLUE" '
@@ -65,4 +69,7 @@ cargo test complexity -- --nocapture 2>&1 | grep -vE "(^running|^test result:|^t
     print bold "Data Flow Complexity - Top 3 Functions:" reset
     for (i=1; i<=3; i++) if (top3_dataflow[i]) print top3_dataflow[i]
   }
-' | tee complexity_report.txt
+' | tee "$REPORT_FILE"
+
+echo "" >&2
+printf "%bReport saved to: %s%b\n" "$COLOR_BLUE" "$REPORT_FILE" "$COLOR_RESET" >&2
