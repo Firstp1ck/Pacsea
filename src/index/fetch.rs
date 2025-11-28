@@ -1,4 +1,3 @@
-use super::OfficialPkg;
 #[cfg(not(windows))]
 use super::distro::{artix_repo_names, cachyos_repo_names, eos_repo_names};
 
@@ -105,22 +104,6 @@ pub async fn fetch_official_pkg_names()
 
     // Do not enrich here; keep only fast fields for the initial on-disk index.
     Ok(pkgs)
-}
-
-#[cfg(windows)]
-/// What: Placeholder for fetching official packages on Windows.
-///
-/// Inputs:
-/// - None (Windows builds do not yet implement pacman-based fetching).
-///
-/// Output:
-/// - Always returns an error indicating the feature is unavailable on Windows.
-///
-/// Details:
-/// - Kept to satisfy cross-platform compilation; Windows uses the Arch API path instead.
-pub fn fetch_official_pkg_names()
--> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
-    Err("official package index fetch is not implemented on Windows yet".into())
 }
 
 #[cfg(all(test, not(target_os = "windows")))]
