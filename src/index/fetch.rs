@@ -1,4 +1,6 @@
 #[cfg(not(windows))]
+use super::OfficialPkg;
+#[cfg(not(windows))]
 use super::distro::{artix_repo_names, cachyos_repo_names, eos_repo_names};
 
 /// What: Fetch a minimal list of official packages using `pacman -Sl`.
