@@ -614,6 +614,7 @@ fn handle_collapsed_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<
                 app.config_menu_open = true;
                 app.options_menu_open = false;
                 app.panels_menu_open = false;
+                app.artix_filter_menu_open = false;
             }
             1 => {
                 app.panels_menu_open = true;
