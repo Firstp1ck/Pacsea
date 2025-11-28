@@ -745,12 +745,15 @@ mod tests {
 
         // OPTION 2: FILE-LEVEL - Prevent individual files from becoming too complex
         // Recommended: No single file should have average complexity > 40
+        // Note: Only warn for files with multiple functions. For single-function files,
+        // the individual function complexity check is more appropriate.
         for (file_path, file_comp) in &file_complexities {
-            if file_comp.avg_complexity > MAX_FILE_AVG_COMPLEXITY {
+            if file_comp.functions.len() > 1 && file_comp.avg_complexity > MAX_FILE_AVG_COMPLEXITY {
                 eprintln!(
-                    "{COLOR_YELLOW}Warning:{COLOR_RESET} File {} has high average data flow complexity: {:.2}",
+                    "{COLOR_YELLOW}Warning:{COLOR_RESET} File {} has high average data flow complexity: {:.2} ({} functions)",
                     file_path.display(),
-                    file_comp.avg_complexity
+                    file_comp.avg_complexity,
+                    file_comp.functions.len()
                 );
             }
         }
