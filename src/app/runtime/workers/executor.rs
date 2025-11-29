@@ -106,7 +106,8 @@ pub fn spawn_executor_worker(
                                 use std::fs;
                                 use std::os::unix::fs::PermissionsExt;
                                 let temp_dir = std::env::temp_dir();
-                                #[allow(clippy::uninlined_format_args)] // process::id() needs formatting
+                                #[allow(clippy::uninlined_format_args)]
+                                // process::id() needs formatting
                                 let askpass_script = temp_dir
                                     .join(format!("pacsea_sudo_askpass_{}.sh", std::process::id()));
                                 // Use printf with %s to safely output password

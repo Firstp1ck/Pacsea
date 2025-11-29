@@ -24,7 +24,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `net_err_tx`: Channel sender for network errors
 /// - `index_notify_tx`: Channel sender for index update notifications
 /// - `updates_tx`: Channel sender for package updates
-/// - `updates_refresh_interval`: Refresh interval in seconds for checkupdates and AUR helper checks
+/// - `updates_refresh_interval`: Refresh interval in seconds for pacman -Qu and AUR helper checks
 /// - `installed_packages_mode`: Filter mode for installed packages (leaf only vs all explicit)
 ///
 /// Details:
@@ -187,7 +187,7 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
     (has_paru, has_yay, helper)
 }
 
-/// What: Parse packages from checkupdates output.
+/// What: Parse packages from pacman -Qu output.
 ///
 /// Inputs:
 /// - `output`: Raw command output bytes
@@ -261,7 +261,7 @@ fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// What: Process checkupdates output and add packages to collections.
+/// What: Process pacman -Qu output and add packages to collections.
 ///
 /// Inputs:
 /// - `output`: Command output result
@@ -278,7 +278,7 @@ fn process_checkupdates_output(
                 let packages = parse_checkupdates(&output.stdout);
                 let count = packages.len();
 
-                // Parse checkupdates output which already contains old and new versions
+                // Parse pacman -Qu output which already contains old and new versions
                 for (name, old_version, new_version) in packages {
                     // Format: "name - old_version -> name - new_version"
                     let formatted = format!("{name} - {old_version} -> {name} - {new_version}");
@@ -286,20 +286,17 @@ fn process_checkupdates_output(
                     packages_set.insert(name);
                 }
 
-                tracing::debug!(
-                    "Found {} packages from official repos (checkupdates)",
-                    count
-                );
+                tracing::debug!("Found {} packages from official repos (pacman -Qu)", count);
             } else if output.status.code() != Some(1) {
                 // Exit code 1 is normal (no updates), other codes are errors
                 tracing::warn!(
-                    "checkupdates command failed with exit code: {:?}",
+                    "pacman -Qu command failed with exit code: {:?}",
                     output.status.code()
                 );
             }
         }
         Err(e) => {
-            tracing::warn!("Failed to execute checkupdates: {}", e);
+            tracing::warn!("Failed to execute pacman -Qu: {}", e);
         }
     }
 }
@@ -375,7 +372,7 @@ static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::
 /// - None (spawns async task)
 ///
 /// Details:
-/// - Executes `checkupdates` (official repos) and `yay -Qua` or `paru -Qua` (AUR)
+/// - Executes `pacman -Qu` (official repos) and `yay -Qua` or `paru -Qua` (AUR)
 /// - Checks for paru first, then falls back to yay for AUR updates
 /// - Parses output from both commands (one package name per line)
 /// - Removes duplicates using `HashSet`
@@ -407,8 +404,9 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
 
             let (has_paru, has_yay, helper) = check_aur_helper();
 
-            // Execute checkupdates command (official repos)
-            let output_checkupdates = Command::new("checkupdates")
+            // Execute pacman -Qu command (official repos)
+            let output_checkupdates = Command::new("pacman")
+                .args(["-Qu"])
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::null())
@@ -444,7 +442,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                 std::collections::HashMap::new();
             let mut packages_set = HashSet::new();
 
-            // Parse checkupdates output (official repos)
+            // Parse pacman -Qu output (official repos)
             process_checkupdates_output(output_checkupdates, &mut packages_map, &mut packages_set);
 
             // Parse -Qua output (AUR)
@@ -564,16 +562,16 @@ pub fn spawn_event_thread(
 mod tests {
     use super::parse_checkupdates;
 
-    /// What: Test that checkupdates parsing correctly extracts old and new versions.
+    /// What: Test that pacman -Qu parsing correctly extracts old and new versions.
     ///
     /// Inputs:
-    /// - Sample checkupdates output with format `"package-name old_version -> new_version"`
+    /// - Sample pacman -Qu output with format `"package-name old_version -> new_version"`
     ///
     /// Output:
     /// - Verifies that `old_version` and `new_version` are correctly parsed and different
     ///
     /// Details:
-    /// - Tests parsing of checkupdates output format
+    /// - Tests parsing of pacman -Qu output format
     #[test]
     fn test_parse_checkupdates_extracts_correct_versions() {
         let test_cases = vec![
@@ -604,10 +602,10 @@ mod tests {
         }
     }
 
-    /// What: Test that checkupdates parsing handles multiple packages.
+    /// What: Test that pacman -Qu parsing handles multiple packages.
     ///
     /// Inputs:
-    /// - Multi-line checkupdates output
+    /// - Multi-line pacman -Qu output
     ///
     /// Output:
     /// - Verifies that all packages are parsed correctly
