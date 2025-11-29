@@ -551,9 +551,55 @@ pub(super) fn handle_password_prompt_modal(
                 Some(input.clone())
             };
 
+            // Handle downgrade specially - it's an interactive tool that needs a terminal
+            if matches!(purpose, crate::state::modal::PasswordPurpose::Downgrade) {
+                // Downgrade tool is interactive and needs to run in a terminal
+                // Close the modal and spawn downgrade in a terminal
+                app.modal = crate::state::Modal::None;
+
+                let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+                let joined = names.join(" ");
+
+                let cmd = if app.dry_run {
+                    format!("echo DRY RUN: sudo downgrade {joined}")
+                } else {
+                    // Build command with password passed via sudo -S
+                    let downgrade_cmd = password.as_ref().map_or_else(
+                        || {
+                            // No password (passwordless sudo)
+                            format!("sudo downgrade {joined}")
+                        },
+                        |pass| {
+                            // Use sudo -S to pass password via stdin
+                            let pass_escaped = crate::install::shell_single_quote(pass);
+                            format!("echo {pass_escaped} | sudo -S downgrade {joined}")
+                        },
+                    );
+
+                    // Check if downgrade command exists or if package is installed (pacman -Qi works without sudo for installed packages)
+                    format!(
+                        "if (command -v downgrade >/dev/null 2>&1) || pacman -Qi downgrade >/dev/null 2>&1; then {downgrade_cmd}; else echo 'downgrade tool not found. Install \"downgrade\" package.'; fi"
+                    )
+                };
+
+                // Clear downgrade list
+                app.downgrade_list.clear();
+                app.downgrade_state.select(None);
+
+                // Spawn downgrade in a terminal (interactive tool needs full terminal)
+                crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+
+                // Show toast message
+                app.toast_message = Some(crate::i18n::t(app, "app.toasts.downgrade_started"));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+
+                return true;
+            }
+
             let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
 
-            // Transition to PreflightExec
+            // Transition to PreflightExec for install/remove/update
             let action = match purpose {
                 crate::state::modal::PasswordPurpose::Install
                 | crate::state::modal::PasswordPurpose::Update => {
@@ -563,7 +609,8 @@ pub(super) fn handle_password_prompt_modal(
                     crate::state::PreflightAction::Remove
                 }
                 crate::state::modal::PasswordPurpose::Downgrade => {
-                    crate::state::PreflightAction::Downgrade
+                    // This should never be reached due to the check above
+                    unreachable!("Downgrade should be handled above")
                 }
             };
             app.modal = Modal::PreflightExec {
@@ -576,7 +623,7 @@ pub(super) fn handle_password_prompt_modal(
                 header_chips,
             };
 
-            // Store executor request
+            // Store executor request for install/remove/update
             app.pending_executor_request = Some(match purpose {
                 crate::state::modal::PasswordPurpose::Install
                 | crate::state::modal::PasswordPurpose::Update => ExecutorRequest::Install {
@@ -594,12 +641,8 @@ pub(super) fn handle_password_prompt_modal(
                     }
                 }
                 crate::state::modal::PasswordPurpose::Downgrade => {
-                    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-                    ExecutorRequest::Downgrade {
-                        names,
-                        password,
-                        dry_run: app.dry_run,
-                    }
+                    // This should never be reached due to the check above, but included for exhaustiveness
+                    unreachable!("Downgrade should be handled above")
                 }
             });
 

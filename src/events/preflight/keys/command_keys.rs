@@ -363,9 +363,7 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
                 crate::state::PreflightAction::Downgrade => {
                     // For downgrade, we don't need to check dependencies
                     // Downgrade tool handles its own logic
-                    // Just allow downgrade to proceed
-                    removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
-                    removal_mode = Some(*cascade_mode);
+                    // Just allow downgrade to proceed - handled separately below
                 }
             }
 
@@ -438,7 +436,58 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
         crate::events::preflight::modal::close_preflight_modal(app, &service_info);
 
         return handle_proceed_remove(app, items, mode, header_chips);
-    } else if let Some(count) = blocked_dep_count {
+    }
+
+    // Check if this is a downgrade action
+    let is_downgrade = if let crate::state::Modal::Preflight { action, .. } = &app.modal {
+        matches!(action, crate::state::PreflightAction::Downgrade)
+    } else {
+        false
+    };
+
+    if is_downgrade {
+        // Get items, action, header_chips, and cascade_mode before closing modal
+        let (items, _action, header_chips, cascade_mode) = if let crate::state::Modal::Preflight {
+            action,
+            items,
+            header_chips,
+            cascade_mode,
+            ..
+        } = &app.modal
+        {
+            (items.clone(), *action, header_chips.clone(), *cascade_mode)
+        } else {
+            return false;
+        };
+
+        // Downgrade operations always need sudo (downgrade tool requires sudo)
+        // Always show password prompt - user can press Enter if passwordless sudo is configured
+        // Store cascade mode for consistency (though downgrade doesn't use it)
+        app.remove_cascade_mode = cascade_mode;
+
+        // Get service_info before closing modal
+        let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
+            service_info.clone()
+        } else {
+            Vec::new()
+        };
+
+        // Close preflight modal
+        crate::events::preflight::modal::close_preflight_modal(app, &service_info);
+
+        // Show password prompt for downgrade
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Downgrade,
+            items,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
+        return false;
+    }
+
+    if let Some(count) = blocked_dep_count {
         let root_list: Vec<String> = app
             .remove_preflight_summary
             .iter()

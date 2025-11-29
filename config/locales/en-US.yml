@@ -121,6 +121,8 @@ en-US:
       installing_preflight_skipped: "Installing list (preflight skipped)"
       removing_preflight_skipped: "Removing list (preflight skipped)"
       preflight_remove_list: "Preflight: Remove list"
+      preflight_downgrade_list: "Preflight: Downgrade list"
+      downgrade_started: "Downgrade tool opened in terminal"
       theme_reloaded: "Theme reloaded"
       config_reloaded: "Configuration reloaded"
       installing_skipped: "Installing (preflight skipped)"
@@ -454,9 +456,11 @@ en-US:
       preflight_exec:
         title_install: " Preflight: Install "
         title_remove: " Preflight: Remove "
+        title_downgrade: " Preflight: Downgrade "
       preflight:
         title_install: " Preflight: Install "
         title_remove: " Preflight: Remove "
+        title_downgrade: " Preflight: Downgrade "
         tabs:
           summary: "Summary"
           deps: "Deps"

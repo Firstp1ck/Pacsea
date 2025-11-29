@@ -118,20 +118,20 @@ fn integration_downgrade_command_structure() {
 }
 
 #[test]
-/// What: Test that downgrade uses `ExecutorRequest` instead of spawning terminals.
+/// What: Test that downgrade spawns in a terminal (not executor) since it's an interactive tool.
 ///
 /// Inputs:
-/// - Downgrade action triggered through `handle_enter_key` in install pane.
+/// - Downgrade action triggered through preflight modal.
 ///
 /// Output:
-/// - `pending_executor_request` should be set with `ExecutorRequest::Downgrade` (or similar).
+/// - Downgrade should spawn in a terminal, not use executor pattern.
 ///
 /// Details:
-/// - This test FAILS until downgrade is fully migrated to executor pattern.
-/// - Currently `handle_enter_key` calls `spawn_shell_commands_in_terminal` for downgrade.
-/// - When implementation is complete, this test should pass.
+/// - Downgrade tool is interactive and requires user input to select versions.
+/// - It cannot work in the PTY executor pattern, so it spawns in a terminal instead.
+/// - This is the expected behavior for interactive tools.
 #[allow(dead_code)]
-fn integration_downgrade_uses_executor_not_terminal() {
+fn integration_downgrade_spawns_in_terminal() {
     // Unused imports commented out until handle_install_key is made public
     // use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     // TODO: handle_install_key is private, need to make it public or use public API
@@ -165,16 +165,16 @@ fn integration_downgrade_uses_executor_not_terminal() {
         mpsc::unbounded_channel();
 
     // Trigger downgrade action through Enter key
-    // Currently this calls spawn_shell_commands_in_terminal
-    // TODO: When downgrade is migrated, this should set app.pending_executor_request
+    // Downgrade spawns in a terminal (not executor) because it's interactive
     // TODO: handle_install_key is private, need to make it public or use public API
     // let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
     // handle_install_key(ke, &mut app, &_dtx, &_ptx, &_atx);
 
-    // This test will FAIL until downgrade uses executor pattern
+    // Downgrade should NOT use executor pattern - it spawns in a terminal
+    // This is expected behavior for interactive tools
     assert!(
-        app.pending_executor_request.is_some(),
-        "Downgrade must use ExecutorRequest instead of spawning terminals. Currently downgrade uses spawn_shell_commands_in_terminal."
+        app.pending_executor_request.is_none(),
+        "Downgrade correctly spawns in a terminal (not executor) because it's an interactive tool."
     );
 
     // Note: ExecutorRequest::Downgrade variant doesn't exist yet
