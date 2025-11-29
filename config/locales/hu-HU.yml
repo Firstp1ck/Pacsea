@@ -247,8 +247,7 @@ hu-HU:
         options: "Beállítások"
         panels: "Panelek"
         config_lists: "Konfigurációk/Listák"
-        # TODO: translate to hungarian
-        menu: "Menu"
+        menu: "Menü"
       menus:
         config_lists:
           first_letter: "K"
@@ -259,15 +258,14 @@ hu-HU:
         options:
           first_letter: "B"
           suffix: "eállítások "
-        # TODO: translate to hungarian
         menu:
           first_letter: "M"
-          suffix: "enu "
+          suffix: "enü "
       collapsed_menu:
         options:
-          config_lists: "Config/Lists"
-          panels: "Panels"
-          options: "Options"
+          config_lists: "Konfigurációk/Listák"
+          panels: "Panelek"
+          options: "Beállítások"
       filters:
         aur: "AUR"
         core: "core"
