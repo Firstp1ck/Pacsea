@@ -216,9 +216,14 @@ fn system_update_enter_executes() {
 
     // Should return Some(true) when Enter executes commands
     assert_eq!(result, Some(true));
-    // Modal should be closed after execution
+    // Modal should transition to PreflightExec after execution
     match app.modal {
-        crate::state::Modal::None => {}
-        _ => panic!("Expected modal to be closed after execution"),
+        crate::state::Modal::PreflightExec { .. } => {}
+        _ => panic!("Expected modal to transition to PreflightExec after execution"),
     }
+    // Verify that pending_executor_request is set
+    assert!(
+        app.pending_executor_request.is_some(),
+        "System update should set pending_executor_request"
+    );
 }

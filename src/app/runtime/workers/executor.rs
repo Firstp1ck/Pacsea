@@ -5,6 +5,7 @@ use tokio::sync::mpsc;
 use crate::install::{
     ExecutorOutput, ExecutorRequest, build_downgrade_command_for_executor,
     build_install_command_for_executor, build_remove_command_for_executor,
+    build_update_command_for_executor,
 };
 
 /// What: Spawn background worker for command execution via PTY.
@@ -80,6 +81,23 @@ pub fn spawn_executor_worker(
                     );
                     let cmd =
                         build_downgrade_command_for_executor(&names, password.as_deref(), dry_run);
+                    let res_tx_clone = res_tx.clone();
+                    tokio::task::spawn_blocking(move || {
+                        execute_command_pty(&cmd, res_tx_clone);
+                    });
+                }
+                ExecutorRequest::Update {
+                    commands,
+                    password,
+                    dry_run,
+                } => {
+                    tracing::info!(
+                        "[Runtime] Executor worker received update request: {} commands, dry_run={}",
+                        commands.len(),
+                        dry_run
+                    );
+                    let cmd =
+                        build_update_command_for_executor(&commands, password.as_deref(), dry_run);
                     let res_tx_clone = res_tx.clone();
                     tokio::task::spawn_blocking(move || {
                         execute_command_pty(&cmd, res_tx_clone);

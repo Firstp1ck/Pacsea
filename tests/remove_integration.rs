@@ -156,6 +156,7 @@ fn integration_remove_executor_request_creation() {
         }
         ExecutorRequest::Install { .. }
         | ExecutorRequest::Downgrade { .. }
+        | ExecutorRequest::Update { .. }
         | ExecutorRequest::CustomCommand { .. } => {
             panic!("Expected Remove request")
         }
@@ -194,6 +195,7 @@ fn integration_remove_cascade_modes() {
             }
             ExecutorRequest::Install { .. }
             | ExecutorRequest::Downgrade { .. }
+            | ExecutorRequest::Update { .. }
             | ExecutorRequest::CustomCommand { .. } => {
                 panic!("Expected Remove request")
             }

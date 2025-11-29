@@ -52,7 +52,16 @@ pub enum ExecutorRequest {
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
-    // Future: Update, Scan, etc.
+    /// System update (mirrors, pacman, AUR, cache).
+    Update {
+        /// Commands to execute in sequence.
+        commands: Vec<String>,
+        /// Optional sudo password for commands that need sudo.
+        password: Option<String>,
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+    },
+    // Future: Scan, etc.
 }
 
 /// What: Output messages from command execution.
@@ -245,6 +254,68 @@ pub fn build_downgrade_command_for_executor(
         // Just return the command as-is
         base_cmd
     }
+}
+
+/// What: Build system update command string by chaining multiple commands.
+///
+/// Inputs:
+/// - `commands`: List of commands to execute in sequence.
+/// - `password`: Optional sudo password for commands that need sudo.
+/// - `dry_run`: Whether to run in dry-run mode.
+///
+/// Output:
+/// - Command string ready for `PTY` execution (commands chained with `&&`).
+///
+/// Details:
+/// - Chains commands with `&&` so execution stops on first failure.
+/// - For commands starting with `sudo`, pipes password if provided.
+/// - In dry-run mode, wraps each command in `echo DRY RUN:`.
+/// - Removes hold tail since we're not spawning a terminal.
+#[must_use]
+pub fn build_update_command_for_executor(
+    commands: &[String],
+    password: Option<&str>,
+    dry_run: bool,
+) -> String {
+    use super::utils::shell_single_quote;
+
+    if commands.is_empty() {
+        return if dry_run {
+            "echo DRY RUN: nothing to update".to_string()
+        } else {
+            "echo nothing to update".to_string()
+        };
+    }
+
+    let processed_commands: Vec<String> = if dry_run {
+        commands
+            .iter()
+            .map(|c| format!("echo DRY RUN: {c}"))
+            .collect()
+    } else {
+        commands
+            .iter()
+            .map(|cmd| {
+                // Check if command needs sudo and has password
+                password.map_or_else(
+                    || cmd.clone(),
+                    |pass| {
+                        if cmd.starts_with("sudo ") {
+                            // Extract the command after "sudo "
+                            let base_cmd = cmd.strip_prefix("sudo ").unwrap_or(cmd);
+                            let escaped = shell_single_quote(pass);
+                            format!("printf '%s\\n' {escaped} | sudo -S {base_cmd}")
+                        } else {
+                            // Command doesn't need password or already has it handled
+                            cmd.clone()
+                        }
+                    },
+                )
+            })
+            .collect()
+    };
+
+    processed_commands.join(" && ")
 }
 
 #[cfg(test)]
