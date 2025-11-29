@@ -240,7 +240,10 @@ fn integration_system_update_uses_executor_not_terminal() {
             password,
             dry_run,
         }) => {
-            assert_eq!(*commands, cmds, "Update request should have the correct commands");
+            assert_eq!(
+                *commands, cmds,
+                "Update request should have the correct commands"
+            );
             assert_eq!(password, None, "Password should be None initially");
             assert!(!dry_run, "Dry run should be false");
         }
