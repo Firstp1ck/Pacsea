@@ -206,20 +206,28 @@ fn check_and_trigger_deps_resolution(
 /// What: Check and trigger file resolution if conditions are met.
 fn check_and_trigger_files_resolution(
     app: &mut AppState,
-    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
 ) {
     if let Some(items) = app.preflight_files_items.take()
         && app.preflight_files_resolving
         && !app.files_resolving
     {
+        // Get action from preflight modal state
+        let action = if let crate::state::Modal::Preflight { action, .. } = &app.modal {
+            *action
+        } else {
+            // Fallback to Install if modal state is unavailable
+            crate::state::modal::PreflightAction::Install
+        };
         tracing::debug!(
-            "[Runtime] Tick: Triggering file resolution for {} preflight items (preflight_files_resolving={}, files_resolving={})",
+            "[Runtime] Tick: Triggering file resolution for {} preflight items with action={:?} (preflight_files_resolving={}, files_resolving={})",
             items.len(),
+            action,
             app.preflight_files_resolving,
             app.files_resolving
         );
         app.files_resolving = true;
-        let _ = files_req_tx.send(items);
+        let _ = files_req_tx.send((items, action));
     } else if app.preflight_files_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
@@ -299,7 +307,7 @@ fn check_and_trigger_sandbox_resolution(
 fn handle_preflight_resolution(
     app: &mut AppState,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
-    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     services_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,
@@ -498,7 +506,7 @@ pub fn handle_tick(
     details_req_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_req_tx: &mpsc::UnboundedSender<PackageItem>,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
-    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     services_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,

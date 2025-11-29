@@ -234,6 +234,7 @@ pub(super) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, moda
 ///
 /// Details:
 /// - Handles Esc/q to cancel, Enter to continue with batch update
+/// - Uses executor pattern (PTY-based execution) instead of spawning terminal
 pub(super) fn handle_confirm_batch_update_modal(
     ke: KeyEvent,
     app: &mut AppState,
@@ -247,12 +248,38 @@ pub(super) fn handle_confirm_batch_update_modal(
                 return true;
             }
             KeyCode::Enter => {
-                // Continue with batch update
+                // Continue with batch update - use executor pattern instead of spawning terminal
                 let items_clone = items.clone();
                 let dry_run_clone = *dry_run;
-                app.modal = crate::state::Modal::None;
-                // Proceed with the actual install
-                crate::install::spawn_install_all(&items_clone, dry_run_clone);
+                app.dry_run = dry_run_clone;
+
+                // Get header_chips if available from pending_exec_header_chips, otherwise use default
+                let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
+
+                // Check if password is needed (same logic as handle_proceed_install)
+                let has_official = items_clone
+                    .iter()
+                    .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
+                if has_official {
+                    // Show password prompt
+                    app.modal = crate::state::Modal::PasswordPrompt {
+                        purpose: crate::state::modal::PasswordPurpose::Install,
+                        items: items_clone,
+                        input: String::new(),
+                        cursor: 0,
+                        error: None,
+                    };
+                    app.pending_exec_header_chips = Some(header_chips);
+                } else {
+                    // No password needed, go directly to execution
+                    use crate::events::preflight::keys;
+                    keys::start_execution(
+                        app,
+                        &items_clone,
+                        crate::state::PreflightAction::Install,
+                        header_chips,
+                    );
+                }
                 return true;
             }
             _ => {}

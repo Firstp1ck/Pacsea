@@ -70,7 +70,10 @@ pub fn spawn_aur_scan_for_with_config(
         do_sleuth,
     );
 }
-pub use executor::{ExecutorOutput, ExecutorRequest, build_install_command_for_executor};
+pub use executor::{
+    ExecutorOutput, ExecutorRequest, build_install_command_for_executor,
+    build_remove_command_for_executor,
+};
 pub use shell::spawn_shell_commands_in_terminal;
 pub use single::spawn_install;
 pub use utils::command_on_path;

@@ -51,7 +51,8 @@ pub struct Channels {
         mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     pub deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
     pub deps_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::DependencyInfo>>,
-    pub files_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
+    pub files_req_tx:
+        mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     pub files_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::PackageFileInfo>>,
     pub files_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::PackageFileInfo>>,
     pub services_req_tx:
@@ -101,8 +102,8 @@ struct PreflightChannels {
     deps_req_rx: mpsc::UnboundedReceiver<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
     deps_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::DependencyInfo>>,
-    files_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
-    files_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    files_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    files_req_rx: mpsc::UnboundedReceiver<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     files_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::PackageFileInfo>>,
     files_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::PackageFileInfo>>,
     services_req_tx:
@@ -209,7 +210,8 @@ fn create_preflight_channels() -> PreflightChannels {
         mpsc::unbounded_channel::<(Vec<PackageItem>, crate::state::modal::PreflightAction)>();
     let (deps_res_tx, deps_res_rx) =
         mpsc::unbounded_channel::<Vec<crate::state::modal::DependencyInfo>>();
-    let (files_req_tx, files_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
+    let (files_req_tx, files_req_rx) =
+        mpsc::unbounded_channel::<(Vec<PackageItem>, crate::state::modal::PreflightAction)>();
     let (files_res_tx, files_res_rx) =
         mpsc::unbounded_channel::<Vec<crate::state::modal::PackageFileInfo>>();
     let (services_req_tx, services_req_rx) =

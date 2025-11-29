@@ -18,7 +18,7 @@ use pacsea::state::{AppState, Modal, PackageItem, Source};
 /// - `source`: Package source (Official or AUR)
 ///
 /// Output:
-/// - PackageItem ready for testing
+/// - `PackageItem` ready for testing
 ///
 /// Details:
 /// - Helper to create test packages with consistent structure
@@ -38,24 +38,26 @@ fn create_test_package(name: &str, source: Source) -> PackageItem {
 /// What: Test Updates modal state creation.
 ///
 /// Inputs:
-/// - Updates modal with update entries.
+/// - `Updates` modal with update entries.
 ///
 /// Output:
 /// - Modal state is correctly structured.
 ///
 /// Details:
-/// - Verifies Updates modal can be created and accessed.
+/// - Verifies `Updates` modal can be created and accessed.
 fn integration_updates_modal_state() {
-    let mut app = AppState::default();
     let entries = vec![
         ("pkg1".to_string(), "1.0.0".to_string(), "1.1.0".to_string()),
         ("pkg2".to_string(), "2.0.0".to_string(), "2.1.0".to_string()),
     ];
 
-    app.modal = Modal::Updates {
-        entries: entries.clone(),
-        scroll: 0,
-        selected: 0,
+    let app = AppState {
+        modal: Modal::Updates {
+            entries,
+            scroll: 0,
+            selected: 0,
+        },
+        ..Default::default()
     };
 
     match app.modal {
@@ -87,7 +89,7 @@ fn integration_updates_modal_state() {
 /// Details:
 /// - Verifies that single package updates use the preflight modal flow.
 fn integration_single_package_update_flow() {
-    let mut app = AppState::default();
+    let _app = AppState::default();
     let pkg = create_test_package(
         "test-pkg",
         Source::Official {
@@ -108,25 +110,27 @@ fn integration_single_package_update_flow() {
 /// What: Test Updates modal navigation.
 ///
 /// Inputs:
-/// - Updates modal with multiple entries, navigation keys.
+/// - `Updates` modal with multiple entries, navigation keys.
 ///
 /// Output:
 /// - Selection moves correctly.
 ///
 /// Details:
-/// - Verifies navigation in Updates modal.
+/// - Verifies navigation in `Updates` modal.
 fn integration_updates_modal_navigation() {
-    let mut app = AppState::default();
     let entries = vec![
         ("pkg1".to_string(), "1.0.0".to_string(), "1.1.0".to_string()),
         ("pkg2".to_string(), "2.0.0".to_string(), "2.1.0".to_string()),
         ("pkg3".to_string(), "3.0.0".to_string(), "3.1.0".to_string()),
     ];
 
-    app.modal = Modal::Updates {
-        entries: entries.clone(),
-        scroll: 0,
-        selected: 0,
+    let app = AppState {
+        modal: Modal::Updates {
+            entries,
+            scroll: 0,
+            selected: 0,
+        },
+        ..Default::default()
     };
 
     // Test selection state
@@ -137,4 +141,3 @@ fn integration_updates_modal_navigation() {
         _ => panic!("Expected Updates modal"),
     }
 }
-

@@ -1,34 +1,34 @@
 //! Unit tests for scan configuration modal handlers.
 
-#![cfg(test)]
-
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::state::AppState;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::events::modals::scan::handle_scan_config;
 
 #[test]
-/// What: Verify ScanConfig modal handles Esc to close.
+/// What: Verify `ScanConfig` modal handles Esc to close.
 ///
 /// Inputs:
-/// - ScanConfig modal, Esc key event.
+/// - `ScanConfig` modal, Esc key event.
 ///
 /// Output:
 /// - Modal is closed or previous modal is restored.
 ///
 /// Details:
-/// - Tests that Esc closes the ScanConfig modal.
+/// - Tests that Esc closes the `ScanConfig` modal.
 fn scan_config_esc_closes_modal() {
-    let mut app = AppState::default();
-    app.modal = crate::state::Modal::ScanConfig {
-        do_clamav: false,
-        do_trivy: false,
-        do_semgrep: false,
-        do_shellcheck: false,
-        do_virustotal: false,
-        do_custom: false,
-        do_sleuth: false,
-        cursor: 0,
+    let mut app = AppState {
+        modal: crate::state::Modal::ScanConfig {
+            do_clamav: false,
+            do_trivy: false,
+            do_semgrep: false,
+            do_shellcheck: false,
+            do_virustotal: false,
+            do_custom: false,
+            do_sleuth: false,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     let mut do_clamav = false;
@@ -62,27 +62,29 @@ fn scan_config_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify ScanConfig modal handles navigation.
+/// What: Verify `ScanConfig` modal handles navigation.
 ///
 /// Inputs:
-/// - ScanConfig modal, Down key event.
+/// - `ScanConfig` modal, Down key event.
 ///
 /// Output:
 /// - Cursor moves down.
 ///
 /// Details:
-/// - Tests that navigation keys work in ScanConfig modal.
+/// - Tests that navigation keys work in `ScanConfig` modal.
 fn scan_config_navigation() {
-    let mut app = AppState::default();
-    app.modal = crate::state::Modal::ScanConfig {
-        do_clamav: false,
-        do_trivy: false,
-        do_semgrep: false,
-        do_shellcheck: false,
-        do_virustotal: false,
-        do_custom: false,
-        do_sleuth: false,
-        cursor: 0,
+    let mut app = AppState {
+        modal: crate::state::Modal::ScanConfig {
+            do_clamav: false,
+            do_trivy: false,
+            do_semgrep: false,
+            do_shellcheck: false,
+            do_virustotal: false,
+            do_custom: false,
+            do_sleuth: false,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     let mut do_clamav = false;
@@ -112,27 +114,29 @@ fn scan_config_navigation() {
 }
 
 #[test]
-/// What: Verify ScanConfig modal handles toggle with Space.
+/// What: Verify `ScanConfig` modal handles toggle with Space.
 ///
 /// Inputs:
-/// - ScanConfig modal, Space key event on first option.
+/// - `ScanConfig` modal, Space key event on first option.
 ///
 /// Output:
-/// - do_clamav flag is toggled.
+/// - `do_clamav` flag is toggled.
 ///
 /// Details:
-/// - Tests that Space toggles scan options in ScanConfig modal.
+/// - Tests that Space toggles scan options in `ScanConfig` modal.
 fn scan_config_toggle() {
-    let mut app = AppState::default();
-    app.modal = crate::state::Modal::ScanConfig {
-        do_clamav: false,
-        do_trivy: false,
-        do_semgrep: false,
-        do_shellcheck: false,
-        do_virustotal: false,
-        do_custom: false,
-        do_sleuth: false,
-        cursor: 0,
+    let mut app = AppState {
+        modal: crate::state::Modal::ScanConfig {
+            do_clamav: false,
+            do_trivy: false,
+            do_semgrep: false,
+            do_shellcheck: false,
+            do_virustotal: false,
+            do_custom: false,
+            do_sleuth: false,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     let mut do_clamav = false;
@@ -162,10 +166,10 @@ fn scan_config_toggle() {
 }
 
 #[test]
-/// What: Verify ScanConfig modal handles Enter to execute scan.
+/// What: Verify `ScanConfig` modal handles Enter to execute scan.
 ///
 /// Inputs:
-/// - ScanConfig modal with options selected, Enter key event.
+/// - `ScanConfig` modal with options selected, Enter key event.
 ///
 /// Output:
 /// - Scan is executed (spawns terminal - will fail in test environment).
@@ -174,18 +178,20 @@ fn scan_config_toggle() {
 /// - Tests that Enter triggers scan execution.
 /// - Note: This will spawn a terminal, so it's expected to fail in test environment.
 fn scan_config_enter_executes() {
-    let mut app = AppState::default();
-    app.modal = crate::state::Modal::ScanConfig {
-        do_clamav: true,
-        do_trivy: false,
-        do_semgrep: false,
-        do_shellcheck: false,
-        do_virustotal: false,
-        do_custom: false,
-        do_sleuth: false,
-        cursor: 0,
+    let mut app = AppState {
+        modal: crate::state::Modal::ScanConfig {
+            do_clamav: true,
+            do_trivy: false,
+            do_semgrep: false,
+            do_shellcheck: false,
+            do_virustotal: false,
+            do_custom: false,
+            do_sleuth: false,
+            cursor: 0,
+        },
+        pending_install_names: Some(vec!["test-pkg".to_string()]),
+        ..Default::default()
     };
-    app.pending_install_names = Some(vec!["test-pkg".to_string()]);
 
     let mut do_clamav = true;
     let mut do_trivy = false;
@@ -212,13 +218,9 @@ fn scan_config_enter_executes() {
 
     // Modal should transition (scan spawns terminal)
     // The exact modal depends on implementation, but it should not be ScanConfig anymore
-    match app.modal {
-        crate::state::Modal::ScanConfig { .. } => {
-            // If still ScanConfig, that's also acceptable (scan might be async)
-        }
-        _ => {
-            // Modal changed - scan was triggered
-        }
+    if let crate::state::Modal::ScanConfig { .. } = app.modal {
+        // If still ScanConfig, that's also acceptable (scan might be async)
+    } else {
+        // Modal changed - scan was triggered
     }
 }
-

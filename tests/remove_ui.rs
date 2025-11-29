@@ -2,15 +2,16 @@
 //!
 //! Tests cover:
 //! - Remove modal rendering structure
-//! - PreflightExec modal for remove
-//! - ConfirmRemove modal structure
+//! - `PreflightExec` modal for remove
+//! - `ConfirmRemove` modal structure
 //!
 //! Note: These tests verify modal state structure rather than actual rendering.
 
 #![cfg(test)]
 
+// CascadeMode is imported but not used in tests
+// use pacsea::state::modal::CascadeMode;
 use pacsea::state::{AppState, Modal, PackageItem, PreflightAction, PreflightTab, Source};
-use pacsea::state::modal::CascadeMode;
 
 /// What: Create a test package item with specified source.
 ///
@@ -19,7 +20,7 @@ use pacsea::state::modal::CascadeMode;
 /// - `source`: Package source (Official or AUR)
 ///
 /// Output:
-/// - PackageItem ready for testing
+/// - `PackageItem` ready for testing
 ///
 /// Details:
 /// - Helper to create test packages with consistent structure
@@ -36,30 +37,28 @@ fn create_test_package(name: &str, source: Source) -> PackageItem {
 }
 
 #[test]
-/// What: Test PreflightExec modal structure for remove action.
+/// What: Test `PreflightExec` modal structure for remove action.
 ///
 /// Inputs:
-/// - PreflightExec modal with remove action.
+/// - `PreflightExec` modal with remove action.
 ///
 /// Output:
 /// - Modal state is correctly structured.
 ///
 /// Details:
-/// - Verifies PreflightExec modal can be created for remove operations.
+/// - Verifies `PreflightExec` modal can be created for remove operations.
 fn ui_preflight_exec_remove_rendering() {
     let mut app = AppState::default();
-    let items = vec![
-        create_test_package(
-            "old-pkg1",
-            Source::Official {
-                repo: "extra".into(),
-                arch: "x86_64".into(),
-            },
-        ),
-    ];
+    let items = vec![create_test_package(
+        "old-pkg1",
+        Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+    )];
 
     app.modal = Modal::PreflightExec {
-        items: items.clone(),
+        items,
         action: PreflightAction::Remove,
         tab: PreflightTab::Summary,
         verbose: false,
@@ -97,16 +96,16 @@ fn ui_preflight_exec_remove_rendering() {
 }
 
 #[test]
-/// What: Test ConfirmRemove modal structure.
+/// What: Test `ConfirmRemove` modal structure.
 ///
 /// Inputs:
-/// - ConfirmRemove modal with packages.
+/// - `ConfirmRemove` modal with packages.
 ///
 /// Output:
 /// - Modal state is correctly structured.
 ///
 /// Details:
-/// - Verifies ConfirmRemove modal can be created.
+/// - Verifies `ConfirmRemove` modal can be created.
 fn ui_confirm_remove_modal_rendering() {
     let mut app = AppState::default();
     let items = vec![
@@ -126,12 +125,12 @@ fn ui_confirm_remove_modal_rendering() {
         ),
     ];
 
-    app.modal = Modal::ConfirmRemove {
-        items: items.clone(),
-    };
+    app.modal = Modal::ConfirmRemove { items };
 
     match app.modal {
-        Modal::ConfirmRemove { items: ref modal_items } => {
+        Modal::ConfirmRemove {
+            items: ref modal_items,
+        } => {
             assert_eq!(modal_items.len(), 2);
             assert_eq!(modal_items[0].name, "old-pkg1");
             assert_eq!(modal_items[1].name, "old-pkg2");
@@ -139,4 +138,3 @@ fn ui_confirm_remove_modal_rendering() {
         _ => panic!("Expected ConfirmRemove modal"),
     }
 }
-

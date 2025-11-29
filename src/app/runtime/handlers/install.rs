@@ -10,7 +10,7 @@ use crate::state::{AppState, PackageItem};
 /// - `app`: Application state
 /// - `item`: Package item to add
 /// - `deps_req_tx`: Channel sender for dependency resolution requests (with action)
-/// - `files_req_tx`: Channel sender for file resolution requests
+/// - `files_req_tx`: Channel sender for file resolution requests (with action)
 /// - `services_req_tx`: Channel sender for service resolution requests
 /// - `sandbox_req_tx`: Channel sender for sandbox resolution requests
 ///
@@ -21,7 +21,7 @@ pub fn handle_add_to_install_list(
     app: &mut AppState,
     item: PackageItem,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
-    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     services_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,
@@ -36,9 +36,12 @@ pub fn handle_add_to_install_list(
             app.install_list.clone(),
             crate::state::modal::PreflightAction::Install,
         ));
-        // Trigger background file resolution for updated install list
+        // Trigger background file resolution for updated install list (Install action)
         app.files_resolving = true;
-        let _ = files_req_tx.send(app.install_list.clone());
+        let _ = files_req_tx.send((
+            app.install_list.clone(),
+            crate::state::modal::PreflightAction::Install,
+        ));
         // Trigger background service resolution for updated install list
         app.services_resolving = true;
         let _ = services_req_tx.send((

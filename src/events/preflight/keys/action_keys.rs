@@ -81,20 +81,16 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
 
     if should_close {
         // Check if we need to show password prompt or go directly to execution
-        let (items_clone, action_clone, header_chips_clone, needs_password) =
+        let (items_clone, action_clone, header_chips_clone, cascade_mode) =
             if let crate::state::Modal::Preflight {
                 items,
                 action,
                 header_chips,
+                cascade_mode,
                 ..
             } = &app.modal
             {
-                let has_official = items
-                    .iter()
-                    .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
-                let needs_pw =
-                    has_official && matches!(action, crate::state::PreflightAction::Install);
-                (items.clone(), *action, header_chips.clone(), needs_pw)
+                (items.clone(), *action, header_chips.clone(), *cascade_mode)
             } else {
                 // Not a Preflight modal, just close it
                 let service_info =
@@ -115,20 +111,44 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
         };
         close_preflight_modal(app, &service_info);
 
-        if needs_password {
-            // Show password prompt
-            app.modal = crate::state::Modal::PasswordPrompt {
-                purpose: crate::state::modal::PasswordPurpose::Install,
-                items: items_clone,
-                input: String::new(),
-                cursor: 0,
-                error: None,
-            };
-            // Store header_chips for later use in PreflightExec
-            app.pending_exec_header_chips = Some(header_chips_clone);
-        } else {
-            // No password needed, go directly to execution
-            start_execution(app, &items_clone, action_clone, header_chips_clone);
+        // Handle based on action type
+        match action_clone {
+            crate::state::PreflightAction::Install => {
+                // Check if password is needed for install
+                let has_official = items_clone
+                    .iter()
+                    .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
+                if has_official {
+                    // Show password prompt
+                    app.modal = crate::state::Modal::PasswordPrompt {
+                        purpose: crate::state::modal::PasswordPurpose::Install,
+                        items: items_clone,
+                        input: String::new(),
+                        cursor: 0,
+                        error: None,
+                    };
+                    // Store header_chips for later use in PreflightExec
+                    app.pending_exec_header_chips = Some(header_chips_clone);
+                } else {
+                    // No password needed, go directly to execution
+                    start_execution(app, &items_clone, action_clone, header_chips_clone);
+                }
+            }
+            crate::state::PreflightAction::Remove => {
+                // Remove operations always need sudo (pacman -R requires sudo regardless of package source)
+                // Always show password prompt - user can press Enter if passwordless sudo is configured
+                // Store cascade mode for executor (needed in both password and non-password paths)
+                app.remove_cascade_mode = cascade_mode;
+
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::Remove,
+                    items: items_clone,
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                app.pending_exec_header_chips = Some(header_chips_clone);
+            }
         }
         // Return false to keep TUI open - modal is closed but app continues
         return false;
@@ -147,7 +167,7 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
 /// Details:
 /// - Transitions to `PreflightExec` modal and stores `ExecutorRequest` for processing in tick handler
 #[allow(clippy::needless_pass_by_value)] // header_chips is consumed in modal creation
-pub(super) fn start_execution(
+pub fn start_execution(
     app: &mut AppState,
     items: &[crate::state::PackageItem],
     action: crate::state::PreflightAction,
@@ -177,7 +197,7 @@ pub(super) fn start_execution(
             let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
             ExecutorRequest::Remove {
                 names,
-                password: None, // TODO: Handle password for remove operations
+                password: None, // Password is handled via PasswordPrompt modal before reaching here
                 cascade: app.remove_cascade_mode,
                 dry_run: app.dry_run,
             }

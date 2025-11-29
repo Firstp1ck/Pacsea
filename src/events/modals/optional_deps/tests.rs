@@ -1,9 +1,7 @@
 //! Unit tests for optional dependencies modal handlers.
 
-#![cfg(test)]
-
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::state::{AppState, types::OptionalDepRow};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::events::modals::optional_deps::handle_optional_deps;
 
@@ -15,7 +13,7 @@ use crate::events::modals::optional_deps::handle_optional_deps;
 /// - `selectable`: Whether row is selectable
 ///
 /// Output:
-/// - OptionalDepRow ready for testing
+/// - `OptionalDepRow` ready for testing
 ///
 /// Details:
 /// - Helper to create test optional dependency rows
@@ -30,16 +28,16 @@ fn create_test_row(package: &str, installed: bool, selectable: bool) -> Optional
 }
 
 #[test]
-/// What: Verify OptionalDeps modal handles Esc to close.
+/// What: Verify `OptionalDeps` modal handles Esc to close.
 ///
 /// Inputs:
-/// - OptionalDeps modal, Esc key event.
+/// - `OptionalDeps` modal, Esc key event.
 ///
 /// Output:
 /// - Modal is closed.
 ///
 /// Details:
-/// - Tests that Esc closes the OptionalDeps modal.
+/// - Tests that Esc closes the `OptionalDeps` modal.
 fn optional_deps_esc_closes_modal() {
     let mut app = AppState::default();
     let rows = vec![create_test_row("test-pkg", false, true)];
@@ -60,16 +58,16 @@ fn optional_deps_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify OptionalDeps modal handles navigation.
+/// What: Verify `OptionalDeps` modal handles navigation.
 ///
 /// Inputs:
-/// - OptionalDeps modal, Down key event.
+/// - `OptionalDeps` modal, Down key event.
 ///
 /// Output:
 /// - Selection moves down.
 ///
 /// Details:
-/// - Tests that navigation keys work in OptionalDeps modal.
+/// - Tests that navigation keys work in `OptionalDeps` modal.
 fn optional_deps_navigation() {
     let mut app = AppState::default();
     let rows = vec![
@@ -89,10 +87,10 @@ fn optional_deps_navigation() {
 }
 
 #[test]
-/// What: Verify OptionalDeps modal handles Enter to install.
+/// What: Verify `OptionalDeps` modal handles Enter to install.
 ///
 /// Inputs:
-/// - OptionalDeps modal with selectable row, Enter key event.
+/// - `OptionalDeps` modal with selectable row, Enter key event.
 ///
 /// Output:
 /// - Installation is executed (spawns terminal - will fail in test environment).
@@ -122,10 +120,10 @@ fn optional_deps_enter_installs() {
 }
 
 #[test]
-/// What: Verify OptionalDeps modal Enter on installed package does nothing.
+/// What: Verify `OptionalDeps` modal Enter on installed package does nothing.
 ///
 /// Inputs:
-/// - OptionalDeps modal with installed (non-selectable) row, Enter key event.
+/// - `OptionalDeps` modal with installed (non-selectable) row, Enter key event.
 ///
 /// Output:
 /// - No action taken, modal closes.
@@ -155,13 +153,13 @@ fn optional_deps_enter_installed_does_nothing() {
 }
 
 #[test]
-/// What: Verify OptionalDeps modal Enter on virustotal-setup opens setup modal.
+/// What: Verify `OptionalDeps` modal Enter on virustotal-setup opens setup modal.
 ///
 /// Inputs:
-/// - OptionalDeps modal with virustotal-setup row, Enter key event.
+/// - `OptionalDeps` modal with virustotal-setup row, Enter key event.
 ///
 /// Output:
-/// - VirusTotalSetup modal is opened.
+/// - `VirusTotalSetup` modal is opened.
 ///
 /// Details:
 /// - Tests that Enter on virustotal-setup opens the setup modal.
@@ -182,4 +180,3 @@ fn optional_deps_enter_virustotal_setup() {
         _ => panic!("Expected VirusTotalSetup modal"),
     }
 }
-

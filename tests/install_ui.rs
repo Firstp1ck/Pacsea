@@ -1,15 +1,14 @@
 //! UI tests for install process modals.
 //!
 //! Tests cover:
-//! - PreflightExec modal state structure
+//! - `PreflightExec` modal state structure
 //! - Preflight modal state structure
 //! - Modal state transitions
 
 #![cfg(test)]
 
 use pacsea::state::{
-    Modal, PackageItem, PreflightAction, PreflightTab, Source,
-    modal::PreflightHeaderChips,
+    Modal, PackageItem, PreflightAction, PreflightTab, Source, modal::PreflightHeaderChips,
 };
 
 /// What: Create a test package item with specified source.
@@ -19,7 +18,7 @@ use pacsea::state::{
 /// - `source`: Package source (Official or AUR)
 ///
 /// Output:
-/// - PackageItem ready for testing
+/// - `PackageItem` ready for testing
 ///
 /// Details:
 /// - Helper to create test packages with consistent structure
@@ -36,10 +35,10 @@ fn create_test_package(name: &str, source: Source) -> PackageItem {
 }
 
 #[test]
-/// What: Test PreflightExec modal state structure for install action.
+/// What: Test `PreflightExec` modal state structure for install action.
 ///
 /// Inputs:
-/// - PreflightExec modal with install action, packages, and log lines.
+/// - `PreflightExec` modal with install action, packages, and log lines.
 ///
 /// Output:
 /// - Modal state is correctly structured.
@@ -74,13 +73,13 @@ fn ui_preflight_exec_install_state() {
     ];
 
     let modal = Modal::PreflightExec {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         verbose: false,
-        log_lines: log_lines.clone(),
+        log_lines,
         abortable: true,
-        header_chips: header_chips.clone(),
+        header_chips,
     };
 
     match modal {
@@ -107,10 +106,10 @@ fn ui_preflight_exec_install_state() {
 }
 
 #[test]
-/// What: Test PreflightExec modal state structure for remove action.
+/// What: Test `PreflightExec` modal state structure for remove action.
 ///
 /// Inputs:
-/// - PreflightExec modal with remove action.
+/// - `PreflightExec` modal with remove action.
 ///
 /// Output:
 /// - Modal state is correctly structured.
@@ -138,13 +137,13 @@ fn ui_preflight_exec_remove_state() {
     let log_lines = vec!["Removing packages...".to_string()];
 
     let modal = Modal::PreflightExec {
-        items: items.clone(),
+        items,
         action: PreflightAction::Remove,
         tab: PreflightTab::Summary,
         verbose: false,
-        log_lines: log_lines.clone(),
+        log_lines,
         abortable: false, // finished
-        header_chips: header_chips.clone(),
+        header_chips,
     };
 
     match modal {
@@ -163,10 +162,10 @@ fn ui_preflight_exec_remove_state() {
 }
 
 #[test]
-/// What: Test PreflightExec modal handles empty log lines.
+/// What: Test `PreflightExec` modal handles empty log lines.
 ///
 /// Inputs:
-/// - PreflightExec modal with empty log lines.
+/// - `PreflightExec` modal with empty log lines.
 ///
 /// Output:
 /// - Modal state is correctly structured.
@@ -194,13 +193,13 @@ fn ui_preflight_exec_empty_logs() {
     let log_lines = Vec::<String>::new();
 
     let modal = Modal::PreflightExec {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         verbose: false,
-        log_lines: log_lines.clone(),
+        log_lines,
         abortable: true,
-        header_chips: header_chips.clone(),
+        header_chips,
     };
 
     match modal {
@@ -215,10 +214,10 @@ fn ui_preflight_exec_empty_logs() {
 }
 
 #[test]
-/// What: Test PreflightExec modal with different tabs.
+/// What: Test `PreflightExec` modal with different tabs.
 ///
 /// Inputs:
-/// - PreflightExec modal with different tab selections.
+/// - `PreflightExec` modal with different tab selections.
 ///
 /// Output:
 /// - Modal state is correctly structured for each tab.
@@ -273,10 +272,10 @@ fn ui_preflight_exec_tabs() {
 }
 
 #[test]
-/// What: Test PreflightExec modal with verbose mode.
+/// What: Test `PreflightExec` modal with verbose mode.
 ///
 /// Inputs:
-/// - PreflightExec modal with verbose=true.
+/// - `PreflightExec` modal with verbose=true.
 ///
 /// Output:
 /// - Modal state correctly reflects verbose flag.
@@ -304,13 +303,13 @@ fn ui_preflight_exec_verbose() {
     let log_lines = vec!["Verbose output".to_string()];
 
     let modal = Modal::PreflightExec {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         verbose: true,
-        log_lines: log_lines.clone(),
+        log_lines,
         abortable: true,
-        header_chips: header_chips.clone(),
+        header_chips,
     };
 
     match modal {
@@ -322,10 +321,10 @@ fn ui_preflight_exec_verbose() {
 }
 
 #[test]
-/// What: Test PreflightExec modal with finished state (not abortable).
+/// What: Test `PreflightExec` modal with finished state (not abortable).
 ///
 /// Inputs:
-/// - PreflightExec modal with abortable=false (finished).
+/// - `PreflightExec` modal with abortable=false (finished).
 ///
 /// Output:
 /// - Modal state correctly reflects finished state.
@@ -353,13 +352,13 @@ fn ui_preflight_exec_finished() {
     let log_lines = vec!["Installation complete".to_string()];
 
     let modal = Modal::PreflightExec {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         verbose: false,
-        log_lines: log_lines.clone(),
+        log_lines,
         abortable: false, // finished
-        header_chips: header_chips.clone(),
+        header_chips,
     };
 
     match modal {
@@ -371,10 +370,10 @@ fn ui_preflight_exec_finished() {
 }
 
 #[test]
-/// What: Test PreflightExec modal with many packages.
+/// What: Test `PreflightExec` modal with many packages.
 ///
 /// Inputs:
-/// - PreflightExec modal with 20+ packages.
+/// - `PreflightExec` modal with 20+ packages.
 ///
 /// Output:
 /// - Modal state correctly stores all packages.
@@ -386,7 +385,7 @@ fn ui_preflight_exec_many_packages() {
     let items: Vec<PackageItem> = (0..20)
         .map(|i| {
             create_test_package(
-                &format!("package-{}", i),
+                &format!("package-{i}"),
                 Source::Official {
                     repo: "extra".into(),
                     arch: "x86_64".into(),
@@ -407,13 +406,13 @@ fn ui_preflight_exec_many_packages() {
     let log_lines = vec!["Installing packages...".to_string()];
 
     let modal = Modal::PreflightExec {
-        items: items.clone(),
+        items,
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
         verbose: false,
-        log_lines: log_lines.clone(),
+        log_lines,
         abortable: true,
-        header_chips: header_chips.clone(),
+        header_chips,
     };
 
     match modal {
@@ -430,10 +429,10 @@ fn ui_preflight_exec_many_packages() {
 }
 
 #[test]
-/// What: Test PreflightExec modal with different risk levels.
+/// What: Test `PreflightExec` modal with different risk levels.
 ///
 /// Inputs:
-/// - PreflightExec modal with Low, Medium, and High risk levels.
+/// - `PreflightExec` modal with Low, Medium, and High risk levels.
 ///
 /// Output:
 /// - Modal state correctly stores risk level.

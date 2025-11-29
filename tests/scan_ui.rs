@@ -1,8 +1,8 @@
 //! UI tests for security scan modals.
 //!
 //! Tests cover:
-//! - ScanConfig modal structure
-//! - VirusTotalSetup modal structure
+//! - `ScanConfig` modal structure
+//! - `VirusTotalSetup` modal structure
 //!
 //! Note: These tests verify modal state structure rather than actual rendering.
 
@@ -11,27 +11,29 @@
 use pacsea::state::{AppState, Modal};
 
 #[test]
-/// What: Test ScanConfig modal structure.
+/// What: Test `ScanConfig` modal structure.
 ///
 /// Inputs:
-/// - ScanConfig modal with scanner options.
+/// - `ScanConfig` modal with scanner options.
 ///
 /// Output:
 /// - Modal state is correctly structured.
 ///
 /// Details:
-/// - Verifies ScanConfig modal can be created.
+/// - Verifies `ScanConfig` modal can be created.
 fn ui_scan_config_modal_structure() {
-    let mut app = AppState::default();
-    app.modal = Modal::ScanConfig {
-        do_clamav: true,
-        do_trivy: true,
-        do_semgrep: false,
-        do_shellcheck: true,
-        do_virustotal: false,
-        do_custom: false,
-        do_sleuth: false,
-        cursor: 3,
+    let app = AppState {
+        modal: Modal::ScanConfig {
+            do_clamav: true,
+            do_trivy: true,
+            do_semgrep: false,
+            do_shellcheck: true,
+            do_virustotal: false,
+            do_custom: false,
+            do_sleuth: false,
+            cursor: 3,
+        },
+        ..Default::default()
     };
 
     match app.modal {
@@ -59,21 +61,23 @@ fn ui_scan_config_modal_structure() {
 }
 
 #[test]
-/// What: Test VirusTotalSetup modal structure.
+/// What: Test `VirusTotalSetup` modal structure.
 ///
 /// Inputs:
-/// - VirusTotalSetup modal with API key input.
+/// - `VirusTotalSetup` modal with API key input.
 ///
 /// Output:
 /// - Modal state is correctly structured.
 ///
 /// Details:
-/// - Verifies VirusTotalSetup modal can be created.
+/// - Verifies `VirusTotalSetup` modal can be created.
 fn ui_virustotal_setup_modal_structure() {
-    let mut app = AppState::default();
-    app.modal = Modal::VirusTotalSetup {
-        input: "test-api-key-12345".to_string(),
-        cursor: 18,
+    let app = AppState {
+        modal: Modal::VirusTotalSetup {
+            input: "test-api-key-12345".to_string(),
+            cursor: 18,
+        },
+        ..Default::default()
     };
 
     match app.modal {
@@ -84,4 +88,3 @@ fn ui_virustotal_setup_modal_structure() {
         _ => panic!("Expected VirusTotalSetup modal"),
     }
 }
-

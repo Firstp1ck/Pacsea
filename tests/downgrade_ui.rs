@@ -8,7 +8,7 @@
 
 #![cfg(test)]
 
-use pacsea::state::{AppState, PackageItem, Source, RightPaneFocus};
+use pacsea::state::{AppState, PackageItem, RightPaneFocus, Source};
 
 /// What: Create a test package item with specified source.
 ///
@@ -17,7 +17,7 @@ use pacsea::state::{AppState, PackageItem, Source, RightPaneFocus};
 /// - `source`: Package source (Official or AUR)
 ///
 /// Output:
-/// - PackageItem ready for testing
+/// - `PackageItem` ready for testing
 ///
 /// Details:
 /// - Helper to create test packages with consistent structure
@@ -37,7 +37,7 @@ fn create_test_package(name: &str, source: Source) -> PackageItem {
 /// What: Test downgrade list state structure.
 ///
 /// Inputs:
-/// - AppState with downgrade list and focus.
+/// - `AppState` with downgrade list and focus.
 ///
 /// Output:
 /// - State is correctly structured.
@@ -45,9 +45,11 @@ fn create_test_package(name: &str, source: Source) -> PackageItem {
 /// Details:
 /// - Verifies downgrade list and focus state.
 fn ui_downgrade_list_state() {
-    let mut app = AppState::default();
-    app.installed_only_mode = true;
-    app.right_pane_focus = RightPaneFocus::Downgrade;
+    let mut app = AppState {
+        installed_only_mode: true,
+        right_pane_focus: RightPaneFocus::Downgrade,
+        ..Default::default()
+    };
 
     let pkg1 = create_test_package(
         "pkg1",
@@ -73,4 +75,3 @@ fn ui_downgrade_list_state() {
     assert_eq!(app.downgrade_list.len(), 2);
     assert_eq!(app.downgrade_state.selected(), Some(0));
 }
-

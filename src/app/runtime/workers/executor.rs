@@ -2,7 +2,10 @@
 
 use tokio::sync::mpsc;
 
-use crate::install::{ExecutorOutput, ExecutorRequest, build_install_command_for_executor};
+use crate::install::{
+    ExecutorOutput, ExecutorRequest, build_install_command_for_executor,
+    build_remove_command_for_executor,
+};
 
 /// What: Spawn background worker for command execution via PTY.
 ///
@@ -44,7 +47,7 @@ pub fn spawn_executor_worker(
                 }
                 ExecutorRequest::Remove {
                     names,
-                    password: _password,
+                    password,
                     cascade,
                     dry_run,
                 } => {
@@ -53,20 +56,12 @@ pub fn spawn_executor_worker(
                         names.len(),
                         dry_run
                     );
-                    // TODO: Build remove command (similar to install)
-                    let cmd = if dry_run {
-                        format!(
-                            "echo DRY RUN: pacman {} {}",
-                            cascade.flag(),
-                            names.join(" ")
-                        )
-                    } else {
-                        format!(
-                            "sudo pacman {} --noconfirm {}",
-                            cascade.flag(),
-                            names.join(" ")
-                        )
-                    };
+                    let cmd = build_remove_command_for_executor(
+                        &names,
+                        password.as_deref(),
+                        cascade,
+                        dry_run,
+                    );
                     let res_tx_clone = res_tx.clone();
                     tokio::task::spawn_blocking(move || {
                         execute_command_pty(&cmd, res_tx_clone);

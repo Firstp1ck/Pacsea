@@ -15,7 +15,7 @@ use pacsea::state::{AppState, Modal};
 /// What: Test system update modal state creation.
 ///
 /// Inputs:
-/// - SystemUpdate modal with various options.
+/// - `SystemUpdate` modal with various options.
 ///
 /// Output:
 /// - Modal state is correctly structured.
@@ -23,16 +23,18 @@ use pacsea::state::{AppState, Modal};
 /// Details:
 /// - Verifies system update modal can be created and accessed.
 fn integration_system_update_modal_state() {
-    let mut app = AppState::default();
-    app.modal = Modal::SystemUpdate {
-        do_mirrors: true,
-        do_pacman: true,
-        do_aur: false,
-        do_cache: false,
-        country_idx: 0,
-        countries: vec!["Worldwide".to_string(), "United States".to_string()],
-        mirror_count: 10,
-        cursor: 0,
+    let app = AppState {
+        modal: Modal::SystemUpdate {
+            do_mirrors: true,
+            do_pacman: true,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: ["Worldwide".to_string(), "United States".to_string()].to_vec(),
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     match app.modal {
@@ -99,7 +101,7 @@ fn integration_system_update_command_building() {
 /// What: Test system update with all options enabled.
 ///
 /// Inputs:
-/// - SystemUpdate modal with all options enabled.
+/// - `SystemUpdate` modal with all options enabled.
 ///
 /// Output:
 /// - All flags are correctly set.
@@ -107,16 +109,18 @@ fn integration_system_update_command_building() {
 /// Details:
 /// - Verifies that all update options can be enabled simultaneously.
 fn integration_system_update_all_options() {
-    let mut app = AppState::default();
-    app.modal = Modal::SystemUpdate {
-        do_mirrors: true,
-        do_pacman: true,
-        do_aur: true,
-        do_cache: true,
-        country_idx: 0,
-        countries: vec!["Worldwide".to_string()],
-        mirror_count: 20,
-        cursor: 0,
+    let app = AppState {
+        modal: Modal::SystemUpdate {
+            do_mirrors: true,
+            do_pacman: true,
+            do_aur: true,
+            do_cache: true,
+            country_idx: 0,
+            countries: ["Worldwide".to_string()].to_vec(),
+            mirror_count: 20,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     match app.modal {
@@ -140,24 +144,26 @@ fn integration_system_update_all_options() {
 /// What: Test system update with no options selected.
 ///
 /// Inputs:
-/// - SystemUpdate modal with all options disabled.
+/// - `SystemUpdate` modal with all options disabled.
 ///
 /// Output:
-/// - Alert modal is shown.
+/// - `Alert` modal is shown.
 ///
 /// Details:
 /// - Verifies that no action is taken when no options are selected.
 fn integration_system_update_no_options() {
-    let mut app = AppState::default();
-    app.modal = Modal::SystemUpdate {
-        do_mirrors: false,
-        do_pacman: false,
-        do_aur: false,
-        do_cache: false,
-        country_idx: 0,
-        countries: vec!["Worldwide".to_string()],
-        mirror_count: 10,
-        cursor: 0,
+    let app = AppState {
+        modal: Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: false,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: ["Worldwide".to_string()].to_vec(),
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     match app.modal {
@@ -177,3 +183,49 @@ fn integration_system_update_no_options() {
     }
 }
 
+#[test]
+/// What: Test that system update uses `ExecutorRequest` instead of spawning terminals.
+///
+/// Inputs:
+/// - System update action triggered through `handle_system_update_enter`.
+///
+/// Output:
+/// - `pending_executor_request` should be set with `ExecutorRequest::Update` (or similar).
+///
+/// Details:
+/// - This test FAILS until system update is fully migrated to executor pattern.
+/// - Currently `handle_system_update_enter` calls `spawn_shell_commands_in_terminal`.
+/// - When implementation is complete, `handle_system_update_enter` should set `app.pending_executor_request`.
+/// - This test simulates what the NEW process should do.
+fn integration_system_update_uses_executor_not_terminal() {
+    let app = AppState {
+        dry_run: false,
+        ..Default::default()
+    };
+
+    // Simulate what the NEW process should do:
+    // Instead of calling spawn_shell_commands_in_terminal, it should:
+    // 1. Create ExecutorRequest::Update with commands
+    // 2. Set app.pending_executor_request
+    // 3. Transition to PreflightExec modal
+
+    // For now, this test verifies the expected behavior
+    // When system update is migrated, handle_system_update_enter should do this:
+    let _cmds = ["sudo pacman -Syu --noconfirm".to_string()];
+
+    // TODO: When ExecutorRequest::Update is implemented, uncomment this:
+    // app.pending_executor_request = Some(ExecutorRequest::Update {
+    //     commands: cmds,
+    //     password: None,
+    //     dry_run: app.dry_run,
+    // });
+
+    // This test will FAIL until system update uses executor pattern
+    assert!(
+        app.pending_executor_request.is_some(),
+        "System update must use ExecutorRequest instead of spawning terminals. Currently handle_system_update_enter calls spawn_shell_commands_in_terminal. When migrated, it should set ExecutorRequest::Update."
+    );
+
+    // Note: ExecutorRequest::Update variant doesn't exist yet
+    // This test will fail until both the variant exists and handle_system_update_enter uses it
+}

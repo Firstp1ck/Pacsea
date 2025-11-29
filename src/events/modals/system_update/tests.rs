@@ -1,34 +1,34 @@
 //! Unit tests for system update modal handlers.
 
-#![cfg(test)]
-
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::state::AppState;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::handle_system_update;
 
 #[test]
-/// What: Verify SystemUpdate modal handles Esc to close.
+/// What: Verify `SystemUpdate` modal handles Esc to close.
 ///
 /// Inputs:
-/// - SystemUpdate modal, Esc key event.
+/// - `SystemUpdate` modal, Esc key event.
 ///
 /// Output:
 /// - Modal is closed.
 ///
 /// Details:
-/// - Tests that Esc closes the SystemUpdate modal.
+/// - Tests that Esc closes the `SystemUpdate` modal.
 fn system_update_esc_closes_modal() {
-    let mut app = AppState::default();
-    app.modal = crate::state::Modal::SystemUpdate {
-        do_mirrors: false,
-        do_pacman: false,
-        do_aur: false,
-        do_cache: false,
-        country_idx: 0,
-        countries: vec!["Worldwide".to_string()],
-        mirror_count: 10,
-        cursor: 0,
+    let mut app = AppState {
+        modal: crate::state::Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: false,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     let mut do_mirrors = false;
@@ -61,27 +61,29 @@ fn system_update_esc_closes_modal() {
 }
 
 #[test]
-/// What: Verify SystemUpdate modal handles navigation.
+/// What: Verify `SystemUpdate` modal handles navigation.
 ///
 /// Inputs:
-/// - SystemUpdate modal, Down key event.
+/// - `SystemUpdate` modal, Down key event.
 ///
 /// Output:
 /// - Cursor moves down.
 ///
 /// Details:
-/// - Tests that navigation keys work in SystemUpdate modal.
+/// - Tests that navigation keys work in `SystemUpdate` modal.
 fn system_update_navigation() {
-    let mut app = AppState::default();
-    app.modal = crate::state::Modal::SystemUpdate {
-        do_mirrors: false,
-        do_pacman: false,
-        do_aur: false,
-        do_cache: false,
-        country_idx: 0,
-        countries: vec!["Worldwide".to_string()],
-        mirror_count: 10,
-        cursor: 0,
+    let mut app = AppState {
+        modal: crate::state::Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: false,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     let mut do_mirrors = false;
@@ -111,27 +113,29 @@ fn system_update_navigation() {
 }
 
 #[test]
-/// What: Verify SystemUpdate modal handles toggle with Space.
+/// What: Verify `SystemUpdate` modal handles toggle with Space.
 ///
 /// Inputs:
-/// - SystemUpdate modal, Space key event on first option.
+/// - `SystemUpdate` modal, Space key event on first option.
 ///
 /// Output:
-/// - do_mirrors flag is toggled.
+/// - `do_mirrors` flag is toggled.
 ///
 /// Details:
-/// - Tests that Space toggles options in SystemUpdate modal.
+/// - Tests that Space toggles options in `SystemUpdate` modal.
 fn system_update_toggle() {
-    let mut app = AppState::default();
-    app.modal = crate::state::Modal::SystemUpdate {
-        do_mirrors: false,
-        do_pacman: false,
-        do_aur: false,
-        do_cache: false,
-        country_idx: 0,
-        countries: vec!["Worldwide".to_string()],
-        mirror_count: 10,
-        cursor: 0,
+    let mut app = AppState {
+        modal: crate::state::Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: false,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     let mut do_mirrors = false;
@@ -161,10 +165,10 @@ fn system_update_toggle() {
 }
 
 #[test]
-/// What: Verify SystemUpdate modal handles Enter to execute.
+/// What: Verify `SystemUpdate` modal handles Enter to execute.
 ///
 /// Inputs:
-/// - SystemUpdate modal with options selected, Enter key event.
+/// - `SystemUpdate` modal with options selected, Enter key event.
 ///
 /// Output:
 /// - Commands are executed (spawns terminal - will fail in test environment).
@@ -173,16 +177,18 @@ fn system_update_toggle() {
 /// - Tests that Enter triggers system update execution.
 /// - Note: This will spawn a terminal, so it's expected to fail in test environment.
 fn system_update_enter_executes() {
-    let mut app = AppState::default();
-    app.modal = crate::state::Modal::SystemUpdate {
-        do_mirrors: false,
-        do_pacman: true,
-        do_aur: false,
-        do_cache: false,
-        country_idx: 0,
-        countries: vec!["Worldwide".to_string()],
-        mirror_count: 10,
-        cursor: 0,
+    let mut app = AppState {
+        modal: crate::state::Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: true,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
     };
 
     let mut do_mirrors = false;

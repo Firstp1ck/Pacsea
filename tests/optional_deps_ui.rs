@@ -1,7 +1,7 @@
 //! UI tests for optional dependencies modal.
 //!
 //! Tests cover:
-//! - OptionalDeps modal structure
+//! - `OptionalDeps` modal structure
 //! - Optional dependency row structure
 //!
 //! Note: These tests verify modal state structure rather than actual rendering.
@@ -18,7 +18,7 @@ use pacsea::state::{AppState, Modal, types::OptionalDepRow};
 /// - `selectable`: Whether row is selectable
 ///
 /// Output:
-/// - OptionalDepRow ready for testing
+/// - `OptionalDepRow` ready for testing
 ///
 /// Details:
 /// - Helper to create test optional dependency rows
@@ -33,18 +33,17 @@ fn create_test_row(package: &str, installed: bool, selectable: bool) -> Optional
 }
 
 #[test]
-/// What: Test OptionalDeps modal structure.
+/// What: Test `OptionalDeps` modal structure.
 ///
 /// Inputs:
-/// - OptionalDeps modal with dependency rows.
+/// - `OptionalDeps` modal with dependency rows.
 ///
 /// Output:
 /// - Modal state is correctly structured.
 ///
 /// Details:
-/// - Verifies OptionalDeps modal can be created.
+/// - Verifies `OptionalDeps` modal can be created.
 fn ui_optional_deps_modal_structure() {
-    let mut app = AppState::default();
     let rows = vec![
         create_test_row("paru", false, true),
         create_test_row("yay", false, true),
@@ -52,9 +51,9 @@ fn ui_optional_deps_modal_structure() {
         create_test_row("virustotal-setup", false, true),
     ];
 
-    app.modal = Modal::OptionalDeps {
-        rows: rows.clone(),
-        selected: 1,
+    let app = AppState {
+        modal: Modal::OptionalDeps { rows, selected: 1 },
+        ..Default::default()
     };
 
     match app.modal {
@@ -74,4 +73,3 @@ fn ui_optional_deps_modal_structure() {
         _ => panic!("Expected OptionalDeps modal"),
     }
 }
-

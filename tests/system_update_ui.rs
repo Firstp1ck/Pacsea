@@ -1,7 +1,7 @@
 //! UI tests for system update modal.
 //!
 //! Tests cover:
-//! - SystemUpdate modal structure
+//! - `SystemUpdate` modal structure
 //! - Update options state
 //!
 //! Note: These tests verify modal state structure rather than actual rendering.
@@ -11,27 +11,29 @@
 use pacsea::state::{AppState, Modal};
 
 #[test]
-/// What: Test SystemUpdate modal structure.
+/// What: Test `SystemUpdate` modal structure.
 ///
 /// Inputs:
-/// - SystemUpdate modal with various options.
+/// - `SystemUpdate` modal with various options.
 ///
 /// Output:
 /// - Modal state is correctly structured.
 ///
 /// Details:
-/// - Verifies SystemUpdate modal can be created and accessed.
+/// - Verifies `SystemUpdate` modal can be created and accessed.
 fn ui_system_update_modal_structure() {
-    let mut app = AppState::default();
-    app.modal = Modal::SystemUpdate {
-        do_mirrors: true,
-        do_pacman: true,
-        do_aur: false,
-        do_cache: true,
-        country_idx: 1,
-        countries: vec!["Worldwide".to_string(), "United States".to_string()],
-        mirror_count: 15,
-        cursor: 2,
+    let app = AppState {
+        modal: Modal::SystemUpdate {
+            do_mirrors: true,
+            do_pacman: true,
+            do_aur: false,
+            do_cache: true,
+            country_idx: 1,
+            countries: vec!["Worldwide".to_string(), "United States".to_string()],
+            mirror_count: 15,
+            cursor: 2,
+        },
+        ..Default::default()
     };
 
     match app.modal {
@@ -57,4 +59,3 @@ fn ui_system_update_modal_structure() {
         _ => panic!("Expected SystemUpdate modal"),
     }
 }
-

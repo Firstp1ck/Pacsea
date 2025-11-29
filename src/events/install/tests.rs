@@ -26,7 +26,7 @@ fn new_app() -> AppState {
 /// - `source`: Package source (Official or AUR)
 ///
 /// Output:
-/// - PackageItem ready for testing
+/// - `PackageItem` ready for testing
 ///
 /// Details:
 /// - Helper to create test packages with consistent structure
@@ -459,7 +459,10 @@ fn install_pane_find_mode_entry() {
         &atx,
     );
     assert!(app.pane_find.is_some());
-    assert_eq!(app.pane_find.as_ref().unwrap(), "");
+    assert_eq!(
+        app.pane_find.as_ref().expect("pane_find should be Some"),
+        ""
+    );
 }
 
 #[test]

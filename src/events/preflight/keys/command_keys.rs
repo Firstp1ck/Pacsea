@@ -286,29 +286,16 @@ fn handle_proceed_remove(
     // Store cascade mode for executor (needed in both password and non-password paths)
     app.remove_cascade_mode = mode;
 
-    // Check if password is needed (remove operations may need sudo)
-    let has_official = items
-        .iter()
-        .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
-    if has_official {
-        // Show password prompt
-        app.modal = crate::state::Modal::PasswordPrompt {
-            purpose: crate::state::modal::PasswordPurpose::Remove,
-            items,
-            input: String::new(),
-            cursor: 0,
-            error: None,
-        };
-        app.pending_exec_header_chips = Some(header_chips);
-    } else {
-        // No password needed, go directly to execution
-        super::action_keys::start_execution(
-            app,
-            &items,
-            crate::state::PreflightAction::Remove,
-            header_chips,
-        );
-    }
+    // Remove operations always need sudo (pacman -R requires sudo regardless of package source)
+    // Always show password prompt - user can press Enter if passwordless sudo is configured
+    app.modal = crate::state::Modal::PasswordPrompt {
+        purpose: crate::state::modal::PasswordPurpose::Remove,
+        items,
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+    app.pending_exec_header_chips = Some(header_chips);
     false // Keep TUI open
 }
 

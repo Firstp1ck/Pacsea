@@ -133,6 +133,57 @@ pub fn build_install_command_for_executor(
     }
 }
 
+/// What: Build remove command string without hold tail for `PTY` execution.
+///
+/// Inputs:
+/// - `names`: Package names to remove.
+/// - `password`: Optional sudo password (password is written to PTY stdin when sudo prompts).
+/// - `cascade`: Cascade removal mode.
+/// - `dry_run`: Whether to run in dry-run mode.
+///
+/// Output:
+/// - Command string ready for `PTY` execution (no hold tail).
+///
+/// Details:
+/// - Uses `-R`, `-Rs`, or `-Rns` based on cascade mode.
+/// - Uses `--noconfirm` for non-interactive execution.
+/// - Always uses `sudo -S` for remove operations (password written to PTY stdin when sudo prompts).
+/// - Removes hold tail since we're not spawning a terminal.
+#[must_use]
+pub fn build_remove_command_for_executor(
+    names: &[String],
+    password: Option<&str>,
+    cascade: crate::state::modal::CascadeMode,
+    dry_run: bool,
+) -> String {
+    use super::utils::shell_single_quote;
+
+    if names.is_empty() {
+        return if dry_run {
+            "echo DRY RUN: nothing to remove".to_string()
+        } else {
+            "echo nothing to remove".to_string()
+        };
+    }
+
+    let flag = cascade.flag();
+    let names_str = names.join(" ");
+
+    if dry_run {
+        format!("echo DRY RUN: sudo pacman {flag} --noconfirm {names_str}")
+    } else {
+        let base_cmd = format!("pacman {flag} --noconfirm {names_str}");
+        // Use printf to pipe password to sudo -S (more reliable than echo)
+        password.map_or_else(
+            || format!("sudo {base_cmd}"),
+            |pass| {
+                let escaped = shell_single_quote(pass);
+                format!("printf '%s\\n' {escaped} | sudo -S {base_cmd}")
+            },
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,7 +196,7 @@ mod tests {
     /// - `source`: Package source (Official or AUR)
     ///
     /// Output:
-    /// - PackageItem ready for testing
+    /// - `PackageItem` ready for testing
     ///
     /// Details:
     /// - Helper to create test packages with consistent structure
@@ -338,5 +389,49 @@ mod tests {
         assert!(cmd.contains("sudo -S"));
         // Password should be properly quoted
         assert!(cmd.contains('\'') || cmd.contains('"'));
+    }
+
+    #[test]
+    /// What: Verify remove command builder creates correct commands without hold tail.
+    ///
+    /// Inputs:
+    /// - Package names, cascade mode, optional password, dry-run flag.
+    ///
+    /// Output:
+    /// - Commands without hold tail, suitable for PTY execution.
+    ///
+    /// Details:
+    /// - Ensures commands are properly formatted and don't include terminal hold prompts.
+    fn executor_build_remove_command_variants() {
+        use crate::state::modal::CascadeMode;
+
+        let names = vec!["test-pkg1".to_string(), "test-pkg2".to_string()];
+
+        // Basic mode without password
+        let cmd1 = build_remove_command_for_executor(&names, None, CascadeMode::Basic, false);
+        assert!(cmd1.contains("sudo pacman -R --noconfirm"));
+        assert!(cmd1.contains("test-pkg1"));
+        assert!(cmd1.contains("test-pkg2"));
+        assert!(!cmd1.contains("Press any key to close"));
+
+        // Cascade mode with password
+        let cmd2 =
+            build_remove_command_for_executor(&names, Some("pass"), CascadeMode::Cascade, false);
+        assert!(cmd2.contains("printf "));
+        assert!(cmd2.contains("sudo -S pacman -Rs --noconfirm"));
+
+        // CascadeWithConfigs mode
+        let cmd3 =
+            build_remove_command_for_executor(&names, None, CascadeMode::CascadeWithConfigs, false);
+        assert!(cmd3.contains("sudo pacman -Rns --noconfirm"));
+
+        // Dry run
+        let cmd4 = build_remove_command_for_executor(&names, None, CascadeMode::Basic, true);
+        assert!(cmd4.starts_with("echo DRY RUN:"));
+        assert!(cmd4.contains("pacman -R --noconfirm"));
+
+        // Empty list
+        let cmd5 = build_remove_command_for_executor(&[], None, CascadeMode::Basic, false);
+        assert_eq!(cmd5, "echo nothing to remove");
     }
 }

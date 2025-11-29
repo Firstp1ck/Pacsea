@@ -270,10 +270,14 @@ fn handle_post_summary_result(app: &mut AppState, data: crate::logic::summary::P
 ///
 /// Details:
 /// - Updates `PreflightExec` modal with log lines or completion status
+/// - For successful install operations, tracks installed packages and refreshes installed packages pane
+/// - For successful remove operations, closes modal, clears remove list, and refreshes installed packages pane
 fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOutput) {
     if let crate::state::Modal::PreflightExec {
         ref mut log_lines,
         ref mut abortable,
+        ref items,
+        ref action,
         ..
     } = app.modal
     {
@@ -299,11 +303,59 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                 *abortable = false;
                 log_lines.push(String::new()); // Empty line before completion message
                 if success {
-                    log_lines.push("Installation successfully completed!".to_string());
+                    let completion_msg = match action {
+                        crate::state::PreflightAction::Install => {
+                            "Installation successfully completed!".to_string()
+                        }
+                        crate::state::PreflightAction::Remove => {
+                            "Removal successfully completed!".to_string()
+                        }
+                    };
+                    log_lines.push(completion_msg);
                     tracing::info!(
                         "Added completion message, log_lines.len()={}",
                         log_lines.len()
                     );
+
+                    // Handle successful operations: refresh installed packages and update UI
+                    match action {
+                        crate::state::PreflightAction::Install => {
+                            let installed_names: Vec<String> =
+                                items.iter().map(|p| p.name.clone()).collect();
+
+                            // Set pending install names to track installation completion
+                            app.pending_install_names = Some(installed_names);
+
+                            // Trigger refresh of installed packages
+                            app.refresh_installed_until =
+                                Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+
+                            tracing::info!(
+                                "Install operation completed: triggered refresh of installed packages"
+                            );
+                        }
+                        crate::state::PreflightAction::Remove => {
+                            let removed_names: Vec<String> =
+                                items.iter().map(|p| p.name.clone()).collect();
+
+                            // Clear remove list
+                            app.remove_list.clear();
+                            app.remove_state.select(None);
+
+                            // Set pending remove names to track removal completion
+                            app.pending_remove_names = Some(removed_names);
+
+                            // Trigger refresh of installed packages
+                            app.refresh_installed_until =
+                                Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+
+                            // Keep PreflightExec modal open so user can see completion message
+                            // User can close it with Esc/q, and refresh happens in background
+                            tracing::info!(
+                                "Remove operation completed: cleared remove list and triggered refresh"
+                            );
+                        }
+                    }
                 } else {
                     log_lines.push(format!("Execution failed (exit code: {exit_code:?})"));
                 }
