@@ -561,7 +561,11 @@ pub(super) fn handle_password_prompt_modal(
                 let joined = names.join(" ");
 
                 let cmd = if app.dry_run {
-                    format!("echo DRY RUN: sudo downgrade {joined}")
+                    // Properly quote the command to avoid syntax errors
+                    use crate::install::shell_single_quote;
+                    let downgrade_cmd = format!("sudo downgrade {joined}");
+                    let quoted = shell_single_quote(&downgrade_cmd);
+                    format!("echo DRY RUN: {quoted}")
                 } else {
                     // Build command with password passed via sudo -S
                     let downgrade_cmd = password.as_ref().map_or_else(

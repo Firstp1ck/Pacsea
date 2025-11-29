@@ -113,7 +113,10 @@ pub fn spawn_executor_worker(
                         dry_run
                     );
                     let cmd = if dry_run {
-                        format!("echo DRY RUN: {command}")
+                        // Properly quote the command to avoid syntax errors with complex shell constructs
+                        use crate::install::shell_single_quote;
+                        let quoted = shell_single_quote(&command);
+                        format!("echo DRY RUN: {quoted}")
                     } else {
                         // For commands that use makepkg -si, we need to handle sudo password
                         // Use SUDO_ASKPASS to provide password when sudo prompts

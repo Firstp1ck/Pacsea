@@ -142,7 +142,10 @@ fn handle_optional_deps_enter(
             echo; echo "Press any key to close..."; read -rn1 -s _)"##
             .to_string();
         let to_run = if app.dry_run {
-            vec![format!("echo DRY RUN: {cmd}")]
+            // Properly quote the command to avoid syntax errors with complex shell constructs
+            use crate::install::shell_single_quote;
+            let quoted = shell_single_quote(&cmd);
+            vec![format!("echo DRY RUN: {quoted}")]
         } else {
             vec![cmd]
         };

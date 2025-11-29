@@ -129,15 +129,19 @@ pub fn build_install_command_for_executor(
     if dry_run {
         if !aur.is_empty() {
             let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-            format!(
-                "echo DRY RUN: (paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n})",
+            let cmd = format!(
+                "(paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n})",
                 n = all.join(" ")
-            )
+            );
+            let quoted = shell_single_quote(&cmd);
+            format!("echo DRY RUN: {quoted}")
         } else if !official.is_empty() {
-            format!(
-                "echo DRY RUN: sudo pacman -S --needed --noconfirm {n}",
+            let cmd = format!(
+                "sudo pacman -S --needed --noconfirm {n}",
                 n = official.join(" ")
-            )
+            );
+            let quoted = shell_single_quote(&cmd);
+            format!("echo DRY RUN: {quoted}")
         } else {
             "echo DRY RUN: nothing to install".to_string()
         }
@@ -197,7 +201,9 @@ pub fn build_remove_command_for_executor(
     let names_str = names.join(" ");
 
     if dry_run {
-        format!("echo DRY RUN: sudo pacman {flag} --noconfirm {names_str}")
+        let cmd = format!("sudo pacman {flag} --noconfirm {names_str}");
+        let quoted = shell_single_quote(&cmd);
+        format!("echo DRY RUN: {quoted}")
     } else {
         let base_cmd = format!("pacman {flag} --noconfirm {names_str}");
         // Use printf to pipe password to sudo -S (more reliable than echo)
@@ -232,6 +238,7 @@ pub fn build_downgrade_command_for_executor(
     _password: Option<&str>,
     dry_run: bool,
 ) -> String {
+    use super::utils::shell_single_quote;
     if names.is_empty() {
         return if dry_run {
             "echo DRY RUN: nothing to downgrade".to_string()
@@ -243,7 +250,9 @@ pub fn build_downgrade_command_for_executor(
     let names_str = names.join(" ");
 
     if dry_run {
-        format!("echo DRY RUN: sudo downgrade {names_str}")
+        let cmd = format!("sudo downgrade {names_str}");
+        let quoted = shell_single_quote(&cmd);
+        format!("echo DRY RUN: {quoted}")
     } else {
         // Check if downgrade tool is available, then execute
         // Note: The check uses sudo but password will be written to PTY stdin when sudo prompts
@@ -290,7 +299,11 @@ pub fn build_update_command_for_executor(
     let processed_commands: Vec<String> = if dry_run {
         commands
             .iter()
-            .map(|c| format!("echo DRY RUN: {c}"))
+            .map(|c| {
+                // Properly quote the command to avoid syntax errors with complex shell constructs
+                let quoted = shell_single_quote(c);
+                format!("echo DRY RUN: {quoted}")
+            })
             .collect()
     } else {
         commands

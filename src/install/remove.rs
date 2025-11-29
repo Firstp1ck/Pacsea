@@ -181,12 +181,14 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
     let flag = cascade_mode.flag();
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
     let cmd_str = if dry_run {
-        format!(
-            "echo DRY RUN: sudo pacman {flag} --noconfirm {n}{hold}",
+        let cmd = format!(
+            "sudo pacman {flag} --noconfirm {n}{hold}",
             flag = flag,
             n = names.join(" "),
             hold = hold_tail
-        )
+        );
+        let quoted = shell_single_quote(&cmd);
+        format!("echo DRY RUN: {quoted}")
     } else {
         format!(
             "sudo pacman {flag} --noconfirm {n}{hold}",
