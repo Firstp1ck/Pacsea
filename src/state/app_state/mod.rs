@@ -516,6 +516,8 @@ pub struct AppState {
     pub pending_post_summary_items: Option<Vec<PackageItem>>,
     /// Header chips to use when transitioning to `PreflightExec` modal.
     pub pending_exec_header_chips: Option<crate::state::modal::PreflightHeaderChips>,
+    /// Custom command to execute after password prompt (for special packages like paru/yay/semgrep-bin).
+    pub pending_custom_command: Option<String>,
 }
 
 #[cfg(test)]

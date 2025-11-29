@@ -178,31 +178,27 @@ fn handle_optional_deps_enter(
                 orphaned: false,
             };
 
-            // Transition to PreflightExec modal
-            app.modal = crate::state::Modal::PreflightExec {
+            // These commands need sudo (makepkg -si), so prompt for password first
+            app.modal = crate::state::Modal::PasswordPrompt {
+                purpose: crate::state::modal::PasswordPurpose::Install,
                 items: vec![item],
-                action: crate::state::PreflightAction::Install,
-                tab: crate::state::PreflightTab::Summary,
-                verbose: false,
-                log_lines: Vec::new(),
-                abortable: false,
-                header_chips: crate::state::modal::PreflightHeaderChips {
-                    package_count: 1,
-                    download_bytes: 0,
-                    install_delta_bytes: 0,
-                    aur_count: 1,
-                    risk_score: 0,
-                    risk_level: crate::state::modal::RiskLevel::Low,
-                },
+                input: String::new(),
+                cursor: 0,
+                error: None,
             };
 
-            // Store executor request for processing in tick handler
-            app.pending_executor_request = Some(ExecutorRequest::CustomCommand {
-                command: cmd,
-                dry_run: app.dry_run,
+            // Store the custom command and header chips for after password prompt
+            app.pending_custom_command = Some(cmd);
+            app.pending_exec_header_chips = Some(crate::state::modal::PreflightHeaderChips {
+                package_count: 1,
+                download_bytes: 0,
+                install_delta_bytes: 0,
+                aur_count: 1,
+                risk_score: 0,
+                risk_level: crate::state::modal::RiskLevel::Low,
             });
 
-            return (app.modal.clone(), true);
+            return (app.modal.clone(), false);
         }
 
         // Regular packages: determine if official or AUR

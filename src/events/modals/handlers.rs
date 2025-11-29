@@ -599,6 +599,29 @@ pub(super) fn handle_password_prompt_modal(
 
             let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
 
+            // Check if this is a custom command (for special packages like paru/yay/semgrep-bin)
+            if let Some(custom_cmd) = app.pending_custom_command.take() {
+                // Transition to PreflightExec for custom command
+                app.modal = Modal::PreflightExec {
+                    items: items.clone(),
+                    action: crate::state::PreflightAction::Install,
+                    tab: crate::state::PreflightTab::Summary,
+                    verbose: false,
+                    log_lines: Vec::new(),
+                    abortable: false,
+                    header_chips,
+                };
+
+                // Store executor request with password
+                app.pending_executor_request = Some(ExecutorRequest::CustomCommand {
+                    command: custom_cmd,
+                    password,
+                    dry_run: app.dry_run,
+                });
+
+                return true;
+            }
+
             // Transition to PreflightExec for install/remove/update
             let action = match purpose {
                 crate::state::modal::PasswordPurpose::Install

@@ -205,6 +205,7 @@ fn integration_optional_deps_uses_executor_not_terminal() {
     // Verify ExecutorRequest has CustomCommand variant for special packages
     let custom_cmd = ExecutorRequest::CustomCommand {
         command: "test command".to_string(),
+        password: None,
         dry_run: false,
     };
     match custom_cmd {
@@ -244,8 +245,8 @@ fn integration_optional_deps_uses_executor_not_terminal() {
 
     // Verify that AppState has pending_executor_request field
     let app = AppState {
-        pending_executor_request: Some(ExecutorRequest::Install {
-            items: vec![],
+        pending_executor_request: Some(ExecutorRequest::CustomCommand {
+            command: "test command".to_string(),
             password: None,
             dry_run: false,
         }),

@@ -47,6 +47,8 @@ pub enum ExecutorRequest {
     CustomCommand {
         /// Command string to execute.
         command: String,
+        /// Optional sudo password for commands that need sudo (e.g., makepkg -si).
+        password: Option<String>,
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },

@@ -85,7 +85,11 @@ pub fn spawn_executor_worker(
                         execute_command_pty(&cmd, res_tx_clone);
                     });
                 }
-                ExecutorRequest::CustomCommand { command, dry_run } => {
+                ExecutorRequest::CustomCommand {
+                    command,
+                    password,
+                    dry_run,
+                } => {
                     tracing::info!(
                         "[Runtime] Executor worker received custom command request, dry_run={}",
                         dry_run
@@ -93,7 +97,56 @@ pub fn spawn_executor_worker(
                     let cmd = if dry_run {
                         format!("echo DRY RUN: {command}")
                     } else {
-                        command
+                        // For commands that use makepkg -si, we need to handle sudo password
+                        // Use SUDO_ASKPASS to provide password when sudo prompts
+                        if command.contains("makepkg -si") {
+                            if let Some(pass) = password {
+                                // Create a temporary script that outputs the password
+                                // Use printf instead of echo for better security
+                                use std::fs;
+                                use std::os::unix::fs::PermissionsExt;
+                                let temp_dir = std::env::temp_dir();
+                                #[allow(clippy::uninlined_format_args)] // process::id() needs formatting
+                                let askpass_script = temp_dir
+                                    .join(format!("pacsea_sudo_askpass_{}.sh", std::process::id()));
+                                // Use printf with %s to safely output password
+                                // Escape single quotes in password by replacing ' with '\''
+                                let escaped_pass = pass.replace('\'', "'\\''");
+                                #[allow(clippy::uninlined_format_args)] // Need to escape password
+                                let script_content =
+                                    format!("#!/bin/sh\nprintf '%s\\n' '{}'\n", escaped_pass);
+                                if let Err(e) = fs::write(&askpass_script, script_content) {
+                                    let _ = res_tx.send(ExecutorOutput::Error(format!(
+                                        "Failed to create sudo askpass script: {e}"
+                                    )));
+                                    continue;
+                                }
+                                // Make script executable
+                                if let Err(e) = fs::set_permissions(
+                                    &askpass_script,
+                                    fs::Permissions::from_mode(0o755),
+                                ) {
+                                    let _ = res_tx.send(ExecutorOutput::Error(format!(
+                                        "Failed to make askpass script executable: {e}"
+                                    )));
+                                    continue;
+                                }
+                                let askpass_path = askpass_script.to_string_lossy().to_string();
+                                // Escape the path for shell
+                                let escaped_path = askpass_path.replace('\'', "'\\''");
+                                // Need to escape path and use command variable, so can't use inline format
+                                let final_cmd = format!(
+                                    "export SUDO_ASKPASS='{escaped_path}'; {command}; rm -f '{escaped_path}'"
+                                );
+                                final_cmd
+                            } else {
+                                // No password provided, try without SUDO_ASKPASS
+                                // (might work if passwordless sudo is configured)
+                                command
+                            }
+                        } else {
+                            command
+                        }
                     };
                     let res_tx_clone = res_tx.clone();
                     tokio::task::spawn_blocking(move || {

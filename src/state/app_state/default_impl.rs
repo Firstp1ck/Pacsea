@@ -469,6 +469,7 @@ impl Default for AppState {
             pending_executor_request: None,
             pending_exec_header_chips: None,
             pending_post_summary_items: None,
+            pending_custom_command: None,
         }
     }
 }
