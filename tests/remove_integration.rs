@@ -154,7 +154,9 @@ fn integration_remove_executor_request_creation() {
             assert_eq!(cascade, CascadeMode::Cascade);
             assert!(!dry_run);
         }
-        ExecutorRequest::Install { .. } | ExecutorRequest::Downgrade { .. } => {
+        ExecutorRequest::Install { .. }
+        | ExecutorRequest::Downgrade { .. }
+        | ExecutorRequest::CustomCommand { .. } => {
             panic!("Expected Remove request")
         }
     }
@@ -190,7 +192,9 @@ fn integration_remove_cascade_modes() {
             ExecutorRequest::Remove { cascade, .. } => {
                 assert_eq!(cascade, cascade_mode);
             }
-            ExecutorRequest::Install { .. } | ExecutorRequest::Downgrade { .. } => {
+            ExecutorRequest::Install { .. }
+            | ExecutorRequest::Downgrade { .. }
+            | ExecutorRequest::CustomCommand { .. } => {
                 panic!("Expected Remove request")
             }
         }

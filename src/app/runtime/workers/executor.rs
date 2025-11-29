@@ -85,6 +85,21 @@ pub fn spawn_executor_worker(
                         execute_command_pty(&cmd, res_tx_clone);
                     });
                 }
+                ExecutorRequest::CustomCommand { command, dry_run } => {
+                    tracing::info!(
+                        "[Runtime] Executor worker received custom command request, dry_run={}",
+                        dry_run
+                    );
+                    let cmd = if dry_run {
+                        format!("echo DRY RUN: {command}")
+                    } else {
+                        command
+                    };
+                    let res_tx_clone = res_tx.clone();
+                    tokio::task::spawn_blocking(move || {
+                        execute_command_pty(&cmd, res_tx_clone);
+                    });
+                }
             }
         }
         tracing::debug!("[Runtime] Executor worker exiting (channel closed)");

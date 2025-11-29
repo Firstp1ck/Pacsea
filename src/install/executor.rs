@@ -43,6 +43,13 @@ pub enum ExecutorRequest {
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
+    /// Custom command execution (for special cases like paru/yay installation).
+    CustomCommand {
+        /// Command string to execute.
+        command: String,
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+    },
     // Future: Update, Scan, etc.
 }
 

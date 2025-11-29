@@ -152,7 +152,9 @@ fn integration_executor_request_creation() {
             assert_eq!(password, Some("testpass".to_string()));
             assert!(!dry_run);
         }
-        ExecutorRequest::Remove { .. } | ExecutorRequest::Downgrade { .. } => {
+        ExecutorRequest::Remove { .. }
+        | ExecutorRequest::Downgrade { .. }
+        | ExecutorRequest::CustomCommand { .. } => {
             panic!("Expected Install request")
         }
     }
@@ -338,7 +340,9 @@ fn integration_empty_password_handling() {
         ExecutorRequest::Install { password, .. } => {
             assert_eq!(password, None, "Empty password should result in None");
         }
-        ExecutorRequest::Remove { .. } | ExecutorRequest::Downgrade { .. } => {
+        ExecutorRequest::Remove { .. }
+        | ExecutorRequest::Downgrade { .. }
+        | ExecutorRequest::CustomCommand { .. } => {
             panic!("Expected Install executor request")
         }
     }

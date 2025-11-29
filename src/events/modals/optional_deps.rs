@@ -42,7 +42,7 @@ pub(super) fn handle_optional_deps(
         }
         KeyCode::Enter => {
             if let Some(row) = rows.get(*selected) {
-                match handle_optional_deps_enter(app.dry_run, row) {
+                match handle_optional_deps_enter(app, row) {
                     (new_modal, true) => {
                         app.modal = new_modal;
                         Some(true)
@@ -63,18 +63,24 @@ pub(super) fn handle_optional_deps(
 /// What: Handle Enter key in `OptionalDeps` modal.
 ///
 /// Inputs:
-/// - `dry_run`: Whether to run in dry-run mode
+/// - `app`: Mutable application state
 /// - `row`: Selected optional dependency row
 ///
 /// Output:
 /// - `(new_modal, should_stop_propagation)` tuple
 ///
 /// Details:
-/// - Handles setup for virustotal/aur-sleuth or installs optional dependencies
+/// - Handles setup for virustotal/aur-sleuth (keeps terminal spawn for interactive setup)
+/// - Installs optional dependencies using executor pattern
+#[allow(clippy::too_many_lines)] // Complex function handling multiple installation paths
 fn handle_optional_deps_enter(
-    dry_run: bool,
+    app: &mut AppState,
     row: &crate::state::types::OptionalDepRow,
 ) -> (crate::state::Modal, bool) {
+    use crate::install::ExecutorRequest;
+    use crate::state::{PackageItem, Source};
+
+    // Setup flows need interactive terminal, keep as-is
     if row.package == "virustotal-setup" {
         let current = crate::theme::settings().virustotal_api_key;
         let cur_len = current.len();
@@ -135,7 +141,7 @@ fn handle_optional_deps_enter(
             echo "Tip: You can run 'aur-sleuth package-name' or audit a local pkgdir with '--pkgdir .'"
             echo; echo "Press any key to close..."; read -rn1 -s _)"##
             .to_string();
-        let to_run = if dry_run {
+        let to_run = if app.dry_run {
             vec![format!("echo DRY RUN: {cmd}")]
         } else {
             vec![cmd]
@@ -143,34 +149,113 @@ fn handle_optional_deps_enter(
         crate::install::spawn_shell_commands_in_terminal(&to_run);
         return (crate::state::Modal::None, true);
     }
+
+    // Install optional dependencies using executor pattern
     if !row.installed && row.selectable {
         let pkg = row.package.clone();
-        let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-        let cmd = if pkg == "paru" {
-            "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si"
-                .to_string()
-        } else if pkg == "yay" {
-            "rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si"
-                .to_string()
-        } else if pkg == "semgrep-bin" {
-            "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
-        } else if pkg == "rate-mirrors" {
-            format!(
-                "{}{}",
-                crate::install::command::aur_install_body("-S --needed --noconfirm", &pkg),
-                hold_tail
-            )
-        } else {
-            format!("sudo pacman -S --needed --noconfirm {pkg}")
+
+        // Special packages that need custom installation commands
+        if pkg == "paru" || pkg == "yay" || pkg == "semgrep-bin" {
+            let cmd = if pkg == "paru" {
+                "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si"
+                    .to_string()
+            } else if pkg == "yay" {
+                "rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si"
+                    .to_string()
+            } else {
+                // semgrep-bin
+                "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
+            };
+
+            // Create a dummy PackageItem for display in PreflightExec modal
+            let item = PackageItem {
+                name: pkg,
+                version: String::new(),
+                description: String::new(),
+                source: Source::Aur,
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            };
+
+            // Transition to PreflightExec modal
+            app.modal = crate::state::Modal::PreflightExec {
+                items: vec![item],
+                action: crate::state::PreflightAction::Install,
+                tab: crate::state::PreflightTab::Summary,
+                verbose: false,
+                log_lines: Vec::new(),
+                abortable: false,
+                header_chips: crate::state::modal::PreflightHeaderChips {
+                    package_count: 1,
+                    download_bytes: 0,
+                    install_delta_bytes: 0,
+                    aur_count: 1,
+                    risk_score: 0,
+                    risk_level: crate::state::modal::RiskLevel::Low,
+                },
+            };
+
+            // Store executor request for processing in tick handler
+            app.pending_executor_request = Some(ExecutorRequest::CustomCommand {
+                command: cmd,
+                dry_run: app.dry_run,
+            });
+
+            return (app.modal.clone(), true);
+        }
+
+        // Regular packages: determine if official or AUR
+        let (package_item, is_aur) = crate::index::find_package_by_name(&pkg).map_or_else(
+            || {
+                // Assume AUR if not found in official index
+                (
+                    PackageItem {
+                        name: pkg.clone(),
+                        version: String::new(),
+                        description: String::new(),
+                        source: Source::Aur,
+                        popularity: None,
+                        out_of_date: None,
+                        orphaned: false,
+                    },
+                    true,
+                )
+            },
+            |official_item| (official_item, false),
+        );
+
+        // For rate-mirrors, use AUR helper if available
+        let use_aur_helper = is_aur || pkg == "rate-mirrors";
+
+        // Transition to PreflightExec modal
+        app.modal = crate::state::Modal::PreflightExec {
+            items: vec![package_item.clone()],
+            action: crate::state::PreflightAction::Install,
+            tab: crate::state::PreflightTab::Summary,
+            verbose: false,
+            log_lines: Vec::new(),
+            abortable: false,
+            header_chips: crate::state::modal::PreflightHeaderChips {
+                package_count: 1,
+                download_bytes: 0,
+                install_delta_bytes: 0,
+                aur_count: usize::from(use_aur_helper),
+                risk_score: 0,
+                risk_level: crate::state::modal::RiskLevel::Low,
+            },
         };
-        let to_run = if dry_run {
-            vec![format!("echo DRY RUN: {cmd}")]
-        } else {
-            vec![cmd]
-        };
-        crate::install::spawn_shell_commands_in_terminal(&to_run);
-        return (crate::state::Modal::None, true);
+
+        // Store executor request for processing in tick handler
+        app.pending_executor_request = Some(ExecutorRequest::Install {
+            items: vec![package_item],
+            password: None, // Password will be prompted if needed for official packages
+            dry_run: app.dry_run,
+        });
+
+        return (app.modal.clone(), true);
     }
+
     (crate::state::Modal::None, false)
 }
 

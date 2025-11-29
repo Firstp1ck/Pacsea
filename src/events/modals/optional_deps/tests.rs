@@ -112,11 +112,18 @@ fn optional_deps_enter_installs() {
 
     // Should return Some(true) when installation is triggered
     assert_eq!(result, Some(true));
-    // Modal should be closed after installation is triggered
+    // Modal should transition to PreflightExec after installation is triggered
     match app.modal {
-        crate::state::Modal::None => {}
-        _ => panic!("Expected modal to be closed after installation"),
+        crate::state::Modal::PreflightExec { .. } => {
+            // Expected - installation now uses executor pattern and transitions to PreflightExec
+        }
+        _ => panic!("Expected modal to transition to PreflightExec after installation"),
     }
+    // Verify that pending_executor_request is set
+    assert!(
+        app.pending_executor_request.is_some(),
+        "Optional deps installation should set pending_executor_request"
+    );
 }
 
 #[test]
