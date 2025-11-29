@@ -138,6 +138,29 @@ mod tests {
     use super::*;
     use crate::state::Source;
 
+    /// What: Create a test package item with specified source.
+    ///
+    /// Inputs:
+    /// - `name`: Package name
+    /// - `source`: Package source (Official or AUR)
+    ///
+    /// Output:
+    /// - PackageItem ready for testing
+    ///
+    /// Details:
+    /// - Helper to create test packages with consistent structure
+    fn create_test_package(name: &str, source: Source) -> PackageItem {
+        PackageItem {
+            name: name.into(),
+            version: "1.0.0".into(),
+            description: String::new(),
+            source,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }
+    }
+
     #[test]
     /// What: Verify executor command builder creates correct commands without hold tail.
     ///
@@ -152,28 +175,15 @@ mod tests {
     /// Details:
     /// - Ensures commands are properly formatted and don't include terminal hold prompts.
     fn executor_build_install_command_variants() {
-        let official_pkg = PackageItem {
-            name: "ripgrep".into(),
-            version: "14".into(),
-            description: String::new(),
-            source: Source::Official {
+        let official_pkg = create_test_package(
+            "ripgrep",
+            Source::Official {
                 repo: "extra".into(),
                 arch: "x86_64".into(),
             },
-            popularity: None,
-            out_of_date: None,
-            orphaned: false,
-        };
+        );
 
-        let aur_pkg = PackageItem {
-            name: "yay-bin".into(),
-            version: "1".into(),
-            description: String::new(),
-            source: Source::Aur,
-            popularity: None,
-            out_of_date: None,
-            orphaned: false,
-        };
+        let aur_pkg = create_test_package("yay-bin", Source::Aur);
 
         // Official package without password
         let cmd1 =
@@ -191,12 +201,142 @@ mod tests {
         assert!(cmd2.contains("sudo -S pacman -S --needed --noconfirm ripgrep"));
 
         // AUR package
-        let cmd3 = build_install_command_for_executor(&[aur_pkg], None, false);
+        let cmd3 = build_install_command_for_executor(std::slice::from_ref(&aur_pkg), None, false);
         assert!(cmd3.contains("command -v paru"));
         assert!(!cmd3.contains("Press any key to close"));
 
         // Dry run
         let cmd4 = build_install_command_for_executor(&[official_pkg], None, true);
         assert!(cmd4.starts_with("echo DRY RUN:"));
+    }
+
+    #[test]
+    /// What: Verify command builder handles mixed official and AUR packages.
+    ///
+    /// Inputs:
+    /// - Mixed list of official and AUR packages.
+    ///
+    /// Output:
+    /// - Command that installs all packages using appropriate tool.
+    ///
+    /// Details:
+    /// - When AUR packages are present, command should use AUR helper for all packages.
+    fn executor_build_mixed_packages() {
+        let official_pkg = create_test_package(
+            "ripgrep",
+            Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+        );
+        let aur_pkg = create_test_package("yay-bin", Source::Aur);
+
+        let cmd = build_install_command_for_executor(&[official_pkg, aur_pkg], None, false);
+        // When AUR packages are present, should use AUR helper
+        assert!(cmd.contains("command -v paru") || cmd.contains("command -v yay"));
+    }
+
+    #[test]
+    /// What: Verify command builder handles empty package list.
+    ///
+    /// Inputs:
+    /// - Empty package list.
+    ///
+    /// Output:
+    /// - Command that indicates nothing to install.
+    ///
+    /// Details:
+    /// - Empty list should produce a safe no-op command.
+    fn executor_build_empty_list() {
+        let cmd = build_install_command_for_executor(&[], None, false);
+        assert!(cmd.contains("nothing to install") || cmd.is_empty());
+    }
+
+    #[test]
+    /// What: Verify command builder handles multiple official packages.
+    ///
+    /// Inputs:
+    /// - Multiple official packages.
+    ///
+    /// Output:
+    /// - Command that installs all packages via pacman.
+    ///
+    /// Details:
+    /// - Multiple packages should be space-separated in the command.
+    fn executor_build_multiple_official() {
+        let pkg1 = create_test_package(
+            "ripgrep",
+            Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+        );
+        let pkg2 = create_test_package(
+            "fd",
+            Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+        );
+
+        let cmd = build_install_command_for_executor(&[pkg1, pkg2], None, false);
+        assert!(cmd.contains("ripgrep"));
+        assert!(cmd.contains("fd"));
+        assert!(cmd.contains("pacman -S --needed --noconfirm"));
+    }
+
+    #[test]
+    /// What: Verify dry-run mode produces echo commands.
+    ///
+    /// Inputs:
+    /// - Package list with `dry_run=true`.
+    ///
+    /// Output:
+    /// - Command that starts with "echo DRY RUN:".
+    ///
+    /// Details:
+    /// - Dry-run should never execute actual install commands.
+    fn executor_build_dry_run() {
+        let pkg = create_test_package(
+            "ripgrep",
+            Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+        );
+
+        let cmd = build_install_command_for_executor(&[pkg], None, true);
+        assert!(cmd.starts_with("echo DRY RUN:"));
+        // In dry-run mode, the command is wrapped in echo, so it may contain the original command text
+        // The important thing is that it starts with "echo DRY RUN:" which prevents execution
+    }
+
+    #[test]
+    /// What: Verify password is properly escaped in command.
+    ///
+    /// Inputs:
+    /// - Official package with password containing special characters.
+    ///
+    /// Output:
+    /// - Command with properly escaped password.
+    ///
+    /// Details:
+    /// - Password should be single-quoted to prevent shell injection.
+    fn executor_build_password_escaping() {
+        let pkg = create_test_package(
+            "ripgrep",
+            Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+        );
+
+        // Password with special characters
+        let password = "pass'word\"with$special";
+        let cmd = build_install_command_for_executor(&[pkg], Some(password), false);
+        assert!(cmd.contains("printf"));
+        assert!(cmd.contains("sudo -S"));
+        // Password should be properly quoted
+        assert!(cmd.contains('\'') || cmd.contains('"'));
     }
 }

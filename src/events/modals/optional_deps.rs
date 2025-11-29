@@ -173,3 +173,6 @@ fn handle_optional_deps_enter(
     }
     (crate::state::Modal::None, false)
 }
+
+#[cfg(test)]
+mod tests;

@@ -251,3 +251,6 @@ fn handle_scan_config_confirm(
 
     crate::state::Modal::None
 }
+
+#[cfg(test)]
+mod tests;

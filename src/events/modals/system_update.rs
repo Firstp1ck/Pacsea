@@ -115,6 +115,9 @@ pub(super) fn handle_system_update(
     }
 }
 
+#[cfg(test)]
+mod tests;
+
 /// What: Build and execute system update commands.
 ///
 /// Inputs:

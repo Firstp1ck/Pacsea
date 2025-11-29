@@ -271,7 +271,7 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
     }
 }
 
-#[cfg(all(test, not(target_os = "windows")))]
+#[cfg(test)]
 mod tests {
     #[test]
     /// What: Verify the removal helper prefers gnome-terminal and passes the expected dash handling.
