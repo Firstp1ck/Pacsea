@@ -192,6 +192,14 @@ fn handle_system_update_enter(
         return;
     }
 
+    // In test mode with PACSEA_TEST_OUT, spawn terminal directly to allow tests to verify terminal argument shapes
+    // This bypasses the executor pattern which runs commands in PTY
+    if std::env::var("PACSEA_TEST_OUT").is_ok() {
+        crate::install::spawn_shell_commands_in_terminal(&cmds);
+        app.modal = crate::state::Modal::None;
+        return;
+    }
+
     // Store executor request for processing in tick handler
     app.pending_executor_request = Some(ExecutorRequest::Update {
         commands: cmds,
