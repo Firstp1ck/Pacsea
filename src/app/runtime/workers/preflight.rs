@@ -54,6 +54,15 @@ pub fn spawn_dependency_worker(
                         );
                         report.dependencies
                     }
+                    crate::state::modal::PreflightAction::Downgrade => {
+                        // For downgrade, we don't need to resolve dependencies
+                        // Downgrade is similar to remove in that we might want to check reverse deps
+                        // but for now, return empty since downgrade tool handles its own logic
+                        tracing::info!(
+                            "[Runtime] Downgrade action: skipping dependency resolution"
+                        );
+                        Vec::new()
+                    }
                 };
                 tracing::info!(
                     "[Runtime] Dependency resolution done, sending {} deps to result channel",

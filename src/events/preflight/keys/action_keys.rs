@@ -149,6 +149,18 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
                 };
                 app.pending_exec_header_chips = Some(header_chips_clone);
             }
+            crate::state::PreflightAction::Downgrade => {
+                // Downgrade operations always need sudo (downgrade tool requires sudo)
+                // Always show password prompt - user can press Enter if passwordless sudo is configured
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::Downgrade,
+                    items: items_clone,
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                app.pending_exec_header_chips = Some(header_chips_clone);
+            }
         }
         // Return false to keep TUI open - modal is closed but app continues
         return false;
@@ -199,6 +211,14 @@ pub fn start_execution(
                 names,
                 password: None, // Password is handled via PasswordPrompt modal before reaching here
                 cascade: app.remove_cascade_mode,
+                dry_run: app.dry_run,
+            }
+        }
+        crate::state::PreflightAction::Downgrade => {
+            let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            ExecutorRequest::Downgrade {
+                names,
+                password: None, // Password is handled via PasswordPrompt modal before reaching here
                 dry_run: app.dry_run,
             }
         }

@@ -71,8 +71,8 @@ pub fn spawn_aur_scan_for_with_config(
     );
 }
 pub use executor::{
-    ExecutorOutput, ExecutorRequest, build_install_command_for_executor,
-    build_remove_command_for_executor,
+    ExecutorOutput, ExecutorRequest, build_downgrade_command_for_executor,
+    build_install_command_for_executor, build_remove_command_for_executor,
 };
 pub use shell::spawn_shell_commands_in_terminal;
 pub use single::spawn_install;

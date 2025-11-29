@@ -310,6 +310,9 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                         crate::state::PreflightAction::Remove => {
                             "Removal successfully completed!".to_string()
                         }
+                        crate::state::PreflightAction::Downgrade => {
+                            "Downgrade successfully completed!".to_string()
+                        }
                     };
                     log_lines.push(completion_msg);
                     tracing::info!(
@@ -353,6 +356,27 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                             // User can close it with Esc/q, and refresh happens in background
                             tracing::info!(
                                 "Remove operation completed: cleared remove list and triggered refresh"
+                            );
+                        }
+                        crate::state::PreflightAction::Downgrade => {
+                            let downgraded_names: Vec<String> =
+                                items.iter().map(|p| p.name.clone()).collect();
+
+                            // Clear downgrade list
+                            app.downgrade_list.clear();
+                            app.downgrade_state.select(None);
+
+                            // Set pending downgrade names to track downgrade completion
+                            app.pending_remove_names = Some(downgraded_names);
+
+                            // Trigger refresh of installed packages
+                            app.refresh_installed_until =
+                                Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+
+                            // Keep PreflightExec modal open so user can see completion message
+                            // User can close it with Esc/q, and refresh happens in background
+                            tracing::info!(
+                                "Downgrade operation completed: cleared downgrade list and triggered refresh"
                             );
                         }
                     }

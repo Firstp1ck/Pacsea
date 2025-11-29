@@ -354,6 +354,9 @@ pub fn render_preflight_exec(
     let title = match action {
         PreflightAction::Install => crate::i18n::t(app, "app.modals.preflight_exec.title_install"),
         PreflightAction::Remove => crate::i18n::t(app, "app.modals.preflight_exec.title_remove"),
+        PreflightAction::Downgrade => {
+            crate::i18n::t(app, "app.modals.preflight_exec.title_downgrade")
+        }
     };
 
     let sidebar = render_sidebar(items, tab, header_chips, border_color, bg_color);

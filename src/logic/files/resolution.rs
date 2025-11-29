@@ -113,6 +113,11 @@ pub fn resolve_package_files(
     match action {
         crate::state::modal::PreflightAction::Install => resolve_install_files(name, source),
         crate::state::modal::PreflightAction::Remove => resolve_remove_files(name),
+        crate::state::modal::PreflightAction::Downgrade => {
+            // For downgrade, we can use remove files resolution as a starting point
+            // but downgrade tool handles its own logic, so this is just informational
+            resolve_remove_files(name)
+        }
     }
 }
 

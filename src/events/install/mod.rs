@@ -12,7 +12,9 @@ mod preflight;
 #[cfg(test)]
 mod tests;
 
-pub use preflight::{open_preflight_install_modal, open_preflight_remove_modal};
+pub use preflight::{
+    open_preflight_downgrade_modal, open_preflight_install_modal, open_preflight_remove_modal,
+};
 
 /// What: Handle `pane_next` navigation (cycles through panes).
 fn handle_pane_next_navigation(
@@ -360,18 +362,22 @@ fn handle_enter_key(app: &mut AppState) {
         )
         && !app.downgrade_list.is_empty()
     {
-        let names: Vec<String> = app.downgrade_list.iter().map(|p| p.name.clone()).collect();
-        let joined = names.join(" ");
-        let cmd = if app.dry_run {
-            format!("echo DRY RUN: sudo downgrade {joined}")
+        if skip {
+            let names: Vec<String> = app.downgrade_list.iter().map(|p| p.name.clone()).collect();
+            let joined = names.join(" ");
+            let cmd = if app.dry_run {
+                format!("echo DRY RUN: sudo downgrade {joined}")
+            } else {
+                format!(
+                    "if (command -v downgrade >/dev/null 2>&1) || sudo pacman -Qi downgrade >/dev/null 2>&1; then sudo downgrade {joined}; else echo 'downgrade tool not found. Install \"downgrade\" package.'; fi"
+                )
+            };
+            crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+            app.downgrade_list.clear();
+            app.downgrade_state.select(None);
         } else {
-            format!(
-                "if (command -v downgrade >/dev/null 2>&1) || sudo pacman -Qi downgrade >/dev/null 2>&1; then sudo downgrade {joined}; else echo 'downgrade tool not found. Install \"downgrade\" package.'; fi"
-            )
-        };
-        crate::install::spawn_shell_commands_in_terminal(&[cmd]);
-        app.downgrade_list.clear();
-        app.downgrade_state.select(None);
+            open_preflight_downgrade_modal(app);
+        }
     }
 }
 

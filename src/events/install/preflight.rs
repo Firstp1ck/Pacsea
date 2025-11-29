@@ -628,3 +628,70 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
     app.remove_preflight_summary = Vec::new(); // Will be populated when dependencies are resolved
     app.toast_message = Some(crate::i18n::t(app, "app.toasts.preflight_remove_list"));
 }
+
+/// What: Open Preflight modal for downgrade action.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - No return value; sets app.modal to Preflight with Downgrade action
+///
+/// Details:
+/// - Opens modal immediately without blocking. Similar to remove modal, but for downgrade operations.
+pub fn open_preflight_downgrade_modal(app: &mut AppState) {
+    let items = app.downgrade_list.clone();
+    let item_count = items.len();
+
+    // Reset cancellation flag when opening modal
+    app.preflight_cancelled
+        .store(false, std::sync::atomic::Ordering::Relaxed);
+    // Queue summary computation in background - modal will render with None initially
+    app.preflight_summary_items = Some((items.clone(), crate::state::PreflightAction::Downgrade));
+    // Don't set preflight_summary_resolving=true here - let the tick handler trigger it
+    // This prevents the tick handler from being blocked by the flag already being set
+    tracing::debug!(
+        "[Preflight] Queued summary computation for {} items (downgrade)",
+        items.len()
+    );
+    app.pending_service_plan.clear();
+
+    // Open modal immediately with empty dependency_info to avoid blocking UI
+    // Dependency info can be resolved later via Dependencies tab or when proceeding
+    app.modal = crate::state::Modal::Preflight {
+        items,
+        action: crate::state::PreflightAction::Downgrade,
+        tab: crate::state::PreflightTab::Summary,
+        summary: None, // Will be populated when background computation completes
+        summary_scroll: 0,
+        header_chips: crate::state::modal::PreflightHeaderChips {
+            package_count: item_count,
+            download_bytes: 0,
+            install_delta_bytes: 0,
+            aur_count: 0,
+            risk_score: 0,
+            risk_level: crate::state::modal::RiskLevel::Low,
+        },
+        dependency_info: Vec::new(), // Will be populated when user switches to Deps tab or proceeds
+        dep_selected: 0,
+        dep_tree_expanded: std::collections::HashSet::new(),
+        deps_error: None,
+        file_info: Vec::new(),
+        file_selected: 0,
+        file_tree_expanded: std::collections::HashSet::new(),
+        files_error: None,
+        service_info: Vec::new(),
+        service_selected: 0,
+        services_loaded: false,
+        services_error: None,
+        sandbox_info: Vec::new(),
+        sandbox_selected: 0,
+        sandbox_tree_expanded: std::collections::HashSet::new(),
+        sandbox_loaded: false,
+        sandbox_error: None,
+        selected_optdepends: std::collections::HashMap::new(),
+        cascade_mode: app.remove_cascade_mode,
+        cached_reverse_deps_report: None,
+    };
+    app.toast_message = Some(crate::i18n::t(app, "app.toasts.preflight_downgrade_list"));
+}

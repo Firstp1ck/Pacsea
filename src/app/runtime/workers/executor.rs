@@ -3,8 +3,8 @@
 use tokio::sync::mpsc;
 
 use crate::install::{
-    ExecutorOutput, ExecutorRequest, build_install_command_for_executor,
-    build_remove_command_for_executor,
+    ExecutorOutput, ExecutorRequest, build_downgrade_command_for_executor,
+    build_install_command_for_executor, build_remove_command_for_executor,
 };
 
 /// What: Spawn background worker for command execution via PTY.
@@ -16,14 +16,15 @@ use crate::install::{
 /// Details:
 /// - Executes commands in a PTY to capture full terminal output
 /// - Streams output line by line to the main event loop
-/// - Handles both install and remove operations
+/// - Handles install, remove, and downgrade operations
 #[cfg(not(target_os = "windows"))]
 pub fn spawn_executor_worker(
-    mut executor_req_rx: mpsc::UnboundedReceiver<ExecutorRequest>,
+    executor_req_rx: mpsc::UnboundedReceiver<ExecutorRequest>,
     executor_res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
     let executor_res_tx_bg = executor_res_tx;
     tokio::spawn(async move {
+        let mut executor_req_rx = executor_req_rx;
         tracing::info!("[Runtime] Executor worker started, waiting for requests...");
         while let Some(request) = executor_req_rx.recv().await {
             let res_tx = executor_res_tx_bg.clone();
@@ -62,6 +63,23 @@ pub fn spawn_executor_worker(
                         cascade,
                         dry_run,
                     );
+                    let res_tx_clone = res_tx.clone();
+                    tokio::task::spawn_blocking(move || {
+                        execute_command_pty(&cmd, res_tx_clone);
+                    });
+                }
+                ExecutorRequest::Downgrade {
+                    names,
+                    password,
+                    dry_run,
+                } => {
+                    tracing::info!(
+                        "[Runtime] Executor worker received downgrade request: {} packages, dry_run={}",
+                        names.len(),
+                        dry_run
+                    );
+                    let cmd =
+                        build_downgrade_command_for_executor(&names, password.as_deref(), dry_run);
                     let res_tx_clone = res_tx.clone();
                     tokio::task::spawn_blocking(move || {
                         execute_command_pty(&cmd, res_tx_clone);

@@ -180,6 +180,7 @@ pub fn render_preflight(
     let title = match *fields.action {
         PreflightAction::Install => i18n::t(app, "app.modals.preflight.title_install"),
         PreflightAction::Remove => i18n::t(app, "app.modals.preflight.title_remove"),
+        PreflightAction::Downgrade => i18n::t(app, "app.modals.preflight.title_downgrade"),
     };
     let border_color = th.lavender;
     let bg_color = th.crust;

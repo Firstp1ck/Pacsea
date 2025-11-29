@@ -164,6 +164,14 @@ fn handle_deps_tab_switch(
                 *params.remove_preflight_summary_cleared = true;
                 return true;
             }
+            crate::state::PreflightAction::Downgrade => {
+                // For downgrade, we don't need to resolve dependencies
+                // Downgrade tool handles its own logic
+                tracing::debug!("[Preflight] Downgrade action: skipping dependency resolution");
+                *params.dependency_info = Vec::new();
+                *params.dep_selected = 0;
+                *params.remove_preflight_summary_cleared = true;
+            }
         }
     } else {
         tracing::debug!(
@@ -250,6 +258,15 @@ fn handle_files_tab_switch(
                 *preflight_files_items = Some(items.to_vec());
                 *preflight_files_resolving = true;
             }
+            crate::state::PreflightAction::Downgrade => {
+                // For Downgrade actions, always trigger fresh resolution
+                tracing::debug!(
+                    "[Preflight] Triggering background file resolution for {} packages (action=Downgrade)",
+                    items.len()
+                );
+                *preflight_files_items = Some(items.to_vec());
+                *preflight_files_resolving = true;
+            }
         }
     } else {
         tracing::debug!(
@@ -320,6 +337,15 @@ fn handle_services_tab_switch(
                 *params.preflight_services_items = Some(items.to_vec());
                 *params.preflight_services_resolving = true;
             }
+            crate::state::PreflightAction::Downgrade => {
+                // For Downgrade actions, always trigger fresh resolution
+                tracing::debug!(
+                    "[Preflight] Triggering background service resolution for {} packages (action=Downgrade)",
+                    items.len()
+                );
+                *params.preflight_services_items = Some(items.to_vec());
+                *params.preflight_services_resolving = true;
+            }
         }
     }
 }
@@ -374,7 +400,7 @@ fn handle_sandbox_tab_switch(
                     *params.sandbox_loaded = true;
                 }
             }
-            crate::state::PreflightAction::Remove => {
+            crate::state::PreflightAction::Remove | crate::state::PreflightAction::Downgrade => {
                 *params.sandbox_loaded = true;
             }
         }

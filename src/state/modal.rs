@@ -16,6 +16,7 @@ use std::collections::HashSet;
 pub enum PreflightAction {
     Install,
     Remove,
+    Downgrade,
 }
 
 /// What: Purpose for password prompt.
@@ -36,6 +37,8 @@ pub enum PasswordPurpose {
     Remove,
     /// Updating system.
     Update,
+    /// Downgrading packages.
+    Downgrade,
 }
 
 /// What: Identifies which tab within the preflight modal is active.

@@ -34,7 +34,16 @@ pub enum ExecutorRequest {
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
-    // Future: Update, Scan, Downgrade, etc.
+    /// Downgrade packages.
+    Downgrade {
+        /// Package names to downgrade.
+        names: Vec<String>,
+        /// Optional sudo password.
+        password: Option<String>,
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+    },
+    // Future: Update, Scan, etc.
 }
 
 /// What: Output messages from command execution.
@@ -181,6 +190,51 @@ pub fn build_remove_command_for_executor(
                 format!("printf '%s\\n' {escaped} | sudo -S {base_cmd}")
             },
         )
+    }
+}
+
+/// What: Build downgrade command string without hold tail for `PTY` execution.
+///
+/// Inputs:
+/// - `names`: Package names to downgrade.
+/// - `_password`: Optional sudo password (unused - password is written to PTY stdin when sudo prompts).
+/// - `dry_run`: Whether to run in dry-run mode.
+///
+/// Output:
+/// - Command string ready for `PTY` execution (no hold tail).
+///
+/// Details:
+/// - Uses the `downgrade` tool to downgrade packages.
+/// - Checks if `downgrade` tool is available before executing.
+/// - Password is written to PTY stdin when sudo prompts, so we don't need to pipe it here.
+/// - Removes hold tail since we're not spawning a terminal.
+#[must_use]
+pub fn build_downgrade_command_for_executor(
+    names: &[String],
+    _password: Option<&str>,
+    dry_run: bool,
+) -> String {
+    if names.is_empty() {
+        return if dry_run {
+            "echo DRY RUN: nothing to downgrade".to_string()
+        } else {
+            "echo nothing to downgrade".to_string()
+        };
+    }
+
+    let names_str = names.join(" ");
+
+    if dry_run {
+        format!("echo DRY RUN: sudo downgrade {names_str}")
+    } else {
+        // Check if downgrade tool is available, then execute
+        // Note: The check uses sudo but password will be written to PTY stdin when sudo prompts
+        let base_cmd = format!(
+            "if (command -v downgrade >/dev/null 2>&1) || sudo pacman -Qi downgrade >/dev/null 2>&1; then sudo downgrade {names_str}; else echo 'downgrade tool not found. Install \"downgrade\" package.'; fi"
+        );
+        // Password is written to PTY stdin when sudo prompts, so we don't need to pipe it here
+        // Just return the command as-is
+        base_cmd
     }
 }
 

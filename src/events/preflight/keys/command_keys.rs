@@ -360,6 +360,13 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
                         blocked_dep_count = Some(dependency_info.len());
                     }
                 }
+                crate::state::PreflightAction::Downgrade => {
+                    // For downgrade, we don't need to check dependencies
+                    // Downgrade tool handles its own logic
+                    // Just allow downgrade to proceed
+                    removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
+                    removal_mode = Some(*cascade_mode);
+                }
             }
 
             if !service_info.is_empty() {

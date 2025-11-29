@@ -562,6 +562,9 @@ pub(super) fn handle_password_prompt_modal(
                 crate::state::modal::PasswordPurpose::Remove => {
                     crate::state::PreflightAction::Remove
                 }
+                crate::state::modal::PasswordPurpose::Downgrade => {
+                    crate::state::PreflightAction::Downgrade
+                }
             };
             app.modal = Modal::PreflightExec {
                 items: items.clone(),
@@ -587,6 +590,14 @@ pub(super) fn handle_password_prompt_modal(
                         names,
                         password,
                         cascade: app.remove_cascade_mode,
+                        dry_run: app.dry_run,
+                    }
+                }
+                crate::state::modal::PasswordPurpose::Downgrade => {
+                    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+                    ExecutorRequest::Downgrade {
+                        names,
+                        password,
                         dry_run: app.dry_run,
                     }
                 }

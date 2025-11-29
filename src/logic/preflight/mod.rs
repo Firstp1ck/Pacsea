@@ -272,6 +272,13 @@ fn calculate_install_delta(
         PreflightAction::Remove => {
             installed_size.and_then(|size| i64::try_from(size).ok().map(|s| -s))
         }
+        PreflightAction::Downgrade => install_size_target.and_then(|target| {
+            // For downgrade, calculate delta similar to install (replacing with older version)
+            let current = installed_size.unwrap_or(0);
+            let target_i64 = i64::try_from(target).ok()?;
+            let current_i64 = i64::try_from(current).ok()?;
+            Some(target_i64 - current_i64)
+        }),
     }
 }
 
