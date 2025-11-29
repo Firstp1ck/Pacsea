@@ -18,6 +18,26 @@ pub enum PreflightAction {
     Remove,
 }
 
+/// What: Purpose for password prompt.
+///
+/// Inputs:
+/// - Set when showing password prompt modal.
+///
+/// Output:
+/// - Used to customize prompt message and context.
+///
+/// Details:
+/// - Indicates which operation requires sudo authentication.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PasswordPurpose {
+    /// Installing packages.
+    Install,
+    /// Removing packages.
+    Remove,
+    /// Updating system.
+    Update,
+}
+
 /// What: Identifies which tab within the preflight modal is active.
 ///
 /// - Input: Set by UI event handlers responding to user navigation.
@@ -392,6 +412,8 @@ pub enum Modal {
     None,
     /// Informational alert with a non-interactive message.
     Alert { message: String },
+    /// Loading indicator shown during background computation.
+    Loading { message: String },
     /// Confirmation dialog for installing the given items.
     ConfirmInstall { items: Vec<PackageItem> },
     /// Confirmation dialog for batch updates that may cause dependency conflicts.
@@ -549,6 +571,19 @@ pub enum Modal {
     },
     /// Information dialog explaining the Import file format.
     ImportHelp,
+    /// Password prompt for sudo authentication.
+    PasswordPrompt {
+        /// Purpose of the password prompt.
+        purpose: PasswordPurpose,
+        /// Packages involved in the operation.
+        items: Vec<PackageItem>,
+        /// User input buffer for password.
+        input: String,
+        /// Cursor position within the input buffer.
+        cursor: usize,
+        /// Error message if password was incorrect.
+        error: Option<String>,
+    },
 }
 
 #[cfg(test)]
@@ -597,6 +632,13 @@ mod tests {
             cursor: 0,
         };
         let _ = super::Modal::ImportHelp;
+        let _ = super::Modal::PasswordPrompt {
+            purpose: super::PasswordPurpose::Install,
+            items: Vec::new(),
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
         let _ = super::Modal::Preflight {
             items: Vec::new(),
             action: super::PreflightAction::Install,

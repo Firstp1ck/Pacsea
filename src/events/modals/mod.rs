@@ -5,6 +5,7 @@ mod handlers;
 mod import;
 mod install;
 mod optional_deps;
+mod password;
 mod restore;
 mod scan;
 mod system_update;
@@ -57,9 +58,15 @@ pub(super) fn handle_modal_key(
         Modal::OptionalDeps { .. } => handlers::handle_optional_deps_modal(ke, app, modal),
         Modal::ScanConfig { .. } => handlers::handle_scan_config_modal(ke, app, modal),
         Modal::VirusTotalSetup { .. } => handlers::handle_virustotal_setup_modal(ke, app, modal),
+        Modal::PasswordPrompt { .. } => handlers::handle_password_prompt_modal(ke, app, modal),
         Modal::GnomeTerminalPrompt => handlers::handle_gnome_terminal_prompt_modal(ke, app, modal),
         Modal::ImportHelp => handlers::handle_import_help_modal(ke, app, add_tx, modal),
         Modal::None => false,
+        Modal::Loading { .. } => {
+            // Loading modal - ignore key input while waiting for background task
+            app.modal = modal;
+            true // Consume key to prevent propagation
+        }
         Modal::Preflight { .. } => {
             // Preflight is handled separately in preflight.rs
             // Restore it - we shouldn't have gotten here, but be safe

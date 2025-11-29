@@ -66,7 +66,7 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
 /// - `items`: Package items being processed
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` when modal is closed/transitioned to stop propagation, `false` otherwise
 ///
 /// Details:
 /// - Handles Esc/q to close, Enter to show summary, l to toggle verbose, x to abort
@@ -78,33 +78,33 @@ pub(super) fn handle_preflight_exec(
     items: &[crate::state::PackageItem],
 ) -> bool {
     match ke.code {
-        KeyCode::Esc | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.modal = crate::state::Modal::None;
+            true // Stop propagation
+        }
         KeyCode::Enter => {
-            // Compute real counts best-effort and show summary
-            let data = crate::logic::compute_post_summary(items);
-            app.modal = crate::state::Modal::PostSummary {
-                success: data.success,
-                changed_files: data.changed_files,
-                pacnew_count: data.pacnew_count,
-                pacsave_count: data.pacsave_count,
-                services_pending: data.services_pending,
-                snapshot_label: data.snapshot_label,
+            // Show loading modal and queue background computation
+            app.pending_post_summary_items = Some(items.to_vec());
+            app.modal = crate::state::Modal::Loading {
+                message: "Computing summary...".to_string(),
             };
+            true // Stop propagation - transitioning to Loading
         }
         KeyCode::Char('l') => {
             *verbose = !*verbose;
             let verbose_status = if *verbose { "ON" } else { "OFF" };
             app.toast_message = Some(format!("Verbose: {verbose_status}"));
+            false
         }
         // TODO: implement Logic for aborting the transaction
         KeyCode::Char('x') => {
             if abortable {
                 app.toast_message = Some(crate::i18n::t(app, "app.toasts.abort_requested"));
             }
+            false
         }
-        _ => {}
+        _ => false,
     }
-    false
 }
 
 /// What: Handle key events for `PostSummary` modal.
@@ -119,16 +119,21 @@ pub(super) fn handle_preflight_exec(
 ///
 /// Details:
 /// - Handles Esc/Enter/q to close, r for rollback, s for service restart
+/// - Returns `true` when closing modal to stop key propagation
 pub(super) fn handle_post_summary(
     ke: KeyEvent,
     app: &mut AppState,
     services_pending: &[String],
 ) -> bool {
     match ke.code {
-        // TODO: implement Logic for aborting the transaction
-        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
+        // Close modal and stop propagation to prevent key from reaching other handlers
+        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+            app.modal = crate::state::Modal::None;
+            true // Stop propagation - prevents Enter from opening preflight again
+        }
         KeyCode::Char('r') => {
             app.toast_message = Some(crate::i18n::t(app, "app.toasts.rollback"));
+            false
         }
         // TODO: implement Logic for restarting the services
         KeyCode::Char('s') => {
@@ -137,10 +142,10 @@ pub(super) fn handle_post_summary(
             } else {
                 app.toast_message = Some(crate::i18n::t(app, "app.toasts.restart_services"));
             }
+            false
         }
-        _ => {}
+        _ => false,
     }
-    false
 }
 
 /// What: Handle key events for Help modal.

@@ -65,6 +65,10 @@ pub struct Channels {
         mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     pub summary_res_tx: mpsc::UnboundedSender<crate::logic::preflight::PreflightSummaryOutcome>,
     pub summary_res_rx: mpsc::UnboundedReceiver<crate::logic::preflight::PreflightSummaryOutcome>,
+    pub executor_req_tx: mpsc::UnboundedSender<crate::install::ExecutorRequest>,
+    pub executor_res_rx: mpsc::UnboundedReceiver<crate::install::ExecutorOutput>,
+    pub post_summary_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
+    pub post_summary_res_rx: mpsc::UnboundedReceiver<crate::logic::summary::PostSummaryData>,
     pub query_tx: mpsc::UnboundedSender<QueryInput>,
 }
 
@@ -146,6 +150,14 @@ struct UtilityChannels {
     news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
     updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
     updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
+    executor_req_tx: mpsc::UnboundedSender<crate::install::ExecutorRequest>,
+    executor_req_rx: mpsc::UnboundedReceiver<crate::install::ExecutorRequest>,
+    executor_res_tx: mpsc::UnboundedSender<crate::install::ExecutorOutput>,
+    executor_res_rx: mpsc::UnboundedReceiver<crate::install::ExecutorOutput>,
+    post_summary_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
+    post_summary_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    post_summary_res_tx: mpsc::UnboundedSender<crate::logic::summary::PostSummaryData>,
+    post_summary_res_rx: mpsc::UnboundedReceiver<crate::logic::summary::PostSummaryData>,
 }
 
 /// What: Create event channels.
@@ -253,6 +265,13 @@ fn create_utility_channels() -> UtilityChannels {
     let (status_tx, status_rx) = mpsc::unbounded_channel::<(String, ArchStatusColor)>();
     let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
     let (updates_tx, updates_rx) = mpsc::unbounded_channel::<(usize, Vec<String>)>();
+    let (executor_req_tx, executor_req_rx) =
+        mpsc::unbounded_channel::<crate::install::ExecutorRequest>();
+    let (executor_res_tx, executor_res_rx) =
+        mpsc::unbounded_channel::<crate::install::ExecutorOutput>();
+    let (post_summary_req_tx, post_summary_req_rx) = mpsc::unbounded_channel::<Vec<PackageItem>>();
+    let (post_summary_res_tx, post_summary_res_rx) =
+        mpsc::unbounded_channel::<crate::logic::summary::PostSummaryData>();
     UtilityChannels {
         tick_tx,
         tick_rx,
@@ -278,6 +297,14 @@ fn create_utility_channels() -> UtilityChannels {
         news_rx,
         updates_tx,
         updates_rx,
+        executor_req_tx,
+        executor_req_rx,
+        executor_res_tx,
+        executor_res_rx,
+        post_summary_req_tx,
+        post_summary_req_rx,
+        post_summary_res_tx,
+        post_summary_res_rx,
     }
 }
 
@@ -336,6 +363,14 @@ impl Channels {
             &utility_channels.net_err_tx,
             index_path,
         );
+        crate::app::runtime::workers::executor::spawn_executor_worker(
+            utility_channels.executor_req_rx,
+            utility_channels.executor_res_tx.clone(),
+        );
+        spawn_post_summary_worker(
+            utility_channels.post_summary_req_rx,
+            utility_channels.post_summary_res_tx.clone(),
+        );
 
         Self {
             event_tx: event_channels.tx,
@@ -383,7 +418,34 @@ impl Channels {
             summary_req_tx: preflight_channels.summary_req_tx,
             summary_res_tx: preflight_channels.summary_res_tx,
             summary_res_rx: preflight_channels.summary_res_rx,
+            executor_req_tx: utility_channels.executor_req_tx,
+            executor_res_rx: utility_channels.executor_res_rx,
+            post_summary_req_tx: utility_channels.post_summary_req_tx,
+            post_summary_res_rx: utility_channels.post_summary_res_rx,
             query_tx: search_channels.query_tx,
         }
     }
+}
+
+/// What: Spawn background worker for post-summary computation.
+///
+/// Inputs:
+/// - `req_rx`: Channel receiver for post-summary requests (package items)
+/// - `res_tx`: Channel sender for post-summary results
+///
+/// Details:
+/// - Runs `compute_post_summary` in a blocking task to avoid blocking the UI
+fn spawn_post_summary_worker(
+    mut req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    res_tx: mpsc::UnboundedSender<crate::logic::summary::PostSummaryData>,
+) {
+    tokio::spawn(async move {
+        while let Some(items) = req_rx.recv().await {
+            let res_tx = res_tx.clone();
+            tokio::task::spawn_blocking(move || {
+                let data = crate::logic::compute_post_summary(&items);
+                let _ = res_tx.send(data);
+            });
+        }
+    });
 }

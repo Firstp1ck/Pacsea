@@ -108,6 +108,7 @@ fn render_tab_header(tab: PreflightTab) -> Line<'static> {
 ///
 /// Details:
 /// - Shows verbose toggle state and abort availability status.
+#[allow(dead_code)] // Temporarily unused while debugging scroll
 fn format_log_footer(verbose: bool, abortable: bool) -> String {
     format!(
         "l: verbose={}  •  x: abort{}  •  q/Esc/Enter: close",
@@ -179,13 +180,15 @@ fn render_sidebar(
 /// - `abortable`: Whether abort is currently available
 /// - `title`: Title for the log panel block
 /// - `border_color`: Color for log panel border
-/// - `log_area_height`: Height of the log area in characters
+/// - `log_area_height`: Height of the log area in characters (full area including borders)
 ///
 /// Output:
 /// - Returns a `Paragraph` widget ready to render.
 ///
 /// Details:
-/// - Shows placeholder message if no logs, otherwise displays recent log lines capped to viewport height, plus footer.
+/// - Shows placeholder message if no logs, otherwise displays all log lines with auto-scroll to bottom.
+/// - Calculates scroll offset to always show the most recent output at the bottom.
+/// - Follows the same pattern as archinstall-rs: calculate visible lines by taking the last N lines.
 fn render_log_panel(
     log_lines: &[String],
     verbose: bool,
@@ -195,44 +198,54 @@ fn render_log_panel(
     log_area_height: u16,
 ) -> Paragraph<'static> {
     let th = theme();
-    let mut log_text = if log_lines.is_empty() {
+
+    // Create block to get inner area (like archinstall-rs does)
+    let block = Block::default()
+        .title(Span::styled(
+            title,
+            Style::default()
+                .fg(border_color)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(border_color))
+        .style(Style::default().bg(th.base));
+
+    // Get inner height (after borders)
+    // Block with borders uses 2 lines (top + bottom), so inner = outer - 2
+    let inner_height = log_area_height.saturating_sub(2) as usize;
+
+    // Reserve space for footer when process is done (abortable=false means finished)
+    let footer_reserve = usize::from(!abortable);
+    let max_log_lines = inner_height.saturating_sub(footer_reserve);
+
+    // Simple: take last N lines
+    let start = log_lines.len().saturating_sub(max_log_lines);
+
+    let mut visible_lines: Vec<Line> = if log_lines.is_empty() {
         vec![Line::from(Span::styled(
-            "Starting… (placeholder; real logs will stream here)",
+            format!("Waiting for output... [v={verbose}]"),
             Style::default().fg(th.subtext1),
         ))]
     } else {
-        log_lines
+        log_lines[start..]
             .iter()
-            .rev()
-            .take(log_area_height as usize - 2)
-            .rev()
             .map(|l| Line::from(Span::styled(l.clone(), Style::default().fg(th.text))))
             .collect()
     };
 
-    let footer = format_log_footer(verbose, abortable);
-    log_text.push(Line::from(""));
-    log_text.push(Line::from(Span::styled(
-        footer,
-        Style::default().fg(th.subtext1),
-    )));
+    // Add footer when process is done
+    if !abortable && !log_lines.is_empty() {
+        visible_lines.push(Line::from(Span::styled(
+            "[Press q/Esc/Enter to close]",
+            Style::default().fg(th.subtext0),
+        )));
+    }
 
-    Paragraph::new(log_text)
+    Paragraph::new(visible_lines)
         .style(Style::default().fg(th.text).bg(th.base))
-        .wrap(Wrap { trim: false })
-        .block(
-            Block::default()
-                .title(Span::styled(
-                    title,
-                    Style::default()
-                        .fg(border_color)
-                        .add_modifier(Modifier::BOLD),
-                ))
-                .borders(Borders::ALL)
-                .border_type(BorderType::Double)
-                .border_style(Style::default().fg(border_color))
-                .style(Style::default().bg(th.base)),
-        )
+        .block(block)
 }
 
 /// What: Render header chips as a compact horizontal line of metrics.

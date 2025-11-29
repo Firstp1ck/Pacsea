@@ -751,6 +751,202 @@ impl LayoutState {
     }
 }
 
+/// What: Create `OptionalRepos` without Artix-specific repos.
+///
+/// Inputs:
+/// - `optional_repos`: Original optional repos
+///
+/// Output: `OptionalRepos` with all Artix-specific repos set to false.
+///
+/// Details: Helper to create a copy without Artix-specific repos for space calculations.
+#[allow(clippy::missing_const_for_fn)] // Cannot be const due to reference parameter
+fn create_repos_without_specific(optional_repos: &OptionalRepos) -> OptionalRepos {
+    OptionalRepos {
+        has_eos: optional_repos.has_eos,
+        has_cachyos: optional_repos.has_cachyos,
+        has_artix: optional_repos.has_artix,
+        has_artix_omniverse: false,
+        has_artix_universe: false,
+        has_artix_lib32: false,
+        has_artix_galaxy: false,
+        has_artix_world: false,
+        has_artix_system: false,
+        has_manjaro: optional_repos.has_manjaro,
+    }
+}
+
+/// What: Calculate consumed space without Artix-specific repos.
+///
+/// Inputs:
+/// - `base_consumed`: Base consumed space
+/// - `repos_without_specific`: Optional repos without Artix-specific repos
+/// - `optional_labels`: Labels for optional repos
+/// - `has_artix`: Whether Artix filter is present (for dropdown indicator)
+///
+/// Output: Total consumed space without Artix-specific repos.
+///
+/// Details: Calculates consumed space and adds 3 chars for dropdown indicator if Artix is present.
+fn calculate_consumed_without_specific(
+    base_consumed: u16,
+    repos_without_specific: &OptionalRepos,
+    optional_labels: &OptionalReposLabels,
+    has_artix: bool,
+) -> u16 {
+    let mut consumed = base_consumed.saturating_add(calculate_optional_repos_width(
+        repos_without_specific,
+        optional_labels,
+    ));
+    if has_artix {
+        consumed = consumed.saturating_add(3); // " v" dropdown indicator
+    }
+    consumed
+}
+
+/// What: Determine if Artix-specific repos should be shown initially.
+///
+/// Inputs:
+/// - `base_consumed`: Base consumed space
+/// - `consumed_left`: Consumed space with all filters
+/// - `inner_width`: Available width
+/// - `right_w`: Width needed for right-aligned buttons
+/// - `optional_repos`: Optional repository flags
+/// - `optional_labels`: Labels for optional repos
+///
+/// Output: Tuple of (`show_artix_specific_repos`, `final_consumed_left`, `pad`).
+///
+/// Details: Determines initial visibility of Artix-specific repos based on available space.
+fn determine_initial_artix_visibility(
+    base_consumed: u16,
+    consumed_left: u16,
+    inner_width: u16,
+    right_w: u16,
+    optional_repos: &OptionalRepos,
+    optional_labels: &OptionalReposLabels,
+) -> (bool, u16, u16) {
+    let pad = inner_width.saturating_sub(consumed_left.saturating_add(right_w));
+
+    if pad >= 1 {
+        return (true, consumed_left, pad);
+    }
+
+    // Not enough space, try without Artix-specific repos
+    let repos_without_specific = create_repos_without_specific(optional_repos);
+    let consumed_without_specific = calculate_consumed_without_specific(
+        base_consumed,
+        &repos_without_specific,
+        optional_labels,
+        optional_repos.has_artix,
+    );
+    let new_pad = inner_width.saturating_sub(consumed_without_specific.saturating_add(right_w));
+
+    if new_pad >= 1 {
+        (false, consumed_without_specific, new_pad)
+    } else {
+        (true, consumed_left, pad)
+    }
+}
+
+/// What: Context for adjusting Artix visibility calculations.
+///
+/// Inputs: Grouped parameters for visibility calculations.
+///
+/// Output: Struct containing calculation parameters.
+///
+/// Details: Reduces function argument count by grouping related parameters.
+struct ArtixVisibilityContext {
+    consumed_left: u16,
+    final_consumed_left: u16,
+    inner_width: u16,
+    menu_w: u16,
+    base_consumed: u16,
+}
+
+/// What: Adjust Artix visibility for collapsed menu scenario.
+///
+/// Inputs:
+/// - `show_artix_specific_repos`: Current visibility state
+/// - `ctx`: Context containing calculation parameters
+/// - `optional_repos`: Optional repository flags
+/// - `optional_labels`: Labels for optional repos
+///
+/// Output: Tuple of (`show_artix_specific_repos`, `final_consumed_left`).
+///
+/// Details: Adjusts Artix visibility when collapsed menu might be used.
+fn adjust_artix_visibility_for_collapsed_menu(
+    show_artix_specific_repos: bool,
+    ctx: &ArtixVisibilityContext,
+    optional_repos: &OptionalRepos,
+    optional_labels: &OptionalReposLabels,
+) -> (bool, u16) {
+    if !show_artix_specific_repos {
+        return (false, ctx.final_consumed_left);
+    }
+
+    let space_with_filters = ctx
+        .consumed_left
+        .saturating_add(ctx.menu_w)
+        .saturating_add(1);
+    let repos_without_specific = create_repos_without_specific(optional_repos);
+    let consumed_without_specific = calculate_consumed_without_specific(
+        ctx.base_consumed,
+        &repos_without_specific,
+        optional_labels,
+        optional_repos.has_artix,
+    );
+    let space_without_filters = consumed_without_specific
+        .saturating_add(ctx.menu_w)
+        .saturating_add(1);
+
+    if ctx.inner_width < space_with_filters && ctx.inner_width >= space_without_filters {
+        (false, consumed_without_specific)
+    } else {
+        (show_artix_specific_repos, ctx.final_consumed_left)
+    }
+}
+
+/// What: Finalize Artix visibility when menu can't fit.
+///
+/// Inputs:
+/// - `show_artix_specific_repos`: Current visibility state
+/// - `consumed_left`: Consumed space with all filters
+/// - `inner_width`: Available width
+/// - `menu_w`: Menu button width
+/// - `base_consumed`: Base consumed space
+/// - `optional_repos`: Optional repository flags
+/// - `optional_labels`: Labels for optional repos
+///
+/// Output: Tuple of (`show_artix_specific_repos`, `final_consumed_left`).
+///
+/// Details: Hides Artix-specific repos if there's not enough space even without menu.
+fn finalize_artix_visibility_when_menu_cant_fit(
+    show_artix_specific_repos: bool,
+    consumed_left: u16,
+    inner_width: u16,
+    menu_w: u16,
+    base_consumed: u16,
+    optional_repos: &OptionalRepos,
+    optional_labels: &OptionalReposLabels,
+) -> (bool, u16) {
+    if !show_artix_specific_repos {
+        return (false, consumed_left);
+    }
+
+    let space_needed_with_filters = consumed_left.saturating_add(menu_w).saturating_add(1);
+    if inner_width >= space_needed_with_filters {
+        return (true, consumed_left);
+    }
+
+    // Not enough space, hide Artix-specific repos
+    let repos_without_specific = create_repos_without_specific(optional_repos);
+    let consumed_without_specific = calculate_consumed_without_specific(
+        base_consumed,
+        &repos_without_specific,
+        optional_labels,
+        optional_repos.has_artix,
+    );
+    (false, consumed_without_specific)
+}
+
 /// What: Calculate shared layout information for title bar.
 ///
 /// Inputs:
@@ -762,6 +958,7 @@ impl LayoutState {
 /// Output: `TitleLayoutInfo` containing all calculated layout values.
 ///
 /// Details: Performs all layout calculations shared between rendering and rect recording.
+/// Uses helper functions to reduce data flow complexity.
 fn calculate_title_layout_info(
     i18n: &TitleI18nStrings,
     results_len: usize,
@@ -810,79 +1007,35 @@ fn calculate_title_layout_info(
         .saturating_add(panels_w)
         .saturating_add(1)
         .saturating_add(options_w);
-    let mut pad = inner_width.saturating_sub(consumed_left.saturating_add(right_w));
 
-    // If not enough space, hide Artix-specific repo filters (keep generic Artix filter)
-    let mut show_artix_specific_repos = true;
-    let mut final_consumed_left = consumed_left;
-    if pad < 1 {
-        // Recalculate without Artix-specific repo filters
-        let repos_without_specific = OptionalRepos {
-            has_eos: optional_repos.has_eos,
-            has_cachyos: optional_repos.has_cachyos,
-            has_artix: optional_repos.has_artix,
-            has_artix_omniverse: false,
-            has_artix_universe: false,
-            has_artix_lib32: false,
-            has_artix_galaxy: false,
-            has_artix_world: false,
-            has_artix_system: false,
-            has_manjaro: optional_repos.has_manjaro,
-        };
-        let mut consumed_without_specific = base_consumed.saturating_add(
-            calculate_optional_repos_width(&repos_without_specific, &optional_labels),
+    // Determine initial Artix visibility and consumed space
+    let (mut show_artix_specific_repos, mut final_consumed_left, pad) =
+        determine_initial_artix_visibility(
+            base_consumed,
+            consumed_left,
+            inner_width,
+            right_w,
+            optional_repos,
+            &optional_labels,
         );
-        // Add 3 extra chars for " v" dropdown indicator if artix is present
-        if optional_repos.has_artix {
-            consumed_without_specific = consumed_without_specific.saturating_add(3);
-        }
-        let new_pad = inner_width.saturating_sub(consumed_without_specific.saturating_add(right_w));
-        if new_pad >= 1 {
-            show_artix_specific_repos = false;
-            pad = new_pad;
-            final_consumed_left = consumed_without_specific;
-        }
-    }
 
-    // Check if we need to hide Artix filters when using collapsed menu
-    // This must be done before determining collapsed menu to ensure consistency
-    // If we might use collapsed menu (pad < 1), check if Artix filters fit
+    // Adjust Artix visibility for collapsed menu scenario
     if pad < 1 && show_artix_specific_repos {
-        // Calculate space needed with all filters
-        let space_for_collapsed_menu_with_filters =
-            consumed_left.saturating_add(menu_w).saturating_add(1);
-
-        // Recalculate without Artix-specific repo filters to check space
-        let repos_without_specific = OptionalRepos {
-            has_eos: optional_repos.has_eos,
-            has_cachyos: optional_repos.has_cachyos,
-            has_artix: optional_repos.has_artix,
-            has_artix_omniverse: false,
-            has_artix_universe: false,
-            has_artix_lib32: false,
-            has_artix_galaxy: false,
-            has_artix_world: false,
-            has_artix_system: false,
-            has_manjaro: optional_repos.has_manjaro,
+        let ctx = ArtixVisibilityContext {
+            consumed_left,
+            final_consumed_left,
+            inner_width,
+            menu_w,
+            base_consumed,
         };
-        let mut consumed_without_specific = base_consumed.saturating_add(
-            calculate_optional_repos_width(&repos_without_specific, &optional_labels),
+        let (new_show, new_consumed) = adjust_artix_visibility_for_collapsed_menu(
+            show_artix_specific_repos,
+            &ctx,
+            optional_repos,
+            &optional_labels,
         );
-        // Add 3 extra chars for " v" dropdown indicator if artix is present
-        if optional_repos.has_artix {
-            consumed_without_specific = consumed_without_specific.saturating_add(3);
-        }
-        let space_for_collapsed_menu_without_filters = consumed_without_specific
-            .saturating_add(menu_w)
-            .saturating_add(1);
-
-        // If there's not enough space with filters but enough without, hide them
-        if inner_width < space_for_collapsed_menu_with_filters
-            && inner_width >= space_for_collapsed_menu_without_filters
-        {
-            show_artix_specific_repos = false;
-            final_consumed_left = consumed_without_specific;
-        }
+        show_artix_specific_repos = new_show;
+        final_consumed_left = new_consumed;
     }
 
     // Determine if we should use collapsed menu instead of individual buttons
@@ -894,7 +1047,6 @@ fn calculate_title_layout_info(
     //   If inner_width >= (final_consumed_left + menu_w + 1): use collapsed menu
     //   Otherwise: show nothing
     let use_collapsed_menu = if pad < 1 {
-        // Not enough space for all three buttons, check if collapsed menu fits
         let space_needed_for_menu = final_consumed_left.saturating_add(menu_w).saturating_add(1);
         inner_width >= space_needed_for_menu
     } else {
@@ -903,34 +1055,18 @@ fn calculate_title_layout_info(
 
     // If collapsed menu can't fit, ensure Artix filters stay hidden when space is very tight
     // This prevents filters from expanding when the menu dropdown vanishes
-    if !use_collapsed_menu && pad < 1 && show_artix_specific_repos {
-        // Check if there's enough space for Artix filters even without the menu
-        let space_needed_with_filters = consumed_left.saturating_add(menu_w).saturating_add(1);
-        // If there's not enough space with filters, hide them
-        if inner_width < space_needed_with_filters {
-            // Recalculate without Artix-specific repo filters
-            let repos_without_specific = OptionalRepos {
-                has_eos: optional_repos.has_eos,
-                has_cachyos: optional_repos.has_cachyos,
-                has_artix: optional_repos.has_artix,
-                has_artix_omniverse: false,
-                has_artix_universe: false,
-                has_artix_lib32: false,
-                has_artix_galaxy: false,
-                has_artix_world: false,
-                has_artix_system: false,
-                has_manjaro: optional_repos.has_manjaro,
-            };
-            let mut consumed_without_specific = base_consumed.saturating_add(
-                calculate_optional_repos_width(&repos_without_specific, &optional_labels),
-            );
-            // Add 3 extra chars for " v" dropdown indicator if artix is present
-            if optional_repos.has_artix {
-                consumed_without_specific = consumed_without_specific.saturating_add(3);
-            }
-            show_artix_specific_repos = false;
-            final_consumed_left = consumed_without_specific;
-        }
+    if !use_collapsed_menu && pad < 1 {
+        let (new_show, new_consumed) = finalize_artix_visibility_when_menu_cant_fit(
+            show_artix_specific_repos,
+            consumed_left,
+            inner_width,
+            menu_w,
+            base_consumed,
+            optional_repos,
+            &optional_labels,
+        );
+        show_artix_specific_repos = new_show;
+        final_consumed_left = new_consumed;
     }
 
     // Calculate padding for collapsed menu (space after accounting for consumed_left + menu_w)

@@ -451,6 +451,9 @@ en-US:
         example_comment: "  # This is a comment"
         hint_confirm: " confirm"
         hint_cancel: " cancel"
+      preflight_exec:
+        title_install: " Preflight: Install "
+        title_remove: " Preflight: Remove "
       preflight:
         title_install: " Preflight: Install "
         title_remove: " Preflight: Remove "

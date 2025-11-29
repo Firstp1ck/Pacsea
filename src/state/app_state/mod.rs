@@ -508,6 +508,14 @@ pub struct AppState {
     pub preflight_sandbox_resolving: bool,
     /// Cancellation flag for preflight operations (set to true when modal closes).
     pub preflight_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+
+    // Executor integration
+    /// Pending executor request to be sent when `PreflightExec` modal is ready.
+    pub pending_executor_request: Option<crate::install::ExecutorRequest>,
+    /// Pending post-summary computation request (items to compute summary for).
+    pub pending_post_summary_items: Option<Vec<PackageItem>>,
+    /// Header chips to use when transitioning to `PreflightExec` modal.
+    pub pending_exec_header_chips: Option<crate::state::modal::PreflightHeaderChips>,
 }
 
 #[cfg(test)]

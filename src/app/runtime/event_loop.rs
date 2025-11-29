@@ -114,6 +114,7 @@ fn handle_file_result_with_logging(
 /// Details:
 /// - Waits for and processes a single message from any channel
 /// - Returns `true` when an event handler indicates exit (e.g., quit command)
+/// - Uses select! to wait on multiple channels concurrently
 async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -> bool {
     select! {
         Some(ev) = channels.event_rx.recv() => {
@@ -155,10 +156,6 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(deps) = channels.deps_res_rx.recv() => {
-            tracing::info!(
-                "[Runtime] Event loop received dependency result: {} entries",
-                deps.len()
-            );
             handle_dependency_result(app, &deps, &channels.tick_tx);
             false
         }
@@ -167,20 +164,15 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(services) = channels.services_res_rx.recv() => {
-            tracing::debug!(
-                "[Runtime] Received service result: {} entries",
-                services.len()
-            );
             handle_service_result(app, &services, &channels.tick_tx);
             false
         }
         Some(sandbox_info) = channels.sandbox_res_rx.recv() => {
-            tracing::debug!(
-                "[Runtime] Received sandbox result: {} entries for packages: {:?}",
-                sandbox_info.len(),
-                sandbox_info.iter().map(|s| &s.package_name).collect::<Vec<_>>()
-            );
             handle_sandbox_result(app, &sandbox_info, &channels.tick_tx);
+            false
+        }
+        Some(summary_outcome) = channels.summary_res_rx.recv() => {
+            handle_summary_result(app, summary_outcome, &channels.tick_tx);
             false
         }
         Some((pkgname, text)) = channels.pkgb_res_rx.recv() => {
@@ -189,10 +181,6 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
         }
         Some((pkgname, result)) = channels.comments_res_rx.recv() => {
             handle_comments_result(app, pkgname, result, &channels.tick_tx);
-            false
-        }
-        Some(summary_outcome) = channels.summary_res_rx.recv() => {
-            handle_summary_result(app, summary_outcome, &channels.tick_tx);
             false
         }
         Some(msg) = channels.net_err_rx.recv() => {
@@ -211,6 +199,8 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.sandbox_req_tx,
                 &channels.summary_req_tx,
                 &channels.updates_tx,
+                &channels.executor_req_tx,
+                &channels.post_summary_req_tx,
             );
             false
         }
@@ -226,8 +216,6 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             app.updates_count = Some(count);
             app.updates_list = list;
             app.updates_loading = false;
-
-            // If modal was pending, open it now with fresh data
             if app.pending_updates_modal {
                 app.pending_updates_modal = false;
                 let updates_file = crate::theme::lists_dir().join("available_updates.txt");
@@ -240,7 +228,91 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             }
             false
         }
+        Some(executor_output) = channels.executor_res_rx.recv() => {
+            handle_executor_output(app, executor_output);
+            false
+        }
+        Some(post_summary_data) = channels.post_summary_res_rx.recv() => {
+            handle_post_summary_result(app, post_summary_data);
+            false
+        }
         else => false
+    }
+}
+
+/// What: Handle post-summary computation result.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `data`: Computed post-summary data
+///
+/// Details:
+/// - Transitions from Loading modal to `PostSummary` modal
+fn handle_post_summary_result(app: &mut AppState, data: crate::logic::summary::PostSummaryData) {
+    // Only transition if we're in Loading state
+    if matches!(app.modal, crate::state::Modal::Loading { .. }) {
+        app.modal = crate::state::Modal::PostSummary {
+            success: data.success,
+            changed_files: data.changed_files,
+            pacnew_count: data.pacnew_count,
+            pacsave_count: data.pacsave_count,
+            services_pending: data.services_pending,
+            snapshot_label: data.snapshot_label,
+        };
+    }
+}
+
+/// What: Handle executor output messages.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `output`: Executor output message
+///
+/// Details:
+/// - Updates `PreflightExec` modal with log lines or completion status
+fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOutput) {
+    if let crate::state::Modal::PreflightExec {
+        ref mut log_lines,
+        ref mut abortable,
+        ..
+    } = app.modal
+    {
+        match output {
+            crate::install::ExecutorOutput::Line(line) => {
+                log_lines.push(line);
+                // Keep only last 1000 lines to avoid memory issues
+                if log_lines.len() > 1000 {
+                    log_lines.remove(0);
+                }
+            }
+            crate::install::ExecutorOutput::ReplaceLastLine(line) => {
+                // Replace the last line (for progress bar updates via \r)
+                if log_lines.is_empty() {
+                    log_lines.push(line);
+                } else {
+                    let last_idx = log_lines.len() - 1;
+                    log_lines[last_idx] = line;
+                }
+            }
+            crate::install::ExecutorOutput::Finished { success, exit_code } => {
+                tracing::info!("Received Finished: success={success}, exit_code={exit_code:?}");
+                *abortable = false;
+                log_lines.push(String::new()); // Empty line before completion message
+                if success {
+                    log_lines.push("Installation successfully completed!".to_string());
+                    tracing::info!(
+                        "Added completion message, log_lines.len()={}",
+                        log_lines.len()
+                    );
+                } else {
+                    log_lines.push(format!("Execution failed (exit code: {exit_code:?})"));
+                }
+            }
+            crate::install::ExecutorOutput::Error(err) => {
+                *abortable = false;
+                log_lines.push(format!("Error: {err}"));
+            }
+        }
     }
 }
 

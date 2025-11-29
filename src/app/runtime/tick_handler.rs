@@ -509,6 +509,8 @@ pub fn handle_tick(
         crate::state::modal::PreflightAction,
     )>,
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
+    executor_req_tx: &mpsc::UnboundedSender<crate::install::ExecutorRequest>,
+    post_summary_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
 ) {
     maybe_save_recent(app);
     maybe_flush_cache(app);
@@ -535,6 +537,22 @@ pub fn handle_tick(
         sandbox_req_tx,
         summary_req_tx,
     );
+
+    // Send pending executor request if PreflightExec modal is active
+    if let Some(request) = app.pending_executor_request.take()
+        && matches!(app.modal, crate::state::Modal::PreflightExec { .. })
+        && let Err(e) = executor_req_tx.send(request)
+    {
+        tracing::error!("Failed to send executor request: {:?}", e);
+    }
+
+    // Send pending post-summary request if Loading modal is active
+    if let Some(items) = app.pending_post_summary_items.take()
+        && matches!(app.modal, crate::state::Modal::Loading { .. })
+        && let Err(e) = post_summary_req_tx.send(items)
+    {
+        tracing::error!("Failed to send post-summary request: {:?}", e);
+    }
 
     handle_pkgbuild_reload_debounce(app, pkgb_req_tx);
 
@@ -647,6 +665,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
 
         // Should not panic
         handle_tick(
@@ -660,6 +680,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &executor_req_tx,
+            &post_summary_req_tx,
         );
     }
 
@@ -708,6 +730,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -720,6 +744,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &executor_req_tx,
+            &post_summary_req_tx,
         );
 
         // Queues should be cleared
@@ -770,6 +796,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -782,6 +810,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &executor_req_tx,
+            &post_summary_req_tx,
         );
 
         // Request should be sent

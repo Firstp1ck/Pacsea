@@ -466,6 +466,9 @@ impl Default for AppState {
             preflight_services_resolving,
             preflight_sandbox_resolving,
             preflight_cancelled,
+            pending_executor_request: None,
+            pending_exec_header_chips: None,
+            pending_post_summary_items: None,
         }
     }
 }

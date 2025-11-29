@@ -456,6 +456,9 @@ hu-HU:
         example_comment: "  # Ez egy megjegyzés"
         hint_confirm: " megerősítés"
         hint_cancel: " mégse"
+      preflight_exec:
+        title_install: " Előzetes ellenőrzés: Telepítés "
+        title_remove: " Előzetes ellenőrzés: Eltávolítás "
       preflight:
         title_install: " Előzetes ellenőrzés: Telepítés "
         title_remove: " Előzetes ellenőrzés: Eltávolítás "

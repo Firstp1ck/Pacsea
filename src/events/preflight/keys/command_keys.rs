@@ -170,6 +170,148 @@ pub(super) fn handle_m_key(app: &mut AppState) -> bool {
     false
 }
 
+/// What: Extract install targets from preflight modal.
+///
+/// Inputs:
+/// - `items`: Items from preflight modal
+/// - `selected_optdepends`: Selected optional dependencies
+///
+/// Output: Packages to install including optional dependencies.
+///
+/// Details: Adds selected optional dependencies to the install list.
+fn extract_install_targets(
+    items: &[PackageItem],
+    selected_optdepends: &std::collections::HashMap<String, std::collections::HashSet<String>>,
+) -> Vec<PackageItem> {
+    let mut packages = items.to_vec();
+    // Add selected optional dependencies as additional packages to install
+    for optdeps in selected_optdepends.values() {
+        for optdep in optdeps {
+            let optdep_pkg_name = crate::logic::sandbox::extract_package_name(optdep);
+            if !packages.iter().any(|p| p.name == optdep_pkg_name) {
+                packages.push(PackageItem {
+                    name: optdep_pkg_name,
+                    version: String::new(),
+                    description: String::new(),
+                    source: crate::state::Source::Official {
+                        repo: String::new(),
+                        arch: String::new(),
+                    },
+                    popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
+                });
+            }
+        }
+    }
+    packages
+}
+
+/// What: Handle proceed action for install targets.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `packages`: Packages to install
+/// - `header_chips`: Header chip metrics
+///
+/// Output: `false` to keep TUI open.
+///
+/// Details: Checks for batch updates, handles password prompt if needed, or starts execution.
+fn handle_proceed_install(
+    app: &mut AppState,
+    packages: Vec<PackageItem>,
+    header_chips: crate::state::modal::PreflightHeaderChips,
+) -> bool {
+    // Check if this is a batch update scenario requiring confirmation
+    let has_versions = packages.iter().any(|item| {
+        matches!(item.source, crate::state::Source::Official { .. }) && !item.version.is_empty()
+    });
+    let reinstall_any = packages.iter().any(|item| {
+        matches!(item.source, crate::state::Source::Official { .. })
+            && crate::index::is_installed(&item.name)
+    });
+
+    if has_versions && reinstall_any {
+        // Show confirmation modal for batch updates
+        app.modal = crate::state::Modal::ConfirmBatchUpdate {
+            items: packages,
+            dry_run: app.dry_run,
+        };
+        return false; // Don't close modal yet, wait for confirmation
+    }
+
+    // Check if password is needed
+    let has_official = packages
+        .iter()
+        .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
+    if has_official {
+        // Show password prompt
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Install,
+            items: packages,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
+    } else {
+        // No password needed, go directly to execution
+        super::action_keys::start_execution(
+            app,
+            &packages,
+            crate::state::PreflightAction::Install,
+            header_chips,
+        );
+    }
+    false // Keep TUI open
+}
+
+/// What: Handle proceed action for remove targets.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `items`: Items to remove
+/// - `mode`: Cascade removal mode
+/// - `header_chips`: Header chip metrics
+///
+/// Output: `false` to keep TUI open.
+///
+/// Details: Handles password prompt if needed, or starts execution.
+fn handle_proceed_remove(
+    app: &mut AppState,
+    items: Vec<PackageItem>,
+    mode: crate::state::modal::CascadeMode,
+    header_chips: crate::state::modal::PreflightHeaderChips,
+) -> bool {
+    // Store cascade mode for executor (needed in both password and non-password paths)
+    app.remove_cascade_mode = mode;
+
+    // Check if password is needed (remove operations may need sudo)
+    let has_official = items
+        .iter()
+        .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
+    if has_official {
+        // Show password prompt
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Remove,
+            items,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
+    } else {
+        // No password needed, go directly to execution
+        super::action_keys::start_execution(
+            app,
+            &items,
+            crate::state::PreflightAction::Remove,
+            header_chips,
+        );
+    }
+    false // Keep TUI open
+}
+
 /// What: Handle p key - proceed with install/remove.
 ///
 /// Inputs:
@@ -180,8 +322,8 @@ pub(super) fn handle_m_key(app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Closes the modal if install/remove is triggered, but TUI remains open.
+#[allow(clippy::too_many_lines)] // Function handles complex preflight proceed logic
 pub(super) fn handle_p_key(app: &mut AppState) -> bool {
-    let mut close_modal = false;
     let new_summary: Option<Vec<crate::state::modal::ReverseRootSummary>> = None;
     let mut blocked_dep_count: Option<usize> = None;
     let mut removal_names: Option<Vec<String>> = None;
@@ -204,50 +346,30 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
         {
             match action {
                 crate::state::PreflightAction::Install => {
-                    let mut packages = items.clone();
-                    // Add selected optional dependencies as additional packages to install
-                    for (_pkg_name, optdeps) in selected_optdepends.iter() {
-                        for optdep in optdeps {
-                            let optdep_pkg_name =
-                                crate::logic::sandbox::extract_package_name(optdep);
-                            if !packages.iter().any(|p| p.name == optdep_pkg_name) {
-                                packages.push(PackageItem {
-                                    name: optdep_pkg_name,
-                                    version: String::new(),
-                                    description: String::new(),
-                                    source: crate::state::Source::Official {
-                                        repo: String::new(),
-                                        arch: String::new(),
-                                    },
-                                    popularity: None,
-                                    out_of_date: None,
-                                    orphaned: false,
-                                });
-                            }
-                        }
-                    }
+                    let packages = extract_install_targets(&*items, selected_optdepends);
                     install_targets = Some(packages);
                 }
                 crate::state::PreflightAction::Remove => {
-                    // Don't block on dependency resolution - if dependency_info is empty,
-                    // proceed if cascade mode allows dependents, otherwise show blocking message
+                    // If dependency_info is empty, dependencies haven't been resolved yet.
+                    // Show a warning but allow removal to proceed (don't block).
                     if dependency_info.is_empty() {
-                        // If cascade mode allows dependents, proceed without blocking
-                        if cascade_mode.allows_dependents() {
-                            removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
-                            removal_mode = Some(*cascade_mode);
-                        } else {
-                            // Can't proceed without dependency info and cascade doesn't allow dependents
-                            // Show message that dependencies need to be resolved first
+                        // Show warning if cascade mode is Basic (might have dependents we don't know about)
+                        if !cascade_mode.allows_dependents() {
                             deps_not_resolved_message = Some(
-                                "Dependencies not resolved yet. Please wait or switch to Dependencies tab."
+                                "Warning: Dependencies not resolved yet. Package may have dependents. Switch to Dependencies tab to check."
                                     .to_string(),
                             );
                         }
+                        // Always allow removal to proceed, even if dependencies aren't resolved
+                        removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
+                        removal_mode = Some(*cascade_mode);
                     } else if cascade_mode.allows_dependents() {
+                        // Cascade mode allows dependents, proceed with removal
                         removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
                         removal_mode = Some(*cascade_mode);
                     } else {
+                        // Dependencies are resolved, cascade mode is Basic, and there are dependents
+                        // Block removal since Basic mode doesn't allow removing packages with dependents
                         blocked_dep_count = Some(dependency_info.len());
                     }
                 }
@@ -276,30 +398,52 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
     }
 
     if let Some(packages) = install_targets {
-        // Check if this is a batch update scenario requiring confirmation
-        let has_versions = packages.iter().any(|item| {
-            matches!(item.source, crate::state::Source::Official { .. }) && !item.version.is_empty()
-        });
-        let reinstall_any = packages.iter().any(|item| {
-            matches!(item.source, crate::state::Source::Official { .. })
-                && crate::index::is_installed(&item.name)
-        });
+        // Get header_chips and service_info before closing modal
+        let header_chips = if let crate::state::Modal::Preflight { header_chips, .. } = &app.modal {
+            header_chips.clone()
+        } else {
+            crate::state::modal::PreflightHeaderChips::default()
+        };
+        let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
+            service_info.clone()
+        } else {
+            Vec::new()
+        };
 
-        if has_versions && reinstall_any {
-            // Show confirmation modal for batch updates
-            app.modal = crate::state::Modal::ConfirmBatchUpdate {
-                items: packages,
-                dry_run: app.dry_run,
-            };
-            return false; // Don't close modal yet, wait for confirmation
-        }
+        // Close preflight modal
+        crate::events::preflight::modal::close_preflight_modal(app, &service_info);
 
-        crate::install::spawn_install_all(&packages, app.dry_run);
-        close_modal = true;
+        return handle_proceed_install(app, packages, header_chips);
     } else if let Some(names) = removal_names {
         let mode = removal_mode.unwrap_or(crate::state::modal::CascadeMode::Basic);
-        crate::install::spawn_remove_all(&names, app.dry_run, mode);
-        close_modal = true;
+
+        // Get header_chips and service_info before closing modal
+        let header_chips = if let crate::state::Modal::Preflight { header_chips, .. } = &app.modal {
+            header_chips.clone()
+        } else {
+            crate::state::modal::PreflightHeaderChips::default()
+        };
+        let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
+            service_info.clone()
+        } else {
+            Vec::new()
+        };
+
+        // Get items for removal
+        let items = if let crate::state::Modal::Preflight { items, .. } = &app.modal {
+            items
+                .iter()
+                .filter(|p| names.contains(&p.name))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Close preflight modal
+        crate::events::preflight::modal::close_preflight_modal(app, &service_info);
+
+        return handle_proceed_remove(app, items, mode, header_chips);
     } else if let Some(count) = blocked_dep_count {
         let root_list: Vec<String> = app
             .remove_preflight_summary
@@ -318,17 +462,6 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
         app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
     }
 
-    if close_modal {
-        let service_info_clone =
-            if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
-                service_info.clone()
-            } else {
-                Vec::new()
-            };
-        close_preflight_modal(app, &service_info_clone);
-        // Return false to keep TUI open - modal is closed but app continues
-        return false;
-    }
     false
 }
 

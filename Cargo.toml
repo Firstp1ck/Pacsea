@@ -28,6 +28,8 @@ fuzzy-matcher = "0.3"
 rpassword = "7.4.0"
 scraper = "0.20"
 chrono = "0.4"
+portable-pty = "0.9"
+strip-ansi-escapes = "0.2"
 
 [dev-dependencies]
 tempfile = "3.10"

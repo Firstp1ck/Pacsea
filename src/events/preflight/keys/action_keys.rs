@@ -80,16 +80,109 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
     };
 
     if should_close {
+        // Check if we need to show password prompt or go directly to execution
+        let (items_clone, action_clone, header_chips_clone, needs_password) =
+            if let crate::state::Modal::Preflight {
+                items,
+                action,
+                header_chips,
+                ..
+            } = &app.modal
+            {
+                let has_official = items
+                    .iter()
+                    .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
+                let needs_pw =
+                    has_official && matches!(action, crate::state::PreflightAction::Install);
+                (items.clone(), *action, header_chips.clone(), needs_pw)
+            } else {
+                // Not a Preflight modal, just close it
+                let service_info =
+                    if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
+                        service_info.clone()
+                    } else {
+                        Vec::new()
+                    };
+                close_preflight_modal(app, &service_info);
+                return false;
+            };
+
+        // Get service info before closing modal
         let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
             service_info.clone()
         } else {
             Vec::new()
         };
         close_preflight_modal(app, &service_info);
+
+        if needs_password {
+            // Show password prompt
+            app.modal = crate::state::Modal::PasswordPrompt {
+                purpose: crate::state::modal::PasswordPurpose::Install,
+                items: items_clone,
+                input: String::new(),
+                cursor: 0,
+                error: None,
+            };
+            // Store header_chips for later use in PreflightExec
+            app.pending_exec_header_chips = Some(header_chips_clone);
+        } else {
+            // No password needed, go directly to execution
+            start_execution(app, &items_clone, action_clone, header_chips_clone);
+        }
         // Return false to keep TUI open - modal is closed but app continues
         return false;
     }
     false
+}
+
+/// What: Start command execution by transitioning to `PreflightExec` and storing `ExecutorRequest`.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `items`: Packages to install/remove
+/// - `action`: Install or Remove action
+/// - `header_chips`: Header chip metrics
+///
+/// Details:
+/// - Transitions to `PreflightExec` modal and stores `ExecutorRequest` for processing in tick handler
+#[allow(clippy::needless_pass_by_value)] // header_chips is consumed in modal creation
+pub(super) fn start_execution(
+    app: &mut AppState,
+    items: &[crate::state::PackageItem],
+    action: crate::state::PreflightAction,
+    header_chips: crate::state::modal::PreflightHeaderChips,
+) {
+    use crate::install::ExecutorRequest;
+
+    // Transition to PreflightExec modal
+    app.modal = crate::state::Modal::PreflightExec {
+        items: items.to_vec(),
+        action,
+        tab: crate::state::PreflightTab::Summary,
+        verbose: false,
+        log_lines: Vec::new(),
+        abortable: false,
+        header_chips,
+    };
+
+    // Store executor request for processing in tick handler
+    app.pending_executor_request = Some(match action {
+        crate::state::PreflightAction::Install => ExecutorRequest::Install {
+            items: items.to_vec(),
+            password: None, // No password needed for AUR-only installs
+            dry_run: app.dry_run,
+        },
+        crate::state::PreflightAction::Remove => {
+            let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            ExecutorRequest::Remove {
+                names,
+                password: None, // TODO: Handle password for remove operations
+                cascade: app.remove_cascade_mode,
+                dry_run: app.dry_run,
+            }
+        }
+    });
 }
 
 /// What: Handle Space key - toggle expand/collapse.

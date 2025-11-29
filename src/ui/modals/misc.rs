@@ -432,3 +432,52 @@ pub fn render_import_help(f: &mut Frame, area: Rect, app: &crate::state::AppStat
         );
     f.render_widget(boxw, rect);
 }
+
+/// What: Render a simple loading indicator modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `message`: Loading message to display
+///
+/// Output:
+/// - Draws a centered loading modal with the given message.
+///
+/// Details:
+/// - Shows a simple centered box with a loading message and spinner indicator.
+pub fn render_loading(f: &mut Frame, area: Rect, message: &str) {
+    let th = theme();
+
+    // Small centered modal
+    let width = 40_u16.min(area.width.saturating_sub(4));
+    let height = 5_u16.min(area.height.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + (area.height.saturating_sub(height)) / 2;
+    let rect = Rect::new(x, y, width, height);
+
+    f.render_widget(Clear, rect);
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            format!("⏳ {message}"),
+            Style::default().fg(th.text),
+        )),
+    ];
+
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    " Loading ",
+                    Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(th.yellow))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+}

@@ -39,6 +39,7 @@ pub(super) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal
 ///
 /// Details:
 /// - Delegates to common handler, updates verbose flag, and restores modal if needed
+/// - Returns `true` when modal is closed/transitioned to stop key propagation
 pub(super) fn handle_preflight_exec_modal(
     ke: KeyEvent,
     app: &mut AppState,
@@ -54,7 +55,10 @@ pub(super) fn handle_preflight_exec_modal(
         ref header_chips,
     } = modal
     {
-        super::common::handle_preflight_exec(ke, app, verbose, *abortable, items);
+        let should_stop = super::common::handle_preflight_exec(ke, app, verbose, *abortable, items);
+        if should_stop {
+            return true; // Modal was closed or transitioned, stop propagation
+        }
         restore::restore_if_not_closed_with_excluded_keys(
             app,
             &ke,
@@ -85,6 +89,7 @@ pub(super) fn handle_preflight_exec_modal(
 ///
 /// Details:
 /// - Delegates to common handler and restores modal if needed
+/// - Returns `true` when modal is closed to stop key propagation
 pub(super) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal) -> bool {
     if let Modal::PostSummary {
         success,
@@ -95,7 +100,10 @@ pub(super) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal:
         snapshot_label,
     } = modal
     {
-        super::common::handle_post_summary(ke, app, services_pending);
+        let should_stop = super::common::handle_post_summary(ke, app, services_pending);
+        if should_stop {
+            return true; // Modal was closed, stop propagation
+        }
         restore::restore_if_not_closed_with_excluded_keys(
             app,
             &ke,
@@ -476,6 +484,101 @@ pub(super) fn handle_gnome_terminal_prompt_modal(
     _modal: Modal,
 ) -> bool {
     super::common::handle_gnome_terminal_prompt(ke, app);
+    false
+}
+
+/// What: Handle key events for `PasswordPrompt` modal, including restoration logic.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `PasswordPrompt` modal variant
+///
+/// Output:
+/// - `true` if Enter was pressed (password submitted), `false` otherwise
+///
+/// Details:
+/// - Delegates to password handler and restores modal if needed
+/// - Returns `true` on Enter to indicate password should be submitted
+pub(super) fn handle_password_prompt_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    mut modal: Modal,
+) -> bool {
+    if let Modal::PasswordPrompt {
+        ref mut input,
+        ref mut cursor,
+        ref purpose,
+        ref items,
+        ref mut error,
+    } = modal
+    {
+        let submitted = super::password::handle_password_prompt(ke, app, input, cursor);
+        if submitted {
+            // Password submitted - transition to PreflightExec and store executor request
+            use crate::install::ExecutorRequest;
+
+            let password = if input.trim().is_empty() {
+                None
+            } else {
+                Some(input.clone())
+            };
+
+            let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
+
+            // Transition to PreflightExec
+            let action = match purpose {
+                crate::state::modal::PasswordPurpose::Install
+                | crate::state::modal::PasswordPurpose::Update => {
+                    crate::state::PreflightAction::Install
+                }
+                crate::state::modal::PasswordPurpose::Remove => {
+                    crate::state::PreflightAction::Remove
+                }
+            };
+            app.modal = Modal::PreflightExec {
+                items: items.clone(),
+                action,
+                tab: crate::state::PreflightTab::Summary,
+                verbose: false,
+                log_lines: Vec::new(),
+                abortable: false,
+                header_chips,
+            };
+
+            // Store executor request
+            app.pending_executor_request = Some(match purpose {
+                crate::state::modal::PasswordPurpose::Install
+                | crate::state::modal::PasswordPurpose::Update => ExecutorRequest::Install {
+                    items: items.clone(),
+                    password,
+                    dry_run: app.dry_run,
+                },
+                crate::state::modal::PasswordPurpose::Remove => {
+                    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+                    ExecutorRequest::Remove {
+                        names,
+                        password,
+                        cascade: app.remove_cascade_mode,
+                        dry_run: app.dry_run,
+                    }
+                }
+            });
+
+            return true;
+        }
+        restore::restore_if_not_closed_with_esc(
+            app,
+            &ke,
+            Modal::PasswordPrompt {
+                purpose: *purpose,
+                items: items.clone(),
+                input: input.clone(),
+                cursor: *cursor,
+                error: error.clone(),
+            },
+        );
+    }
     false
 }
 

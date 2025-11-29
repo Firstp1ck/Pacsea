@@ -9,6 +9,7 @@ mod confirm;
 mod help;
 mod misc;
 mod news;
+mod password;
 mod post_summary;
 mod preflight;
 mod preflight_exec;
