@@ -40,8 +40,25 @@ pub fn render_post_summary(
     snapshot_label: Option<&String>,
 ) {
     let th = theme();
-    let w = area.width.saturating_sub(8).min(96);
-    let h = area.height.saturating_sub(6).min(20);
+    // Calculate required height based on content
+    // Structure: success/failed + empty + changed_files + snapshot(optional) + empty + services(optional) + empty + footer_hint
+    // Base: success(1) + empty(1) + changed_files(1) + empty(1) + footer_hint(1) = 5
+    let base_lines = 5u16;
+    let snapshot_lines = u16::from(snapshot_label.is_some());
+    let services_lines = if services_pending.is_empty() {
+        0u16
+    } else {
+        // empty + services label + services (max 4 shown) + potentially "and more" line
+        let service_count = services_pending.len().min(4);
+        u16::try_from(service_count + 2 + usize::from(services_pending.len() > 4)).unwrap_or(7)
+    };
+    // Total content lines needed (borders take 2 lines, so add 2)
+    let required_height = base_lines + snapshot_lines + services_lines + 2;
+    let h = area
+        .height
+        .saturating_sub(4)
+        .min(required_height.clamp(9, 18));
+    let w = area.width.saturating_sub(8).min(70);
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;
     let rect = ratatui::prelude::Rect {
@@ -91,20 +108,27 @@ pub fn render_post_summary(
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD),
         )));
-        for s in services_pending
-            .iter()
-            .take((h as usize).saturating_sub(10))
-        {
+        // Show max 4 services to keep dialog compact
+        for s in services_pending.iter().take(4) {
             lines.push(Line::from(Span::styled(
-                format!("- {s}"),
+                format!("  • {s}"),
                 Style::default().fg(th.text),
+            )));
+        }
+        if services_pending.len() > 4 {
+            let remaining = services_pending.len() - 4;
+            lines.push(Line::from(Span::styled(
+                format!("  ... and {remaining} more"),
+                Style::default().fg(th.subtext1),
             )));
         }
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         i18n::t(app, "app.modals.post_summary.footer_hint"),
-        Style::default().fg(th.subtext1),
+        Style::default()
+            .fg(th.subtext1)
+            .add_modifier(Modifier::BOLD),
     )));
 
     let boxw = Paragraph::new(lines)

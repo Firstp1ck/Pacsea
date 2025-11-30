@@ -29,7 +29,7 @@ use crate::theme::theme;
 #[allow(clippy::many_single_char_names)]
 pub fn render_password_prompt(
     f: &mut Frame,
-    _app: &AppState,
+    app: &AppState,
     area: Rect,
     purpose: PasswordPurpose,
     items: &[PackageItem],
@@ -37,8 +37,21 @@ pub fn render_password_prompt(
     error: Option<&str>,
 ) {
     let th = theme();
-    let w = area.width.saturating_sub(6).min(90);
-    let h = area.height.saturating_sub(6).min(20);
+    // Calculate required height based on content
+    let base_height = 8u16; // heading + empty + password label + input + empty + error space + empty + instructions
+    let package_lines = if items.is_empty() {
+        0u16
+    } else {
+        // package label + packages (max 4 shown) + empty
+        u16::try_from(items.len().min(4) + 2).unwrap_or(6)
+    };
+    let error_lines = if error.is_some() { 2u16 } else { 0u16 };
+    let required_height = base_height + package_lines + error_lines;
+    let h = area
+        .height
+        .saturating_sub(6)
+        .min(required_height.clamp(8, 14));
+    let w = area.width.saturating_sub(6).min(65);
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;
     let rect = Rect {
@@ -53,34 +66,47 @@ pub fn render_password_prompt(
 
     // Purpose-specific heading
     let heading = match purpose {
-        PasswordPurpose::Install => "Enter sudo password to install packages",
-        PasswordPurpose::Remove => "Enter sudo password to remove packages",
-        PasswordPurpose::Update => "Enter sudo password to update system",
-        PasswordPurpose::Downgrade => "Enter sudo password to downgrade packages",
-        PasswordPurpose::FileSync => "Enter sudo password to sync file database",
+        PasswordPurpose::Install => {
+            crate::i18n::t(app, "app.modals.password_prompt.heading_install")
+        }
+        PasswordPurpose::Remove => crate::i18n::t(app, "app.modals.password_prompt.heading_remove"),
+        PasswordPurpose::Update => crate::i18n::t(app, "app.modals.password_prompt.heading_update"),
+        PasswordPurpose::Downgrade => {
+            crate::i18n::t(app, "app.modals.password_prompt.heading_downgrade")
+        }
+        PasswordPurpose::FileSync => {
+            crate::i18n::t(app, "app.modals.password_prompt.heading_file_sync")
+        }
     };
     lines.push(Line::from(Span::styled(
         heading,
-        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        Style::default().fg(th.subtext1),
     )));
     lines.push(Line::from(""));
 
     // Show package list if available
     if !items.is_empty() {
+        let package_label = if items.len() == 1 {
+            crate::i18n::t(app, "app.modals.password_prompt.package_label_singular")
+        } else {
+            crate::i18n::t(app, "app.modals.password_prompt.package_label_plural")
+        };
         lines.push(Line::from(Span::styled(
-            "Packages:",
+            package_label,
             Style::default().fg(th.subtext1),
         )));
-        for p in items.iter().take((h as usize).saturating_sub(10)) {
+        // Show max 4 packages to keep dialog compact
+        for p in items.iter().take(4) {
             let p_name = &p.name;
             lines.push(Line::from(Span::styled(
-                format!("  - {p_name}"),
+                format!("  • {p_name}"),
                 Style::default().fg(th.text),
             )));
         }
-        if items.len() + 10 > h as usize {
+        if items.len() > 4 {
+            let remaining = items.len() - 4;
             lines.push(Line::from(Span::styled(
-                "  ...",
+                crate::i18n::t_fmt1(app, "app.modals.password_prompt.and_more", remaining),
                 Style::default().fg(th.subtext1),
             )));
         }
@@ -90,19 +116,19 @@ pub fn render_password_prompt(
     // Password input field (masked)
     let masked_input = "*".repeat(input.len());
     lines.push(Line::from(Span::styled(
-        "Password:",
+        crate::i18n::t(app, "app.modals.password_prompt.password_label"),
         Style::default().fg(th.subtext1),
     )));
     lines.push(Line::from(Span::styled(
         format!("  {masked_input}_"),
-        Style::default().fg(th.text),
+        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
 
     // Error message if present
     if let Some(err) = error {
         lines.push(Line::from(Span::styled(
-            format!("Error: {err}"),
+            format!("⚠ {err}"),
             Style::default().fg(th.red).add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
@@ -110,8 +136,8 @@ pub fn render_password_prompt(
 
     // Instructions
     lines.push(Line::from(Span::styled(
-        "Press Enter to confirm, Esc to cancel",
-        Style::default().fg(th.subtext1),
+        crate::i18n::t(app, "app.modals.common.close_hint"),
+        Style::default().fg(th.overlay1),
     )));
 
     let boxw = Paragraph::new(lines)

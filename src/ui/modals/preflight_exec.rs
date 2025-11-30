@@ -142,17 +142,42 @@ fn render_sidebar(
     let mut s_lines = vec![
         render_header_chips(header_chips),
         Line::from(""),
+        Line::from(Span::styled(
+            "─────────────────────────",
+            Style::default().fg(th.overlay1),
+        )),
+        Line::from(""),
         render_tab_header(tab),
         Line::from(""),
     ];
 
-    // Package list
+    // Package list with better formatting
+    if items.is_empty() {
+        s_lines.push(Line::from(Span::styled(
+            "No packages",
+            Style::default().fg(th.subtext1),
+        )));
+    } else {
+        s_lines.push(Line::from(Span::styled(
+            "Packages:",
+            Style::default()
+                .fg(th.subtext1)
+                .add_modifier(Modifier::BOLD),
+        )));
     for p in items.iter().take(10) {
         let p_name = &p.name;
         s_lines.push(Line::from(Span::styled(
-            format!("- {p_name}"),
+                format!("  • {p_name}"),
             Style::default().fg(th.text),
         )));
+        }
+        if items.len() > 10 {
+            let remaining = items.len() - 10;
+            s_lines.push(Line::from(Span::styled(
+                format!("  ... and {remaining} more"),
+                Style::default().fg(th.subtext1),
+            )));
+        }
     }
 
     Paragraph::new(s_lines)
@@ -268,33 +293,33 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
         format!("{package_count}")
     };
     spans.push(Span::styled(
-        format!("[{pkg_text}]"),
+        format!("Packages: {pkg_text}"),
         Style::default()
             .fg(th.sapphire)
             .add_modifier(Modifier::BOLD),
     ));
 
     // Download size chip (always shown)
-    spans.push(Span::styled(" ", Style::default()));
+    spans.push(Span::styled("  •  ", Style::default().fg(th.overlay1)));
     spans.push(Span::styled(
-        format!("[DL: {}]", format_bytes(chips.download_bytes)),
+        format!("DL: {}", format_bytes(chips.download_bytes)),
         Style::default().fg(th.sapphire),
     ));
 
     // Install delta chip (always shown)
-    spans.push(Span::styled(" ", Style::default()));
+    spans.push(Span::styled("  •  ", Style::default().fg(th.overlay1)));
     let delta_color = match chips.install_delta_bytes.cmp(&0) {
         std::cmp::Ordering::Greater => th.green,
         std::cmp::Ordering::Less => th.red,
         std::cmp::Ordering::Equal => th.overlay1, // Neutral color for zero
     };
     spans.push(Span::styled(
-        format!("[Size: {}]", format_signed_bytes(chips.install_delta_bytes)),
+        format!("Size: {}", format_signed_bytes(chips.install_delta_bytes)),
         Style::default().fg(delta_color),
     ));
 
     // Risk score chip (always shown)
-    spans.push(Span::styled(" ", Style::default()));
+    spans.push(Span::styled("  •  ", Style::default().fg(th.overlay1)));
     let risk_label = match chips.risk_level {
         crate::state::modal::RiskLevel::Low => "Low",
         crate::state::modal::RiskLevel::Medium => "Medium",
@@ -306,7 +331,7 @@ fn render_header_chips(chips: &PreflightHeaderChips) -> Line<'static> {
         crate::state::modal::RiskLevel::High => th.red,
     };
     spans.push(Span::styled(
-        format!("[Risk: {} ({})]", risk_label, chips.risk_score),
+        format!("Risk: {} ({})", risk_label, chips.risk_score),
         Style::default().fg(risk_color).add_modifier(Modifier::BOLD),
     ));
 

@@ -9,23 +9,15 @@ Please ensure you've reviewed these before submitting your PR.
 -->
 
 ## Summary
-This PR adds PTY-based command execution with live output streaming, enabling real-time display of package installation progress directly within the TUI. The implementation includes:
+This PR adds PTY-based command execution with live output streaming, enabling real-time display of package operations directly within the TUI. Key features:
 
-- **Live output streaming**: See installation progress in real-time as commands execute
-- **Password prompt modal**: Secure sudo authentication without leaving the TUI
-- **Loading modal**: Shows progress during async post-summary computation
-- **Auto-scrolling logs**: Log panel automatically scrolls to show latest output with progress bar support
-- **Reinstall confirmation**: Modal for confirming reinstallation of already installed packages
-- **Enhanced preflight risk calculation**: Shows dependent packages and adds +2 risk per dependent
-- **System update integration**: System updates now use executor pattern with PTY
-- **Direct install/remove integration**: Direct install/remove operations (bypassing preflight) now use integrated processes
-- **Security scan integration**: Security scans (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns) now use integrated processes; aur-sleuth runs in separate terminal simultaneously
-- **File database sync fallback**: File database sync fallback now uses integrated process with password prompt instead of terminal spawning
-- **Optional deps improvements**: `semgrep-bin` uses AUR helper flow; `paru`/`yay` use temporary directories for safe cloning; pressing Enter on already installed dependencies shows reinstall confirmation
-- **Downgrade functionality**: Full downgrade support with terminal spawning for interactive tools
-- **Password validation**: Validates sudo password before execution using `sudo -k ; sudo -S -v` (invalidates cached credentials first to ensure fresh validation); language-independent validation using exit codes only; shows remaining attempts on incorrect password; clears input field after failed attempts; tests marked as ignored to prevent user lockout (run with --ignored)
-- **Faillock lockout detection**: Detects account lockouts via faillock status; displays lockout status with remaining time in top-right corner; shows lockout alert modal when locked; automatically closes alert when unlocked; checks status at startup and periodically every minute
-- **Comprehensive tests**: Integration and UI tests for all terminal-spawning processes; tests organized into feature-based subdirectories
+- **Live output streaming**: Real-time progress display for all package operations
+- **TUI modals**: Password prompt, loading indicator, reinstall confirmation, and faillock lockout alerts
+- **Auto-scrolling logs**: Log panel with progress bar support
+- **Integrated processes**: All operations (install, remove, update, scan, downgrade, file sync, optional deps) now use PTY executor pattern
+- **Security enhancements**: Password validation with attempt tracking, faillock lockout detection with periodic status checks
+- **Enhanced preflight**: Shows dependent packages and adds +2 risk per dependent
+- **Comprehensive test suite**: Feature-based test organization covering all workflows
 
 ## Type of change
 - [x] feat (new feature)
@@ -52,27 +44,32 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 
 ## Notes for reviewers
 
-**Key Changes:**
-- New PTY executor worker (`src/app/runtime/workers/executor.rs`) streams command output in real-time
-- Password prompt modal integrated into TUI for sudo authentication
-- Loading modal shows progress during async post-summary computation
-- Auto-scrolling log panel displays latest output with progress bar support
-- Reinstall confirmation modal (`src/ui/modals/confirm.rs`) for packages already installed
-- Preflight risk calculation enhanced to show dependent packages in summary and add +2 risk per dependent
-- Dry-run commands properly quoted using `shell_single_quote` to prevent syntax errors
-- System updates, custom commands, and optional deps now use executor pattern
-- Direct install/remove operations (`src/install/direct.rs`) integrated into executor pattern, bypassing preflight when configured
-- Security scans (`ExecutorRequest::Scan`) integrated into executor pattern; aur-sleuth runs in separate terminal simultaneously when enabled
-- File database sync fallback (`src/events/preflight/keys/command_keys.rs`) integrated into executor pattern; attempts non-sudo sync first, then shows password prompt for `sudo pacman -Fy`
-- Custom command handler enhanced to support any `sudo` command with password (not just `makepkg -si`)
-- Optional deps: `semgrep-bin` converted to use standard AUR helper flow; `paru`/`yay` use temporary directories to prevent accidental deletion; pressing Enter on already installed dependencies shows reinstall confirmation with password prompt for pacman packages
-- Executor worker refactored into helper functions for better code organization and maintainability
-- Downgrade functionality with terminal spawning for interactive tools
-- Password validation: Validates password before sudo operations using `sudo -k ; sudo -S -v` (invalidates cached credentials first to ensure fresh validation); language-independent validation using exit codes only (no error message parsing); shows remaining attempts when password is incorrect; clears password input field after failed attempts; tests marked as ignored to prevent user lockout from failed sudo attempts (run with --ignored)
-- Faillock lockout detection: Parses faillock configuration from `/etc/security/faillock.conf`; checks faillock status at startup and periodically every minute; displays lockout status with remaining time in top-right corner; shows lockout alert modal when user is locked out; automatically closes alert when user is unlocked; validates lockout expiration based on timestamp
-- Reinstall confirmation: Now installs all selected packages (not just installed ones) using `all_items` field
-- Test organization: Tests reorganized into feature-based subdirectories (install, remove, scan, file_sync, update, downgrade, other)
-- Comprehensive test suite covering all terminal-spawning processes
+**Core Implementation:**
+- PTY executor worker (`src/app/runtime/workers/executor.rs`) streams command output in real-time (refactored into helper functions)
+- All operations integrated: install/remove, updates, scans, downgrades, file sync, optional deps
+- Security scans: aur-sleuth runs in separate terminal simultaneously when enabled
+- Dry-run commands properly quoted using `shell_single_quote`
+
+**Security & Authentication:**
+- Password validation: `sudo -k ; sudo -S -v` (invalidates cached credentials first); language-independent (exit codes only); shows remaining attempts; clears input on failure
+- Faillock lockout detection: Parses `/etc/security/faillock.conf`; checks at startup and every minute; displays status in top-right corner; shows alert modal when locked
+- Password prompt supports all sudo operations (not just `makepkg -si`)
+
+**UI Enhancements:**
+- Auto-scrolling log panel with progress bar support
+- Reinstall confirmation modal (installs all selected packages using `all_items` field)
+- Loading modal for async post-summary computation
+- Preflight risk calculation: shows dependent packages, adds +2 risk per dependent
+
+**Optional Deps:**
+- `semgrep-bin` uses standard AUR helper flow
+- `paru`/`yay` use temporary directories for safe cloning
+- Reinstall confirmation for already installed dependencies
+
+**Testing:**
+- Tests organized into feature-based subdirectories (install, scan, update, downgrade, etc.)
+- Comprehensive integration and UI tests covering all workflows
+- Password validation tests marked as ignored (run with `--ignored` to prevent lockout)
 
 **Dependencies Added:**
 - `portable_pty`: Cross-platform PTY support
@@ -83,36 +80,42 @@ None. This is a new feature that enhances the existing installation flow without
 
 ## Additional context
 
-**Key Files:**
-- `src/app/runtime/workers/executor.rs`: PTY executor worker (refactored into helper functions)
-- `src/app/runtime/tick_handler.rs`: File database sync result checking
+**Key Files by Category:**
+
+**Core Executor:**
+- `src/app/runtime/workers/executor.rs`: PTY executor worker
 - `src/install/executor.rs`: Executor request/output types and command builders
-- `src/install/direct.rs`: Direct install/remove operations using integrated processes
-- `src/install/scan/pkg.rs`: Scan command builders (with/without aur-sleuth)
-- `src/install/scan/spawn.rs`: aur-sleuth terminal spawning
-- `src/events/modals/scan.rs`: Scan modal handler using integrated process
-- `src/events/preflight/keys/command_keys.rs`: File database sync with password prompt fallback
-- `src/ui/modals/password.rs`: Password prompt modal (includes FileSync purpose)
-- `src/ui/modals/misc.rs`: Loading modal
-- `src/ui/modals/preflight_exec.rs`: Auto-scrolling log panel
-- `src/events/modals/handlers.rs`: Reinstall confirmation and password handling (includes FileSync)
-- `src/events/install/mod.rs`: Direct install handling with reinstall/batch update logic
-- `src/events/search/preflight_helpers.rs`: Direct install handling with reinstall/batch update logic
-- `src/events/modals/optional_deps.rs`: Optional deps installation with improved AUR helper usage and reinstall confirmation for installed dependencies
-- `src/logic/preflight/mod.rs`: Enhanced risk calculation with dependent package display
-- `src/logic/deps/reverse.rs`: Added `get_installed_required_by` function
-- `src/ui/modals/preflight/tabs/summary.rs`: Display dependent packages in summary
-- `src/state/app_state/mod.rs`: Added `FileSyncResult` type alias and `pending_file_sync_result` field; added faillock lockout status fields
-- `src/state/modal.rs`: Added `PasswordPurpose::FileSync` variant
-- `src/logic/password.rs`: Password validation utilities using `sudo -k ; sudo -S -v` (invalidates cached credentials first); language-independent validation; tests marked as ignored to prevent user lockout
-- `src/logic/faillock.rs`: Faillock status checking and configuration parsing
-- `src/app/runtime/tick_handler.rs`: Periodic faillock status checking
-- `src/app/runtime/init.rs`: Initial faillock status check at startup
-- `src/ui/updates.rs`: Lockout status display in top-right corner and lockout alert modal
-- `src/events/modals/handlers.rs`: Password validation in password prompt; faillock status checking on password errors
-- `tests/*_integration.rs`: Comprehensive integration tests
-- `tests/*_ui.rs`: UI state transition tests
-- `tests/install/`, `tests/remove/`, `tests/scan/`, etc.: Feature-based test organization
+- `src/app/runtime/tick_handler.rs`: File sync result checking, periodic faillock checks
+- `src/app/runtime/init.rs`: Initial faillock status check
+
+**Operations:**
+- `src/install/direct.rs`: Direct install/remove operations
+- `src/install/scan/pkg.rs`, `src/install/scan/spawn.rs`: Scan command builders and aur-sleuth spawning
+- `src/events/modals/scan.rs`, `src/events/install/mod.rs`, `src/events/search/preflight_helpers.rs`: Operation handlers
+- `src/events/preflight/keys/command_keys.rs`: File database sync with password fallback
+- `src/events/modals/optional_deps.rs`: Optional deps installation
+
+**UI Components:**
+- `src/ui/modals/password.rs`, `src/ui/modals/misc.rs`, `src/ui/modals/preflight_exec.rs`: Password, loading, log panel modals
+- `src/ui/modals/preflight/tabs/summary.rs`: Dependent packages display
+- `src/ui/updates.rs`: Lockout status display and alert modal
+
+**Logic & State:**
+- `src/logic/password.rs`, `src/logic/faillock.rs`: Password validation and faillock detection
+- `src/logic/preflight/mod.rs`, `src/logic/deps/reverse.rs`: Risk calculation and dependency tracking
+- `src/state/app_state/mod.rs`, `src/state/modal.rs`: State management additions
+- `src/events/modals/handlers.rs`: Modal handlers with password validation
+
+**Tests:**
+- `tests/install/`, `tests/update/`, `tests/scan/`, `tests/downgrade/`, `tests/other/`, `tests/preflight_integration/`: Feature-based test organization
+
+**UI Improvements:**
+- Improved modal sizing: password, reinstall confirmation, and post-transaction summary windows are now more appropriately sized
+- Enhanced password prompt: better formatting, clearer instructions, improved package list display
+- Better keybind visibility: keybind hints are now always visible and prominently displayed
+- Account locked alert: proper title ("Account Locked") and command highlighting in messages
+- Plan section improvements: better header chips formatting with descriptive labels
+- Translation support: added i18n keys for password prompts, reinstall confirmation, and account locked alerts (en/de/hu)
 
 ### Future Improvements
 

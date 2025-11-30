@@ -318,14 +318,26 @@ hu-HU:
         header_configuration_error: "Konfigurációs hiba"
         header_clipboard_copy: "Másolás a vágólapra"
         header_connection_issue: "Kapcsolati probléma"
+        # TODO: Translate to Hungarian
+        header_account_locked: "Account Locked"
         title_configuration_error: " Konfigurációs hiba "
         title_clipboard_copy: " Másolás a vágólapra "
         title_connection_issue: " Kapcsolati probléma "
         # TODO: Translate to Hungarian
+        title_account_locked: " Account Locked "
         account_locked: "Your account is now locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`."
         account_locked_with_time: "Your account is now locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`. Lockout duration: {} minutes remaining."
         account_locked_before_prompt: "Your account is locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`. Lockout duration: {} minutes."
       password_prompt:
+        heading_install: "Administrative privileges required to install packages"
+        heading_remove: "Administrative privileges required to remove packages"
+        heading_update: "Administrative privileges required to update system"
+        heading_downgrade: "Administrative privileges required to downgrade packages"
+        heading_file_sync: "Administrative privileges required to sync file database"
+        package_label_singular: "Package:"
+        package_label_plural: "Packages:"
+        password_label: "Enter your sudo password:"
+        and_more: "... and {} more"
         incorrect_password: "Incorrect password. Please try again."
         incorrect_password_attempts: "Incorrect password. {} attempts remaining."
         validation_failed: "Failed to validate password: {}"
@@ -343,6 +355,14 @@ hu-HU:
         warning_removal: "Figyelem: A csomagok és a függőségek (ha más csomagok nem függenek tőlük) el lesznek távolítva, és a rendszer-konfiguráció biztonsági mentése nem lesz létrehozva."
         none: "Nincs mit eltávolítani"
         confirm_hint: "Nyomja meg az „y” gombot a törlés megerősítéséhez, vagy az Enter/Esc gombot a törlés visszavonásához [y/N]"
+      confirm_reinstall:
+        # TODO: Translate to Hungarian
+        title: " Reinstall Confirmation "
+        heading: "Reinstall Confirmation"
+        message: "The following packages are already installed and will be reinstalled:"
+        none: "No packages to reinstall"
+        confirm_hint: "Press Enter to confirm reinstall, Esc to cancel"
+        and_more: "... and {} more"
       system_update:
         title: " Rendszerfrissítés "
         heading: "Rendszerfrissítés"
