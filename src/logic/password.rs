@@ -51,6 +51,27 @@ pub fn validate_sudo_password(password: &str) -> Result<bool, String> {
 mod tests {
     use super::*;
 
+    /// What: Check if passwordless sudo is configured.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - `true` if passwordless sudo is available, `false` otherwise.
+    ///
+    /// Details:
+    /// - Uses `sudo -n true` to check if sudo can run without a password.
+    /// - Returns `false` if sudo is not available or requires a password.
+    fn is_passwordless_sudo() -> bool {
+        Command::new("sudo")
+            .args(["-n", "true"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    }
+
     #[test]
     /// What: Test password validation handles invalid passwords.
     ///
@@ -62,7 +83,13 @@ mod tests {
     ///
     /// Details:
     /// - Verifies the function correctly identifies invalid passwords.
+    /// - Skips assertion if passwordless sudo is configured (common in CI).
     fn test_validate_sudo_password_invalid() {
+        // Skip test if passwordless sudo is configured (common in CI environments)
+        if is_passwordless_sudo() {
+            return;
+        }
+
         // This test uses an obviously wrong password
         // It should return Ok(false) without panicking
         let result = validate_sudo_password("definitely_wrong_password_12345");
@@ -86,7 +113,13 @@ mod tests {
     ///
     /// Details:
     /// - Verifies the function correctly handles empty passwords.
+    /// - Skips assertion if passwordless sudo is configured (common in CI).
     fn test_validate_sudo_password_empty() {
+        // Skip test if passwordless sudo is configured (common in CI environments)
+        if is_passwordless_sudo() {
+            return;
+        }
+
         let result = validate_sudo_password("");
         // Empty password should be invalid
         if let Ok(valid) = result {
