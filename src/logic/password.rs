@@ -73,6 +73,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Uses sudo with wrong password - may lock user out. Run with --ignored"]
     /// What: Test password validation handles invalid passwords.
     ///
     /// Inputs:
@@ -84,6 +85,7 @@ mod tests {
     /// Details:
     /// - Verifies the function correctly identifies invalid passwords.
     /// - Skips assertion if passwordless sudo is configured (common in CI).
+    /// - Marked as ignored to prevent user lockout from failed sudo attempts.
     fn test_validate_sudo_password_invalid() {
         // Skip test if passwordless sudo is configured (common in CI environments)
         if is_passwordless_sudo() {
@@ -103,6 +105,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Uses sudo with wrong password - may lock user out. Run with --ignored"]
     /// What: Test password validation handles empty passwords.
     ///
     /// Inputs:
@@ -114,6 +117,7 @@ mod tests {
     /// Details:
     /// - Verifies the function correctly handles empty passwords.
     /// - Skips assertion if passwordless sudo is configured (common in CI).
+    /// - Marked as ignored to prevent user lockout from failed sudo attempts.
     fn test_validate_sudo_password_empty() {
         // Skip test if passwordless sudo is configured (common in CI environments)
         if is_passwordless_sudo() {
@@ -130,6 +134,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Uses sudo with wrong password - may lock user out. Run with --ignored"]
     /// What: Test password validation handles special characters.
     ///
     /// Inputs:
@@ -140,6 +145,7 @@ mod tests {
     ///
     /// Details:
     /// - Verifies the function correctly escapes special characters in passwords.
+    /// - Marked as ignored to prevent user lockout from failed sudo attempts.
     fn test_validate_sudo_password_special_chars() {
         // Test with password containing special shell characters
         let passwords = vec![
@@ -157,6 +163,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Uses sudo with wrong password - may lock user out. Run with --ignored"]
     /// What: Test password validation function signature.
     ///
     /// Inputs:
@@ -167,6 +174,7 @@ mod tests {
     ///
     /// Details:
     /// - Verifies the function returns the correct type.
+    /// - Marked as ignored to prevent user lockout from failed sudo attempts.
     fn test_validate_sudo_password_signature() {
         let result: Result<bool, String> = validate_sudo_password("test");
         // Verify it returns the correct type
