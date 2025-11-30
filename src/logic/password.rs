@@ -15,7 +15,9 @@ use std::process::Command;
 /// - Returns `Err` if the validation command cannot be executed (e.g., sudo not available).
 ///
 /// Details:
-/// - Executes `echo '<password>' | sudo -S -v` to test password validity.
+/// - First invalidates cached sudo credentials with `sudo -k` to ensure fresh validation.
+/// - Then executes `printf '%s\n' '<password>' | sudo -S -v` to test password validity.
+/// - Uses `printf` instead of `echo` for more reliable password handling.
 /// - Uses `sudo -v` which validates credentials without executing a command.
 /// - Returns `Ok(true)` if password is valid, `Ok(false)` if invalid.
 /// - Handles errors appropriately (e.g., if sudo is not available).
@@ -25,9 +27,12 @@ pub fn validate_sudo_password(password: &str) -> Result<bool, String> {
     // Escape password for shell safety
     let escaped_password = shell_single_quote(password);
 
-    // Build command: echo '<password>' | sudo -S -v
-    // sudo -v validates credentials without executing a command
-    let cmd = format!("echo {escaped_password} | sudo -S -v 2>&1");
+    // Build command: sudo -k ; printf '%s\n' '<password>' | sudo -S -v
+    // First, sudo -k invalidates any cached credentials to ensure fresh validation.
+    // Without this, cached credentials could cause validation to succeed even with wrong password.
+    // Use printf instead of echo for more reliable password handling.
+    // sudo -v validates credentials without executing a command.
+    let cmd = format!("sudo -k ; printf '%s\\n' {escaped_password} | sudo -S -v 2>&1");
 
     // Execute command
     let output = Command::new("sh")
