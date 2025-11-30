@@ -141,6 +141,8 @@ de-DE:
       available: "Updates verfügbar ({})"
       none: "Keine Updates verfügbar"
       loading: "Prüfe Updates..."
+      locked: "🔒 Gesperrt"
+      locked_with_time: "🔒 Gesperrt: {} Min"
 
     actions:
       exit: "Beenden"
@@ -313,6 +315,13 @@ de-DE:
         title_configuration_error: " Konfigurationsfehler "
         title_clipboard_copy: " Zwischenablage kopieren "
         title_connection_issue: " Verbindungsproblem "
+        account_locked: "Ihr Konto ist jetzt gesperrt. Bitte entsperren Sie es, indem Sie sich als root mit `su` anmelden und `faillock --user {} --reset` ausführen."
+        account_locked_with_time: "Ihr Konto ist jetzt gesperrt. Bitte entsperren Sie es, indem Sie sich als root mit `su` anmelden und `faillock --user {} --reset` ausführen. Sperrdauer: {} Minuten verbleibend."
+        account_locked_before_prompt: "Ihr Konto ist gesperrt. Bitte entsperren Sie es, indem Sie sich als root mit `su` anmelden und `faillock --user {} --reset` ausführen. Sperrdauer: {} Minuten."
+      password_prompt:
+        incorrect_password: "Falsches Passwort. Bitte versuchen Sie es erneut."
+        incorrect_password_attempts: "Falsches Passwort. {} Versuche verbleibend."
+        validation_failed: "Passwort-Validierung fehlgeschlagen: {}"
       confirm_install:
         title: " Installation bestätigen "
         heading: "Installation bestätigen"

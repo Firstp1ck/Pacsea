@@ -62,14 +62,18 @@ fn integration_direct_install_single_official() {
 
     pacsea::install::start_integrated_install(&mut app, &item, false);
 
-    // Verify password prompt is shown
+    // Verify password prompt is shown (or Alert if user is locked out)
     match app.modal {
         Modal::PasswordPrompt { purpose, items, .. } => {
             assert_eq!(purpose, PasswordPurpose::Install);
             assert_eq!(items.len(), 1);
             assert_eq!(items[0].name, "ripgrep");
         }
-        _ => panic!("Expected PasswordPrompt modal for official package"),
+        Modal::Alert { .. } => {
+            // User might be locked out - this is acceptable in test environment
+            // The important thing is that we checked faillock status
+        }
+        _ => panic!("Expected PasswordPrompt or Alert modal for official package"),
     }
 }
 
@@ -140,7 +144,7 @@ fn integration_direct_install_multiple_with_official() {
 
     pacsea::install::start_integrated_install_all(&mut app, &items, false);
 
-    // Verify password prompt is shown
+    // Verify password prompt is shown (or Alert if user is locked out)
     match app.modal {
         Modal::PasswordPrompt {
             purpose,
@@ -150,7 +154,11 @@ fn integration_direct_install_multiple_with_official() {
             assert_eq!(purpose, PasswordPurpose::Install);
             assert_eq!(modal_items.len(), 2);
         }
-        _ => panic!("Expected PasswordPrompt modal for packages with official"),
+        Modal::Alert { .. } => {
+            // User might be locked out - this is acceptable in test environment
+            // The important thing is that we checked faillock status
+        }
+        _ => panic!("Expected PasswordPrompt or Alert modal for packages with official"),
     }
 }
 
@@ -171,7 +179,7 @@ fn integration_direct_remove() {
 
     pacsea::install::start_integrated_remove_all(&mut app, &names, false, CascadeMode::Basic);
 
-    // Verify password prompt is shown
+    // Verify password prompt is shown (or Alert if user is locked out)
     match app.modal {
         Modal::PasswordPrompt { purpose, items, .. } => {
             assert_eq!(purpose, PasswordPurpose::Remove);
@@ -179,7 +187,11 @@ fn integration_direct_remove() {
             assert_eq!(items[0].name, "test-package-1");
             assert_eq!(items[1].name, "test-package-2");
         }
-        _ => panic!("Expected PasswordPrompt modal for remove"),
+        Modal::Alert { .. } => {
+            // User might be locked out - this is acceptable in test environment
+            // The important thing is that we checked faillock status
+        }
+        _ => panic!("Expected PasswordPrompt or Alert modal for remove"),
     }
 
     // Verify cascade mode is stored

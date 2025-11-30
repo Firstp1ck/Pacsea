@@ -19,10 +19,17 @@ use crate::state::{AppState, PackageItem, Source};
 /// - Returns `true` for Esc to prevent mode toggling in search handler
 pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> bool {
     let is_help = message.contains("Help") || message.contains("Tab Help");
+    let is_lockout = message.contains("locked") || message.contains("lockout");
     match ke.code {
         KeyCode::Esc => {
             if is_help {
                 app.help_scroll = 0; // Reset scroll when closing
+            }
+            // For lockout alerts, clear any pending executor state to abort the process
+            if is_lockout {
+                app.pending_executor_password = None;
+                app.pending_exec_header_chips = None;
+                app.pending_executor_request = None;
             }
             // Restore previous modal if it was Preflight, otherwise close
             if let Some(prev_modal) = app.previous_modal.take() {
@@ -36,13 +43,20 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
             if is_help {
                 app.help_scroll = 0; // Reset scroll when closing
             }
+            // For lockout alerts, clear any pending executor state to abort the process
+            if is_lockout {
+                app.pending_executor_password = None;
+                app.pending_exec_header_chips = None;
+                app.pending_executor_request = None;
+            }
             // Restore previous modal if it was Preflight, otherwise close
             if let Some(prev_modal) = app.previous_modal.take() {
                 app.modal = prev_modal;
             } else {
                 app.modal = crate::state::Modal::None;
             }
-            false
+            // Return true for lockout alerts to stop propagation and abort the process
+            if is_lockout { true } else { false }
         }
         KeyCode::Up if is_help => {
             app.help_scroll = app.help_scroll.saturating_sub(1);

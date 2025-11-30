@@ -150,6 +150,21 @@ pub fn spawn_auxiliary_workers(
             let _ = tick_tx_bg.send(());
         }
     });
+
+    // Spawn faillock check worker (runs every minute)
+    if !headless {
+        let faillock_tx = tick_tx.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(60));
+            // Skip the first tick to avoid immediate check after startup
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                // Trigger a tick to update faillock status in the UI
+                let _ = faillock_tx.send(());
+            }
+        });
+    }
 }
 
 /// What: Check which AUR helper is available (paru or yay).

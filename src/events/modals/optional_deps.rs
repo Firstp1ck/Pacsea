@@ -214,6 +214,17 @@ fn handle_optional_deps_enter(
             };
 
             // These commands need sudo (makepkg -si), so prompt for password first
+            // Check faillock status before showing password prompt
+            let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+            if let Some(lockout_msg) =
+                crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+            {
+                // User is locked out - show warning and don't show password prompt
+                app.modal = crate::state::Modal::Alert {
+                    message: lockout_msg,
+                };
+                return (crate::state::Modal::None, false);
+            }
             app.modal = crate::state::Modal::PasswordPrompt {
                 purpose: crate::state::modal::PasswordPurpose::Install,
                 items: vec![item],

@@ -321,6 +321,17 @@ pub(super) fn handle_proceed_install(
         .iter()
         .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
     if has_official {
+        // Check faillock status before showing password prompt
+        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        if let Some(lockout_msg) =
+            crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+        {
+            // User is locked out - show warning and don't show password prompt
+            app.modal = crate::state::Modal::Alert {
+                message: lockout_msg,
+            };
+            return false;
+        }
         // Show password prompt
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
@@ -364,6 +375,16 @@ pub(super) fn handle_proceed_remove(
     app.remove_cascade_mode = mode;
 
     // Remove operations always need sudo (pacman -R requires sudo regardless of package source)
+    // Check faillock status before showing password prompt
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+    {
+        // User is locked out - show warning and don't show password prompt
+        app.modal = crate::state::Modal::Alert {
+            message: lockout_msg,
+        };
+        return false;
+    }
     // Always show password prompt - user can press Enter if passwordless sudo is configured
     app.modal = crate::state::Modal::PasswordPrompt {
         purpose: crate::state::modal::PasswordPurpose::Remove,
@@ -552,6 +573,17 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
         // Close preflight modal
         crate::events::preflight::modal::close_preflight_modal(app, &service_info);
 
+        // Check faillock status before showing password prompt for downgrade
+        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        if let Some(lockout_msg) =
+            crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+        {
+            // User is locked out - show warning and don't show password prompt
+            app.modal = crate::state::Modal::Alert {
+                message: lockout_msg,
+            };
+            return false;
+        }
         // Show password prompt for downgrade
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Downgrade,

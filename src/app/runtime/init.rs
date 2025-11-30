@@ -363,6 +363,16 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
 
     check_gnome_terminal(app, headless);
 
+    // Check faillock status at startup
+    if !headless {
+        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        let (is_locked, lockout_until, remaining_minutes) =
+            crate::logic::faillock::get_lockout_info(&username);
+        app.faillock_locked = is_locked;
+        app.faillock_lockout_until = lockout_until;
+        app.faillock_remaining_minutes = remaining_minutes;
+    }
+
     load_details_cache(app);
     load_recent_searches(app);
     load_install_list(app);

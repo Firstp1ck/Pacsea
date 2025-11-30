@@ -183,6 +183,14 @@ pub struct AppState {
     /// Flag to indicate that Updates modal should open after refresh completes.
     pub pending_updates_modal: bool,
 
+    // Faillock lockout status
+    /// Whether the user account is currently locked out.
+    pub faillock_locked: bool,
+    /// Timestamp when the lockout will expire (if locked).
+    pub faillock_lockout_until: Option<std::time::SystemTime>,
+    /// Remaining lockout time in minutes (if locked).
+    pub faillock_remaining_minutes: Option<u32>,
+
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
     pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,

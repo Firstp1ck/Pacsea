@@ -144,6 +144,9 @@ hu-HU:
       available: "({}) frissítés érhető el"
       none: "Nincsenek elérhető frissítések"
       loading: "Frissítések ellenőrzése…"
+      # TODO: Translate to Hungarian
+      locked: "🔒 Locked"
+      locked_with_time: "🔒 Locked: {} min"
       
     actions:
       exit: "Kilépés"
@@ -318,6 +321,14 @@ hu-HU:
         title_configuration_error: " Konfigurációs hiba "
         title_clipboard_copy: " Másolás a vágólapra "
         title_connection_issue: " Kapcsolati probléma "
+        # TODO: Translate to Hungarian
+        account_locked: "Your account is now locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`."
+        account_locked_with_time: "Your account is now locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`. Lockout duration: {} minutes remaining."
+        account_locked_before_prompt: "Your account is locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`. Lockout duration: {} minutes."
+      password_prompt:
+        incorrect_password: "Incorrect password. Please try again."
+        incorrect_password_attempts: "Incorrect password. {} attempts remaining."
+        validation_failed: "Failed to validate password: {}"
       confirm_install:
         title: " Telepítés megerősítése "
         heading: "Telepítés megerősítése"

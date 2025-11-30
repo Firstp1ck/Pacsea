@@ -24,6 +24,17 @@ pub fn start_integrated_install(app: &mut AppState, item: &PackageItem, dry_run:
     // Check if password is needed (for official packages)
     let has_official = matches!(item.source, crate::state::Source::Official { .. });
     if has_official {
+        // Check faillock status before showing password prompt
+        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        if let Some(lockout_msg) =
+            crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+        {
+            // User is locked out - show warning and don't show password prompt
+            app.modal = crate::state::Modal::Alert {
+                message: lockout_msg,
+            };
+            return;
+        }
         // Show password prompt
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
@@ -69,6 +80,17 @@ pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], d
         .iter()
         .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
     if has_official {
+        // Check faillock status before showing password prompt
+        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        if let Some(lockout_msg) =
+            crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+        {
+            // User is locked out - show warning and don't show password prompt
+            app.modal = crate::state::Modal::Alert {
+                message: lockout_msg,
+            };
+            return;
+        }
         // Show password prompt
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
@@ -133,6 +155,16 @@ pub fn start_integrated_remove_all(
         .collect();
 
     // Remove operations always need sudo (pacman -R requires sudo regardless of package source)
+    // Check faillock status before showing password prompt
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+    {
+        // User is locked out - show warning and don't show password prompt
+        app.modal = crate::state::Modal::Alert {
+            message: lockout_msg,
+        };
+        return;
+    }
     // Always show password prompt - user can press Enter if passwordless sudo is configured
     app.modal = crate::state::Modal::PasswordPrompt {
         purpose: crate::state::modal::PasswordPurpose::Remove,

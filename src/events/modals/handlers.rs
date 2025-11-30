@@ -4,6 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc;
 
 use super::restore;
+use crate::install::ExecutorRequest;
 use crate::state::{AppState, Modal, PackageItem};
 
 /// What: Handle key events for Alert modal, including restoration logic.
@@ -331,6 +332,17 @@ pub(super) fn handle_confirm_reinstall_modal(
                     .iter()
                     .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
                 if has_official && password.is_none() {
+                    // Check faillock status before showing password prompt
+                    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+                    if let Some(lockout_msg) =
+                        crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+                    {
+                        // User is locked out - show warning and don't show password prompt
+                        app.modal = crate::state::Modal::Alert {
+                            message: lockout_msg,
+                        };
+                        return true;
+                    }
                     // Show password prompt (password wasn't provided yet)
                     app.modal = crate::state::Modal::PasswordPrompt {
                         purpose: crate::state::modal::PasswordPurpose::Install,
@@ -598,6 +610,7 @@ pub(super) fn handle_gnome_terminal_prompt_modal(
 /// Details:
 /// - Delegates to password handler and restores modal if needed
 /// - Returns `true` on Enter to indicate password should be submitted
+#[allow(clippy::too_many_lines)] // Complex password validation and execution flow requires many lines
 pub(super) fn handle_password_prompt_modal(
     ke: KeyEvent,
     app: &mut AppState,
@@ -613,14 +626,124 @@ pub(super) fn handle_password_prompt_modal(
     {
         let submitted = super::password::handle_password_prompt(ke, app, input, cursor);
         if submitted {
-            // Password submitted - transition to PreflightExec and store executor request
-            use crate::install::ExecutorRequest;
-
+            // Password submitted - validate before starting execution
             let password = if input.trim().is_empty() {
                 None
             } else {
                 Some(input.clone())
             };
+
+            // Validate password if provided (skip validation for passwordless sudo)
+            if let Some(ref pass) = password {
+                // Validate password before starting execution
+                // Always validate - don't skip even if passwordless sudo might be configured
+                match crate::logic::password::validate_sudo_password(pass) {
+                    Ok(true) => {
+                        // Password is valid, continue with execution
+                    }
+                    Ok(false) => {
+                        // Password is invalid - check faillock status and show error
+                        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+
+                        // Check if user is now locked out (this may have just happened)
+                        let (is_locked, lockout_until, remaining_minutes) =
+                            crate::logic::faillock::get_lockout_info(&username);
+
+                        // Update AppState immediately with lockout status
+                        app.faillock_locked = is_locked;
+                        app.faillock_lockout_until = lockout_until;
+                        app.faillock_remaining_minutes = remaining_minutes;
+
+                        if is_locked {
+                            // User is locked out - show alert modal with lockout message
+                            let lockout_msg = remaining_minutes.map_or_else(
+                                || {
+                                    crate::i18n::t_fmt1(
+                                        app,
+                                        "app.modals.alert.account_locked",
+                                        &username,
+                                    )
+                                },
+                                |remaining| {
+                                    if remaining > 0 {
+                                        crate::i18n::t_fmt(
+                                            app,
+                                            "app.modals.alert.account_locked_with_time",
+                                            &[&username as &dyn std::fmt::Display, &remaining],
+                                        )
+                                    } else {
+                                        crate::i18n::t_fmt1(
+                                            app,
+                                            "app.modals.alert.account_locked",
+                                            &username,
+                                        )
+                                    }
+                                },
+                            );
+
+                            // Close password prompt and show alert
+                            // Clear any pending executor state to abort the process
+                            app.pending_executor_password = None;
+                            app.pending_exec_header_chips = None;
+                            app.pending_executor_request = None;
+                            app.modal = crate::state::Modal::Alert {
+                                message: lockout_msg,
+                            };
+                            return true;
+                        }
+
+                        // Not locked out, check status for remaining attempts
+                        let error_msg = crate::logic::faillock::check_faillock_status(&username)
+                            .map_or_else(
+                                |_| {
+                                    // Couldn't check faillock status, just show generic error
+                                    crate::i18n::t(
+                                        app,
+                                        "app.modals.password_prompt.incorrect_password",
+                                    )
+                                },
+                                |status| {
+                                    let remaining =
+                                        status.max_attempts.saturating_sub(status.attempts_used);
+                                    crate::i18n::t_fmt1(
+                                        app,
+                                        "app.modals.password_prompt.incorrect_password_attempts",
+                                        remaining,
+                                    )
+                                },
+                            );
+                        // Update modal with error message and keep it open for retry
+                        // Clear the input field so user can immediately type a new password
+                        app.modal = crate::state::Modal::PasswordPrompt {
+                            purpose: *purpose,
+                            items: items.clone(),
+                            input: String::new(), // Clear input field
+                            cursor: 0,            // Reset cursor position
+                            error: Some(error_msg),
+                        };
+                        // Don't start execution, keep modal open for retry
+                        // Return true to stop event propagation and prevent restore from overwriting
+                        return true;
+                    }
+                    Err(e) => {
+                        // Error validating password (e.g., sudo not available)
+                        // Update modal with error message and keep it open
+                        app.modal = crate::state::Modal::PasswordPrompt {
+                            purpose: *purpose,
+                            items: items.clone(),
+                            input: input.clone(),
+                            cursor: *cursor,
+                            error: Some(crate::i18n::t_fmt1(
+                                app,
+                                "app.modals.password_prompt.validation_failed",
+                                &e,
+                            )),
+                        };
+                        // Return true to stop event propagation and prevent restore from overwriting
+                        return true;
+                    }
+                }
+            }
 
             // Handle downgrade specially - it's an interactive tool that needs a terminal
             if matches!(purpose, crate::state::modal::PasswordPurpose::Downgrade) {
@@ -633,9 +756,8 @@ pub(super) fn handle_password_prompt_modal(
 
                 let cmd = if app.dry_run {
                     // Properly quote the command to avoid syntax errors
-                    use crate::install::shell_single_quote;
                     let downgrade_cmd = format!("sudo downgrade {joined}");
-                    let quoted = shell_single_quote(&downgrade_cmd);
+                    let quoted = crate::install::shell_single_quote(&downgrade_cmd);
                     format!("echo DRY RUN: {quoted}")
                 } else {
                     // Build command with password passed via sudo -S

@@ -530,6 +530,36 @@ pub fn handle_tick(
     maybe_flush_services_cache(app);
     maybe_flush_sandbox_cache(app);
 
+    // Check faillock status periodically (every minute via worker, but also check here)
+    // We check every tick but only update if enough time has passed
+    static LAST_FAILLOCK_CHECK: std::sync::OnceLock<std::sync::Mutex<Instant>> =
+        std::sync::OnceLock::new();
+    let last_check = LAST_FAILLOCK_CHECK.get_or_init(|| std::sync::Mutex::new(Instant::now()));
+    if let Ok(mut last_check_guard) = last_check.lock() {
+        if last_check_guard.elapsed().as_secs() >= 60 {
+            *last_check_guard = Instant::now();
+            drop(last_check_guard);
+            // Check faillock status
+            let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+            let (is_locked, lockout_until, remaining_minutes) =
+                crate::logic::faillock::get_lockout_info(&username);
+
+            // If user was locked but is now unlocked, close any lockout alert modal
+            if app.faillock_locked && !is_locked {
+                // User is no longer locked - close lockout alert if it's showing
+                if let crate::state::Modal::Alert { message } = &app.modal {
+                    if message.contains("locked") || message.contains("lockout") {
+                        app.modal = crate::state::Modal::None;
+                    }
+                }
+            }
+
+            app.faillock_locked = is_locked;
+            app.faillock_lockout_until = lockout_until;
+            app.faillock_remaining_minutes = remaining_minutes;
+        }
+    }
+
     // Refresh updates list if flag is set (manual refresh via button click)
     if app.refresh_updates {
         app.refresh_updates = false;
