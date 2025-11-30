@@ -23,7 +23,9 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - **File database sync fallback**: File database sync fallback now uses integrated process with password prompt instead of terminal spawning
 - **Optional deps improvements**: `semgrep-bin` uses AUR helper flow; `paru`/`yay` use temporary directories for safe cloning; pressing Enter on already installed dependencies shows reinstall confirmation
 - **Downgrade functionality**: Full downgrade support with terminal spawning for interactive tools
-- **Comprehensive tests**: Integration and UI tests for all terminal-spawning processes
+- **Password validation**: Validates sudo password before execution using `sudo -S -v`; shows remaining attempts on incorrect password; clears input field after failed attempts
+- **Faillock lockout detection**: Detects account lockouts via faillock status; displays lockout status with remaining time in top-right corner; shows lockout alert modal when locked; automatically closes alert when unlocked; checks status at startup and periodically every minute
+- **Comprehensive tests**: Integration and UI tests for all terminal-spawning processes; tests organized into feature-based subdirectories
 
 ## Type of change
 - [x] feat (new feature)
@@ -66,6 +68,10 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - Optional deps: `semgrep-bin` converted to use standard AUR helper flow; `paru`/`yay` use temporary directories to prevent accidental deletion; pressing Enter on already installed dependencies shows reinstall confirmation with password prompt for pacman packages
 - Executor worker refactored into helper functions for better code organization and maintainability
 - Downgrade functionality with terminal spawning for interactive tools
+- Password validation: Validates password before sudo operations using `sudo -S -v`; shows remaining attempts when password is incorrect; clears password input field after failed attempts
+- Faillock lockout detection: Parses faillock configuration from `/etc/security/faillock.conf`; checks faillock status at startup and periodically every minute; displays lockout status with remaining time in top-right corner; shows lockout alert modal when user is locked out; automatically closes alert when user is unlocked; validates lockout expiration based on timestamp
+- Reinstall confirmation: Now installs all selected packages (not just installed ones) using `all_items` field
+- Test organization: Tests reorganized into feature-based subdirectories (install, remove, scan, file_sync, update, downgrade, other)
 - Comprehensive test suite covering all terminal-spawning processes
 
 **Dependencies Added:**
@@ -96,10 +102,17 @@ None. This is a new feature that enhances the existing installation flow without
 - `src/logic/preflight/mod.rs`: Enhanced risk calculation with dependent package display
 - `src/logic/deps/reverse.rs`: Added `get_installed_required_by` function
 - `src/ui/modals/preflight/tabs/summary.rs`: Display dependent packages in summary
-- `src/state/app_state/mod.rs`: Added `FileSyncResult` type alias and `pending_file_sync_result` field
+- `src/state/app_state/mod.rs`: Added `FileSyncResult` type alias and `pending_file_sync_result` field; added faillock lockout status fields
 - `src/state/modal.rs`: Added `PasswordPurpose::FileSync` variant
+- `src/logic/password.rs`: Password validation utilities using `sudo -S -v`
+- `src/logic/faillock.rs`: Faillock status checking and configuration parsing
+- `src/app/runtime/tick_handler.rs`: Periodic faillock status checking
+- `src/app/runtime/init.rs`: Initial faillock status check at startup
+- `src/ui/updates.rs`: Lockout status display in top-right corner and lockout alert modal
+- `src/events/modals/handlers.rs`: Password validation in password prompt; faillock status checking on password errors
 - `tests/*_integration.rs`: Comprehensive integration tests
 - `tests/*_ui.rs`: UI state transition tests
+- `tests/install/`, `tests/remove/`, `tests/scan/`, etc.: Feature-based test organization
 
 ### Future Improvements
 

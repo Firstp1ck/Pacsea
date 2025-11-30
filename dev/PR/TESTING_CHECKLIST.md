@@ -5,9 +5,9 @@ This document provides a comprehensive testing checklist for all processes integ
 ## Prerequisites
 
 Before testing, ensure:
-- [ ] System has `pacman` available
-- [ ] System has `paru` or `yay` available (for AUR tests)
-- [ ] You have sudo access (for password prompt tests)
+- [x] System has `pacman` available
+- [x] System has `paru` or `yay` available (for AUR tests)
+- [x] You have sudo access (for password prompt tests)
 - [ ] Test environment is safe (consider using a VM or test system)
 
 ---
@@ -18,11 +18,11 @@ Before testing, ensure:
 
 ### Test Scenarios
 
-- [ ] **Install official package**: Install a small official package (e.g., `ripgrep`) and verify:
-  - [ ] Output appears in real-time in the log panel
-  - [ ] Progress indicators update live
-  - [ ] No buffering delays visible
-  - [ ] Output is properly formatted (no ANSI artifacts)
+- [x] **Install official package**: Install a small official package (e.g., `ripgrep`) and verify:
+  - [x] Output appears in real-time in the log panel
+  - [x] Progress indicators update live
+  - [x] No buffering delays visible
+  - [x] Output is properly formatted (no ANSI artifacts)
 
 - [ ] **Install AUR package**: Install an AUR package and verify:
   - [ ] Live output from AUR helper (paru/yay)
@@ -43,10 +43,10 @@ Before testing, ensure:
 ### Test Scenarios
 
 - [ ] **Install official package requiring sudo**:
-  - [ ] Password prompt modal appears when sudo is needed
-  - [ ] Modal shows correct purpose (Install/Remove/Update/etc.)
-  - [ ] Password input is masked (not visible)
-  - [ ] Entering correct password proceeds with installation
+  - [x] Password prompt modal appears when sudo is needed
+  - [x] Modal shows correct purpose (Install/Remove/Update/etc.)
+  - [x] Password input is masked (not visible)
+  - [x] Entering correct password proceeds with installation
   - [ ] Entering incorrect password shows error and allows retry
   - [ ] Canceling password prompt cancels the operation
 
@@ -103,16 +103,16 @@ Before testing, ensure:
 ### Test Scenarios
 
 - [ ] **Install already installed package**:
-  - [ ] Select a package that is already installed
-  - [ ] Attempt to install it
-  - [ ] Reinstall confirmation modal appears
-  - [ ] Confirming proceeds with reinstallation
-  - [ ] Canceling aborts the operation
+  - [x] Select a package that is already installed
+  - [x] Attempt to install it
+  - [x] Reinstall confirmation modal appears
+  - [x] Confirming proceeds with reinstallation
+  - [x] Canceling aborts the operation
 
-- [ ] **Batch reinstall**:
-  - [ ] Select multiple packages, some already installed
-  - [ ] Reinstall confirmation appears
-  - [ ] Confirming reinstalls all selected packages
+- [x] **Batch reinstall**:
+  - [x] Select multiple packages, some already installed
+  - [x] Reinstall confirmation appears
+  - [x] Confirming reinstalls all selected packages
 
 - [ ] **Direct install reinstall**:
   - [ ] Use direct install (bypassing preflight) for installed package
@@ -193,12 +193,12 @@ Before testing, ensure:
 
 ### Test Scenarios
 
-- [ ] **Direct install official package**:
-  - [ ] Configure to skip preflight
-  - [ ] Install official package directly
-  - [ ] Command executes via PTY
-  - [ ] Output streams live
-  - [ ] Password prompt appears if needed
+- [x] **Direct install official package**:
+  - [x] Configure to skip preflight
+  - [x] Install official package directly
+  - [x] Command executes via PTY
+  - [x] Output streams live
+  - [x] Password prompt appears if needed
 
 - [ ] **Direct install AUR package**:
   - [ ] Configure to skip preflight
@@ -206,26 +206,26 @@ Before testing, ensure:
   - [ ] Command executes via PTY
   - [ ] Output streams live
 
-- [ ] **Direct remove package**:
-  - [ ] Configure to skip preflight
-  - [ ] Remove package directly
-  - [ ] Command executes via PTY
-  - [ ] Output streams live
-  - [ ] Password prompt appears if needed
+- [x] **Direct remove package**:
+  - [x] Configure to skip preflight
+  - [x] Remove package directly
+  - [x] Command executes via PTY
+  - [x] Output streams live
+  - [x] Password prompt appears if needed
 
-- [ ] **Direct install with reinstall**:
-  - [ ] Direct install already installed package
-  - [ ] Reinstall confirmation appears
-  - [ ] Works correctly
+- [x] **Direct install with reinstall**:
+  - [x] Direct install already installed package
+  - [x] Reinstall confirmation appears
+  - [x] Works correctly
 
-- [ ] **Batch update logic**:
-  - [ ] Direct install multiple packages
-  - [ ] Batch update logic works correctly
-  - [ ] All packages install successfully
+- [x] **Batch update logic**:
+  - [x] Direct install multiple packages
+  - [x] Batch update logic works correctly
+  - [x] All packages install successfully
 
-- [ ] **Dry-run mode**:
-  - [ ] Run direct install/remove in dry-run mode
-  - [ ] Commands are shown but not executed
+- [x] **Dry-run mode**:
+  - [x] Run direct install/remove in dry-run mode
+  - [x] Commands are shown but not executed
 
 ---
 
