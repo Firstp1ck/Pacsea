@@ -16,8 +16,8 @@ Details:
 
 mod common;
 mod dir;
-mod pkg;
-mod spawn;
+pub mod pkg;
+pub mod spawn;
 mod summary;
 
 #[cfg(not(target_os = "windows"))]

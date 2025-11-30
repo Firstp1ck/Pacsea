@@ -68,17 +68,25 @@ pub(super) fn handle_confirm_remove(
             app.modal = crate::state::Modal::None;
         }
         KeyCode::Char('y' | 'Y') => {
-            // Explicit confirmation required - proceed with removal
-            handle_confirm_remove_execute(
-                &mut app.remove_list,
-                &mut app.remove_state,
-                &mut app.refresh_installed_until,
-                &mut app.next_installed_refresh_at,
-                &mut app.pending_remove_names,
+            // Explicit confirmation required - proceed with removal using integrated process
+            let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            crate::install::start_integrated_remove_all(
+                app,
+                &names,
                 app.dry_run,
                 app.remove_cascade_mode,
-                items,
             );
+            // Clear remove list and state
+            app.remove_list
+                .retain(|p| !names.iter().any(|n| n == &p.name));
+            app.remove_state.select(None);
+            // Set up refresh tracking for non-dry-run
+            if !app.dry_run {
+                app.refresh_installed_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                app.next_installed_refresh_at = None;
+                app.pending_remove_names = Some(names);
+            }
             app.modal = crate::state::Modal::None;
         }
         _ => {}
@@ -107,6 +115,10 @@ fn handle_confirm_install_enter(
     items: &[PackageItem],
 ) -> crate::state::Modal {
     let list = items.to_vec();
+    // Note: This function is called from ConfirmInstall modal which doesn't have AppState access
+    // We need to use the old terminal spawning functions here since we can't transition to PreflightExec
+    // without AppState. The integrated process functions require AppState to set modals.
+    // TODO: Refactor ConfirmInstall modal to have AppState access or pass it as parameter
     if list.len() <= 1 {
         if let Some(it) = list.first() {
             crate::install::spawn_install(it, None, dry_run);
@@ -172,45 +184,4 @@ fn handle_confirm_install_scan(
     }
 }
 
-/// What: Execute package removal.
-///
-/// Inputs:
-/// - `remove_list`: Mutable reference to remove list
-/// - `remove_state`: Mutable reference to remove state
-/// - `refresh_installed_until`: Mutable reference to refresh timer
-/// - `next_installed_refresh_at`: Mutable reference to next refresh time
-/// - `pending_remove_names`: Mutable reference to pending remove names
-/// - `dry_run`: Whether to run in dry-run mode
-/// - `remove_cascade_mode`: Cascade mode for removal
-/// - `items`: Package items to remove
-///
-/// Output: None (modifies state)
-///
-/// Details:
-/// - Spawns removal command and updates UI state
-#[allow(clippy::too_many_arguments)]
-fn handle_confirm_remove_execute(
-    remove_list: &mut Vec<PackageItem>,
-    remove_state: &mut ratatui::widgets::ListState,
-    refresh_installed_until: &mut Option<std::time::Instant>,
-    next_installed_refresh_at: &mut Option<std::time::Instant>,
-    pending_remove_names: &mut Option<Vec<String>>,
-    dry_run: bool,
-    remove_cascade_mode: crate::state::modal::CascadeMode,
-    items: &[PackageItem],
-) {
-    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-    if dry_run {
-        crate::install::spawn_remove_all(&names, true, remove_cascade_mode);
-        remove_list.retain(|p| !names.iter().any(|n| n == &p.name));
-        remove_state.select(None);
-    } else {
-        crate::install::spawn_remove_all(&names, false, remove_cascade_mode);
-        remove_list.retain(|p| !names.iter().any(|n| n == &p.name));
-        remove_state.select(None);
-        *refresh_installed_until =
-            Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
-        *next_installed_refresh_at = None;
-        *pending_remove_names = Some(names);
-    }
-}
+// Removed handle_confirm_remove_execute - now handled inline in handle_confirm_remove

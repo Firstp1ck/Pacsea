@@ -57,6 +57,7 @@ pub fn render_password_prompt(
         PasswordPurpose::Remove => "Enter sudo password to remove packages",
         PasswordPurpose::Update => "Enter sudo password to update system",
         PasswordPurpose::Downgrade => "Enter sudo password to downgrade packages",
+        PasswordPurpose::FileSync => "Enter sudo password to sync file database",
     };
     lines.push(Line::from(Span::styled(
         heading,

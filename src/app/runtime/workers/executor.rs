@@ -5,8 +5,244 @@ use tokio::sync::mpsc;
 use crate::install::{
     ExecutorOutput, ExecutorRequest, build_downgrade_command_for_executor,
     build_install_command_for_executor, build_remove_command_for_executor,
-    build_update_command_for_executor,
+    build_scan_command_for_executor, build_update_command_for_executor,
 };
+
+/// What: Handle install request by building command and executing via PTY.
+///
+/// Inputs:
+/// - `items`: Packages to install
+/// - `password`: Optional sudo password
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `res_tx`: Channel sender for output
+#[cfg(not(target_os = "windows"))]
+#[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
+fn handle_install_request(
+    items: Vec<crate::state::PackageItem>,
+    password: Option<String>,
+    dry_run: bool,
+    res_tx: mpsc::UnboundedSender<ExecutorOutput>,
+) {
+    tracing::info!(
+        "[Runtime] Executor worker received install request: {} items, dry_run={}",
+        items.len(),
+        dry_run
+    );
+    let cmd = build_install_command_for_executor(&items, password.as_deref(), dry_run);
+    let res_tx_clone = res_tx;
+    tokio::task::spawn_blocking(move || {
+        execute_command_pty(&cmd, res_tx_clone);
+    });
+}
+
+/// What: Handle remove request by building command and executing via PTY.
+///
+/// Inputs:
+/// - `names`: Package names to remove
+/// - `password`: Optional sudo password
+/// - `cascade`: Cascade removal mode
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `res_tx`: Channel sender for output
+#[cfg(not(target_os = "windows"))]
+#[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
+fn handle_remove_request(
+    names: Vec<String>,
+    password: Option<String>,
+    cascade: crate::state::modal::CascadeMode,
+    dry_run: bool,
+    res_tx: mpsc::UnboundedSender<ExecutorOutput>,
+) {
+    tracing::info!(
+        "[Runtime] Executor worker received remove request: {} packages, dry_run={}",
+        names.len(),
+        dry_run
+    );
+    let cmd = build_remove_command_for_executor(&names, password.as_deref(), cascade, dry_run);
+    let res_tx_clone = res_tx;
+    tokio::task::spawn_blocking(move || {
+        execute_command_pty(&cmd, res_tx_clone);
+    });
+}
+
+/// What: Handle downgrade request by building command and executing via PTY.
+///
+/// Inputs:
+/// - `names`: Package names to downgrade
+/// - `password`: Optional sudo password
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `res_tx`: Channel sender for output
+#[cfg(not(target_os = "windows"))]
+#[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
+fn handle_downgrade_request(
+    names: Vec<String>,
+    password: Option<String>,
+    dry_run: bool,
+    res_tx: mpsc::UnboundedSender<ExecutorOutput>,
+) {
+    tracing::info!(
+        "[Runtime] Executor worker received downgrade request: {} packages, dry_run={}",
+        names.len(),
+        dry_run
+    );
+    let cmd = build_downgrade_command_for_executor(&names, password.as_deref(), dry_run);
+    let res_tx_clone = res_tx;
+    tokio::task::spawn_blocking(move || {
+        execute_command_pty(&cmd, res_tx_clone);
+    });
+}
+
+/// What: Handle update request by building command and executing via PTY.
+///
+/// Inputs:
+/// - `commands`: Commands to execute
+/// - `password`: Optional sudo password
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `res_tx`: Channel sender for output
+#[cfg(not(target_os = "windows"))]
+#[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
+fn handle_update_request(
+    commands: Vec<String>,
+    password: Option<String>,
+    dry_run: bool,
+    res_tx: mpsc::UnboundedSender<ExecutorOutput>,
+) {
+    tracing::info!(
+        "[Runtime] Executor worker received update request: {} commands, dry_run={}",
+        commands.len(),
+        dry_run
+    );
+    let cmd = build_update_command_for_executor(&commands, password.as_deref(), dry_run);
+    let res_tx_clone = res_tx;
+    tokio::task::spawn_blocking(move || {
+        execute_command_pty(&cmd, res_tx_clone);
+    });
+}
+
+/// What: Handle scan request by building command and executing via PTY.
+///
+/// Inputs:
+/// - `package`: Package name to scan
+/// - `do_clamav`/`do_trivy`/`do_semgrep`/`do_shellcheck`/`do_virustotal`/`do_custom`: Scan flags
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `res_tx`: Channel sender for output
+#[cfg(not(target_os = "windows"))]
+#[allow(
+    clippy::needless_pass_by_value, // Values are moved into spawn_blocking closure
+    clippy::too_many_arguments, // Scan configuration requires multiple flags
+    clippy::fn_params_excessive_bools // Scan configuration requires multiple bool flags
+)]
+fn handle_scan_request(
+    package: String,
+    do_clamav: bool,
+    do_trivy: bool,
+    do_semgrep: bool,
+    do_shellcheck: bool,
+    do_virustotal: bool,
+    do_custom: bool,
+    dry_run: bool,
+    res_tx: mpsc::UnboundedSender<ExecutorOutput>,
+) {
+    tracing::info!(
+        "[Runtime] Executor worker received scan request: package={}, dry_run={}",
+        package,
+        dry_run
+    );
+    let cmd = build_scan_command_for_executor(
+        &package,
+        do_clamav,
+        do_trivy,
+        do_semgrep,
+        do_shellcheck,
+        do_virustotal,
+        do_custom,
+        dry_run,
+    );
+    let res_tx_clone = res_tx;
+    tokio::task::spawn_blocking(move || {
+        execute_command_pty(&cmd, res_tx_clone);
+    });
+}
+
+/// What: Handle custom command request by building command and executing via PTY.
+///
+/// Inputs:
+/// - `command`: Command string to execute
+/// - `password`: Optional sudo password
+/// - `dry_run`: Whether to run in dry-run mode
+/// - `res_tx`: Channel sender for output
+#[cfg(not(target_os = "windows"))]
+#[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
+fn handle_custom_command_request(
+    command: String,
+    password: Option<String>,
+    dry_run: bool,
+    res_tx: mpsc::UnboundedSender<ExecutorOutput>,
+) {
+    tracing::info!(
+        "[Runtime] Executor worker received custom command request, dry_run={}",
+        dry_run
+    );
+    let cmd = if dry_run {
+        // Properly quote the command to avoid syntax errors with complex shell constructs
+        use crate::install::shell_single_quote;
+        let quoted = shell_single_quote(&command);
+        format!("echo DRY RUN: {quoted}")
+    } else {
+        // For commands that use sudo, we need to handle sudo password
+        // Use SUDO_ASKPASS to provide password when sudo prompts
+        if command.contains("sudo") && password.is_some() {
+            if let Some(pass) = password {
+                // Create a temporary script that outputs the password
+                // Use printf instead of echo for better security
+                use std::fs;
+                use std::os::unix::fs::PermissionsExt;
+                let temp_dir = std::env::temp_dir();
+                #[allow(clippy::uninlined_format_args)]
+                // process::id() needs formatting
+                let askpass_script =
+                    temp_dir.join(format!("pacsea_sudo_askpass_{}.sh", std::process::id()));
+                // Use printf with %s to safely output password
+                // Escape single quotes in password by replacing ' with '\''
+                let escaped_pass = pass.replace('\'', "'\\''");
+                #[allow(clippy::uninlined_format_args)] // Need to escape password
+                let script_content = format!("#!/bin/sh\nprintf '%s\\n' '{}'\n", escaped_pass);
+                if let Err(e) = fs::write(&askpass_script, script_content) {
+                    let _ = res_tx.send(ExecutorOutput::Error(format!(
+                        "Failed to create sudo askpass script: {e}"
+                    )));
+                    return;
+                }
+                // Make script executable
+                if let Err(e) =
+                    fs::set_permissions(&askpass_script, fs::Permissions::from_mode(0o755))
+                {
+                    let _ = res_tx.send(ExecutorOutput::Error(format!(
+                        "Failed to make askpass script executable: {e}"
+                    )));
+                    return;
+                }
+                let askpass_path = askpass_script.to_string_lossy().to_string();
+                // Escape the path for shell
+                let escaped_path = askpass_path.replace('\'', "'\\''");
+                // Need to escape path and use command variable, so can't use inline format
+                let final_cmd = format!(
+                    "export SUDO_ASKPASS='{escaped_path}'; {command}; rm -f '{escaped_path}'"
+                );
+                final_cmd
+            } else {
+                // No password provided, try without SUDO_ASKPASS
+                // (might work if passwordless sudo is configured)
+                command
+            }
+        } else {
+            command
+        }
+    };
+    let res_tx_clone = res_tx;
+    tokio::task::spawn_blocking(move || {
+        execute_command_pty(&cmd, res_tx_clone);
+    });
+}
 
 /// What: Spawn background worker for command execution via PTY.
 ///
@@ -17,7 +253,7 @@ use crate::install::{
 /// Details:
 /// - Executes commands in a PTY to capture full terminal output
 /// - Streams output line by line to the main event loop
-/// - Handles install, remove, and downgrade operations
+/// - Handles install, remove, downgrade, update, scan, and custom command operations
 #[cfg(not(target_os = "windows"))]
 pub fn spawn_executor_worker(
     executor_req_rx: mpsc::UnboundedReceiver<ExecutorRequest>,
@@ -34,147 +270,49 @@ pub fn spawn_executor_worker(
                     items,
                     password,
                     dry_run,
-                } => {
-                    tracing::info!(
-                        "[Runtime] Executor worker received install request: {} items, dry_run={}",
-                        items.len(),
-                        dry_run
-                    );
-                    let cmd =
-                        build_install_command_for_executor(&items, password.as_deref(), dry_run);
-                    let res_tx_clone = res_tx.clone();
-                    tokio::task::spawn_blocking(move || {
-                        execute_command_pty(&cmd, res_tx_clone);
-                    });
-                }
+                } => handle_install_request(items, password, dry_run, res_tx),
                 ExecutorRequest::Remove {
                     names,
                     password,
                     cascade,
                     dry_run,
-                } => {
-                    tracing::info!(
-                        "[Runtime] Executor worker received remove request: {} packages, dry_run={}",
-                        names.len(),
-                        dry_run
-                    );
-                    let cmd = build_remove_command_for_executor(
-                        &names,
-                        password.as_deref(),
-                        cascade,
-                        dry_run,
-                    );
-                    let res_tx_clone = res_tx.clone();
-                    tokio::task::spawn_blocking(move || {
-                        execute_command_pty(&cmd, res_tx_clone);
-                    });
-                }
+                } => handle_remove_request(names, password, cascade, dry_run, res_tx),
                 ExecutorRequest::Downgrade {
                     names,
                     password,
                     dry_run,
-                } => {
-                    tracing::info!(
-                        "[Runtime] Executor worker received downgrade request: {} packages, dry_run={}",
-                        names.len(),
-                        dry_run
-                    );
-                    let cmd =
-                        build_downgrade_command_for_executor(&names, password.as_deref(), dry_run);
-                    let res_tx_clone = res_tx.clone();
-                    tokio::task::spawn_blocking(move || {
-                        execute_command_pty(&cmd, res_tx_clone);
-                    });
-                }
+                } => handle_downgrade_request(names, password, dry_run, res_tx),
                 ExecutorRequest::Update {
                     commands,
                     password,
                     dry_run,
-                } => {
-                    tracing::info!(
-                        "[Runtime] Executor worker received update request: {} commands, dry_run={}",
-                        commands.len(),
-                        dry_run
-                    );
-                    let cmd =
-                        build_update_command_for_executor(&commands, password.as_deref(), dry_run);
-                    let res_tx_clone = res_tx.clone();
-                    tokio::task::spawn_blocking(move || {
-                        execute_command_pty(&cmd, res_tx_clone);
-                    });
-                }
+                } => handle_update_request(commands, password, dry_run, res_tx),
+                #[cfg(not(target_os = "windows"))]
+                ExecutorRequest::Scan {
+                    package,
+                    do_clamav,
+                    do_trivy,
+                    do_semgrep,
+                    do_shellcheck,
+                    do_virustotal,
+                    do_custom,
+                    dry_run,
+                } => handle_scan_request(
+                    package,
+                    do_clamav,
+                    do_trivy,
+                    do_semgrep,
+                    do_shellcheck,
+                    do_virustotal,
+                    do_custom,
+                    dry_run,
+                    res_tx,
+                ),
                 ExecutorRequest::CustomCommand {
                     command,
                     password,
                     dry_run,
-                } => {
-                    tracing::info!(
-                        "[Runtime] Executor worker received custom command request, dry_run={}",
-                        dry_run
-                    );
-                    let cmd = if dry_run {
-                        // Properly quote the command to avoid syntax errors with complex shell constructs
-                        use crate::install::shell_single_quote;
-                        let quoted = shell_single_quote(&command);
-                        format!("echo DRY RUN: {quoted}")
-                    } else {
-                        // For commands that use makepkg -si, we need to handle sudo password
-                        // Use SUDO_ASKPASS to provide password when sudo prompts
-                        if command.contains("makepkg -si") {
-                            if let Some(pass) = password {
-                                // Create a temporary script that outputs the password
-                                // Use printf instead of echo for better security
-                                use std::fs;
-                                use std::os::unix::fs::PermissionsExt;
-                                let temp_dir = std::env::temp_dir();
-                                #[allow(clippy::uninlined_format_args)]
-                                // process::id() needs formatting
-                                let askpass_script = temp_dir
-                                    .join(format!("pacsea_sudo_askpass_{}.sh", std::process::id()));
-                                // Use printf with %s to safely output password
-                                // Escape single quotes in password by replacing ' with '\''
-                                let escaped_pass = pass.replace('\'', "'\\''");
-                                #[allow(clippy::uninlined_format_args)] // Need to escape password
-                                let script_content =
-                                    format!("#!/bin/sh\nprintf '%s\\n' '{}'\n", escaped_pass);
-                                if let Err(e) = fs::write(&askpass_script, script_content) {
-                                    let _ = res_tx.send(ExecutorOutput::Error(format!(
-                                        "Failed to create sudo askpass script: {e}"
-                                    )));
-                                    continue;
-                                }
-                                // Make script executable
-                                if let Err(e) = fs::set_permissions(
-                                    &askpass_script,
-                                    fs::Permissions::from_mode(0o755),
-                                ) {
-                                    let _ = res_tx.send(ExecutorOutput::Error(format!(
-                                        "Failed to make askpass script executable: {e}"
-                                    )));
-                                    continue;
-                                }
-                                let askpass_path = askpass_script.to_string_lossy().to_string();
-                                // Escape the path for shell
-                                let escaped_path = askpass_path.replace('\'', "'\\''");
-                                // Need to escape path and use command variable, so can't use inline format
-                                let final_cmd = format!(
-                                    "export SUDO_ASKPASS='{escaped_path}'; {command}; rm -f '{escaped_path}'"
-                                );
-                                final_cmd
-                            } else {
-                                // No password provided, try without SUDO_ASKPASS
-                                // (might work if passwordless sudo is configured)
-                                command
-                            }
-                        } else {
-                            command
-                        }
-                    };
-                    let res_tx_clone = res_tx.clone();
-                    tokio::task::spawn_blocking(move || {
-                        execute_command_pty(&cmd, res_tx_clone);
-                    });
-                }
+                } => handle_custom_command_request(command, password, dry_run, res_tx),
             }
         }
         tracing::debug!("[Runtime] Executor worker exiting (channel closed)");

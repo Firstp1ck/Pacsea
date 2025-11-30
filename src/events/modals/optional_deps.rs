@@ -157,17 +157,18 @@ fn handle_optional_deps_enter(
     if !row.installed && row.selectable {
         let pkg = row.package.clone();
 
-        // Special packages that need custom installation commands
-        if pkg == "paru" || pkg == "yay" || pkg == "semgrep-bin" {
+        // Special packages that need custom installation commands (can't use AUR helpers)
+        // paru and yay can't install themselves via AUR helpers (chicken-and-egg problem)
+        if pkg == "paru" || pkg == "yay" {
             let cmd = if pkg == "paru" {
-                "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si"
-                    .to_string()
-            } else if pkg == "yay" {
-                "rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si"
+                // Use temporary directory to avoid conflicts with existing directories
+                "tmp=$(mktemp -d) && cd \"$tmp\" && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si"
                     .to_string()
             } else {
-                // semgrep-bin
-                "rm -rf semgrep-bin && git clone https://aur.archlinux.org/semgrep-bin.git && cd semgrep-bin && makepkg -si".to_string()
+                // yay
+                // Use temporary directory to avoid conflicts with existing directories
+                "tmp=$(mktemp -d) && cd \"$tmp\" && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si"
+                    .to_string()
             };
 
             // Create a dummy PackageItem for display in PreflightExec modal
@@ -224,8 +225,8 @@ fn handle_optional_deps_enter(
             |official_item| (official_item, false),
         );
 
-        // For rate-mirrors, use AUR helper if available
-        let use_aur_helper = is_aur || pkg == "rate-mirrors";
+        // For rate-mirrors and semgrep-bin, use AUR helper if available
+        let use_aur_helper = is_aur || pkg == "rate-mirrors" || pkg == "semgrep-bin";
 
         // Transition to PreflightExec modal
         app.modal = crate::state::Modal::PreflightExec {

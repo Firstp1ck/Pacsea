@@ -155,7 +155,8 @@ fn integration_executor_request_creation() {
         ExecutorRequest::Remove { .. }
         | ExecutorRequest::Downgrade { .. }
         | ExecutorRequest::Update { .. }
-        | ExecutorRequest::CustomCommand { .. } => {
+        | ExecutorRequest::CustomCommand { .. }
+        | ExecutorRequest::Scan { .. } => {
             panic!("Expected Install request")
         }
     }
@@ -344,7 +345,8 @@ fn integration_empty_password_handling() {
         ExecutorRequest::Remove { .. }
         | ExecutorRequest::Downgrade { .. }
         | ExecutorRequest::Update { .. }
-        | ExecutorRequest::CustomCommand { .. } => {
+        | ExecutorRequest::CustomCommand { .. }
+        | ExecutorRequest::Scan { .. } => {
             panic!("Expected Install executor request")
         }
     }

@@ -520,7 +520,12 @@ pub struct AppState {
     pub pending_custom_command: Option<String>,
     /// Password obtained from password prompt, stored temporarily for reinstall confirmation flow.
     pub pending_executor_password: Option<String>,
+    /// File database sync result from background thread (checked in tick handler).
+    pub pending_file_sync_result: Option<FileSyncResult>,
 }
+
+/// File database sync result type.
+pub type FileSyncResult = std::sync::Arc<std::sync::Mutex<Option<Result<bool, String>>>>;
 
 #[cfg(test)]
 mod tests {

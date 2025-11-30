@@ -562,6 +562,40 @@ pub fn handle_tick(
         tracing::error!("Failed to send post-summary request: {:?}", e);
     }
 
+    // Check file database sync result from background thread
+    if let Some(sync_result_arc) = app.pending_file_sync_result.take()
+        && let Ok(mut sync_result) = sync_result_arc.lock()
+        && let Some(result) = sync_result.take()
+    {
+        match result {
+            Ok(synced) => {
+                // Sync succeeded
+                if synced {
+                    app.toast_message =
+                        Some("File database sync completed successfully".to_string());
+                } else {
+                    app.toast_message = Some("File database is already fresh".to_string());
+                }
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+            }
+            Err(_e) => {
+                // Sync failed, show password prompt
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::FileSync,
+                    items: Vec::new(), // No packages involved in file sync
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                // Store the command to execute after password is provided
+                app.pending_custom_command = Some("sudo pacman -Fy".to_string());
+                app.pending_exec_header_chips =
+                    Some(crate::state::modal::PreflightHeaderChips::default());
+            }
+        }
+    }
+
     handle_pkgbuild_reload_debounce(app, pkgb_req_tx);
 
     handle_installed_cache_polling(app, query_tx);

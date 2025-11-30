@@ -1,5 +1,7 @@
 //! Command key handlers for Preflight modal.
 
+use std::sync::{Arc, Mutex};
+
 use crate::state::{AppState, PackageItem};
 
 use crate::events::preflight::modal::close_preflight_modal;
@@ -14,7 +16,7 @@ use crate::events::preflight::modal::close_preflight_modal;
 ///
 /// Details:
 /// - Runs the sync operation in a background thread to avoid blocking the UI.
-/// - If sync requires root privileges, launches a terminal with sudo command.
+/// - If sync requires root privileges, shows password prompt and uses integrated executor.
 pub(super) fn handle_f_key(app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight { tab, .. } = &app.modal {
         if *tab != crate::state::PreflightTab::Files {
@@ -30,28 +32,32 @@ pub(super) fn handle_f_key(app: &mut AppState) -> bool {
 
     // Run sync in background thread to avoid blocking the UI
     // Use catch_unwind to prevent panics from crashing the TUI
+    // Store result in Arc<Mutex<Option<...>>> so we can check it in tick handler
+    let sync_result: crate::state::app_state::FileSyncResult = Arc::new(Mutex::new(None));
+    let sync_result_clone = Arc::clone(&sync_result);
+
     std::thread::spawn(move || {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // Use the new ensure_file_db_synced function with force=true
             // This will attempt to sync regardless of timestamp
-            let sync_result = crate::logic::files::ensure_file_db_synced(true, 7);
-            match sync_result {
+            let sync_result_inner = crate::logic::files::ensure_file_db_synced(true, 7);
+            match sync_result_inner {
                 Ok(synced) => {
                     if synced {
                         tracing::info!("File database sync completed successfully");
                     } else {
                         tracing::info!("File database is already fresh");
                     }
+                    if let Ok(mut guard) = sync_result_clone.lock() {
+                        *guard = Some(Ok(synced));
+                    }
                 }
                 Err(e) => {
-                    // Sync failed (likely requires root), launch terminal with sudo
-                    tracing::warn!(
-                        "File database sync failed: {}, launching terminal with sudo",
-                        e
-                    );
-                    let sync_cmd = "sudo pacman -Fy".to_string();
-                    let cmds = vec![sync_cmd];
-                    crate::install::spawn_shell_commands_in_terminal(&cmds);
+                    // Sync failed (likely requires root), show password prompt
+                    tracing::warn!("File database sync failed: {}, will prompt for password", e);
+                    if let Ok(mut guard) = sync_result_clone.lock() {
+                        *guard = Some(Err(e));
+                    }
                 }
             }
         }));
@@ -60,6 +66,9 @@ pub(super) fn handle_f_key(app: &mut AppState) -> bool {
             tracing::error!("File database sync thread panicked: {:?}", panic_info);
         }
     });
+
+    // Store the sync result Arc in AppState so we can check it in tick handler
+    app.pending_file_sync_result = Some(sync_result);
 
     // Clear file_info to trigger re-resolution after sync completes
     if let crate::state::Modal::Preflight {

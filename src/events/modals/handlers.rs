@@ -727,6 +727,10 @@ pub(super) fn handle_password_prompt_modal(
                     // This should never be reached due to the check above
                     unreachable!("Downgrade should be handled above")
                 }
+                crate::state::modal::PasswordPurpose::FileSync => {
+                    // This should never be reached - FileSync is handled via custom command above
+                    unreachable!("FileSync should be handled via custom command above")
+                }
             };
             app.modal = Modal::PreflightExec {
                 items: items.clone(),
@@ -757,6 +761,10 @@ pub(super) fn handle_password_prompt_modal(
                 crate::state::modal::PasswordPurpose::Downgrade => {
                     // This should never be reached due to the check above, but included for exhaustiveness
                     unreachable!("Downgrade should be handled above")
+                }
+                crate::state::modal::PasswordPurpose::FileSync => {
+                    // This should never be reached - FileSync is handled via custom command above
+                    unreachable!("FileSync should be handled via custom command above")
                 }
             });
 

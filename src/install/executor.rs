@@ -61,7 +61,25 @@ pub enum ExecutorRequest {
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
-    // Future: Scan, etc.
+    /// Security scan for AUR package (excluding aur-sleuth).
+    Scan {
+        /// Package name to scan.
+        package: String,
+        /// Scan configuration flags.
+        do_clamav: bool,
+        /// Trivy scan flag.
+        do_trivy: bool,
+        /// Semgrep scan flag.
+        do_semgrep: bool,
+        /// `ShellCheck` scan flag.
+        do_shellcheck: bool,
+        /// `VirusTotal` scan flag.
+        do_virustotal: bool,
+        /// Custom pattern scan flag.
+        do_custom: bool,
+        /// Whether to run in dry-run mode.
+        dry_run: bool,
+    },
 }
 
 /// What: Output messages from command execution.
@@ -395,6 +413,81 @@ pub fn build_update_command_for_executor(
     };
 
     processed_commands.join(" && ")
+}
+
+/// What: Build scan command string for `PTY` execution (excluding aur-sleuth).
+///
+/// Inputs:
+/// - `package`: Package name to scan.
+/// - `do_clamav`/`do_trivy`/`do_semgrep`/`do_shellcheck`/`do_virustotal`/`do_custom`: Scan configuration flags.
+/// - `dry_run`: Whether to run in dry-run mode.
+///
+/// Output:
+/// - Command string ready for `PTY` execution (no hold tail, excludes aur-sleuth).
+///
+/// Details:
+/// - Builds scan pipeline commands excluding aur-sleuth (which runs separately in terminal).
+/// - Sets environment variables for scan configuration.
+/// - Removes hold tail since we're not spawning a terminal.
+#[cfg(not(target_os = "windows"))]
+#[must_use]
+#[allow(clippy::fn_params_excessive_bools, clippy::too_many_arguments)]
+pub fn build_scan_command_for_executor(
+    package: &str,
+    do_clamav: bool,
+    do_trivy: bool,
+    do_semgrep: bool,
+    do_shellcheck: bool,
+    do_virustotal: bool,
+    do_custom: bool,
+    dry_run: bool,
+) -> String {
+    use super::utils::shell_single_quote;
+    use crate::install::scan::pkg::build_scan_cmds_for_pkg_without_sleuth;
+
+    // Prepend environment exports so subsequent steps honor the selection
+    let mut cmds: Vec<String> = Vec::new();
+    cmds.push(format!(
+        "export PACSEA_SCAN_DO_CLAMAV={}",
+        if do_clamav { "1" } else { "0" }
+    ));
+    cmds.push(format!(
+        "export PACSEA_SCAN_DO_TRIVY={}",
+        if do_trivy { "1" } else { "0" }
+    ));
+    cmds.push(format!(
+        "export PACSEA_SCAN_DO_SEMGREP={}",
+        if do_semgrep { "1" } else { "0" }
+    ));
+    cmds.push(format!(
+        "export PACSEA_SCAN_DO_SHELLCHECK={}",
+        if do_shellcheck { "1" } else { "0" }
+    ));
+    cmds.push(format!(
+        "export PACSEA_SCAN_DO_VIRUSTOTAL={}",
+        if do_virustotal { "1" } else { "0" }
+    ));
+    cmds.push(format!(
+        "export PACSEA_SCAN_DO_CUSTOM={}",
+        if do_custom { "1" } else { "0" }
+    ));
+    // Export default pattern sets
+    cmds.push("export PACSEA_PATTERNS_CRIT='/dev/(tcp|udp)/|bash -i *>& *[^ ]*/dev/(tcp|udp)/[0-9]+|exec [0-9]{2,}<>/dev/(tcp|udp)/|rm -rf[[:space:]]+/|dd if=/dev/zero of=/dev/sd[a-z]|[>]{1,2}[[:space:]]*/dev/sd[a-z]|: *\\(\\) *\\{ *: *\\| *: *& *\\};:|/etc/sudoers([[:space:]>]|$)|echo .*[>]{2}.*(/etc/sudoers|/root/.ssh/authorized_keys)|/etc/ld\\.so\\.preload|LD_PRELOAD=|authorized_keys.*[>]{2}|ssh-rsa [A-Za-z0-9+/=]+.*[>]{2}.*authorized_keys|curl .*(169\\.254\\.169\\.254)'".to_string());
+    cmds.push("export PACSEA_PATTERNS_HIGH='eval|base64 -d|wget .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|curl .*(sh|bash|dash|ksh|zsh)([^A-Za-z]|$)|sudo[[:space:]]|chattr[[:space:]]|useradd|adduser|groupadd|systemctl|service[[:space:]]|crontab|/etc/cron\\.|[>]{2}.*(\\.bashrc|\\.bash_profile|/etc/profile|\\.zshrc)|cat[[:space:]]+/etc/shadow|cat[[:space:]]+~/.ssh/id_rsa|cat[[:space:]]+~/.bash_history|systemctl stop (auditd|rsyslog)|service (auditd|rsyslog) stop|scp .*@|curl -F|nc[[:space:]].*<|tar -czv?f|zip -r'".to_string());
+    cmds.push("export PACSEA_PATTERNS_MEDIUM='whoami|uname -a|hostname|id|groups|nmap|netstat -anp|ss -anp|ifconfig|ip addr|arp -a|grep -ri .*secret|find .*-name.*(password|\\.key)|env[[:space:]]*\\|[[:space:]]*grep -i pass|wget https?://|curl https?://'".to_string());
+    cmds.push("export PACSEA_PATTERNS_LOW='http_proxy=|https_proxy=|ALL_PROXY=|yes[[:space:]]+> */dev/null *&|ulimit -n [0-9]{5,}'".to_string());
+
+    // Append the scan pipeline commands (excluding sleuth)
+    cmds.extend(build_scan_cmds_for_pkg_without_sleuth(package));
+
+    let full_cmd = cmds.join(" && ");
+
+    if dry_run {
+        let quoted = shell_single_quote(&full_cmd);
+        format!("echo DRY RUN: {quoted}")
+    } else {
+        full_cmd
+    }
 }
 
 #[cfg(test)]

@@ -39,6 +39,8 @@ pub enum PasswordPurpose {
     Update,
     /// Downgrading packages.
     Downgrade,
+    /// Syncing file database.
+    FileSync,
 }
 
 /// What: Identifies which tab within the preflight modal is active.

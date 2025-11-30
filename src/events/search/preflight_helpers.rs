@@ -200,36 +200,91 @@ fn create_preflight_modal_insert_mode(app: &mut AppState, items: Vec<PackageItem
 /// - Sets up all preflight resolution flags and initializes the modal state.
 pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cache: bool) {
     if crate::theme::settings().skip_preflight {
-        // Direct install of single item
+        // Direct install - check for reinstalls first, then batch updates
+        // First, check if we're installing packages that are already installed (reinstall scenario)
+        // BUT exclude packages that have updates available (those should go through normal update flow)
+        let installed_set = crate::logic::deps::get_installed_packages();
+        let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+        let upgradable_set = crate::logic::deps::get_upgradable_packages();
+
+        let installed_packages: Vec<crate::state::PackageItem> = items
+            .iter()
+            .filter(|item| {
+                // Check if package is installed or provided by an installed package
+                let is_installed = crate::logic::deps::is_package_installed_or_provided(
+                    &item.name,
+                    &installed_set,
+                    &provided_set,
+                );
+
+                if !is_installed {
+                    return false;
+                }
+
+                // Check if package has an update available
+                // For official packages: check if it's in upgradable_set
+                // For AUR packages: check if target version is different/newer than installed version
+                let has_update = if upgradable_set.contains(&item.name) {
+                    // Official package with update available
+                    true
+                } else if matches!(item.source, crate::state::Source::Aur)
+                    && !item.version.is_empty()
+                {
+                    // AUR package: compare target version with installed version
+                    // Use simple string comparison for AUR packages
+                    // If target version is different from installed, it's an update
+                    crate::logic::deps::get_installed_version(&item.name)
+                        .is_ok_and(|installed_version| item.version != installed_version)
+                } else {
+                    // No update available
+                    false
+                };
+
+                // Only show reinstall confirmation if installed AND no update available
+                // If update is available, it should go through normal update flow
+                !has_update
+            })
+            .cloned()
+            .collect();
+
+        if !installed_packages.is_empty() {
+            // Show reinstall confirmation modal
+            app.modal = crate::state::Modal::ConfirmReinstall {
+                items: installed_packages,
+                header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            };
+            return;
+        }
+
         // Check if this is a batch update scenario requiring confirmation
+        // Only show if there's actually an update available (package is upgradable)
+        // AND the package has installed packages in its "Required By" field (dependency risk)
         let has_versions = items.iter().any(|item| {
             matches!(item.source, crate::state::Source::Official { .. }) && !item.version.is_empty()
         });
-        let reinstall_any = items.iter().any(|item| {
+        let has_upgrade_available = items.iter().any(|item| {
             matches!(item.source, crate::state::Source::Official { .. })
-                && crate::index::is_installed(&item.name)
+                && upgradable_set.contains(&item.name)
         });
 
-        // For single package updates, only show warning if package has installed packages in "Required By"
-        if has_versions && reinstall_any {
-            // Check if any package being updated has installed packages in "Required By"
-            let has_installed_required_by = items.iter().any(|item| {
-                matches!(item.source, crate::state::Source::Official { .. })
-                    && crate::index::is_installed(&item.name)
-                    && crate::logic::deps::has_installed_required_by(&item.name)
-            });
+        // Only show warning if package has installed packages in "Required By" (dependency risk)
+        let has_installed_required_by = items.iter().any(|item| {
+            matches!(item.source, crate::state::Source::Official { .. })
+                && crate::index::is_installed(&item.name)
+                && crate::logic::deps::has_installed_required_by(&item.name)
+        });
 
-            if has_installed_required_by {
-                // Show confirmation modal for batch updates
-                app.modal = crate::state::Modal::ConfirmBatchUpdate {
-                    items,
-                    dry_run: app.dry_run,
-                };
-                return;
-            }
+        if has_versions && has_upgrade_available && has_installed_required_by {
+            // Show confirmation modal for batch updates (only if update is actually available
+            // AND package has installed dependents that could be affected)
+            app.modal = crate::state::Modal::ConfirmBatchUpdate {
+                items,
+                dry_run: app.dry_run,
+            };
+            return;
         }
 
-        crate::install::spawn_install_all(&items, app.dry_run);
+        crate::install::start_integrated_install_all(app, &items, app.dry_run);
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.installing_skipped"));
         app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
         return;

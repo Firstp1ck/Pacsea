@@ -5,6 +5,7 @@
 
 mod batch;
 pub mod command;
+mod direct;
 mod executor;
 mod logging;
 mod remove;
@@ -17,6 +18,9 @@ pub use batch::spawn_install_all;
 pub use logging::log_removed;
 mod patterns;
 pub use remove::{check_config_directories, spawn_remove_all};
+
+#[cfg(not(target_os = "windows"))]
+pub use scan::spawn::build_sleuth_command_for_terminal;
 
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::too_many_arguments)]
@@ -70,10 +74,13 @@ pub fn spawn_aur_scan_for_with_config(
         do_sleuth,
     );
 }
+pub use direct::{
+    start_integrated_install, start_integrated_install_all, start_integrated_remove_all,
+};
 pub use executor::{
     ExecutorOutput, ExecutorRequest, build_downgrade_command_for_executor,
     build_install_command_for_executor, build_remove_command_for_executor,
-    build_update_command_for_executor,
+    build_scan_command_for_executor, build_update_command_for_executor,
 };
 pub use shell::spawn_shell_commands_in_terminal;
 pub use single::spawn_install;

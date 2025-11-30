@@ -18,36 +18,16 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - **Reinstall confirmation**: Modal for confirming reinstallation of already installed packages
 - **Enhanced preflight risk calculation**: Shows dependent packages and adds +2 risk per dependent
 - **System update integration**: System updates now use executor pattern with PTY
-- **Custom command support**: Special packages (paru/yay/semgrep-bin) handled via executor
+- **Direct install/remove integration**: Direct install/remove operations (bypassing preflight) now use integrated processes
+- **Security scan integration**: Security scans (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns) now use integrated processes; aur-sleuth runs in separate terminal simultaneously
+- **File database sync fallback**: File database sync fallback now uses integrated process with password prompt instead of terminal spawning
+- **Optional deps improvements**: `semgrep-bin` uses AUR helper flow; `paru`/`yay` use temporary directories for safe cloning
 - **Downgrade functionality**: Full downgrade support with terminal spawning for interactive tools
 - **Comprehensive tests**: Integration and UI tests for all terminal-spawning processes
 
 ## Type of change
 - [x] feat (new feature)
 - [x] ui (visual/interaction changes)
-
-## How to test
-
-```bash
-# Format and lint
-cargo fmt --all
-cargo clippy --all-targets --all-features -- -D warnings
-
-# Run tests
-cargo test -- --test-threads=1
-
-# Test installation flow:
-# 1. Select packages to install
-# 2. Press Enter to open preflight modal
-# 3. Review preflight summary
-# 4. Press Enter to execute installation
-# 5. Observe live output streaming in PreflightExec modal
-# 6. If sudo password is required, password prompt modal should appear
-# 7. Enter password and observe command execution continues
-# 8. After completion, press Enter to view post-summary
-# 9. Loading modal should appear briefly while computing summary
-# 10. Post-summary modal should display results
-```
 
 ## Checklist
 
@@ -79,6 +59,12 @@ cargo test -- --test-threads=1
 - Preflight risk calculation enhanced to show dependent packages in summary and add +2 risk per dependent
 - Dry-run commands properly quoted using `shell_single_quote` to prevent syntax errors
 - System updates, custom commands, and optional deps now use executor pattern
+- Direct install/remove operations (`src/install/direct.rs`) integrated into executor pattern, bypassing preflight when configured
+- Security scans (`ExecutorRequest::Scan`) integrated into executor pattern; aur-sleuth runs in separate terminal simultaneously when enabled
+- File database sync fallback (`src/events/preflight/keys/command_keys.rs`) integrated into executor pattern; attempts non-sudo sync first, then shows password prompt for `sudo pacman -Fy`
+- Custom command handler enhanced to support any `sudo` command with password (not just `makepkg -si`)
+- Optional deps: `semgrep-bin` converted to use standard AUR helper flow; `paru`/`yay` use temporary directories to prevent accidental deletion
+- Executor worker refactored into helper functions for better code organization and maintainability
 - Downgrade functionality with terminal spawning for interactive tools
 - Comprehensive test suite covering all terminal-spawning processes
 
@@ -91,19 +77,27 @@ None. This is a new feature that enhances the existing installation flow without
 
 ## Additional context
 
-**Files Changed:** 93 files (+8951 insertions, -468 deletions)
-
 **Key Files:**
-- `src/app/runtime/workers/executor.rs`: PTY executor worker
-- `src/install/executor.rs`: Executor request/output types
-- `src/ui/modals/password.rs`: Password prompt modal
+- `src/app/runtime/workers/executor.rs`: PTY executor worker (refactored into helper functions)
+- `src/app/runtime/tick_handler.rs`: File database sync result checking
+- `src/install/executor.rs`: Executor request/output types and command builders
+- `src/install/direct.rs`: Direct install/remove operations using integrated processes
+- `src/install/scan/pkg.rs`: Scan command builders (with/without aur-sleuth)
+- `src/install/scan/spawn.rs`: aur-sleuth terminal spawning
+- `src/events/modals/scan.rs`: Scan modal handler using integrated process
+- `src/events/preflight/keys/command_keys.rs`: File database sync with password prompt fallback
+- `src/ui/modals/password.rs`: Password prompt modal (includes FileSync purpose)
 - `src/ui/modals/misc.rs`: Loading modal
 - `src/ui/modals/preflight_exec.rs`: Auto-scrolling log panel
-- `src/events/modals/handlers.rs`: Reinstall confirmation and password handling
-- `src/events/preflight/keys/command_keys.rs`: Reinstall check and batch update logic
+- `src/events/modals/handlers.rs`: Reinstall confirmation and password handling (includes FileSync)
+- `src/events/install/mod.rs`: Direct install handling with reinstall/batch update logic
+- `src/events/search/preflight_helpers.rs`: Direct install handling with reinstall/batch update logic
+- `src/events/modals/optional_deps.rs`: Optional deps installation with improved AUR helper usage
 - `src/logic/preflight/mod.rs`: Enhanced risk calculation with dependent package display
 - `src/logic/deps/reverse.rs`: Added `get_installed_required_by` function
 - `src/ui/modals/preflight/tabs/summary.rs`: Display dependent packages in summary
+- `src/state/app_state/mod.rs`: Added `FileSyncResult` type alias and `pending_file_sync_result` field
+- `src/state/modal.rs`: Added `PasswordPurpose::FileSync` variant
 - `tests/*_integration.rs`: Comprehensive integration tests
 - `tests/*_ui.rs`: UI state transition tests
 

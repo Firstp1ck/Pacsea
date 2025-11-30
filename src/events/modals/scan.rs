@@ -66,8 +66,10 @@ pub(super) fn handle_scan_config(
             _ => {}
         },
         KeyCode::Enter => {
+            let pending_names = app.pending_install_names.clone();
             let new_modal = handle_scan_config_confirm(
-                app.pending_install_names.as_ref(),
+                app,
+                pending_names.as_ref(),
                 app.dry_run,
                 *do_clamav,
                 *do_trivy,
@@ -159,6 +161,7 @@ pub(super) fn handle_virustotal_setup(
 /// What: Confirm and execute scan configuration.
 ///
 /// Inputs:
+/// - `app`: Mutable application state
 /// - `pending_install_names`: Mutable reference to pending install names
 /// - `dry_run`: Whether to run in dry-run mode
 /// - `do_clamav`: `ClamAV` scan flag
@@ -169,12 +172,14 @@ pub(super) fn handle_virustotal_setup(
 /// - `do_custom`: Custom scan flag
 /// - `do_sleuth`: Sleuth scan flag
 ///
-/// Output: New modal state (always None after confirm)
+/// Output: New modal state (`PreflightExec` for first package, `None` for subsequent)
 ///
 /// Details:
-/// - Persists scan settings and spawns AUR scans for pending packages
+/// - Persists scan settings and launches AUR scans via integrated process
+/// - aur-sleuth runs in separate terminal simultaneously if enabled
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn handle_scan_config_confirm(
+    app: &mut crate::state::AppState,
     pending_install_names: Option<&Vec<String>>,
     dry_run: bool,
     do_clamav: bool,
@@ -185,6 +190,9 @@ fn handle_scan_config_confirm(
     do_custom: bool,
     do_sleuth: bool,
 ) -> crate::state::Modal {
+    use crate::install::ExecutorRequest;
+    use crate::state::{PackageItem, Source};
+
     tracing::info!(
         event = "scan_config_confirm",
         dry_run,
@@ -206,49 +214,91 @@ fn handle_scan_config_confirm(
     crate::theme::save_scan_do_sleuth(do_sleuth);
 
     #[cfg(not(target_os = "windows"))]
-    if let Some(names) = pending_install_names.cloned() {
+    if let Some(names) = pending_install_names {
+        if names.is_empty() {
+            tracing::warn!("Scan confirmed but no pending AUR package names were found");
+            return crate::state::Modal::None;
+        }
+
         tracing::info!(
             names = ?names,
             count = names.len(),
             dry_run,
-            "Launching AUR scans"
+            "Launching AUR scans via integrated process"
         );
-        if dry_run {
-            for n in &names {
-                tracing::info!(package = %n, "Dry-run: spawning AUR scan terminal");
-                let msg = format!(
-                    "echo DRY RUN: AUR scan {n} (clamav={do_clamav} trivy={do_trivy} semgrep={do_semgrep} shellcheck={do_shellcheck} virustotal={do_virustotal} custom={do_custom} sleuth={do_sleuth})"
-                );
-                crate::install::spawn_shell_commands_in_terminal(&[msg]);
-            }
-        } else {
-            for n in &names {
-                tracing::info!(
-                    package = %n,
-                    do_clamav,
-                    do_trivy,
-                    do_semgrep,
-                    do_shellcheck,
-                    do_virustotal,
-                    do_custom,
-                    "Spawning AUR scan terminal"
-                );
-                crate::install::spawn_aur_scan_for_with_config(
-                    n,
-                    do_clamav,
-                    do_trivy,
-                    do_semgrep,
-                    do_shellcheck,
-                    do_virustotal,
-                    do_custom,
-                    do_sleuth,
-                );
-            }
+
+        // Handle each package sequentially (for now, just first package)
+        // TODO: Add support for sequential multi-package scans
+        let first_pkg = &names[0];
+
+        // Create a dummy `PackageItem` for display in `PreflightExec` modal
+        let scan_item = PackageItem {
+            name: format!("scan:{first_pkg}"),
+            version: String::new(),
+            description: format!("Security scan for {first_pkg}"),
+            source: Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        };
+
+        // Transition to PreflightExec modal for scan
+        app.modal = crate::state::Modal::PreflightExec {
+            items: vec![scan_item],
+            action: crate::state::PreflightAction::Install, // Use Install as placeholder
+            tab: crate::state::PreflightTab::Summary,
+            verbose: false,
+            log_lines: Vec::new(),
+            abortable: false,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        };
+
+        // Store executor request for scan
+        app.pending_executor_request = Some(ExecutorRequest::Scan {
+            package: first_pkg.clone(),
+            do_clamav,
+            do_trivy,
+            do_semgrep,
+            do_shellcheck,
+            do_virustotal,
+            do_custom,
+            dry_run,
+        });
+
+        // If sleuth is enabled, spawn it in a separate terminal (runs simultaneously)
+        if do_sleuth && !dry_run {
+            let sleuth_cmd = crate::install::build_sleuth_command_for_terminal(first_pkg);
+            crate::install::spawn_shell_commands_in_terminal(&[sleuth_cmd]);
         }
-    } else {
-        tracing::warn!("Scan confirmed but no pending AUR package names were found");
+
+        // If there are multiple packages, log a warning (sequential scans not yet implemented)
+        if names.len() > 1 {
+            tracing::warn!(
+                "Multiple packages requested for scan, but only scanning first package: {}",
+                first_pkg
+            );
+        }
+
+        return crate::state::Modal::PreflightExec {
+            items: vec![PackageItem {
+                name: format!("scan:{first_pkg}"),
+                version: String::new(),
+                description: format!("Security scan for {first_pkg}"),
+                source: Source::Aur,
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            }],
+            action: crate::state::PreflightAction::Install,
+            tab: crate::state::PreflightTab::Summary,
+            verbose: false,
+            log_lines: Vec::new(),
+            abortable: false,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        };
     }
 
+    tracing::warn!("Scan confirmed but no pending AUR package names were found");
     crate::state::Modal::None
 }
 

@@ -310,30 +310,97 @@ fn handle_enter_key(app: &mut AppState) {
     let skip = crate::theme::settings().skip_preflight || skip_preflight_for_modals;
     if !app.installed_only_mode && !app.install_list.is_empty() {
         if skip {
-            // Check if this is a batch update scenario requiring confirmation
-            let has_versions = app.install_list.iter().any(|item| {
-                matches!(item.source, crate::state::Source::Official { .. })
-                    && !item.version.is_empty()
-            });
-            let reinstall_any = app.install_list.iter().any(|item| {
-                matches!(item.source, crate::state::Source::Official { .. })
-                    && crate::index::is_installed(&item.name)
-            });
+            // Direct install - check for reinstalls first, then batch updates
+            // First, check if we're installing packages that are already installed (reinstall scenario)
+            // BUT exclude packages that have updates available (those should go through normal update flow)
+            let installed_set = crate::logic::deps::get_installed_packages();
+            let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+            let upgradable_set = crate::logic::deps::get_upgradable_packages();
 
-            if has_versions && reinstall_any {
-                // Show confirmation modal for batch updates
-                app.modal = crate::state::Modal::ConfirmBatchUpdate {
-                    items: app.install_list.clone(),
-                    dry_run: app.dry_run,
-                };
+            let installed_packages: Vec<crate::state::PackageItem> = app
+                .install_list
+                .iter()
+                .filter(|item| {
+                    // Check if package is installed or provided by an installed package
+                    let is_installed = crate::logic::deps::is_package_installed_or_provided(
+                        &item.name,
+                        &installed_set,
+                        &provided_set,
+                    );
+
+                    if !is_installed {
+                        return false;
+                    }
+
+                    // Check if package has an update available
+                    // For official packages: check if it's in upgradable_set
+                    // For AUR packages: check if target version is different/newer than installed version
+                    let has_update = if upgradable_set.contains(&item.name) {
+                        // Official package with update available
+                        true
+                    } else if matches!(item.source, crate::state::Source::Aur)
+                        && !item.version.is_empty()
+                    {
+                        // AUR package: compare target version with installed version
+                        // Use simple string comparison for AUR packages
+                        // If target version is different from installed, it's an update
+                        crate::logic::deps::get_installed_version(&item.name)
+                            .is_ok_and(|installed_version| item.version != installed_version)
+                    } else {
+                        // No update available
+                        false
+                    };
+
+                    // Only show reinstall confirmation if installed AND no update available
+                    // If update is available, it should go through normal update flow
+                    !has_update
+                })
+                .cloned()
+                .collect();
+
+            if installed_packages.is_empty() {
+                // Check if this is a batch update scenario requiring confirmation
+                // Only show if there's actually an update available (package is upgradable)
+                // AND the package has installed packages in its "Required By" field (dependency risk)
+                let has_versions = app.install_list.iter().any(|item| {
+                    matches!(item.source, crate::state::Source::Official { .. })
+                        && !item.version.is_empty()
+                });
+                let has_upgrade_available = app.install_list.iter().any(|item| {
+                    matches!(item.source, crate::state::Source::Official { .. })
+                        && upgradable_set.contains(&item.name)
+                });
+
+                // Only show warning if package has installed packages in "Required By" (dependency risk)
+                let has_installed_required_by = app.install_list.iter().any(|item| {
+                    matches!(item.source, crate::state::Source::Official { .. })
+                        && crate::index::is_installed(&item.name)
+                        && crate::logic::deps::has_installed_required_by(&item.name)
+                });
+
+                if has_versions && has_upgrade_available && has_installed_required_by {
+                    // Show confirmation modal for batch updates (only if update is actually available
+                    // AND package has installed dependents that could be affected)
+                    app.modal = crate::state::Modal::ConfirmBatchUpdate {
+                        items: app.install_list.clone(),
+                        dry_run: app.dry_run,
+                    };
+                } else {
+                    let items = app.install_list.clone();
+                    crate::install::start_integrated_install_all(app, &items, app.dry_run);
+                    app.toast_message = Some(crate::i18n::t(
+                        app,
+                        "app.toasts.installing_preflight_skipped",
+                    ));
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                }
             } else {
-                crate::install::spawn_install_all(&app.install_list, app.dry_run);
-                app.toast_message = Some(crate::i18n::t(
-                    app,
-                    "app.toasts.installing_preflight_skipped",
-                ));
-                app.toast_expires_at =
-                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                // Show reinstall confirmation modal
+                app.modal = crate::state::Modal::ConfirmReinstall {
+                    items: installed_packages,
+                    header_chips: crate::state::modal::PreflightHeaderChips::default(),
+                };
             }
         } else {
             open_preflight_install_modal(app);
@@ -344,7 +411,12 @@ fn handle_enter_key(app: &mut AppState) {
         if !app.remove_list.is_empty() {
             if skip {
                 let names: Vec<String> = app.remove_list.iter().map(|p| p.name.clone()).collect();
-                crate::install::spawn_remove_all(&names, app.dry_run, app.remove_cascade_mode);
+                crate::install::start_integrated_remove_all(
+                    app,
+                    &names,
+                    app.dry_run,
+                    app.remove_cascade_mode,
+                );
                 app.toast_message =
                     Some(crate::i18n::t(app, "app.toasts.removing_preflight_skipped"));
                 app.toast_expires_at =

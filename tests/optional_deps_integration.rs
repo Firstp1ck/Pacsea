@@ -93,11 +93,11 @@ fn integration_optional_deps_command_structure() {
     assert!(official_cmd.contains("--needed"));
     assert!(official_cmd.contains("--noconfirm"));
 
-    // Test AUR package installation (paru/yay)
-    let aur_cmd_paru =
-        "rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si";
+    // Test AUR package installation (paru/yay) - now uses temporary directory
+    let aur_cmd_paru = "tmp=$(mktemp -d) && cd \"$tmp\" && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si";
     assert!(aur_cmd_paru.contains("paru"));
     assert!(aur_cmd_paru.contains("makepkg"));
+    assert!(aur_cmd_paru.contains("mktemp"));
 
     // Test dry-run command
     let dry_run_cmd = "echo DRY RUN: sudo pacman -S --needed --noconfirm test-pkg";
