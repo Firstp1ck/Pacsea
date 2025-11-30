@@ -212,9 +212,9 @@ hu-HU:
         provides: "Szolgáltató"
         depends_on: "Függőségek"
         optional_dependencies: "Nem kötelező függőségek"
-        required_by: "Szükséges a következőhöz"
+        required_by: "Szükséges a következőkhöz"
         optional_for: "Nem kötelező a következőkhöz"
-        conflicts_with: "Ütközik ezzel"
+        conflicts_with: "Ütközik a következőkkel"
         replaces: "Cserék"
         download_size: "Letöltési méret"
         install_size: "Telepítési méret"
@@ -661,7 +661,7 @@ hu-HU:
 
     cli:
       update:
-        password_prompt: "[sudo] jelszó a következőhöz: {}: "
+        password_prompt: "Adja meg {} [sudo] jelszavát: "
         starting: "Csomagok frissítése (pacman -Syu)…"
         pacman_success: "✓ A csomagok sikeresen frissítve lettek a pacman paranccsal"
         pacman_failed: "✗ Nem sikerült frissíteni a csomagokat a pacman paranccsal"
