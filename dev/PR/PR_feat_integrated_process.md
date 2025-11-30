@@ -21,7 +21,7 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - **Direct install/remove integration**: Direct install/remove operations (bypassing preflight) now use integrated processes
 - **Security scan integration**: Security scans (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns) now use integrated processes; aur-sleuth runs in separate terminal simultaneously
 - **File database sync fallback**: File database sync fallback now uses integrated process with password prompt instead of terminal spawning
-- **Optional deps improvements**: `semgrep-bin` uses AUR helper flow; `paru`/`yay` use temporary directories for safe cloning
+- **Optional deps improvements**: `semgrep-bin` uses AUR helper flow; `paru`/`yay` use temporary directories for safe cloning; pressing Enter on already installed dependencies shows reinstall confirmation
 - **Downgrade functionality**: Full downgrade support with terminal spawning for interactive tools
 - **Comprehensive tests**: Integration and UI tests for all terminal-spawning processes
 
@@ -63,7 +63,7 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - Security scans (`ExecutorRequest::Scan`) integrated into executor pattern; aur-sleuth runs in separate terminal simultaneously when enabled
 - File database sync fallback (`src/events/preflight/keys/command_keys.rs`) integrated into executor pattern; attempts non-sudo sync first, then shows password prompt for `sudo pacman -Fy`
 - Custom command handler enhanced to support any `sudo` command with password (not just `makepkg -si`)
-- Optional deps: `semgrep-bin` converted to use standard AUR helper flow; `paru`/`yay` use temporary directories to prevent accidental deletion
+- Optional deps: `semgrep-bin` converted to use standard AUR helper flow; `paru`/`yay` use temporary directories to prevent accidental deletion; pressing Enter on already installed dependencies shows reinstall confirmation with password prompt for pacman packages
 - Executor worker refactored into helper functions for better code organization and maintainability
 - Downgrade functionality with terminal spawning for interactive tools
 - Comprehensive test suite covering all terminal-spawning processes
@@ -92,7 +92,7 @@ None. This is a new feature that enhances the existing installation flow without
 - `src/events/modals/handlers.rs`: Reinstall confirmation and password handling (includes FileSync)
 - `src/events/install/mod.rs`: Direct install handling with reinstall/batch update logic
 - `src/events/search/preflight_helpers.rs`: Direct install handling with reinstall/batch update logic
-- `src/events/modals/optional_deps.rs`: Optional deps installation with improved AUR helper usage
+- `src/events/modals/optional_deps.rs`: Optional deps installation with improved AUR helper usage and reinstall confirmation for installed dependencies
 - `src/logic/preflight/mod.rs`: Enhanced risk calculation with dependent package display
 - `src/logic/deps/reverse.rs`: Added `get_installed_required_by` function
 - `src/ui/modals/preflight/tabs/summary.rs`: Display dependent packages in summary

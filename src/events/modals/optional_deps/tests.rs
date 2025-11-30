@@ -127,18 +127,18 @@ fn optional_deps_enter_installs() {
 }
 
 #[test]
-/// What: Verify `OptionalDeps` modal Enter on installed package does nothing.
+/// What: Verify `OptionalDeps` modal Enter on installed package shows reinstall confirmation.
 ///
 /// Inputs:
-/// - `OptionalDeps` modal with installed (non-selectable) row, Enter key event.
+/// - `OptionalDeps` modal with installed row, Enter key event.
 ///
 /// Output:
-/// - No action taken, modal closes.
+/// - `ConfirmReinstall` modal is opened.
 ///
 /// Details:
-/// - Tests that Enter on installed packages doesn't trigger installation.
-/// - The modal may close or remain open depending on implementation.
-fn optional_deps_enter_installed_does_nothing() {
+/// - Tests that Enter on installed packages shows reinstall confirmation modal.
+/// - After confirmation, the package will be reinstalled.
+fn optional_deps_enter_installed_shows_reinstall() {
     let mut app = AppState::default();
     let rows = vec![create_test_row("test-pkg", true, false)];
     app.modal = crate::state::Modal::OptionalDeps {
@@ -150,12 +150,12 @@ fn optional_deps_enter_installed_does_nothing() {
     let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
     let result = handle_optional_deps(ke, &mut app, &rows, &mut selected);
 
-    // Should return Some(false) when no action is taken
+    // Should return Some(false) when showing reinstall confirmation
     assert_eq!(result, Some(false));
-    // Modal may close or remain OptionalDeps - both are acceptable
+    // Modal should transition to ConfirmReinstall
     match app.modal {
-        crate::state::Modal::OptionalDeps { .. } | crate::state::Modal::None => {}
-        _ => panic!("Expected modal to remain OptionalDeps or close"),
+        crate::state::Modal::ConfirmReinstall { .. } => {}
+        _ => panic!("Expected modal to transition to ConfirmReinstall"),
     }
 }
 

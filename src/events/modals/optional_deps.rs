@@ -71,6 +71,7 @@ pub(super) fn handle_optional_deps(
 ///
 /// Details:
 /// - Handles setup for virustotal/aur-sleuth (keeps terminal spawn for interactive setup)
+/// - Shows reinstall confirmation for already installed dependencies
 /// - Installs optional dependencies using executor pattern
 #[allow(clippy::too_many_lines)] // Complex function handling multiple installation paths
 fn handle_optional_deps_enter(
@@ -151,6 +152,34 @@ fn handle_optional_deps_enter(
         };
         crate::install::spawn_shell_commands_in_terminal(&to_run);
         return (crate::state::Modal::None, true);
+    }
+
+    // Handle reinstall for already installed dependencies
+    if row.installed {
+        let pkg = row.package.clone();
+
+        // Determine if official or AUR to create proper PackageItem
+        let package_item = crate::index::find_package_by_name(&pkg).unwrap_or_else(|| {
+            // Assume AUR if not found in official index
+            PackageItem {
+                name: pkg.clone(),
+                version: String::new(),
+                description: String::new(),
+                source: Source::Aur,
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            }
+        });
+
+        // Show reinstall confirmation modal
+        return (
+            crate::state::Modal::ConfirmReinstall {
+                items: vec![package_item],
+                header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            },
+            false,
+        );
     }
 
     // Install optional dependencies using executor pattern
