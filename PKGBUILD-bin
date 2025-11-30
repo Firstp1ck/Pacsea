@@ -1,6 +1,6 @@
 # Maintainer: Firstpick firstpick1992@proton.me
 pkgname=pacsea-bin
-pkgver=0.5.1
+pkgver=0.5.3
 _tag="v$pkgver"
 pkgrel=1
 pkgdesc="Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in Rust (binary version)"
@@ -37,16 +37,18 @@ optdepends=(
     'semgrep-bin: static analysis checks'
     'shellcheck: lint shell scripts'
     'downgrade: Downgrade of Packages'
+    'pacman-contrib: Update Check'
 )
 provides=("pacsea=${pkgver}")
 conflicts=('pacsea' 'pacsea-git')
 source=("Pacsea::https://github.com/Firstp1ck/Pacsea/releases/download/${_tag}/Pacsea"
         "Pacsea-${_tag}.tar.gz::https://github.com/Firstp1ck/Pacsea/archive/refs/tags/${_tag}.tar.gz")
-sha256sums=('10cbb8f93d404b489ae41ce62a63f5b66e49127f9d14a946829f47f0f75d7e36'
-            '2f37e7ffddabedb8c2510b4cc8a2187612b3ebbc890a9e2047f26f49e80eb055')
+sha256sums=('ce7a296b1f4db63049698632e0d84e04082856e6ead326f122cfb26a63f27b0f'
+            '4db4d492c44f525c2642efc5889b86fe36637ed2fc5c68d2b451702a35325ffa')
 
 package() {
-  cd "$srcdir"/Pacsea-* || exit 1
+  # GitHub tarballs from tags extract to Pacsea-<version> (without 'v' prefix)
+  cd "$srcdir/Pacsea-${pkgver}" || exit 1
   install -Dm755 "$srcdir/Pacsea" "$pkgdir/usr/bin/pacsea"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
