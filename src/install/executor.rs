@@ -450,9 +450,24 @@ mod tests {
         let aur_pkg = create_test_package("yay-bin", Source::Aur);
 
         // Official package without password
+        // Check if package is installed to determine expected flags
+        let installed_set = crate::logic::deps::get_installed_packages();
+        let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+        let is_installed = crate::logic::deps::is_package_installed_or_provided(
+            "ripgrep",
+            &installed_set,
+            &provided_set,
+        );
         let cmd1 =
             build_install_command_for_executor(std::slice::from_ref(&official_pkg), None, false);
-        assert!(cmd1.contains("sudo pacman -S --needed --noconfirm ripgrep"));
+        if is_installed {
+            // If installed, should use only --noconfirm
+            assert!(cmd1.contains("sudo pacman -S --noconfirm ripgrep"));
+            assert!(!cmd1.contains("--needed"));
+        } else {
+            // If not installed, should use --needed --noconfirm
+            assert!(cmd1.contains("sudo pacman -S --needed --noconfirm ripgrep"));
+        }
         assert!(!cmd1.contains("Press any key to close"));
 
         // Official package with password
@@ -462,7 +477,14 @@ mod tests {
             false,
         );
         assert!(cmd2.contains("printf "));
-        assert!(cmd2.contains("sudo -S pacman -S --needed --noconfirm ripgrep"));
+        if is_installed {
+            // If installed, should use only --noconfirm
+            assert!(cmd2.contains("sudo -S pacman -S --noconfirm ripgrep"));
+            assert!(!cmd2.contains("--needed"));
+        } else {
+            // If not installed, should use --needed --noconfirm
+            assert!(cmd2.contains("sudo -S pacman -S --needed --noconfirm ripgrep"));
+        }
 
         // AUR package
         let cmd3 = build_install_command_for_executor(std::slice::from_ref(&aur_pkg), None, false);
@@ -543,10 +565,32 @@ mod tests {
             },
         );
 
+        // Check if packages are installed to determine expected flags
+        let installed_set = crate::logic::deps::get_installed_packages();
+        let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+        let ripgrep_installed = crate::logic::deps::is_package_installed_or_provided(
+            "ripgrep",
+            &installed_set,
+            &provided_set,
+        );
+        let fd_installed = crate::logic::deps::is_package_installed_or_provided(
+            "fd",
+            &installed_set,
+            &provided_set,
+        );
+        let has_reinstall = ripgrep_installed || fd_installed;
+
         let cmd = build_install_command_for_executor(&[pkg1, pkg2], None, false);
         assert!(cmd.contains("ripgrep"));
         assert!(cmd.contains("fd"));
-        assert!(cmd.contains("pacman -S --needed --noconfirm"));
+        if has_reinstall {
+            // If any package is installed, should use only --noconfirm
+            assert!(cmd.contains("pacman -S --noconfirm"));
+            assert!(!cmd.contains("--needed"));
+        } else {
+            // If no packages are installed, should use --needed --noconfirm
+            assert!(cmd.contains("pacman -S --needed --noconfirm"));
+        }
     }
 
     #[test]
