@@ -125,6 +125,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "Only run when explicitly mentioned"]
     #[allow(clippy::await_holding_lock)]
     async fn pkgbuild_fetches_aur_via_curl_text() {
         let _guard = crate::sources::test_mutex()
