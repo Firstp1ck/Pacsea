@@ -423,7 +423,10 @@ pub enum Modal {
     ConfirmInstall { items: Vec<PackageItem> },
     /// Confirmation dialog for reinstalling already installed packages.
     ConfirmReinstall {
+        /// Packages that are already installed (shown in the confirmation dialog).
         items: Vec<PackageItem>,
+        /// All packages to install (including both installed and not installed).
+        all_items: Vec<PackageItem>,
         header_chips: PreflightHeaderChips,
     },
     /// Confirmation dialog for batch updates that may cause dependency conflicts.
@@ -618,6 +621,7 @@ mod tests {
         let _ = super::Modal::ConfirmInstall { items: Vec::new() };
         let _ = super::Modal::ConfirmReinstall {
             items: Vec::new(),
+            all_items: Vec::new(),
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
         };
         let _ = super::Modal::Help;

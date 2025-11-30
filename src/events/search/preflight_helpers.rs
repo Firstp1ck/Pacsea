@@ -249,8 +249,10 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
 
         if !installed_packages.is_empty() {
             // Show reinstall confirmation modal
+            // Store both installed packages (for display) and all packages (for installation)
             app.modal = crate::state::Modal::ConfirmReinstall {
                 items: installed_packages,
+                all_items: items,
                 header_chips: crate::state::modal::PreflightHeaderChips::default(),
             };
             return;

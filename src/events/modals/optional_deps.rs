@@ -173,9 +173,11 @@ fn handle_optional_deps_enter(
         });
 
         // Show reinstall confirmation modal
+        // For optional deps, it's a single package, so items and all_items are the same
         return (
             crate::state::Modal::ConfirmReinstall {
-                items: vec![package_item],
+                items: vec![package_item.clone()],
+                all_items: vec![package_item],
                 header_chips: crate::state::modal::PreflightHeaderChips::default(),
             },
             false,

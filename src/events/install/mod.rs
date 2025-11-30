@@ -397,8 +397,10 @@ fn handle_enter_key(app: &mut AppState) {
                 }
             } else {
                 // Show reinstall confirmation modal
+                // Store both installed packages (for display) and all packages (for installation)
                 app.modal = crate::state::Modal::ConfirmReinstall {
                     items: installed_packages,
+                    all_items: app.install_list.clone(),
                     header_chips: crate::state::modal::PreflightHeaderChips::default(),
                 };
             }

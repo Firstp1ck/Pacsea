@@ -278,8 +278,10 @@ pub(super) fn handle_proceed_install(
 
     if !installed_packages.is_empty() {
         // Show reinstall confirmation modal (before password prompt)
+        // Store both installed packages (for display) and all packages (for installation)
         app.modal = crate::state::Modal::ConfirmReinstall {
             items: installed_packages,
+            all_items: packages,
             header_chips,
         };
         return false; // Don't close modal yet, wait for confirmation

@@ -29,6 +29,7 @@ fn render_confirm_reinstall_modal(
     confirm::render_confirm_reinstall(f, app, area, &ctx.items);
     Modal::ConfirmReinstall {
         items: ctx.items,
+        all_items: ctx.all_items,
         header_chips: ctx.header_chips,
     }
 }
@@ -159,6 +160,7 @@ struct ConfirmRemoveContext {
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmReinstallContext {
     items: Vec<crate::state::PackageItem>,
+    all_items: Vec<crate::state::PackageItem>,
     header_chips: PreflightHeaderChips,
 }
 
@@ -312,10 +314,12 @@ impl ModalRenderer for Modal {
             }
             Self::ConfirmReinstall {
                 items,
+                all_items,
                 header_chips,
             } => {
                 let ctx = ConfirmReinstallContext {
                     items,
+                    all_items,
                     header_chips,
                 };
                 render_confirm_reinstall_modal(f, app, area, ctx)

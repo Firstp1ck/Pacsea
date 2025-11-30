@@ -307,7 +307,8 @@ pub(super) fn handle_confirm_reinstall_modal(
     modal: &Modal,
 ) -> bool {
     if let Modal::ConfirmReinstall {
-        items,
+        items: _installed_items,
+        all_items,
         header_chips,
     } = modal
     {
@@ -319,7 +320,8 @@ pub(super) fn handle_confirm_reinstall_modal(
             }
             KeyCode::Enter => {
                 // Proceed with reinstall - use executor pattern
-                let items_clone = items.clone();
+                // Use all_items (all packages) instead of just installed ones
+                let items_clone = all_items.clone();
                 let header_chips_clone = header_chips.clone();
                 // Retrieve password that was stored when reinstall confirmation was shown
                 let password = app.pending_executor_password.take();
