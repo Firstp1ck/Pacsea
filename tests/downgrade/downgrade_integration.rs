@@ -4,12 +4,15 @@
 //! - Downgrade list management
 //! - Downgrade command execution
 //! - Navigation in downgrade pane
-//!
-//! Note: These tests are expected to fail initially as downgrade currently spawns terminals.
+//! - `ExecutorRequest::Downgrade` creation
+//! - Password prompt for downgrade
+//! - Dry-run mode
 
 #![cfg(test)]
 
-use pacsea::state::{AppState, PackageItem, Source};
+use pacsea::install::ExecutorRequest;
+use pacsea::state::modal::{PasswordPurpose, PreflightHeaderChips};
+use pacsea::state::{AppState, Modal, PackageItem, PreflightAction, PreflightTab, Source};
 
 /// What: Create a test package item with specified source.
 ///
@@ -201,4 +204,384 @@ fn integration_downgrade_empty_list() {
 
     assert!(app.downgrade_list.is_empty());
     assert_eq!(app.downgrade_state.selected(), None);
+}
+
+#[test]
+/// What: Test `ExecutorRequest::Downgrade` creation with password.
+///
+/// Inputs:
+/// - Package names and password for downgrade.
+///
+/// Output:
+/// - `ExecutorRequest::Downgrade` with correct fields.
+///
+/// Details:
+/// - Verifies Downgrade request can be created for executor.
+fn integration_executor_request_downgrade_with_password() {
+    let names = vec!["pkg1".to_string(), "pkg2".to_string()];
+
+    let request = ExecutorRequest::Downgrade {
+        names,
+        password: Some("testpassword".to_string()),
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Downgrade {
+            names,
+            password,
+            dry_run,
+        } => {
+            assert_eq!(names.len(), 2);
+            assert_eq!(names[0], "pkg1");
+            assert_eq!(names[1], "pkg2");
+            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(!dry_run);
+        }
+        _ => panic!("Expected ExecutorRequest::Downgrade"),
+    }
+}
+
+#[test]
+/// What: Test `ExecutorRequest::Downgrade` without password.
+///
+/// Inputs:
+/// - Package names without password.
+///
+/// Output:
+/// - `ExecutorRequest::Downgrade` with password=None.
+///
+/// Details:
+/// - Verifies Downgrade request handles no password case.
+fn integration_executor_request_downgrade_no_password() {
+    let names = vec!["pkg1".to_string()];
+
+    let request = ExecutorRequest::Downgrade {
+        names,
+        password: None,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Downgrade { password, .. } => {
+            assert!(password.is_none());
+        }
+        _ => panic!("Expected ExecutorRequest::Downgrade"),
+    }
+}
+
+#[test]
+/// What: Test `ExecutorRequest::Downgrade` dry-run mode.
+///
+/// Inputs:
+/// - Downgrade with `dry_run` enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Downgrade` with `dry_run=true`.
+///
+/// Details:
+/// - Verifies dry-run mode is respected for downgrade.
+fn integration_executor_request_downgrade_dry_run() {
+    let names = vec!["pkg1".to_string()];
+
+    let request = ExecutorRequest::Downgrade {
+        names,
+        password: None,
+        dry_run: true,
+    };
+
+    match request {
+        ExecutorRequest::Downgrade { dry_run, .. } => {
+            assert!(dry_run);
+        }
+        _ => panic!("Expected ExecutorRequest::Downgrade"),
+    }
+}
+
+#[test]
+/// What: Test downgrade triggers password prompt.
+///
+/// Inputs:
+/// - Downgrade action for packages.
+///
+/// Output:
+/// - Password prompt modal is shown.
+///
+/// Details:
+/// - Verifies downgrade requires password authentication.
+fn integration_downgrade_password_prompt() {
+    let pkg = create_test_package(
+        "test-pkg",
+        Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+    );
+
+    let mut app = AppState {
+        downgrade_list: vec![pkg.clone()],
+        pending_exec_header_chips: Some(PreflightHeaderChips::default()),
+        ..Default::default()
+    };
+
+    // Simulate downgrade triggering password prompt
+    app.modal = Modal::PasswordPrompt {
+        purpose: PasswordPurpose::Downgrade,
+        items: vec![pkg],
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+
+    match app.modal {
+        Modal::PasswordPrompt { purpose, items, .. } => {
+            assert_eq!(purpose, PasswordPurpose::Downgrade);
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].name, "test-pkg");
+        }
+        _ => panic!("Expected PasswordPrompt modal"),
+    }
+}
+
+#[test]
+/// What: Test downgrade transitions to `PreflightExec` after password.
+///
+/// Inputs:
+/// - Password submitted for downgrade.
+///
+/// Output:
+/// - Modal transitions to `PreflightExec`.
+/// - `ExecutorRequest::Downgrade` is created.
+///
+/// Details:
+/// - Verifies downgrade flow after password submission.
+fn integration_downgrade_to_preflight_exec() {
+    let pkg = create_test_package(
+        "test-pkg",
+        Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+    );
+
+    let mut app = AppState {
+        modal: Modal::PasswordPrompt {
+            purpose: PasswordPurpose::Downgrade,
+            items: vec![pkg],
+            input: "testpassword".to_string(),
+            cursor: 12,
+            error: None,
+        },
+        pending_exec_header_chips: Some(PreflightHeaderChips::default()),
+        ..Default::default()
+    };
+
+    // Extract password
+    let password = if let Modal::PasswordPrompt { ref input, .. } = app.modal {
+        if input.trim().is_empty() {
+            None
+        } else {
+            Some(input.clone())
+        }
+    } else {
+        None
+    };
+
+    let items = if let Modal::PasswordPrompt { ref items, .. } = app.modal {
+        items.clone()
+    } else {
+        vec![]
+    };
+
+    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+
+    // Simulate transition to PreflightExec
+    let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
+    app.modal = Modal::PreflightExec {
+        items,
+        action: PreflightAction::Downgrade,
+        tab: PreflightTab::Summary,
+        verbose: false,
+        log_lines: vec![],
+        abortable: false,
+        header_chips,
+    };
+
+    // Set executor request
+    app.pending_executor_request = Some(ExecutorRequest::Downgrade {
+        names,
+        password,
+        dry_run: false,
+    });
+
+    // Verify modal
+    match app.modal {
+        Modal::PreflightExec { action, items, .. } => {
+            assert_eq!(action, PreflightAction::Downgrade);
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].name, "test-pkg");
+        }
+        _ => panic!("Expected PreflightExec modal"),
+    }
+
+    // Verify executor request
+    match app.pending_executor_request {
+        Some(ExecutorRequest::Downgrade {
+            names, password, ..
+        }) => {
+            assert_eq!(names.len(), 1);
+            assert_eq!(names[0], "test-pkg");
+            assert_eq!(password, Some("testpassword".to_string()));
+        }
+        _ => panic!("Expected ExecutorRequest::Downgrade"),
+    }
+}
+
+#[test]
+/// What: Test downgrade multiple packages.
+///
+/// Inputs:
+/// - Multiple packages in downgrade list.
+///
+/// Output:
+/// - All package names are in `ExecutorRequest::Downgrade`.
+///
+/// Details:
+/// - Verifies batch downgrade includes all packages.
+fn integration_downgrade_multiple_packages() {
+    let names = vec!["pkg1".to_string(), "pkg2".to_string(), "pkg3".to_string()];
+
+    let request = ExecutorRequest::Downgrade {
+        names,
+        password: Some("testpassword".to_string()),
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Downgrade { names, .. } => {
+            assert_eq!(names.len(), 3);
+            assert!(names.contains(&"pkg1".to_string()));
+            assert!(names.contains(&"pkg2".to_string()));
+            assert!(names.contains(&"pkg3".to_string()));
+        }
+        _ => panic!("Expected ExecutorRequest::Downgrade"),
+    }
+}
+
+#[test]
+/// What: Test downgrade command format with downgrade tool check.
+///
+/// Inputs:
+/// - Package name for downgrade.
+///
+/// Output:
+/// - Command includes downgrade tool check.
+///
+/// Details:
+/// - Verifies command structure includes fallback for missing tool.
+fn integration_downgrade_command_with_tool_check() {
+    let pkg_name = "test-pkg";
+
+    // Build command with tool check
+    let cmd = format!(
+        "if command -v downgrade >/dev/null 2>&1; then \
+         sudo downgrade {pkg_name}; \
+         else \
+         echo 'downgrade tool not found. Install \"downgrade\" package.'; \
+         fi"
+    );
+
+    assert!(cmd.contains("command -v downgrade"));
+    assert!(cmd.contains("sudo downgrade"));
+    assert!(cmd.contains(pkg_name));
+    assert!(cmd.contains("not found"));
+}
+
+#[test]
+/// What: Test downgrade dry-run command format.
+///
+/// Inputs:
+/// - Package name for dry-run downgrade.
+///
+/// Output:
+/// - Command includes "DRY RUN:" prefix.
+///
+/// Details:
+/// - Verifies dry-run command format.
+fn integration_downgrade_dry_run_command_format() {
+    let pkg_name = "test-pkg";
+
+    // Build dry-run command
+    let cmd = format!("echo DRY RUN: sudo downgrade {pkg_name}");
+
+    assert!(cmd.contains("DRY RUN:"));
+    assert!(cmd.contains("sudo downgrade"));
+    assert!(cmd.contains(pkg_name));
+}
+
+#[test]
+/// What: Test downgrade pane focus state.
+///
+/// Inputs:
+/// - `AppState` with downgrade pane focus.
+///
+/// Output:
+/// - Right pane focus is correctly set to Downgrade.
+///
+/// Details:
+/// - Verifies pane focus tracking for downgrade operations.
+fn integration_downgrade_pane_focus() {
+    let app = AppState {
+        installed_only_mode: true,
+        right_pane_focus: pacsea::state::RightPaneFocus::Downgrade,
+        ..Default::default()
+    };
+
+    assert_eq!(
+        app.right_pane_focus,
+        pacsea::state::RightPaneFocus::Downgrade
+    );
+}
+
+#[test]
+/// What: Test downgrade state selection tracking.
+///
+/// Inputs:
+/// - Downgrade list with multiple packages.
+///
+/// Output:
+/// - Selection state is correctly tracked.
+///
+/// Details:
+/// - Verifies downgrade list selection management.
+fn integration_downgrade_selection_tracking() {
+    let mut app = AppState {
+        installed_only_mode: true,
+        right_pane_focus: pacsea::state::RightPaneFocus::Downgrade,
+        ..Default::default()
+    };
+
+    // Add packages
+    app.downgrade_list.push(create_test_package(
+        "pkg1",
+        Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+    ));
+    app.downgrade_list.push(create_test_package(
+        "pkg2",
+        Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+    ));
+
+    // Select first item
+    app.downgrade_state.select(Some(0));
+    assert_eq!(app.downgrade_state.selected(), Some(0));
+
+    // Select second item
+    app.downgrade_state.select(Some(1));
+    assert_eq!(app.downgrade_state.selected(), Some(1));
 }

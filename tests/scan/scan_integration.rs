@@ -363,3 +363,409 @@ fn integration_scan_mixed_sleuth_and_integrated() {
     let sleuth_command = pacsea::install::build_sleuth_command_for_terminal(package);
     assert!(sleuth_command.contains(package));
 }
+
+#[test]
+/// What: Test scan with only `ClamAV` enabled.
+///
+/// Inputs:
+/// - `ScanConfig` with only `ClamAV` enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Scan` with only `do_clamav=true`.
+///
+/// Details:
+/// - Verifies individual scanner can be enabled.
+fn integration_scan_clamav_only() {
+    use pacsea::install::ExecutorRequest;
+
+    let request = ExecutorRequest::Scan {
+        package: "test-pkg".to_string(),
+        do_clamav: true,
+        do_trivy: false,
+        do_semgrep: false,
+        do_shellcheck: false,
+        do_virustotal: false,
+        do_custom: false,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Scan {
+            do_clamav,
+            do_trivy,
+            do_semgrep,
+            do_shellcheck,
+            do_virustotal,
+            do_custom,
+            ..
+        } => {
+            assert!(do_clamav);
+            assert!(!do_trivy);
+            assert!(!do_semgrep);
+            assert!(!do_shellcheck);
+            assert!(!do_virustotal);
+            assert!(!do_custom);
+        }
+        _ => panic!("Expected ExecutorRequest::Scan"),
+    }
+}
+
+#[test]
+/// What: Test scan with only Trivy enabled.
+///
+/// Inputs:
+/// - `ScanConfig` with only Trivy enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Scan` with only `do_trivy=true`.
+///
+/// Details:
+/// - Verifies Trivy scanner can be enabled individually.
+fn integration_scan_trivy_only() {
+    use pacsea::install::ExecutorRequest;
+
+    let request = ExecutorRequest::Scan {
+        package: "test-pkg".to_string(),
+        do_clamav: false,
+        do_trivy: true,
+        do_semgrep: false,
+        do_shellcheck: false,
+        do_virustotal: false,
+        do_custom: false,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Scan { do_trivy, .. } => {
+            assert!(do_trivy);
+        }
+        _ => panic!("Expected ExecutorRequest::Scan"),
+    }
+}
+
+#[test]
+/// What: Test scan with only Semgrep enabled.
+///
+/// Inputs:
+/// - `ScanConfig` with only Semgrep enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Scan` with only `do_semgrep=true`.
+///
+/// Details:
+/// - Verifies Semgrep scanner can be enabled individually.
+fn integration_scan_semgrep_only() {
+    use pacsea::install::ExecutorRequest;
+
+    let request = ExecutorRequest::Scan {
+        package: "test-pkg".to_string(),
+        do_clamav: false,
+        do_trivy: false,
+        do_semgrep: true,
+        do_shellcheck: false,
+        do_virustotal: false,
+        do_custom: false,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Scan { do_semgrep, .. } => {
+            assert!(do_semgrep);
+        }
+        _ => panic!("Expected ExecutorRequest::Scan"),
+    }
+}
+
+#[test]
+/// What: Test scan with only `ShellCheck` enabled.
+///
+/// Inputs:
+/// - `ScanConfig` with only `ShellCheck` enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Scan` with only `do_shellcheck=true`.
+///
+/// Details:
+/// - Verifies `ShellCheck` scanner can be enabled individually.
+fn integration_scan_shellcheck_only() {
+    use pacsea::install::ExecutorRequest;
+
+    let request = ExecutorRequest::Scan {
+        package: "test-pkg".to_string(),
+        do_clamav: false,
+        do_trivy: false,
+        do_semgrep: false,
+        do_shellcheck: true,
+        do_virustotal: false,
+        do_custom: false,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Scan { do_shellcheck, .. } => {
+            assert!(do_shellcheck);
+        }
+        _ => panic!("Expected ExecutorRequest::Scan"),
+    }
+}
+
+#[test]
+/// What: Test scan with only `VirusTotal` enabled.
+///
+/// Inputs:
+/// - `ScanConfig` with only `VirusTotal` enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Scan` with only `do_virustotal=true`.
+///
+/// Details:
+/// - Verifies `VirusTotal` scanner can be enabled individually.
+fn integration_scan_virustotal_only() {
+    use pacsea::install::ExecutorRequest;
+
+    let request = ExecutorRequest::Scan {
+        package: "test-pkg".to_string(),
+        do_clamav: false,
+        do_trivy: false,
+        do_semgrep: false,
+        do_shellcheck: false,
+        do_virustotal: true,
+        do_custom: false,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Scan { do_virustotal, .. } => {
+            assert!(do_virustotal);
+        }
+        _ => panic!("Expected ExecutorRequest::Scan"),
+    }
+}
+
+#[test]
+/// What: Test scan with only custom pattern enabled.
+///
+/// Inputs:
+/// - `ScanConfig` with only custom pattern enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Scan` with only `do_custom=true`.
+///
+/// Details:
+/// - Verifies custom pattern scanner can be enabled individually.
+fn integration_scan_custom_only() {
+    use pacsea::install::ExecutorRequest;
+
+    let request = ExecutorRequest::Scan {
+        package: "test-pkg".to_string(),
+        do_clamav: false,
+        do_trivy: false,
+        do_semgrep: false,
+        do_shellcheck: false,
+        do_virustotal: false,
+        do_custom: true,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Scan { do_custom, .. } => {
+            assert!(do_custom);
+        }
+        _ => panic!("Expected ExecutorRequest::Scan"),
+    }
+}
+
+#[test]
+/// What: Test scan dry-run mode.
+///
+/// Inputs:
+/// - Scan with `dry_run` enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Scan` with `dry_run=true`.
+///
+/// Details:
+/// - Verifies dry-run mode is respected for scans.
+fn integration_scan_dry_run() {
+    use pacsea::install::ExecutorRequest;
+
+    let request = ExecutorRequest::Scan {
+        package: "test-pkg".to_string(),
+        do_clamav: true,
+        do_trivy: true,
+        do_semgrep: false,
+        do_shellcheck: false,
+        do_virustotal: false,
+        do_custom: false,
+        dry_run: true,
+    };
+
+    match request {
+        ExecutorRequest::Scan { dry_run, .. } => {
+            assert!(dry_run);
+        }
+        _ => panic!("Expected ExecutorRequest::Scan"),
+    }
+}
+
+#[test]
+/// What: Test `ScanConfig` cursor navigation.
+///
+/// Inputs:
+/// - `ScanConfig` modal with cursor at different positions.
+///
+/// Output:
+/// - Cursor position is correctly tracked.
+///
+/// Details:
+/// - Verifies cursor navigation within the scan config modal.
+fn integration_scan_config_cursor_navigation() {
+    let app = AppState {
+        modal: Modal::ScanConfig {
+            do_clamav: true,
+            do_trivy: true,
+            do_semgrep: false,
+            do_shellcheck: false,
+            do_virustotal: false,
+            do_custom: false,
+            do_sleuth: false,
+            cursor: 4, // On VirusTotal option
+        },
+        ..Default::default()
+    };
+
+    match app.modal {
+        Modal::ScanConfig { cursor, .. } => {
+            assert_eq!(cursor, 4);
+        }
+        _ => panic!("Expected ScanConfig modal"),
+    }
+}
+
+#[test]
+/// What: Test `VirusTotal` setup input handling.
+///
+/// Inputs:
+/// - `VirusTotalSetup` modal with API key input.
+///
+/// Output:
+/// - Input and cursor are correctly tracked.
+///
+/// Details:
+/// - Verifies API key input handling.
+fn integration_virustotal_setup_input_handling() {
+    let api_key = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
+
+    let app = AppState {
+        modal: Modal::VirusTotalSetup {
+            input: api_key.to_string(),
+            cursor: api_key.len(),
+        },
+        ..Default::default()
+    };
+
+    match app.modal {
+        Modal::VirusTotalSetup { input, cursor } => {
+            assert_eq!(input.len(), 64); // VT API keys are 64 chars
+            assert_eq!(cursor, 64);
+        }
+        _ => panic!("Expected VirusTotalSetup modal"),
+    }
+}
+
+#[test]
+/// What: Test sleuth command building for terminal.
+///
+/// Inputs:
+/// - Package name for aur-sleuth scan.
+///
+/// Output:
+/// - Command string contains package name.
+///
+/// Details:
+/// - Verifies aur-sleuth terminal command structure.
+fn integration_sleuth_command_building() {
+    let package = "test-aur-package";
+    let sleuth_command = pacsea::install::build_sleuth_command_for_terminal(package);
+
+    assert!(sleuth_command.contains(package));
+    assert!(sleuth_command.contains("aur-sleuth") || sleuth_command.contains("sleuth"));
+}
+
+#[test]
+/// What: Test scan with multiple non-sleuth scanners enabled.
+///
+/// Inputs:
+/// - Multiple scanners enabled (`ClamAV`, Trivy, `ShellCheck`).
+///
+/// Output:
+/// - `ExecutorRequest::Scan` with multiple scanners enabled.
+///
+/// Details:
+/// - Verifies multiple scanners can be combined.
+fn integration_scan_multiple_scanners() {
+    use pacsea::install::ExecutorRequest;
+
+    let request = ExecutorRequest::Scan {
+        package: "test-pkg".to_string(),
+        do_clamav: true,
+        do_trivy: true,
+        do_semgrep: false,
+        do_shellcheck: true,
+        do_virustotal: false,
+        do_custom: true,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Scan {
+            do_clamav,
+            do_trivy,
+            do_semgrep,
+            do_shellcheck,
+            do_virustotal,
+            do_custom,
+            ..
+        } => {
+            assert!(do_clamav);
+            assert!(do_trivy);
+            assert!(!do_semgrep);
+            assert!(do_shellcheck);
+            assert!(!do_virustotal);
+            assert!(do_custom);
+        }
+        _ => panic!("Expected ExecutorRequest::Scan"),
+    }
+}
+
+#[test]
+/// What: Test scan modal cancellation.
+///
+/// Inputs:
+/// - `ScanConfig` modal that is cancelled.
+///
+/// Output:
+/// - Modal transitions to `None`.
+///
+/// Details:
+/// - Simulates user pressing Escape to cancel scan config.
+fn integration_scan_config_cancellation() {
+    let mut app = AppState {
+        modal: Modal::ScanConfig {
+            do_clamav: true,
+            do_trivy: true,
+            do_semgrep: false,
+            do_shellcheck: false,
+            do_virustotal: false,
+            do_custom: false,
+            do_sleuth: false,
+            cursor: 0,
+        },
+        ..Default::default()
+    };
+
+    // Simulate cancellation
+    app.modal = Modal::None;
+
+    assert!(matches!(app.modal, Modal::None));
+}

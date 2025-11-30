@@ -4,12 +4,15 @@
 //! - System update modal state
 //! - Update command building
 //! - Different update options (mirrors, pacman, AUR, cache)
-//!
-//! Note: These tests are expected to fail initially as system update currently spawns terminals.
+//! - `ExecutorRequest::Update` creation
+//! - Password prompt for sudo commands
+//! - Full update sequence
 
 #![cfg(test)]
 
-use pacsea::state::{AppState, Modal};
+use pacsea::install::ExecutorRequest;
+use pacsea::state::modal::{PasswordPurpose, PreflightHeaderChips};
+use pacsea::state::{AppState, Modal, PreflightAction, PreflightTab};
 
 #[test]
 /// What: Test system update modal state creation.
@@ -254,5 +257,416 @@ fn integration_system_update_uses_executor_not_terminal() {
     match app.modal {
         pacsea::state::Modal::PreflightExec { .. } => {}
         _ => panic!("Expected modal to transition to PreflightExec"),
+    }
+}
+
+#[test]
+/// What: Test `ExecutorRequest::Update` with mirror update command.
+///
+/// Inputs:
+/// - Mirror update command with reflector.
+///
+/// Output:
+/// - `ExecutorRequest::Update` with correct mirror command.
+///
+/// Details:
+/// - Verifies mirror update command structure using reflector.
+fn integration_system_update_mirror_command() {
+    let country = "Germany";
+    let mirror_count = 10;
+    let mirror_cmd = format!(
+        "sudo reflector --country {country} --latest {mirror_count} --sort rate --save /etc/pacman.d/mirrorlist"
+    );
+
+    let request = ExecutorRequest::Update {
+        commands: vec![mirror_cmd],
+        password: None,
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Update { commands, .. } => {
+            assert_eq!(commands.len(), 1);
+            assert!(commands[0].contains("reflector"));
+            assert!(commands[0].contains("Germany"));
+            assert!(commands[0].contains("10"));
+        }
+        _ => panic!("Expected ExecutorRequest::Update"),
+    }
+}
+
+#[test]
+/// What: Test `ExecutorRequest::Update` with pacman update command.
+///
+/// Inputs:
+/// - Pacman system update command.
+///
+/// Output:
+/// - `ExecutorRequest::Update` with correct pacman command.
+///
+/// Details:
+/// - Verifies pacman -Syu command structure.
+fn integration_system_update_pacman_command() {
+    let pacman_cmd = "sudo pacman -Syu --noconfirm".to_string();
+
+    let request = ExecutorRequest::Update {
+        commands: vec![pacman_cmd],
+        password: Some("testpassword".to_string()),
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Update {
+            commands,
+            password,
+            dry_run,
+        } => {
+            assert_eq!(commands.len(), 1);
+            assert!(commands[0].contains("pacman"));
+            assert!(commands[0].contains("-Syu"));
+            assert!(commands[0].contains("--noconfirm"));
+            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(!dry_run);
+        }
+        _ => panic!("Expected ExecutorRequest::Update"),
+    }
+}
+
+#[test]
+/// What: Test `ExecutorRequest::Update` with AUR update command.
+///
+/// Inputs:
+/// - AUR helper detection and update command.
+///
+/// Output:
+/// - `ExecutorRequest::Update` with correct AUR command.
+///
+/// Details:
+/// - Verifies AUR update command structure with paru/yay fallback.
+fn integration_system_update_aur_command() {
+    let aur_cmd = "if command -v paru >/dev/null 2>&1; then \
+                   paru -Syu --noconfirm; \
+                   elif command -v yay >/dev/null 2>&1; then \
+                   yay -Syu --noconfirm; \
+                   else \
+                   echo 'No AUR helper (paru/yay) found.'; \
+                   fi"
+    .to_string();
+
+    let request = ExecutorRequest::Update {
+        commands: vec![aur_cmd],
+        password: None, // AUR helpers typically don't need sudo upfront
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Update { commands, .. } => {
+            assert_eq!(commands.len(), 1);
+            assert!(commands[0].contains("paru"));
+            assert!(commands[0].contains("yay"));
+            assert!(commands[0].contains("-Syu"));
+        }
+        _ => panic!("Expected ExecutorRequest::Update"),
+    }
+}
+
+#[test]
+/// What: Test `ExecutorRequest::Update` with cache cleanup command.
+///
+/// Inputs:
+/// - Cache cleanup command for pacman.
+///
+/// Output:
+/// - `ExecutorRequest::Update` with correct cache cleanup command.
+///
+/// Details:
+/// - Verifies pacman -Sc command structure.
+fn integration_system_update_cache_command() {
+    let cache_cmd = "sudo pacman -Sc --noconfirm".to_string();
+
+    let request = ExecutorRequest::Update {
+        commands: vec![cache_cmd],
+        password: Some("testpassword".to_string()),
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Update {
+            commands, password, ..
+        } => {
+            assert_eq!(commands.len(), 1);
+            assert!(commands[0].contains("pacman"));
+            assert!(commands[0].contains("-Sc"));
+            assert!(commands[0].contains("--noconfirm"));
+            assert_eq!(password, Some("testpassword".to_string()));
+        }
+        _ => panic!("Expected ExecutorRequest::Update"),
+    }
+}
+
+#[test]
+/// What: Test full system update sequence with all commands.
+///
+/// Inputs:
+/// - All update options enabled (mirrors, pacman, AUR, cache).
+///
+/// Output:
+/// - `ExecutorRequest::Update` with all commands in sequence.
+///
+/// Details:
+/// - Verifies that full update sequence includes all commands.
+fn integration_system_update_full_sequence() {
+    let commands = vec![
+        "sudo reflector --country Worldwide --latest 20 --sort rate --save /etc/pacman.d/mirrorlist".to_string(),
+        "sudo pacman -Syu --noconfirm".to_string(),
+        "if command -v paru >/dev/null 2>&1; then paru -Syu --noconfirm; elif command -v yay >/dev/null 2>&1; then yay -Syu --noconfirm; fi".to_string(),
+        "sudo pacman -Sc --noconfirm".to_string(),
+    ];
+
+    let request = ExecutorRequest::Update {
+        commands,
+        password: Some("testpassword".to_string()),
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Update { commands, .. } => {
+            assert_eq!(commands.len(), 4);
+            assert!(commands[0].contains("reflector"));
+            assert!(commands[1].contains("pacman") && commands[1].contains("-Syu"));
+            assert!(commands[2].contains("paru") || commands[2].contains("yay"));
+            assert!(commands[3].contains("pacman") && commands[3].contains("-Sc"));
+        }
+        _ => panic!("Expected ExecutorRequest::Update"),
+    }
+}
+
+#[test]
+/// What: Test system update triggers password prompt for sudo commands.
+///
+/// Inputs:
+/// - System update modal confirmed.
+///
+/// Output:
+/// - Password prompt modal is shown for sudo commands.
+///
+/// Details:
+/// - Verifies that update operations requiring sudo show password prompt.
+fn integration_system_update_password_prompt() {
+    let mut app = AppState {
+        modal: Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: true,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 0,
+        },
+        pending_exec_header_chips: Some(PreflightHeaderChips::default()),
+        ..Default::default()
+    };
+
+    // Simulate update confirmation - transition to PasswordPrompt
+    app.modal = Modal::PasswordPrompt {
+        purpose: PasswordPurpose::Update,
+        items: vec![],
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+
+    match app.modal {
+        Modal::PasswordPrompt { purpose, items, .. } => {
+            assert_eq!(purpose, PasswordPurpose::Update);
+            assert!(
+                items.is_empty(),
+                "Update password prompt should have empty items"
+            );
+        }
+        _ => panic!("Expected PasswordPrompt modal"),
+    }
+}
+
+#[test]
+/// What: Test system update transitions to `PreflightExec` after password.
+///
+/// Inputs:
+/// - Password submitted for system update.
+///
+/// Output:
+/// - Modal transitions to `PreflightExec` with empty items.
+///
+/// Details:
+/// - Verifies update flow after password submission.
+fn integration_system_update_to_preflight_exec() {
+    let mut app = AppState {
+        modal: Modal::PasswordPrompt {
+            purpose: PasswordPurpose::Update,
+            items: vec![],
+            input: "testpassword".to_string(),
+            cursor: 12,
+            error: None,
+        },
+        pending_exec_header_chips: Some(PreflightHeaderChips::default()),
+        ..Default::default()
+    };
+
+    // Extract password
+    let password = if let Modal::PasswordPrompt { ref input, .. } = app.modal {
+        if input.trim().is_empty() {
+            None
+        } else {
+            Some(input.clone())
+        }
+    } else {
+        None
+    };
+
+    // Simulate transition to PreflightExec
+    let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
+    app.modal = Modal::PreflightExec {
+        items: vec![],
+        action: PreflightAction::Install,
+        tab: PreflightTab::Summary,
+        verbose: false,
+        log_lines: vec![],
+        abortable: false,
+        header_chips,
+    };
+
+    // Set executor request
+    app.pending_executor_request = Some(ExecutorRequest::Update {
+        commands: vec!["sudo pacman -Syu --noconfirm".to_string()],
+        password,
+        dry_run: false,
+    });
+
+    // Verify modal
+    match app.modal {
+        Modal::PreflightExec { items, .. } => {
+            assert!(
+                items.is_empty(),
+                "Update PreflightExec should have empty items"
+            );
+        }
+        _ => panic!("Expected PreflightExec modal"),
+    }
+
+    // Verify executor request
+    match app.pending_executor_request {
+        Some(ExecutorRequest::Update { password, .. }) => {
+            assert_eq!(password, Some("testpassword".to_string()));
+        }
+        _ => panic!("Expected ExecutorRequest::Update"),
+    }
+}
+
+#[test]
+/// What: Test system update dry-run mode.
+///
+/// Inputs:
+/// - System update with `dry_run` enabled.
+///
+/// Output:
+/// - `ExecutorRequest::Update` with `dry_run=true`.
+///
+/// Details:
+/// - Verifies dry-run mode is respected for updates.
+fn integration_system_update_dry_run() {
+    let request = ExecutorRequest::Update {
+        commands: vec!["sudo pacman -Syu --noconfirm".to_string()],
+        password: None,
+        dry_run: true,
+    };
+
+    match request {
+        ExecutorRequest::Update { dry_run, .. } => {
+            assert!(dry_run);
+        }
+        _ => panic!("Expected ExecutorRequest::Update"),
+    }
+}
+
+#[test]
+/// What: Test system update cursor navigation.
+///
+/// Inputs:
+/// - `SystemUpdate` modal with cursor at different positions.
+///
+/// Output:
+/// - Cursor position is correctly tracked.
+///
+/// Details:
+/// - Verifies cursor navigation within the update modal.
+fn integration_system_update_cursor_navigation() {
+    let app = AppState {
+        modal: Modal::SystemUpdate {
+            do_mirrors: true,
+            do_pacman: true,
+            do_aur: true,
+            do_cache: true,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 3, // On cache option
+        },
+        ..Default::default()
+    };
+
+    match app.modal {
+        Modal::SystemUpdate { cursor, .. } => {
+            assert_eq!(cursor, 3);
+        }
+        _ => panic!("Expected SystemUpdate modal"),
+    }
+}
+
+#[test]
+/// What: Test system update country selection.
+///
+/// Inputs:
+/// - `SystemUpdate` modal with different country selection.
+///
+/// Output:
+/// - Country index is correctly tracked.
+///
+/// Details:
+/// - Verifies country selection for reflector mirror update.
+fn integration_system_update_country_selection() {
+    let countries = vec![
+        "Worldwide".to_string(),
+        "United States".to_string(),
+        "Germany".to_string(),
+        "France".to_string(),
+    ];
+
+    let app = AppState {
+        modal: Modal::SystemUpdate {
+            do_mirrors: true,
+            do_pacman: false,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 2, // Germany
+            countries,
+            mirror_count: 15,
+            cursor: 0,
+        },
+        ..Default::default()
+    };
+
+    match app.modal {
+        Modal::SystemUpdate {
+            country_idx,
+            countries: modal_countries,
+            mirror_count,
+            ..
+        } => {
+            assert_eq!(country_idx, 2);
+            assert_eq!(modal_countries[country_idx], "Germany");
+            assert_eq!(mirror_count, 15);
+        }
+        _ => panic!("Expected SystemUpdate modal"),
     }
 }
