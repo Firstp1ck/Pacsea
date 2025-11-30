@@ -164,12 +164,12 @@ fn render_sidebar(
                 .fg(th.subtext1)
                 .add_modifier(Modifier::BOLD),
         )));
-    for p in items.iter().take(10) {
-        let p_name = &p.name;
-        s_lines.push(Line::from(Span::styled(
+        for p in items.iter().take(10) {
+            let p_name = &p.name;
+            s_lines.push(Line::from(Span::styled(
                 format!("  • {p_name}"),
-            Style::default().fg(th.text),
-        )));
+                Style::default().fg(th.text),
+            )));
         }
         if items.len() > 10 {
             let remaining = items.len() - 10;
