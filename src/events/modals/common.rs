@@ -56,7 +56,7 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
                 app.modal = crate::state::Modal::None;
             }
             // Return true for lockout alerts to stop propagation and abort the process
-            if is_lockout { true } else { false }
+            is_lockout
         }
         KeyCode::Up if is_help => {
             app.help_scroll = app.help_scroll.saturating_sub(1);

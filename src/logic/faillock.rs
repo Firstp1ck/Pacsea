@@ -37,7 +37,7 @@ pub struct FaillockStatus {
 pub struct FaillockConfig {
     /// Maximum number of failed attempts before lockout (deny setting).
     pub deny: u32,
-    /// Lockout duration in minutes (fail_interval setting).
+    /// Lockout duration in minutes (`fail_interval` setting).
     pub fail_interval: u32,
 }
 
@@ -49,7 +49,8 @@ pub struct FaillockConfig {
 /// Output:
 /// - `Ok(FaillockStatus)` with status information, or `Err(String)` on error.
 ///
-/// Errors:
+/// # Errors
+///
 /// - Returns `Err` if the `faillock` command cannot be executed.
 ///
 /// Details:
@@ -59,7 +60,7 @@ pub struct FaillockConfig {
 /// - Returns status with attempt count, max attempts, lock status, and lockout duration.
 pub fn check_faillock_status(username: &str) -> Result<FaillockStatus, String> {
     // Get config first to determine max attempts and lockout duration
-    let config = parse_faillock_config().unwrap_or_else(|_| FaillockConfig {
+    let config = parse_faillock_config().unwrap_or(FaillockConfig {
         deny: 3,
         fail_interval: 15,
     });
@@ -136,20 +137,21 @@ pub fn check_faillock_status(username: &str) -> Result<FaillockStatus, String> {
                         // First, assume the timestamp is in local timezone
                         let local_dt = dt.and_local_timezone(chrono::Local);
                         // Get the single valid timezone conversion (or use UTC as fallback)
-                        let dt_utc = if let Some(dt_local) = local_dt.single() {
-                            dt_local.with_timezone(&chrono::Utc)
-                        } else {
-                            dt.and_utc()
-                        };
+                        let dt_utc = local_dt.single().map_or_else(
+                            || dt.and_utc(),
+                            |dt_local| dt_local.with_timezone(&chrono::Utc),
+                        );
                         // Convert chrono DateTime to SystemTime
                         let unix_timestamp = dt_utc.timestamp();
-                        if unix_timestamp >= 0 {
-                            if let Some(st) = std::time::SystemTime::UNIX_EPOCH
-                                .checked_add(std::time::Duration::from_secs(unix_timestamp as u64))
-                            {
-                                // Keep the most recent timestamp (faillock shows oldest first, so last one is newest)
-                                most_recent_timestamp = Some(st);
-                            }
+                        if unix_timestamp >= 0
+                            && let Some(st) = std::time::SystemTime::UNIX_EPOCH.checked_add(
+                                std::time::Duration::from_secs(
+                                    u64::try_from(unix_timestamp).unwrap_or(0),
+                                ),
+                            )
+                        {
+                            // Keep the most recent timestamp (faillock shows oldest first, so last one is newest)
+                            most_recent_timestamp = Some(st);
                         }
                     }
                 }
@@ -162,21 +164,15 @@ pub fn check_faillock_status(username: &str) -> Result<FaillockStatus, String> {
 
     // If locked, check if lockout has expired based on timestamp
     let is_locked = if should_be_locked {
-        if let Some(last_timestamp) = most_recent_timestamp {
+        most_recent_timestamp.map_or(should_be_locked, |last_timestamp| {
             // Check if lockout duration has passed since last failed attempt
             let now = std::time::SystemTime::now();
-            if let Ok(elapsed) = now.duration_since(last_timestamp) {
+            now.duration_since(last_timestamp).map_or(true, |elapsed| {
                 let lockout_seconds = u64::from(config.fail_interval) * 60;
                 // If elapsed time is less than lockout duration, user is still locked
                 elapsed.as_secs() < lockout_seconds
-            } else {
-                // Timestamp is in future (timezone issue), assume still locked
-                true
-            }
-        } else {
-            // No timestamp available, use attempt count
-            should_be_locked
-        }
+            })
+        })
     } else {
         false
     };
@@ -197,7 +193,8 @@ pub fn check_faillock_status(username: &str) -> Result<FaillockStatus, String> {
 /// Output:
 /// - `Ok(FaillockConfig)` with parsed values, or `Err(String)` on error.
 ///
-/// Errors:
+/// # Errors
+///
 /// - Returns `Err` if the config file cannot be read (though defaults are used in practice).
 ///
 /// Details:
@@ -209,15 +206,12 @@ pub fn parse_faillock_config() -> Result<FaillockConfig, String> {
     use std::fs;
 
     let config_path = "/etc/security/faillock.conf";
-    let contents = match fs::read_to_string(config_path) {
-        Ok(c) => c,
-        Err(_) => {
-            // File doesn't exist or can't be read, use defaults
-            return Ok(FaillockConfig {
-                deny: 3,
-                fail_interval: 15,
-            });
-        }
+    let Ok(contents) = fs::read_to_string(config_path) else {
+        // File doesn't exist or can't be read, use defaults
+        return Ok(FaillockConfig {
+            deny: 3,
+            fail_interval: 15,
+        });
     };
 
     let mut deny = 3u32; // Default
@@ -235,22 +229,22 @@ pub fn parse_faillock_config() -> Result<FaillockConfig, String> {
         let line_without_comment = trimmed.split('#').next().unwrap_or("").trim();
 
         // Parse deny setting
-        if line_without_comment.starts_with("deny") {
-            if let Some(value_str) = line_without_comment.split('=').nth(1) {
-                let value_trimmed = value_str.trim();
-                if let Ok(value) = value_trimmed.parse::<u32>() {
-                    deny = value;
-                }
+        if line_without_comment.starts_with("deny")
+            && let Some(value_str) = line_without_comment.split('=').nth(1)
+        {
+            let value_trimmed = value_str.trim();
+            if let Ok(value) = value_trimmed.parse::<u32>() {
+                deny = value;
             }
         }
 
         // Parse fail_interval setting
-        if line_without_comment.starts_with("fail_interval") {
-            if let Some(value_str) = line_without_comment.split('=').nth(1) {
-                let value_trimmed = value_str.trim();
-                if let Ok(value) = value_trimmed.parse::<u32>() {
-                    fail_interval = value;
-                }
+        if line_without_comment.starts_with("fail_interval")
+            && let Some(value_str) = line_without_comment.split('=').nth(1)
+        {
+            let value_trimmed = value_str.trim();
+            if let Ok(value) = value_trimmed.parse::<u32>() {
+                fail_interval = value;
             }
         }
     }
@@ -273,22 +267,23 @@ pub fn parse_faillock_config() -> Result<FaillockConfig, String> {
 /// Details:
 /// - Checks faillock status and returns formatted lockout message if locked.
 /// - Returns `None` if not locked or if check fails.
-/// - Uses translations from AppState.
+/// - Uses translations from `AppState`.
+#[must_use]
 pub fn get_lockout_message_if_locked(
     username: &str,
     app: &crate::state::AppState,
 ) -> Option<String> {
-    if let Ok(status) = check_faillock_status(username) {
-        if status.is_locked {
-            return Some(crate::i18n::t_fmt(
-                app,
-                "app.modals.alert.account_locked_before_prompt",
-                &[
-                    &username as &dyn std::fmt::Display,
-                    &status.lockout_duration_minutes,
-                ],
-            ));
-        }
+    if let Ok(status) = check_faillock_status(username)
+        && status.is_locked
+    {
+        return Some(crate::i18n::t_fmt(
+            app,
+            "app.modals.alert.account_locked_before_prompt",
+            &[
+                &username as &dyn std::fmt::Display,
+                &status.lockout_duration_minutes,
+            ],
+        ));
     }
     None
 }
@@ -305,30 +300,24 @@ pub fn get_lockout_message_if_locked(
 /// Details:
 /// - Calculates time elapsed since last failed attempt.
 /// - Returns remaining minutes if lockout is still active, `None` if expired.
+#[must_use]
 pub fn calculate_remaining_lockout_minutes(
     last_timestamp: &std::time::SystemTime,
     lockout_duration_minutes: u32,
 ) -> Option<u32> {
     let now = std::time::SystemTime::now();
-    match now.duration_since(*last_timestamp) {
-        Ok(elapsed) => {
+    now.duration_since(*last_timestamp)
+        .map_or(Some(lockout_duration_minutes), |elapsed| {
             let lockout_seconds = u64::from(lockout_duration_minutes) * 60;
             if elapsed.as_secs() < lockout_seconds {
                 let remaining_seconds = lockout_seconds - elapsed.as_secs();
                 let remaining_minutes =
-                    (remaining_seconds / 60) + if remaining_seconds % 60 > 0 { 1 } else { 0 };
-                Some(remaining_minutes.min(u32::MAX as u64) as u32)
+                    (remaining_seconds / 60) + u64::from(remaining_seconds % 60 > 0);
+                Some(u32::try_from(remaining_minutes.min(u64::from(u32::MAX))).unwrap_or(u32::MAX))
             } else {
                 None // Lockout expired
             }
-        }
-        Err(_) => {
-            // Timestamp is in the future (timezone issue or clock skew)
-            // In this case, assume lockout is still active and calculate from now
-            // This handles timezone mismatches gracefully
-            Some(lockout_duration_minutes)
-        }
-    }
+        })
 }
 
 /// What: Check faillock status and calculate lockout information for display.
@@ -342,26 +331,25 @@ pub fn calculate_remaining_lockout_minutes(
 /// Details:
 /// - Checks faillock status and calculates remaining lockout time if locked.
 /// - Returns lockout information for UI display.
+#[must_use]
 pub fn get_lockout_info(username: &str) -> (bool, Option<std::time::SystemTime>, Option<u32>) {
-    if let Ok(status) = check_faillock_status(username) {
-        if status.is_locked {
-            if let Some(last_timestamp) = status.last_failed_timestamp {
-                let remaining = calculate_remaining_lockout_minutes(
-                    &last_timestamp,
-                    status.lockout_duration_minutes,
-                );
-                // Calculate lockout_until timestamp
-                let lockout_until = last_timestamp
-                    + std::time::Duration::from_secs(
-                        u64::from(status.lockout_duration_minutes) * 60,
-                    );
-                // Return remaining time - if None, it means lockout expired, show 0
-                // But if timestamp is in future (timezone issue), remaining should be Some
-                return (true, Some(lockout_until), remaining);
-            }
-            // Locked but no timestamp - still show as locked but no time remaining
-            return (true, None, Some(0));
+    if let Ok(status) = check_faillock_status(username)
+        && status.is_locked
+    {
+        if let Some(last_timestamp) = status.last_failed_timestamp {
+            let remaining = calculate_remaining_lockout_minutes(
+                &last_timestamp,
+                status.lockout_duration_minutes,
+            );
+            // Calculate lockout_until timestamp
+            let lockout_until = last_timestamp
+                + std::time::Duration::from_secs(u64::from(status.lockout_duration_minutes) * 60);
+            // Return remaining time - if None, it means lockout expired, show 0
+            // But if timestamp is in future (timezone issue), remaining should be Some
+            return (true, Some(lockout_until), remaining);
         }
+        // Locked but no timestamp - still show as locked but no time remaining
+        return (true, None, Some(0));
     }
     (false, None, None)
 }
@@ -379,7 +367,7 @@ mod tests {
     /// - Config file that doesn't exist or has commented settings.
     ///
     /// Output:
-    /// - Returns default values (deny=3, fail_interval=15).
+    /// - Returns default values (deny=3, `fail_interval=15`).
     ///
     /// Details:
     /// - Verifies default values are used when config is missing or commented.
@@ -394,7 +382,7 @@ mod tests {
     /// What: Test parsing faillock config with custom values.
     ///
     /// Inputs:
-    /// - Temporary config file with custom deny and fail_interval values.
+    /// - Temporary config file with custom deny and `fail_interval` values.
     ///
     /// Output:
     /// - Returns parsed values from config file.
@@ -446,15 +434,12 @@ mod tests {
         let username = std::env::var("USER").unwrap_or_else(|_| "testuser".to_string());
         let result = check_faillock_status(&username);
         // Should return Ok or handle errors gracefully
-        match result {
-            Ok(status) => {
-                // Verify status has reasonable values
-                assert!(status.max_attempts > 0);
-                assert!(status.lockout_duration_minutes > 0);
-            }
-            Err(_) => {
-                // Error is acceptable (e.g., faillock not configured)
-            }
+        if let Ok(status) = result {
+            // Verify status has reasonable values
+            assert!(status.max_attempts > 0);
+            assert!(status.lockout_duration_minutes > 0);
+        } else {
+            // Error is acceptable (e.g., faillock not configured)
         }
     }
 
@@ -473,10 +458,10 @@ mod tests {
         let username = std::env::var("USER").unwrap_or_else(|_| "testuser".to_string());
         if let Ok(status) = check_faillock_status(&username) {
             // Verify all fields are present
-            let _attempts = status.attempts_used;
-            let _max = status.max_attempts;
-            let _locked = status.is_locked;
-            let _duration = status.lockout_duration_minutes;
+            let _ = status.attempts_used;
+            let _ = status.max_attempts;
+            let _ = status.is_locked;
+            let _ = status.lockout_duration_minutes;
             // Just verify the struct can be accessed
         }
     }

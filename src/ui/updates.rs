@@ -45,19 +45,20 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     // Check if lockout status should be displayed
     let lockout_text = if app.faillock_locked {
-        if let Some(remaining) = app.faillock_remaining_minutes {
-            if remaining > 0 {
-                Some(crate::i18n::t_fmt1(
-                    app,
-                    "app.updates_button.locked_with_time",
-                    remaining,
-                ))
-            } else {
-                Some(crate::i18n::t(app, "app.updates_button.locked"))
-            }
-        } else {
-            Some(crate::i18n::t(app, "app.updates_button.locked"))
-        }
+        app.faillock_remaining_minutes.map_or_else(
+            || Some(crate::i18n::t(app, "app.updates_button.locked")),
+            |remaining| {
+                if remaining > 0 {
+                    Some(crate::i18n::t_fmt1(
+                        app,
+                        "app.updates_button.locked_with_time",
+                        remaining,
+                    ))
+                } else {
+                    Some(crate::i18n::t(app, "app.updates_button.locked"))
+                }
+            },
+        )
     } else {
         None
     };
