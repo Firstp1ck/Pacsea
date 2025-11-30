@@ -278,6 +278,75 @@ pub(super) fn handle_confirm_batch_update_modal(
                         &items_clone,
                         crate::state::PreflightAction::Install,
                         header_chips,
+                        None,
+                    );
+                }
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// What: Handle key events for `ConfirmReinstall` modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `ConfirmReinstall` modal variant
+///
+/// Output:
+/// - `true` if modal was closed/transitioned, `false` otherwise
+///
+/// Details:
+/// - Handles Esc/q to cancel, Enter to proceed with reinstall
+pub(super) fn handle_confirm_reinstall_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ConfirmReinstall {
+        items,
+        header_chips,
+    } = modal
+    {
+        match ke.code {
+            KeyCode::Esc | KeyCode::Char('q' | 'Q') => {
+                // Cancel reinstall
+                app.modal = crate::state::Modal::None;
+                return true;
+            }
+            KeyCode::Enter => {
+                // Proceed with reinstall - use executor pattern
+                let items_clone = items.clone();
+                let header_chips_clone = header_chips.clone();
+                // Retrieve password that was stored when reinstall confirmation was shown
+                let password = app.pending_executor_password.take();
+
+                // Check if password is needed
+                let has_official = items_clone
+                    .iter()
+                    .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
+                if has_official && password.is_none() {
+                    // Show password prompt (password wasn't provided yet)
+                    app.modal = crate::state::Modal::PasswordPrompt {
+                        purpose: crate::state::modal::PasswordPurpose::Install,
+                        items: items_clone,
+                        input: String::new(),
+                        cursor: 0,
+                        error: None,
+                    };
+                    app.pending_exec_header_chips = Some(header_chips_clone);
+                } else {
+                    // Password already obtained or not needed, go directly to execution
+                    use crate::events::preflight::keys;
+                    keys::start_execution(
+                        app,
+                        &items_clone,
+                        crate::state::PreflightAction::Install,
+                        header_chips_clone,
+                        password,
                     );
                 }
                 return true;
@@ -626,11 +695,30 @@ pub(super) fn handle_password_prompt_modal(
                 return true;
             }
 
-            // Transition to PreflightExec for install/remove/update
+            // For Install actions, use start_execution to check for reinstall scenarios
+            // This ensures the reinstall confirmation modal is shown if needed
+            if matches!(
+                purpose,
+                crate::state::modal::PasswordPurpose::Install
+                    | crate::state::modal::PasswordPurpose::Update
+            ) {
+                use crate::events::preflight::keys;
+                keys::start_execution(
+                    app,
+                    items,
+                    crate::state::PreflightAction::Install,
+                    header_chips,
+                    password,
+                );
+                return true;
+            }
+
+            // For Remove actions, proceed directly (no reinstall check needed)
             let action = match purpose {
                 crate::state::modal::PasswordPurpose::Install
                 | crate::state::modal::PasswordPurpose::Update => {
-                    crate::state::PreflightAction::Install
+                    // This should never be reached due to the check above
+                    unreachable!("Install/Update should be handled above")
                 }
                 crate::state::modal::PasswordPurpose::Remove => {
                     crate::state::PreflightAction::Remove
@@ -650,14 +738,13 @@ pub(super) fn handle_password_prompt_modal(
                 header_chips,
             };
 
-            // Store executor request for install/remove/update
+            // Store executor request for remove
             app.pending_executor_request = Some(match purpose {
                 crate::state::modal::PasswordPurpose::Install
-                | crate::state::modal::PasswordPurpose::Update => ExecutorRequest::Install {
-                    items: items.clone(),
-                    password,
-                    dry_run: app.dry_run,
-                },
+                | crate::state::modal::PasswordPurpose::Update => {
+                    // This should never be reached due to the check above
+                    unreachable!("Install/Update should be handled above")
+                }
                 crate::state::modal::PasswordPurpose::Remove => {
                     let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
                     ExecutorRequest::Remove {

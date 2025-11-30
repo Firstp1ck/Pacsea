@@ -419,6 +419,11 @@ pub enum Modal {
     Loading { message: String },
     /// Confirmation dialog for installing the given items.
     ConfirmInstall { items: Vec<PackageItem> },
+    /// Confirmation dialog for reinstalling already installed packages.
+    ConfirmReinstall {
+        items: Vec<PackageItem>,
+        header_chips: PreflightHeaderChips,
+    },
     /// Confirmation dialog for batch updates that may cause dependency conflicts.
     ConfirmBatchUpdate {
         items: Vec<PackageItem>,
@@ -609,6 +614,10 @@ mod tests {
             message: "hi".into(),
         };
         let _ = super::Modal::ConfirmInstall { items: Vec::new() };
+        let _ = super::Modal::ConfirmReinstall {
+            items: Vec::new(),
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        };
         let _ = super::Modal::Help;
         let _ = super::Modal::ConfirmRemove { items: Vec::new() };
         let _ = super::Modal::SystemUpdate {

@@ -129,16 +129,50 @@ pub fn build_install_command_for_executor(
     if dry_run {
         if !aur.is_empty() {
             let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            // Check if any packages are already installed (reinstall scenario)
+            // Use comprehensive check that includes packages provided by installed packages
+            let installed_set = crate::logic::deps::get_installed_packages();
+            let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+            let has_reinstall = items.iter().any(|item| {
+                crate::logic::deps::is_package_installed_or_provided(
+                    &item.name,
+                    &installed_set,
+                    &provided_set,
+                )
+            });
+            let flags = if has_reinstall {
+                "--noconfirm"
+            } else {
+                "--needed --noconfirm"
+            };
             let cmd = format!(
-                "(paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n})",
-                n = all.join(" ")
+                "(paru -S {flags} {n} || yay -S {flags} {n})",
+                n = all.join(" "),
+                flags = flags
             );
             let quoted = shell_single_quote(&cmd);
             format!("echo DRY RUN: {quoted}")
         } else if !official.is_empty() {
+            // Check if any packages are already installed (reinstall scenario)
+            // Use comprehensive check that includes packages provided by installed packages
+            let installed_set = crate::logic::deps::get_installed_packages();
+            let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+            let has_reinstall = official.iter().any(|name| {
+                crate::logic::deps::is_package_installed_or_provided(
+                    name,
+                    &installed_set,
+                    &provided_set,
+                )
+            });
+            let flags = if has_reinstall {
+                "--noconfirm"
+            } else {
+                "--needed --noconfirm"
+            };
             let cmd = format!(
-                "sudo pacman -S --needed --noconfirm {n}",
-                n = official.join(" ")
+                "sudo pacman -S {flags} {n}",
+                n = official.join(" "),
+                flags = flags
             );
             let quoted = shell_single_quote(&cmd);
             format!("echo DRY RUN: {quoted}")
@@ -148,9 +182,41 @@ pub fn build_install_command_for_executor(
     } else if !aur.is_empty() {
         let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
         let n = all.join(" ");
-        aur_install_body("-S --needed --noconfirm", &n)
+        // Check if any packages are already installed (reinstall scenario)
+        // Use comprehensive check that includes packages provided by installed packages
+        let installed_set = crate::logic::deps::get_installed_packages();
+        let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+        let has_reinstall = items.iter().any(|item| {
+            crate::logic::deps::is_package_installed_or_provided(
+                &item.name,
+                &installed_set,
+                &provided_set,
+            )
+        });
+        let flags = if has_reinstall {
+            "-S --noconfirm"
+        } else {
+            "-S --needed --noconfirm"
+        };
+        aur_install_body(flags, &n)
     } else if !official.is_empty() {
-        let base_cmd = format!("pacman -S --needed --noconfirm {}", official.join(" "));
+        // Check if any packages are already installed (reinstall scenario)
+        // Use comprehensive check that includes packages provided by installed packages
+        let installed_set = crate::logic::deps::get_installed_packages();
+        let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+        let has_reinstall = official.iter().any(|name| {
+            crate::logic::deps::is_package_installed_or_provided(
+                name,
+                &installed_set,
+                &provided_set,
+            )
+        });
+        let flags = if has_reinstall {
+            "--noconfirm"
+        } else {
+            "--needed --noconfirm"
+        };
+        let base_cmd = format!("pacman -S {flags} {}", official.join(" "));
         // Use printf to pipe password to sudo -S (more reliable than echo)
         password.map_or_else(
             || format!("sudo {base_cmd}"),

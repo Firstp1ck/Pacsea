@@ -49,6 +49,7 @@ pub(super) fn handle_modal_key(
         Modal::SystemUpdate { .. } => handlers::handle_system_update_modal(ke, app, modal),
         Modal::ConfirmInstall { .. } => handlers::handle_confirm_install_modal(ke, app, &modal),
         Modal::ConfirmRemove { .. } => handlers::handle_confirm_remove_modal(ke, app, &modal),
+        Modal::ConfirmReinstall { .. } => handlers::handle_confirm_reinstall_modal(ke, app, &modal),
         Modal::ConfirmBatchUpdate { .. } => {
             handlers::handle_confirm_batch_update_modal(ke, app, &modal)
         }

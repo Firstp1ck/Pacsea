@@ -80,7 +80,8 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
     };
 
     if should_close {
-        // Check if we need to show password prompt or go directly to execution
+        // Use the same flow as "p" key - delegate to handle_proceed functions
+        // This ensures reinstall check and batch update check happen before password prompt
         let (items_clone, action_clone, header_chips_clone, cascade_mode) =
             if let crate::state::Modal::Preflight {
                 items,
@@ -111,43 +112,20 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
         };
         close_preflight_modal(app, &service_info);
 
-        // Handle based on action type
+        // Use the same proceed handlers as "p" key to ensure consistent flow
         match action_clone {
             crate::state::PreflightAction::Install => {
-                // Check if password is needed for install
-                let has_official = items_clone
-                    .iter()
-                    .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
-                if has_official {
-                    // Show password prompt
-                    app.modal = crate::state::Modal::PasswordPrompt {
-                        purpose: crate::state::modal::PasswordPurpose::Install,
-                        items: items_clone,
-                        input: String::new(),
-                        cursor: 0,
-                        error: None,
-                    };
-                    // Store header_chips for later use in PreflightExec
-                    app.pending_exec_header_chips = Some(header_chips_clone);
-                } else {
-                    // No password needed, go directly to execution
-                    start_execution(app, &items_clone, action_clone, header_chips_clone);
-                }
+                use super::command_keys;
+                command_keys::handle_proceed_install(app, items_clone, header_chips_clone);
             }
             crate::state::PreflightAction::Remove => {
-                // Remove operations always need sudo (pacman -R requires sudo regardless of package source)
-                // Always show password prompt - user can press Enter if passwordless sudo is configured
-                // Store cascade mode for executor (needed in both password and non-password paths)
-                app.remove_cascade_mode = cascade_mode;
-
-                app.modal = crate::state::Modal::PasswordPrompt {
-                    purpose: crate::state::modal::PasswordPurpose::Remove,
-                    items: items_clone,
-                    input: String::new(),
-                    cursor: 0,
-                    error: None,
-                };
-                app.pending_exec_header_chips = Some(header_chips_clone);
+                use super::command_keys;
+                command_keys::handle_proceed_remove(
+                    app,
+                    items_clone,
+                    cascade_mode,
+                    header_chips_clone,
+                );
             }
             crate::state::PreflightAction::Downgrade => {
                 // Downgrade operations always need sudo (downgrade tool requires sudo)
@@ -175,6 +153,7 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
 /// - `items`: Packages to install/remove
 /// - `action`: Install or Remove action
 /// - `header_chips`: Header chip metrics
+/// - `password`: Optional password (if already obtained from password prompt)
 ///
 /// Details:
 /// - Transitions to `PreflightExec` modal and stores `ExecutorRequest` for processing in tick handler
@@ -184,8 +163,12 @@ pub fn start_execution(
     items: &[crate::state::PackageItem],
     action: crate::state::PreflightAction,
     header_chips: crate::state::modal::PreflightHeaderChips,
+    password: Option<String>,
 ) {
     use crate::install::ExecutorRequest;
+
+    // Note: Reinstall check is now done in handle_proceed_install BEFORE password prompt
+    // This function is called after reinstall confirmation (if needed) and password prompt (if needed)
 
     // Transition to PreflightExec modal
     app.modal = crate::state::Modal::PreflightExec {
@@ -202,14 +185,14 @@ pub fn start_execution(
     app.pending_executor_request = Some(match action {
         crate::state::PreflightAction::Install => ExecutorRequest::Install {
             items: items.to_vec(),
-            password: None, // No password needed for AUR-only installs
+            password,
             dry_run: app.dry_run,
         },
         crate::state::PreflightAction::Remove => {
             let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
             ExecutorRequest::Remove {
                 names,
-                password: None, // Password is handled via PasswordPrompt modal before reaching here
+                password,
                 cascade: app.remove_cascade_mode,
                 dry_run: app.dry_run,
             }
@@ -218,7 +201,7 @@ pub fn start_execution(
             let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
             ExecutorRequest::Downgrade {
                 names,
-                password: None, // Password is handled via PasswordPrompt modal before reaching here
+                password,
                 dry_run: app.dry_run,
             }
         }

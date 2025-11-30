@@ -518,6 +518,8 @@ pub struct AppState {
     pub pending_exec_header_chips: Option<crate::state::modal::PreflightHeaderChips>,
     /// Custom command to execute after password prompt (for special packages like paru/yay/semgrep-bin).
     pub pending_custom_command: Option<String>,
+    /// Password obtained from password prompt, stored temporarily for reinstall confirmation flow.
+    pub pending_executor_password: Option<String>,
 }
 
 #[cfg(test)]

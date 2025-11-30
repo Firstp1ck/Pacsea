@@ -13,16 +13,19 @@ mod utils;
 use crate::state::modal::{DependencyInfo, DependencyStatus};
 use crate::state::types::{PackageItem, Source};
 use parse::parse_dep_spec;
-use query::get_upgradable_packages;
 use resolve::{batch_fetch_official_deps, fetch_package_conflicts, resolve_package_deps};
 use source::{determine_dependency_source, is_system_package};
 use status::determine_status;
 use std::collections::{HashMap, HashSet};
 use utils::dependency_priority;
 
-pub use query::{get_installed_packages, get_provided_packages, is_package_installed_or_provided};
+pub use query::{
+    get_installed_packages, get_provided_packages, get_upgradable_packages,
+    is_package_installed_or_provided,
+};
 pub use reverse::{
-    ReverseDependencyReport, has_installed_required_by, resolve_reverse_dependencies,
+    ReverseDependencyReport, get_installed_required_by, has_installed_required_by,
+    resolve_reverse_dependencies,
 };
 pub use status::{get_installed_version, version_satisfies};
 

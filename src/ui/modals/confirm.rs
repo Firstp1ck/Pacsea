@@ -268,3 +268,87 @@ pub fn render_confirm_batch_update(
         );
     f.render_widget(boxw, rect);
 }
+
+/// What: Render the confirmation modal for reinstalling already installed packages.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: `AppState` for translations
+/// - `area`: Full screen area used to center the modal
+/// - `items`: Packages to reinstall
+///
+/// Output:
+/// - Draws the reinstall confirmation dialog.
+///
+/// Details:
+/// - Shows warning message about reinstalling packages and instructions for confirm/cancel.
+#[allow(clippy::many_single_char_names)]
+pub fn render_confirm_reinstall(f: &mut Frame, _app: &AppState, area: Rect, items: &[PackageItem]) {
+    let th = theme();
+    let w = area.width.saturating_sub(6).min(90);
+    let h = area.height.saturating_sub(6).min(20);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    f.render_widget(Clear, rect);
+    let mut lines = vec![
+        Line::from(Span::styled(
+            "Reinstall packages?",
+            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "The following packages are already installed and will be reinstalled:",
+            Style::default().fg(th.subtext1),
+        )),
+        Line::from(""),
+    ];
+    if items.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "No packages to reinstall",
+            Style::default().fg(th.subtext1),
+        )));
+    } else {
+        for p in items.iter().take((h as usize).saturating_sub(8)) {
+            let p_name = &p.name;
+            lines.push(Line::from(Span::styled(
+                format!("- {p_name}"),
+                Style::default().fg(th.text),
+            )));
+        }
+        if items.len() + 8 > h as usize {
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "... and {} more",
+                    items.len().saturating_sub((h as usize).saturating_sub(8))
+                ),
+                Style::default().fg(th.subtext1),
+            )));
+        }
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "Press Enter to confirm reinstall, Esc to cancel",
+        Style::default().fg(th.subtext1),
+    )));
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    "Reinstall Confirmation",
+                    Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.yellow))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+}

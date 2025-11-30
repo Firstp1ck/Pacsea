@@ -20,6 +20,19 @@ use crate::ui::modals::{
 ///
 /// Details:
 /// - Delegates to `confirm::render_confirm_batch_update` and reconstructs the modal variant
+fn render_confirm_reinstall_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: ConfirmReinstallContext,
+) -> Modal {
+    confirm::render_confirm_reinstall(f, app, area, &ctx.items);
+    Modal::ConfirmReinstall {
+        items: ctx.items,
+        header_chips: ctx.header_chips,
+    }
+}
+
 fn render_confirm_batch_update_modal(
     f: &mut Frame,
     app: &AppState,
@@ -144,6 +157,11 @@ struct ConfirmRemoveContext {
 /// Output: Groups related fields together for passing to render functions.
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+struct ConfirmReinstallContext {
+    items: Vec<crate::state::PackageItem>,
+    header_chips: PreflightHeaderChips,
+}
+
 struct ConfirmBatchUpdateContext {
     items: Vec<crate::state::PackageItem>,
     dry_run: bool,
@@ -291,6 +309,16 @@ impl ModalRenderer for Modal {
             Self::ConfirmRemove { items } => {
                 let ctx = ConfirmRemoveContext { items };
                 render_confirm_remove_modal(f, app, area, ctx)
+            }
+            Self::ConfirmReinstall {
+                items,
+                header_chips,
+            } => {
+                let ctx = ConfirmReinstallContext {
+                    items,
+                    header_chips,
+                };
+                render_confirm_reinstall_modal(f, app, area, ctx)
             }
             Self::ConfirmBatchUpdate { items, dry_run } => {
                 let ctx = ConfirmBatchUpdateContext { items, dry_run };

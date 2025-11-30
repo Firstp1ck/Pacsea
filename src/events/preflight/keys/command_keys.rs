@@ -216,23 +216,88 @@ fn extract_install_targets(
 ///
 /// Output: `false` to keep TUI open.
 ///
-/// Details: Checks for batch updates, handles password prompt if needed, or starts execution.
-fn handle_proceed_install(
+/// Details: Checks for reinstalls first, then batch updates (only if update available), handles password prompt if needed, or starts execution.
+pub(super) fn handle_proceed_install(
     app: &mut AppState,
     packages: Vec<PackageItem>,
     header_chips: crate::state::modal::PreflightHeaderChips,
 ) -> bool {
+    // First, check if we're installing packages that are already installed (reinstall scenario)
+    // This check happens BEFORE password prompt
+    // BUT exclude packages that have updates available (those should go through normal update flow)
+    let installed_set = crate::logic::deps::get_installed_packages();
+    let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+    let upgradable_set = crate::logic::deps::get_upgradable_packages();
+
+    let installed_packages: Vec<crate::state::PackageItem> = packages
+        .iter()
+        .filter(|item| {
+            // Check if package is installed or provided by an installed package
+            let is_installed = crate::logic::deps::is_package_installed_or_provided(
+                &item.name,
+                &installed_set,
+                &provided_set,
+            );
+
+            if !is_installed {
+                return false;
+            }
+
+            // Check if package has an update available
+            // For official packages: check if it's in upgradable_set
+            // For AUR packages: check if target version is different/newer than installed version
+            let has_update = if upgradable_set.contains(&item.name) {
+                // Official package with update available
+                true
+            } else if matches!(item.source, crate::state::Source::Aur) && !item.version.is_empty() {
+                // AUR package: compare target version with installed version
+                // Use simple string comparison for AUR packages
+                // If target version is different from installed, it's an update
+                crate::logic::deps::get_installed_version(&item.name)
+                    .is_ok_and(|installed_version| item.version != installed_version)
+            } else {
+                // No update available
+                false
+            };
+
+            // Only show reinstall confirmation if installed AND no update available
+            // If update is available, it should go through normal update flow
+            !has_update
+        })
+        .cloned()
+        .collect();
+
+    if !installed_packages.is_empty() {
+        // Show reinstall confirmation modal (before password prompt)
+        app.modal = crate::state::Modal::ConfirmReinstall {
+            items: installed_packages,
+            header_chips,
+        };
+        return false; // Don't close modal yet, wait for confirmation
+    }
+
     // Check if this is a batch update scenario requiring confirmation
+    // Only show if there's actually an update available (package is upgradable)
+    // AND the package has installed packages in its "Required By" field (dependency risk)
+    let upgradable_set = crate::logic::deps::get_upgradable_packages();
     let has_versions = packages.iter().any(|item| {
         matches!(item.source, crate::state::Source::Official { .. }) && !item.version.is_empty()
     });
-    let reinstall_any = packages.iter().any(|item| {
+    let has_upgrade_available = packages.iter().any(|item| {
         matches!(item.source, crate::state::Source::Official { .. })
-            && crate::index::is_installed(&item.name)
+            && upgradable_set.contains(&item.name)
     });
 
-    if has_versions && reinstall_any {
-        // Show confirmation modal for batch updates
+    // Only show warning if package has installed packages in "Required By" (dependency risk)
+    let has_installed_required_by = packages.iter().any(|item| {
+        matches!(item.source, crate::state::Source::Official { .. })
+            && crate::index::is_installed(&item.name)
+            && crate::logic::deps::has_installed_required_by(&item.name)
+    });
+
+    if has_versions && has_upgrade_available && has_installed_required_by {
+        // Show confirmation modal for batch updates (only if update is actually available
+        // AND package has installed dependents that could be affected)
         app.modal = crate::state::Modal::ConfirmBatchUpdate {
             items: packages,
             dry_run: app.dry_run,
@@ -261,6 +326,7 @@ fn handle_proceed_install(
             &packages,
             crate::state::PreflightAction::Install,
             header_chips,
+            None,
         );
     }
     false // Keep TUI open
@@ -277,7 +343,7 @@ fn handle_proceed_install(
 /// Output: `false` to keep TUI open.
 ///
 /// Details: Handles password prompt if needed, or starts execution.
-fn handle_proceed_remove(
+pub(super) fn handle_proceed_remove(
     app: &mut AppState,
     items: Vec<PackageItem>,
     mode: crate::state::modal::CascadeMode,
