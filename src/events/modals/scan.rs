@@ -178,7 +178,11 @@ pub(super) fn handle_virustotal_setup(
 /// Details:
 /// - Persists scan settings and launches AUR scans via integrated process
 /// - aur-sleuth runs in separate terminal simultaneously if enabled
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools, clippy::needless_pass_by_ref_mut)]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::fn_params_excessive_bools,
+    clippy::needless_pass_by_ref_mut
+)]
 fn handle_scan_config_confirm(
     app: &mut crate::state::AppState,
     pending_install_names: Option<&Vec<String>>,
@@ -191,7 +195,6 @@ fn handle_scan_config_confirm(
     do_custom: bool,
     do_sleuth: bool,
 ) -> crate::state::Modal {
-
     tracing::info!(
         event = "scan_config_confirm",
         dry_run,
