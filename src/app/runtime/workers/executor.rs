@@ -2,10 +2,12 @@
 
 use tokio::sync::mpsc;
 
+use crate::install::{ExecutorOutput, ExecutorRequest};
+#[cfg(not(target_os = "windows"))]
 use crate::install::{
-    ExecutorOutput, ExecutorRequest, build_downgrade_command_for_executor,
-    build_install_command_for_executor, build_remove_command_for_executor,
-    build_scan_command_for_executor, build_update_command_for_executor,
+    build_downgrade_command_for_executor, build_install_command_for_executor,
+    build_remove_command_for_executor, build_scan_command_for_executor,
+    build_update_command_for_executor,
 };
 
 /// What: Handle install request by building command and executing via PTY.
