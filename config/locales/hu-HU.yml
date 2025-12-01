@@ -661,7 +661,7 @@ hu-HU:
 
     cli:
       update:
-        password_prompt: "Adja meg {} [sudo] jelszavát: "
+        password_prompt: "[sudo] {} jelszava: "
         starting: "Csomagok frissítése (pacman -Syu)…"
         pacman_success: "✓ A csomagok sikeresen frissítve lettek a pacman paranccsal"
         pacman_failed: "✗ Nem sikerült frissíteni a csomagokat a pacman paranccsal"
