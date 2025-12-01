@@ -49,6 +49,8 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - All operations integrated: install/remove, updates, scans, downgrades, file sync, optional deps
 - Security scans: aur-sleuth runs in separate terminal simultaneously when enabled
 - Dry-run commands properly quoted using `shell_single_quote`
+- Temporary pacman database setup: Uses fakeroot to create `/tmp/pacsea-db-{UID}/` with symlink to `/var/lib/pacman/local` for safe update checks without root privileges
+- Update check logging: Enhanced with exit code details for `pacman -Qu` and AUR helper commands to improve debugging
 
 **Security & Authentication:**
 - Password validation: `sudo -k ; sudo -S -v` (invalidates cached credentials first); language-independent (exit codes only); shows remaining attempts; clears input on failure
@@ -60,6 +62,7 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - Reinstall confirmation modal (installs all selected packages using `all_items` field)
 - Loading modal for async post-summary computation
 - Preflight risk calculation: shows dependent packages, adds +2 risk per dependent
+- Success flag: Added to `PreflightExec` modal state and post-summary processing for accurate execution feedback
 
 **Optional Deps:**
 - `semgrep-bin` uses standard AUR helper flow
@@ -70,6 +73,9 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - Tests organized into feature-based subdirectories (install, scan, update, downgrade, etc.)
 - Comprehensive integration and UI tests covering all workflows
 - Password validation tests marked as ignored (run with `--ignored` to prevent lockout)
+- Network error tests: Comprehensive coverage for install, update, and AUR scenarios with error propagation and recovery
+- Progress bar tests: Carriage return handling and UI rendering tests with `TestBackend`
+- Password timeout tests: Error state and context preservation tests for timeout scenarios
 
 **Dependencies Added:**
 - `portable_pty`: Cross-platform PTY support
@@ -94,20 +100,26 @@ None. This is a new feature that enhances the existing installation flow without
 - `src/events/modals/scan.rs`, `src/events/install/mod.rs`, `src/events/search/preflight_helpers.rs`: Operation handlers
 - `src/events/preflight/keys/command_keys.rs`: File database sync with password fallback
 - `src/events/modals/optional_deps.rs`: Optional deps installation
+- `src/app/runtime/workers/auxiliary.rs`: Temporary pacman database setup and update check logic
 
 **UI Components:**
 - `src/ui/modals/password.rs`, `src/ui/modals/misc.rs`, `src/ui/modals/preflight_exec.rs`: Password, loading, log panel modals
 - `src/ui/modals/preflight/tabs/summary.rs`: Dependent packages display
 - `src/ui/updates.rs`: Lockout status display and alert modal
+- `src/ui/modals/post_summary.rs`: Post-transaction summary with success flag display
 
 **Logic & State:**
 - `src/logic/password.rs`, `src/logic/faillock.rs`: Password validation and faillock detection
 - `src/logic/preflight/mod.rs`, `src/logic/deps/reverse.rs`: Risk calculation and dependency tracking
-- `src/state/app_state/mod.rs`, `src/state/modal.rs`: State management additions
+- `src/state/app_state/mod.rs`, `src/state/modal.rs`: State management additions (includes success flag)
 - `src/events/modals/handlers.rs`: Modal handlers with password validation
+- `src/logic/summary.rs`: Post-summary computation with success flag support
 
 **Tests:**
 - `tests/install/`, `tests/update/`, `tests/scan/`, `tests/downgrade/`, `tests/other/`, `tests/preflight_integration/`: Feature-based test organization
+- `tests/other/network_error.rs`: Network error handling tests for install, update, and AUR scenarios
+- `tests/preflight_integration/auto_scroll.rs`: Progress bar carriage return and rendering tests
+- `tests/install/password_prompt.rs`: Password timeout error state and context preservation tests
 
 **UI Improvements:**
 - Improved modal sizing: password, reinstall confirmation, and post-transaction summary windows are now more appropriately sized
