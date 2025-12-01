@@ -23,10 +23,18 @@ fn write_fake(term_name: &str, dir: &std::path::Path) -> (std::path::PathBuf, st
 }
 
 #[test]
-/// What: tilix arg shape uses "--", "bash", "-lc"
+/// What: Test tilix terminal argument shape for system update command.
 ///
-/// - Input: Fake tilix on PATH and ``SystemUpdate`` Enter
-/// - Output: First three args are `["--", "bash", "-lc"]`
+/// Inputs:
+/// - Fake tilix executable on PATH.
+/// - SystemUpdate Enter key event.
+///
+/// Output:
+/// - First three args are `["--", "bash", "-lc"]`.
+///
+/// Details:
+/// - Verifies tilix terminal emulator uses "--", "bash", "-lc" argument pattern.
+/// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -121,10 +129,18 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
 }
 
 #[test]
-/// What: mate-terminal arg shape uses "--", "bash", "-lc"
+/// What: Test mate-terminal argument shape for system update command.
 ///
-/// - Input: Fake mate-terminal on PATH and `SystemUpdate` Enter
-/// - Output: First three args are `["--", "bash", "-lc"]`
+/// Inputs:
+/// - Fake mate-terminal executable on PATH.
+/// - SystemUpdate Enter key event.
+///
+/// Output:
+/// - First three args are `["--", "bash", "-lc"]`.
+///
+/// Details:
+/// - Verifies mate-terminal uses "--", "bash", "-lc" argument pattern.
+/// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -219,10 +235,18 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
 }
 
 #[test]
-/// What: gnome-terminal arg shape uses "--", "bash", "-lc"
+/// What: Test gnome-terminal argument shape for system update command.
 ///
-/// - Input: Fake gnome-terminal PATH isolated; `SystemUpdate` Enter
-/// - Output: First three args are `["--", "bash", "-lc"]`
+/// Inputs:
+/// - Fake gnome-terminal executable with PATH isolated.
+/// - SystemUpdate Enter key event.
+///
+/// Output:
+/// - First three args are `["--", "bash", "-lc"]`.
+///
+/// Details:
+/// - Verifies gnome-terminal uses "--", "bash", "-lc" argument pattern.
+/// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -313,10 +337,18 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
 }
 
 #[test]
-/// What: konsole arg shape uses "-e", "bash", "-lc"
+/// What: Test konsole terminal argument shape for system update command.
 ///
-/// - Input: Fake konsole PATH isolated; `SystemUpdate` Enter
-/// - Output: First three args are `["-e", "bash", "-lc"]`
+/// Inputs:
+/// - Fake konsole executable with PATH isolated.
+/// - SystemUpdate Enter key event.
+///
+/// Output:
+/// - First three args are `["-e", "bash", "-lc"]`.
+///
+/// Details:
+/// - Verifies konsole uses "-e", "bash", "-lc" argument pattern.
+/// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_konsole_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -407,10 +439,18 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
 }
 
 #[test]
-/// What: alacritty arg shape uses "-e", "bash", "-lc"
+/// What: Test alacritty terminal argument shape for system update command.
 ///
-/// - Input: Fake alacritty PATH isolated; `SystemUpdate` Enter
-/// - Output: First three args are `["-e", "bash", "-lc"]`
+/// Inputs:
+/// - Fake alacritty executable with PATH isolated.
+/// - SystemUpdate Enter key event.
+///
+/// Output:
+/// - First three args are `["-e", "bash", "-lc"]`.
+///
+/// Details:
+/// - Verifies alacritty uses "-e", "bash", "-lc" argument pattern.
+/// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -501,10 +541,18 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
 }
 
 #[test]
-/// What: kitty arg shape uses "bash", "-lc"
+/// What: Test kitty terminal argument shape for system update command.
 ///
-/// - Input: Fake kitty PATH isolated; `SystemUpdate` Enter
-/// - Output: First two args are `["bash", "-lc"]`
+/// Inputs:
+/// - Fake kitty executable with PATH isolated.
+/// - SystemUpdate Enter key event.
+///
+/// Output:
+/// - First two args are `["bash", "-lc"]`.
+///
+/// Details:
+/// - Verifies kitty uses "bash", "-lc" argument pattern (no prefix flags).
+/// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_kitty_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
@@ -594,10 +642,18 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
 }
 
 #[test]
-/// What: xterm arg shape uses "-hold", "-e", "bash", "-lc"
+/// What: Test xterm terminal argument shape for system update command.
 ///
-/// - Input: Fake xterm PATH isolated; `SystemUpdate` Enter
-/// - Output: First four args are `["-hold", "-e", "bash", "-lc"]`
+/// Inputs:
+/// - Fake xterm executable with PATH isolated.
+/// - SystemUpdate Enter key event.
+///
+/// Output:
+/// - First four args are `["-hold", "-e", "bash", "-lc"]`.
+///
+/// Details:
+/// - Verifies xterm uses "-hold", "-e", "bash", "-lc" argument pattern.
+/// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_xterm_args_shape() {
     use std::path::PathBuf;
     let mut dir: PathBuf = std::env::temp_dir();
