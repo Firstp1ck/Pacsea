@@ -289,6 +289,7 @@ fn process_checkupdates_output(
 ) {
     match output {
         Ok(output) => {
+            let exit_code = output.status.code();
             if output.status.success() {
                 let packages = parse_checkupdates(&output.stdout);
                 let count = packages.len();
@@ -301,13 +302,19 @@ fn process_checkupdates_output(
                     packages_set.insert(name);
                 }
 
-                tracing::debug!("Found {} packages from official repos (pacman -Qu)", count);
-            } else if output.status.code() != Some(1) {
-                // Exit code 1 is normal (no updates), other codes are errors
-                tracing::warn!(
-                    "pacman -Qu command failed with exit code: {:?}",
-                    output.status.code()
+                tracing::debug!(
+                    "pacman -Qu completed successfully (exit code: {:?}): found {} packages from official repos",
+                    exit_code,
+                    count
                 );
+            } else if output.status.code() == Some(1) {
+                // Exit code 1 is normal (no updates)
+                tracing::debug!(
+                    "pacman -Qu returned exit code 1 (no updates available in official repos)"
+                );
+            } else {
+                // Other exit codes are errors
+                tracing::warn!("pacman -Qu command failed with exit code: {:?}", exit_code);
             }
         }
         Err(e) => {
@@ -332,6 +339,7 @@ fn process_qua_output(
     if let Some(result) = result {
         match result {
             Ok(output) => {
+                let exit_code = output.status.code();
                 if output.status.success() {
                     let packages = parse_qua(&output.stdout);
                     let count = packages.len();
@@ -346,16 +354,25 @@ fn process_qua_output(
 
                     let after_count = packages_set.len();
                     tracing::debug!(
-                        "Found {} packages from AUR (-Qua), {} total ({} new)",
+                        "{} -Qua completed successfully (exit code: {:?}): found {} packages from AUR, {} total ({} new)",
+                        helper,
+                        exit_code,
                         count,
                         after_count,
                         after_count - before_count
                     );
-                } else if output.status.code() != Some(1) {
-                    // Exit code 1 is normal (no updates), other codes are errors
+                } else if output.status.code() == Some(1) {
+                    // Exit code 1 is normal (no updates)
+                    tracing::debug!(
+                        "{} -Qua returned exit code 1 (no updates available in AUR)",
+                        helper
+                    );
+                } else {
+                    // Other exit codes are errors
                     tracing::warn!(
-                        "-Qua command failed with exit code: {:?}",
-                        output.status.code()
+                        "{} -Qua command failed with exit code: {:?}",
+                        helper,
+                        exit_code
                     );
                 }
             }
@@ -417,9 +434,12 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
             use std::collections::HashSet;
             use std::process::{Command, Stdio};
 
+            tracing::debug!("Starting update check: executing pacman -Qu and AUR helper");
+
             let (has_paru, has_yay, helper) = check_aur_helper();
 
             // Execute pacman -Qu command (official repos)
+            tracing::debug!("Executing: pacman -Qu (official repository updates)");
             let output_checkupdates = Command::new("pacman")
                 .args(["-Qu"])
                 .stdin(Stdio::null())
@@ -429,6 +449,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
 
             // Execute -Qua command (AUR) - only if helper is available
             let output_qua = if has_paru {
+                tracing::debug!("Executing: paru -Qua (AUR updates)");
                 Some(
                     Command::new("paru")
                         .args(["-Qua"])
@@ -438,6 +459,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                         .output(),
                 )
             } else if has_yay {
+                tracing::debug!("Executing: yay -Qua (AUR updates)");
                 Some(
                     Command::new("yay")
                         .args(["-Qua"])
@@ -447,6 +469,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                         .output(),
                 )
             } else {
+                tracing::debug!("No AUR helper available (paru/yay), skipping AUR updates check");
                 None
             };
 
@@ -474,7 +497,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
 
             let count = packages.len();
             tracing::debug!(
-                "Found {} total available updates (after deduplication)",
+                "Update check completed: found {} total available updates (after deduplication)",
                 count
             );
 
