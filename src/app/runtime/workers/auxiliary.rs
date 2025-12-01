@@ -202,6 +202,112 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
     (has_paru, has_yay, helper)
 }
 
+/// What: Check if fakeroot is available on the system.
+///
+/// Output:
+/// - `true` if fakeroot is available, `false` otherwise
+///
+/// Details:
+/// - Fakeroot is required to sync a temporary pacman database without root
+fn has_fakeroot() -> bool {
+    use std::process::{Command, Stdio};
+
+    Command::new("fakeroot")
+        .args(["--version"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .is_ok()
+}
+
+/// What: Get the current user's UID by reading /proc/self/status.
+///
+/// Output:
+/// - `Some(u32)` with the UID if successful
+/// - `None` if unable to read the UID
+///
+/// Details:
+/// - Reads /proc/self/status and parses the Uid line
+/// - Returns the real UID (first value on the Uid line)
+#[cfg(not(target_os = "windows"))]
+fn get_uid() -> Option<u32> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    for line in status.lines() {
+        if line.starts_with("Uid:") {
+            // Format: "Uid:\treal\teffective\tsaved\tfs"
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                return parts[1].parse().ok();
+            }
+        }
+    }
+    None
+}
+
+/// What: Set up a temporary pacman database directory for safe update checks.
+///
+/// Output:
+/// - `Some(PathBuf)` with the temp database path if setup succeeds
+/// - `None` if setup fails
+///
+/// Details:
+/// - Creates `/tmp/pacsea-db-{UID}/` directory
+/// - Creates a symlink from `local` to `/var/lib/pacman/local`
+/// - The symlink allows pacman to know which packages are installed
+/// - Directory is kept for reuse across subsequent checks
+#[cfg(not(target_os = "windows"))]
+fn setup_temp_db() -> Option<std::path::PathBuf> {
+    // Get current user ID
+    let uid = get_uid()?;
+    let temp_db = std::path::PathBuf::from(format!("/tmp/pacsea-db-{uid}"));
+
+    // Create directory if needed
+    if let Err(e) = std::fs::create_dir_all(&temp_db) {
+        tracing::warn!("Failed to create temp database directory: {}", e);
+        return None;
+    }
+
+    // Create symlink to local database (skip if exists)
+    let local_link = temp_db.join("local");
+    if !local_link.exists()
+        && let Err(e) = std::os::unix::fs::symlink("/var/lib/pacman/local", &local_link)
+    {
+        tracing::warn!("Failed to create symlink to local database: {}", e);
+        return None;
+    }
+
+    Some(temp_db)
+}
+
+/// What: Sync the temporary pacman database with remote repositories.
+///
+/// Inputs:
+/// - `temp_db`: Path to the temporary database directory
+///
+/// Output:
+/// - `true` if sync succeeds, `false` otherwise
+///
+/// Details:
+/// - Uses fakeroot to run `pacman -Sy` without root privileges
+/// - Syncs only the temporary database, not the system database
+/// - Uses `--logfile /dev/null` to prevent log file creation
+#[cfg(not(target_os = "windows"))]
+fn sync_temp_db(temp_db: &std::path::Path) -> bool {
+    use std::process::{Command, Stdio};
+
+    let output = Command::new("fakeroot")
+        .args(["--", "pacman", "-Sy", "--dbpath"])
+        .arg(temp_db)
+        .args(["--logfile", "/dev/null"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+
+    matches!(output, Ok(o) if o.status.success())
+}
+
 /// What: Parse packages from pacman -Qu output.
 ///
 /// Inputs:
@@ -404,9 +510,10 @@ static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::
 /// - None (spawns async task)
 ///
 /// Details:
-/// - Executes `pacman -Qu` (official repos) and `yay -Qua` or `paru -Qua` (AUR)
-/// - Checks for paru first, then falls back to yay for AUR updates
-/// - Parses output from both commands (one package name per line)
+/// - Uses a temporary database to safely check for updates without modifying the system
+/// - Syncs the temp database with `fakeroot pacman -Sy` if fakeroot is available
+/// - Falls back to `pacman -Qu` (stale local DB) if fakeroot is not available
+/// - Executes `yay -Qua` or `paru -Qua` for AUR updates
 /// - Removes duplicates using `HashSet`
 /// - Sorts package names alphabetically
 /// - Saves list to `~/.config/pacsea/lists/available_updates.txt`
@@ -434,18 +541,69 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
             use std::collections::HashSet;
             use std::process::{Command, Stdio};
 
-            tracing::debug!("Starting update check: executing pacman -Qu and AUR helper");
+            tracing::debug!("Starting update check");
 
             let (has_paru, has_yay, helper) = check_aur_helper();
 
-            // Execute pacman -Qu command (official repos)
-            tracing::debug!("Executing: pacman -Qu (official repository updates)");
-            let output_checkupdates = Command::new("pacman")
-                .args(["-Qu"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .output();
+            // Try safe update check with temp database (non-Windows only)
+            #[cfg(not(target_os = "windows"))]
+            let temp_db_path: Option<std::path::PathBuf> = if has_fakeroot() {
+                tracing::debug!("fakeroot is available, setting up temp database");
+                setup_temp_db().and_then(|temp_db| {
+                    tracing::debug!("Syncing temporary database at {:?}", temp_db);
+                    if sync_temp_db(&temp_db) {
+                        tracing::debug!("Temp database sync successful");
+                        Some(temp_db)
+                    } else {
+                        tracing::warn!("Temp database sync failed, falling back to pacman -Qu");
+                        None
+                    }
+                })
+            } else {
+                tracing::debug!("fakeroot not available, falling back to pacman -Qu");
+                None
+            };
+
+            #[cfg(target_os = "windows")]
+            let temp_db_path: Option<std::path::PathBuf> = None;
+
+            // Execute pacman -Qu with appropriate --dbpath
+            #[cfg(not(target_os = "windows"))]
+            let output_checkupdates = temp_db_path.as_ref().map_or_else(
+                || {
+                    tracing::debug!("Executing: pacman -Qu (using system database)");
+                    Command::new("pacman")
+                        .args(["-Qu"])
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .output()
+                },
+                |db_path| {
+                    tracing::debug!(
+                        "Executing: pacman -Qu --dbpath {:?} (using synced temp database)",
+                        db_path
+                    );
+                    Command::new("pacman")
+                        .args(["-Qu", "--dbpath"])
+                        .arg(db_path)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .output()
+                },
+            );
+
+            #[cfg(target_os = "windows")]
+            let output_checkupdates = {
+                tracing::debug!("Executing: pacman -Qu (Windows fallback)");
+                Command::new("pacman")
+                    .args(["-Qu"])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
+                    .output()
+            };
 
             // Execute -Qua command (AUR) - only if helper is available
             let output_qua = if has_paru {
