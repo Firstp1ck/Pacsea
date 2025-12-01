@@ -295,6 +295,7 @@ fn integration_remove_uses_executor_not_terminal() {
         log_lines: Vec::new(),
         abortable: false,
         header_chips,
+        success: None,
     };
     app.pending_executor_request = Some(ExecutorRequest::Remove {
         names,

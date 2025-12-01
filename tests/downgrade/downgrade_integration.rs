@@ -405,6 +405,7 @@ fn integration_downgrade_to_preflight_exec() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     // Set executor request

@@ -125,6 +125,7 @@ fn ui_scan_preflight_exec_structure() {
             log_lines: vec![],
             abortable: false,
             header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
+            success: None,
         },
         pending_executor_request: Some(ExecutorRequest::Scan {
             package: "test-pkg".to_string(),
@@ -244,6 +245,7 @@ fn ui_scan_modal_transition() {
         verbose: false,
         log_lines: vec![],
         abortable: false,
+        success: None,
         header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
     };
 

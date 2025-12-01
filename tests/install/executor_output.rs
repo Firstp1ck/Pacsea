@@ -211,6 +211,7 @@ fn integration_preflight_exec_log_lines_append() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -265,6 +266,7 @@ fn integration_preflight_exec_progress_bar_replacement() {
             log_lines: vec!["Downloading ripgrep...".to_string()],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -332,6 +334,7 @@ fn integration_preflight_exec_large_output() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -623,6 +626,7 @@ fn integration_preflight_exec_verbose_mode() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -664,6 +668,7 @@ fn integration_preflight_exec_abortable() {
             log_lines: vec![],
             abortable: true,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };

@@ -272,6 +272,7 @@ fn integration_reinstall_confirmation_aur_skips_password() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     match app.modal {

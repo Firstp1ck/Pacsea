@@ -77,6 +77,7 @@ fn ui_file_sync_preflight_exec_structure() {
             log_lines: vec![],
             abortable: false,
             header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
+            success: None,
         },
         pending_executor_request: Some(pacsea::install::ExecutorRequest::CustomCommand {
             command: "sudo pacman -Fy".to_string(),
@@ -162,6 +163,7 @@ fn ui_file_sync_modal_transition() {
 
     if let Some(custom_cmd) = custom_cmd {
         app.modal = Modal::PreflightExec {
+            success: None,
             items: vec![],
             action: pacsea::state::PreflightAction::Install,
             tab: PreflightTab::Summary,

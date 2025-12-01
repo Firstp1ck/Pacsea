@@ -234,6 +234,7 @@ fn integration_optional_deps_uses_executor_not_terminal() {
         log_lines: Vec::new(),
         abortable: false,
         header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
+        success: None,
     };
 
     match modal {

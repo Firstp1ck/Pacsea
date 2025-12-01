@@ -295,6 +295,7 @@ fn integration_custom_command_to_preflight_exec() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     if let Some(cmd) = command {

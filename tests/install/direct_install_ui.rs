@@ -109,6 +109,7 @@ fn ui_direct_install_preflight_exec_structure() {
             log_lines: vec![],
             abortable: false,
             header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
+            success: None,
         },
         pending_executor_request: Some(pacsea::install::ExecutorRequest::Install {
             items,
@@ -252,6 +253,7 @@ fn ui_direct_install_modal_transition() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     app.pending_executor_request = Some(pacsea::install::ExecutorRequest::Install {
@@ -322,6 +324,7 @@ fn ui_direct_remove_modal_transition() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     app.pending_executor_request = Some(pacsea::install::ExecutorRequest::Remove {

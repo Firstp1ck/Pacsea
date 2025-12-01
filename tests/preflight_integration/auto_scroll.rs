@@ -55,6 +55,7 @@ fn integration_preflight_exec_empty_log_lines() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -88,6 +89,7 @@ fn integration_preflight_exec_append_single_line() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -129,6 +131,7 @@ fn integration_preflight_exec_append_multiple_lines() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -183,6 +186,7 @@ fn integration_preflight_exec_progress_bar_replace() {
             log_lines: vec!["Downloading package...".to_string()],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -240,6 +244,7 @@ fn integration_preflight_exec_mixed_output() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -294,6 +299,7 @@ fn integration_preflight_exec_large_log_output() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -338,6 +344,7 @@ fn integration_preflight_exec_ansi_color_output() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -382,6 +389,7 @@ fn integration_preflight_exec_verbose_flag() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -415,6 +423,7 @@ fn integration_preflight_exec_abortable_flag() {
             log_lines: vec![],
             abortable: true,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -448,6 +457,7 @@ fn integration_preflight_exec_remove_action() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };
@@ -481,6 +491,7 @@ fn integration_preflight_exec_downgrade_action() {
             log_lines: vec![],
             abortable: false,
             header_chips: PreflightHeaderChips::default(),
+            success: None,
         },
         ..Default::default()
     };

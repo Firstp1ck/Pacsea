@@ -244,6 +244,7 @@ fn integration_preflight_exec_state() {
                 risk_score: 0,
                 risk_level: pacsea::state::modal::RiskLevel::Low,
             },
+            success: None,
         },
         ..Default::default()
     };

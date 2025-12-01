@@ -354,6 +354,7 @@ fn integration_preflight_exec_header_chips() {
                     arch: "x86_64".into(),
                 },
             )],
+            success: None,
             action: PreflightAction::Install,
             tab: PreflightTab::Summary,
             verbose: false,

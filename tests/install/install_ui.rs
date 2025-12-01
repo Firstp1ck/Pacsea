@@ -80,6 +80,7 @@ fn ui_preflight_exec_install_state() {
         log_lines,
         abortable: true,
         header_chips,
+        success: None,
     };
 
     match modal {
@@ -91,6 +92,7 @@ fn ui_preflight_exec_install_state() {
             log_lines: ref logs,
             abortable,
             header_chips: ref chips,
+            ..
         } => {
             assert_eq!(modal_items.len(), 2);
             assert_eq!(action, PreflightAction::Install);
@@ -144,6 +146,7 @@ fn ui_preflight_exec_remove_state() {
         log_lines,
         abortable: false, // finished
         header_chips,
+        success: None,
     };
 
     match modal {
@@ -200,6 +203,7 @@ fn ui_preflight_exec_empty_logs() {
         log_lines,
         abortable: true,
         header_chips,
+        success: None,
     };
 
     match modal {
@@ -260,6 +264,7 @@ fn ui_preflight_exec_tabs() {
             log_lines: log_lines.clone(),
             abortable: true,
             header_chips: header_chips.clone(),
+            success: None,
         };
 
         match modal {
@@ -310,6 +315,7 @@ fn ui_preflight_exec_verbose() {
         log_lines,
         abortable: true,
         header_chips,
+        success: None,
     };
 
     match modal {
@@ -359,6 +365,7 @@ fn ui_preflight_exec_finished() {
         log_lines,
         abortable: false, // finished
         header_chips,
+        success: None,
     };
 
     match modal {
@@ -413,6 +420,7 @@ fn ui_preflight_exec_many_packages() {
         log_lines,
         abortable: true,
         header_chips,
+        success: None,
     };
 
     match modal {
@@ -473,6 +481,7 @@ fn ui_preflight_exec_risk_levels() {
             log_lines: log_lines.clone(),
             abortable: true,
             header_chips: header_chips.clone(),
+            success: None,
         };
 
         match modal {

@@ -162,6 +162,7 @@ fn integration_file_sync_executor_request() {
             log_lines: vec![],
             abortable: false,
             header_chips,
+            success: None,
         };
 
         let executor_request = ExecutorRequest::CustomCommand {

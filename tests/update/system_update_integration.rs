@@ -228,6 +228,7 @@ fn integration_system_update_uses_executor_not_terminal() {
         log_lines: Vec::new(),
         abortable: false,
         header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
+        success: None,
     };
 
     // Verify that pending_executor_request is set with ExecutorRequest::Update
@@ -534,6 +535,7 @@ fn integration_system_update_to_preflight_exec() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     // Set executor request

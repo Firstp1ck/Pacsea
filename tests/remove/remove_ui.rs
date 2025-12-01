@@ -64,6 +64,7 @@ fn ui_preflight_exec_remove_rendering() {
         verbose: false,
         log_lines: Vec::new(),
         abortable: false,
+        success: None,
         header_chips: pacsea::state::modal::PreflightHeaderChips {
             package_count: 1,
             download_bytes: 0,

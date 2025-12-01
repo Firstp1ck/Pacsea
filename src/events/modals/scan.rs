@@ -2,7 +2,8 @@
 
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::state::AppState;
+use crate::install::ExecutorRequest;
+use crate::state::{AppState, PackageItem, Source};
 
 /// What: Handle key events for `ScanConfig` modal.
 ///

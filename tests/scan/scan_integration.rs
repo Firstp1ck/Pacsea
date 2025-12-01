@@ -272,6 +272,7 @@ fn integration_scan_uses_executor_request() {
         verbose: false,
         log_lines: vec![],
         abortable: false,
+        success: None,
         header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
     };
 

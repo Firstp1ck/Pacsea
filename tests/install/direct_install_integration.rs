@@ -256,6 +256,7 @@ fn integration_direct_install_executor_request() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     app.pending_executor_request = Some(ExecutorRequest::Install {
@@ -339,6 +340,7 @@ fn integration_direct_remove_executor_request() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     app.pending_executor_request = Some(ExecutorRequest::Remove {

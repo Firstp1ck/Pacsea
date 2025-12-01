@@ -389,6 +389,7 @@ fn integration_password_prompt_submission_to_preflight_exec() {
         log_lines: vec![],
         abortable: false,
         header_chips,
+        success: None,
     };
 
     // Verify modal transition
