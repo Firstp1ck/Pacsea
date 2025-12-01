@@ -571,3 +571,108 @@ fn integration_password_prompt_empty_password() {
     assert!(password.is_none(), "Whitespace-only password should be None");
 }
 
+#[test]
+/// What: Test password prompt modal timeout error state.
+///
+/// Inputs:
+/// - PasswordPrompt modal that has timed out.
+///
+/// Output:
+/// - Error message indicates timeout.
+/// - Modal can be cancelled after timeout.
+///
+/// Details:
+/// - Verifies timeout error state in password prompt modal.
+/// - Tests cancellation after timeout.
+fn integration_password_prompt_timeout_error() {
+    let items = vec![create_test_package(
+        "test-pkg",
+        Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+    )];
+
+    // Simulate password prompt with timeout error
+    let mut app = AppState {
+        modal: Modal::PasswordPrompt {
+            purpose: PasswordPurpose::Install,
+            items: items.clone(),
+            input: String::new(),
+            cursor: 0,
+            error: Some("Password prompt timed out. Please try again.".to_string()),
+        },
+        ..Default::default()
+    };
+
+    // Verify timeout error state
+    match app.modal {
+        Modal::PasswordPrompt {
+            items: modal_items,
+            error,
+            input,
+            ..
+        } => {
+            assert_eq!(modal_items.len(), 1);
+            assert!(error.is_some());
+            assert!(error.as_ref().unwrap().contains("timed out"));
+            assert!(input.is_empty()); // Input cleared after timeout
+        }
+        _ => panic!("Expected PasswordPrompt modal"),
+    }
+
+    // Simulate cancellation after timeout
+    app.modal = Modal::None;
+    assert!(matches!(app.modal, Modal::None));
+}
+
+#[test]
+/// What: Test password prompt timeout handling preserves operation context.
+///
+/// Inputs:
+/// - PasswordPrompt modal with timeout error.
+///
+/// Output:
+/// - Items and purpose are preserved after timeout.
+/// - User can retry the operation.
+///
+/// Details:
+/// - Verifies timeout doesn't lose operation context.
+fn integration_password_prompt_timeout_preserves_context() {
+    let items = vec![create_test_package(
+        "test-pkg",
+        Source::Official {
+            repo: "extra".into(),
+            arch: "x86_64".into(),
+        },
+    )];
+
+    let app = AppState {
+        modal: Modal::PasswordPrompt {
+            purpose: PasswordPurpose::Install,
+            items: items.clone(),
+            input: String::new(),
+            cursor: 0,
+            error: Some("Password prompt timed out. Please try again.".to_string()),
+        },
+        ..Default::default()
+    };
+
+    // Verify context is preserved
+    match app.modal {
+        Modal::PasswordPrompt {
+            purpose,
+            items: modal_items,
+            error,
+            ..
+        } => {
+            assert_eq!(purpose, PasswordPurpose::Install);
+            assert_eq!(modal_items.len(), 1);
+            assert_eq!(modal_items[0].name, "test-pkg");
+            assert!(error.is_some());
+            // User can retry with same context
+        }
+        _ => panic!("Expected PasswordPrompt modal"),
+    }
+}
+

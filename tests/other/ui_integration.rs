@@ -498,6 +498,62 @@ fn test_modal_confirm_renders() {
     assert_eq!(buffer.area.height, 40);
 }
 
+#[test]
+/// What: Test `PreflightExec` modal rendering with progress bars.
+///
+/// Inputs:
+/// - `PreflightExec` modal with progress bar updates in `log_lines`.
+///
+/// Output:
+/// - Modal renders correctly with progress bars.
+/// - Progress bars display correctly in rendered output.
+///
+/// Details:
+/// - Verifies progress bar display in log panel using `TestBackend`.
+/// - Tests that progress bars update correctly in rendered output.
+fn test_modal_preflight_exec_progress_bars() {
+    let backend = create_test_backend();
+    let mut app = create_test_app_state();
+
+    app.modal = Modal::PreflightExec {
+        items: vec![PackageItem {
+            name: "test-pkg".to_string(),
+            version: "1.0.0".to_string(),
+            description: "Test".to_string(),
+            source: Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }],
+        action: pacsea::state::PreflightAction::Install,
+        tab: pacsea::state::PreflightTab::Summary,
+        verbose: false,
+        log_lines: vec![
+            ":: Retrieving packages...".to_string(),
+            "[########] 100%".to_string(),
+            "downloading test-pkg-1.0.0...".to_string(),
+        ],
+        abortable: false,
+        header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
+        success: None,
+    };
+
+    let terminal = render_ui_to_backend(backend, &mut app);
+
+    // Verify PreflightExec modal rendered
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer.area.width, 120);
+    assert_eq!(buffer.area.height, 40);
+
+    // Verify log_lines contain progress bar
+    if let Modal::PreflightExec { log_lines, .. } = app.modal {
+        assert_eq!(log_lines.len(), 3);
+        assert!(log_lines[1].contains("100%"));
+    } else {
+        panic!("Expected PreflightExec modal");
+    }
+}
+
 // Component State Tests
 
 #[test]

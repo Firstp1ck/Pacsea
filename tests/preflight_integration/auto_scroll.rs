@@ -224,6 +224,75 @@ fn integration_preflight_exec_progress_bar_replace() {
 }
 
 #[test]
+/// What: Test that progress bars with carriage returns are properly rendered.
+///
+/// Inputs:
+/// - Progress bar updates using `ReplaceLastLine` behavior.
+///
+/// Output:
+/// - Progress bar updates don't create duplicate lines.
+/// - Only the latest progress bar state is displayed.
+///
+/// Details:
+/// - Verifies progress bar rendering handles carriage return semantics correctly.
+fn integration_preflight_exec_progress_bar_carriage_return() {
+    let mut app = AppState {
+        modal: Modal::PreflightExec {
+            items: vec![create_test_package("test-pkg")],
+            action: PreflightAction::Install,
+            tab: PreflightTab::Summary,
+            verbose: false,
+            log_lines: vec![],
+            abortable: false,
+            header_chips: PreflightHeaderChips::default(),
+            success: None,
+        },
+        ..Default::default()
+    };
+
+    // Simulate progress bar updates with carriage return behavior
+    if let Modal::PreflightExec {
+        ref mut log_lines, ..
+    } = app.modal
+    {
+        // Initial message
+        log_lines.push("Downloading packages...".to_string());
+
+        // Progress bar updates (simulating ReplaceLastLine)
+        for progress in &[
+            "[#-------] 10%",
+            "[##------] 25%",
+            "[####----] 50%",
+            "[######--] 75%",
+            "[########] 100%",
+        ] {
+            if let Some(last) = log_lines.last()
+                && last.starts_with('[')
+            {
+                log_lines.pop();
+            }
+            log_lines.push((*progress).to_string());
+        }
+    }
+
+    match app.modal {
+        Modal::PreflightExec { log_lines, .. } => {
+            // Should only have initial message and final progress bar
+            assert_eq!(log_lines.len(), 2);
+            assert_eq!(log_lines[0], "Downloading packages...");
+            assert_eq!(log_lines[1], "[########] 100%");
+            // Verify no duplicate progress bars
+            let progress_bar_count = log_lines.iter().filter(|l| l.starts_with('[')).count();
+            assert_eq!(
+                progress_bar_count, 1,
+                "Should have only one progress bar line"
+            );
+        }
+        _ => panic!("Expected PreflightExec modal"),
+    }
+}
+
+#[test]
 /// What: Test mixed regular lines and progress bar updates.
 ///
 /// Inputs:

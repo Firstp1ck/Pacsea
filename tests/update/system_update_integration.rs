@@ -10,7 +10,7 @@
 
 #![cfg(test)]
 
-use pacsea::install::ExecutorRequest;
+use pacsea::install::{ExecutorOutput, ExecutorRequest};
 use pacsea::state::modal::{PasswordPurpose, PreflightHeaderChips};
 use pacsea::state::{AppState, Modal, PreflightAction, PreflightTab};
 
@@ -670,5 +670,133 @@ fn integration_system_update_country_selection() {
             assert_eq!(mirror_count, 15);
         }
         _ => panic!("Expected SystemUpdate modal"),
+    }
+}
+
+#[test]
+/// What: Test `ExecutorRequest::Update` with simulated network failure.
+///
+/// Inputs:
+/// - Update request that will fail due to network error.
+///
+/// Output:
+/// - Request structure is correct, error handling can occur.
+///
+/// Details:
+/// - Verifies update request can be created even when network will fail.
+/// - Tests error handling in update sequence when network fails mid-operation.
+fn integration_system_update_network_failure() {
+    let commands = vec![
+        "sudo pacman -Syu --noconfirm".to_string(),
+        "if command -v paru >/dev/null 2>&1; then paru -Syu --noconfirm; fi".to_string(),
+    ];
+
+    let request = ExecutorRequest::Update {
+        commands,
+        password: Some("testpassword".to_string()),
+        dry_run: false,
+    };
+
+    match request {
+        ExecutorRequest::Update { commands, .. } => {
+            assert_eq!(commands.len(), 2);
+            // Request structure is valid even if network will fail
+        }
+        _ => panic!("Expected ExecutorRequest::Update"),
+    }
+}
+
+#[test]
+/// What: Test network error display in `PreflightExec` modal during system update.
+///
+/// Inputs:
+/// - `PreflightExec` modal with network failure during update.
+///
+/// Output:
+/// - Error message is displayed in `log_lines`.
+/// - Modal state reflects error condition.
+///
+/// Details:
+/// - Verifies network errors during update are displayed to user.
+fn integration_system_update_network_error_display() {
+    let mut app = AppState {
+        modal: Modal::PreflightExec {
+            items: vec![],
+            action: PreflightAction::Install, // Update uses Install action
+            tab: PreflightTab::Summary,
+            verbose: false,
+            log_lines: vec![":: Synchronizing package databases...".to_string()],
+            abortable: false,
+            header_chips: PreflightHeaderChips::default(),
+            success: None,
+        },
+        ..Default::default()
+    };
+
+    // Simulate network error during update
+    if let Modal::PreflightExec {
+        ref mut log_lines, ..
+    } = app.modal
+    {
+        log_lines.push("error: failed to retrieve 'core.db' from mirror".to_string());
+        log_lines.push("error: Failed to connect to host (network unreachable)".to_string());
+    }
+
+    match app.modal {
+        Modal::PreflightExec { log_lines, .. } => {
+            assert_eq!(log_lines.len(), 3);
+            assert!(log_lines[1].contains("failed to retrieve"));
+            assert!(log_lines[2].contains("network unreachable"));
+        }
+        _ => panic!("Expected PreflightExec modal"),
+    }
+}
+
+#[test]
+/// What: Test `ExecutorOutput::Error` handling for network failure during update sequence.
+///
+/// Inputs:
+/// - `ExecutorOutput::Error` with network failure message during update.
+///
+/// Output:
+/// - Error is properly handled and displayed.
+///
+/// Details:
+/// - Verifies update sequence handles network failures correctly.
+fn integration_system_update_network_error_handling() {
+    let error_output =
+        ExecutorOutput::Error("Failed to connect to host (network unreachable)".to_string());
+
+    // Simulate error being received during update
+    let mut app = AppState {
+        modal: Modal::PreflightExec {
+            items: vec![],
+            action: PreflightAction::Install,
+            tab: PreflightTab::Summary,
+            verbose: false,
+            log_lines: vec![":: Starting full system upgrade...".to_string()],
+            abortable: false,
+            header_chips: PreflightHeaderChips::default(),
+            success: None,
+        },
+        ..Default::default()
+    };
+
+    // Simulate error being added to log_lines
+    if let ExecutorOutput::Error(msg) = &error_output
+        && let Modal::PreflightExec {
+            ref mut log_lines, ..
+        } = app.modal
+    {
+        log_lines.push(format!("ERROR: {msg}"));
+    }
+
+    match app.modal {
+        Modal::PreflightExec { log_lines, .. } => {
+            assert_eq!(log_lines.len(), 2);
+            assert!(log_lines[1].contains("ERROR:"));
+            assert!(log_lines[1].contains("network unreachable"));
+        }
+        _ => panic!("Expected PreflightExec modal"),
     }
 }

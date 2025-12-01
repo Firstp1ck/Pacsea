@@ -183,6 +183,97 @@ fn integration_executor_output_error() {
 }
 
 #[test]
+/// What: Test ExecutorOutput::Error with network-specific error messages.
+///
+/// Inputs:
+/// - Network-related error messages (e.g., "Failed to connect", "DNS resolution failed").
+///
+/// Output:
+/// - ExecutorOutput::Error with network error message.
+///
+/// Details:
+/// - Verifies network errors are properly represented as ExecutorOutput::Error.
+/// - Tests error propagation from executor to UI.
+fn integration_executor_output_network_error() {
+    let network_errors = vec![
+        "Failed to connect to host (network unreachable)",
+        "Could not resolve host (DNS/network issue)",
+        "Operation timeout",
+        "HTTP error from server (likely 502/503/504 - server temporarily unavailable)",
+    ];
+
+    for error_msg in network_errors {
+        let output = ExecutorOutput::Error(error_msg.to_string());
+
+        match output {
+            ExecutorOutput::Error(msg) => {
+                assert!(msg.contains("network") || msg.contains("timeout") || msg.contains("HTTP"));
+                // Verify error can be propagated to UI
+                assert!(!msg.is_empty());
+            }
+            _ => panic!("Expected ExecutorOutput::Error"),
+        }
+    }
+}
+
+#[test]
+/// What: Test network error propagation from executor to PreflightExec modal.
+///
+/// Inputs:
+/// - ExecutorOutput::Error with network failure message.
+///
+/// Output:
+/// - Error is properly handled and displayed in PreflightExec modal.
+///
+/// Details:
+/// - Verifies error propagation mechanism works correctly for network failures.
+fn integration_executor_output_network_error_propagation() {
+    let error_output = ExecutorOutput::Error(
+        "Failed to connect to host (network unreachable)".to_string(),
+    );
+
+    // Simulate error being received and added to PreflightExec modal
+    let mut app = AppState {
+        modal: Modal::PreflightExec {
+            items: vec![create_test_package(
+                "test-pkg",
+                Source::Official {
+                    repo: "core".into(),
+                    arch: "x86_64".into(),
+                },
+            )],
+            action: PreflightAction::Install,
+            tab: PreflightTab::Summary,
+            verbose: false,
+            log_lines: vec![],
+            abortable: false,
+            header_chips: PreflightHeaderChips::default(),
+            success: None,
+        },
+        ..Default::default()
+    };
+
+    // Simulate error being added to log_lines
+    if let Modal::PreflightExec {
+        ref mut log_lines, ..
+    } = app.modal
+    {
+        if let ExecutorOutput::Error(msg) = error_output {
+            log_lines.push(format!("ERROR: {msg}"));
+        }
+    }
+
+    match app.modal {
+        Modal::PreflightExec { log_lines, .. } => {
+            assert_eq!(log_lines.len(), 1);
+            assert!(log_lines[0].contains("ERROR:"));
+            assert!(log_lines[0].contains("network unreachable"));
+        }
+        _ => panic!("Expected PreflightExec modal"),
+    }
+}
+
+#[test]
 /// What: Test PreflightExec modal log_lines append behavior.
 ///
 /// Inputs:

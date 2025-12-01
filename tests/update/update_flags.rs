@@ -409,6 +409,13 @@ fn test_update_long_flag_triggers_update() {
 ///   3. Password should NOT be required again (implementation should handle this)
 /// - The test creates a mock sudo wrapper that simulates password requirement and timeout.
 /// - Verifies that the update handler properly handles sudo password to avoid re-prompting.
+/// - This is a manual integration test for long-running scenarios.
+/// - The test is ignored by default because it requires:
+///   - Actual system setup with sudo
+///   - Long-running simulation (may take several minutes)
+///   - Manual execution outside of CI
+/// - For unit-level testing, see `tests/install/password_prompt.rs::integration_password_prompt_timeout_error`
+/// - Run manually with: `cargo test -- --ignored test_sudo_password_timeout_during_long_update`
 #[test]
 #[ignore = "Long-running simulation test, only run manually"]
 fn test_sudo_password_timeout_during_long_update() {
