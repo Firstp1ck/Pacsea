@@ -234,13 +234,16 @@ pub fn build_install_command_for_executor(
         } else {
             "--needed --noconfirm"
         };
-        let base_cmd = format!("pacman -S {flags} {}", official.join(" "));
+        // Sync database first (pacman -Sy) to ensure latest versions are available,
+        // then install the packages
+        let install_cmd = format!("pacman -S {flags} {}", official.join(" "));
         // Use printf to pipe password to sudo -S (more reliable than echo)
         password.map_or_else(
-            || format!("sudo {base_cmd}"),
+            || format!("sudo pacman -Sy && sudo {install_cmd}"),
             |pass| {
                 let escaped = shell_single_quote(pass);
-                format!("printf '%s\\n' {escaped} | sudo -S {base_cmd}")
+                // Sync first, then install - use single password for both
+                format!("printf '%s\\n' {escaped} | sudo -S pacman -Sy && printf '%s\\n' {escaped} | sudo -S {install_cmd}")
             },
         )
     } else {

@@ -333,21 +333,18 @@ fn handle_enter_key(app: &mut AppState) {
                     }
 
                     // Check if package has an update available
-                    // For official packages: check if it's in upgradable_set
-                    // For AUR packages: check if target version is different/newer than installed version
+                    // For official packages: check if it's in upgradable_set OR version differs from installed
+                    // For AUR packages: check if target version is different from installed version
                     let has_update = if upgradable_set.contains(&item.name) {
-                        // Official package with update available
+                        // Package is in upgradable set (pacman -Qu)
                         true
-                    } else if matches!(item.source, crate::state::Source::Aur)
-                        && !item.version.is_empty()
-                    {
-                        // AUR package: compare target version with installed version
-                        // Use simple string comparison for AUR packages
-                        // If target version is different from installed, it's an update
+                    } else if !item.version.is_empty() {
+                        // Compare target version with installed version
+                        // This works for both official and AUR packages
                         crate::logic::deps::get_installed_version(&item.name)
                             .is_ok_and(|installed_version| item.version != installed_version)
                     } else {
-                        // No update available
+                        // No version info available, no update
                         false
                     };
 

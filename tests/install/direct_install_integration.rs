@@ -78,43 +78,33 @@ fn integration_direct_install_single_official() {
 }
 
 #[test]
-/// What: Test direct install for single AUR package (no password needed).
+/// What: Test direct install for single AUR package (password prompt shown).
 ///
 /// Inputs:
 /// - AUR package item
 ///
 /// Output:
-/// - ``PreflightExec`` modal is shown directly
-/// - Executor request is created
+/// - `PasswordPrompt` modal is shown
 ///
 /// Details:
-/// - Verifies that AUR packages skip password prompt
+/// - Verifies that AUR packages now also show password prompt (needed for sudo cache)
 fn integration_direct_install_single_aur() {
     let mut app = AppState::default();
     let item = create_test_package("yay-bin", Source::Aur);
 
     pacsea::install::start_integrated_install(&mut app, &item, false);
 
-    // Verify PreflightExec modal is shown directly
+    // Verify PasswordPrompt modal is shown (AUR packages now also need password for sudo cache)
     match app.modal {
-        Modal::PreflightExec { items, action, .. } => {
+        Modal::PasswordPrompt { items, purpose, .. } => {
             assert_eq!(items.len(), 1);
             assert_eq!(items[0].name, "yay-bin");
-            assert_eq!(action, PreflightAction::Install);
+            assert!(matches!(
+                purpose,
+                pacsea::state::modal::PasswordPurpose::Install
+            ));
         }
-        _ => panic!("Expected PreflightExec modal for AUR package"),
-    }
-
-    // Verify executor request is created
-    match app.pending_executor_request {
-        Some(ExecutorRequest::Install {
-            items, password, ..
-        }) => {
-            assert_eq!(items.len(), 1);
-            assert_eq!(items[0].name, "yay-bin");
-            assert!(password.is_none());
-        }
-        _ => panic!("Expected Install executor request"),
+        _ => panic!("Expected PasswordPrompt modal for AUR package"),
     }
 }
 

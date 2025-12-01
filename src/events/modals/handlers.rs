@@ -54,10 +54,12 @@ pub(super) fn handle_preflight_exec_modal(
         ref action,
         ref tab,
         ref header_chips,
-        success: _,
+        ref success,
     } = modal
     {
-        let should_stop = super::common::handle_preflight_exec(ke, app, verbose, *abortable, items);
+        // Pass success to the handler since app.modal is taken during dispatch
+        let should_stop =
+            super::common::handle_preflight_exec(ke, app, verbose, *abortable, items, *success);
         if should_stop {
             return true; // Modal was closed or transitioned, stop propagation
         }
@@ -72,7 +74,7 @@ pub(super) fn handle_preflight_exec_modal(
                 items: items.clone(),
                 action: *action,
                 tab: *tab,
-                success: None,
+                success: *success,
                 header_chips: header_chips.clone(),
             },
         );
@@ -260,30 +262,16 @@ pub(super) fn handle_confirm_batch_update_modal(
                 let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
 
                 // Check if password is needed (same logic as handle_proceed_install)
-                let has_official = items_clone
-                    .iter()
-                    .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
-                if has_official {
-                    // Show password prompt
-                    app.modal = crate::state::Modal::PasswordPrompt {
-                        purpose: crate::state::modal::PasswordPurpose::Install,
-                        items: items_clone,
-                        input: String::new(),
-                        cursor: 0,
-                        error: None,
-                    };
-                    app.pending_exec_header_chips = Some(header_chips);
-                } else {
-                    // No password needed, go directly to execution
-                    use crate::events::preflight::keys;
-                    keys::start_execution(
-                        app,
-                        &items_clone,
-                        crate::state::PreflightAction::Install,
-                        header_chips,
-                        None,
-                    );
-                }
+                // All installs need password (official and AUR both need sudo)
+                // Show password prompt - user can press Enter if passwordless sudo is configured
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::Install,
+                    items: items_clone,
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                app.pending_exec_header_chips = Some(header_chips);
                 return true;
             }
             _ => {}
@@ -329,11 +317,8 @@ pub(super) fn handle_confirm_reinstall_modal(
                 // Retrieve password that was stored when reinstall confirmation was shown
                 let password = app.pending_executor_password.take();
 
-                // Check if password is needed
-                let has_official = items_clone
-                    .iter()
-                    .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
-                if has_official && password.is_none() {
+                // All installs need password (official and AUR both need sudo)
+                if password.is_none() {
                     // Check faillock status before showing password prompt
                     let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
                     if let Some(lockout_msg) =

@@ -17,6 +17,11 @@ use crate::install::{
 /// - `password`: Optional sudo password
 /// - `dry_run`: Whether to run in dry-run mode
 /// - `res_tx`: Channel sender for output
+///
+/// Details:
+/// - AUR helpers (paru/yay) need sudo for the final installation step
+/// - Detects AUR commands and caches sudo credentials when password is provided
+/// - Uses the same flow as custom commands for sudo passthrough
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
 fn handle_install_request(
@@ -25,15 +30,49 @@ fn handle_install_request(
     dry_run: bool,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
+    use crate::install::shell_single_quote;
+    use crate::state::Source;
+
     tracing::info!(
         "[Runtime] Executor worker received install request: {} items, dry_run={}",
         items.len(),
         dry_run
     );
-    let cmd = build_install_command_for_executor(&items, password.as_deref(), dry_run);
+
+    // Check if there are AUR packages
+    let has_aur = items.iter().any(|item| matches!(item.source, Source::Aur));
+
+    // For official packages: password is piped to sudo (printf '%s\n' password | sudo -S command)
+    // For AUR packages: cache sudo credentials first, then run paru/yay (same sudo prompt flow)
+    let cmd = if has_aur {
+        // Build AUR command without password embedded
+        build_install_command_for_executor(&items, None, dry_run)
+    } else {
+        // Build official command with password piping
+        build_install_command_for_executor(&items, password.as_deref(), dry_run)
+    };
+
+    // For AUR packages, cache sudo credentials first using the same password piping approach
+    // This ensures paru/yay can use sudo without prompting (same flow as official packages)
+    // Use `;` instead of `&&` so the AUR command runs regardless of sudo -v result
+    // (paru/yay can handle their own sudo prompts if credential caching fails)
+    let final_cmd = if has_aur && !dry_run && password.is_some() {
+        if let Some(ref pass) = password {
+            let escaped_pass = shell_single_quote(pass);
+            // Cache sudo credentials first, then run the AUR command
+            // sudo -v validates and caches credentials without running a command
+            // Using `;` ensures AUR command runs even if sudo -v returns non-zero
+            format!("printf '%s\\n' {escaped_pass} | sudo -S -v 2>/dev/null ; {cmd}")
+        } else {
+            cmd
+        }
+    } else {
+        cmd
+    };
+
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, res_tx_clone);
+        execute_command_pty(&final_cmd, None, res_tx_clone);
     });
 }
 
@@ -62,7 +101,7 @@ fn handle_remove_request(
     let cmd = build_remove_command_for_executor(&names, password.as_deref(), cascade, dry_run);
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, res_tx_clone);
+        execute_command_pty(&cmd, None, res_tx_clone);
     });
 }
 
@@ -89,7 +128,7 @@ fn handle_downgrade_request(
     let cmd = build_downgrade_command_for_executor(&names, password.as_deref(), dry_run);
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, res_tx_clone);
+        execute_command_pty(&cmd, None, res_tx_clone);
     });
 }
 
@@ -116,7 +155,7 @@ fn handle_update_request(
     let cmd = build_update_command_for_executor(&commands, password.as_deref(), dry_run);
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, res_tx_clone);
+        execute_command_pty(&cmd, None, res_tx_clone);
     });
 }
 
@@ -161,7 +200,7 @@ fn handle_scan_request(
     );
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, res_tx_clone);
+        execute_command_pty(&cmd, None, res_tx_clone);
     });
 }
 
@@ -193,7 +232,7 @@ fn handle_custom_command_request(
         // For commands that use sudo, we need to handle sudo password
         // Use SUDO_ASKPASS to provide password when sudo prompts
         if command.contains("sudo") && password.is_some() {
-            if let Some(pass) = password {
+            if let Some(ref pass) = password {
                 // Create a temporary script that outputs the password
                 // Use printf instead of echo for better security
                 use std::fs;
@@ -242,7 +281,7 @@ fn handle_custom_command_request(
     };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, res_tx_clone);
+        execute_command_pty(&cmd, password, res_tx_clone);
     });
 }
 
@@ -382,7 +421,7 @@ fn process_text_chars(
 ///
 /// Inputs:
 /// - `cmd`: Command string to execute
-/// - `password`: Optional password to provide to sudo
+/// - `_password`: Optional password (currently unused - password is handled in command builder)
 /// - `res_tx`: Channel sender for output lines
 ///
 /// Details:
@@ -390,9 +429,14 @@ fn process_text_chars(
 /// - Reads output line by line and sends via channel
 /// - Strips ANSI escape codes from output using `strip-ansi-escapes` crate
 /// - Sends Finished message when command completes
+/// - Note: Password is handled in command builder (piped for official packages, credential caching for AUR)
 #[allow(clippy::needless_pass_by_value)] // Pass by value needed for move into closure
 #[allow(clippy::too_many_lines)] // Complex PTY handling requires many steps
-fn execute_command_pty(cmd: &str, res_tx: mpsc::UnboundedSender<ExecutorOutput>) {
+fn execute_command_pty(
+    cmd: &str,
+    _password: Option<String>,
+    res_tx: mpsc::UnboundedSender<ExecutorOutput>,
+) {
     use portable_pty::{CommandBuilder, PtySize, native_pty_system};
     use std::io::Read;
     use std::sync::mpsc as std_mpsc;

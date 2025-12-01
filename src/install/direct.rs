@@ -1,6 +1,6 @@
 //! Direct install/remove operations using integrated processes (bypassing preflight).
 
-use crate::state::{AppState, PackageItem, PreflightAction, modal::CascadeMode};
+use crate::state::{AppState, PackageItem, modal::CascadeMode};
 
 /// What: Start integrated install process for a single package (bypassing preflight).
 ///
@@ -10,50 +10,36 @@ use crate::state::{AppState, PackageItem, PreflightAction, modal::CascadeMode};
 /// - `dry_run`: Whether to run in dry-run mode
 ///
 /// Output:
-/// - Transitions to `PasswordPrompt` if password needed, or `PreflightExec` if not
+/// - Transitions to `PasswordPrompt` (all installs need password for sudo)
 ///
 /// Details:
-/// - Checks if password is needed (for official packages)
-/// - Shows `PasswordPrompt` modal if password needed, otherwise goes directly to `PreflightExec`
+/// - Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
+///   require password, so always show `PasswordPrompt`
 /// - Uses `ExecutorRequest::Install` for execution
 pub fn start_integrated_install(app: &mut AppState, item: &PackageItem, dry_run: bool) {
     use crate::state::modal::PreflightHeaderChips;
 
     app.dry_run = dry_run;
 
-    // Check if password is needed (for official packages)
-    let has_official = matches!(item.source, crate::state::Source::Official { .. });
-    if has_official {
-        // Check faillock status before showing password prompt
-        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
-        if let Some(lockout_msg) =
-            crate::logic::faillock::get_lockout_message_if_locked(&username, app)
-        {
-            // User is locked out - show warning and don't show password prompt
-            app.modal = crate::state::Modal::Alert {
-                message: lockout_msg,
-            };
-            return;
-        }
-        // Show password prompt
-        app.modal = crate::state::Modal::PasswordPrompt {
-            purpose: crate::state::modal::PasswordPurpose::Install,
-            items: vec![item.clone()],
-            input: String::new(),
-            cursor: 0,
-            error: None,
+    // Check faillock status before showing password prompt
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+    {
+        // User is locked out - show warning and don't show password prompt
+        app.modal = crate::state::Modal::Alert {
+            message: lockout_msg,
         };
-        app.pending_exec_header_chips = Some(PreflightHeaderChips::default());
-    } else {
-        // No password needed (AUR package), go directly to execution
-        start_execution_internal(
-            app,
-            std::slice::from_ref(item),
-            PreflightAction::Install,
-            PreflightHeaderChips::default(),
-            None,
-        );
+        return;
     }
+    // Show password prompt for all installs (official and AUR both need sudo)
+    app.modal = crate::state::Modal::PasswordPrompt {
+        purpose: crate::state::modal::PasswordPurpose::Install,
+        items: vec![item.clone()],
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+    app.pending_exec_header_chips = Some(PreflightHeaderChips::default());
 }
 
 /// What: Start integrated install process for multiple packages (bypassing preflight).
@@ -64,52 +50,36 @@ pub fn start_integrated_install(app: &mut AppState, item: &PackageItem, dry_run:
 /// - `dry_run`: Whether to run in dry-run mode
 ///
 /// Output:
-/// - Transitions to `PasswordPrompt` if password needed, or `PreflightExec` if not
+/// - Transitions to `PasswordPrompt` (all installs need password for sudo)
 ///
 /// Details:
-/// - Checks if password is needed (for official packages)
-/// - Shows `PasswordPrompt` modal if password needed, otherwise goes directly to `PreflightExec`
+/// - Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
+///   require password, so always show `PasswordPrompt`
 /// - Uses `ExecutorRequest::Install` for execution
 pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], dry_run: bool) {
     use crate::state::modal::PreflightHeaderChips;
 
     app.dry_run = dry_run;
 
-    // Check if password is needed (for official packages)
-    let has_official = items
-        .iter()
-        .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
-    if has_official {
-        // Check faillock status before showing password prompt
-        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
-        if let Some(lockout_msg) =
-            crate::logic::faillock::get_lockout_message_if_locked(&username, app)
-        {
-            // User is locked out - show warning and don't show password prompt
-            app.modal = crate::state::Modal::Alert {
-                message: lockout_msg,
-            };
-            return;
-        }
-        // Show password prompt
-        app.modal = crate::state::Modal::PasswordPrompt {
-            purpose: crate::state::modal::PasswordPurpose::Install,
-            items: items.to_vec(),
-            input: String::new(),
-            cursor: 0,
-            error: None,
+    // Check faillock status before showing password prompt
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+    {
+        // User is locked out - show warning and don't show password prompt
+        app.modal = crate::state::Modal::Alert {
+            message: lockout_msg,
         };
-        app.pending_exec_header_chips = Some(PreflightHeaderChips::default());
-    } else {
-        // No password needed (AUR packages only), go directly to execution
-        start_execution_internal(
-            app,
-            items,
-            PreflightAction::Install,
-            PreflightHeaderChips::default(),
-            None,
-        );
+        return;
     }
+    // Show password prompt for all installs (official and AUR both need sudo)
+    app.modal = crate::state::Modal::PasswordPrompt {
+        purpose: crate::state::modal::PasswordPurpose::Install,
+        items: items.to_vec(),
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+    app.pending_exec_header_chips = Some(PreflightHeaderChips::default());
 }
 
 /// What: Start integrated remove process (bypassing preflight).
@@ -174,64 +144,4 @@ pub fn start_integrated_remove_all(
         error: None,
     };
     app.pending_exec_header_chips = Some(PreflightHeaderChips::default());
-}
-
-/// What: Internal helper to start execution (duplicated from `preflight::keys::action_keys::start_execution`).
-///
-/// Inputs:
-/// - `app`: Mutable application state
-/// - `items`: Packages to install/remove
-/// - `action`: Install or Remove action
-/// - `header_chips`: Header chip metrics
-/// - `password`: Optional password (if already obtained from password prompt)
-///
-/// Details:
-/// - Transitions to `PreflightExec` modal and stores `ExecutorRequest` for processing in tick handler
-/// - Duplicated from `preflight::keys::action_keys::start_execution` since that module is private
-fn start_execution_internal(
-    app: &mut AppState,
-    items: &[PackageItem],
-    action: PreflightAction,
-    header_chips: crate::state::modal::PreflightHeaderChips,
-    password: Option<String>,
-) {
-    use crate::install::ExecutorRequest;
-
-    // Transition to PreflightExec modal
-    app.modal = crate::state::Modal::PreflightExec {
-        items: items.to_vec(),
-        action,
-        tab: crate::state::PreflightTab::Summary,
-        verbose: false,
-        log_lines: Vec::new(),
-        abortable: false,
-        header_chips,
-        success: None,
-    };
-
-    // Store executor request for processing in tick handler
-    app.pending_executor_request = Some(match action {
-        PreflightAction::Install => ExecutorRequest::Install {
-            items: items.to_vec(),
-            password,
-            dry_run: app.dry_run,
-        },
-        PreflightAction::Remove => {
-            let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-            ExecutorRequest::Remove {
-                names,
-                password,
-                cascade: app.remove_cascade_mode,
-                dry_run: app.dry_run,
-            }
-        }
-        PreflightAction::Downgrade => {
-            let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-            ExecutorRequest::Downgrade {
-                names,
-                password,
-                dry_run: app.dry_run,
-            }
-        }
-    });
 }

@@ -78,18 +78,21 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
 /// - `verbose`: Mutable reference to verbose flag
 /// - `abortable`: Whether execution can be aborted
 /// - `items`: Package items being processed
+/// - `success`: Execution success status from the modal
 ///
 /// Output:
 /// - `true` when modal is closed/transitioned to stop propagation, `false` otherwise
 ///
 /// Details:
 /// - Handles Esc/q to close, Enter to show summary, l to toggle verbose, x to abort
+/// - Success must be passed in since app.modal is taken during dispatch
 pub(super) fn handle_preflight_exec(
     ke: KeyEvent,
     app: &mut AppState,
     verbose: &mut bool,
     abortable: bool,
     items: &[crate::state::PackageItem],
+    success: Option<bool>,
 ) -> bool {
     match ke.code {
         KeyCode::Esc | KeyCode::Char('q') => {
@@ -98,16 +101,7 @@ pub(super) fn handle_preflight_exec(
         }
         KeyCode::Enter => {
             // Show loading modal and queue background computation
-            // Get success flag from PreflightExec modal if available
-            let success = if let crate::state::Modal::PreflightExec {
-                success: modal_success,
-                ..
-            } = &app.modal
-            {
-                *modal_success
-            } else {
-                None
-            };
+            // Use the success flag passed in from the modal (app.modal is taken during dispatch)
             app.pending_post_summary_items = Some((items.to_vec(), success));
             app.modal = crate::state::Modal::Loading {
                 message: "Computing summary...".to_string(),

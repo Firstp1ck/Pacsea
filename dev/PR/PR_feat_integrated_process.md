@@ -51,6 +51,10 @@ This PR adds PTY-based command execution with live output streaming, enabling re
 - Dry-run commands properly quoted using `shell_single_quote`
 - Temporary pacman database setup: Uses fakeroot to create `/tmp/pacsea-db-{UID}/` with symlink to `/var/lib/pacman/local` for safe update checks without root privileges
 - Update check logging: Enhanced with exit code details for `pacman -Qu` and AUR helper commands to improve debugging
+- AUR single updates: Added sudo passthrough support for AUR package updates/installs. AUR packages now show the same password prompt as official packages, then cache sudo credentials before running paru/yay (`printf '%s\n' password | sudo -S -v 2>/dev/null ; paru -S pkg`). Uses `;` instead of `&&` to ensure the AUR command runs regardless of sudo credential caching result (paru/yay can handle their own sudo prompts if needed). This ensures AUR helpers can use sudo for the final installation step without prompting.
+- Reinstall warning fix: The reinstall confirmation modal now correctly distinguishes updates from reinstalls by comparing target version with installed version for both official and AUR packages (not just relying on `pacman -Qu`).
+- Success state fix: Fixed bug where `PreflightExec` modal's success state was lost in three places: (1) renderer resetting to `None` on every render, (2) handler restoration resetting to `None`, (3) `handle_preflight_exec` reading from empty `app.modal` after `std::mem::take`. Now passes success as parameter through the dispatch chain.
+- Database sync for single updates: Official package installs now run `pacman -Sy` first to sync the database before installing, ensuring the latest package versions are available. This fixes the "ist aktuell" warning when updating packages from the Updates modal.
 
 **Security & Authentication:**
 - Password validation: `sudo -k ; sudo -S -v` (invalidates cached credentials first); language-independent (exit codes only); shows remaining attempts; clears input on failure

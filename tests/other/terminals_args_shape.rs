@@ -27,7 +27,7 @@ fn write_fake(term_name: &str, dir: &std::path::Path) -> (std::path::PathBuf, st
 ///
 /// Inputs:
 /// - Fake tilix executable on PATH.
-/// - SystemUpdate Enter key event.
+/// - `SystemUpdate` Enter key event.
 ///
 /// Output:
 /// - First three args are `["--", "bash", "-lc"]`.
@@ -133,7 +133,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
 ///
 /// Inputs:
 /// - Fake mate-terminal executable on PATH.
-/// - SystemUpdate Enter key event.
+/// - `SystemUpdate` Enter key event.
 ///
 /// Output:
 /// - First three args are `["--", "bash", "-lc"]`.
@@ -239,7 +239,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
 ///
 /// Inputs:
 /// - Fake gnome-terminal executable with PATH isolated.
-/// - SystemUpdate Enter key event.
+/// - `SystemUpdate` Enter key event.
 ///
 /// Output:
 /// - First three args are `["--", "bash", "-lc"]`.
@@ -341,7 +341,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
 ///
 /// Inputs:
 /// - Fake konsole executable with PATH isolated.
-/// - SystemUpdate Enter key event.
+/// - `SystemUpdate` Enter key event.
 ///
 /// Output:
 /// - First three args are `["-e", "bash", "-lc"]`.
@@ -443,7 +443,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
 ///
 /// Inputs:
 /// - Fake alacritty executable with PATH isolated.
-/// - SystemUpdate Enter key event.
+/// - `SystemUpdate` Enter key event.
 ///
 /// Output:
 /// - First three args are `["-e", "bash", "-lc"]`.
@@ -545,7 +545,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
 ///
 /// Inputs:
 /// - Fake kitty executable with PATH isolated.
-/// - SystemUpdate Enter key event.
+/// - `SystemUpdate` Enter key event.
 ///
 /// Output:
 /// - First two args are `["bash", "-lc"]`.
@@ -646,7 +646,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
 ///
 /// Inputs:
 /// - Fake xterm executable with PATH isolated.
-/// - SystemUpdate Enter key event.
+/// - `SystemUpdate` Enter key event.
 ///
 /// Output:
 /// - First four args are `["-hold", "-e", "bash", "-lc"]`.

@@ -622,7 +622,7 @@ fn test_modal_preflight_renders() {
 }
 
 #[test]
-/// What: Test ConfirmInstall modal rendering.
+/// What: Test `ConfirmInstall` modal rendering.
 ///
 /// Inputs:
 /// - `AppState` with `Modal::ConfirmInstall` containing package items.

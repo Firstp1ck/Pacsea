@@ -62,6 +62,7 @@ struct PreflightExecContext {
     log_lines: Vec<String>,
     abortable: bool,
     header_chips: PreflightHeaderChips,
+    success: Option<bool>,
 }
 
 /// What: Context struct grouping `SystemUpdate` modal fields to reduce data flow complexity.
@@ -278,7 +279,7 @@ impl ModalRenderer for Modal {
                 log_lines,
                 abortable,
                 header_chips,
-                success: _,
+                success,
             } => {
                 let ctx = PreflightExecContext {
                     items,
@@ -288,6 +289,7 @@ impl ModalRenderer for Modal {
                     log_lines,
                     abortable,
                     header_chips,
+                    success,
                 };
                 render_preflight_exec_modal(f, app, area, ctx)
             }
@@ -521,7 +523,7 @@ fn render_preflight_exec_modal(
         log_lines: ctx.log_lines,
         abortable: ctx.abortable,
         header_chips: ctx.header_chips,
-        success: None,
+        success: ctx.success,
     }
 }
 

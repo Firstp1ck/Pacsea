@@ -253,19 +253,18 @@ pub(super) fn handle_proceed_install(
             }
 
             // Check if package has an update available
-            // For official packages: check if it's in upgradable_set
-            // For AUR packages: check if target version is different/newer than installed version
+            // For official packages: check if it's in upgradable_set OR version differs from installed
+            // For AUR packages: check if target version is different from installed version
             let has_update = if upgradable_set.contains(&item.name) {
-                // Official package with update available
+                // Package is in upgradable set (pacman -Qu)
                 true
-            } else if matches!(item.source, crate::state::Source::Aur) && !item.version.is_empty() {
-                // AUR package: compare target version with installed version
-                // Use simple string comparison for AUR packages
-                // If target version is different from installed, it's an update
+            } else if !item.version.is_empty() {
+                // Compare target version with installed version
+                // This works for both official and AUR packages
                 crate::logic::deps::get_installed_version(&item.name)
                     .is_ok_and(|installed_version| item.version != installed_version)
             } else {
-                // No update available
+                // No version info available, no update
                 false
             };
 
@@ -317,40 +316,27 @@ pub(super) fn handle_proceed_install(
     }
 
     // Check if password is needed
-    let has_official = packages
-        .iter()
-        .any(|p| matches!(p.source, crate::state::Source::Official { .. }));
-    if has_official {
-        // Check faillock status before showing password prompt
-        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
-        if let Some(lockout_msg) =
-            crate::logic::faillock::get_lockout_message_if_locked(&username, app)
-        {
-            // User is locked out - show warning and don't show password prompt
-            app.modal = crate::state::Modal::Alert {
-                message: lockout_msg,
-            };
-            return false;
-        }
-        // Show password prompt
-        app.modal = crate::state::Modal::PasswordPrompt {
-            purpose: crate::state::modal::PasswordPurpose::Install,
-            items: packages,
-            input: String::new(),
-            cursor: 0,
-            error: None,
+    // Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
+    // require password, so always show password prompt
+    // User can press Enter if passwordless sudo is configured
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+    {
+        // User is locked out - show warning and don't show password prompt
+        app.modal = crate::state::Modal::Alert {
+            message: lockout_msg,
         };
-        app.pending_exec_header_chips = Some(header_chips);
-    } else {
-        // No password needed, go directly to execution
-        super::action_keys::start_execution(
-            app,
-            &packages,
-            crate::state::PreflightAction::Install,
-            header_chips,
-            None,
-        );
+        return false;
     }
+    // Show password prompt for all installs (official and AUR)
+    app.modal = crate::state::Modal::PasswordPrompt {
+        purpose: crate::state::modal::PasswordPurpose::Install,
+        items: packages,
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+    app.pending_exec_header_chips = Some(header_chips);
     false // Keep TUI open
 }
 

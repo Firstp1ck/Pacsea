@@ -3,7 +3,7 @@
 //!
 //! Tests cover:
 //! - Application initialization without panicking
-//! - Headless mode operation with PACSEA_TEST_HEADLESS=1
+//! - Headless mode operation with `PACSEA_TEST_HEADLESS=1`
 //! - Task cancellation handling
 
 use std::io::Write;
