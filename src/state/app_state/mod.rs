@@ -520,8 +520,8 @@ pub struct AppState {
     // Executor integration
     /// Pending executor request to be sent when `PreflightExec` modal is ready.
     pub pending_executor_request: Option<crate::install::ExecutorRequest>,
-    /// Pending post-summary computation request (items to compute summary for).
-    pub pending_post_summary_items: Option<Vec<PackageItem>>,
+    /// Pending post-summary computation request (items and success flag to compute summary for).
+    pub pending_post_summary_items: Option<(Vec<PackageItem>, Option<bool>)>,
     /// Header chips to use when transitioning to `PreflightExec` modal.
     pub pending_exec_header_chips: Option<crate::state::modal::PreflightHeaderChips>,
     /// Custom command to execute after password prompt (for special packages like paru/yay/semgrep-bin).

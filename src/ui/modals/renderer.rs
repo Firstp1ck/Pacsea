@@ -278,6 +278,7 @@ impl ModalRenderer for Modal {
                 log_lines,
                 abortable,
                 header_chips,
+                success: _,
             } => {
                 let ctx = PreflightExecContext {
                     items,
@@ -520,6 +521,7 @@ fn render_preflight_exec_modal(
         log_lines: ctx.log_lines,
         abortable: ctx.abortable,
         header_chips: ctx.header_chips,
+        success: None,
     }
 }
 

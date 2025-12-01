@@ -498,6 +498,8 @@ pub enum Modal {
         abortable: bool,
         /// Header chip metrics displayed in the sidebar.
         header_chips: PreflightHeaderChips,
+        /// Execution result: `Some(true)` for success, `Some(false)` for failure, `None` if not yet completed.
+        success: Option<bool>,
     },
     /// Post-transaction summary with results and follow-ups.
     PostSummary {

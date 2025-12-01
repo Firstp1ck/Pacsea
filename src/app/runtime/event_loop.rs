@@ -276,6 +276,7 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
     if let crate::state::Modal::PreflightExec {
         ref mut log_lines,
         ref mut abortable,
+        ref mut success,
         ref items,
         ref action,
         ..
@@ -298,11 +299,18 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                     log_lines[last_idx] = line;
                 }
             }
-            crate::install::ExecutorOutput::Finished { success, exit_code } => {
-                tracing::info!("Received Finished: success={success}, exit_code={exit_code:?}");
+            crate::install::ExecutorOutput::Finished {
+                success: exec_success,
+                exit_code,
+            } => {
+                tracing::info!(
+                    "Received Finished: success={exec_success}, exit_code={exit_code:?}"
+                );
                 *abortable = false;
+                // Store the execution result in the modal
+                *success = Some(exec_success);
                 log_lines.push(String::new()); // Empty line before completion message
-                if success {
+                if exec_success {
                     let completion_msg = match action {
                         crate::state::PreflightAction::Install => {
                             "Installation successfully completed!".to_string()

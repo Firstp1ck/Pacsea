@@ -177,7 +177,7 @@ pub(super) fn handle_virustotal_setup(
 /// Details:
 /// - Persists scan settings and launches AUR scans via integrated process
 /// - aur-sleuth runs in separate terminal simultaneously if enabled
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools, clippy::needless_pass_by_ref_mut)]
 fn handle_scan_config_confirm(
     app: &mut crate::state::AppState,
     pending_install_names: Option<&Vec<String>>,
@@ -190,8 +190,6 @@ fn handle_scan_config_confirm(
     do_custom: bool,
     do_sleuth: bool,
 ) -> crate::state::Modal {
-    use crate::install::ExecutorRequest;
-    use crate::state::{PackageItem, Source};
 
     tracing::info!(
         event = "scan_config_confirm",
@@ -251,6 +249,7 @@ fn handle_scan_config_confirm(
             log_lines: Vec::new(),
             abortable: false,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            success: None,
         };
 
         // Store executor request for scan
@@ -294,6 +293,7 @@ fn handle_scan_config_confirm(
             verbose: false,
             log_lines: Vec::new(),
             abortable: false,
+            success: None,
             header_chips: crate::state::modal::PreflightHeaderChips::default(),
         };
     }

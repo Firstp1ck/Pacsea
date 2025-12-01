@@ -518,7 +518,7 @@ pub fn handle_tick(
     )>,
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
     executor_req_tx: &mpsc::UnboundedSender<crate::install::ExecutorRequest>,
-    post_summary_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    post_summary_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
 ) {
     // Check faillock status periodically (every minute via worker, but also check here)
     // We check every tick but only update if enough time has passed
@@ -584,9 +584,9 @@ pub fn handle_tick(
     }
 
     // Send pending post-summary request if Loading modal is active
-    if let Some(items) = app.pending_post_summary_items.take()
+    if let Some((items, success)) = app.pending_post_summary_items.take()
         && matches!(app.modal, crate::state::Modal::Loading { .. })
-        && let Err(e) = post_summary_req_tx.send(items)
+        && let Err(e) = post_summary_req_tx.send((items, success))
     {
         tracing::error!("Failed to send post-summary request: {:?}", e);
     }

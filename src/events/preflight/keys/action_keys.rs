@@ -190,6 +190,7 @@ pub fn start_execution(
         log_lines: Vec::new(),
         abortable: false,
         header_chips,
+        success: None,
     };
 
     // Store executor request for processing in tick handler

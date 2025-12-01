@@ -277,6 +277,7 @@ fn handle_optional_deps_enter(
             tab: crate::state::PreflightTab::Summary,
             verbose: false,
             log_lines: Vec::new(),
+            success: None,
             abortable: false,
             header_chips: crate::state::modal::PreflightHeaderChips {
                 package_count: 1,

@@ -216,5 +216,6 @@ fn handle_system_update_enter(
         log_lines: Vec::new(),
         abortable: false,
         header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        success: None,
     };
 }

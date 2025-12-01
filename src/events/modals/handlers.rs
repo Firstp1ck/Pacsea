@@ -54,6 +54,7 @@ pub(super) fn handle_preflight_exec_modal(
         ref action,
         ref tab,
         ref header_chips,
+        success: _,
     } = modal
     {
         let should_stop = super::common::handle_preflight_exec(ke, app, verbose, *abortable, items);
@@ -71,6 +72,7 @@ pub(super) fn handle_preflight_exec_modal(
                 items: items.clone(),
                 action: *action,
                 tab: *tab,
+                success: None,
                 header_chips: header_chips.clone(),
             },
         );
@@ -807,6 +809,7 @@ pub(super) fn handle_password_prompt_modal(
                     log_lines: Vec::new(),
                     abortable: false,
                     header_chips,
+                    success: None,
                 };
 
                 // Store executor request with password
@@ -862,6 +865,7 @@ pub(super) fn handle_password_prompt_modal(
                 tab: crate::state::PreflightTab::Summary,
                 verbose: false,
                 log_lines: Vec::new(),
+                success: None,
                 abortable: false,
                 header_chips,
             };

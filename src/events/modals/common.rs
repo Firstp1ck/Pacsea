@@ -98,7 +98,17 @@ pub(super) fn handle_preflight_exec(
         }
         KeyCode::Enter => {
             // Show loading modal and queue background computation
-            app.pending_post_summary_items = Some(items.to_vec());
+            // Get success flag from PreflightExec modal if available
+            let success = if let crate::state::Modal::PreflightExec {
+                success: modal_success,
+                ..
+            } = &app.modal
+            {
+                *modal_success
+            } else {
+                None
+            };
+            app.pending_post_summary_items = Some((items.to_vec(), success));
             app.modal = crate::state::Modal::Loading {
                 message: "Computing summary...".to_string(),
             };
