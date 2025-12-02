@@ -565,9 +565,6 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                 None
             };
 
-            #[cfg(not(target_os = "windows"))]
-            let temp_db_path: Option<std::path::PathBuf> = None;
-
             // Execute pacman -Qu with appropriate --dbpath
             #[cfg(not(target_os = "windows"))]
             let output_checkupdates = temp_db_path.as_ref().map_or_else(
