@@ -209,6 +209,7 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
 ///
 /// Details:
 /// - Fakeroot is required to sync a temporary pacman database without root
+#[cfg(not(target_os = "windows"))]
 fn has_fakeroot() -> bool {
     use std::process::{Command, Stdio};
 
@@ -564,7 +565,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                 None
             };
 
-            #[cfg(target_os = "windows")]
+            #[cfg(not(target_os = "windows"))]
             let temp_db_path: Option<std::path::PathBuf> = None;
 
             // Execute pacman -Qu with appropriate --dbpath

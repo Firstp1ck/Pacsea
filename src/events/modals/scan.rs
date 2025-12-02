@@ -2,8 +2,11 @@
 
 use crossterm::event::{KeyCode, KeyEvent};
 
+#[cfg(not(target_os = "windows"))]
 use crate::install::ExecutorRequest;
-use crate::state::{AppState, PackageItem, Source};
+use crate::state::AppState;
+#[cfg(not(target_os = "windows"))]
+use crate::state::{PackageItem, Source};
 
 /// What: Handle key events for `ScanConfig` modal.
 ///
@@ -66,6 +69,7 @@ pub(super) fn handle_scan_config(
             6 => *do_sleuth = !*do_sleuth,
             _ => {}
         },
+        #[cfg(not(target_os = "windows"))]
         KeyCode::Enter => {
             let pending_names = app.pending_install_names.clone();
             let new_modal = handle_scan_config_confirm(
@@ -183,6 +187,7 @@ pub(super) fn handle_virustotal_setup(
     clippy::fn_params_excessive_bools,
     clippy::needless_pass_by_ref_mut
 )]
+#[cfg(not(target_os = "windows"))]
 fn handle_scan_config_confirm(
     app: &mut crate::state::AppState,
     pending_install_names: Option<&Vec<String>>,

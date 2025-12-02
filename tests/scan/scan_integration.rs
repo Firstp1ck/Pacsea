@@ -324,6 +324,7 @@ fn integration_scan_uses_executor_request() {
 /// Details:
 /// - Non-sleuth scans use integrated process via ``ExecutorRequest::Scan``.
 /// - aur-sleuth uses terminal spawning via ``build_sleuth_command_for_terminal``.
+#[cfg(not(target_os = "windows"))]
 fn integration_scan_mixed_sleuth_and_integrated() {
     use pacsea::install::ExecutorRequest;
 
@@ -685,6 +686,7 @@ fn integration_virustotal_setup_input_handling() {
 ///
 /// Details:
 /// - Verifies aur-sleuth terminal command structure.
+#[cfg(not(target_os = "windows"))]
 fn integration_sleuth_command_building() {
     let package = "test-aur-package";
     let sleuth_command = pacsea::install::build_sleuth_command_for_terminal(package);
