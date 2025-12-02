@@ -203,6 +203,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
   - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
 - **Commandline Flags -u and --update use set "Update System" from the TUI settings.**
 - **Ability to maintain your AUR packages**
+- **Implement `rebuild-detector` that checks if a package needs to be rebuild**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
