@@ -55,20 +55,25 @@ pacsea
 > Prefer a dry run first? Add `--dry-run`.
 
 ## Features
-- **Security Scan for AUR Packages**: Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries
-- **Fuzzy Search**: Toggle flexible fuzzy search mode to find packages even without exact names
-- **Unified search**: Fast results across official repos and the AUR.
-- **Package Update Availability**: Automatic background checks with detailed version comparison view
-- **Keyboard‑first**: Minimal keystrokes, Vim‑friendly navigation.
-- **Queue & install**: Add packages to queue and confirm installs. Run security scans for AUR packages before installing.
-- **Always‑visible details**: Open package links with a click.
-- **PKGBUILD preview**: Toggle viewer; copy PKGBUILD with one click.
-- **AUR Comments viewer**: View community comments for AUR packages with markdown support, clickable URLs, and automatic updates when navigating packages.
-- **Persistent lists**: Recent searches and Install list are saved.
-- **Installed‑only mode**: Review and remove installed packages safely. Configure filter mode to show only leaf packages (default) or all explicitly installed packages.
-- **Package downgrade**: Downgrade installed packages to previous versions using the `downgrade` tool.
-- **Distro-aware updates**: Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, Artix, and standard Arch
-- **Helpful tools**: System update dialog with distro-aware mirror management and Arch News popup.
+
+| Feature | Description |
+|---------|-------------|
+| **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
+| **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
+| **Unified search** | Fast results across official repos and the AUR |
+| **Package Update Availability** | Automatic background checks with detailed version comparison view |
+| **Keyboard‑first** | Minimal keystrokes, Vim‑friendly navigation |
+| **Queue & install** | Add packages to queue and confirm installs. Run security scans for AUR packages before installing |
+| **Always‑visible details** | Open package links with a click |
+| **PKGBUILD preview** | Toggle viewer; copy PKGBUILD with one click |
+| **AUR Comments viewer** | View community comments for AUR packages with markdown support, clickable URLs, and automatic updates when navigating packages |
+| **AUR status markings** | Visual indicators for out-of-date [OOD] and orphaned [ORPHAN] packages |
+| **Persistent lists** | Recent searches and Install list are saved |
+| **Installed‑only mode** | Review and remove installed packages safely. Configure filter mode to show only leaf packages (default) or all explicitly installed packages |
+| **Package downgrade** | Downgrade installed packages to previous versions using the `downgrade` tool |
+| **Distro-aware updates** | Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, Artix, and standard Arch |
+| **Updates modal** | View available updates with Preflight integration for safe installation |
+| **Helpful tools** | System update dialog with distro-aware mirror management and Arch News popup |
 
 ## Security-first approach for AUR Packages
 
@@ -143,7 +148,7 @@ By default, Pacsea shows a Preflight review modal before installs/removals. This
 
 **For Install actions**: Review dependencies that will be installed, files that will be added, and optionally run security scans for AUR packages.
 
-**For Remove actions**: Review reverse dependencies (packages that depend on what you're removing), affected services, and files that will be removed. Meta-packages show warnings when they have no reverse dependencies, as removal may affect system state.
+**For Remove actions**: Review reverse dependencies (packages that depend on what you're removing), affected services, and files that will be removed. Meta-packages show warnings when they have no reverse dependencies, as removal may affect system state. Dependency reports are cached for faster tab switching.
 
 The Install list shows all packages queued for installation. You can export your list to a file or import packages from a previously saved list. The blue refresh icon next to each package indicates the loading/update status.
 
@@ -180,7 +185,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 - **Vote for AUR packages via SSH connection**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
-- **Instead of spawning Terminals for actions, render directly in the TUI: Install, removal, update, scans, downgrade, configs**
+- **Instead of spawning Terminals for actions, render directly in the TUI: Install, removal, update, scans, downgrade, configs** (on going)
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does**
@@ -198,6 +203,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
   - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
 - **Commandline Flags -u and --update use set "Update System" from the TUI settings.**
 - **Ability to maintain your AUR packages**
+- **Implement `rebuild-detector` that checks if a package needs to be rebuild**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
