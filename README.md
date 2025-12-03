@@ -58,6 +58,7 @@ pacsea
 
 | Feature | Description |
 |---------|-------------|
+| **Integrated Process Execution** | All operations execute directly within the TUI with real-time output streaming, progress bars, and inline password prompts — no external terminals |
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
 | **Unified search** | Fast results across official repos and the AUR |
@@ -114,6 +115,7 @@ Pacsea provides a keyboard-first interface for searching, queueing, and installi
 - Review packages before installing with the Preflight modal
 - Run security scans for AUR packages
 - Manage installed packages, including removal and downgrade
+- All operations execute directly in the TUI with real-time output and progress indicators
 
 For a complete reference of all keyboard shortcuts, see the [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts) wiki page.
 
@@ -185,7 +187,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 - **Vote for AUR packages via SSH connection**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
-- **Instead of spawning Terminals for actions, render directly in the TUI: Install, removal, update, scans, downgrade, configs** (on going)
+- ~~**Instead of spawning Terminals for actions, render directly in the TUI: Install, removal, update, scans, downgrade, configs**~~ ✅ **Completed in v0.6.0**
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does**
