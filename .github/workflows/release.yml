@@ -55,7 +55,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Release ${{ steps.tag.outputs.tag }}
-          files: target/release/Nodepat
+          files: target/release/pacsea
           draft: false
           prerelease: false
           generate_release_notes: true
