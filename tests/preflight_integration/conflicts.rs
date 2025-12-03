@@ -723,7 +723,7 @@ fn create_jujutsu_git_dependencies() -> Vec<crate_root::state::modal::Dependency
 /// - Populates app cache with pacsea-bin's dependencies
 /// - Sets up install list and preflight modal
 fn setup_pacsea_bin(app: &mut crate_root::state::AppState) -> crate_root::state::PackageItem {
-    let pacsea_bin = create_test_package("pacsea-bin", "0.5.1", crate_root::state::Source::Aur);
+    let pacsea_bin = create_test_package("pacsea-bin", "0.6.0", crate_root::state::Source::Aur);
 
     app.install_list_deps = create_pacsea_bin_dependencies();
     app.install_list = vec![pacsea_bin.clone()];
