@@ -79,6 +79,9 @@ impl Default for AppState {
             last_saved_value,
             latest_query_id,
             next_query_id,
+            search_cache_query,
+            search_cache_fuzzy,
+            search_cache_results,
         ) = defaults::default_search_state();
 
         let (recent, history_state, recent_path, recent_dirty) =
@@ -100,6 +103,9 @@ impl Default for AppState {
             install_path,
             install_dirty,
             last_install_change,
+            install_list_names,
+            remove_list_names,
+            downgrade_list_names,
         ) = defaults::default_install_lists_state(install_path);
 
         let (show_recent_pane, show_install_pane, show_keybinds_footer, pane_find) =
@@ -289,6 +295,9 @@ impl Default for AppState {
             recent_dirty,
             latest_query_id,
             next_query_id,
+            search_cache_query,
+            search_cache_fuzzy,
+            search_cache_results,
             details_cache,
             cache_path,
             cache_dirty,
@@ -304,6 +313,9 @@ impl Default for AppState {
             install_path,
             install_dirty,
             last_install_change,
+            install_list_names,
+            remove_list_names,
+            downgrade_list_names,
             show_recent_pane,
             show_install_pane,
             show_keybinds_footer,

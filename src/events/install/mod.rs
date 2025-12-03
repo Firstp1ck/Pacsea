@@ -421,6 +421,7 @@ fn handle_enter_key(app: &mut AppState) {
                 app.toast_expires_at =
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 app.remove_list.clear();
+                app.remove_list_names.clear();
                 app.remove_state.select(None);
             } else {
                 open_preflight_remove_modal(app);
@@ -445,6 +446,7 @@ fn handle_enter_key(app: &mut AppState) {
             };
             crate::install::spawn_shell_commands_in_terminal(&[cmd]);
             app.downgrade_list.clear();
+            app.downgrade_list_names.clear();
             app.downgrade_state.select(None);
         } else {
             open_preflight_downgrade_modal(app);
@@ -561,6 +563,10 @@ fn handle_delete_item(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
                 if let Some(sel) = app.downgrade_state.selected()
                     && sel < app.downgrade_list.len()
                 {
+                    if let Some(removed_item) = app.downgrade_list.get(sel) {
+                        app.downgrade_list_names
+                            .remove(&removed_item.name.to_lowercase());
+                    }
                     app.downgrade_list.remove(sel);
                     let len = app.downgrade_list.len();
                     if len == 0 {
@@ -576,6 +582,10 @@ fn handle_delete_item(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
                 if let Some(sel) = app.remove_state.selected()
                     && sel < app.remove_list.len()
                 {
+                    if let Some(removed_item) = app.remove_list.get(sel) {
+                        app.remove_list_names
+                            .remove(&removed_item.name.to_lowercase());
+                    }
                     app.remove_list.remove(sel);
                     let len = app.remove_list.len();
                     if len == 0 {
@@ -615,6 +625,10 @@ fn delete_from_install_list(app: &mut AppState, details_tx: &mpsc::UnboundedSend
     if let Some(vsel) = app.install_state.selected() {
         let i = inds.get(vsel).copied().unwrap_or(0);
         if i < app.install_list.len() {
+            if let Some(removed_item) = app.install_list.get(i) {
+                app.install_list_names
+                    .remove(&removed_item.name.to_lowercase());
+            }
             app.install_list.remove(i);
             app.install_dirty = true;
             // Clear dependency cache when list changes
@@ -649,14 +663,17 @@ fn handle_clear_list(app: &mut AppState) {
         match app.right_pane_focus {
             crate::state::RightPaneFocus::Downgrade => {
                 app.downgrade_list.clear();
+                app.downgrade_list_names.clear();
                 app.downgrade_state.select(None);
             }
             crate::state::RightPaneFocus::Remove => {
                 app.remove_list.clear();
+                app.remove_list_names.clear();
                 app.remove_state.select(None);
             }
             crate::state::RightPaneFocus::Install => {
                 app.install_list.clear();
+                app.install_list_names.clear();
                 app.install_state.select(None);
                 app.install_dirty = true;
                 // Clear dependency cache when list is cleared
@@ -668,6 +685,7 @@ fn handle_clear_list(app: &mut AppState) {
         }
     } else {
         app.install_list.clear();
+        app.install_list_names.clear();
         app.install_state.select(None);
         app.install_dirty = true;
         // Clear dependency cache when list is cleared

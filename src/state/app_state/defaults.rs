@@ -1,7 +1,7 @@
 //! Default initialization helpers for `AppState`.
 
 use ratatui::widgets::ListState;
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
 use crate::state::modal::Modal;
 use crate::state::types::{ArchStatusColor, Focus, PackageDetails, PackageItem, SortMode};
@@ -76,6 +76,9 @@ pub(super) type DefaultSearchState = (
     Option<String>,
     u64,
     u64,
+    Option<String>,
+    bool,
+    Option<Vec<PackageItem>>,
 );
 
 /// Type alias for default install lists state tuple.
@@ -89,6 +92,9 @@ pub(super) type DefaultInstallListsState = (
     PathBuf,
     bool,
     Option<Instant>,
+    HashSet<String>,
+    HashSet<String>,
+    HashSet<String>,
 );
 
 /// Type alias for default clickable rectangles state tuple.
@@ -250,6 +256,9 @@ pub(super) fn default_search_state() -> DefaultSearchState {
         None,
         0,
         1,
+        None,
+        false,
+        None,
     )
 }
 
@@ -323,6 +332,9 @@ pub(super) fn default_install_lists_state(install_path: PathBuf) -> DefaultInsta
         install_path,
         false,
         None,
+        HashSet::new(),
+        HashSet::new(),
+        HashSet::new(),
     )
 }
 
