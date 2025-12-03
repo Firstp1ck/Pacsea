@@ -58,7 +58,7 @@ jobs:
           files: target/release/pacsea
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
           fail_on_unmatched_files: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
