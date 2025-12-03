@@ -187,7 +187,6 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 - **Vote for AUR packages via SSH connection**
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes**
 - **Add possibility to switch locations of Top/Center/Bottom panes**
-- ~~**Instead of spawning Terminals for actions, render directly in the TUI: Install, removal, update, scans, downgrade, configs**~~ ✅ **Completed in v0.6.0**
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does**
@@ -206,6 +205,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 - **Commandline Flags -u and --update use set "Update System" from the TUI settings.**
 - **Ability to maintain your AUR packages**
 - **Implement `rebuild-detector` that checks if a package needs to be rebuild**
+- **Implement Wiki into the TUI**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
