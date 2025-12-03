@@ -389,6 +389,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_map_curl_error_common_codes() {
         use std::os::unix::process::ExitStatusExt;
         use std::process::ExitStatus;

@@ -247,7 +247,9 @@ fi"#
 ///
 /// Output:
 /// - Appends aur-sleuth summary commands to the vector.
+/// - Note: Kept for backward compatibility; aur-sleuth now runs in separate terminal.
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)] // Kept for backward compatibility
 pub fn add_sleuth_summary(cmds: &mut Vec<String>) {
     cmds.push(
         r#"if [ -f ./.pacsea_sleuth.txt ]; then

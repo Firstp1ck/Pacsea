@@ -14,6 +14,9 @@ use action_keys::{
     handle_a_key, handle_d_key, handle_enter_key, handle_esc_key, handle_r_key, handle_shift_r_key,
     handle_space_key,
 };
+
+// Re-export start_execution for use in other modules
+pub use action_keys::start_execution;
 use command_keys::{
     handle_c_key, handle_dry_run_key, handle_f_key, handle_help_key, handle_m_key, handle_p_key,
     handle_q_key, handle_s_key,

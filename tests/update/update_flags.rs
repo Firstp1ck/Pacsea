@@ -6,6 +6,8 @@
 //! a long-running update scenario where sudo may timeout and require password re-entry.
 
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -94,22 +96,28 @@ fn create_test_temp_dir(prefix: &str) -> PathBuf {
     temp_dir
 }
 
-/// What: Make a script file executable.
+/// What: Make a script file executable and ensure it's synced to disk.
 ///
 /// Inputs:
 /// - `script_path`: Path to the script file.
 ///
 /// Output:
-/// - Sets the executable permission on the file.
+/// - Sets the executable permission on the file and syncs it to disk.
 ///
 /// Details:
 /// - Sets the file mode to 0o755 to make it executable.
+/// - Syncs the file to disk to prevent "Text file busy" errors when executing immediately.
 fn make_script_executable(script_path: &Path) {
     let mut perms = fs::metadata(script_path)
         .expect("Failed to read script metadata")
         .permissions();
     perms.set_mode(0o755);
     fs::set_permissions(script_path, perms).expect("Failed to set script permissions");
+
+    // Sync the file to disk to prevent "Text file busy" errors
+    // This ensures the file system has fully written the file before execution
+    let file = File::open(script_path).expect("Failed to open script file for syncing");
+    file.sync_all().expect("Failed to sync script file to disk");
 }
 
 /// What: Create a mock sudo script that tracks password requests.
@@ -157,7 +165,14 @@ exec "$@"
 "#
     );
 
-    fs::write(script_path, sudo_script).expect("Failed to write mock sudo script");
+    // Write the script and ensure it's synced to disk
+    let mut file = File::create(script_path).expect("Failed to create mock sudo script");
+    file.write_all(sudo_script.as_bytes())
+        .expect("Failed to write mock sudo script");
+    file.sync_all()
+        .expect("Failed to sync sudo script file to disk");
+    drop(file); // Ensure file handle is closed
+
     make_script_executable(script_path);
 }
 
@@ -172,7 +187,14 @@ exec "$@"
 /// Details:
 /// - Uses the shared `MOCK_PACMAN_SCRIPT` content to create the script.
 fn create_mock_pacman_script(script_path: &Path) {
-    fs::write(script_path, MOCK_PACMAN_SCRIPT).expect("Failed to write mock pacman script");
+    // Write the script and ensure it's synced to disk
+    let mut file = File::create(script_path).expect("Failed to create mock pacman script");
+    file.write_all(MOCK_PACMAN_SCRIPT.as_bytes())
+        .expect("Failed to write mock pacman script");
+    file.sync_all()
+        .expect("Failed to sync pacman script file to disk");
+    drop(file); // Ensure file handle is closed
+
     make_script_executable(script_path);
 }
 
@@ -409,6 +431,13 @@ fn test_update_long_flag_triggers_update() {
 ///   3. Password should NOT be required again (implementation should handle this)
 /// - The test creates a mock sudo wrapper that simulates password requirement and timeout.
 /// - Verifies that the update handler properly handles sudo password to avoid re-prompting.
+/// - This is a manual integration test for long-running scenarios.
+/// - The test is ignored by default because it requires:
+///   - Actual system setup with sudo
+///   - Long-running simulation (may take several minutes)
+///   - Manual execution outside of CI
+/// - For unit-level testing, see `tests/install/password_prompt.rs::integration_password_prompt_timeout_error`
+/// - Run manually with: `cargo test -- --ignored test_sudo_password_timeout_during_long_update`
 #[test]
 #[ignore = "Long-running simulation test, only run manually"]
 fn test_sudo_password_timeout_during_long_update() {
@@ -466,7 +495,13 @@ fn test_long_running_update_simulation() {
     let temp_dir = create_test_temp_dir("update");
     let mock_script_path = temp_dir.join("mock_pacman_update.sh");
 
-    fs::write(&mock_script_path, MOCK_PACMAN_SCRIPT).expect("Failed to write mock script");
+    // Write the script and ensure it's synced to disk
+    let mut file = File::create(&mock_script_path).expect("Failed to create mock script");
+    file.write_all(MOCK_PACMAN_SCRIPT.as_bytes())
+        .expect("Failed to write mock script");
+    file.sync_all().expect("Failed to sync script file to disk");
+    drop(file); // Ensure file handle is closed
+
     make_script_executable(&mock_script_path);
 
     // Test that the script runs and takes a reasonable amount of time

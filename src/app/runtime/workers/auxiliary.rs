@@ -24,7 +24,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `net_err_tx`: Channel sender for network errors
 /// - `index_notify_tx`: Channel sender for index update notifications
 /// - `updates_tx`: Channel sender for package updates
-/// - `updates_refresh_interval`: Refresh interval in seconds for checkupdates and AUR helper checks
+/// - `updates_refresh_interval`: Refresh interval in seconds for pacman -Qu and AUR helper checks
 /// - `installed_packages_mode`: Filter mode for installed packages (leaf only vs all explicit)
 ///
 /// Details:
@@ -150,6 +150,21 @@ pub fn spawn_auxiliary_workers(
             let _ = tick_tx_bg.send(());
         }
     });
+
+    // Spawn faillock check worker (runs every minute)
+    if !headless {
+        let faillock_tx = tick_tx.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(60));
+            // Skip the first tick to avoid immediate check after startup
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                // Trigger a tick to update faillock status in the UI
+                let _ = faillock_tx.send(());
+            }
+        });
+    }
 }
 
 /// What: Check which AUR helper is available (paru or yay).
@@ -187,7 +202,114 @@ fn check_aur_helper() -> (bool, bool, &'static str) {
     (has_paru, has_yay, helper)
 }
 
-/// What: Parse packages from checkupdates output.
+/// What: Check if fakeroot is available on the system.
+///
+/// Output:
+/// - `true` if fakeroot is available, `false` otherwise
+///
+/// Details:
+/// - Fakeroot is required to sync a temporary pacman database without root
+#[cfg(not(target_os = "windows"))]
+fn has_fakeroot() -> bool {
+    use std::process::{Command, Stdio};
+
+    Command::new("fakeroot")
+        .args(["--version"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .is_ok()
+}
+
+/// What: Get the current user's UID by reading /proc/self/status.
+///
+/// Output:
+/// - `Some(u32)` with the UID if successful
+/// - `None` if unable to read the UID
+///
+/// Details:
+/// - Reads /proc/self/status and parses the Uid line
+/// - Returns the real UID (first value on the Uid line)
+#[cfg(not(target_os = "windows"))]
+fn get_uid() -> Option<u32> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    for line in status.lines() {
+        if line.starts_with("Uid:") {
+            // Format: "Uid:\treal\teffective\tsaved\tfs"
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                return parts[1].parse().ok();
+            }
+        }
+    }
+    None
+}
+
+/// What: Set up a temporary pacman database directory for safe update checks.
+///
+/// Output:
+/// - `Some(PathBuf)` with the temp database path if setup succeeds
+/// - `None` if setup fails
+///
+/// Details:
+/// - Creates `/tmp/pacsea-db-{UID}/` directory
+/// - Creates a symlink from `local` to `/var/lib/pacman/local`
+/// - The symlink allows pacman to know which packages are installed
+/// - Directory is kept for reuse across subsequent checks
+#[cfg(not(target_os = "windows"))]
+fn setup_temp_db() -> Option<std::path::PathBuf> {
+    // Get current user ID
+    let uid = get_uid()?;
+    let temp_db = std::path::PathBuf::from(format!("/tmp/pacsea-db-{uid}"));
+
+    // Create directory if needed
+    if let Err(e) = std::fs::create_dir_all(&temp_db) {
+        tracing::warn!("Failed to create temp database directory: {}", e);
+        return None;
+    }
+
+    // Create symlink to local database (skip if exists)
+    let local_link = temp_db.join("local");
+    if !local_link.exists()
+        && let Err(e) = std::os::unix::fs::symlink("/var/lib/pacman/local", &local_link)
+    {
+        tracing::warn!("Failed to create symlink to local database: {}", e);
+        return None;
+    }
+
+    Some(temp_db)
+}
+
+/// What: Sync the temporary pacman database with remote repositories.
+///
+/// Inputs:
+/// - `temp_db`: Path to the temporary database directory
+///
+/// Output:
+/// - `true` if sync succeeds, `false` otherwise
+///
+/// Details:
+/// - Uses fakeroot to run `pacman -Sy` without root privileges
+/// - Syncs only the temporary database, not the system database
+/// - Uses `--logfile /dev/null` to prevent log file creation
+#[cfg(not(target_os = "windows"))]
+fn sync_temp_db(temp_db: &std::path::Path) -> bool {
+    use std::process::{Command, Stdio};
+
+    let output = Command::new("fakeroot")
+        .args(["--", "pacman", "-Sy", "--dbpath"])
+        .arg(temp_db)
+        .args(["--logfile", "/dev/null"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+
+    matches!(output, Ok(o) if o.status.success())
+}
+
+/// What: Parse packages from pacman -Qu output.
 ///
 /// Inputs:
 /// - `output`: Raw command output bytes
@@ -261,7 +383,7 @@ fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// What: Process checkupdates output and add packages to collections.
+/// What: Process pacman -Qu output and add packages to collections.
 ///
 /// Inputs:
 /// - `output`: Command output result
@@ -274,11 +396,12 @@ fn process_checkupdates_output(
 ) {
     match output {
         Ok(output) => {
+            let exit_code = output.status.code();
             if output.status.success() {
                 let packages = parse_checkupdates(&output.stdout);
                 let count = packages.len();
 
-                // Parse checkupdates output which already contains old and new versions
+                // Parse pacman -Qu output which already contains old and new versions
                 for (name, old_version, new_version) in packages {
                     // Format: "name - old_version -> name - new_version"
                     let formatted = format!("{name} - {old_version} -> {name} - {new_version}");
@@ -287,19 +410,22 @@ fn process_checkupdates_output(
                 }
 
                 tracing::debug!(
-                    "Found {} packages from official repos (checkupdates)",
+                    "pacman -Qu completed successfully (exit code: {:?}): found {} packages from official repos",
+                    exit_code,
                     count
                 );
-            } else if output.status.code() != Some(1) {
-                // Exit code 1 is normal (no updates), other codes are errors
-                tracing::warn!(
-                    "checkupdates command failed with exit code: {:?}",
-                    output.status.code()
+            } else if output.status.code() == Some(1) {
+                // Exit code 1 is normal (no updates)
+                tracing::debug!(
+                    "pacman -Qu returned exit code 1 (no updates available in official repos)"
                 );
+            } else {
+                // Other exit codes are errors
+                tracing::warn!("pacman -Qu command failed with exit code: {:?}", exit_code);
             }
         }
         Err(e) => {
-            tracing::warn!("Failed to execute checkupdates: {}", e);
+            tracing::warn!("Failed to execute pacman -Qu: {}", e);
         }
     }
 }
@@ -320,6 +446,7 @@ fn process_qua_output(
     if let Some(result) = result {
         match result {
             Ok(output) => {
+                let exit_code = output.status.code();
                 if output.status.success() {
                     let packages = parse_qua(&output.stdout);
                     let count = packages.len();
@@ -334,16 +461,25 @@ fn process_qua_output(
 
                     let after_count = packages_set.len();
                     tracing::debug!(
-                        "Found {} packages from AUR (-Qua), {} total ({} new)",
+                        "{} -Qua completed successfully (exit code: {:?}): found {} packages from AUR, {} total ({} new)",
+                        helper,
+                        exit_code,
                         count,
                         after_count,
                         after_count - before_count
                     );
-                } else if output.status.code() != Some(1) {
-                    // Exit code 1 is normal (no updates), other codes are errors
+                } else if output.status.code() == Some(1) {
+                    // Exit code 1 is normal (no updates)
+                    tracing::debug!(
+                        "{} -Qua returned exit code 1 (no updates available in AUR)",
+                        helper
+                    );
+                } else {
+                    // Other exit codes are errors
                     tracing::warn!(
-                        "-Qua command failed with exit code: {:?}",
-                        output.status.code()
+                        "{} -Qua command failed with exit code: {:?}",
+                        helper,
+                        exit_code
                     );
                 }
             }
@@ -375,9 +511,10 @@ static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::
 /// - None (spawns async task)
 ///
 /// Details:
-/// - Executes `checkupdates` (official repos) and `yay -Qua` or `paru -Qua` (AUR)
-/// - Checks for paru first, then falls back to yay for AUR updates
-/// - Parses output from both commands (one package name per line)
+/// - Uses a temporary database to safely check for updates without modifying the system
+/// - Syncs the temp database with `fakeroot pacman -Sy` if fakeroot is available
+/// - Falls back to `pacman -Qu` (stale local DB) if fakeroot is not available
+/// - Executes `yay -Qua` or `paru -Qua` for AUR updates
 /// - Removes duplicates using `HashSet`
 /// - Sorts package names alphabetically
 /// - Saves list to `~/.config/pacsea/lists/available_updates.txt`
@@ -405,17 +542,70 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
             use std::collections::HashSet;
             use std::process::{Command, Stdio};
 
+            tracing::debug!("Starting update check");
+
             let (has_paru, has_yay, helper) = check_aur_helper();
 
-            // Execute checkupdates command (official repos)
-            let output_checkupdates = Command::new("checkupdates")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .output();
+            // Try safe update check with temp database (non-Windows only)
+            #[cfg(not(target_os = "windows"))]
+            let temp_db_path: Option<std::path::PathBuf> = if has_fakeroot() {
+                tracing::debug!("fakeroot is available, setting up temp database");
+                setup_temp_db().and_then(|temp_db| {
+                    tracing::debug!("Syncing temporary database at {:?}", temp_db);
+                    if sync_temp_db(&temp_db) {
+                        tracing::debug!("Temp database sync successful");
+                        Some(temp_db)
+                    } else {
+                        tracing::warn!("Temp database sync failed, falling back to pacman -Qu");
+                        None
+                    }
+                })
+            } else {
+                tracing::debug!("fakeroot not available, falling back to pacman -Qu");
+                None
+            };
+
+            // Execute pacman -Qu with appropriate --dbpath
+            #[cfg(not(target_os = "windows"))]
+            let output_checkupdates = temp_db_path.as_ref().map_or_else(
+                || {
+                    tracing::debug!("Executing: pacman -Qu (using system database)");
+                    Command::new("pacman")
+                        .args(["-Qu"])
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .output()
+                },
+                |db_path| {
+                    tracing::debug!(
+                        "Executing: pacman -Qu --dbpath {:?} (using synced temp database)",
+                        db_path
+                    );
+                    Command::new("pacman")
+                        .args(["-Qu", "--dbpath"])
+                        .arg(db_path)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .output()
+                },
+            );
+
+            #[cfg(target_os = "windows")]
+            let output_checkupdates = {
+                tracing::debug!("Executing: pacman -Qu (Windows fallback)");
+                Command::new("pacman")
+                    .args(["-Qu"])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null())
+                    .output()
+            };
 
             // Execute -Qua command (AUR) - only if helper is available
             let output_qua = if has_paru {
+                tracing::debug!("Executing: paru -Qua (AUR updates)");
                 Some(
                     Command::new("paru")
                         .args(["-Qua"])
@@ -425,6 +615,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                         .output(),
                 )
             } else if has_yay {
+                tracing::debug!("Executing: yay -Qua (AUR updates)");
                 Some(
                     Command::new("yay")
                         .args(["-Qua"])
@@ -434,6 +625,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                         .output(),
                 )
             } else {
+                tracing::debug!("No AUR helper available (paru/yay), skipping AUR updates check");
                 None
             };
 
@@ -444,7 +636,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                 std::collections::HashMap::new();
             let mut packages_set = HashSet::new();
 
-            // Parse checkupdates output (official repos)
+            // Parse pacman -Qu output (official repos)
             process_checkupdates_output(output_checkupdates, &mut packages_map, &mut packages_set);
 
             // Parse -Qua output (AUR)
@@ -461,7 +653,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
 
             let count = packages.len();
             tracing::debug!(
-                "Found {} total available updates (after deduplication)",
+                "Update check completed: found {} total available updates (after deduplication)",
                 count
             );
 
@@ -564,16 +756,16 @@ pub fn spawn_event_thread(
 mod tests {
     use super::parse_checkupdates;
 
-    /// What: Test that checkupdates parsing correctly extracts old and new versions.
+    /// What: Test that pacman -Qu parsing correctly extracts old and new versions.
     ///
     /// Inputs:
-    /// - Sample checkupdates output with format `"package-name old_version -> new_version"`
+    /// - Sample pacman -Qu output with format `"package-name old_version -> new_version"`
     ///
     /// Output:
     /// - Verifies that `old_version` and `new_version` are correctly parsed and different
     ///
     /// Details:
-    /// - Tests parsing of checkupdates output format
+    /// - Tests parsing of pacman -Qu output format
     #[test]
     fn test_parse_checkupdates_extracts_correct_versions() {
         let test_cases = vec![
@@ -604,10 +796,10 @@ mod tests {
         }
     }
 
-    /// What: Test that checkupdates parsing handles multiple packages.
+    /// What: Test that pacman -Qu parsing handles multiple packages.
     ///
     /// Inputs:
-    /// - Multi-line checkupdates output
+    /// - Multi-line pacman -Qu output
     ///
     /// Output:
     /// - Verifies that all packages are parsed correctly

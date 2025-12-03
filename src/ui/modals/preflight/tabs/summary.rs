@@ -379,6 +379,7 @@ fn build_display_items<'a>(
 /// - `app`: Application state for i18n.
 /// - `items`: Packages under review.
 /// - `dependency_info`: Dependency information.
+/// - `summary_data`: Optional summary data containing package notes.
 ///
 /// Output:
 /// - Returns a vector of lines to render.
@@ -386,10 +387,12 @@ fn build_display_items<'a>(
 /// Details:
 /// - Shows conflicts and upgrades grouped by package.
 /// - Displays installed packages separately.
+/// - Shows package notes (e.g., "Required by installed packages") from summary data.
 fn render_install_dependencies(
     app: &AppState,
     items: &[PackageItem],
     dependency_info: &[DependencyInfo],
+    summary_data: Option<&PreflightSummaryData>,
 ) -> Vec<Line<'static>> {
     let th = theme();
     let mut lines = Vec::new();
@@ -454,6 +457,21 @@ fn render_install_dependencies(
                 .fg(th.overlay1)
                 .add_modifier(Modifier::BOLD);
             lines.push(Line::from(Span::styled(format!("▶ {pkg_name}"), style)));
+
+            // Show package notes from summary data (e.g., "Required by installed packages")
+            if let Some(summary) = summary_data
+                && let Some(pkg_summary) = summary.packages.iter().find(|p| p.name == *pkg_name)
+            {
+                for note in &pkg_summary.notes {
+                    // Show notes about dependent packages
+                    if note.contains("Required by") {
+                        lines.push(Line::from(Span::styled(
+                            format!("  ⚠ {note}"),
+                            Style::default().fg(th.yellow),
+                        )));
+                    }
+                }
+            }
         } else if let Some(dep) = dep {
             if let Some(spans) = render_dependency_spans(dep) {
                 lines.push(Line::from(spans));
@@ -1134,7 +1152,12 @@ pub fn render_summary_tab(
 
     match action {
         PreflightAction::Install if !dependency_info.is_empty() => {
-            lines.extend(render_install_dependencies(app, items, dependency_info));
+            lines.extend(render_install_dependencies(
+                app,
+                items,
+                dependency_info,
+                summary,
+            ));
         }
         PreflightAction::Remove => {
             lines.extend(render_remove_action(
@@ -1144,7 +1167,7 @@ pub fn render_summary_tab(
                 cascade_mode,
             ));
         }
-        PreflightAction::Install => {
+        PreflightAction::Install | PreflightAction::Downgrade => {
             if items.is_empty() {
                 lines.push(Line::from(Span::styled(
                     i18n::t(app, "app.modals.preflight.summary.no_items_selected"),

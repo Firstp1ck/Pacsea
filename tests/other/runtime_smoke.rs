@@ -1,15 +1,32 @@
 #![cfg(test)]
-// End-to-end runtime smoke test (headless)
-// - Starts pacsea::app::run(true) in the background.
-// - Runs with PACSEA_TEST_HEADLESS=1 to bypass raw TTY setup/restore.
-// - Waits briefly to allow initialization and a render cycle.
-// - Asserts the task does not panic. If it finishes, it must return Ok(()).
-// - If still running after the wait, aborts the task and asserts the join was a clean cancel.
+//! End-to-end runtime smoke test (headless)
+//!
+//! Tests cover:
+//! - Application initialization without panicking
+//! - Headless mode operation with `PACSEA_TEST_HEADLESS=1`
+//! - Task cancellation handling
 
 use std::io::Write;
 use std::time::Duration;
 
 #[tokio::test]
+/// What: Test end-to-end runtime initialization and execution in headless mode.
+///
+/// Inputs:
+/// - `PACSEA_TEST_HEADLESS=1` environment variable to bypass raw TTY setup/restore.
+/// - `pacsea::app::run(true)` called with dry-run flag.
+///
+/// Output:
+/// - Application initializes without panicking.
+/// - Task either completes successfully or can be cleanly cancelled.
+///
+/// Details:
+/// - Starts `pacsea::app::run(true)` in the background.
+/// - Waits briefly (50ms) to allow initialization and a render cycle.
+/// - If task finishes early, asserts it returned `Ok(())`.
+/// - If still running, aborts the task and verifies clean cancellation.
+/// - Clears screen output for `--nocapture` runs.
+/// - In headless mode, slow operations (pacman calls, network) are skipped.
 async fn runtime_smoke_headless_initializes_and_runs_without_panic() {
     // Ensure terminal raw mode/alternate screen are bypassed during this test
     unsafe {

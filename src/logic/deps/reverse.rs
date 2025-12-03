@@ -483,6 +483,34 @@ pub fn has_installed_required_by(name: &str) -> bool {
     }
 }
 
+/// What: Get the list of installed packages that depend on a package.
+///
+/// Inputs:
+/// - `name`: Package name to check.
+///
+/// Output:
+/// - Returns a vector of package names that are installed and depend on the package, or an empty vector on failure.
+///
+/// Details:
+/// - Runs `pacman -Qi` to query package information and parses the "Required By" field.
+/// - Filters the "Required By" list to only include installed packages.
+/// - Returns an empty vector if the package is not installed or if querying fails.
+#[must_use]
+pub fn get_installed_required_by(name: &str) -> Vec<String> {
+    match fetch_pkg_info(name) {
+        Ok(info) => info
+            .required_by
+            .iter()
+            .filter(|pkg| crate::index::is_installed(pkg))
+            .cloned()
+            .collect(),
+        Err(err) => {
+            tracing::debug!("Failed to query pacman -Qi {}: {}", name, err);
+            Vec::new()
+        }
+    }
+}
+
 /// What: Query pacman for detailed information about an installed package.
 ///
 /// Inputs:

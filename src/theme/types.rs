@@ -112,7 +112,7 @@ pub struct Settings {
     /// When false, uses normal substring search (default).
     /// When true, uses fuzzy matching (fzf-style).
     pub fuzzy_search: bool,
-    /// Refresh interval in seconds for checkupdates and AUR helper checks.
+    /// Refresh interval in seconds for pacman -Qu and AUR helper checks.
     /// Default is 30 seconds. Set to a higher value to reduce resource usage on slow systems.
     pub updates_refresh_interval: u64,
     /// Filter mode for installed packages display.

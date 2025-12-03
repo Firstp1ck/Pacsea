@@ -95,7 +95,9 @@ pub fn add_semgrep_scan(cmds: &mut Vec<String>) {
 /// - Searches for aur-sleuth in multiple locations.
 /// - Loads proxy settings from Pacsea config if available.
 /// - Respects `PACSEA_SCAN_DO_SLEUTH` environment variable.
+/// - Note: Kept for backward compatibility; aur-sleuth now runs in separate terminal.
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)] // Kept for backward compatibility
 pub fn add_sleuth_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- aur-sleuth audit (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🔎] aur-sleuth audit (optional)\\033[0m'".to_string());

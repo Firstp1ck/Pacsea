@@ -4,6 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc;
 
 use super::restore;
+use crate::install::ExecutorRequest;
 use crate::state::{AppState, Modal, PackageItem};
 
 /// What: Handle key events for Alert modal, including restoration logic.
@@ -39,6 +40,7 @@ pub(super) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal
 ///
 /// Details:
 /// - Delegates to common handler, updates verbose flag, and restores modal if needed
+/// - Returns `true` when modal is closed/transitioned to stop key propagation
 pub(super) fn handle_preflight_exec_modal(
     ke: KeyEvent,
     app: &mut AppState,
@@ -52,9 +54,15 @@ pub(super) fn handle_preflight_exec_modal(
         ref action,
         ref tab,
         ref header_chips,
+        ref success,
     } = modal
     {
-        super::common::handle_preflight_exec(ke, app, verbose, *abortable, items);
+        // Pass success to the handler since app.modal is taken during dispatch
+        let should_stop =
+            super::common::handle_preflight_exec(ke, app, verbose, *abortable, items, *success);
+        if should_stop {
+            return true; // Modal was closed or transitioned, stop propagation
+        }
         restore::restore_if_not_closed_with_excluded_keys(
             app,
             &ke,
@@ -66,6 +74,7 @@ pub(super) fn handle_preflight_exec_modal(
                 items: items.clone(),
                 action: *action,
                 tab: *tab,
+                success: *success,
                 header_chips: header_chips.clone(),
             },
         );
@@ -85,6 +94,7 @@ pub(super) fn handle_preflight_exec_modal(
 ///
 /// Details:
 /// - Delegates to common handler and restores modal if needed
+/// - Returns `true` when modal is closed to stop key propagation
 pub(super) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal) -> bool {
     if let Modal::PostSummary {
         success,
@@ -95,7 +105,10 @@ pub(super) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal:
         snapshot_label,
     } = modal
     {
-        super::common::handle_post_summary(ke, app, services_pending);
+        let should_stop = super::common::handle_post_summary(ke, app, services_pending);
+        if should_stop {
+            return true; // Modal was closed, stop propagation
+        }
         restore::restore_if_not_closed_with_excluded_keys(
             app,
             &ke,
@@ -226,6 +239,7 @@ pub(super) fn handle_confirm_remove_modal(ke: KeyEvent, app: &mut AppState, moda
 ///
 /// Details:
 /// - Handles Esc/q to cancel, Enter to continue with batch update
+/// - Uses executor pattern (PTY-based execution) instead of spawning terminal
 pub(super) fn handle_confirm_batch_update_modal(
     ke: KeyEvent,
     app: &mut AppState,
@@ -239,12 +253,103 @@ pub(super) fn handle_confirm_batch_update_modal(
                 return true;
             }
             KeyCode::Enter => {
-                // Continue with batch update
+                // Continue with batch update - use executor pattern instead of spawning terminal
                 let items_clone = items.clone();
                 let dry_run_clone = *dry_run;
+                app.dry_run = dry_run_clone;
+
+                // Get header_chips if available from pending_exec_header_chips, otherwise use default
+                let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
+
+                // Check if password is needed (same logic as handle_proceed_install)
+                // All installs need password (official and AUR both need sudo)
+                // Show password prompt - user can press Enter if passwordless sudo is configured
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::Install,
+                    items: items_clone,
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                app.pending_exec_header_chips = Some(header_chips);
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// What: Handle key events for `ConfirmReinstall` modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `ConfirmReinstall` modal variant
+///
+/// Output:
+/// - `true` if modal was closed/transitioned, `false` otherwise
+///
+/// Details:
+/// - Handles Esc/q to cancel, Enter to proceed with reinstall
+pub(super) fn handle_confirm_reinstall_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ConfirmReinstall {
+        items: _installed_items,
+        all_items,
+        header_chips,
+    } = modal
+    {
+        match ke.code {
+            KeyCode::Esc | KeyCode::Char('q' | 'Q') => {
+                // Cancel reinstall
                 app.modal = crate::state::Modal::None;
-                // Proceed with the actual install
-                crate::install::spawn_install_all(&items_clone, dry_run_clone);
+                return true;
+            }
+            KeyCode::Enter => {
+                // Proceed with reinstall - use executor pattern
+                // Use all_items (all packages) instead of just installed ones
+                let items_clone = all_items.clone();
+                let header_chips_clone = header_chips.clone();
+                // Retrieve password that was stored when reinstall confirmation was shown
+                let password = app.pending_executor_password.take();
+
+                // All installs need password (official and AUR both need sudo)
+                if password.is_none() {
+                    // Check faillock status before showing password prompt
+                    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+                    if let Some(lockout_msg) =
+                        crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+                    {
+                        // User is locked out - show warning and don't show password prompt
+                        app.modal = crate::state::Modal::Alert {
+                            message: lockout_msg,
+                        };
+                        return true;
+                    }
+                    // Show password prompt (password wasn't provided yet)
+                    app.modal = crate::state::Modal::PasswordPrompt {
+                        purpose: crate::state::modal::PasswordPurpose::Install,
+                        items: items_clone,
+                        input: String::new(),
+                        cursor: 0,
+                        error: None,
+                    };
+                    app.pending_exec_header_chips = Some(header_chips_clone);
+                } else {
+                    // Password already obtained or not needed, go directly to execution
+                    use crate::events::preflight::keys;
+                    keys::start_execution(
+                        app,
+                        &items_clone,
+                        crate::state::PreflightAction::Install,
+                        header_chips_clone,
+                        password,
+                    );
+                }
                 return true;
             }
             _ => {}
@@ -476,6 +581,320 @@ pub(super) fn handle_gnome_terminal_prompt_modal(
     _modal: Modal,
 ) -> bool {
     super::common::handle_gnome_terminal_prompt(ke, app);
+    false
+}
+
+/// What: Handle key events for `PasswordPrompt` modal, including restoration logic.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `PasswordPrompt` modal variant
+///
+/// Output:
+/// - `true` if Enter was pressed (password submitted), `false` otherwise
+///
+/// Details:
+/// - Delegates to password handler and restores modal if needed
+/// - Returns `true` on Enter to indicate password should be submitted
+#[allow(clippy::too_many_lines)] // Complex password validation and execution flow requires many lines
+pub(super) fn handle_password_prompt_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    mut modal: Modal,
+) -> bool {
+    if let Modal::PasswordPrompt {
+        ref mut input,
+        ref mut cursor,
+        ref purpose,
+        ref items,
+        ref mut error,
+    } = modal
+    {
+        let submitted = super::password::handle_password_prompt(ke, app, input, cursor);
+        if submitted {
+            // Password submitted - validate before starting execution
+            let password = if input.trim().is_empty() {
+                None
+            } else {
+                Some(input.clone())
+            };
+
+            // Validate password if provided (skip validation for passwordless sudo)
+            if let Some(ref pass) = password {
+                // Validate password before starting execution
+                // Always validate - don't skip even if passwordless sudo might be configured
+                match crate::logic::password::validate_sudo_password(pass) {
+                    Ok(true) => {
+                        // Password is valid, continue with execution
+                    }
+                    Ok(false) => {
+                        // Password is invalid - check faillock status and show error
+                        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+
+                        // Check if user is now locked out (this may have just happened)
+                        let (is_locked, lockout_until, remaining_minutes) =
+                            crate::logic::faillock::get_lockout_info(&username);
+
+                        // Update AppState immediately with lockout status
+                        app.faillock_locked = is_locked;
+                        app.faillock_lockout_until = lockout_until;
+                        app.faillock_remaining_minutes = remaining_minutes;
+
+                        if is_locked {
+                            // User is locked out - show alert modal with lockout message
+                            let lockout_msg = remaining_minutes.map_or_else(
+                                || {
+                                    crate::i18n::t_fmt1(
+                                        app,
+                                        "app.modals.alert.account_locked",
+                                        &username,
+                                    )
+                                },
+                                |remaining| {
+                                    if remaining > 0 {
+                                        crate::i18n::t_fmt(
+                                            app,
+                                            "app.modals.alert.account_locked_with_time",
+                                            &[&username as &dyn std::fmt::Display, &remaining],
+                                        )
+                                    } else {
+                                        crate::i18n::t_fmt1(
+                                            app,
+                                            "app.modals.alert.account_locked",
+                                            &username,
+                                        )
+                                    }
+                                },
+                            );
+
+                            // Close password prompt and show alert
+                            // Clear any pending executor state to abort the process
+                            app.pending_executor_password = None;
+                            app.pending_exec_header_chips = None;
+                            app.pending_executor_request = None;
+                            app.modal = crate::state::Modal::Alert {
+                                message: lockout_msg,
+                            };
+                            return true;
+                        }
+
+                        // Not locked out, check status for remaining attempts
+                        let error_msg = crate::logic::faillock::check_faillock_status(&username)
+                            .map_or_else(
+                                |_| {
+                                    // Couldn't check faillock status, just show generic error
+                                    crate::i18n::t(
+                                        app,
+                                        "app.modals.password_prompt.incorrect_password",
+                                    )
+                                },
+                                |status| {
+                                    let remaining =
+                                        status.max_attempts.saturating_sub(status.attempts_used);
+                                    crate::i18n::t_fmt1(
+                                        app,
+                                        "app.modals.password_prompt.incorrect_password_attempts",
+                                        remaining,
+                                    )
+                                },
+                            );
+                        // Update modal with error message and keep it open for retry
+                        // Clear the input field so user can immediately type a new password
+                        app.modal = crate::state::Modal::PasswordPrompt {
+                            purpose: *purpose,
+                            items: items.clone(),
+                            input: String::new(), // Clear input field
+                            cursor: 0,            // Reset cursor position
+                            error: Some(error_msg),
+                        };
+                        // Don't start execution, keep modal open for retry
+                        // Return true to stop event propagation and prevent restore from overwriting
+                        return true;
+                    }
+                    Err(e) => {
+                        // Error validating password (e.g., sudo not available)
+                        // Update modal with error message and keep it open
+                        app.modal = crate::state::Modal::PasswordPrompt {
+                            purpose: *purpose,
+                            items: items.clone(),
+                            input: input.clone(),
+                            cursor: *cursor,
+                            error: Some(crate::i18n::t_fmt1(
+                                app,
+                                "app.modals.password_prompt.validation_failed",
+                                &e,
+                            )),
+                        };
+                        // Return true to stop event propagation and prevent restore from overwriting
+                        return true;
+                    }
+                }
+            }
+
+            // Handle downgrade specially - it's an interactive tool that needs a terminal
+            if matches!(purpose, crate::state::modal::PasswordPurpose::Downgrade) {
+                // Downgrade tool is interactive and needs to run in a terminal
+                // Close the modal and spawn downgrade in a terminal
+                app.modal = crate::state::Modal::None;
+
+                let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+                let joined = names.join(" ");
+
+                let cmd = if app.dry_run {
+                    // Properly quote the command to avoid syntax errors
+                    let downgrade_cmd = format!("sudo downgrade {joined}");
+                    let quoted = crate::install::shell_single_quote(&downgrade_cmd);
+                    format!("echo DRY RUN: {quoted}")
+                } else {
+                    // Build command with password passed via sudo -S
+                    let downgrade_cmd = password.as_ref().map_or_else(
+                        || {
+                            // No password (passwordless sudo)
+                            format!("sudo downgrade {joined}")
+                        },
+                        |pass| {
+                            // Use sudo -S to pass password via stdin
+                            let pass_escaped = crate::install::shell_single_quote(pass);
+                            format!("echo {pass_escaped} | sudo -S downgrade {joined}")
+                        },
+                    );
+
+                    // Check if downgrade command exists or if package is installed (pacman -Qi works without sudo for installed packages)
+                    format!(
+                        "if (command -v downgrade >/dev/null 2>&1) || pacman -Qi downgrade >/dev/null 2>&1; then {downgrade_cmd}; else echo 'downgrade tool not found. Install \"downgrade\" package.'; fi"
+                    )
+                };
+
+                // Clear downgrade list
+                app.downgrade_list.clear();
+                app.downgrade_state.select(None);
+
+                // Spawn downgrade in a terminal (interactive tool needs full terminal)
+                crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+
+                // Show toast message
+                app.toast_message = Some(crate::i18n::t(app, "app.toasts.downgrade_started"));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+
+                return true;
+            }
+
+            let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
+
+            // Check if this is a custom command (for special packages like paru/yay/semgrep-bin)
+            if let Some(custom_cmd) = app.pending_custom_command.take() {
+                // Transition to PreflightExec for custom command
+                app.modal = Modal::PreflightExec {
+                    items: items.clone(),
+                    action: crate::state::PreflightAction::Install,
+                    tab: crate::state::PreflightTab::Summary,
+                    verbose: false,
+                    log_lines: Vec::new(),
+                    abortable: false,
+                    header_chips,
+                    success: None,
+                };
+
+                // Store executor request with password
+                app.pending_executor_request = Some(ExecutorRequest::CustomCommand {
+                    command: custom_cmd,
+                    password,
+                    dry_run: app.dry_run,
+                });
+
+                return true;
+            }
+
+            // For Install actions, use start_execution to check for reinstall scenarios
+            // This ensures the reinstall confirmation modal is shown if needed
+            if matches!(
+                purpose,
+                crate::state::modal::PasswordPurpose::Install
+                    | crate::state::modal::PasswordPurpose::Update
+            ) {
+                use crate::events::preflight::keys;
+                keys::start_execution(
+                    app,
+                    items,
+                    crate::state::PreflightAction::Install,
+                    header_chips,
+                    password,
+                );
+                return true;
+            }
+
+            // For Remove actions, proceed directly (no reinstall check needed)
+            let action = match purpose {
+                crate::state::modal::PasswordPurpose::Install
+                | crate::state::modal::PasswordPurpose::Update => {
+                    // This should never be reached due to the check above
+                    unreachable!("Install/Update should be handled above")
+                }
+                crate::state::modal::PasswordPurpose::Remove => {
+                    crate::state::PreflightAction::Remove
+                }
+                crate::state::modal::PasswordPurpose::Downgrade => {
+                    // This should never be reached due to the check above
+                    unreachable!("Downgrade should be handled above")
+                }
+                crate::state::modal::PasswordPurpose::FileSync => {
+                    // This should never be reached - FileSync is handled via custom command above
+                    unreachable!("FileSync should be handled via custom command above")
+                }
+            };
+            app.modal = Modal::PreflightExec {
+                items: items.clone(),
+                action,
+                tab: crate::state::PreflightTab::Summary,
+                verbose: false,
+                log_lines: Vec::new(),
+                success: None,
+                abortable: false,
+                header_chips,
+            };
+
+            // Store executor request for remove
+            app.pending_executor_request = Some(match purpose {
+                crate::state::modal::PasswordPurpose::Install
+                | crate::state::modal::PasswordPurpose::Update => {
+                    // This should never be reached due to the check above
+                    unreachable!("Install/Update should be handled above")
+                }
+                crate::state::modal::PasswordPurpose::Remove => {
+                    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+                    ExecutorRequest::Remove {
+                        names,
+                        password,
+                        cascade: app.remove_cascade_mode,
+                        dry_run: app.dry_run,
+                    }
+                }
+                crate::state::modal::PasswordPurpose::Downgrade => {
+                    // This should never be reached due to the check above, but included for exhaustiveness
+                    unreachable!("Downgrade should be handled above")
+                }
+                crate::state::modal::PasswordPurpose::FileSync => {
+                    // This should never be reached - FileSync is handled via custom command above
+                    unreachable!("FileSync should be handled via custom command above")
+                }
+            });
+
+            return true;
+        }
+        restore::restore_if_not_closed_with_esc(
+            app,
+            &ke,
+            Modal::PasswordPrompt {
+                purpose: *purpose,
+                items: items.clone(),
+                input: input.clone(),
+                cursor: *cursor,
+                error: error.clone(),
+            },
+        );
+    }
     false
 }
 

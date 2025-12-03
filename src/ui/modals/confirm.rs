@@ -268,3 +268,104 @@ pub fn render_confirm_batch_update(
         );
     f.render_widget(boxw, rect);
 }
+
+/// What: Render the confirmation modal for reinstalling already installed packages.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: `AppState` for translations
+/// - `area`: Full screen area used to center the modal
+/// - `items`: Packages to reinstall
+///
+/// Output:
+/// - Draws the reinstall confirmation dialog.
+///
+/// Details:
+/// - Shows warning message about reinstalling packages and instructions for confirm/cancel.
+#[allow(clippy::many_single_char_names)]
+pub fn render_confirm_reinstall(f: &mut Frame, app: &AppState, area: Rect, items: &[PackageItem]) {
+    let th = theme();
+    // Calculate required height based on content
+    // Structure: heading + empty + message + empty + packages/none + empty + hint
+    // Base: heading(1) + empty(1) + message(1) + empty(1) + empty(1) + hint(1) = 6
+    let base_lines = 6u16;
+    let content_lines = if items.is_empty() {
+        1u16 // "No packages" message
+    } else {
+        // packages (max 5 shown) + potentially "and more" line
+        let package_count = items.len().min(5);
+        u16::try_from(package_count + usize::from(items.len() > 5)).unwrap_or(6)
+    };
+    // Total content lines needed (borders take 2 lines, so add 2)
+    let required_height = base_lines + content_lines + 2;
+    let h = area
+        .height
+        .saturating_sub(4)
+        .min(required_height.clamp(10, 18));
+    let w = area.width.saturating_sub(6).min(65);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    f.render_widget(Clear, rect);
+    let mut lines = vec![
+        Line::from(Span::styled(
+            i18n::t(app, "app.modals.confirm_reinstall.heading"),
+            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            i18n::t(app, "app.modals.confirm_reinstall.message"),
+            Style::default().fg(th.subtext1),
+        )),
+        Line::from(""),
+    ];
+    if items.is_empty() {
+        lines.push(Line::from(Span::styled(
+            i18n::t(app, "app.modals.confirm_reinstall.none"),
+            Style::default().fg(th.subtext1),
+        )));
+    } else {
+        // Show max 5 packages to keep dialog compact
+        for p in items.iter().take(5) {
+            let p_name = &p.name;
+            lines.push(Line::from(Span::styled(
+                format!("  • {p_name}"),
+                Style::default().fg(th.text),
+            )));
+        }
+        if items.len() > 5 {
+            let remaining = items.len() - 5;
+            lines.push(Line::from(Span::styled(
+                i18n::t_fmt1(app, "app.modals.confirm_reinstall.and_more", remaining),
+                Style::default().fg(th.subtext1),
+            )));
+        }
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        i18n::t(app, "app.modals.confirm_reinstall.confirm_hint"),
+        Style::default()
+            .fg(th.subtext1)
+            .add_modifier(Modifier::BOLD),
+    )));
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    i18n::t(app, "app.modals.confirm_reinstall.title"),
+                    Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.yellow))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+}

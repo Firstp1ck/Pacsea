@@ -107,6 +107,9 @@ pub(super) type DefaultClickableRectsState = (
     bool,
     bool,
     bool,
+    bool,
+    Option<std::time::SystemTime>,
+    Option<u32>,
 );
 
 /// Type alias for default PKGBUILD state tuple.
@@ -382,10 +385,11 @@ pub(super) const fn default_scroll_prefetch_state() -> (u32, Option<Instant>, bo
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `updates_loading`, `refresh_updates`, `pending_updates_modal`.
+/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `updates_loading`, `refresh_updates`, `pending_updates_modal`, `faillock_locked`, `faillock_lockout_until`, `faillock_remaining_minutes`.
 ///
 /// Details:
 /// - All rectangles start as None, updates check is loading by default.
+/// - Faillock status defaults to not locked.
 pub(super) fn default_clickable_rects_state() -> DefaultClickableRectsState {
     (
         None,
@@ -401,6 +405,9 @@ pub(super) fn default_clickable_rects_state() -> DefaultClickableRectsState {
         true,
         false,
         false,
+        false,
+        None,
+        None,
     )
 }
 

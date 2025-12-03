@@ -54,6 +54,15 @@ pub fn spawn_dependency_worker(
                         );
                         report.dependencies
                     }
+                    crate::state::modal::PreflightAction::Downgrade => {
+                        // For downgrade, we don't need to resolve dependencies
+                        // Downgrade is similar to remove in that we might want to check reverse deps
+                        // but for now, return empty since downgrade tool handles its own logic
+                        tracing::info!(
+                            "[Runtime] Downgrade action: skipping dependency resolution"
+                        );
+                        Vec::new()
+                    }
                 };
                 tracing::info!(
                     "[Runtime] Dependency resolution done, sending {} deps to result channel",
@@ -88,23 +97,29 @@ pub fn spawn_dependency_worker(
 /// What: Spawn background worker for file resolution.
 ///
 /// Inputs:
-/// - `files_req_rx`: Channel receiver for file resolution requests
+/// - `files_req_rx`: Channel receiver for file resolution requests (with action)
 /// - `files_res_tx`: Channel sender for file resolution responses
 pub fn spawn_file_worker(
-    mut files_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    mut files_req_rx: mpsc::UnboundedReceiver<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     files_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::PackageFileInfo>>,
 ) {
     let files_res_tx_bg = files_res_tx;
     tokio::spawn(async move {
-        while let Some(items) = files_req_rx.recv().await {
+        while let Some((items, action)) = files_req_rx.recv().await {
+            tracing::info!(
+                "[Runtime] File worker received request: {} items, action={:?}",
+                items.len(),
+                action
+            );
             // Run blocking file resolution in a thread pool
             let items_clone = items.clone();
+            let action_clone = action;
             let res_tx = files_res_tx_bg.clone();
             tokio::task::spawn_blocking(move || {
-                let files = crate::logic::files::resolve_file_changes(
-                    &items_clone,
-                    crate::state::modal::PreflightAction::Install,
-                );
+                let files = crate::logic::files::resolve_file_changes(&items_clone, action_clone);
                 tracing::debug!(
                     "[Background] Sending file result: {} entries for packages: {:?}",
                     files.len(),

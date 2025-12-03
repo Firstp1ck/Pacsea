@@ -113,6 +113,7 @@ pub fn resolve_package_files(
     match action {
         crate::state::modal::PreflightAction::Install => resolve_install_files(name, source),
         crate::state::modal::PreflightAction::Remove => resolve_remove_files(name),
+        crate::state::modal::PreflightAction::Downgrade => resolve_downgrade_files(name, source),
     }
 }
 
@@ -307,5 +308,139 @@ pub fn resolve_remove_files(name: &str) -> Result<PackageFileInfo, String> {
         config_count,
         pacnew_candidates: 0,
         pacsave_candidates,
+    })
+}
+
+/// What: Enumerate files that would be changed when downgrading a package.
+///
+/// Inputs:
+/// - `name`: Package scheduled for downgrade.
+/// - `source`: Source repository information for remote lookups.
+///
+/// Output:
+/// - Returns a `PackageFileInfo` capturing changed files (downgrade replaces files with older versions).
+///
+/// # Errors
+/// - Returns `Err` when remote file list retrieval fails (see `get_remote_file_list`)
+/// - Returns `Err` when installed file list retrieval fails (see `get_installed_file_list`)
+///
+/// Details:
+/// - For downgrade, files that exist in both current and target versions are marked as "Changed".
+/// - Files are compared between installed and remote (older) versions.
+pub fn resolve_downgrade_files(name: &str, source: &Source) -> Result<PackageFileInfo, String> {
+    // Get remote file list (older version - what we're downgrading TO)
+    let remote_files = get_remote_file_list(name, source)?;
+    // Get installed file list (current version - what we're downgrading FROM)
+    let installed_files = get_installed_file_list(name)?;
+
+    // Normalize paths (remove trailing slashes for comparison)
+    let normalize_path = |p: &str| p.trim_end_matches('/').to_string();
+
+    let installed_set: HashSet<String> =
+        installed_files.iter().map(|p| normalize_path(p)).collect();
+    let remote_set: HashSet<String> = remote_files.iter().map(|p| normalize_path(p)).collect();
+
+    // Get backup files for this package (for pacnew prediction)
+    let backup_files = get_backup_files(name, source).unwrap_or_default();
+    let backup_set: HashSet<String> = backup_files.iter().map(|p| normalize_path(p)).collect();
+
+    let mut file_changes = Vec::new();
+    let mut changed_count = 0;
+    let mut new_count = 0;
+    let mut config_count = 0;
+    let mut pacnew_candidates = 0;
+
+    // Iterate over installed files to find files that will be changed
+    // Files that exist in both versions are "Changed" (being replaced with older version)
+    for path in installed_files {
+        let normalized_path = normalize_path(&path);
+        let is_config = path.starts_with("/etc/");
+        let is_dir = path.ends_with('/');
+
+        // Skip directories for now
+        if is_dir {
+            continue;
+        }
+
+        if is_config {
+            config_count += 1;
+        }
+
+        // If file exists in remote (older) version, it's being changed (downgraded)
+        if remote_set.contains(&normalized_path) {
+            changed_count += 1;
+
+            // Predict pacnew: file is in backup array and exists (will be changed to older version)
+            let predicted_pacnew = backup_set.contains(&normalized_path) && is_config;
+
+            if predicted_pacnew {
+                pacnew_candidates += 1;
+            }
+
+            file_changes.push(FileChange {
+                path,
+                change_type: FileChangeType::Changed,
+                package: name.to_string(),
+                is_config,
+                predicted_pacnew,
+                predicted_pacsave: false,
+            });
+        }
+        // Files that exist only in installed (newer) version but not in remote (older) version are "Removed"
+        else {
+            file_changes.push(FileChange {
+                path,
+                change_type: FileChangeType::Removed,
+                package: name.to_string(),
+                is_config,
+                predicted_pacnew: false,
+                predicted_pacsave: backup_set.contains(&normalized_path) && is_config,
+            });
+        }
+    }
+
+    // Also check for files that exist only in remote (older) version but not installed (newer) version - these are "New"
+    for path in remote_files {
+        let normalized_path = normalize_path(&path);
+        let is_config = path.starts_with("/etc/");
+        let is_dir = path.ends_with('/');
+
+        // Skip directories for now
+        if is_dir {
+            continue;
+        }
+
+        // If file doesn't exist in installed version, it's "New" (will be added back)
+        if !installed_set.contains(&normalized_path) {
+            new_count += 1;
+            file_changes.push(FileChange {
+                path,
+                change_type: FileChangeType::New,
+                package: name.to_string(),
+                is_config,
+                predicted_pacnew: false,
+                predicted_pacsave: false,
+            });
+        }
+    }
+
+    // Sort files by path for consistent display
+    file_changes.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let removed_count = file_changes
+        .iter()
+        .filter(|f| matches!(f.change_type, FileChangeType::Removed))
+        .count();
+
+    Ok(PackageFileInfo {
+        name: name.to_string(),
+        files: file_changes,
+        total_count: changed_count + new_count + removed_count,
+        new_count,
+        changed_count,
+        removed_count,
+        config_count,
+        pacnew_candidates,
+        pacsave_candidates: 0,
     })
 }

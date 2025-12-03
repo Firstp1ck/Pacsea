@@ -2,10 +2,12 @@
 
 pub mod deps;
 pub mod distro;
+pub mod faillock;
 pub mod files;
 pub mod filter;
 pub mod gating;
 pub mod lists;
+pub mod password;
 pub mod prefetch;
 pub mod preflight;
 pub mod query;

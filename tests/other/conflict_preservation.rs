@@ -545,7 +545,7 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
     let mut app = crate_root::state::AppState::default();
 
     // Step 1: Add pacsea-bin first
-    let pacsea_bin = create_test_package("pacsea-bin", "0.5.1", crate_root::state::Source::Aur);
+    let pacsea_bin = create_test_package("pacsea-bin", "0.6.0", crate_root::state::Source::Aur);
     app.install_list_deps = create_pacsea_bin_dependencies();
     app.install_list = vec![pacsea_bin.clone()];
     app.preflight_cancelled

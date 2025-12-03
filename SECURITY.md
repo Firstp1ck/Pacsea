@@ -6,8 +6,8 @@ Pacsea provides security updates for the current minor release line.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.5.0   | :white_check_mark: |
-| < 0.5.0   | :x:                |
+| 0.6.0   | :white_check_mark: |
+| < 0.6.0   | :x:                |
 
 ## Reporting a Vulnerability
 

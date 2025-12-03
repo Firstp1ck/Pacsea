@@ -206,20 +206,28 @@ fn check_and_trigger_deps_resolution(
 /// What: Check and trigger file resolution if conditions are met.
 fn check_and_trigger_files_resolution(
     app: &mut AppState,
-    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
 ) {
     if let Some(items) = app.preflight_files_items.take()
         && app.preflight_files_resolving
         && !app.files_resolving
     {
+        // Get action from preflight modal state
+        let action = if let crate::state::Modal::Preflight { action, .. } = &app.modal {
+            *action
+        } else {
+            // Fallback to Install if modal state is unavailable
+            crate::state::modal::PreflightAction::Install
+        };
         tracing::debug!(
-            "[Runtime] Tick: Triggering file resolution for {} preflight items (preflight_files_resolving={}, files_resolving={})",
+            "[Runtime] Tick: Triggering file resolution for {} preflight items with action={:?} (preflight_files_resolving={}, files_resolving={})",
             items.len(),
+            action,
             app.preflight_files_resolving,
             app.files_resolving
         );
         app.files_resolving = true;
-        let _ = files_req_tx.send(items);
+        let _ = files_req_tx.send((items, action));
     } else if app.preflight_files_items.is_some() {
         tracing::debug!(
             "[Runtime] Tick: NOT triggering files - items={}, preflight_files_resolving={}, files_resolving={}",
@@ -299,7 +307,7 @@ fn check_and_trigger_sandbox_resolution(
 fn handle_preflight_resolution(
     app: &mut AppState,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
-    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     services_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,
@@ -498,7 +506,7 @@ pub fn handle_tick(
     details_req_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_req_tx: &mpsc::UnboundedSender<PackageItem>,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
-    files_req_tx: &mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     services_req_tx: &mpsc::UnboundedSender<(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,
@@ -509,7 +517,13 @@ pub fn handle_tick(
         crate::state::modal::PreflightAction,
     )>,
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
+    executor_req_tx: &mpsc::UnboundedSender<crate::install::ExecutorRequest>,
+    post_summary_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
 ) {
+    // Check faillock status periodically (every minute via worker, but also check here)
+    // We check every tick but only update if enough time has passed
+    static LAST_FAILLOCK_CHECK: std::sync::OnceLock<std::sync::Mutex<Instant>> =
+        std::sync::OnceLock::new();
     maybe_save_recent(app);
     maybe_flush_cache(app);
     maybe_flush_recent(app);
@@ -519,6 +533,31 @@ pub fn handle_tick(
     maybe_flush_files_cache(app);
     maybe_flush_services_cache(app);
     maybe_flush_sandbox_cache(app);
+    let last_check = LAST_FAILLOCK_CHECK.get_or_init(|| std::sync::Mutex::new(Instant::now()));
+    if let Ok(mut last_check_guard) = last_check.lock()
+        && last_check_guard.elapsed().as_secs() >= 60
+    {
+        *last_check_guard = Instant::now();
+        drop(last_check_guard);
+        // Check faillock status
+        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        let (is_locked, lockout_until, remaining_minutes) =
+            crate::logic::faillock::get_lockout_info(&username);
+
+        // If user was locked but is now unlocked, close any lockout alert modal
+        if app.faillock_locked && !is_locked {
+            // User is no longer locked - close lockout alert if it's showing
+            if let crate::state::Modal::Alert { message } = &app.modal
+                && (message.contains("locked") || message.contains("lockout"))
+            {
+                app.modal = crate::state::Modal::None;
+            }
+        }
+
+        app.faillock_locked = is_locked;
+        app.faillock_lockout_until = lockout_until;
+        app.faillock_remaining_minutes = remaining_minutes;
+    }
 
     // Refresh updates list if flag is set (manual refresh via button click)
     if app.refresh_updates {
@@ -535,6 +574,56 @@ pub fn handle_tick(
         sandbox_req_tx,
         summary_req_tx,
     );
+
+    // Send pending executor request if PreflightExec modal is active
+    if let Some(request) = app.pending_executor_request.take()
+        && matches!(app.modal, crate::state::Modal::PreflightExec { .. })
+        && let Err(e) = executor_req_tx.send(request)
+    {
+        tracing::error!("Failed to send executor request: {:?}", e);
+    }
+
+    // Send pending post-summary request if Loading modal is active
+    if let Some((items, success)) = app.pending_post_summary_items.take()
+        && matches!(app.modal, crate::state::Modal::Loading { .. })
+        && let Err(e) = post_summary_req_tx.send((items, success))
+    {
+        tracing::error!("Failed to send post-summary request: {:?}", e);
+    }
+
+    // Check file database sync result from background thread
+    if let Some(sync_result_arc) = app.pending_file_sync_result.take()
+        && let Ok(mut sync_result) = sync_result_arc.lock()
+        && let Some(result) = sync_result.take()
+    {
+        match result {
+            Ok(synced) => {
+                // Sync succeeded
+                if synced {
+                    app.toast_message =
+                        Some("File database sync completed successfully".to_string());
+                } else {
+                    app.toast_message = Some("File database is already fresh".to_string());
+                }
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+            }
+            Err(_e) => {
+                // Sync failed, show password prompt
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::FileSync,
+                    items: Vec::new(), // No packages involved in file sync
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                // Store the command to execute after password is provided
+                app.pending_custom_command = Some("sudo pacman -Fy".to_string());
+                app.pending_exec_header_chips =
+                    Some(crate::state::modal::PreflightHeaderChips::default());
+            }
+        }
+    }
 
     handle_pkgbuild_reload_debounce(app, pkgb_req_tx);
 
@@ -647,6 +736,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
 
         // Should not panic
         handle_tick(
@@ -660,6 +751,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &executor_req_tx,
+            &post_summary_req_tx,
         );
     }
 
@@ -708,6 +801,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -720,6 +815,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &executor_req_tx,
+            &post_summary_req_tx,
         );
 
         // Queues should be cleared
@@ -770,6 +867,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -782,6 +881,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &executor_req_tx,
+            &post_summary_req_tx,
         );
 
         // Request should be sent

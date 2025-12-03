@@ -181,12 +181,14 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
     let flag = cascade_mode.flag();
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
     let cmd_str = if dry_run {
-        format!(
-            "echo DRY RUN: sudo pacman {flag} --noconfirm {n}{hold}",
+        let cmd = format!(
+            "sudo pacman {flag} --noconfirm {n}{hold}",
             flag = flag,
             n = names.join(" "),
             hold = hold_tail
-        )
+        );
+        let quoted = shell_single_quote(&cmd);
+        format!("echo DRY RUN: {quoted}")
     } else {
         format!(
             "sudo pacman {flag} --noconfirm {n}{hold}",
@@ -271,9 +273,65 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
     }
 }
 
-#[cfg(all(test, not(target_os = "windows")))]
+#[cfg(target_os = "windows")]
+/// What: Present a placeholder removal message on Windows where pacman is unavailable.
+///
+/// Input:
+/// - `names`: Packages the user requested to remove.
+/// - `dry_run`: When `true`, uses `PowerShell` to simulate the removal operation.
+/// - `cascade_mode`: Removal mode used for display consistency.
+///
+/// Output:
+/// - Launches a detached `PowerShell` window (if available) for dry-run simulation, or `cmd` window otherwise.
+///
+/// Details:
+/// - When `dry_run` is true and `PowerShell` is available, uses `PowerShell` to simulate the removal with Write-Host.
+/// - Mirrors Unix logging by emitting an info trace, but performs no package operations.
+/// - During tests, this is a no-op to avoid opening real terminal windows.
+#[allow(unused_variables, clippy::missing_const_for_fn)]
+pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
+    #[cfg(not(test))]
+    {
+        let mut names = names.to_vec();
+        if names.is_empty() {
+            names.push("nothing".into());
+        }
+        let names_str = names.join(" ");
+        let msg = if dry_run {
+            format!("DRY RUN: Would remove packages: {names_str}")
+        } else {
+            format!("Cannot remove packages on Windows: {names_str}")
+        };
+
+        // Check if this is a dry-run operation
+        if dry_run && super::utils::is_powershell_available() {
+            // Use PowerShell to simulate the operation
+            let escaped_msg = msg.replace('\'', "''");
+            let powershell_cmd = format!(
+                "Write-Host '{escaped_msg}' -ForegroundColor Yellow; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')"
+            );
+            let _ = std::process::Command::new("powershell.exe")
+                .args(["-NoProfile", "-Command", &powershell_cmd])
+                .spawn();
+        } else {
+            let _ = std::process::Command::new("cmd")
+                .args([
+                    "/C",
+                    "start",
+                    "Pacsea Remove",
+                    "cmd",
+                    "/K",
+                    &format!("echo {msg}"),
+                ])
+                .spawn();
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     #[test]
+    #[cfg(unix)]
     /// What: Verify the removal helper prefers gnome-terminal and passes the expected dash handling.
     ///
     /// Inputs:
@@ -341,87 +399,6 @@ mod tests {
                 std::env::remove_var("PATH");
             }
             std::env::remove_var("PACSEA_TEST_OUT");
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-/// What: Present a placeholder removal message on Windows where pacman is unavailable.
-///
-/// Input:
-/// - `names`: Packages the user requested to remove.
-/// - `dry_run`: When `true`, uses `PowerShell` to simulate the removal operation.
-/// - `cascade_mode`: Removal mode used for display consistency.
-///
-/// Output:
-/// - Launches a detached `PowerShell` window (if available) for dry-run simulation, or `cmd` window otherwise.
-///
-/// Details:
-/// - When `dry_run` is true and `PowerShell` is available, uses `PowerShell` to simulate the removal with Write-Host.
-/// - Mirrors Unix logging by emitting an info trace, but performs no package operations.
-/// - During tests, this is a no-op to avoid opening real terminal windows.
-#[allow(unused_variables, clippy::missing_const_for_fn)]
-pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMode) {
-    #[cfg(not(test))]
-    {
-        let mut names = names.to_vec();
-        if names.is_empty() {
-            names.push("nothing".into());
-        }
-        let names_str = names.join(" ");
-        tracing::info!(
-            names = %names_str,
-            total = names.len(),
-            dry_run = dry_run,
-            mode = ?cascade_mode,
-            "spawning removal"
-        );
-        let flag = cascade_mode.flag();
-        let cmd = format!("pacman {flag} --noconfirm {}", names.join(" "));
-
-        if dry_run && super::utils::is_powershell_available() {
-            // Use PowerShell to simulate the removal operation
-            let powershell_cmd = format!(
-                "Write-Host 'DRY RUN: Simulating removal of {}' -ForegroundColor Yellow; Write-Host 'Command: {}' -ForegroundColor Cyan; Write-Host ''; Write-Host 'Press any key to close...'; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')",
-                names_str,
-                cmd.replace('\'', "''")
-            );
-            let _ = Command::new("powershell.exe")
-                .args(["-NoProfile", "-Command", &powershell_cmd])
-                .spawn();
-            tracing::info!(
-                names = %names_str,
-                total = names.len(),
-                dry_run = dry_run,
-                mode = ?cascade_mode,
-                "launched PowerShell for removal"
-            );
-        } else {
-            let msg = if dry_run {
-                format!("DRY RUN: {cmd}")
-            } else {
-                format!(
-                    "Remove {} with pacman {flag} (not supported on Windows)",
-                    names.join(" ")
-                )
-            };
-            let _ = Command::new("cmd")
-                .args([
-                    "/C",
-                    "start",
-                    "Pacsea Remove",
-                    "cmd",
-                    "/K",
-                    &format!("echo {msg}"),
-                ])
-                .spawn();
-            tracing::info!(
-                names = %names_str,
-                total = names.len(),
-                dry_run = dry_run,
-                mode = ?cascade_mode,
-                "launched cmd for removal"
-            );
         }
     }
 }

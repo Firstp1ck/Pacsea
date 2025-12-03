@@ -39,17 +39,21 @@ fn build_batch_install_command(
     if dry_run {
         if !aur.is_empty() {
             let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-            format!(
-                "echo DRY RUN: (paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n}){hold}",
+            let cmd = format!(
+                "(paru -S --needed --noconfirm {n} || yay -S --needed --noconfirm {n}){hold}",
                 n = all.join(" "),
                 hold = hold_tail
-            )
+            );
+            let quoted = shell_single_quote(&cmd);
+            format!("echo DRY RUN: {quoted}")
         } else if !official.is_empty() {
-            format!(
-                "echo DRY RUN: sudo pacman -S --needed --noconfirm {n}{hold}",
+            let cmd = format!(
+                "sudo pacman -S --needed --noconfirm {n}{hold}",
                 n = official.join(" "),
                 hold = hold_tail
-            )
+            );
+            let quoted = shell_single_quote(&cmd);
+            format!("echo DRY RUN: {quoted}")
         } else {
             format!("echo DRY RUN: nothing to install{hold_tail}")
         }

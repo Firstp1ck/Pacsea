@@ -12,10 +12,13 @@
 //! - Persistence across tabs
 //! - Conflict resolution
 //! - Skip preflight setting functionality
+//! - Auto-scrolling logs in `PreflightExec`
+//! - Risk calculation and scoring
 
 #![cfg(test)]
 
 mod aur_mix;
+mod auto_scroll;
 mod cache_sync;
 mod caching;
 mod conflicts;
@@ -27,6 +30,7 @@ mod large_datasets;
 mod package_operations;
 mod persistence;
 mod remove_operations;
+mod risk_calculation;
 mod skip_preflight;
 mod tab_switching;
 mod tab_variations;

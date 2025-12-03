@@ -363,6 +363,16 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
 
     check_gnome_terminal(app, headless);
 
+    // Check faillock status at startup
+    if !headless {
+        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        let (is_locked, lockout_until, remaining_minutes) =
+            crate::logic::faillock::get_lockout_info(&username);
+        app.faillock_locked = is_locked;
+        app.faillock_lockout_until = lockout_until;
+        app.faillock_remaining_minutes = remaining_minutes;
+    }
+
     load_details_cache(app);
     load_recent_searches(app);
     load_install_list(app);
@@ -457,7 +467,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
 /// - `app`: Application state
 /// - `flags`: Initialization flags indicating which caches need resolution
 /// - `deps_req_tx`: Channel sender for dependency resolution requests
-/// - `files_req_tx`: Channel sender for file resolution requests
+/// - `files_req_tx`: Channel sender for file resolution requests (with action)
 /// - `services_req_tx`: Channel sender for service resolution requests
 /// - `sandbox_req_tx`: Channel sender for sandbox resolution requests
 ///
@@ -473,7 +483,10 @@ pub fn trigger_initial_resolutions(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,
     )>,
-    files_req_tx: &tokio::sync::mpsc::UnboundedSender<Vec<PackageItem>>,
+    files_req_tx: &tokio::sync::mpsc::UnboundedSender<(
+        Vec<PackageItem>,
+        crate::state::modal::PreflightAction,
+    )>,
     services_req_tx: &tokio::sync::mpsc::UnboundedSender<(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,
@@ -491,7 +504,11 @@ pub fn trigger_initial_resolutions(
 
     if flags.needs_files_resolution && !app.install_list.is_empty() {
         app.files_resolving = true;
-        let _ = files_req_tx.send(app.install_list.clone());
+        // Initial resolution is always for Install action (install_list)
+        let _ = files_req_tx.send((
+            app.install_list.clone(),
+            crate::state::modal::PreflightAction::Install,
+        ));
     }
 
     if flags.needs_services_resolution && !app.install_list.is_empty() {

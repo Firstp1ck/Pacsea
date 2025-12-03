@@ -164,6 +164,14 @@ fn handle_deps_tab_switch(
                 *params.remove_preflight_summary_cleared = true;
                 return true;
             }
+            crate::state::PreflightAction::Downgrade => {
+                // For downgrade, we don't need to resolve dependencies
+                // Downgrade tool handles its own logic
+                tracing::debug!("[Preflight] Downgrade action: skipping dependency resolution");
+                *params.dependency_info = Vec::new();
+                *params.dep_selected = 0;
+                *params.remove_preflight_summary_cleared = true;
+            }
         }
     } else {
         tracing::debug!(
@@ -178,6 +186,7 @@ fn handle_deps_tab_switch(
 ///
 /// Inputs:
 /// - `items`: Packages in the transaction
+/// - `action`: Install or remove action
 /// - `file_info`: Mutable reference to file info vector
 /// - `file_selected`: Mutable reference to selected index
 /// - `install_list_files`: Reference to cached files
@@ -188,9 +197,11 @@ fn handle_deps_tab_switch(
 /// - None (mutates state directly).
 ///
 /// Details:
-/// - Loads cached file information if available, otherwise triggers background resolution.
+/// - Loads cached file information if available for Install actions, otherwise triggers background resolution.
+/// - For Remove actions, always triggers fresh resolution since cached files contain Install-specific data (New/Changed) that is incorrect for Remove (should be Removed).
 fn handle_files_tab_switch(
     items: &[PackageItem],
+    action: crate::state::PreflightAction,
     file_info: &mut Vec<crate::state::modal::PackageFileInfo>,
     file_selected: &mut usize,
     install_list_files: &[crate::state::modal::PackageFileInfo],
@@ -198,40 +209,64 @@ fn handle_files_tab_switch(
     preflight_files_resolving: &mut bool,
 ) {
     tracing::debug!(
-        "[Preflight] switch_preflight_tab: Files tab - file_info.len()={}, cache.len()={}, resolving={}",
+        "[Preflight] switch_preflight_tab: Files tab - file_info.len()={}, cache.len()={}, resolving={}, action={:?}",
         file_info.len(),
         install_list_files.len(),
-        *preflight_files_resolving
+        *preflight_files_resolving,
+        action
     );
 
     if file_info.is_empty() {
-        let item_names: std::collections::HashSet<String> =
-            items.iter().map(|i| i.name.clone()).collect();
-        let cached_files: Vec<crate::state::modal::PackageFileInfo> = install_list_files
-            .iter()
-            .filter(|file_info| item_names.contains(&file_info.name))
-            .cloned()
-            .collect();
-        tracing::info!(
-            "[Preflight] switch_preflight_tab: Files - Found {} cached files (filtered from {} total), items={:?}",
-            cached_files.len(),
-            install_list_files.len(),
-            item_names
-        );
-        if cached_files.is_empty() {
-            tracing::debug!(
-                "[Preflight] Triggering background file resolution for {} packages",
-                items.len()
-            );
-            *preflight_files_items = Some(items.to_vec());
-            *preflight_files_resolving = true;
-        } else {
-            *file_info = cached_files;
-            *file_selected = 0;
-            tracing::info!(
-                "[Preflight] switch_preflight_tab: Files - Loaded {} files into modal, file_selected=0",
-                file_info.len()
-            );
+        match action {
+            crate::state::PreflightAction::Install => {
+                let item_names: std::collections::HashSet<String> =
+                    items.iter().map(|i| i.name.clone()).collect();
+                let cached_files: Vec<crate::state::modal::PackageFileInfo> = install_list_files
+                    .iter()
+                    .filter(|file_info| item_names.contains(&file_info.name))
+                    .cloned()
+                    .collect();
+                tracing::info!(
+                    "[Preflight] switch_preflight_tab: Files - Found {} cached files (filtered from {} total), items={:?}",
+                    cached_files.len(),
+                    install_list_files.len(),
+                    item_names
+                );
+                if cached_files.is_empty() {
+                    tracing::debug!(
+                        "[Preflight] Triggering background file resolution for {} packages",
+                        items.len()
+                    );
+                    *preflight_files_items = Some(items.to_vec());
+                    *preflight_files_resolving = true;
+                } else {
+                    *file_info = cached_files;
+                    *file_selected = 0;
+                    tracing::info!(
+                        "[Preflight] switch_preflight_tab: Files - Loaded {} files into modal, file_selected=0",
+                        file_info.len()
+                    );
+                }
+            }
+            crate::state::PreflightAction::Remove => {
+                // For Remove actions, always trigger fresh resolution since cached files
+                // contain Install-specific data (New/Changed) that is incorrect for Remove (should be Removed)
+                tracing::debug!(
+                    "[Preflight] Triggering background file resolution for {} packages (action=Remove) - cache not used due to action mismatch",
+                    items.len()
+                );
+                *preflight_files_items = Some(items.to_vec());
+                *preflight_files_resolving = true;
+            }
+            crate::state::PreflightAction::Downgrade => {
+                // For Downgrade actions, always trigger fresh resolution
+                tracing::debug!(
+                    "[Preflight] Triggering background file resolution for {} packages (action=Downgrade)",
+                    items.len()
+                );
+                *preflight_files_items = Some(items.to_vec());
+                *preflight_files_resolving = true;
+            }
         }
     } else {
         tracing::debug!(
@@ -302,6 +337,15 @@ fn handle_services_tab_switch(
                 *params.preflight_services_items = Some(items.to_vec());
                 *params.preflight_services_resolving = true;
             }
+            crate::state::PreflightAction::Downgrade => {
+                // For Downgrade actions, always trigger fresh resolution
+                tracing::debug!(
+                    "[Preflight] Triggering background service resolution for {} packages (action=Downgrade)",
+                    items.len()
+                );
+                *params.preflight_services_items = Some(items.to_vec());
+                *params.preflight_services_resolving = true;
+            }
         }
     }
 }
@@ -356,7 +400,7 @@ fn handle_sandbox_tab_switch(
                     *params.sandbox_loaded = true;
                 }
             }
-            crate::state::PreflightAction::Remove => {
+            crate::state::PreflightAction::Remove | crate::state::PreflightAction::Downgrade => {
                 *params.sandbox_loaded = true;
             }
         }
@@ -449,6 +493,7 @@ pub(super) fn switch_preflight_tab(
             crate::state::PreflightTab::Files => {
                 handle_files_tab_switch(
                     items,
+                    action,
                     file_info,
                     file_selected,
                     install_list_files,

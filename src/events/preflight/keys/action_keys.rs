@@ -80,16 +80,144 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
     };
 
     if should_close {
+        // Use the same flow as "p" key - delegate to handle_proceed functions
+        // This ensures reinstall check and batch update check happen before password prompt
+        let (items_clone, action_clone, header_chips_clone, cascade_mode) =
+            if let crate::state::Modal::Preflight {
+                items,
+                action,
+                header_chips,
+                cascade_mode,
+                ..
+            } = &app.modal
+            {
+                (items.clone(), *action, header_chips.clone(), *cascade_mode)
+            } else {
+                // Not a Preflight modal, just close it
+                let service_info =
+                    if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
+                        service_info.clone()
+                    } else {
+                        Vec::new()
+                    };
+                close_preflight_modal(app, &service_info);
+                return false;
+            };
+
+        // Get service info before closing modal
         let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
             service_info.clone()
         } else {
             Vec::new()
         };
         close_preflight_modal(app, &service_info);
+
+        // Use the same proceed handlers as "p" key to ensure consistent flow
+        match action_clone {
+            crate::state::PreflightAction::Install => {
+                use super::command_keys;
+                command_keys::handle_proceed_install(app, items_clone, header_chips_clone);
+            }
+            crate::state::PreflightAction::Remove => {
+                use super::command_keys;
+                command_keys::handle_proceed_remove(
+                    app,
+                    items_clone,
+                    cascade_mode,
+                    header_chips_clone,
+                );
+            }
+            crate::state::PreflightAction::Downgrade => {
+                // Downgrade operations always need sudo (downgrade tool requires sudo)
+                // Check faillock status before showing password prompt
+                let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+                if let Some(lockout_msg) =
+                    crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+                {
+                    // User is locked out - show warning and don't show password prompt
+                    app.modal = crate::state::Modal::Alert {
+                        message: lockout_msg,
+                    };
+                    return false;
+                }
+                // Always show password prompt - user can press Enter if passwordless sudo is configured
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::Downgrade,
+                    items: items_clone,
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                app.pending_exec_header_chips = Some(header_chips_clone);
+            }
+        }
         // Return false to keep TUI open - modal is closed but app continues
         return false;
     }
     false
+}
+
+/// What: Start command execution by transitioning to `PreflightExec` and storing `ExecutorRequest`.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `items`: Packages to install/remove
+/// - `action`: Install or Remove action
+/// - `header_chips`: Header chip metrics
+/// - `password`: Optional password (if already obtained from password prompt)
+///
+/// Details:
+/// - Transitions to `PreflightExec` modal and stores `ExecutorRequest` for processing in tick handler
+#[allow(clippy::needless_pass_by_value)] // header_chips is consumed in modal creation
+pub fn start_execution(
+    app: &mut AppState,
+    items: &[crate::state::PackageItem],
+    action: crate::state::PreflightAction,
+    header_chips: crate::state::modal::PreflightHeaderChips,
+    password: Option<String>,
+) {
+    use crate::install::ExecutorRequest;
+
+    // Note: Reinstall check is now done in handle_proceed_install BEFORE password prompt
+    // This function is called after reinstall confirmation (if needed) and password prompt (if needed)
+
+    // Transition to PreflightExec modal
+    app.modal = crate::state::Modal::PreflightExec {
+        items: items.to_vec(),
+        action,
+        tab: crate::state::PreflightTab::Summary,
+        verbose: false,
+        log_lines: Vec::new(),
+        abortable: false,
+        header_chips,
+        success: None,
+    };
+
+    // Store executor request for processing in tick handler
+    app.pending_executor_request = Some(match action {
+        crate::state::PreflightAction::Install => ExecutorRequest::Install {
+            items: items.to_vec(),
+            password,
+            dry_run: app.dry_run,
+        },
+        crate::state::PreflightAction::Remove => {
+            let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            ExecutorRequest::Remove {
+                names,
+                password,
+                cascade: app.remove_cascade_mode,
+                dry_run: app.dry_run,
+            }
+        }
+        crate::state::PreflightAction::Downgrade => {
+            let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            ExecutorRequest::Downgrade {
+                names,
+                password,
+                dry_run: app.dry_run,
+            }
+        }
+    });
 }
 
 /// What: Handle Space key - toggle expand/collapse.

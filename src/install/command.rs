@@ -58,7 +58,9 @@ pub fn build_install_command(
             };
             let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             if dry_run {
-                let bash = format!("echo DRY RUN: sudo {base_cmd}{hold_tail}");
+                let cmd = format!("sudo {base_cmd}{hold_tail}");
+                let quoted = shell_single_quote(&cmd);
+                let bash = format!("echo DRY RUN: {quoted}");
                 return (bash, true);
             }
             let pass = password.unwrap_or("");
@@ -81,12 +83,14 @@ pub fn build_install_command(
                 "-S --needed --noconfirm"
             };
             let aur_cmd = if dry_run {
-                format!(
-                    "echo DRY RUN: paru {flags} {n} || yay {flags} {n}{hold}",
+                let cmd = format!(
+                    "paru {flags} {n} || yay {flags} {n}{hold}",
                     n = item.name,
                     hold = hold_tail,
                     flags = flags
-                )
+                );
+                let quoted = shell_single_quote(&cmd);
+                format!("echo DRY RUN: {quoted}")
             } else {
                 format!(
                     "{body}{hold}",
@@ -142,7 +146,9 @@ mod tests {
 
         let (cmd3, uses_sudo3) = build_install_command(&pkg, None, true);
         assert!(uses_sudo3);
-        assert!(cmd3.starts_with("echo DRY RUN: sudo pacman -S --needed --noconfirm ripgrep"));
+        // Dry-run commands are now properly quoted to avoid syntax errors
+        assert!(cmd3.starts_with("echo DRY RUN: '"));
+        assert!(cmd3.contains("sudo pacman -S --needed --noconfirm ripgrep"));
     }
 
     #[test]
@@ -178,6 +184,8 @@ mod tests {
 
         let (cmd2, uses_sudo2) = build_install_command(&pkg, None, true);
         assert!(!uses_sudo2);
-        assert!(cmd2.starts_with("echo DRY RUN: paru -S --needed --noconfirm yay-bin"));
+        // Dry-run commands are now properly quoted to avoid syntax errors
+        assert!(cmd2.starts_with("echo DRY RUN: '"));
+        assert!(cmd2.contains("paru -S --needed --noconfirm yay-bin"));
     }
 }

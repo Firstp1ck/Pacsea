@@ -344,7 +344,7 @@ package_marker = front
 locale = \n\
 \n\
 # Updates refresh interval\n\
-# Time in seconds between checkupdates and AUR helper checks.\n\
+# Time in seconds between pacman -Qu and AUR helper checks.\n\
 # Default is 30 seconds. Increase this value on systems with slow I/O or many packages to reduce resource usage.\n\
 # Minimum value is 1 second.\n\
 updates_refresh_interval = 30\n";

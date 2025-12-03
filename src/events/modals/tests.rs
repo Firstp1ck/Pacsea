@@ -122,6 +122,7 @@ fn preflight_exec_esc_closes_modal() {
         items: vec![],
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
+        success: None,
         header_chips: PreflightHeaderChips::default(),
     };
 
@@ -154,6 +155,7 @@ fn preflight_exec_q_closes_modal() {
         items: vec![],
         action: PreflightAction::Install,
         tab: PreflightTab::Summary,
+        success: None,
         header_chips: PreflightHeaderChips::default(),
     };
 

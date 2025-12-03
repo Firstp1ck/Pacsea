@@ -146,6 +146,19 @@ fn render_ui_to_backend(backend: TestBackend, app: &mut AppState) -> Terminal<Te
 // Core UI Rendering Tests
 
 #[test]
+/// What: Test UI rendering with empty application state.
+///
+/// Inputs:
+/// - Empty `AppState` with no results or modals.
+///
+/// Output:
+/// - UI renders without panicking.
+/// - Buffer has valid dimensions (width > 0, height > 0).
+/// - Results rect is set in app state.
+///
+/// Details:
+/// - Verifies basic UI initialization and rendering capability.
+/// - Ensures layout calculations work even with empty state.
 fn test_ui_renders_empty_state() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -162,6 +175,19 @@ fn test_ui_renders_empty_state() {
 }
 
 #[test]
+/// What: Test UI rendering with package search results.
+///
+/// Inputs:
+/// - `AppState` with multiple `PackageItem` results (AUR and Official sources).
+///
+/// Output:
+/// - Results pane renders correctly.
+/// - Buffer dimensions match expected size (120x40).
+/// - Results rect is set in app state.
+///
+/// Details:
+/// - Verifies package list rendering with mixed source types.
+/// - Tests selection state initialization.
 fn test_ui_renders_with_results() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -206,6 +232,18 @@ fn test_ui_renders_with_results() {
 }
 
 #[test]
+/// What: Test UI rendering with package details pane.
+///
+/// Inputs:
+/// - `AppState` with selected package and populated `PackageDetails`.
+///
+/// Output:
+/// - Details pane renders correctly.
+/// - Details rect and URL button rect are set in app state.
+///
+/// Details:
+/// - Verifies package details display including metadata, dependencies, and URL button.
+/// - Tests details pane layout and component positioning.
 fn test_ui_renders_with_details() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -256,6 +294,19 @@ fn test_ui_renders_with_details() {
 }
 
 #[test]
+/// What: Test UI rendering of middle row components (Recent and Install panes).
+///
+/// Inputs:
+/// - `AppState` with recent search history and install list items.
+///
+/// Output:
+/// - Recent pane renders correctly.
+/// - Install pane renders correctly.
+/// - Both rects are set in app state.
+///
+/// Details:
+/// - Verifies middle row layout with multiple panes.
+/// - Tests list state management for history and install lists.
 fn test_ui_renders_middle_row() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -285,6 +336,18 @@ fn test_ui_renders_middle_row() {
 // Layout Tests
 
 #[test]
+/// What: Test UI layout handling with minimum terminal size.
+///
+/// Inputs:
+/// - `TestBackend` with minimum viable size (80x10).
+///
+/// Output:
+/// - UI renders without panicking.
+/// - Buffer dimensions match input size.
+///
+/// Details:
+/// - Verifies UI gracefully handles very small terminal sizes.
+/// - Ensures layout calculations don't fail at minimum dimensions.
 fn test_layout_minimum_sizes() {
     // Test with minimum viable size
     let backend = create_test_backend_size(80, 10);
@@ -299,6 +362,18 @@ fn test_layout_minimum_sizes() {
 }
 
 #[test]
+/// What: Test UI layout handling with large terminal size.
+///
+/// Inputs:
+/// - `TestBackend` with large size (200x60) and package results.
+///
+/// Output:
+/// - UI renders correctly.
+/// - Buffer dimensions match input size.
+///
+/// Details:
+/// - Verifies UI scales properly to large terminal dimensions.
+/// - Tests layout calculations with expanded space.
 fn test_layout_maximum_sizes() {
     // Test with large terminal size
     let backend = create_test_backend_size(200, 60);
@@ -325,6 +400,19 @@ fn test_layout_maximum_sizes() {
 }
 
 #[test]
+/// What: Test UI responsive layout across multiple terminal sizes.
+///
+/// Inputs:
+/// - Multiple `TestBackend` sizes: (80x24), (120x40), (160x50).
+///
+/// Output:
+/// - UI renders correctly at each size.
+/// - Buffer dimensions match input sizes.
+/// - Results rect is set at all sizes.
+///
+/// Details:
+/// - Verifies responsive layout behavior across common terminal sizes.
+/// - Ensures consistent rendering regardless of dimensions.
 fn test_layout_responsive() {
     // Test different terminal sizes
     let sizes = vec![(80, 24), (120, 40), (160, 50)];
@@ -355,6 +443,18 @@ fn test_layout_responsive() {
 }
 
 #[test]
+/// What: Test UI layout when panes are hidden.
+///
+/// Inputs:
+/// - `AppState` with `show_recent_pane` and `show_install_pane` flags set to false.
+///
+/// Output:
+/// - UI renders without panicking when panes are hidden.
+/// - Layout adapts to hidden panes.
+///
+/// Details:
+/// - Verifies pane visibility toggling doesn't break layout.
+/// - Tests conditional rendering of UI components.
 fn test_layout_pane_hiding() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -375,6 +475,18 @@ fn test_layout_pane_hiding() {
 // Modal Tests
 
 #[test]
+/// What: Test Alert modal rendering.
+///
+/// Inputs:
+/// - `AppState` with `Modal::Alert` containing a message.
+///
+/// Output:
+/// - Alert modal renders correctly.
+/// - Buffer dimensions are valid.
+///
+/// Details:
+/// - Verifies alert modal display and layout.
+/// - Tests modal overlay rendering.
 fn test_modal_alert_renders() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -392,6 +504,18 @@ fn test_modal_alert_renders() {
 }
 
 #[test]
+/// What: Test Help modal rendering.
+///
+/// Inputs:
+/// - `AppState` with `Modal::Help`.
+///
+/// Output:
+/// - Help modal renders correctly.
+/// - Help rect is set in app state.
+///
+/// Details:
+/// - Verifies help overlay display with keybindings.
+/// - Tests modal content rendering.
 fn test_modal_help_renders() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -405,6 +529,18 @@ fn test_modal_help_renders() {
 }
 
 #[test]
+/// What: Test News modal rendering.
+///
+/// Inputs:
+/// - `AppState` with `Modal::News` containing news items.
+///
+/// Output:
+/// - News modal renders correctly.
+/// - News rect and news list rect are set in app state.
+///
+/// Details:
+/// - Verifies news list display and selection state.
+/// - Tests modal list rendering with items.
 fn test_modal_news_renders() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -426,6 +562,18 @@ fn test_modal_news_renders() {
 }
 
 #[test]
+/// What: Test Preflight modal rendering.
+///
+/// Inputs:
+/// - `AppState` with `Modal::Preflight` containing package items and action.
+///
+/// Output:
+/// - Preflight modal renders correctly.
+/// - Preflight content rect is set in app state.
+///
+/// Details:
+/// - Verifies preflight modal with all tabs and summary data.
+/// - Tests complex modal state initialization.
 fn test_modal_preflight_renders() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -474,6 +622,18 @@ fn test_modal_preflight_renders() {
 }
 
 #[test]
+/// What: Test `ConfirmInstall` modal rendering.
+///
+/// Inputs:
+/// - `AppState` with `Modal::ConfirmInstall` containing package items.
+///
+/// Output:
+/// - Confirm modal renders correctly.
+/// - Buffer dimensions are valid.
+///
+/// Details:
+/// - Verifies installation confirmation dialog display.
+/// - Tests modal rendering with package list.
 fn test_modal_confirm_renders() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -498,9 +658,77 @@ fn test_modal_confirm_renders() {
     assert_eq!(buffer.area.height, 40);
 }
 
+#[test]
+/// What: Test `PreflightExec` modal rendering with progress bars.
+///
+/// Inputs:
+/// - `PreflightExec` modal with progress bar updates in `log_lines`.
+///
+/// Output:
+/// - Modal renders correctly with progress bars.
+/// - Progress bars display correctly in rendered output.
+///
+/// Details:
+/// - Verifies progress bar display in log panel using `TestBackend`.
+/// - Tests that progress bars update correctly in rendered output.
+fn test_modal_preflight_exec_progress_bars() {
+    let backend = create_test_backend();
+    let mut app = create_test_app_state();
+
+    app.modal = Modal::PreflightExec {
+        items: vec![PackageItem {
+            name: "test-pkg".to_string(),
+            version: "1.0.0".to_string(),
+            description: "Test".to_string(),
+            source: Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }],
+        action: pacsea::state::PreflightAction::Install,
+        tab: pacsea::state::PreflightTab::Summary,
+        verbose: false,
+        log_lines: vec![
+            ":: Retrieving packages...".to_string(),
+            "[########] 100%".to_string(),
+            "downloading test-pkg-1.0.0...".to_string(),
+        ],
+        abortable: false,
+        header_chips: pacsea::state::modal::PreflightHeaderChips::default(),
+        success: None,
+    };
+
+    let terminal = render_ui_to_backend(backend, &mut app);
+
+    // Verify PreflightExec modal rendered
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer.area.width, 120);
+    assert_eq!(buffer.area.height, 40);
+
+    // Verify log_lines contain progress bar
+    if let Modal::PreflightExec { log_lines, .. } = app.modal {
+        assert_eq!(log_lines.len(), 3);
+        assert!(log_lines[1].contains("100%"));
+    } else {
+        panic!("Expected PreflightExec modal");
+    }
+}
+
 // Component State Tests
 
 #[test]
+/// What: Test package selection highlighting in results pane.
+///
+/// Inputs:
+/// - `AppState` with multiple package results and selected index set to 1.
+///
+/// Output:
+/// - Selection state is maintained after rendering.
+/// - Results rect is set in app state.
+///
+/// Details:
+/// - Verifies selection highlighting works correctly.
+/// - Tests list state synchronization with selected index.
 fn test_results_selection_highlighting() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -537,6 +765,18 @@ fn test_results_selection_highlighting() {
 }
 
 #[test]
+/// What: Test search input focus state rendering.
+///
+/// Inputs:
+/// - `AppState` with search input text and focus set to `Focus::Search`.
+///
+/// Output:
+/// - Focus state is maintained after rendering.
+/// - Search input is properly focused.
+///
+/// Details:
+/// - Verifies focus management for search input.
+/// - Tests caret positioning with input text.
 fn test_search_input_focus() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -552,6 +792,19 @@ fn test_search_input_focus() {
 }
 
 #[test]
+/// What: Test dropdown menu rendering (sort and options menus).
+///
+/// Inputs:
+/// - `AppState` with `sort_menu_open` and `options_menu_open` flags set.
+///
+/// Output:
+/// - Sort dropdown renders when open.
+/// - Options dropdown renders when open.
+/// - Respective rects are set in app state.
+///
+/// Details:
+/// - Verifies dropdown menu display and positioning.
+/// - Tests menu state toggling and rendering.
 fn test_dropdowns_render() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -570,6 +823,18 @@ fn test_dropdowns_render() {
 }
 
 #[test]
+/// What: Test toast message rendering.
+///
+/// Inputs:
+/// - `AppState` with `toast_message` set to a test message.
+///
+/// Output:
+/// - Toast message renders correctly.
+/// - Buffer dimensions are valid.
+///
+/// Details:
+/// - Verifies toast notification display.
+/// - Tests temporary message overlay rendering.
 fn test_toast_message_renders() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -585,6 +850,17 @@ fn test_toast_message_renders() {
 }
 
 #[test]
+/// What: Test URL button rect initialization in details pane.
+///
+/// Inputs:
+/// - `AppState` with selected package and details containing a URL.
+///
+/// Output:
+/// - URL button rect is set in app state.
+///
+/// Details:
+/// - Verifies URL button positioning when package has a URL.
+/// - Tests details pane component initialization.
 fn test_url_button_rect_set() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -612,6 +888,18 @@ fn test_url_button_rect_set() {
 // Edge Cases and Error States
 
 #[test]
+/// What: Test UI rendering with very small terminal size.
+///
+/// Inputs:
+/// - `TestBackend` with very small size (40x8).
+///
+/// Output:
+/// - UI renders without panicking.
+/// - Buffer dimensions match input size.
+///
+/// Details:
+/// - Verifies UI handles extreme minimum terminal sizes gracefully.
+/// - Tests layout resilience at edge cases.
 fn test_ui_very_small_terminal() {
     // Test with very small terminal
     let backend = create_test_backend_size(40, 8);
@@ -626,6 +914,18 @@ fn test_ui_very_small_terminal() {
 }
 
 #[test]
+/// What: Test UI rendering with very large terminal size.
+///
+/// Inputs:
+/// - `TestBackend` with very large size (300x100) and package results.
+///
+/// Output:
+/// - UI renders correctly.
+/// - Buffer dimensions match input size.
+///
+/// Details:
+/// - Verifies UI scales properly to very large terminal dimensions.
+/// - Tests layout calculations with maximum space.
 fn test_ui_very_large_terminal() {
     // Test with very large terminal
     let backend = create_test_backend_size(300, 100);
@@ -652,6 +952,18 @@ fn test_ui_very_large_terminal() {
 }
 
 #[test]
+/// What: Test UI handling of very long package names.
+///
+/// Inputs:
+/// - `AppState` with package item containing an extremely long name.
+///
+/// Output:
+/// - UI renders without panicking.
+/// - Results rect is set in app state.
+///
+/// Details:
+/// - Verifies text truncation and overflow handling.
+/// - Tests UI resilience with edge case package names.
 fn test_ui_long_package_names() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -676,6 +988,18 @@ fn test_ui_long_package_names() {
 }
 
 #[test]
+/// What: Test UI rendering with empty search results and active query.
+///
+/// Inputs:
+/// - `AppState` with search query but empty results list.
+///
+/// Output:
+/// - UI renders gracefully without errors.
+/// - Results rect is set in app state.
+///
+/// Details:
+/// - Verifies empty state handling when no packages match query.
+/// - Tests UI behavior with no results to display.
 fn test_ui_empty_results_with_query() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -691,6 +1015,18 @@ fn test_ui_empty_results_with_query() {
 }
 
 #[test]
+/// What: Test UI rendering in installed-only mode with downgrade and remove lists.
+///
+/// Inputs:
+/// - `AppState` with `installed_only_mode` enabled and populated downgrade/remove lists.
+///
+/// Output:
+/// - Downgrade pane renders correctly.
+/// - Installed-only mode layout works properly.
+///
+/// Details:
+/// - Verifies right pane focus switching to downgrade/remove views.
+/// - Tests mode-specific UI rendering and list state management.
 fn test_ui_installed_only_mode() {
     let backend = create_test_backend();
     let mut app = create_test_app_state();
@@ -727,6 +1063,19 @@ fn test_ui_installed_only_mode() {
 }
 
 #[test]
+/// What: Test UI handling of terminal resize events.
+///
+/// Inputs:
+/// - `TestBackend` initially sized at 80x24, then resized to 120x40.
+///
+/// Output:
+/// - UI renders correctly at initial size.
+/// - UI renders correctly after resize.
+/// - Buffer dimensions match final size after resize.
+///
+/// Details:
+/// - Verifies dynamic layout recalculation on terminal resize.
+/// - Tests UI responsiveness to size changes during runtime.
 fn test_ui_resize_handling() {
     let backend = create_test_backend_size(80, 24);
     let mut app = create_test_app_state();

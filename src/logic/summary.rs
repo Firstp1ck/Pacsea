@@ -103,19 +103,21 @@ fn count_pac_conflicts_in_etc() -> (usize, usize) {
 ///
 /// Inputs:
 /// - `items`: Packages that were part of the transaction and should inform the summary.
+/// - `success`: Execution result: `Some(true)` for success, `Some(false)` for failure, `None` if unknown.
 ///
 /// Output:
 /// - Returns a `PostSummaryData` structure with file counts, service hints, and conflict tallies.
 ///
 /// Details:
 /// - Combines sync database lookups with an `/etc` scan without performing system modifications.
+/// - Uses the provided `success` flag to indicate transaction outcome, defaulting to `false` if unknown.
 #[must_use]
-pub fn compute_post_summary(items: &[PackageItem]) -> PostSummaryData {
+pub fn compute_post_summary(items: &[PackageItem], success: Option<bool>) -> PostSummaryData {
     let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
     let (changed_files, services_pending) = count_changed_files_and_services(&names);
     let (pacnew_count, pacsave_count) = count_pac_conflicts_in_etc();
     PostSummaryData {
-        success: true,
+        success: success.unwrap_or(false),
         changed_files,
         pacnew_count,
         pacsave_count,

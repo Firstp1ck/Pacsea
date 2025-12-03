@@ -19,10 +19,17 @@ use crate::state::{AppState, PackageItem, Source};
 /// - Returns `true` for Esc to prevent mode toggling in search handler
 pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> bool {
     let is_help = message.contains("Help") || message.contains("Tab Help");
+    let is_lockout = message.contains("locked") || message.contains("lockout");
     match ke.code {
         KeyCode::Esc => {
             if is_help {
                 app.help_scroll = 0; // Reset scroll when closing
+            }
+            // For lockout alerts, clear any pending executor state to abort the process
+            if is_lockout {
+                app.pending_executor_password = None;
+                app.pending_exec_header_chips = None;
+                app.pending_executor_request = None;
             }
             // Restore previous modal if it was Preflight, otherwise close
             if let Some(prev_modal) = app.previous_modal.take() {
@@ -36,13 +43,20 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
             if is_help {
                 app.help_scroll = 0; // Reset scroll when closing
             }
+            // For lockout alerts, clear any pending executor state to abort the process
+            if is_lockout {
+                app.pending_executor_password = None;
+                app.pending_exec_header_chips = None;
+                app.pending_executor_request = None;
+            }
             // Restore previous modal if it was Preflight, otherwise close
             if let Some(prev_modal) = app.previous_modal.take() {
                 app.modal = prev_modal;
             } else {
                 app.modal = crate::state::Modal::None;
             }
-            false
+            // Return true for lockout alerts to stop propagation and abort the process
+            is_lockout
         }
         KeyCode::Up if is_help => {
             app.help_scroll = app.help_scroll.saturating_sub(1);
@@ -64,47 +78,68 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
 /// - `verbose`: Mutable reference to verbose flag
 /// - `abortable`: Whether execution can be aborted
 /// - `items`: Package items being processed
+/// - `success`: Execution success status from the modal
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` when modal is closed/transitioned to stop propagation, `false` otherwise
 ///
 /// Details:
 /// - Handles Esc/q to close, Enter to show summary, l to toggle verbose, x to abort
+/// - Success must be passed in since app.modal is taken during dispatch
 pub(super) fn handle_preflight_exec(
     ke: KeyEvent,
     app: &mut AppState,
     verbose: &mut bool,
     abortable: bool,
     items: &[crate::state::PackageItem],
+    success: Option<bool>,
 ) -> bool {
     match ke.code {
-        KeyCode::Esc | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.modal = crate::state::Modal::None;
+            true // Stop propagation
+        }
         KeyCode::Enter => {
-            // Compute real counts best-effort and show summary
-            let data = crate::logic::compute_post_summary(items);
-            app.modal = crate::state::Modal::PostSummary {
-                success: data.success,
-                changed_files: data.changed_files,
-                pacnew_count: data.pacnew_count,
-                pacsave_count: data.pacsave_count,
-                services_pending: data.services_pending,
-                snapshot_label: data.snapshot_label,
+            // Check if this is a scan (items have names starting with "scan:")
+            let is_scan = items.iter().any(|item| item.name.starts_with("scan:"));
+
+            if is_scan {
+                // For scans, skip PostSummary and go directly back to Preflight
+                if let Some(prev_modal) = app.previous_modal.take() {
+                    if matches!(prev_modal, crate::state::Modal::Preflight { .. }) {
+                        app.modal = prev_modal;
+                        return true; // Stop propagation
+                    }
+                    // If it's not Preflight, put it back and close normally
+                    app.previous_modal = Some(prev_modal);
+                }
+                app.modal = crate::state::Modal::None;
+                return true; // Stop propagation
+            }
+
+            // For regular installs, show loading modal and queue background computation
+            // Use the success flag passed in from the modal (app.modal is taken during dispatch)
+            app.pending_post_summary_items = Some((items.to_vec(), success));
+            app.modal = crate::state::Modal::Loading {
+                message: "Computing summary...".to_string(),
             };
+            true // Stop propagation - transitioning to Loading
         }
         KeyCode::Char('l') => {
             *verbose = !*verbose;
             let verbose_status = if *verbose { "ON" } else { "OFF" };
             app.toast_message = Some(format!("Verbose: {verbose_status}"));
+            false
         }
         // TODO: implement Logic for aborting the transaction
         KeyCode::Char('x') => {
             if abortable {
                 app.toast_message = Some(crate::i18n::t(app, "app.toasts.abort_requested"));
             }
+            false
         }
-        _ => {}
+        _ => false,
     }
-    false
 }
 
 /// What: Handle key events for `PostSummary` modal.
@@ -119,16 +154,21 @@ pub(super) fn handle_preflight_exec(
 ///
 /// Details:
 /// - Handles Esc/Enter/q to close, r for rollback, s for service restart
+/// - Returns `true` when closing modal to stop key propagation
 pub(super) fn handle_post_summary(
     ke: KeyEvent,
     app: &mut AppState,
     services_pending: &[String],
 ) -> bool {
     match ke.code {
-        // TODO: implement Logic for aborting the transaction
-        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => app.modal = crate::state::Modal::None,
+        // Close modal and stop propagation to prevent key from reaching other handlers
+        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+            app.modal = crate::state::Modal::None;
+            true // Stop propagation - prevents Enter from opening preflight again
+        }
         KeyCode::Char('r') => {
             app.toast_message = Some(crate::i18n::t(app, "app.toasts.rollback"));
+            false
         }
         // TODO: implement Logic for restarting the services
         KeyCode::Char('s') => {
@@ -137,10 +177,10 @@ pub(super) fn handle_post_summary(
             } else {
                 app.toast_message = Some(crate::i18n::t(app, "app.toasts.restart_services"));
             }
+            false
         }
-        _ => {}
+        _ => false,
     }
-    false
 }
 
 /// What: Handle key events for Help modal.
@@ -390,7 +430,12 @@ pub(super) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> 
             let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
 
             if app.dry_run {
-                crate::install::spawn_shell_commands_in_terminal(&[format!("echo DRY RUN: {cmd}")]);
+                // Properly quote the command to avoid syntax errors with complex shell constructs
+                use crate::install::shell_single_quote;
+                let quoted = shell_single_quote(&cmd);
+                crate::install::spawn_shell_commands_in_terminal(&[format!(
+                    "echo DRY RUN: {quoted}"
+                )]);
             } else {
                 crate::install::spawn_shell_commands_in_terminal(&[cmd]);
             }

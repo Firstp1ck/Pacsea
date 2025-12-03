@@ -183,6 +183,14 @@ pub struct AppState {
     /// Flag to indicate that Updates modal should open after refresh completes.
     pub pending_updates_modal: bool,
 
+    // Faillock lockout status
+    /// Whether the user account is currently locked out.
+    pub faillock_locked: bool,
+    /// Timestamp when the lockout will expire (if locked).
+    pub faillock_lockout_until: Option<std::time::SystemTime>,
+    /// Remaining lockout time in minutes (if locked).
+    pub faillock_remaining_minutes: Option<u32>,
+
     // Clickable PKGBUILD button rectangle and viewer state
     /// Rectangle of the clickable "Show PKGBUILD" in terminal cell coordinates.
     pub pkgb_button_rect: Option<(u16, u16, u16, u16)>,
@@ -508,7 +516,24 @@ pub struct AppState {
     pub preflight_sandbox_resolving: bool,
     /// Cancellation flag for preflight operations (set to true when modal closes).
     pub preflight_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+
+    // Executor integration
+    /// Pending executor request to be sent when `PreflightExec` modal is ready.
+    pub pending_executor_request: Option<crate::install::ExecutorRequest>,
+    /// Pending post-summary computation request (items and success flag to compute summary for).
+    pub pending_post_summary_items: Option<(Vec<PackageItem>, Option<bool>)>,
+    /// Header chips to use when transitioning to `PreflightExec` modal.
+    pub pending_exec_header_chips: Option<crate::state::modal::PreflightHeaderChips>,
+    /// Custom command to execute after password prompt (for special packages like paru/yay/semgrep-bin).
+    pub pending_custom_command: Option<String>,
+    /// Password obtained from password prompt, stored temporarily for reinstall confirmation flow.
+    pub pending_executor_password: Option<String>,
+    /// File database sync result from background thread (checked in tick handler).
+    pub pending_file_sync_result: Option<FileSyncResult>,
 }
+
+/// File database sync result type.
+pub type FileSyncResult = std::sync::Arc<std::sync::Mutex<Option<Result<bool, String>>>>;
 
 #[cfg(test)]
 mod tests {

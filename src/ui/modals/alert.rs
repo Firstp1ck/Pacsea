@@ -63,12 +63,19 @@ pub fn render_alert(f: &mut Frame, app: &AppState, area: Rect, message: &str) {
             || ml.contains("xclip")
             || ml.contains("wl-clipboard")
     };
+    // Detect account lockout messages
+    let is_account_locked = message.to_lowercase().contains("account")
+        && (message.to_lowercase().contains("locked")
+            || message.to_lowercase().contains("lockout"));
+
     let header_text = if is_help {
         i18n::t(app, "app.modals.help.heading")
     } else if is_config {
         i18n::t(app, "app.modals.alert.header_configuration_error")
     } else if is_clipboard {
         i18n::t(app, "app.modals.alert.header_clipboard_copy")
+    } else if is_account_locked {
+        i18n::t(app, "app.modals.alert.header_account_locked")
     } else {
         i18n::t(app, "app.modals.alert.header_connection_issue")
     };
@@ -78,6 +85,8 @@ pub fn render_alert(f: &mut Frame, app: &AppState, area: Rect, message: &str) {
         i18n::t(app, "app.modals.alert.title_configuration_error")
     } else if is_clipboard {
         i18n::t(app, "app.modals.alert.title_clipboard_copy")
+    } else if is_account_locked {
+        i18n::t(app, "app.modals.alert.title_account_locked")
     } else {
         i18n::t(app, "app.modals.alert.title_connection_issue")
     };
@@ -97,17 +106,49 @@ pub fn render_alert(f: &mut Frame, app: &AppState, area: Rect, message: &str) {
             )));
         }
     } else {
-        lines.push(Line::from(Span::styled(
-            header_text,
-            Style::default()
-                .fg(header_color)
-                .add_modifier(Modifier::BOLD),
-        )));
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            message.to_string(),
-            Style::default().fg(th.text),
-        )));
+        // Don't show header text again if it's the same as the title
+        if !is_account_locked {
+            lines.push(Line::from(Span::styled(
+                header_text,
+                Style::default()
+                    .fg(header_color)
+                    .add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(""));
+        }
+        // Format account locked messages more nicely
+        if is_account_locked {
+            let message_lines: Vec<&str> = message.lines().collect();
+            for (i, line) in message_lines.iter().enumerate() {
+                if i > 0 {
+                    lines.push(Line::from(""));
+                }
+                // Highlight commands in backticks
+                let parts: Vec<&str> = line.split('`').collect();
+                let mut spans = Vec::new();
+                for (idx, part) in parts.iter().enumerate() {
+                    if idx % 2 == 0 {
+                        // Regular text
+                        spans.push(Span::styled(
+                            (*part).to_string(),
+                            Style::default().fg(th.text),
+                        ));
+                    } else {
+                        // Command in backticks - highlight it
+                        spans.push(Span::styled(
+                            format!("`{part}`"),
+                            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                        ));
+                    }
+                }
+                lines.push(Line::from(spans));
+            }
+        } else {
+            lines.push(Line::from(Span::styled(
+                message.to_string(),
+                Style::default().fg(th.text),
+            )));
+        }
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(

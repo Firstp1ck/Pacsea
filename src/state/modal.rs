@@ -16,6 +16,31 @@ use std::collections::HashSet;
 pub enum PreflightAction {
     Install,
     Remove,
+    Downgrade,
+}
+
+/// What: Purpose for password prompt.
+///
+/// Inputs:
+/// - Set when showing password prompt modal.
+///
+/// Output:
+/// - Used to customize prompt message and context.
+///
+/// Details:
+/// - Indicates which operation requires sudo authentication.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PasswordPurpose {
+    /// Installing packages.
+    Install,
+    /// Removing packages.
+    Remove,
+    /// Updating system.
+    Update,
+    /// Downgrading packages.
+    Downgrade,
+    /// Syncing file database.
+    FileSync,
 }
 
 /// What: Identifies which tab within the preflight modal is active.
@@ -392,8 +417,18 @@ pub enum Modal {
     None,
     /// Informational alert with a non-interactive message.
     Alert { message: String },
+    /// Loading indicator shown during background computation.
+    Loading { message: String },
     /// Confirmation dialog for installing the given items.
     ConfirmInstall { items: Vec<PackageItem> },
+    /// Confirmation dialog for reinstalling already installed packages.
+    ConfirmReinstall {
+        /// Packages that are already installed (shown in the confirmation dialog).
+        items: Vec<PackageItem>,
+        /// All packages to install (including both installed and not installed).
+        all_items: Vec<PackageItem>,
+        header_chips: PreflightHeaderChips,
+    },
     /// Confirmation dialog for batch updates that may cause dependency conflicts.
     ConfirmBatchUpdate {
         items: Vec<PackageItem>,
@@ -463,6 +498,8 @@ pub enum Modal {
         abortable: bool,
         /// Header chip metrics displayed in the sidebar.
         header_chips: PreflightHeaderChips,
+        /// Execution result: `Some(true)` for success, `Some(false)` for failure, `None` if not yet completed.
+        success: Option<bool>,
     },
     /// Post-transaction summary with results and follow-ups.
     PostSummary {
@@ -549,6 +586,19 @@ pub enum Modal {
     },
     /// Information dialog explaining the Import file format.
     ImportHelp,
+    /// Password prompt for sudo authentication.
+    PasswordPrompt {
+        /// Purpose of the password prompt.
+        purpose: PasswordPurpose,
+        /// Packages involved in the operation.
+        items: Vec<PackageItem>,
+        /// User input buffer for password.
+        input: String,
+        /// Cursor position within the input buffer.
+        cursor: usize,
+        /// Error message if password was incorrect.
+        error: Option<String>,
+    },
 }
 
 #[cfg(test)]
@@ -571,6 +621,11 @@ mod tests {
             message: "hi".into(),
         };
         let _ = super::Modal::ConfirmInstall { items: Vec::new() };
+        let _ = super::Modal::ConfirmReinstall {
+            items: Vec::new(),
+            all_items: Vec::new(),
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+        };
         let _ = super::Modal::Help;
         let _ = super::Modal::ConfirmRemove { items: Vec::new() };
         let _ = super::Modal::SystemUpdate {
@@ -597,6 +652,13 @@ mod tests {
             cursor: 0,
         };
         let _ = super::Modal::ImportHelp;
+        let _ = super::Modal::PasswordPrompt {
+            purpose: super::PasswordPurpose::Install,
+            items: Vec::new(),
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
         let _ = super::Modal::Preflight {
             items: Vec::new(),
             action: super::PreflightAction::Install,

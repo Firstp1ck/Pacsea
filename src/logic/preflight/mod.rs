@@ -189,6 +189,23 @@ fn process_package_item<R: CommandRunner>(
         all_notes.push(note);
     }
 
+    // For Install actions, add note about installed packages that depend on this package
+    if matches!(action, PreflightAction::Install) && installed_version.is_some() {
+        let dependents = crate::logic::deps::get_installed_required_by(&item.name);
+        if !dependents.is_empty() {
+            let dependents_list = if dependents.len() <= 3 {
+                dependents.join(", ")
+            } else {
+                format!(
+                    "{} (and {} more)",
+                    dependents[..3].join(", "),
+                    dependents.len() - 3
+                )
+            };
+            all_notes.push(format!("Required by installed packages: {dependents_list}"));
+        }
+    }
+
     state.packages.push(PreflightPackageSummary {
         name: item.name.clone(),
         source: item.source.clone(),
@@ -272,6 +289,13 @@ fn calculate_install_delta(
         PreflightAction::Remove => {
             installed_size.and_then(|size| i64::try_from(size).ok().map(|s| -s))
         }
+        PreflightAction::Downgrade => install_size_target.and_then(|target| {
+            // For downgrade, calculate delta similar to install (replacing with older version)
+            let current = installed_size.unwrap_or(0);
+            let target_i64 = i64::try_from(target).ok()?;
+            let current_i64 = i64::try_from(current).ok()?;
+            Some(target_i64 - current_i64)
+        }),
     }
 }
 
@@ -415,6 +439,16 @@ fn calculate_risk_metrics(
         ));
         risk_score = risk_score.saturating_add(risk_points);
     }
+    // For Install actions, add risk when updating packages with installed dependents
+    // Add +2 risk points for each installed package that depends on packages being updated
+    if matches!(action, PreflightAction::Install) && dependent_count > 0 {
+        let risk_points = dependent_count.saturating_mul(2).min(255); // +2 per dependent package, cap at u8::MAX
+        let risk_points_u8 = u8::try_from(risk_points).unwrap_or(255);
+        risk_reasons.push(format!(
+            "{dependent_count} installed package(s) depend on packages being updated (+{risk_points_u8})"
+        ));
+        risk_score = risk_score.saturating_add(risk_points_u8);
+    }
 
     let risk_level = match risk_score {
         0 => RiskLevel::Low,
@@ -488,15 +522,17 @@ fn process_all_packages<R: CommandRunner>(
     }
 }
 
-/// What: Resolve reverse dependencies for Remove actions.
+/// What: Resolve reverse dependencies for Remove actions and count installed dependents for Install actions.
 ///
 /// Inputs:
-/// - `items`: Packages being removed.
+/// - `items`: Packages being removed or installed/updated.
 /// - `action`: Preflight action (Install vs Remove).
 ///
 /// Output: Tuple of (`dependent_count`, `reverse_deps_report`).
 ///
-/// Details: Returns (0, None) for Install actions, resolves and counts for Remove actions.
+/// Details:
+/// - For Remove actions: resolves and counts all dependent packages.
+/// - For Install actions: counts the total number of installed packages that depend on packages being updated.
 fn resolve_reverse_deps(
     items: &[PackageItem],
     action: PreflightAction,
@@ -506,7 +542,17 @@ fn resolve_reverse_deps(
         let count = report.dependencies.len();
         (count, Some(report))
     } else {
-        (0, None)
+        // For Install actions, count the total number of installed dependent packages
+        // across all packages being updated
+        let mut total_dependents = 0;
+        for item in items {
+            // Only check installed packages (updates/reinstalls)
+            if crate::index::is_installed(&item.name) {
+                let dependents = crate::logic::deps::get_installed_required_by(&item.name);
+                total_dependents += dependents.len();
+            }
+        }
+        (total_dependents, None)
     }
 }
 

@@ -1,5 +1,7 @@
 //! Command key handlers for Preflight modal.
 
+use std::sync::{Arc, Mutex};
+
 use crate::state::{AppState, PackageItem};
 
 use crate::events::preflight::modal::close_preflight_modal;
@@ -14,7 +16,7 @@ use crate::events::preflight::modal::close_preflight_modal;
 ///
 /// Details:
 /// - Runs the sync operation in a background thread to avoid blocking the UI.
-/// - If sync requires root privileges, launches a terminal with sudo command.
+/// - If sync requires root privileges, shows password prompt and uses integrated executor.
 pub(super) fn handle_f_key(app: &mut AppState) -> bool {
     if let crate::state::Modal::Preflight { tab, .. } = &app.modal {
         if *tab != crate::state::PreflightTab::Files {
@@ -30,28 +32,32 @@ pub(super) fn handle_f_key(app: &mut AppState) -> bool {
 
     // Run sync in background thread to avoid blocking the UI
     // Use catch_unwind to prevent panics from crashing the TUI
+    // Store result in Arc<Mutex<Option<...>>> so we can check it in tick handler
+    let sync_result: crate::state::app_state::FileSyncResult = Arc::new(Mutex::new(None));
+    let sync_result_clone = Arc::clone(&sync_result);
+
     std::thread::spawn(move || {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // Use the new ensure_file_db_synced function with force=true
             // This will attempt to sync regardless of timestamp
-            let sync_result = crate::logic::files::ensure_file_db_synced(true, 7);
-            match sync_result {
+            let sync_result_inner = crate::logic::files::ensure_file_db_synced(true, 7);
+            match sync_result_inner {
                 Ok(synced) => {
                     if synced {
                         tracing::info!("File database sync completed successfully");
                     } else {
                         tracing::info!("File database is already fresh");
                     }
+                    if let Ok(mut guard) = sync_result_clone.lock() {
+                        *guard = Some(Ok(synced));
+                    }
                 }
                 Err(e) => {
-                    // Sync failed (likely requires root), launch terminal with sudo
-                    tracing::warn!(
-                        "File database sync failed: {}, launching terminal with sudo",
-                        e
-                    );
-                    let sync_cmd = "sudo pacman -Fy".to_string();
-                    let cmds = vec![sync_cmd];
-                    crate::install::spawn_shell_commands_in_terminal(&cmds);
+                    // Sync failed (likely requires root), show password prompt
+                    tracing::warn!("File database sync failed: {}, will prompt for password", e);
+                    if let Ok(mut guard) = sync_result_clone.lock() {
+                        *guard = Some(Err(e));
+                    }
                 }
             }
         }));
@@ -60,6 +66,9 @@ pub(super) fn handle_f_key(app: &mut AppState) -> bool {
             tracing::error!("File database sync thread panicked: {:?}", panic_info);
         }
     });
+
+    // Store the sync result Arc in AppState so we can check it in tick handler
+    app.pending_file_sync_result = Some(sync_result);
 
     // Clear file_info to trigger re-resolution after sync completes
     if let crate::state::Modal::Preflight {
@@ -170,6 +179,213 @@ pub(super) fn handle_m_key(app: &mut AppState) -> bool {
     false
 }
 
+/// What: Extract install targets from preflight modal.
+///
+/// Inputs:
+/// - `items`: Items from preflight modal
+/// - `selected_optdepends`: Selected optional dependencies
+///
+/// Output: Packages to install including optional dependencies.
+///
+/// Details: Adds selected optional dependencies to the install list.
+fn extract_install_targets(
+    items: &[PackageItem],
+    selected_optdepends: &std::collections::HashMap<String, std::collections::HashSet<String>>,
+) -> Vec<PackageItem> {
+    let mut packages = items.to_vec();
+    // Add selected optional dependencies as additional packages to install
+    for optdeps in selected_optdepends.values() {
+        for optdep in optdeps {
+            let optdep_pkg_name = crate::logic::sandbox::extract_package_name(optdep);
+            if !packages.iter().any(|p| p.name == optdep_pkg_name) {
+                packages.push(PackageItem {
+                    name: optdep_pkg_name,
+                    version: String::new(),
+                    description: String::new(),
+                    source: crate::state::Source::Official {
+                        repo: String::new(),
+                        arch: String::new(),
+                    },
+                    popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
+                });
+            }
+        }
+    }
+    packages
+}
+
+/// What: Handle proceed action for install targets.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `packages`: Packages to install
+/// - `header_chips`: Header chip metrics
+///
+/// Output: `false` to keep TUI open.
+///
+/// Details: Checks for reinstalls first, then batch updates (only if update available), handles password prompt if needed, or starts execution.
+pub(super) fn handle_proceed_install(
+    app: &mut AppState,
+    packages: Vec<PackageItem>,
+    header_chips: crate::state::modal::PreflightHeaderChips,
+) -> bool {
+    // First, check if we're installing packages that are already installed (reinstall scenario)
+    // This check happens BEFORE password prompt
+    // BUT exclude packages that have updates available (those should go through normal update flow)
+    let installed_set = crate::logic::deps::get_installed_packages();
+    let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+    let upgradable_set = crate::logic::deps::get_upgradable_packages();
+
+    let installed_packages: Vec<crate::state::PackageItem> = packages
+        .iter()
+        .filter(|item| {
+            // Check if package is installed or provided by an installed package
+            let is_installed = crate::logic::deps::is_package_installed_or_provided(
+                &item.name,
+                &installed_set,
+                &provided_set,
+            );
+
+            if !is_installed {
+                return false;
+            }
+
+            // Check if package has an update available
+            // For official packages: check if it's in upgradable_set OR version differs from installed
+            // For AUR packages: check if target version is different from installed version
+            let has_update = if upgradable_set.contains(&item.name) {
+                // Package is in upgradable set (pacman -Qu)
+                true
+            } else if !item.version.is_empty() {
+                // Normalize target version by removing revision suffix (same as installed version normalization)
+                let normalized_target_version =
+                    item.version.split('-').next().unwrap_or(&item.version);
+                // Compare normalized target version with normalized installed version
+                // This works for both official and AUR packages
+                crate::logic::deps::get_installed_version(&item.name)
+                    .is_ok_and(|installed_version| normalized_target_version != installed_version)
+            } else {
+                // No version info available, no update
+                false
+            };
+
+            // Only show reinstall confirmation if installed AND no update available
+            // If update is available, it should go through normal update flow
+            !has_update
+        })
+        .cloned()
+        .collect();
+
+    if !installed_packages.is_empty() {
+        // Show reinstall confirmation modal (before password prompt)
+        // Store both installed packages (for display) and all packages (for installation)
+        app.modal = crate::state::Modal::ConfirmReinstall {
+            items: installed_packages,
+            all_items: packages,
+            header_chips,
+        };
+        return false; // Don't close modal yet, wait for confirmation
+    }
+
+    // Check if this is a batch update scenario requiring confirmation
+    // Only show if there's actually an update available (package is upgradable)
+    // AND the package has installed packages in its "Required By" field (dependency risk)
+    let upgradable_set = crate::logic::deps::get_upgradable_packages();
+    let has_versions = packages.iter().any(|item| {
+        matches!(item.source, crate::state::Source::Official { .. }) && !item.version.is_empty()
+    });
+    let has_upgrade_available = packages.iter().any(|item| {
+        matches!(item.source, crate::state::Source::Official { .. })
+            && upgradable_set.contains(&item.name)
+    });
+
+    // Only show warning if package has installed packages in "Required By" (dependency risk)
+    let has_installed_required_by = packages.iter().any(|item| {
+        matches!(item.source, crate::state::Source::Official { .. })
+            && crate::index::is_installed(&item.name)
+            && crate::logic::deps::has_installed_required_by(&item.name)
+    });
+
+    if has_versions && has_upgrade_available && has_installed_required_by {
+        // Show confirmation modal for batch updates (only if update is actually available
+        // AND package has installed dependents that could be affected)
+        app.modal = crate::state::Modal::ConfirmBatchUpdate {
+            items: packages,
+            dry_run: app.dry_run,
+        };
+        return false; // Don't close modal yet, wait for confirmation
+    }
+
+    // Check if password is needed
+    // Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
+    // require password, so always show password prompt
+    // User can press Enter if passwordless sudo is configured
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+    {
+        // User is locked out - show warning and don't show password prompt
+        app.modal = crate::state::Modal::Alert {
+            message: lockout_msg,
+        };
+        return false;
+    }
+    // Show password prompt for all installs (official and AUR)
+    app.modal = crate::state::Modal::PasswordPrompt {
+        purpose: crate::state::modal::PasswordPurpose::Install,
+        items: packages,
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+    app.pending_exec_header_chips = Some(header_chips);
+    false // Keep TUI open
+}
+
+/// What: Handle proceed action for remove targets.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `items`: Items to remove
+/// - `mode`: Cascade removal mode
+/// - `header_chips`: Header chip metrics
+///
+/// Output: `false` to keep TUI open.
+///
+/// Details: Handles password prompt if needed, or starts execution.
+pub(super) fn handle_proceed_remove(
+    app: &mut AppState,
+    items: Vec<PackageItem>,
+    mode: crate::state::modal::CascadeMode,
+    header_chips: crate::state::modal::PreflightHeaderChips,
+) -> bool {
+    // Store cascade mode for executor (needed in both password and non-password paths)
+    app.remove_cascade_mode = mode;
+
+    // Remove operations always need sudo (pacman -R requires sudo regardless of package source)
+    // Check faillock status before showing password prompt
+    let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+    {
+        // User is locked out - show warning and don't show password prompt
+        app.modal = crate::state::Modal::Alert {
+            message: lockout_msg,
+        };
+        return false;
+    }
+    // Always show password prompt - user can press Enter if passwordless sudo is configured
+    app.modal = crate::state::Modal::PasswordPrompt {
+        purpose: crate::state::modal::PasswordPurpose::Remove,
+        items,
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+    app.pending_exec_header_chips = Some(header_chips);
+    false // Keep TUI open
+}
+
 /// What: Handle p key - proceed with install/remove.
 ///
 /// Inputs:
@@ -180,8 +396,8 @@ pub(super) fn handle_m_key(app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Closes the modal if install/remove is triggered, but TUI remains open.
+#[allow(clippy::too_many_lines)] // Function handles complex preflight proceed logic
 pub(super) fn handle_p_key(app: &mut AppState) -> bool {
-    let mut close_modal = false;
     let new_summary: Option<Vec<crate::state::modal::ReverseRootSummary>> = None;
     let mut blocked_dep_count: Option<usize> = None;
     let mut removal_names: Option<Vec<String>> = None;
@@ -204,52 +420,37 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
         {
             match action {
                 crate::state::PreflightAction::Install => {
-                    let mut packages = items.clone();
-                    // Add selected optional dependencies as additional packages to install
-                    for (_pkg_name, optdeps) in selected_optdepends.iter() {
-                        for optdep in optdeps {
-                            let optdep_pkg_name =
-                                crate::logic::sandbox::extract_package_name(optdep);
-                            if !packages.iter().any(|p| p.name == optdep_pkg_name) {
-                                packages.push(PackageItem {
-                                    name: optdep_pkg_name,
-                                    version: String::new(),
-                                    description: String::new(),
-                                    source: crate::state::Source::Official {
-                                        repo: String::new(),
-                                        arch: String::new(),
-                                    },
-                                    popularity: None,
-                                    out_of_date: None,
-                                    orphaned: false,
-                                });
-                            }
-                        }
-                    }
+                    let packages = extract_install_targets(&*items, selected_optdepends);
                     install_targets = Some(packages);
                 }
                 crate::state::PreflightAction::Remove => {
-                    // Don't block on dependency resolution - if dependency_info is empty,
-                    // proceed if cascade mode allows dependents, otherwise show blocking message
+                    // If dependency_info is empty, dependencies haven't been resolved yet.
+                    // Show a warning but allow removal to proceed (don't block).
                     if dependency_info.is_empty() {
-                        // If cascade mode allows dependents, proceed without blocking
-                        if cascade_mode.allows_dependents() {
-                            removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
-                            removal_mode = Some(*cascade_mode);
-                        } else {
-                            // Can't proceed without dependency info and cascade doesn't allow dependents
-                            // Show message that dependencies need to be resolved first
+                        // Show warning if cascade mode is Basic (might have dependents we don't know about)
+                        if !cascade_mode.allows_dependents() {
                             deps_not_resolved_message = Some(
-                                "Dependencies not resolved yet. Please wait or switch to Dependencies tab."
+                                "Warning: Dependencies not resolved yet. Package may have dependents. Switch to Dependencies tab to check."
                                     .to_string(),
                             );
                         }
+                        // Always allow removal to proceed, even if dependencies aren't resolved
+                        removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
+                        removal_mode = Some(*cascade_mode);
                     } else if cascade_mode.allows_dependents() {
+                        // Cascade mode allows dependents, proceed with removal
                         removal_names = Some(items.iter().map(|p| p.name.clone()).collect());
                         removal_mode = Some(*cascade_mode);
                     } else {
+                        // Dependencies are resolved, cascade mode is Basic, and there are dependents
+                        // Block removal since Basic mode doesn't allow removing packages with dependents
                         blocked_dep_count = Some(dependency_info.len());
                     }
+                }
+                crate::state::PreflightAction::Downgrade => {
+                    // For downgrade, we don't need to check dependencies
+                    // Downgrade tool handles its own logic
+                    // Just allow downgrade to proceed - handled separately below
                 }
             }
 
@@ -276,31 +477,115 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
     }
 
     if let Some(packages) = install_targets {
-        // Check if this is a batch update scenario requiring confirmation
-        let has_versions = packages.iter().any(|item| {
-            matches!(item.source, crate::state::Source::Official { .. }) && !item.version.is_empty()
-        });
-        let reinstall_any = packages.iter().any(|item| {
-            matches!(item.source, crate::state::Source::Official { .. })
-                && crate::index::is_installed(&item.name)
-        });
+        // Get header_chips and service_info before closing modal
+        let header_chips = if let crate::state::Modal::Preflight { header_chips, .. } = &app.modal {
+            header_chips.clone()
+        } else {
+            crate::state::modal::PreflightHeaderChips::default()
+        };
+        let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
+            service_info.clone()
+        } else {
+            Vec::new()
+        };
 
-        if has_versions && reinstall_any {
-            // Show confirmation modal for batch updates
-            app.modal = crate::state::Modal::ConfirmBatchUpdate {
-                items: packages,
-                dry_run: app.dry_run,
-            };
-            return false; // Don't close modal yet, wait for confirmation
-        }
+        // Close preflight modal
+        crate::events::preflight::modal::close_preflight_modal(app, &service_info);
 
-        crate::install::spawn_install_all(&packages, app.dry_run);
-        close_modal = true;
+        return handle_proceed_install(app, packages, header_chips);
     } else if let Some(names) = removal_names {
         let mode = removal_mode.unwrap_or(crate::state::modal::CascadeMode::Basic);
-        crate::install::spawn_remove_all(&names, app.dry_run, mode);
-        close_modal = true;
-    } else if let Some(count) = blocked_dep_count {
+
+        // Get header_chips and service_info before closing modal
+        let header_chips = if let crate::state::Modal::Preflight { header_chips, .. } = &app.modal {
+            header_chips.clone()
+        } else {
+            crate::state::modal::PreflightHeaderChips::default()
+        };
+        let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
+            service_info.clone()
+        } else {
+            Vec::new()
+        };
+
+        // Get items for removal
+        let items = if let crate::state::Modal::Preflight { items, .. } = &app.modal {
+            items
+                .iter()
+                .filter(|p| names.contains(&p.name))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Close preflight modal
+        crate::events::preflight::modal::close_preflight_modal(app, &service_info);
+
+        return handle_proceed_remove(app, items, mode, header_chips);
+    }
+
+    // Check if this is a downgrade action
+    let is_downgrade = if let crate::state::Modal::Preflight { action, .. } = &app.modal {
+        matches!(action, crate::state::PreflightAction::Downgrade)
+    } else {
+        false
+    };
+
+    if is_downgrade {
+        // Get items, action, header_chips, and cascade_mode before closing modal
+        let (items, _action, header_chips, cascade_mode) = if let crate::state::Modal::Preflight {
+            action,
+            items,
+            header_chips,
+            cascade_mode,
+            ..
+        } = &app.modal
+        {
+            (items.clone(), *action, header_chips.clone(), *cascade_mode)
+        } else {
+            return false;
+        };
+
+        // Downgrade operations always need sudo (downgrade tool requires sudo)
+        // Always show password prompt - user can press Enter if passwordless sudo is configured
+        // Store cascade mode for consistency (though downgrade doesn't use it)
+        app.remove_cascade_mode = cascade_mode;
+
+        // Get service_info before closing modal
+        let service_info = if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
+            service_info.clone()
+        } else {
+            Vec::new()
+        };
+
+        // Close preflight modal
+        crate::events::preflight::modal::close_preflight_modal(app, &service_info);
+
+        // Check faillock status before showing password prompt for downgrade
+        let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+        if let Some(lockout_msg) =
+            crate::logic::faillock::get_lockout_message_if_locked(&username, app)
+        {
+            // User is locked out - show warning and don't show password prompt
+            app.modal = crate::state::Modal::Alert {
+                message: lockout_msg,
+            };
+            return false;
+        }
+        // Show password prompt for downgrade
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Downgrade,
+            items,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
+        return false;
+    }
+
+    if let Some(count) = blocked_dep_count {
         let root_list: Vec<String> = app
             .remove_preflight_summary
             .iter()
@@ -318,17 +603,6 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
         app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
     }
 
-    if close_modal {
-        let service_info_clone =
-            if let crate::state::Modal::Preflight { service_info, .. } = &app.modal {
-                service_info.clone()
-            } else {
-                Vec::new()
-            };
-        close_preflight_modal(app, &service_info_clone);
-        // Return false to keep TUI open - modal is closed but app continues
-        return false;
-    }
     false
 }
 

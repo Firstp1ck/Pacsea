@@ -26,6 +26,8 @@ use super::{common, summary};
 /// Details:
 /// - Handles repository fetching, `makepkg -o`, optional scanners, and summary reporting.
 /// - Ensures each step logs progress and tolerates partial failures where possible.
+/// - Note: Kept for backward compatibility; new code should use `build_scan_cmds_for_pkg_without_sleuth`.
+#[allow(dead_code)] // Kept for backward compatibility
 pub fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
     // All commands are joined with " && " and run in a single bash -lc invocation in a terminal.
     // Keep each step resilient so later steps still run where possible.
@@ -36,6 +38,32 @@ pub fn build_scan_cmds_for_pkg(pkg: &str) -> Vec<String> {
     add_makepkg_commands(&mut cmds, pkg);
     add_all_scans(&mut cmds);
     add_summary_commands(&mut cmds, pkg);
+
+    cmds
+}
+
+/// What: Assemble the shell command sequence for scanning (excluding aur-sleuth).
+///
+/// Input:
+/// - `pkg`: AUR package name to clone and analyse.
+///
+/// Output:
+/// - Ordered vector of shell fragments executed sequentially via PTY.
+///
+/// Details:
+/// - Handles repository fetching, `makepkg -o`, optional scanners (excluding sleuth), and summary reporting.
+/// - Used for integrated process execution (aur-sleuth runs separately in terminal).
+#[cfg(not(target_os = "windows"))]
+pub fn build_scan_cmds_for_pkg_without_sleuth(pkg: &str) -> Vec<String> {
+    // All commands are joined with " && " and run in a single bash -lc invocation via PTY.
+    // Keep each step resilient so later steps still run where possible.
+    let mut cmds: Vec<String> = Vec::new();
+
+    add_setup_commands(&mut cmds, pkg);
+    add_fetch_commands(&mut cmds, pkg);
+    add_makepkg_commands(&mut cmds, pkg);
+    add_scans_without_sleuth(&mut cmds);
+    add_summary_commands_without_sleuth(&mut cmds, pkg);
 
     cmds
 }
@@ -156,13 +184,38 @@ fn add_makepkg_commands(cmds: &mut Vec<String>, _pkg: &str) {
 ///
 /// Output:
 /// - Appends all scan commands to the vector.
+/// - Note: Kept for backward compatibility; new code should use `add_scans_without_sleuth`.
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)] // Kept for backward compatibility
 fn add_all_scans(cmds: &mut Vec<String>) {
     common::add_pattern_exports(cmds);
     common::add_clamav_scan(cmds);
     common::add_trivy_scan(cmds);
     common::add_semgrep_scan(cmds);
     common::add_sleuth_scan(cmds);
+    common::add_shellcheck_scan(cmds);
+    common::add_shellcheck_risk_eval(cmds);
+    common::add_custom_pattern_scan(cmds);
+    common::add_virustotal_scan(cmds);
+}
+
+/// What: Add scan commands to command vector (excluding aur-sleuth).
+///
+/// Input:
+/// - `cmds`: Mutable reference to command vector.
+///
+/// Output:
+/// - Appends scan commands (excluding sleuth) to the vector.
+///
+/// Details:
+/// - Used for integrated process execution (aur-sleuth runs separately in terminal).
+#[cfg(not(target_os = "windows"))]
+pub fn add_scans_without_sleuth(cmds: &mut Vec<String>) {
+    common::add_pattern_exports(cmds);
+    common::add_clamav_scan(cmds);
+    common::add_trivy_scan(cmds);
+    common::add_semgrep_scan(cmds);
+    // Skip sleuth - runs in separate terminal
     common::add_shellcheck_scan(cmds);
     common::add_shellcheck_risk_eval(cmds);
     common::add_custom_pattern_scan(cmds);
@@ -177,7 +230,9 @@ fn add_all_scans(cmds: &mut Vec<String>) {
 ///
 /// Output:
 /// - Appends summary commands to the vector.
+/// - Note: Kept for backward compatibility; new code should use `add_summary_commands_without_sleuth`.
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)] // Kept for backward compatibility
 fn add_summary_commands(cmds: &mut Vec<String>, _pkg: &str) {
     // Final note with working directory for manual inspection
     cmds.push("echo".to_string());
@@ -190,6 +245,36 @@ fn add_summary_commands(cmds: &mut Vec<String>, _pkg: &str) {
     summary::add_shellcheck_summary(cmds);
     summary::add_shellcheck_risk_summary(cmds);
     summary::add_sleuth_summary(cmds);
+    summary::add_custom_and_vt_summary(cmds);
+    cmds.push("echo".to_string());
+    cmds.push("echo \"Pacsea: scan finished. Working directory preserved: $work\"".to_string());
+    cmds.push("echo -e \"\\033[1;32m[✔] Pacsea: scan finished.\\033[0m Working directory preserved: $work\"".to_string());
+}
+
+/// What: Add summary commands to command vector (excluding aur-sleuth summary).
+///
+/// Input:
+/// - `cmds`: Mutable reference to command vector.
+/// - `_pkg`: Package name (unused, shell variable $pkg is set earlier).
+///
+/// Output:
+/// - Appends summary commands (excluding sleuth) to the vector.
+///
+/// Details:
+/// - Used for integrated process execution (aur-sleuth runs separately in terminal).
+#[cfg(not(target_os = "windows"))]
+pub fn add_summary_commands_without_sleuth(cmds: &mut Vec<String>, _pkg: &str) {
+    // Final note with working directory for manual inspection
+    cmds.push("echo".to_string());
+    cmds.push("echo '--- Summary ---'".to_string());
+    cmds.push("echo -e '\\033[1;36m[📊] Summary\\033[0m'".to_string());
+    summary::add_overall_risk_calc(cmds);
+    summary::add_clamav_summary(cmds);
+    summary::add_trivy_summary(cmds);
+    summary::add_semgrep_summary(cmds);
+    summary::add_shellcheck_summary(cmds);
+    summary::add_shellcheck_risk_summary(cmds);
+    // Skip sleuth summary - runs in separate terminal
     summary::add_custom_and_vt_summary(cmds);
     cmds.push("echo".to_string());
     cmds.push("echo \"Pacsea: scan finished. Working directory preserved: $work\"".to_string());

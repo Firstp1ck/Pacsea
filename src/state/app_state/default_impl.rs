@@ -128,6 +128,9 @@ impl Default for AppState {
             updates_loading,
             refresh_updates,
             pending_updates_modal,
+            faillock_locked,
+            faillock_lockout_until,
+            faillock_remaining_minutes,
         ) = defaults::default_clickable_rects_state();
 
         let (
@@ -328,6 +331,9 @@ impl Default for AppState {
             updates_loading,
             refresh_updates,
             pending_updates_modal,
+            faillock_locked,
+            faillock_lockout_until,
+            faillock_remaining_minutes,
             pkgb_button_rect,
             pkgb_check_button_rect,
             pkgb_reload_button_rect,
@@ -466,6 +472,12 @@ impl Default for AppState {
             preflight_services_resolving,
             preflight_sandbox_resolving,
             preflight_cancelled,
+            pending_executor_request: None,
+            pending_exec_header_chips: None,
+            pending_post_summary_items: None,
+            pending_custom_command: None,
+            pending_executor_password: None,
+            pending_file_sync_result: None,
         }
     }
 }
