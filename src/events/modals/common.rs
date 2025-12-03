@@ -100,7 +100,24 @@ pub(super) fn handle_preflight_exec(
             true // Stop propagation
         }
         KeyCode::Enter => {
-            // Show loading modal and queue background computation
+            // Check if this is a scan (items have names starting with "scan:")
+            let is_scan = items.iter().any(|item| item.name.starts_with("scan:"));
+
+            if is_scan {
+                // For scans, skip PostSummary and go directly back to Preflight
+                if let Some(prev_modal) = app.previous_modal.take() {
+                    if matches!(prev_modal, crate::state::Modal::Preflight { .. }) {
+                        app.modal = prev_modal;
+                        return true; // Stop propagation
+                    }
+                    // If it's not Preflight, put it back and close normally
+                    app.previous_modal = Some(prev_modal);
+                }
+                app.modal = crate::state::Modal::None;
+                return true; // Stop propagation
+            }
+
+            // For regular installs, show loading modal and queue background computation
             // Use the success flag passed in from the modal (app.modal is taken during dispatch)
             app.pending_post_summary_items = Some((items.to_vec(), success));
             app.modal = crate::state::Modal::Loading {

@@ -228,10 +228,14 @@ pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cac
                     // Package is in upgradable set (pacman -Qu)
                     true
                 } else if !item.version.is_empty() {
-                    // Compare target version with installed version
+                    // Normalize target version by removing revision suffix (same as installed version normalization)
+                    let normalized_target_version =
+                        item.version.split('-').next().unwrap_or(&item.version);
+                    // Compare normalized target version with normalized installed version
                     // This works for both official and AUR packages
-                    crate::logic::deps::get_installed_version(&item.name)
-                        .is_ok_and(|installed_version| item.version != installed_version)
+                    crate::logic::deps::get_installed_version(&item.name).is_ok_and(
+                        |installed_version| normalized_target_version != installed_version,
+                    )
                 } else {
                     // No version info available, no update
                     false
