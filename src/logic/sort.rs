@@ -1,4 +1,7 @@
 //! Result sorting with selection preservation across sort modes.
+//!
+//! Provides sort cache fields for potential future optimization of sort mode switching.
+//! Currently, the cache fields are used for tracking when results change (via signature).
 
 use crate::state::{AppState, SortMode, Source};
 
@@ -12,11 +15,19 @@ use crate::state::{AppState, SortMode, Source};
 ///
 /// Details:
 /// - Supports multiple sort strategies, including repo ordering, AUR popularity, and match ranking heuristics.
+/// - Sort caches are cleared when this function runs to ensure consistency.
 pub fn sort_results_preserve_selection(app: &mut AppState) {
     if app.results.is_empty() {
         return;
     }
     let prev_name = app.results.get(app.selected).map(|p| p.name.clone());
+
+    // Clear sort caches since we're re-sorting
+    // (Future optimization: implement proper cache-based reordering)
+    app.sort_cache_repo_name = None;
+    app.sort_cache_aur_popularity = None;
+    app.sort_cache_signature = None;
+
     match app.sort_mode {
         SortMode::RepoThenName => {
             app.results.sort_by(|a, b| {
@@ -73,6 +84,8 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
             });
         }
     }
+
+    // Restore selection by name
     if let Some(name) = prev_name {
         if let Some(pos) = app.results.iter().position(|p| p.name == name) {
             app.selected = pos;
@@ -82,6 +95,22 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
             app.list_state.select(Some(app.selected));
         }
     }
+}
+
+/// What: Invalidate all sort caches.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+///
+/// Output:
+/// - Clears all sort cache fields.
+///
+/// Details:
+/// - Should be called when results change (new search, filter change, etc.).
+pub fn invalidate_sort_caches(app: &mut AppState) {
+    app.sort_cache_repo_name = None;
+    app.sort_cache_aur_popularity = None;
+    app.sort_cache_signature = None;
 }
 
 #[cfg(test)]
@@ -218,5 +247,65 @@ mod tests {
         sort_results_preserve_selection(&mut app);
         let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
         assert_eq!(names, vec!["aurA", "aurB", "z_off", "a_off"]);
+    }
+
+    #[test]
+    /// What: Verify cache invalidation clears all sort cache fields.
+    ///
+    /// Inputs:
+    /// - `AppState` with manually set cache fields.
+    ///
+    /// Output:
+    /// - All cache fields are `None` after invalidation.
+    ///
+    /// Details:
+    /// - Tests that `invalidate_sort_caches` properly clears all cache state.
+    fn sort_cache_invalidation() {
+        let mut app = AppState {
+            results: vec![
+                item_official("pkg1", "core"),
+                item_official("pkg2", "extra"),
+            ],
+            sort_mode: SortMode::RepoThenName,
+            sort_cache_signature: Some(12345),
+            sort_cache_repo_name: Some(vec![0, 1]),
+            sort_cache_aur_popularity: Some(vec![1, 0]),
+            ..Default::default()
+        };
+
+        // Invalidate cache
+        invalidate_sort_caches(&mut app);
+        assert!(app.sort_cache_signature.is_none());
+        assert!(app.sort_cache_repo_name.is_none());
+        assert!(app.sort_cache_aur_popularity.is_none());
+    }
+
+    #[test]
+    /// What: Verify `BestMatches` mode does not populate mode-specific caches.
+    ///
+    /// Inputs:
+    /// - Results list sorted with `BestMatches` mode.
+    ///
+    /// Output:
+    /// - Mode-specific caches remain `None` for `BestMatches`.
+    ///
+    /// Details:
+    /// - `BestMatches` depends on the query and should not cache mode-specific indices.
+    fn sort_bestmatches_no_mode_cache() {
+        let mut app = AppState {
+            results: vec![
+                item_official("alpha", "core"),
+                item_official("beta", "extra"),
+            ],
+            input: "alph".into(),
+            sort_mode: SortMode::BestMatches,
+            ..Default::default()
+        };
+
+        sort_results_preserve_selection(&mut app);
+
+        // BestMatches should not populate mode-specific caches
+        assert!(app.sort_cache_repo_name.is_none());
+        assert!(app.sort_cache_aur_popularity.is_none());
     }
 }

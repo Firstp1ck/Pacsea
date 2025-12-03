@@ -222,6 +222,9 @@ impl Default for AppState {
             collapsed_menu_open,
             collapsed_menu_button_rect,
             collapsed_menu_rect,
+            sort_cache_repo_name,
+            sort_cache_aur_popularity,
+            sort_cache_signature,
         ) = defaults::default_sorting_menus_state();
 
         let (installed_only_mode, right_pane_focus, package_marker) =
@@ -400,6 +403,9 @@ impl Default for AppState {
             sort_button_rect,
             sort_menu_rect,
             sort_menu_auto_close_at,
+            sort_cache_repo_name,
+            sort_cache_aur_popularity,
+            sort_cache_signature,
             options_menu_open,
             options_button_rect,
             options_menu_rect,
