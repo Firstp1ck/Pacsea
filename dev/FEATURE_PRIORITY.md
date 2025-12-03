@@ -8,7 +8,7 @@
 
 | Version | Key Feature(s) |
 |---------|---------------|
-| `v0.6.0` | 🔴 Render actions in TUI (no terminal spawn) |
+| `v0.6.0` | ✅ **Render actions in TUI (no terminal spawn)** - **COMPLETED** |
 | `v0.6.1` | 🔴 Adjustable pane heights |
 | `v0.6.2` | 🔴 CLI `--update` respects TUI settings |
 | `v0.7.0` | 🔴 PKGBUILD ShellCheck/namcap |
@@ -43,10 +43,18 @@
 
 ## 🔴 Tier 1 - High Priority
 
-### 1. Render Actions Directly in TUI (Instead of Spawning Terminals)
-**Target Version: `v0.6.0`** | **Community Request** | **Impact: ⭐⭐⭐⭐⭐** | **Complexity: High**
+### 1. Render Actions Directly in TUI (Instead of Spawning Terminals) ✅ **COMPLETED**
+**Target Version: `v0.6.0`** | **Status: ✅ Completed** | **Community Request** | **Impact: ⭐⭐⭐⭐⭐** | **Complexity: High**
 
 **What:** Instead of spawning external terminals for install, removal, update, scans, downgrade, and config operations, render the output directly within the TUI.
+
+**Implementation Summary:**
+- ✅ PTY-based command execution with live output streaming implemented
+- ✅ All operations (install, remove, update, scan, downgrade, file sync, optional deps) now use integrated executor pattern
+- ✅ Real-time progress display with auto-scrolling log panel
+- ✅ Password prompt modal for sudo authentication
+- ✅ Security enhancements: password validation, faillock lockout detection
+- ✅ Comprehensive test suite covering all workflows
 
 **Why Priority #1:**
 - **Biggest UX friction point** - Spawning external terminals breaks user flow, loses context, and feels disconnected from the TUI experience
@@ -54,13 +62,14 @@
 - **Reduces external dependencies** - No longer needs to detect/configure terminal emulators (alacritty, kitty, gnome-terminal, etc.)
 - **Enables future features** - Once output is internal, you can add progress bars, cancellation, log viewing, etc.
 
-**Implementation Notes:**
-- The `install/shell.rs` module currently spawns terminals; refactor to capture stdout/stderr
-- Create a new "Terminal Output" modal/pane that streams command output
-- Use `tokio::process::Command` with piped stdio for async streaming
-- Add scroll-back buffer and search capability in the output view
+**Implementation Details:**
+- PTY executor worker (`src/app/runtime/workers/executor.rs`) streams command output in real-time
+- PreflightExec modal displays live output with progress bar support
+- Password prompt modal handles sudo authentication with validation
+- All operations integrated: install/remove, updates, scans, downgrades, file sync, optional deps
+- Windows compatibility: conditional compilation for PTY-dependent functionality
 
-**Files to Modify:** `src/install/shell.rs`, `src/install/command.rs`, new `src/ui/modals/terminal_output.rs`
+**Key Files:** `src/app/runtime/workers/executor.rs`, `src/install/executor.rs`, `src/ui/modals/preflight_exec.rs`, `src/ui/modals/password.rs`
 
 ---
 
@@ -370,7 +379,7 @@
 
 | Feature | Version | Impact | Complexity | Dependencies | Tier |
 |---------|---------|--------|------------|--------------|------|
-| Render in TUI (no terminal spawn) | `v0.6.0` | ⭐⭐⭐⭐⭐ | High | None | 🔴 1 |
+| Render in TUI (no terminal spawn) | `v0.6.0` ✅ | ⭐⭐⭐⭐⭐ | High | None | 🔴 1 |
 | Adjustable pane heights | `v0.6.1` | ⭐⭐⭐⭐ | Medium | None | 🔴 1 |
 | CLI update respects settings | `v0.6.2` | ⭐⭐⭐⭐ | Low | None | 🔴 1 |
 | PKGBUILD ShellCheck/namcap | `v0.7.0` | ⭐⭐⭐⭐ | Medium | ShellCheck, namcap | 🔴 1 |
@@ -396,16 +405,17 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  v0.5.2 (current)                                                           │
+│  v0.6.0 (current) ✅                                                        │
+│  ✅ Render actions in TUI (PTY-based executor with live output streaming)  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  v0.6.x Series - Core UX Improvements                                       │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  v0.6.0  │ Render actions in TUI (biggest UX win)                           │
-│  v0.6.1  │ Adjustable pane heights                                          │
-│  v0.6.2  │ CLI --update respects TUI settings                               │
+│  v0.6.0  │ ✅ Render actions in TUI (biggest UX win) - COMPLETED           │
+│  v0.6.1  │ 🔴 Adjustable pane heights                                      │
+│  v0.6.2  │ 🔴 CLI --update respects TUI settings                            │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -464,6 +474,6 @@
 
 ---
 
-*Last updated: 2025-11-28*
-*Based on Pacsea v0.5.2 codebase analysis*
+*Last updated: 2025-12-03*
+*Based on Pacsea v0.6.0 codebase analysis*
 
