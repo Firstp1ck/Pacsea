@@ -11,10 +11,14 @@ use std::cmp::Ordering;
 /// Output: Represents an announcement tied to a specific version.
 ///
 /// Details:
-/// - Shown once per version when user first launches that version.
+/// - Shown when the base version (X.X.X) matches, regardless of suffix.
 /// - Content is embedded in the binary at compile time.
+/// - Version matching compares only the base version (X.X.X), ignoring suffixes.
+/// - Announcements show again when the suffix changes (e.g., "0.6.0-pr#85" -> "0.6.0-pr#86").
+/// - For example, announcement version "0.6.0-pr#85" will match Cargo.toml version "0.6.0".
 pub struct VersionAnnouncement {
-    /// Version string this announcement is for (e.g., "0.6.0").
+    /// Version string this announcement is for (e.g., "0.6.0" or "0.6.0-pr#85").
+    /// Only the base version (X.X.X) is used for matching, but full version is used for tracking.
     pub version: &'static str,
     /// Title of the announcement.
     pub title: &'static str,
@@ -30,15 +34,16 @@ pub struct VersionAnnouncement {
 ///
 /// Details:
 /// - Add new announcements here for each release.
-/// - Each announcement is shown once per version.
+/// - Version matching compares only the base version (X.X.X), so "0.6.0-pr#85" matches "0.6.0".
+/// - Announcements show again when the suffix changes (e.g., "0.6.0-pr#85" -> "0.6.0-pr#86").
+/// - Cargo.toml can stay at "0.6.0" while announcements use "0.6.0-pr#85" for clarity.
 pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
     // Add version-specific announcements here
-    // Example:
-    // VersionAnnouncement {
-    //     version: "0.6.0",
-    //     title: "Welcome to Pacsea 0.6.0",
-    //     content: "## What's New\n\n- Announcement popup feature\n- ...",
-    // },
+    VersionAnnouncement {
+        version: "0.6.0",
+        title: "Announcement Features",
+        content: "Pacsea now includes a powerful announcement system to keep you informed about important updates, new features, and important information!\n\n**Key Features:**\n\n- **Version Announcements**: When you first launch a new version, you'll see a welcome message highlighting what's new\n- **Remote Announcements**: Important updates and notices can be delivered automatically from our announcement service\n- **Smart Display**: Announcements are shown at startup, and you can mark them as read so they won't appear again\n- **Clickable Links**: URLs in announcements are clickable and will open in your default browser\n- **Flexible Sizing**: Announcement dialogs automatically adjust to fit their content, making them easy to read\n",
+    },
 ];
 
 /// What: Remote announcement fetched from GitHub Gist.
@@ -104,6 +109,44 @@ fn compare_versions(a: &str, b: &str) -> Ordering {
     Ordering::Equal
 }
 
+/// What: Extract base version (X.X.X) from a version string, ignoring suffixes.
+///
+/// Inputs:
+/// - `version`: Version string (e.g., "0.6.0", "0.6.0-pr#85", "0.6.0-beta").
+///
+/// Output:
+/// - Base version string (e.g., "0.6.0").
+///
+/// Details:
+/// - Extracts the semantic version part (major.minor.patch) before any suffix.
+/// - Handles versions like "0.6.0", "0.6.0-pr#85", "0.6.0-beta", "1.2.3-rc1".
+/// - Splits on '-' to remove pre-release identifiers and other suffixes.
+/// - Normalizes to X.X.X format (adds .0 for missing segments).
+#[must_use]
+pub fn extract_base_version(version: &str) -> String {
+    // Split on '-' to remove pre-release identifiers and suffixes
+    // This handles formats like "0.6.0-pr#85", "0.6.0-beta", "1.2.3-rc1"
+    let base = version.split('-').next().unwrap_or(version);
+
+    // Extract only the X.X.X part (up to 3 numeric segments separated by dots)
+    let parts: Vec<&str> = base.split('.').collect();
+    match parts.len() {
+        n if n >= 3 => {
+            // Take first 3 parts and join them
+            format!("{}.{}.{}", parts[0], parts[1], parts[2])
+        }
+        2 => {
+            // Handle X.X format, add .0
+            format!("{}.{}.0", parts[0], parts[1])
+        }
+        1 => {
+            // Handle X format, add .0.0
+            format!("{}.0.0", parts[0])
+        }
+        _ => base.to_string(),
+    }
+}
+
 /// What: Check if current version matches the version range.
 ///
 /// Inputs:
@@ -166,6 +209,27 @@ pub fn is_expired(expires: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    /// What: Verify base version extraction works correctly.
+    ///
+    /// Inputs:
+    /// - Various version strings with and without suffixes.
+    ///
+    /// Output:
+    /// - Confirms correct base version extraction.
+    fn test_extract_base_version() {
+        assert_eq!(extract_base_version("0.6.0"), "0.6.0");
+        assert_eq!(extract_base_version("0.6.0-pr#85"), "0.6.0");
+        assert_eq!(extract_base_version("0.6.0-beta"), "0.6.0");
+        assert_eq!(extract_base_version("0.6.0-rc1"), "0.6.0");
+        assert_eq!(extract_base_version("1.2.3-alpha.1"), "1.2.3");
+        assert_eq!(extract_base_version("1.0.0"), "1.0.0");
+        assert_eq!(extract_base_version("2.5.10-dev"), "2.5.10");
+        // Handle versions with fewer segments
+        assert_eq!(extract_base_version("1.0"), "1.0.0");
+        assert_eq!(extract_base_version("1"), "1.0.0");
+    }
 
     #[test]
     /// What: Verify version matching logic works correctly.

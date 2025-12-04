@@ -385,18 +385,27 @@ fn load_announcement_state(app: &mut AppState) {
 /// - If version announcement exists and hasn't been marked as read, shows modal
 fn check_version_announcement(app: &mut AppState) {
     const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+    
+    // Extract base version (X.X.X) from current version, ignoring suffixes
+    let current_base_version = crate::announcements::extract_base_version(CURRENT_VERSION);
 
-    // Find announcement for current version
+    // Find announcement matching the base version (compares only X.X.X part)
     if let Some(announcement) = crate::announcements::VERSION_ANNOUNCEMENTS
         .iter()
-        .find(|a| a.version == CURRENT_VERSION)
+        .find(|a| {
+            let announcement_base_version = crate::announcements::extract_base_version(a.version);
+            announcement_base_version == current_base_version
+        })
     {
+        // Use full current version (including suffix) for the ID
+        // This ensures announcements show again when suffix changes (e.g., 0.6.0-pr#85 -> 0.6.0-pr#86)
         let version_id = format!("v{CURRENT_VERSION}");
 
         // Check if this version announcement has been marked as read
         if app.announcements_read_ids.contains(&version_id) {
             tracing::info!(
-                version = CURRENT_VERSION,
+                current_version = CURRENT_VERSION,
+                base_version = %current_base_version,
                 "version announcement already marked as read"
             );
             return;
@@ -410,7 +419,9 @@ fn check_version_announcement(app: &mut AppState) {
             scroll: 0,
         };
         tracing::info!(
-            version = CURRENT_VERSION,
+            current_version = CURRENT_VERSION,
+            base_version = %current_base_version,
+            announcement_version = announcement.version,
             "showing version announcement modal"
         );
     }
