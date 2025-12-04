@@ -119,6 +119,10 @@ pub struct Settings {
     /// `LeafOnly` shows explicitly installed packages with no dependents.
     /// `AllExplicit` shows all explicitly installed packages.
     pub installed_packages_mode: crate::state::InstalledPackagesMode,
+    /// Whether to fetch remote announcements from GitHub Gist.
+    /// If `true`, fetches announcements from the configured Gist URL.
+    /// If `false`, remote announcements are disabled (version announcements still show).
+    pub get_announcement: bool,
 }
 
 impl Default for Settings {
@@ -166,6 +170,7 @@ impl Default for Settings {
             fuzzy_search: false,          // Default to normal substring search
             updates_refresh_interval: 30, // Default to 30 seconds
             installed_packages_mode: crate::state::InstalledPackagesMode::LeafOnly,
+            get_announcement: true, // Default to fetching remote announcements
         }
     }
 }

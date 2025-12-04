@@ -139,8 +139,17 @@ pub(super) fn handle_announcement_modal(
     app: &mut AppState,
 ) -> Option<bool> {
     if let crate::state::Modal::Announcement { scroll, .. } = &mut app.modal {
-        // Left click: close on outside
+        // Left click: check for URL click first, then close on outside
         if is_left_down {
+            // Check if click matches any URL position
+            for (url_x, url_y, url_width, url) in &app.announcement_urls {
+                if mx >= *url_x && mx < url_x.saturating_add(*url_width) && my == *url_y {
+                    crate::util::open_url(url);
+                    return Some(false);
+                }
+            }
+
+            // Click outside closes the modal (dismiss temporarily)
             if let Some((x, y, w, h)) = app.announcement_rect
                 && (mx < x || mx >= x + w || my < y || my >= y + h)
             {

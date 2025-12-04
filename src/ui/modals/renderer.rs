@@ -190,8 +190,9 @@ struct NewsContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct AnnouncementContext {
+    title: String,
     content: String,
-    hash: String,
+    id: String,
     scroll: u16,
 }
 
@@ -372,13 +373,15 @@ impl ModalRenderer for Modal {
                 render_news_modal(f, app, area, ctx)
             }
             Self::Announcement {
+                title,
                 content,
-                hash,
+                id,
                 scroll,
             } => {
                 let ctx = AnnouncementContext {
+                    title,
                     content,
-                    hash,
+                    id,
                     scroll,
                 };
                 render_announcement_modal(f, app, area, ctx)
@@ -710,10 +713,11 @@ fn render_announcement_modal(
     area: Rect,
     ctx: AnnouncementContext,
 ) -> Modal {
-    announcement::render_announcement(f, app, area, &ctx.content, ctx.scroll);
+    announcement::render_announcement(f, app, area, &ctx.title, &ctx.content, ctx.scroll);
     Modal::Announcement {
+        title: ctx.title,
         content: ctx.content,
-        hash: ctx.hash,
+        id: ctx.id,
         scroll: ctx.scroll,
     }
 }

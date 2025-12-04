@@ -75,6 +75,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         headless,
         &channels.status_tx,
         &channels.news_tx,
+        &channels.announcement_tx,
         &channels.tick_tx,
         &app.news_read_urls,
         &app.official_index_path,
@@ -83,6 +84,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         &channels.updates_tx,
         updates_refresh_interval,
         app.installed_packages_mode,
+        crate::theme::settings().get_announcement,
     );
 
     // Spawn event reading thread

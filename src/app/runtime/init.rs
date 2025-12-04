@@ -9,11 +9,6 @@ use super::super::files_cache;
 use super::super::sandbox_cache;
 use super::super::services_cache;
 
-#[derive(serde::Deserialize)]
-struct AnnouncementReadState {
-    hash: Option<String>,
-}
-
 /// What: Initialize the locale system: resolve locale, load translations, set up fallbacks.
 ///
 /// Inputs:
@@ -338,7 +333,7 @@ fn load_news_read_urls(app: &mut AppState) {
     }
 }
 
-/// What: Load announcement read hash from disk.
+/// What: Load announcement read IDs from disk.
 ///
 /// Inputs:
 /// - `app`: Application state to update
@@ -346,21 +341,39 @@ fn load_news_read_urls(app: &mut AppState) {
 /// Output: None (modifies app state in place)
 ///
 /// Details:
-/// - Attempts to deserialize announcement read hash from JSON file
+/// - Attempts to deserialize announcement read IDs set from JSON file
+/// - Handles both old format (single hash) and new format (set of IDs) for migration
 fn load_announcement_state(app: &mut AppState) {
-    if let Ok(s) = std::fs::read_to_string(&app.announcement_read_path)
-        && let Ok(state) = serde_json::from_str::<AnnouncementReadState>(&s)
-    {
-        app.announcement_read_hash = state.hash;
-        tracing::info!(
-            path = %app.announcement_read_path.display(),
-            hash = ?app.announcement_read_hash,
-            "loaded announcement read state"
-        );
+    if let Ok(s) = std::fs::read_to_string(&app.announcement_read_path) {
+        // Try new format first (HashSet<String>)
+        if let Ok(ids) = serde_json::from_str::<std::collections::HashSet<String>>(&s) {
+            app.announcements_read_ids = ids;
+            tracing::info!(
+                path = %app.announcement_read_path.display(),
+                count = app.announcements_read_ids.len(),
+                "loaded announcement read IDs"
+            );
+            return;
+        }
+        // Try old format for migration ({ "hash": "..." })
+        #[derive(serde::Deserialize)]
+        struct OldAnnouncementReadState {
+            hash: Option<String>,
+        }
+        if let Ok(old_state) = serde_json::from_str::<OldAnnouncementReadState>(&s) {
+            if let Some(hash) = old_state.hash {
+                app.announcements_read_ids.insert(format!("hash:{}", hash));
+                app.announcement_dirty = true; // Mark dirty to migrate to new format
+                tracing::info!(
+                    path = %app.announcement_read_path.display(),
+                    "migrated old announcement read state"
+                );
+            }
+        }
     }
 }
 
-/// What: Check for announcement file and show modal if not read.
+/// What: Check for version-embedded announcement and show modal if not read.
 ///
 /// Inputs:
 /// - `app`: Application state to update
@@ -368,50 +381,39 @@ fn load_announcement_state(app: &mut AppState) {
 /// Output: None (modifies app state in place)
 ///
 /// Details:
-/// - Loads `announcement.md` from config directory
-/// - Computes content hash using `std::hash::DefaultHasher`
-/// - If file exists, is non-empty, and hash differs from stored hash, sets modal to Announcement
-fn check_announcement(app: &mut AppState) {
-    use std::hash::{Hash, Hasher};
-    let announcement_path = crate::theme::config_dir().join("announcement.md");
+/// - Checks embedded announcements for current app version
+/// - If version announcement exists and hasn't been marked as read, shows modal
+fn check_version_announcement(app: &mut AppState) {
+    const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-    if !announcement_path.exists() {
-        return;
-    }
+    // Find announcement for current version
+    if let Some(announcement) = crate::announcements::VERSION_ANNOUNCEMENTS
+        .iter()
+        .find(|a| a.version == CURRENT_VERSION)
+    {
+        let version_id = format!("v{}", CURRENT_VERSION);
 
-    let Ok(content) = std::fs::read_to_string(&announcement_path) else {
-        tracing::warn!(
-            path = %announcement_path.display(),
-            "failed to read announcement file"
-        );
-        return;
-    };
+        // Check if this version announcement has been marked as read
+        if app.announcements_read_ids.contains(&version_id) {
+            tracing::info!(
+                version = CURRENT_VERSION,
+                "version announcement already marked as read"
+            );
+            return;
+        }
 
-    if content.trim().is_empty() {
-        return;
-    }
-
-    // Compute hash of content
-    let mut hasher = std::hash::DefaultHasher::new();
-    content.hash(&mut hasher);
-    let hash = format!("{:x}", hasher.finish());
-
-    // Check if this hash has been marked as read
-    if app.announcement_read_hash.as_ref() == Some(&hash) {
+        // Show version announcement modal
+        app.modal = crate::state::Modal::Announcement {
+            title: announcement.title.to_string(),
+            content: announcement.content.to_string(),
+            id: version_id,
+            scroll: 0,
+        };
         tracing::info!(
-            hash = %hash,
-            "announcement already marked as read"
+            version = CURRENT_VERSION,
+            "showing version announcement modal"
         );
-        return;
     }
-
-    // Show announcement modal
-    app.modal = crate::state::Modal::Announcement {
-        content,
-        hash,
-        scroll: 0,
-    };
-    tracing::info!("showing announcement modal");
 }
 
 pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bool) -> InitFlags {
@@ -532,8 +534,8 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
 
     pkgindex::load_from_disk(&app.official_index_path);
 
-    // Check for announcement after loading state
-    check_announcement(app);
+    // Check for version-embedded announcement after loading state
+    check_version_announcement(app);
     tracing::info!(
         path = %app.official_index_path.display(),
         "attempted to load official index from disk"

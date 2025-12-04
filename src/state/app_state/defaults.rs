@@ -166,6 +166,7 @@ pub(super) type DefaultModalRectsState = (
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
+    Vec<(u16, u16, u16, String)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     u16,
@@ -307,17 +308,21 @@ pub(super) fn default_news_state(
 /// What: Create default announcement state.
 ///
 /// Inputs:
-/// - `announcement_read_path`: Path where the announcement read hash is persisted.
+/// - `announcement_read_path`: Path where the read announcement IDs are persisted.
 ///
 /// Output:
-/// - Tuple of announcement fields: `announcement_read_hash`, `announcement_read_path`, `announcement_dirty`.
+/// - Tuple of announcement fields: `announcements_read_ids`, `announcement_read_path`, `announcement_dirty`.
 ///
 /// Details:
-/// - Initializes empty announcement read hash (None).
-pub(super) const fn default_announcement_state(
+/// - Initializes empty set of read announcement IDs.
+pub(super) fn default_announcement_state(
     announcement_read_path: PathBuf,
-) -> (Option<String>, PathBuf, bool) {
-    (None, announcement_read_path, false)
+) -> (std::collections::HashSet<String>, PathBuf, bool) {
+    (
+        std::collections::HashSet::new(),
+        announcement_read_path,
+        false,
+    )
 }
 
 /// What: Create default install lists state.
@@ -529,12 +534,12 @@ pub(super) const fn default_mouse_hit_test_state() -> DefaultMouseHitTestState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
+/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
 ///
 /// Details:
-/// - All modal rectangles start as None, help scroll starts at 0.
+/// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls` starts as empty Vec.
 pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
-    (None, None, None, None, None, 0, None, [None; 5], None)
+    (None, None, None, Vec::new(), None, None, 0, None, [None; 5], None)
 }
 
 /// What: Create default sorting and menus state.

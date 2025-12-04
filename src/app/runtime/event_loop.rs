@@ -103,6 +103,76 @@ fn handle_file_result_with_logging(
     handle_file_result(app, files, &channels.tick_tx);
 }
 
+/// What: Handle remote announcement received from async fetch.
+///
+/// Inputs:
+/// - `app`: Application state to update
+/// - `announcement`: Remote announcement fetched from configured URL
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Validates version range and expiration date
+/// - Checks if announcement ID has been marked as read
+/// - Shows modal if announcement is valid and unread
+fn handle_remote_announcement(
+    app: &mut AppState,
+    announcement: crate::announcements::RemoteAnnouncement,
+) {
+    const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    // Check version range
+    if !crate::announcements::version_matches(
+        CURRENT_VERSION,
+        announcement.min_version.as_deref(),
+        announcement.max_version.as_deref(),
+    ) {
+        tracing::debug!(
+            id = %announcement.id,
+            current_version = CURRENT_VERSION,
+            min_version = ?announcement.min_version,
+            max_version = ?announcement.max_version,
+            "announcement version range mismatch"
+        );
+        return;
+    }
+
+    // Check expiration
+    if crate::announcements::is_expired(announcement.expires.as_deref()) {
+        tracing::debug!(
+            id = %announcement.id,
+            expires = ?announcement.expires,
+            "announcement expired"
+        );
+        return;
+    }
+
+    // Check if already read
+    if app.announcements_read_ids.contains(&announcement.id) {
+        tracing::info!(
+            id = %announcement.id,
+            "remote announcement already marked as read"
+        );
+        return;
+    }
+
+    // Only show if no modal is currently displayed
+    if matches!(app.modal, crate::state::Modal::None) {
+        app.modal = crate::state::Modal::Announcement {
+            title: announcement.title,
+            content: announcement.content,
+            id: announcement.id,
+            scroll: 0,
+        };
+        tracing::info!("showing remote announcement modal");
+    } else {
+        tracing::debug!(
+            id = %announcement.id,
+            "skipping remote announcement (modal already open)"
+        );
+    }
+}
+
 /// What: Process one iteration of channel message handling.
 ///
 /// Inputs:
@@ -206,6 +276,10 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
         }
         Some(todays) = channels.news_rx.recv() => {
             handle_news(app, &todays);
+            false
+        }
+        Some(announcement) = channels.announcement_rx.recv() => {
+            handle_remote_announcement(app, announcement);
             false
         }
         Some((txt, color)) = channels.status_rx.recv() => {

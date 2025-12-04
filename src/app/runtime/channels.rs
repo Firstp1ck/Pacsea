@@ -47,6 +47,8 @@ pub struct Channels {
     pub news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
     pub updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
     pub updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
+    pub announcement_tx: mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
+    pub announcement_rx: mpsc::UnboundedReceiver<crate::announcements::RemoteAnnouncement>,
     pub deps_req_tx:
         mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
     pub deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
@@ -151,6 +153,8 @@ struct UtilityChannels {
     news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
     updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
     updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
+    announcement_tx: mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
+    announcement_rx: mpsc::UnboundedReceiver<crate::announcements::RemoteAnnouncement>,
     executor_req_tx: mpsc::UnboundedSender<crate::install::ExecutorRequest>,
     executor_req_rx: mpsc::UnboundedReceiver<crate::install::ExecutorRequest>,
     executor_res_tx: mpsc::UnboundedSender<crate::install::ExecutorOutput>,
@@ -267,6 +271,8 @@ fn create_utility_channels() -> UtilityChannels {
     let (status_tx, status_rx) = mpsc::unbounded_channel::<(String, ArchStatusColor)>();
     let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
     let (updates_tx, updates_rx) = mpsc::unbounded_channel::<(usize, Vec<String>)>();
+    let (announcement_tx, announcement_rx) =
+        mpsc::unbounded_channel::<crate::announcements::RemoteAnnouncement>();
     let (executor_req_tx, executor_req_rx) =
         mpsc::unbounded_channel::<crate::install::ExecutorRequest>();
     let (executor_res_tx, executor_res_rx) =
@@ -300,6 +306,8 @@ fn create_utility_channels() -> UtilityChannels {
         news_rx,
         updates_tx,
         updates_rx,
+        announcement_tx,
+        announcement_rx,
         executor_req_tx,
         executor_req_rx,
         executor_res_tx,
@@ -406,6 +414,8 @@ impl Channels {
             news_rx: utility_channels.news_rx,
             updates_tx: utility_channels.updates_tx,
             updates_rx: utility_channels.updates_rx,
+            announcement_tx: utility_channels.announcement_tx,
+            announcement_rx: utility_channels.announcement_rx,
             deps_req_tx: preflight_channels.deps_req_tx,
             deps_res_tx: preflight_channels.deps_res_tx,
             deps_res_rx: preflight_channels.deps_res_rx,
