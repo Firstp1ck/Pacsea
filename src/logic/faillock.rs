@@ -278,7 +278,7 @@ pub fn get_lockout_message_if_locked(
     {
         return Some(crate::i18n::t_fmt(
             app,
-            "app.modals.alert.account_locked_before_prompt",
+            "app.modals.alert.account_locked_with_time",
             &[
                 &username as &dyn std::fmt::Display,
                 &status.lockout_duration_minutes,

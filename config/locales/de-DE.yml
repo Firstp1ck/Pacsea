@@ -319,7 +319,6 @@ de-DE:
         title_account_locked: " Konto gesperrt "
         account_locked: "Ihr Konto ist jetzt gesperrt. Bitte entsperren Sie es, indem Sie sich als root mit `su` anmelden und `faillock --user {} --reset` ausführen."
         account_locked_with_time: "Ihr Konto ist jetzt gesperrt. Bitte entsperren Sie es, indem Sie sich als root mit `su` anmelden und `faillock --user {} --reset` ausführen. Sperrdauer: {} Minuten verbleibend."
-        account_locked_before_prompt: "Ihr Konto ist gesperrt. Bitte entsperren Sie es, indem Sie sich als root mit `su` anmelden und `faillock --user {} --reset` ausführen. Sperrdauer: {} Minuten."
       password_prompt:
         heading_install: "Administrative Rechte erforderlich, um Pakete zu installieren"
         heading_remove: "Administrative Rechte erforderlich, um Pakete zu entfernen"

@@ -321,7 +321,6 @@ en-US:
         title_account_locked: " Account Locked "
         account_locked: "Your account is now locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`."
         account_locked_with_time: "Your account is now locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`. Lockout duration: {} minutes remaining."
-        account_locked_before_prompt: "Your account is locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`. Lockout duration: {} minutes."
       password_prompt:
         heading_install: "Administrative privileges required to install packages"
         heading_remove: "Administrative privileges required to remove packages"
