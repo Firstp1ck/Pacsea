@@ -48,3 +48,5 @@ dev/scripts/Modules/*
 clippy_cognitive_complexity_report*.txt
 ControlFlow_Diagram.md
 clippy_errors.txt
+
+*.pyc
