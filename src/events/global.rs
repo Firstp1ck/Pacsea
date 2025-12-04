@@ -631,6 +631,8 @@ fn handle_menu_numeric_selection(
 ///
 /// Details:
 /// - Checks key event against all global keybinds using a dispatch pattern.
+/// - When a modal is open (except None), only exit keybind works globally.
+/// - Other global keybinds are blocked to let modals handle their own keys.
 fn handle_global_keybinds(
     ke: &KeyEvent,
     app: &mut AppState,
@@ -640,6 +642,20 @@ fn handle_global_keybinds(
     query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
 ) -> Option<bool> {
     let km = &app.keymap;
+
+    // Exit should always work, even in modals (Ctrl+C to quit the app)
+    if matches_keybind(ke, &km.exit) {
+        return Some(handle_exit());
+    }
+
+    // When a modal is open, block most global keybinds to let the modal handle keys
+    // Exceptions: Modal::None (no modal), Preflight (has complex interaction with globals)
+    if !matches!(
+        app.modal,
+        crate::state::Modal::None | crate::state::Modal::Preflight { .. }
+    ) {
+        return None; // Let modal handler process the key
+    }
 
     // Log Ctrl+T specifically for debugging
     if ke.code == KeyCode::Char('t') && ke.modifiers.contains(KeyModifiers::CONTROL) {
