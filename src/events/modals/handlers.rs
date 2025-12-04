@@ -443,11 +443,8 @@ pub(super) fn handle_announcement_modal(
                     scroll: *scroll,
                 };
             }
-            Modal::None => {
-                // Modal was closed, don't restore
-            }
             _ => {
-                // Different modal (e.g., pending announcement was shown), don't restore
+                // Modal was closed or different modal (e.g., pending announcement was shown), don't restore
             }
         }
         return result;

@@ -48,9 +48,10 @@ fn calculate_wrapped_lines(content: &str, available_width: u16) -> u16 {
         if line.is_empty() {
             total_lines = total_lines.saturating_add(1);
         } else {
-            // Calculate wrapped line count for this source line
-            let line_len = line.len();
-            let wrapped = ((line_len + width - 1) / width).max(1) as u16;
+            // Calculate wrapped line count for this source line using display width
+            let line_width = line.width();
+            #[allow(clippy::cast_possible_truncation)]
+            let wrapped = line_width.div_ceil(width).max(1).min(u16::MAX as usize) as u16;
             total_lines = total_lines.saturating_add(wrapped);
         }
     }
@@ -65,7 +66,7 @@ fn calculate_wrapped_lines(content: &str, available_width: u16) -> u16 {
 /// - `max_width`: Maximum width to consider
 ///
 /// Output:
-/// - Maximum line width needed (capped at max_width)
+/// - Maximum line width needed (capped at `max_width`)
 ///
 /// Details:
 /// - Finds the longest line in the content
@@ -79,7 +80,10 @@ fn calculate_content_width(content: &str, max_width: u16) -> u16 {
             .replace("## ", "")
             .replace("### ", "")
             .replace("# ", "");
-        let line_len = cleaned.trim().len() as u16;
+        // Use display width instead of byte length for multi-byte UTF-8 characters
+        let line_width = cleaned.trim().width();
+        #[allow(clippy::cast_possible_truncation)]
+        let line_len = line_width.min(u16::MAX as usize) as u16;
         max_line_len = max_line_len.max(line_len);
     }
     max_line_len.min(max_width).max(MODAL_MIN_WIDTH)
@@ -104,9 +108,11 @@ fn calculate_modal_rect(area: Rect, content: &str, app: &crate::state::AppState)
     let max_available_width = (area.width * MODAL_MAX_WIDTH_RATIO) / MODAL_MAX_WIDTH_DIVISOR;
     let content_width = calculate_content_width(content, max_available_width);
 
-    // Calculate footer text width dynamically
+    // Calculate footer text width dynamically using display width
     let footer_text = crate::i18n::t(app, "app.modals.announcement.footer_hint");
-    let footer_text_width = footer_text.len() as u16;
+    let footer_text_display_width = footer_text.width();
+    #[allow(clippy::cast_possible_truncation)]
+    let footer_text_width = footer_text_display_width.min(u16::MAX as usize) as u16;
     let footer_width = footer_text_width + CONTENT_PADDING * 2;
 
     // Calculate modal width (max of content width and footer width, with padding + borders)
@@ -124,7 +130,7 @@ fn calculate_modal_rect(area: Rect, content: &str, app: &crate::state::AppState)
         (content_lines + TOTAL_HEADER_FOOTER_LINES + CONTENT_FOOTER_BUFFER + BORDER_WIDTH)
             .min(area.height.saturating_sub(MODAL_HEIGHT_PADDING))
             .min(MODAL_MAX_HEIGHT)
-            .max(MODAL_MIN_HEIGHT);
+            .clamp(MODAL_MIN_HEIGHT, MODAL_MAX_HEIGHT);
 
     // Center the modal
     let x = area.x + (area.width.saturating_sub(modal_width)) / 2;
@@ -238,6 +244,252 @@ fn find_url_end(text: &str, start: usize) -> Option<usize> {
 /// - Vector of styled lines for rendering
 ///
 /// Details:
+/// What: Parse a header line and return styled line.
+///
+/// Inputs:
+/// - `trimmed`: Trimmed line text
+///
+/// Output:
+/// - `Some(Line)` if line is a header, `None` otherwise
+///
+/// Details:
+/// - Handles #, ##, and ### headers with appropriate styling
+fn parse_header_line(trimmed: &str) -> Option<Line<'static>> {
+    let th = theme();
+    if trimmed.starts_with("# ") {
+        let text = trimmed.strip_prefix("# ").unwrap_or(trimmed).to_string();
+        Some(Line::from(Span::styled(
+            text,
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        )))
+    } else if trimmed.starts_with("## ") {
+        let text = trimmed.strip_prefix("## ").unwrap_or(trimmed).to_string();
+        Some(Line::from(Span::styled(
+            text,
+            Style::default().fg(th.mauve),
+        )))
+    } else if trimmed.starts_with("### ") {
+        let text = trimmed.strip_prefix("### ").unwrap_or(trimmed).to_string();
+        Some(Line::from(Span::styled(
+            text,
+            Style::default()
+                .fg(th.subtext1)
+                .add_modifier(Modifier::BOLD),
+        )))
+    } else {
+        None
+    }
+}
+
+/// What: Parse a code block line.
+///
+/// Inputs:
+/// - `trimmed`: Trimmed line text
+///
+/// Output:
+/// - `Some(Line)` if line is a code block marker, `None` otherwise
+///
+/// Details:
+/// - Styles code block markers with subtext0 color
+fn parse_code_block_line(trimmed: &str) -> Option<Line<'static>> {
+    if trimmed.starts_with("```") {
+        let th = theme();
+        Some(Line::from(Span::styled(
+            trimmed.to_string(),
+            Style::default().fg(th.subtext0),
+        )))
+    } else {
+        None
+    }
+}
+
+/// What: Parse text into segments (URLs, bold, plain text).
+///
+/// Inputs:
+/// - `trimmed`: Trimmed line text
+///
+/// Output:
+/// - Vector of segments: (`text`, `style`, `is_url`, `url_string`)
+///
+/// Details:
+/// - Detects URLs and bold markers (**text**)
+/// - Returns styled segments for rendering
+fn parse_text_segments(trimmed: &str) -> Vec<(String, Style, bool, Option<String>)> {
+    let th = theme();
+    let urls = detect_urls(trimmed);
+    let mut segments: Vec<(String, Style, bool, Option<String>)> = Vec::new();
+    let mut i = 0usize;
+    let trimmed_bytes = trimmed.as_bytes();
+
+    while i < trimmed_bytes.len() {
+        // Check if we're at a URL position
+        if let Some((url_start, url_end, url)) = urls.iter().find(|(s, _e, _)| *s == i) {
+            // Add text before URL
+            if *url_start > i {
+                segments.push((
+                    trimmed[i..*url_start].to_string(),
+                    Style::default().fg(th.text),
+                    false,
+                    None,
+                ));
+            }
+            // Add URL segment
+            segments.push((
+                trimmed[*url_start..*url_end].to_string(),
+                Style::default()
+                    .fg(th.mauve)
+                    .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
+                true,
+                Some(url.clone()),
+            ));
+            i = *url_end;
+            continue;
+        }
+
+        // Check for bold markers
+        if let Some(pos) = trimmed[i..].find("**") {
+            let pos = i + pos;
+            if pos > i {
+                segments.push((
+                    trimmed[i..pos].to_string(),
+                    Style::default().fg(th.text),
+                    false,
+                    None,
+                ));
+            }
+            // Find closing **
+            if let Some(end_pos) = trimmed[pos + 2..].find("**") {
+                let end_pos = pos + 2 + end_pos;
+                segments.push((
+                    trimmed[pos + 2..end_pos].to_string(),
+                    Style::default()
+                        .fg(th.lavender)
+                        .add_modifier(Modifier::BOLD),
+                    false,
+                    None,
+                ));
+                i = end_pos + 2;
+            } else {
+                // Unclosed bold, treat rest as bold
+                segments.push((
+                    trimmed[pos + 2..].to_string(),
+                    Style::default()
+                        .fg(th.lavender)
+                        .add_modifier(Modifier::BOLD),
+                    false,
+                    None,
+                ));
+                break;
+            }
+            continue;
+        }
+
+        // No more special markers, add remaining text
+        if i < trimmed.len() {
+            segments.push((
+                trimmed[i..].to_string(),
+                Style::default().fg(th.text),
+                false,
+                None,
+            ));
+        }
+        break;
+    }
+
+    if segments.is_empty() {
+        segments.push((
+            trimmed.to_string(),
+            Style::default().fg(th.text),
+            false,
+            None,
+        ));
+    }
+
+    segments
+}
+
+/// What: Build wrapped lines from text segments with URL position tracking.
+///
+/// Inputs:
+/// - `segments`: Text segments with styles
+/// - `content_width`: Available width for wrapping
+/// - `content_rect`: Content rectangle for URL position calculation
+/// - `start_y`: Starting Y position
+/// - `url_positions`: Mutable vector to track URL positions
+///
+/// Output:
+/// - Tuple of (wrapped lines, final Y position)
+///
+/// Details:
+/// - Wraps text at word boundaries
+/// - Tracks URL positions for click detection
+fn build_wrapped_lines_from_segments(
+    segments: Vec<(String, Style, bool, Option<String>)>,
+    content_width: usize,
+    content_rect: Rect,
+    start_y: u16,
+    url_positions: &mut Vec<(u16, u16, u16, String)>,
+) -> (Vec<Line<'static>>, u16) {
+    let mut lines = Vec::new();
+    let mut current_line_spans: Vec<Span<'static>> = Vec::new();
+    let mut current_line_width = 0usize;
+    let mut line_y = start_y;
+
+    for (text, style, is_url, url_string) in segments {
+        let words: Vec<&str> = text.split_whitespace().collect();
+
+        for word in words {
+            let word_width = word.width();
+            let separator_width = usize::from(current_line_width > 0);
+            let test_width = current_line_width + separator_width + word_width;
+
+            if test_width > content_width && !current_line_spans.is_empty() {
+                // Wrap to new line
+                lines.push(Line::from(current_line_spans.clone()));
+                current_line_spans.clear();
+                current_line_width = 0;
+                line_y += 1;
+            }
+
+            // Track URL position if this is a URL
+            if is_url && let Some(ref url) = url_string {
+                let url_x = content_rect.x
+                    + u16::try_from(current_line_width + separator_width).unwrap_or(u16::MAX);
+                let url_width = u16::try_from(word_width).unwrap_or(u16::MAX);
+                url_positions.push((url_x, line_y, url_width, url.clone()));
+            }
+
+            if current_line_width > 0 {
+                current_line_spans.push(Span::raw(" "));
+                current_line_width += 1;
+            }
+
+            current_line_spans.push(Span::styled(word.to_string(), style));
+            current_line_width += word_width;
+        }
+    }
+
+    if !current_line_spans.is_empty() {
+        lines.push(Line::from(current_line_spans));
+    }
+
+    (lines, line_y + 1)
+}
+
+/// What: Parse markdown content into styled lines with wrapping and URL detection.
+///
+/// Inputs:
+/// - `content`: Markdown content string
+/// - `scroll`: Scroll offset (lines)
+/// - `max_lines`: Maximum number of lines to render
+/// - `url_positions`: Mutable vector to track URL positions for click detection
+/// - `content_rect`: Content rectangle for width calculation and URL positioning
+/// - `start_y`: Starting Y position for rendering
+///
+/// Output:
+/// - Vector of styled lines for rendering
+///
+/// Details:
 /// - Basic markdown parsing: headers (#), bold (**text**), code blocks (triple backticks)
 /// - Detects and styles URLs with mauve color, underlined and bold
 /// - Tracks URL positions for click detection
@@ -249,7 +501,6 @@ fn parse_markdown(
     content_rect: Rect,
     start_y: u16,
 ) -> Vec<Line<'static>> {
-    let th = theme();
     let mut lines = Vec::new();
     let content_lines: Vec<&str> = content.lines().collect();
     let scroll_usize = scroll as usize;
@@ -268,173 +519,30 @@ fn parse_markdown(
         }
 
         // Check for headers
-        if trimmed.starts_with("# ") {
-            let text = trimmed.strip_prefix("# ").unwrap_or(trimmed).to_string();
-            lines.push(Line::from(Span::styled(
-                text,
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-            )));
+        if let Some(header_line) = parse_header_line(trimmed) {
+            lines.push(header_line);
             current_y += 1;
-        } else if trimmed.starts_with("## ") {
-            let text = trimmed.strip_prefix("## ").unwrap_or(trimmed).to_string();
-            lines.push(Line::from(Span::styled(
-                text,
-                Style::default().fg(th.mauve),
-            )));
-            current_y += 1;
-        } else if trimmed.starts_with("### ") {
-            let text = trimmed.strip_prefix("### ").unwrap_or(trimmed).to_string();
-            lines.push(Line::from(Span::styled(
-                text,
-                Style::default()
-                    .fg(th.subtext1)
-                    .add_modifier(Modifier::BOLD),
-            )));
-            current_y += 1;
-        } else if trimmed.starts_with("```") {
-            // Code block marker - skip or style differently
-            lines.push(Line::from(Span::styled(
-                trimmed.to_string(),
-                Style::default().fg(th.subtext0),
-            )));
-            current_y += 1;
-        } else {
-            // Regular text - handle URLs and bold markers
-            // Parse into segments: (text, style, is_url, url_string)
-            let urls = detect_urls(trimmed);
-            let mut segments: Vec<(String, Style, bool, Option<String>)> = Vec::new();
-            let mut i = 0usize;
-            let trimmed_bytes = trimmed.as_bytes();
-
-            while i < trimmed_bytes.len() {
-                // Check if we're at a URL position
-                if let Some((url_start, url_end, url)) = urls.iter().find(|(s, _e, _)| *s == i) {
-                    // Add text before URL
-                    if *url_start > i {
-                        segments.push((
-                            trimmed[i..*url_start].to_string(),
-                            Style::default().fg(th.text),
-                            false,
-                            None,
-                        ));
-                    }
-                    // Add URL segment
-                    segments.push((
-                        trimmed[*url_start..*url_end].to_string(),
-                        Style::default()
-                            .fg(th.mauve)
-                            .add_modifier(Modifier::UNDERLINED | Modifier::BOLD),
-                        true,
-                        Some(url.clone()),
-                    ));
-                    i = *url_end;
-                    continue;
-                }
-
-                // Check for bold markers
-                if let Some(pos) = trimmed[i..].find("**") {
-                    let pos = i + pos;
-                    if pos > i {
-                        segments.push((
-                            trimmed[i..pos].to_string(),
-                            Style::default().fg(th.text),
-                            false,
-                            None,
-                        ));
-                    }
-                    // Find closing **
-                    if let Some(end_pos) = trimmed[pos + 2..].find("**") {
-                        let end_pos = pos + 2 + end_pos;
-                        segments.push((
-                            trimmed[pos + 2..end_pos].to_string(),
-                            Style::default()
-                                .fg(th.lavender)
-                                .add_modifier(Modifier::BOLD),
-                            false,
-                            None,
-                        ));
-                        i = end_pos + 2;
-                    } else {
-                        // Unclosed bold, treat rest as bold
-                        segments.push((
-                            trimmed[pos + 2..].to_string(),
-                            Style::default()
-                                .fg(th.lavender)
-                                .add_modifier(Modifier::BOLD),
-                            false,
-                            None,
-                        ));
-                        break;
-                    }
-                    continue;
-                }
-
-                // No more special markers, add remaining text
-                if i < trimmed.len() {
-                    segments.push((
-                        trimmed[i..].to_string(),
-                        Style::default().fg(th.text),
-                        false,
-                        None,
-                    ));
-                }
-                break;
-            }
-
-            if segments.is_empty() {
-                segments.push((
-                    trimmed.to_string(),
-                    Style::default().fg(th.text),
-                    false,
-                    None,
-                ));
-            }
-
-            // Build lines with word wrapping and URL position tracking
-            let mut current_line_spans: Vec<Span<'static>> = Vec::new();
-            let mut current_line_width = 0usize;
-            let mut line_y = current_y;
-
-            for (text, style, is_url, url_string) in segments {
-                let words: Vec<&str> = text.split_whitespace().collect();
-
-                for word in words {
-                    let word_width = word.width();
-                    let separator_width = usize::from(current_line_width > 0);
-                    let test_width = current_line_width + separator_width + word_width;
-
-                    if test_width > content_width && !current_line_spans.is_empty() {
-                        // Wrap to new line
-                        lines.push(Line::from(current_line_spans.clone()));
-                        current_line_spans.clear();
-                        current_line_width = 0;
-                        line_y += 1;
-                    }
-
-                    // Track URL position if this is a URL
-                    if is_url && let Some(ref url) = url_string {
-                        let url_x = content_rect.x
-                            + u16::try_from(current_line_width + separator_width)
-                                .unwrap_or(u16::MAX);
-                        let url_width = u16::try_from(word_width).unwrap_or(u16::MAX);
-                        url_positions.push((url_x, line_y, url_width, url.clone()));
-                    }
-
-                    if current_line_width > 0 {
-                        current_line_spans.push(Span::raw(" "));
-                        current_line_width += 1;
-                    }
-
-                    current_line_spans.push(Span::styled(word.to_string(), style));
-                    current_line_width += word_width;
-                }
-            }
-
-            if !current_line_spans.is_empty() {
-                lines.push(Line::from(current_line_spans));
-            }
-            current_y = line_y + 1;
+            continue;
         }
+
+        // Check for code blocks
+        if let Some(code_line) = parse_code_block_line(trimmed) {
+            lines.push(code_line);
+            current_y += 1;
+            continue;
+        }
+
+        // Regular text - handle URLs and bold markers
+        let segments = parse_text_segments(trimmed);
+        let (wrapped_lines, final_y) = build_wrapped_lines_from_segments(
+            segments,
+            content_width,
+            content_rect,
+            current_y,
+            url_positions,
+        );
+        lines.extend(wrapped_lines);
+        current_y = final_y;
     }
 
     lines

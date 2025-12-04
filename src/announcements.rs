@@ -124,15 +124,15 @@ pub fn version_matches(
     min_version: Option<&str>,
     max_version: Option<&str>,
 ) -> bool {
-    if let Some(min) = min_version {
-        if compare_versions(current_version, min) == Ordering::Less {
-            return false;
-        }
+    if let Some(min) = min_version
+        && compare_versions(current_version, min) == Ordering::Less
+    {
+        return false;
     }
-    if let Some(max) = max_version {
-        if compare_versions(current_version, max) == Ordering::Greater {
-            return false;
-        }
+    if let Some(max) = max_version
+        && compare_versions(current_version, max) == Ordering::Greater
+    {
+        return false;
     }
     true
 }

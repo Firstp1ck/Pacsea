@@ -391,7 +391,7 @@ fn check_version_announcement(app: &mut AppState) {
         .iter()
         .find(|a| a.version == CURRENT_VERSION)
     {
-        let version_id = format!("v{}", CURRENT_VERSION);
+        let version_id = format!("v{CURRENT_VERSION}");
 
         // Check if this version announcement has been marked as read
         if app.announcements_read_ids.contains(&version_id) {

@@ -3,11 +3,280 @@ use std::path::Path;
 use crate::theme::parsing::strip_inline_comment;
 use crate::theme::types::{PackageMarker, Settings};
 
+/// What: Parse a boolean value from config string.
+///
+/// Inputs:
+/// - `val`: Value string from config
+///
+/// Output:
+/// - `true` if value represents true, `false` otherwise
+///
+/// Details:
+/// - Accepts "true", "1", "yes", "on" (case-insensitive)
+fn parse_bool(val: &str) -> bool {
+    let lv = val.to_ascii_lowercase();
+    lv == "true" || lv == "1" || lv == "yes" || lv == "on"
+}
+
+/// What: Parse layout settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key
+/// - `val`: Config value
+/// - `settings`: Mutable settings to update
+///
+/// Output:
+/// - `true` if key was handled, `false` otherwise
+fn parse_layout_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    match key {
+        "layout_left_pct" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.layout_left_pct = v;
+            }
+            true
+        }
+        "layout_center_pct" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.layout_center_pct = v;
+            }
+            true
+        }
+        "layout_right_pct" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.layout_right_pct = v;
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Parse app/UI settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key
+/// - `val`: Config value
+/// - `settings`: Mutable settings to update
+///
+/// Output:
+/// - `true` if key was handled, `false` otherwise
+fn parse_app_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    match key {
+        "app_dry_run_default" => {
+            settings.app_dry_run_default = parse_bool(val);
+            true
+        }
+        "sort_mode" | "results_sort" => {
+            if let Some(sm) = crate::state::SortMode::from_config_key(val) {
+                settings.sort_mode = sm;
+            }
+            true
+        }
+        "clipboard_suffix" | "copy_suffix" => {
+            settings.clipboard_suffix = val.to_string();
+            true
+        }
+        "show_recent_pane" | "recent_visible" => {
+            settings.show_recent_pane = parse_bool(val);
+            true
+        }
+        "show_install_pane" | "install_visible" | "show_install_list" => {
+            settings.show_install_pane = parse_bool(val);
+            true
+        }
+        "show_keybinds_footer" | "keybinds_visible" => {
+            settings.show_keybinds_footer = parse_bool(val);
+            true
+        }
+        "package_marker" => {
+            let lv = val.to_ascii_lowercase();
+            settings.package_marker = match lv.as_str() {
+                "full" | "full_line" | "line" | "color_line" | "color" => PackageMarker::FullLine,
+                "end" | "suffix" => PackageMarker::End,
+                _ => PackageMarker::Front,
+            };
+            true
+        }
+        "skip_preflight" | "preflight_skip" | "bypass_preflight" => {
+            settings.skip_preflight = parse_bool(val);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Parse scan-related settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key
+/// - `val`: Config value
+/// - `settings`: Mutable settings to update
+///
+/// Output:
+/// - `true` if key was handled, `false` otherwise
+fn parse_scan_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    match key {
+        "scan_do_clamav" => {
+            settings.scan_do_clamav = parse_bool(val);
+            true
+        }
+        "scan_do_trivy" => {
+            settings.scan_do_trivy = parse_bool(val);
+            true
+        }
+        "scan_do_semgrep" => {
+            settings.scan_do_semgrep = parse_bool(val);
+            true
+        }
+        "scan_do_shellcheck" => {
+            settings.scan_do_shellcheck = parse_bool(val);
+            true
+        }
+        "scan_do_virustotal" => {
+            settings.scan_do_virustotal = parse_bool(val);
+            true
+        }
+        "scan_do_custom" => {
+            settings.scan_do_custom = parse_bool(val);
+            true
+        }
+        "scan_do_sleuth" => {
+            settings.scan_do_sleuth = parse_bool(val);
+            true
+        }
+        "virustotal_api_key" | "vt_api_key" | "virustotal" => {
+            // VirusTotal API key; stored as-is and trimmed later
+            settings.virustotal_api_key = val.to_string();
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Parse mirror and country settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key
+/// - `val`: Config value
+/// - `settings`: Mutable settings to update
+///
+/// Output:
+/// - `true` if key was handled, `false` otherwise
+fn parse_mirror_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    match key {
+        "selected_countries" | "countries" | "country" => {
+            // Accept comma-separated list; trimming occurs in normalization
+            settings.selected_countries = val.to_string();
+            true
+        }
+        "mirror_count" | "mirrors" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.mirror_count = v;
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Parse news-related settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key
+/// - `val`: Config value
+/// - `settings`: Mutable settings to update
+///
+/// Output:
+/// - `true` if key was handled, `false` otherwise
+fn parse_news_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    match key {
+        "news_read_symbol" | "news_read_mark" => {
+            settings.news_read_symbol = val.to_string();
+            true
+        }
+        "news_unread_symbol" | "news_unread_mark" => {
+            settings.news_unread_symbol = val.to_string();
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Parse search-related settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key
+/// - `val`: Config value
+/// - `settings`: Mutable settings to update
+///
+/// Output:
+/// - `true` if key was handled, `false` otherwise
+fn parse_search_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    match key {
+        "search_startup_mode" | "startup_mode" | "search_mode" => {
+            let lv = val.to_ascii_lowercase();
+            // Accept both boolean and mode name formats
+            settings.search_startup_mode = lv == "true"
+                || lv == "1"
+                || lv == "yes"
+                || lv == "on"
+                || lv == "normal_mode"
+                || lv == "normal";
+            true
+        }
+        "fuzzy_search" | "fuzzy_search_enabled" | "fuzzy_mode" => {
+            settings.fuzzy_search = parse_bool(val);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Parse miscellaneous settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key
+/// - `val`: Config value
+/// - `settings`: Mutable settings to update
+///
+/// Output:
+/// - `true` if key was handled, `false` otherwise
+fn parse_misc_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    match key {
+        "preferred_terminal" | "terminal_preferred" | "terminal" => {
+            settings.preferred_terminal = val.to_string();
+            true
+        }
+        "locale" | "language" => {
+            settings.locale = val.trim().to_string();
+            true
+        }
+        "updates_refresh_interval" | "updates_interval" | "refresh_interval" => {
+            if let Ok(v) = val.parse::<u64>() {
+                // Ensure minimum value of 1 second to prevent invalid intervals
+                settings.updates_refresh_interval = v.max(1);
+            }
+            true
+        }
+        "get_announcement" | "get_announcements" => {
+            settings.get_announcement = val.trim().parse().unwrap_or(true);
+            true
+        }
+        "installed_packages_mode" | "installed_mode" | "installed_filter" => {
+            if let Some(mode) = crate::state::InstalledPackagesMode::from_config_key(val) {
+                settings.installed_packages_mode = mode;
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
 /// What: Parse non-keybind settings from settings.conf content.
 ///
 /// Inputs:
 /// - `content`: Content of the settings.conf file as a string.
-/// - `settings_path`: Path to the settings.conf file (for appending defaults).
+/// - `_settings_path`: Path to the settings.conf file (for appending defaults).
 /// - `settings`: Mutable reference to `Settings` to populate.
 ///
 /// Output:
@@ -31,147 +300,15 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
         let key = raw_key.trim().to_lowercase().replace(['.', '-', ' '], "_");
         let val_raw = parts.next().unwrap_or("").trim();
         let val = strip_inline_comment(val_raw);
-        match key.as_str() {
-            "layout_left_pct" => {
-                if let Ok(v) = val.parse::<u16>() {
-                    settings.layout_left_pct = v;
-                }
-            }
-            "layout_center_pct" => {
-                if let Ok(v) = val.parse::<u16>() {
-                    settings.layout_center_pct = v;
-                }
-            }
-            "layout_right_pct" => {
-                if let Ok(v) = val.parse::<u16>() {
-                    settings.layout_right_pct = v;
-                }
-            }
-            "app_dry_run_default" => {
-                let lv = val.to_ascii_lowercase();
-                settings.app_dry_run_default =
-                    lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "sort_mode" | "results_sort" => {
-                if let Some(sm) = crate::state::SortMode::from_config_key(val) {
-                    settings.sort_mode = sm;
-                }
-            }
-            "clipboard_suffix" | "copy_suffix" => {
-                settings.clipboard_suffix = val.to_string();
-            }
-            "show_recent_pane" | "recent_visible" => {
-                let lv = val.to_ascii_lowercase();
-                settings.show_recent_pane = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "show_install_pane" | "install_visible" | "show_install_list" => {
-                let lv = val.to_ascii_lowercase();
-                settings.show_install_pane = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "show_keybinds_footer" | "keybinds_visible" => {
-                let lv = val.to_ascii_lowercase();
-                settings.show_keybinds_footer =
-                    lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "selected_countries" | "countries" | "country" => {
-                // Accept comma-separated list; trimming occurs in normalization
-                settings.selected_countries = val.to_string();
-            }
-            "mirror_count" | "mirrors" => {
-                if let Ok(v) = val.parse::<u16>() {
-                    settings.mirror_count = v;
-                }
-            }
-            "virustotal_api_key" | "vt_api_key" | "virustotal" => {
-                // VirusTotal API key; stored as-is and trimmed later
-                settings.virustotal_api_key = val.to_string();
-            }
-            "scan_do_clamav" => {
-                let lv = val.to_ascii_lowercase();
-                settings.scan_do_clamav = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "scan_do_trivy" => {
-                let lv = val.to_ascii_lowercase();
-                settings.scan_do_trivy = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "scan_do_semgrep" => {
-                let lv = val.to_ascii_lowercase();
-                settings.scan_do_semgrep = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "scan_do_shellcheck" => {
-                let lv = val.to_ascii_lowercase();
-                settings.scan_do_shellcheck =
-                    lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "scan_do_virustotal" => {
-                let lv = val.to_ascii_lowercase();
-                settings.scan_do_virustotal =
-                    lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "scan_do_custom" => {
-                let lv = val.to_ascii_lowercase();
-                settings.scan_do_custom = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "scan_do_sleuth" => {
-                let lv = val.to_ascii_lowercase();
-                settings.scan_do_sleuth = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "news_read_symbol" | "news_read_mark" => {
-                settings.news_read_symbol = val.to_string();
-            }
-            "news_unread_symbol" | "news_unread_mark" => {
-                settings.news_unread_symbol = val.to_string();
-            }
-            "preferred_terminal" | "terminal_preferred" | "terminal" => {
-                settings.preferred_terminal = val.to_string();
-            }
-            "package_marker" => {
-                let lv = val.to_ascii_lowercase();
-                settings.package_marker = match lv.as_str() {
-                    "full" | "full_line" | "line" | "color_line" | "color" => {
-                        PackageMarker::FullLine
-                    }
-                    "end" | "suffix" => PackageMarker::End,
-                    _ => PackageMarker::Front,
-                };
-            }
-            "skip_preflight" | "preflight_skip" | "bypass_preflight" => {
-                let lv = val.to_ascii_lowercase();
-                settings.skip_preflight = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "locale" | "language" => {
-                settings.locale = val.trim().to_string();
-            }
-            "search_startup_mode" | "startup_mode" | "search_mode" => {
-                let lv = val.to_ascii_lowercase();
-                // Accept both boolean and mode name formats
-                settings.search_startup_mode = lv == "true"
-                    || lv == "1"
-                    || lv == "yes"
-                    || lv == "on"
-                    || lv == "normal_mode"
-                    || lv == "normal";
-            }
-            "fuzzy_search" | "fuzzy_search_enabled" | "fuzzy_mode" => {
-                let lv = val.to_ascii_lowercase();
-                settings.fuzzy_search = lv == "true" || lv == "1" || lv == "yes" || lv == "on";
-            }
-            "updates_refresh_interval" | "updates_interval" | "refresh_interval" => {
-                if let Ok(v) = val.parse::<u64>() {
-                    // Ensure minimum value of 1 second to prevent invalid intervals
-                    settings.updates_refresh_interval = v.max(1);
-                }
-            }
-            "get_announcement" | "get_announcements" => {
-                settings.get_announcement = val.trim().parse().unwrap_or(true);
-            }
-            "installed_packages_mode" | "installed_mode" | "installed_filter" => {
-                if let Some(mode) = crate::state::InstalledPackagesMode::from_config_key(val) {
-                    settings.installed_packages_mode = mode;
-                }
-            }
-            // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
-            _ => {}
-        }
+
+        // Try each category parser in order
+        // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
+        let _ = parse_layout_settings(&key, val, settings)
+            || parse_app_settings(&key, val, settings)
+            || parse_scan_settings(&key, val, settings)
+            || parse_mirror_settings(&key, val, settings)
+            || parse_news_settings(&key, val, settings)
+            || parse_search_settings(&key, val, settings)
+            || parse_misc_settings(&key, val, settings);
     }
 }

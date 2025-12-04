@@ -15,7 +15,7 @@ Key features:
 - [x] feat (new feature)
 - [ ] fix (bug fix)
 - [ ] docs (documentation only)
-- [ ] refactor (no functional change)
+- [x] refactor (no functional change)
 - [ ] perf (performance)
 - [ ] test (add/update tests)
 - [ ] chore (build/infra/CI)
@@ -70,8 +70,8 @@ cargo run
 
 **Code Quality:**
 - [x] Code compiles locally (`cargo check`)
-- [ ] `cargo fmt --all` ran without changes
-- [ ] `cargo clippy --all-targets --all-features -- -D warnings` is clean
+- [x] `cargo fmt --all` ran without changes
+- [x] `cargo clippy --all-targets --all-features -- -D warnings` is clean
 - [ ] `cargo test -- --test-threads=1` passes
 - [ ] Complexity checks pass for new code (`cargo test complexity -- --nocapture`)
 - [x] All new functions/methods have rustdoc comments (What, Inputs, Output, Details)
@@ -106,11 +106,11 @@ cargo run
 - Version announcements are checked independently and always show regardless of `get_announcement` setting
 - Announcement queue system ensures embedded announcements show first, then remote announcements, then news items
 - Modal restoration logic checks announcement ID to prevent overwriting pending announcements when dismissing embedded announcements
+- `parse_markdown` function refactored into smaller helpers: `parse_header_line`, `parse_code_block_line`, `parse_text_segments`, `build_wrapped_lines_from_segments`
+- `parse_settings` function refactored into category-specific parsers: `parse_layout_settings`, `parse_app_settings`, `parse_scan_settings`, `parse_mirror_settings`, `parse_news_settings`, `parse_search_settings`, `parse_misc_settings`
 
 ## Breaking changes
-- Config key changed from `announcement_url` (string) to `get_announcement` (boolean)
-- Default value is `true` (enables remote Gist fetching)
-- Gist URL is now hardcoded in the application (no longer configurable)
+- No breaking changes
 
 ## Additional context
 JSON format for remote announcements:
@@ -125,21 +125,4 @@ JSON format for remote announcements:
 }
 ```
 
-Files changed:
-- `src/announcements.rs` - New module with announcement types and version matching logic
-- `src/ui/modals/announcement.rs` - Modal rendering with dynamic sizing, URL detection, and click tracking
-- `src/app/runtime/workers/auxiliary.rs` - Async Gist fetching with hardcoded URL
-- `src/app/runtime/event_loop.rs` - Remote announcement handling and queue management
-- `src/app/runtime/init.rs` - Version announcement check and queue initialization
-- `src/app/runtime/tick_handler.rs` - News queue handling when modal is open
-- `src/events/modals/common.rs` - Announcement queue processing and sequential display logic
-- `src/events/modals/handlers.rs` - Fixed modal restoration to prevent overwriting pending announcements
-- `src/state/modal.rs` - Added title field to Announcement variant
-- `src/state/app_state/mod.rs` - Added `pending_announcements` and `pending_news` queues, `announcement_urls` for clickable URL tracking
-- `src/state/app_state/defaults.rs` - Initialize announcement and news queues
-- `src/state/app_state/default_impl.rs` - Default initialization for queue fields
-- `src/events/mouse/modals/simple.rs` - URL click handling in announcement modal
-- `src/theme/types.rs` - Changed `announcement_url` to `get_announcement` (boolean)
-- `src/theme/settings/parse_settings.rs` - Parse boolean `get_announcement` setting
-- `src/theme/parsing.rs` - Fixed URL parsing in config
 
