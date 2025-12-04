@@ -268,6 +268,64 @@ pub(super) fn handle_news(
     false
 }
 
+/// What: Handle key events for Announcement modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `hash`: Hash of the announcement content
+/// - `scroll`: Mutable scroll offset
+///
+/// Output:
+/// - `true` if Esc was pressed (to stop propagation), otherwise `false`
+///
+/// Details:
+/// - "r" key: Mark as read (store hash, set dirty flag, close modal - won't show again)
+/// - Enter/Esc/q: Dismiss temporarily (close modal without marking read - will show again)
+/// - Arrow keys: Scroll content
+pub(super) fn handle_announcement(
+    ke: crossterm::event::KeyEvent,
+    app: &mut AppState,
+    hash: &str,
+    scroll: &mut u16,
+) -> bool {
+    match ke.code {
+        crossterm::event::KeyCode::Char('r') => {
+            // Mark as read - won't show again
+            app.announcement_read_hash = Some(hash.to_string());
+            app.announcement_dirty = true;
+            app.modal = crate::state::Modal::None;
+            return true; // Stop propagation
+        }
+        crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Esc => {
+            // Dismiss temporarily - will show again on next startup
+            app.modal = crate::state::Modal::None;
+            return ke.code == crossterm::event::KeyCode::Esc; // Esc stops propagation
+        }
+        crossterm::event::KeyCode::Char('q') => {
+            // Dismiss temporarily
+            app.modal = crate::state::Modal::None;
+            return false;
+        }
+        crossterm::event::KeyCode::Up | crossterm::event::KeyCode::Char('k') => {
+            if *scroll > 0 {
+                *scroll -= 1;
+            }
+        }
+        crossterm::event::KeyCode::Down | crossterm::event::KeyCode::Char('j') => {
+            *scroll = scroll.saturating_add(1);
+        }
+        crossterm::event::KeyCode::PageUp => {
+            *scroll = scroll.saturating_sub(10);
+        }
+        crossterm::event::KeyCode::PageDown => {
+            *scroll = scroll.saturating_add(10);
+        }
+        _ => {}
+    }
+    false
+}
+
 /// What: Handle key events for Updates modal.
 ///
 /// Inputs:

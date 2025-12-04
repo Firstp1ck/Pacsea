@@ -87,6 +87,14 @@ pub struct AppState {
     /// Dirty flag indicating `news_read_urls` needs to be saved.
     pub news_read_dirty: bool,
 
+    // Announcement read tracking (persisted)
+    /// Hash of announcement content the user has marked as read.
+    pub announcement_read_hash: Option<String>,
+    /// Path where the announcement read hash is persisted as JSON.
+    pub announcement_read_path: PathBuf,
+    /// Dirty flag indicating `announcement_read_hash` needs to be saved.
+    pub announcement_dirty: bool,
+
     // Install list pane
     /// Packages selected for installation.
     pub install_list: Vec<PackageItem>,
@@ -300,6 +308,10 @@ pub struct AppState {
     pub news_rect: Option<(u16, u16, u16, u16)>,
     /// Inner list rectangle for clickable news rows.
     pub news_list_rect: Option<(u16, u16, u16, u16)>,
+
+    // Announcement modal mouse hit-testing
+    /// Outer rectangle of the Announcement modal (including borders) when visible.
+    pub announcement_rect: Option<(u16, u16, u16, u16)>,
 
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.

@@ -48,6 +48,9 @@ pub(super) fn handle_modal_mouse(
         crate::state::Modal::Preflight { .. } => {
             preflight::handle_preflight_modal(m, mx, my, is_left_down, app)
         }
+        crate::state::Modal::Announcement { .. } => {
+            simple::handle_announcement_modal(m, mx, my, is_left_down, app)
+        }
         crate::state::Modal::News { .. } => simple::handle_news_modal(m, mx, my, is_left_down, app),
         crate::state::Modal::Updates { .. } => {
             simple::handle_updates_modal(m, mx, my, is_left_down, app)

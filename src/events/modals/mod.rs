@@ -55,6 +55,7 @@ pub(super) fn handle_modal_key(
         }
         Modal::Help => handlers::handle_help_modal(ke, app, modal),
         Modal::News { .. } => handlers::handle_news_modal(ke, app, modal),
+        Modal::Announcement { .. } => handlers::handle_announcement_modal(ke, app, modal),
         Modal::Updates { .. } => handlers::handle_updates_modal(ke, app, modal),
         Modal::OptionalDeps { .. } => handlers::handle_optional_deps_modal(ke, app, modal),
         Modal::ScanConfig { .. } => handlers::handle_scan_config_modal(ke, app, modal),

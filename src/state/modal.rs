@@ -540,6 +540,15 @@ pub enum Modal {
         /// Selected row index.
         selected: usize,
     },
+    /// Application announcement: markdown content displayed at startup.
+    Announcement {
+        /// Markdown content to display.
+        content: String,
+        /// Hash of the content for change detection.
+        hash: String,
+        /// Scroll offset (lines) for long content.
+        scroll: u16,
+    },
     /// Available package updates: list of update entries with scroll support.
     Updates {
         /// Update entries with package name, old version, and new version.
