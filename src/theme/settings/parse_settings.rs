@@ -259,7 +259,7 @@ fn parse_misc_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             true
         }
         "get_announcement" | "get_announcements" => {
-            settings.get_announcement = val.trim().parse().unwrap_or(true);
+            settings.get_announcement = parse_bool(val.trim());
             true
         }
         "installed_packages_mode" | "installed_mode" | "installed_filter" => {
