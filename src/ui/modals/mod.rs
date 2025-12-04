@@ -4,6 +4,7 @@ use crate::state::AppState;
 use crate::theme::theme;
 
 mod alert;
+mod announcement;
 mod common;
 mod confirm;
 mod help;

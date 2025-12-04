@@ -3,8 +3,8 @@ use ratatui::prelude::Rect;
 
 use crate::state::{AppState, Modal, modal::PreflightHeaderChips, types::OptionalDepRow};
 use crate::ui::modals::{
-    alert, confirm, help, misc, news, password, post_summary, preflight, preflight_exec,
-    system_update, updates,
+    alert, announcement, confirm, help, misc, news, password, post_summary, preflight,
+    preflight_exec, system_update, updates,
 };
 
 /// What: Render `ConfirmBatchUpdate` modal and return reconstructed state.
@@ -182,6 +182,19 @@ struct NewsContext {
     selected: usize,
 }
 
+/// What: Context struct grouping Announcement modal fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from Modal variant).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+struct AnnouncementContext {
+    content: String,
+    hash: String,
+    scroll: u16,
+}
+
 /// What: Context struct grouping Updates modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -357,6 +370,18 @@ impl ModalRenderer for Modal {
             Self::News { items, selected } => {
                 let ctx = NewsContext { items, selected };
                 render_news_modal(f, app, area, ctx)
+            }
+            Self::Announcement {
+                content,
+                hash,
+                scroll,
+            } => {
+                let ctx = AnnouncementContext {
+                    content,
+                    hash,
+                    scroll,
+                };
+                render_announcement_modal(f, app, area, ctx)
             }
             Self::Updates {
                 entries,
@@ -662,6 +687,34 @@ fn render_news_modal(f: &mut Frame, app: &mut AppState, area: Rect, ctx: NewsCon
     Modal::News {
         items: ctx.items,
         selected: ctx.selected,
+    }
+}
+
+/// What: Render Announcement modal and return reconstructed state.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state
+/// - `area`: Full available area
+/// - `ctx`: Context struct containing all Announcement fields (taken by value)
+///
+/// Output:
+/// - Returns the reconstructed Modal
+///
+/// Details:
+/// - Uses context struct to reduce data flow complexity by grouping related fields.
+/// - Takes context by value to avoid cloning when reconstructing the Modal.
+fn render_announcement_modal(
+    f: &mut Frame,
+    app: &mut AppState,
+    area: Rect,
+    ctx: AnnouncementContext,
+) -> Modal {
+    announcement::render_announcement(f, app, area, &ctx.content, ctx.scroll);
+    Modal::Announcement {
+        content: ctx.content,
+        hash: ctx.hash,
+        scroll: ctx.scroll,
     }
 }
 

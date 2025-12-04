@@ -9,6 +9,11 @@ use super::super::files_cache;
 use super::super::sandbox_cache;
 use super::super::services_cache;
 
+#[derive(serde::Deserialize)]
+struct AnnouncementReadState {
+    hash: Option<String>,
+}
+
 /// What: Initialize the locale system: resolve locale, load translations, set up fallbacks.
 ///
 /// Inputs:
@@ -333,6 +338,82 @@ fn load_news_read_urls(app: &mut AppState) {
     }
 }
 
+/// What: Load announcement read hash from disk.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Attempts to deserialize announcement read hash from JSON file
+fn load_announcement_state(app: &mut AppState) {
+    if let Ok(s) = std::fs::read_to_string(&app.announcement_read_path)
+        && let Ok(state) = serde_json::from_str::<AnnouncementReadState>(&s)
+    {
+        app.announcement_read_hash = state.hash;
+        tracing::info!(
+            path = %app.announcement_read_path.display(),
+            hash = ?app.announcement_read_hash,
+            "loaded announcement read state"
+        );
+    }
+}
+
+/// What: Check for announcement file and show modal if not read.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Loads `announcement.md` from config directory
+/// - Computes content hash using `std::hash::DefaultHasher`
+/// - If file exists, is non-empty, and hash differs from stored hash, sets modal to Announcement
+fn check_announcement(app: &mut AppState) {
+    use std::hash::{Hash, Hasher};
+    let announcement_path = crate::theme::config_dir().join("announcement.md");
+
+    if !announcement_path.exists() {
+        return;
+    }
+
+    let Ok(content) = std::fs::read_to_string(&announcement_path) else {
+        tracing::warn!(
+            path = %announcement_path.display(),
+            "failed to read announcement file"
+        );
+        return;
+    };
+
+    if content.trim().is_empty() {
+        return;
+    }
+
+    // Compute hash of content
+    let mut hasher = std::hash::DefaultHasher::new();
+    content.hash(&mut hasher);
+    let hash = format!("{:x}", hasher.finish());
+
+    // Check if this hash has been marked as read
+    if app.announcement_read_hash.as_ref() == Some(&hash) {
+        tracing::info!(
+            hash = %hash,
+            "announcement already marked as read"
+        );
+        return;
+    }
+
+    // Show announcement modal
+    app.modal = crate::state::Modal::Announcement {
+        content,
+        hash,
+        scroll: 0,
+    };
+    tracing::info!("showing announcement modal");
+}
+
 pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bool) -> InitFlags {
     app.dry_run = if dry_run_flag {
         true
@@ -348,6 +429,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
         details_cache = %app.cache_path.display(),
         index = %app.official_index_path.display(),
         news_read = %app.news_read_path.display(),
+        announcement_read = %app.announcement_read_path.display(),
         "resolved state file paths"
     );
 
@@ -446,8 +528,12 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     }
 
     load_news_read_urls(app);
+    load_announcement_state(app);
 
     pkgindex::load_from_disk(&app.official_index_path);
+
+    // Check for announcement after loading state
+    check_announcement(app);
     tracing::info!(
         path = %app.official_index_path.display(),
         "attempted to load official index from disk"
