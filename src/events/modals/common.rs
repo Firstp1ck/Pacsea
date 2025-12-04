@@ -4,6 +4,96 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::{AppState, PackageItem, Source};
 
+/// What: Show next pending announcement from queue if available.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Checks if there are pending announcements in the queue
+/// - Shows the first valid announcement if modal is currently None
+fn show_next_pending_announcement(app: &mut AppState) {
+    const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    // Only show if no modal is currently displayed
+    if !matches!(app.modal, crate::state::Modal::None) {
+        tracing::debug!("skipping pending announcement check (modal still open)");
+        return;
+    }
+
+    tracing::debug!(
+        queue_size = app.pending_announcements.len(),
+        "checking for pending announcements"
+    );
+
+    // Find next valid announcement in queue
+    while let Some(announcement) = app.pending_announcements.first() {
+        // Check version range
+        if !crate::announcements::version_matches(
+            CURRENT_VERSION,
+            announcement.min_version.as_deref(),
+            announcement.max_version.as_deref(),
+        ) {
+            tracing::debug!(
+                id = %announcement.id,
+                "pending announcement version range mismatch, removing from queue"
+            );
+            app.pending_announcements.remove(0);
+            continue;
+        }
+
+        // Check expiration
+        if crate::announcements::is_expired(announcement.expires.as_deref()) {
+            tracing::debug!(
+                id = %announcement.id,
+                "pending announcement expired, removing from queue"
+            );
+            app.pending_announcements.remove(0);
+            continue;
+        }
+
+        // Check if already read
+        if app.announcements_read_ids.contains(&announcement.id) {
+            tracing::debug!(
+                id = %announcement.id,
+                "pending announcement already read, removing from queue"
+            );
+            app.pending_announcements.remove(0);
+            continue;
+        }
+
+        // Show this announcement
+        let announcement = app.pending_announcements.remove(0);
+        let announcement_id = announcement.id.clone();
+        app.modal = crate::state::Modal::Announcement {
+            title: announcement.title,
+            content: announcement.content,
+            id: announcement_id.clone(),
+            scroll: 0,
+        };
+        tracing::info!(id = %announcement_id, "showing pending announcement");
+        return;
+    }
+
+    tracing::debug!(
+        queue_empty = app.pending_announcements.is_empty(),
+        "no more pending announcements"
+    );
+
+    // After all announcements are shown, check for pending news
+    if let Some(news_items) = app.pending_news.take() {
+        if !news_items.is_empty() {
+            app.modal = crate::state::Modal::News {
+                items: news_items,
+                selected: 0,
+            };
+            tracing::info!("showing pending news after announcements");
+        }
+    }
+}
+
 /// What: Handle key events for Alert modal.
 ///
 /// Inputs:
@@ -294,17 +384,26 @@ pub(super) fn handle_announcement(
             // Mark as read - won't show again
             app.announcements_read_ids.insert(id.to_string());
             app.announcement_dirty = true;
+            tracing::debug!(id = %id, "marked announcement as read, closing modal");
             app.modal = crate::state::Modal::None;
+            // Show next pending announcement if any
+            show_next_pending_announcement(app);
             return true; // Stop propagation
         }
         crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Esc => {
             // Dismiss temporarily - will show again on next startup
+            tracing::debug!(id = %id, "dismissed announcement temporarily, closing modal");
             app.modal = crate::state::Modal::None;
+            // Show next pending announcement if any
+            show_next_pending_announcement(app);
             return true; // Stop propagation for both Enter and Esc
         }
         crossterm::event::KeyCode::Char('q') => {
             // Dismiss temporarily
+            tracing::debug!(id = %id, "dismissed announcement temporarily, closing modal");
             app.modal = crate::state::Modal::None;
+            // Show next pending announcement if any
+            show_next_pending_announcement(app);
             return true; // Stop propagation
         }
         crossterm::event::KeyCode::Up | crossterm::event::KeyCode::Char('k') => {

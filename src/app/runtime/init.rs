@@ -344,6 +344,11 @@ fn load_news_read_urls(app: &mut AppState) {
 /// - Attempts to deserialize announcement read IDs set from JSON file
 /// - Handles both old format (single hash) and new format (set of IDs) for migration
 fn load_announcement_state(app: &mut AppState) {
+    // Try old format for migration ({ "hash": "..." })
+    #[derive(serde::Deserialize)]
+    struct OldAnnouncementReadState {
+        hash: Option<String>,
+    }
     if let Ok(s) = std::fs::read_to_string(&app.announcement_read_path) {
         // Try new format first (HashSet<String>)
         if let Ok(ids) = serde_json::from_str::<std::collections::HashSet<String>>(&s) {
@@ -355,20 +360,15 @@ fn load_announcement_state(app: &mut AppState) {
             );
             return;
         }
-        // Try old format for migration ({ "hash": "..." })
-        #[derive(serde::Deserialize)]
-        struct OldAnnouncementReadState {
-            hash: Option<String>,
-        }
-        if let Ok(old_state) = serde_json::from_str::<OldAnnouncementReadState>(&s) {
-            if let Some(hash) = old_state.hash {
-                app.announcements_read_ids.insert(format!("hash:{}", hash));
-                app.announcement_dirty = true; // Mark dirty to migrate to new format
-                tracing::info!(
-                    path = %app.announcement_read_path.display(),
-                    "migrated old announcement read state"
-                );
-            }
+        if let Ok(old_state) = serde_json::from_str::<OldAnnouncementReadState>(&s)
+            && let Some(hash) = old_state.hash
+        {
+            app.announcements_read_ids.insert(format!("hash:{hash}"));
+            app.announcement_dirty = true; // Mark dirty to migrate to new format
+            tracing::info!(
+                path = %app.announcement_read_path.display(),
+                "migrated old announcement read state"
+            );
         }
     }
 }
@@ -414,6 +414,8 @@ fn check_version_announcement(app: &mut AppState) {
             "showing version announcement modal"
         );
     }
+    // Note: Remote announcements will be queued if they arrive while embedded is showing
+    // and will be shown when embedded is dismissed via show_next_pending_announcement()
 }
 
 pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bool) -> InitFlags {
