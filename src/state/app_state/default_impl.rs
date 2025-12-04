@@ -94,7 +94,7 @@ impl Default for AppState {
         let (news_read_urls, news_read_path, news_read_dirty) =
             defaults::default_news_state(news_read_path);
 
-        let (announcement_read_hash, announcement_read_path, announcement_dirty) =
+        let (announcements_read_ids, announcement_read_path, announcement_dirty) =
             defaults::default_announcement_state(announcement_read_path);
 
         let (
@@ -199,6 +199,7 @@ impl Default for AppState {
             news_rect,
             news_list_rect,
             announcement_rect,
+            announcement_urls,
             updates_modal_rect,
             updates_modal_content_rect,
             help_scroll,
@@ -312,7 +313,7 @@ impl Default for AppState {
             news_read_urls,
             news_read_path,
             news_read_dirty,
-            announcement_read_hash,
+            announcements_read_ids,
             announcement_read_path,
             announcement_dirty,
             install_list,
@@ -400,6 +401,7 @@ impl Default for AppState {
             news_rect,
             news_list_rect,
             announcement_rect,
+            announcement_urls,
             updates_modal_rect,
             updates_modal_content_rect,
             help_scroll,

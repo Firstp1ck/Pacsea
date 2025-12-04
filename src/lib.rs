@@ -117,6 +117,7 @@
 //!
 //! The modules listed below link to detailed documentation for each subsystem.
 
+pub mod announcements;
 pub mod app;
 
 pub mod events;

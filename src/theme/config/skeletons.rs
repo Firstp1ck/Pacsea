@@ -347,7 +347,14 @@ locale = \n\
 # Time in seconds between pacman -Qu and AUR helper checks.\n\
 # Default is 30 seconds. Increase this value on systems with slow I/O or many packages to reduce resource usage.\n\
 # Minimum value is 1 second.\n\
-updates_refresh_interval = 30\n";
+updates_refresh_interval = 30\n\
+\n\
+# Remote announcements\n\
+# URL for fetching remote announcements (GitHub Gist raw URL)\n\
+# Default: true\n\
+# If true, fetches remote announcements from GitHub Gist\n\
+# If false, remote announcements are disabled (version announcements still show)\n\
+get_announcement = true\n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\

@@ -162,6 +162,9 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
                     settings.updates_refresh_interval = v.max(1);
                 }
             }
+            "get_announcement" | "get_announcements" => {
+                settings.get_announcement = val.trim().parse().unwrap_or(true);
+            }
             "installed_packages_mode" | "installed_mode" | "installed_filter" => {
                 if let Some(mode) = crate::state::InstalledPackagesMode::from_config_key(val) {
                     settings.installed_packages_mode = mode;

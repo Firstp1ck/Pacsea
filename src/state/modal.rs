@@ -542,10 +542,12 @@ pub enum Modal {
     },
     /// Application announcement: markdown content displayed at startup.
     Announcement {
+        /// Title to display in the modal header.
+        title: String,
         /// Markdown content to display.
         content: String,
-        /// Hash of the content for change detection.
-        hash: String,
+        /// Unique identifier for this announcement (version string or remote ID).
+        id: String,
         /// Scroll offset (lines) for long content.
         scroll: u16,
     },

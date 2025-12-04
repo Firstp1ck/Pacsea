@@ -12,12 +12,13 @@ use crate::index as pkgindex;
 use crate::sources;
 use crate::state::{ArchStatusColor, NewsItem};
 
-/// What: Spawn background workers for status, news, and tick events.
+/// What: Spawn background workers for status, news, announcements, and tick events.
 ///
 /// Inputs:
 /// - `headless`: When `true`, skip terminal-dependent operations
 /// - `status_tx`: Channel sender for Arch status updates
 /// - `news_tx`: Channel sender for Arch news updates
+/// - `announcement_tx`: Channel sender for remote announcement updates
 /// - `tick_tx`: Channel sender for tick events
 /// - `news_read_urls`: Set of already-read news URLs
 /// - `official_index_path`: Path to official package index
@@ -26,10 +27,12 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `updates_tx`: Channel sender for package updates
 /// - `updates_refresh_interval`: Refresh interval in seconds for pacman -Qu and AUR helper checks
 /// - `installed_packages_mode`: Filter mode for installed packages (leaf only vs all explicit)
+/// - `get_announcement`: Whether to fetch remote announcements from GitHub Gist
 ///
 /// Details:
 /// - Fetches Arch status text once at startup and periodically every 120 seconds
 /// - Fetches Arch news once at startup, filtering out already-read items
+/// - Fetches remote announcement once at startup if URL is configured
 /// - Updates package index in background (Windows vs non-Windows handling)
 /// - Refreshes pacman caches (installed, explicit) using the configured installed packages mode
 /// - Spawns tick worker that sends events every 200ms
@@ -39,6 +42,7 @@ pub fn spawn_auxiliary_workers(
     headless: bool,
     status_tx: &mpsc::UnboundedSender<(String, ArchStatusColor)>,
     news_tx: &mpsc::UnboundedSender<Vec<NewsItem>>,
+    announcement_tx: &mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
     tick_tx: &mpsc::UnboundedSender<()>,
     news_read_urls: &std::collections::HashSet<String>,
     official_index_path: &std::path::Path,
@@ -47,6 +51,7 @@ pub fn spawn_auxiliary_workers(
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
     updates_refresh_interval: u64,
     installed_packages_mode: crate::state::InstalledPackagesMode,
+    get_announcement: bool,
 ) {
     // Fetch Arch status text once at startup (skip in headless mode to avoid network delays)
     if !headless {
@@ -80,6 +85,33 @@ pub fn spawn_auxiliary_workers(
                     .filter(|it| !read_set.contains(&it.url))
                     .collect();
                 let _ = news_tx_once.send(unread);
+            }
+        });
+    }
+
+    // Fetch remote announcement once at startup if enabled (skip in headless mode)
+    if !headless && get_announcement {
+        let announcement_tx_once = announcement_tx.clone();
+        // Hardcoded Gist URL for remote announcements
+        let url = "https://gist.githubusercontent.com/Firstp1ck/d2e6016b8d7a90f813a582078208e9bd/raw/announcement.json".to_string();
+        tokio::spawn(async move {
+            tracing::info!(url = %url, "fetching remote announcement");
+            match reqwest::get(&url).await {
+                Ok(response) => {
+                    tracing::debug!(status = response.status().as_u16(), "announcement fetch response received");
+                    match response.json::<crate::announcements::RemoteAnnouncement>().await {
+                        Ok(json) => {
+                            tracing::info!(id = %json.id, "announcement fetched successfully");
+                            let _ = announcement_tx_once.send(json);
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "failed to parse announcement JSON");
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(url = %url, error = %e, "failed to fetch announcement");
+                }
             }
         });
     }

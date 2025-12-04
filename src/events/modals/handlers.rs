@@ -423,17 +423,19 @@ pub(super) fn handle_announcement_modal(
     mut modal: Modal,
 ) -> bool {
     if let Modal::Announcement {
+        ref title,
         ref content,
-        ref hash,
+        ref id,
         ref mut scroll,
     } = modal
     {
-        let result = super::common::handle_announcement(ke, app, hash, scroll);
+        let result = super::common::handle_announcement(ke, app, id, scroll);
         // Only restore if modal wasn't closed
         if !matches!(app.modal, Modal::None) {
             app.modal = Modal::Announcement {
+                title: title.clone(),
                 content: content.clone(),
-                hash: hash.clone(),
+                id: id.clone(),
                 scroll: *scroll,
             };
         }

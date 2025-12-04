@@ -88,11 +88,12 @@ pub struct AppState {
     pub news_read_dirty: bool,
 
     // Announcement read tracking (persisted)
-    /// Hash of announcement content the user has marked as read.
-    pub announcement_read_hash: Option<String>,
-    /// Path where the announcement read hash is persisted as JSON.
+    /// Set of announcement IDs the user has marked as read.
+    /// Tracks both version strings (e.g., "v0.6.0") and remote announcement IDs.
+    pub announcements_read_ids: std::collections::HashSet<String>,
+    /// Path where the read announcement IDs are persisted as JSON.
     pub announcement_read_path: PathBuf,
-    /// Dirty flag indicating `announcement_read_hash` needs to be saved.
+    /// Dirty flag indicating `announcements_read_ids` needs to be saved.
     pub announcement_dirty: bool,
 
     // Install list pane
@@ -312,6 +313,9 @@ pub struct AppState {
     // Announcement modal mouse hit-testing
     /// Outer rectangle of the Announcement modal (including borders) when visible.
     pub announcement_rect: Option<(u16, u16, u16, u16)>,
+    /// URLs in announcement content with their screen positions for click detection.
+    /// Vector of (`x`, `y`, `width`, `url_string`) tuples.
+    pub announcement_urls: Vec<(u16, u16, u16, String)>,
 
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.
