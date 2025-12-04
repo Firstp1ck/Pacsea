@@ -1,9 +1,206 @@
 //! Result sorting with selection preservation across sort modes.
 //!
-//! Provides sort cache fields for potential future optimization of sort mode switching.
-//! Currently, the cache fields are used for tracking when results change (via signature).
+//! Implements cache-based O(n) reordering for sort mode switching between cacheable modes.
+//! `BestMatches` mode is query-dependent and always performs full O(n log n) sort.
 
-use crate::state::{AppState, SortMode, Source};
+use crate::state::{AppState, PackageItem, SortMode, Source};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+/// What: Compute a signature hash for the results list to validate cache validity.
+///
+/// Inputs:
+/// - `results`: Slice of package items to compute signature for.
+///
+/// Output:
+/// - Returns a `u64` hash based on length and first/last package names.
+///
+/// Details:
+/// - Used to detect when results have changed, invalidating cached sort orders.
+fn compute_results_signature(results: &[PackageItem]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    results.len().hash(&mut hasher);
+    if let Some(first) = results.first() {
+        first.name.hash(&mut hasher);
+    }
+    if let Some(last) = results.last() {
+        last.name.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+/// What: Reorder results vector using cached indices.
+///
+/// Inputs:
+/// - `results`: Mutable reference to results vector.
+/// - `indices`: Slice of indices representing the desired sort order.
+///
+/// Output:
+/// - Reorders `results` in-place according to `indices`.
+///
+/// Details:
+/// - Performs O(n) reordering instead of O(n log n) sorting.
+/// - Invalid indices are filtered out safely.
+fn reorder_from_indices(results: &mut Vec<PackageItem>, indices: &[usize]) {
+    let reordered: Vec<PackageItem> = indices
+        .iter()
+        .filter_map(|&i| results.get(i).cloned())
+        .collect();
+    *results = reordered;
+}
+
+/// What: Sort results by repo order then name.
+///
+/// Inputs:
+/// - `results`: Mutable reference to results vector.
+///
+/// Output:
+/// - Sorts results in-place by repo order (core < extra < other), then alphabetically by name.
+///
+/// Details:
+/// - Used for `RepoThenName` sort mode.
+fn sort_repo_then_name(results: &mut [PackageItem]) {
+    results.sort_by(|a, b| {
+        let oa = crate::util::repo_order(&a.source);
+        let ob = crate::util::repo_order(&b.source);
+        if oa != ob {
+            return oa.cmp(&ob);
+        }
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+    });
+}
+
+/// What: Sort results by AUR popularity then official packages.
+///
+/// Inputs:
+/// - `results`: Mutable reference to results vector.
+///
+/// Output:
+/// - Sorts results in-place: AUR packages first (by descending popularity), then official packages.
+///
+/// Details:
+/// - Used for `AurPopularityThenOfficial` sort mode.
+fn sort_aur_popularity_then_official(results: &mut [PackageItem]) {
+    results.sort_by(|a, b| {
+        // AUR first
+        let aur_a = matches!(a.source, Source::Aur);
+        let aur_b = matches!(b.source, Source::Aur);
+        if aur_a != aur_b {
+            return aur_b.cmp(&aur_a); // true before false
+        }
+        if aur_a && aur_b {
+            // Desc popularity for AUR
+            let pa = a.popularity.unwrap_or(0.0);
+            let pb = b.popularity.unwrap_or(0.0);
+            if (pa - pb).abs() > f64::EPSILON {
+                return pb.partial_cmp(&pa).unwrap_or(std::cmp::Ordering::Equal);
+            }
+        } else {
+            // Both official: keep pacman order (repo_order), then name
+            let oa = crate::util::repo_order(&a.source);
+            let ob = crate::util::repo_order(&b.source);
+            if oa != ob {
+                return oa.cmp(&ob);
+            }
+        }
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+    });
+}
+
+/// What: Sort results by best match rank based on query.
+///
+/// Inputs:
+/// - `results`: Mutable reference to results vector.
+/// - `query`: Search query string for match ranking.
+///
+/// Output:
+/// - Sorts results in-place by match rank (lower is better), with repo order and name as tiebreakers.
+///
+/// Details:
+/// - Used for `BestMatches` sort mode. Query-dependent, so cannot be cached.
+fn sort_best_matches(results: &mut [PackageItem], query: &str) {
+    let ql = query.trim().to_lowercase();
+    results.sort_by(|a, b| {
+        let ra = crate::util::match_rank(&a.name, &ql);
+        let rb = crate::util::match_rank(&b.name, &ql);
+        if ra != rb {
+            return ra.cmp(&rb);
+        }
+        // Tiebreak: keep pacman repo order first to keep layout familiar
+        let oa = crate::util::repo_order(&a.source);
+        let ob = crate::util::repo_order(&b.source);
+        if oa != ob {
+            return oa.cmp(&ob);
+        }
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+    });
+}
+
+/// What: Compute sort order indices for repo-then-name sorting.
+///
+/// Inputs:
+/// - `results`: Slice of package items.
+///
+/// Output:
+/// - Returns vector of indices representing sorted order.
+///
+/// Details:
+/// - Used to populate cache without modifying the original results.
+fn compute_repo_then_name_indices(results: &[PackageItem]) -> Vec<usize> {
+    let mut indices: Vec<usize> = (0..results.len()).collect();
+    indices.sort_by(|&i, &j| {
+        let a = &results[i];
+        let b = &results[j];
+        let oa = crate::util::repo_order(&a.source);
+        let ob = crate::util::repo_order(&b.source);
+        if oa != ob {
+            return oa.cmp(&ob);
+        }
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+    });
+    indices
+}
+
+/// What: Compute sort order indices for AUR-popularity-then-official sorting.
+///
+/// Inputs:
+/// - `results`: Slice of package items.
+///
+/// Output:
+/// - Returns vector of indices representing sorted order.
+///
+/// Details:
+/// - Used to populate cache without modifying the original results.
+fn compute_aur_popularity_then_official_indices(results: &[PackageItem]) -> Vec<usize> {
+    let mut indices: Vec<usize> = (0..results.len()).collect();
+    indices.sort_by(|&i, &j| {
+        let a = &results[i];
+        let b = &results[j];
+        // AUR first
+        let aur_a = matches!(a.source, Source::Aur);
+        let aur_b = matches!(b.source, Source::Aur);
+        if aur_a != aur_b {
+            return aur_b.cmp(&aur_a); // true before false
+        }
+        if aur_a && aur_b {
+            // Desc popularity for AUR
+            let pa = a.popularity.unwrap_or(0.0);
+            let pb = b.popularity.unwrap_or(0.0);
+            if (pa - pb).abs() > f64::EPSILON {
+                return pb.partial_cmp(&pa).unwrap_or(std::cmp::Ordering::Equal);
+            }
+        } else {
+            // Both official: keep pacman order (repo_order), then name
+            let oa = crate::util::repo_order(&a.source);
+            let ob = crate::util::repo_order(&b.source);
+            if oa != ob {
+                return oa.cmp(&ob);
+            }
+        }
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+    });
+    indices
+}
 
 /// What: Apply the currently selected sorting mode to `app.results` in-place.
 ///
@@ -14,74 +211,79 @@ use crate::state::{AppState, SortMode, Source};
 /// - Sorts `app.results` and preserves selection by name when possible; otherwise clamps index.
 ///
 /// Details:
-/// - Supports multiple sort strategies, including repo ordering, AUR popularity, and match ranking heuristics.
-/// - Sort caches are cleared when this function runs to ensure consistency.
+/// - Uses cache-based O(n) reordering when switching between cacheable modes (`RepoThenName` and `AurPopularityThenOfficial`).
+/// - Performs full O(n log n) sort when cache is invalid or for `BestMatches` mode.
+/// - Populates both cache orders eagerly after full sort to enable instant mode switching.
 pub fn sort_results_preserve_selection(app: &mut AppState) {
     if app.results.is_empty() {
         return;
     }
     let prev_name = app.results.get(app.selected).map(|p| p.name.clone());
 
-    // Clear sort caches since we're re-sorting
-    // (Future optimization: implement proper cache-based reordering)
-    app.sort_cache_repo_name = None;
-    app.sort_cache_aur_popularity = None;
-    app.sort_cache_signature = None;
+    // Compute current signature to check cache validity
+    let current_sig = compute_results_signature(&app.results);
+
+    // Check if cache is valid and we can use O(n) reordering
+    let cache_valid = app.sort_cache_signature == Some(current_sig);
 
     match app.sort_mode {
         SortMode::RepoThenName => {
-            app.results.sort_by(|a, b| {
-                let oa = crate::util::repo_order(&a.source);
-                let ob = crate::util::repo_order(&b.source);
-                if oa != ob {
-                    return oa.cmp(&ob);
+            if cache_valid {
+                if let Some(ref indices) = app.sort_cache_repo_name {
+                    // Cache hit: O(n) reorder
+                    reorder_from_indices(&mut app.results, indices);
+                } else {
+                    // Cache miss: compute indices from current state, then sort
+                    let indices = compute_repo_then_name_indices(&app.results);
+                    sort_repo_then_name(&mut app.results);
+                    // Populate caches for future O(n) switching
+                    app.sort_cache_repo_name = Some(indices);
+                    app.sort_cache_aur_popularity =
+                        Some(compute_aur_popularity_then_official_indices(&app.results));
+                    app.sort_cache_signature = Some(current_sig);
                 }
-                a.name.to_lowercase().cmp(&b.name.to_lowercase())
-            });
+            } else {
+                // Cache invalid: compute indices from current state, then sort
+                let indices = compute_repo_then_name_indices(&app.results);
+                sort_repo_then_name(&mut app.results);
+                // Populate caches
+                app.sort_cache_repo_name = Some(indices);
+                app.sort_cache_aur_popularity =
+                    Some(compute_aur_popularity_then_official_indices(&app.results));
+                app.sort_cache_signature = Some(current_sig);
+            }
         }
         SortMode::AurPopularityThenOfficial => {
-            app.results.sort_by(|a, b| {
-                // AUR first
-                let aur_a = matches!(a.source, Source::Aur);
-                let aur_b = matches!(b.source, Source::Aur);
-                if aur_a != aur_b {
-                    return aur_b.cmp(&aur_a); // true before false
-                }
-                if aur_a && aur_b {
-                    // Desc popularity for AUR
-                    let pa = a.popularity.unwrap_or(0.0);
-                    let pb = b.popularity.unwrap_or(0.0);
-                    if (pa - pb).abs() > f64::EPSILON {
-                        return pb.partial_cmp(&pa).unwrap_or(std::cmp::Ordering::Equal);
-                    }
+            if cache_valid {
+                if let Some(ref indices) = app.sort_cache_aur_popularity {
+                    // Cache hit: O(n) reorder
+                    reorder_from_indices(&mut app.results, indices);
                 } else {
-                    // Both official: keep pacman order (repo_order), then name
-                    let oa = crate::util::repo_order(&a.source);
-                    let ob = crate::util::repo_order(&b.source);
-                    if oa != ob {
-                        return oa.cmp(&ob);
-                    }
+                    // Cache miss: compute indices from current state, then sort
+                    let indices = compute_aur_popularity_then_official_indices(&app.results);
+                    sort_aur_popularity_then_official(&mut app.results);
+                    // Populate caches for future O(n) switching
+                    app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
+                    app.sort_cache_aur_popularity = Some(indices);
+                    app.sort_cache_signature = Some(current_sig);
                 }
-                a.name.to_lowercase().cmp(&b.name.to_lowercase())
-            });
+            } else {
+                // Cache invalid: compute indices from current state, then sort
+                let indices = compute_aur_popularity_then_official_indices(&app.results);
+                sort_aur_popularity_then_official(&mut app.results);
+                // Populate caches
+                app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
+                app.sort_cache_aur_popularity = Some(indices);
+                app.sort_cache_signature = Some(current_sig);
+            }
         }
         SortMode::BestMatches => {
-            // Compute simple match rank based on current input; lower is better
-            let ql = app.input.trim().to_lowercase();
-            app.results.sort_by(|a, b| {
-                let ra = crate::util::match_rank(&a.name, &ql);
-                let rb = crate::util::match_rank(&b.name, &ql);
-                if ra != rb {
-                    return ra.cmp(&rb);
-                }
-                // Tiebreak: keep pacman repo order first to keep layout familiar
-                let oa = crate::util::repo_order(&a.source);
-                let ob = crate::util::repo_order(&b.source);
-                if oa != ob {
-                    return oa.cmp(&ob);
-                }
-                a.name.to_lowercase().cmp(&b.name.to_lowercase())
-            });
+            // BestMatches is query-dependent, always do full sort and don't cache
+            sort_best_matches(&mut app.results, &app.input);
+            // Clear mode-specific caches since BestMatches can't use them
+            app.sort_cache_repo_name = None;
+            app.sort_cache_aur_popularity = None;
+            app.sort_cache_signature = None;
         }
     }
 
@@ -307,5 +509,124 @@ mod tests {
         // BestMatches should not populate mode-specific caches
         assert!(app.sort_cache_repo_name.is_none());
         assert!(app.sort_cache_aur_popularity.is_none());
+    }
+
+    #[test]
+    /// What: Verify cache hit path uses O(n) reordering when cache is valid.
+    ///
+    /// Inputs:
+    /// - Results with valid cache signature and cached indices for `RepoThenName`.
+    ///
+    /// Output:
+    /// - Results are reordered using cached indices without full sort.
+    ///
+    /// Details:
+    /// - Tests that cache-based optimization works correctly.
+    fn sort_cache_hit_repo_then_name() {
+        let mut app = AppState {
+            results: vec![
+                item_official("zzz", "extra"),
+                item_official("aaa", "core"),
+                item_official("bbb", "core"),
+            ],
+            sort_mode: SortMode::RepoThenName,
+            ..Default::default()
+        };
+
+        // First sort to populate cache
+        sort_results_preserve_selection(&mut app);
+        let first_sort_order: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+        let cached_sig = app.sort_cache_signature;
+
+        // Change to different order
+        app.sort_mode = SortMode::AurPopularityThenOfficial;
+        sort_results_preserve_selection(&mut app);
+
+        // Switch back - should use cache
+        app.sort_mode = SortMode::RepoThenName;
+        sort_results_preserve_selection(&mut app);
+        let second_sort_order: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+
+        // Should match first sort order
+        assert_eq!(first_sort_order, second_sort_order);
+        assert_eq!(app.sort_cache_signature, cached_sig);
+    }
+
+    #[test]
+    /// What: Verify cache miss path performs full sort when results change.
+    ///
+    /// Inputs:
+    /// - Results with cached signature that doesn't match current results.
+    ///
+    /// Output:
+    /// - Full sort is performed and cache is repopulated.
+    ///
+    /// Details:
+    /// - Tests that cache invalidation works correctly.
+    fn sort_cache_miss_on_results_change() {
+        let mut app = AppState {
+            results: vec![item_official("aaa", "core"), item_official("bbb", "extra")],
+            sort_mode: SortMode::RepoThenName,
+            ..Default::default()
+        };
+
+        // First sort to populate cache
+        sort_results_preserve_selection(&mut app);
+        let old_sig = app.sort_cache_signature;
+
+        // Change results (simulating new search)
+        app.results = vec![item_official("ccc", "core"), item_official("ddd", "extra")];
+
+        // Sort again - should detect cache miss and repopulate
+        sort_results_preserve_selection(&mut app);
+        let new_sig = app.sort_cache_signature;
+
+        // Signature should be different
+        assert_ne!(old_sig, new_sig);
+        assert!(app.sort_cache_repo_name.is_some());
+        assert!(app.sort_cache_aur_popularity.is_some());
+    }
+
+    #[test]
+    /// What: Verify switching between cacheable modes uses cached indices.
+    ///
+    /// Inputs:
+    /// - Results sorted in `RepoThenName` mode with populated caches.
+    ///
+    /// Output:
+    /// - Switching to `AurPopularityThenOfficial` uses cached indices for O(n) reordering.
+    ///
+    /// Details:
+    /// - Tests the main optimization: instant mode switching via cache.
+    fn sort_cache_mode_switching() {
+        let mut app = AppState {
+            results: vec![
+                item_aur("low_pop", Some(1.0)),
+                item_official("core_pkg", "core"),
+                item_aur("high_pop", Some(10.0)),
+                item_official("extra_pkg", "extra"),
+            ],
+            sort_mode: SortMode::RepoThenName,
+            ..Default::default()
+        };
+
+        // Initial sort - populates both caches
+        sort_results_preserve_selection(&mut app);
+        assert!(app.sort_cache_repo_name.is_some());
+        assert!(app.sort_cache_aur_popularity.is_some());
+        let repo_order: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+
+        // Switch to AUR popularity - should use cache
+        app.sort_mode = SortMode::AurPopularityThenOfficial;
+        sort_results_preserve_selection(&mut app);
+        let aur_order: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+        // AUR packages should be first
+        assert!(matches!(app.results[0].source, Source::Aur));
+
+        // Switch back to repo - should use cache
+        app.sort_mode = SortMode::RepoThenName;
+        sort_results_preserve_selection(&mut app);
+        let repo_order_again: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+        assert_eq!(repo_order, repo_order_again);
     }
 }
