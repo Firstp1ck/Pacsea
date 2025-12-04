@@ -668,3 +668,471 @@ pub fn render_announcement(
     let footer_paragraph = Paragraph::new(footer_lines);
     f.render_widget(footer_paragraph, footer_rect);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Verify URL detection for https:// URLs.
+    ///
+    /// Inputs:
+    /// - Text containing https:// URLs.
+    ///
+    /// Output:
+    /// - Returns correct URL positions and strings.
+    ///
+    /// Details:
+    /// - Should detect https:// URLs and return byte positions.
+    fn test_detect_urls_https() {
+        let text = "Visit https://example.com for more info";
+        let urls = detect_urls(text);
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0].0, 6); // start position (after "Visit ")
+        assert_eq!(urls[0].1, 25); // end position (exclusive, after "https://example.com")
+        assert_eq!(urls[0].2, "https://example.com");
+    }
+
+    #[test]
+    /// What: Verify URL detection for http:// URLs.
+    ///
+    /// Inputs:
+    /// - Text containing http:// URLs.
+    ///
+    /// Output:
+    /// - Returns correct URL positions and strings.
+    ///
+    /// Details:
+    /// - Should detect http:// URLs and return byte positions.
+    fn test_detect_urls_http() {
+        let text = "Visit http://example.com for more info";
+        let urls = detect_urls(text);
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0].2, "http://example.com");
+    }
+
+    #[test]
+    /// What: Verify URL detection for www. URLs.
+    ///
+    /// Inputs:
+    /// - Text containing www. URLs.
+    ///
+    /// Output:
+    /// - Returns URLs with https:// prefix added.
+    ///
+    /// Details:
+    /// - www. URLs should be converted to https:// URLs.
+    fn test_detect_urls_www() {
+        let text = "Visit www.example.com for more info";
+        let urls = detect_urls(text);
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0].2, "https://www.example.com");
+    }
+
+    #[test]
+    /// What: Verify URL detection with multiple URLs in one line.
+    ///
+    /// Inputs:
+    /// - Text containing multiple URLs.
+    ///
+    /// Output:
+    /// - Returns all detected URLs with correct positions.
+    ///
+    /// Details:
+    /// - Should detect all URLs in the text.
+    fn test_detect_urls_multiple() {
+        let text = "Visit https://example.com and http://test.org for more";
+        let urls = detect_urls(text);
+        assert_eq!(urls.len(), 2);
+        assert_eq!(urls[0].2, "https://example.com");
+        assert_eq!(urls[1].2, "http://test.org");
+    }
+
+    #[test]
+    /// What: Verify URL detection with trailing punctuation.
+    ///
+    /// Inputs:
+    /// - Text with URLs followed by punctuation.
+    ///
+    /// Output:
+    /// - URLs should exclude trailing punctuation.
+    ///
+    /// Details:
+    /// - Trailing punctuation (., ,, ;, :, !, ?) should be trimmed.
+    fn test_detect_urls_trailing_punctuation() {
+        let text = "Visit https://example.com. Also http://test.org!";
+        let urls = detect_urls(text);
+        assert_eq!(urls.len(), 2);
+        assert_eq!(urls[0].2, "https://example.com");
+        assert_eq!(urls[1].2, "http://test.org");
+    }
+
+    #[test]
+    /// What: Verify URL detection at end of text.
+    ///
+    /// Inputs:
+    /// - Text ending with a URL (no trailing whitespace).
+    ///
+    /// Output:
+    /// - Should detect URL correctly.
+    ///
+    /// Details:
+    /// - URLs at end of text should be detected without trailing whitespace.
+    fn test_detect_urls_end_of_text() {
+        let text = "Visit https://example.com";
+        let urls = detect_urls(text);
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0].2, "https://example.com");
+    }
+
+    #[test]
+    /// What: Verify URL detection with parentheses termination.
+    ///
+    /// Inputs:
+    /// - Text with URLs inside parentheses.
+    ///
+    /// Output:
+    /// - URLs should stop at closing parenthesis.
+    ///
+    /// Details:
+    /// - Closing parenthesis should terminate URL detection.
+    fn test_detect_urls_parentheses() {
+        let text = "Visit (https://example.com) for more";
+        let urls = detect_urls(text);
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0].2, "https://example.com");
+    }
+
+    #[test]
+    /// What: Verify URL detection with empty text.
+    ///
+    /// Inputs:
+    /// - Empty string.
+    ///
+    /// Output:
+    /// - Returns empty vector.
+    ///
+    /// Details:
+    /// - Empty text should return no URLs.
+    fn test_detect_urls_empty() {
+        let text = "";
+        let urls = detect_urls(text);
+        assert!(urls.is_empty());
+    }
+
+    #[test]
+    /// What: Verify URL detection with no URLs.
+    ///
+    /// Inputs:
+    /// - Text without any URLs.
+    ///
+    /// Output:
+    /// - Returns empty vector.
+    ///
+    /// Details:
+    /// - Text without URLs should return empty vector.
+    fn test_detect_urls_none() {
+        let text = "This is just regular text without any URLs";
+        let urls = detect_urls(text);
+        assert!(urls.is_empty());
+    }
+
+    #[test]
+    /// What: Verify `find_url_end` function behavior.
+    ///
+    /// Inputs:
+    /// - Text with URL and various termination conditions.
+    ///
+    /// Output:
+    /// - Returns correct end position.
+    ///
+    /// Details:
+    /// - Should find end position correctly for different scenarios.
+    fn test_find_url_end() {
+        // URL with space termination - start is after "https://" (position 8)
+        let text = "https://example.com more text";
+        assert_eq!(find_url_end(text, 8), Some(19)); // "example.com" ends at position 19
+
+        // URL with parenthesis termination
+        let text2 = "https://example.com)";
+        assert_eq!(find_url_end(text2, 8), Some(19)); // "example.com" ends before ')'
+
+        // URL with trailing punctuation - should trim the trailing period
+        let text3 = "https://example.com.";
+        assert_eq!(find_url_end(text3, 8), Some(19)); // "example.com" (period trimmed)
+
+        // URL at end of string
+        let text4 = "https://example.com";
+        assert_eq!(find_url_end(text4, 8), Some(19)); // "example.com" ends at position 19
+    }
+
+    #[test]
+    /// What: Verify header parsing for H1 headers.
+    ///
+    /// Inputs:
+    /// - Text starting with "# ".
+    ///
+    /// Output:
+    /// - Returns Some(Line) with styled header.
+    ///
+    /// Details:
+    /// - H1 headers should be parsed and styled correctly.
+    fn test_parse_header_line_h1() {
+        let line = "# Main Title";
+        let result = parse_header_line(line);
+        assert!(result.is_some());
+        let line_result = result.expect("should parse H1 header");
+        assert_eq!(line_result.spans.len(), 1);
+        assert_eq!(line_result.spans[0].content.as_ref(), "Main Title");
+    }
+
+    #[test]
+    /// What: Verify header parsing for H2 headers.
+    ///
+    /// Inputs:
+    /// - Text starting with "## ".
+    ///
+    /// Output:
+    /// - Returns Some(Line) with styled header.
+    ///
+    /// Details:
+    /// - H2 headers should be parsed and styled correctly.
+    fn test_parse_header_line_h2() {
+        let line = "## Section Title";
+        let result = parse_header_line(line);
+        assert!(result.is_some());
+        let line_result = result.expect("should parse H2 header");
+        assert_eq!(line_result.spans.len(), 1);
+        assert_eq!(line_result.spans[0].content.as_ref(), "Section Title");
+    }
+
+    #[test]
+    /// What: Verify header parsing for H3 headers.
+    ///
+    /// Inputs:
+    /// - Text starting with "### ".
+    ///
+    /// Output:
+    /// - Returns Some(Line) with styled header.
+    ///
+    /// Details:
+    /// - H3 headers should be parsed and styled correctly.
+    fn test_parse_header_line_h3() {
+        let line = "### Subsection Title";
+        let result = parse_header_line(line);
+        assert!(result.is_some());
+        let line_result = result.expect("should parse H3 header");
+        assert_eq!(line_result.spans.len(), 1);
+        assert_eq!(line_result.spans[0].content.as_ref(), "Subsection Title");
+    }
+
+    #[test]
+    /// What: Verify header parsing for non-header lines.
+    ///
+    /// Inputs:
+    /// - Text that is not a header.
+    ///
+    /// Output:
+    /// - Returns None.
+    ///
+    /// Details:
+    /// - Non-header lines should return None.
+    fn test_parse_header_line_non_header() {
+        let line = "This is not a header";
+        let result = parse_header_line(line);
+        assert!(result.is_none());
+
+        let line2 = "#Not a header (no space)";
+        let result2 = parse_header_line(line2);
+        assert!(result2.is_none());
+    }
+
+    #[test]
+    /// What: Verify code block parsing.
+    ///
+    /// Inputs:
+    /// - Text starting with triple backticks.
+    ///
+    /// Output:
+    /// - Returns Some(Line) with styled code block marker.
+    ///
+    /// Details:
+    /// - Code block markers should be parsed and styled correctly.
+    fn test_parse_code_block_line() {
+        let line = "```rust";
+        let result = parse_code_block_line(line);
+        assert!(result.is_some());
+        let line_result = result.expect("should parse code block");
+        assert_eq!(line_result.spans.len(), 1);
+        assert_eq!(line_result.spans[0].content.as_ref(), "```rust");
+
+        let line2 = "```";
+        let result2 = parse_code_block_line(line2);
+        assert!(result2.is_some());
+    }
+
+    #[test]
+    /// What: Verify code block parsing for non-code-block lines.
+    ///
+    /// Inputs:
+    /// - Text that is not a code block marker.
+    ///
+    /// Output:
+    /// - Returns None.
+    ///
+    /// Details:
+    /// - Non-code-block lines should return None.
+    fn test_parse_code_block_line_non_code() {
+        let line = "This is not a code block";
+        let result = parse_code_block_line(line);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    /// What: Verify line wrapping calculation for empty content.
+    ///
+    /// Inputs:
+    /// - Empty string.
+    ///
+    /// Output:
+    /// - Returns 1 line (minimum).
+    ///
+    /// Details:
+    /// - Empty content should return at least 1 line.
+    fn test_calculate_wrapped_lines_empty() {
+        let result = calculate_wrapped_lines("", 40);
+        assert_eq!(result, 1);
+    }
+
+    #[test]
+    /// What: Verify line wrapping calculation for single line content.
+    ///
+    /// Inputs:
+    /// - Single line of text.
+    ///
+    /// Output:
+    /// - Returns correct number of wrapped lines.
+    ///
+    /// Details:
+    /// - Short lines should not wrap, long lines should wrap.
+    fn test_calculate_wrapped_lines_single_line() {
+        // Short line should not wrap
+        let result = calculate_wrapped_lines("Short line", 40);
+        assert_eq!(result, 1);
+
+        // Long line should wrap
+        let long_line = "This is a very long line that should wrap when the width is limited";
+        let result2 = calculate_wrapped_lines(long_line, 20);
+        assert!(result2 > 1);
+    }
+
+    #[test]
+    /// What: Verify line wrapping calculation for multi-line content.
+    ///
+    /// Inputs:
+    /// - Multi-line text content.
+    ///
+    /// Output:
+    /// - Returns correct total wrapped lines.
+    ///
+    /// Details:
+    /// - Each line should be wrapped independently.
+    fn test_calculate_wrapped_lines_multi_line() {
+        let content = "Line one\nLine two\nLine three";
+        let result = calculate_wrapped_lines(content, 40);
+        assert_eq!(result, 3);
+
+        let content2 = "Line one\n\nLine two";
+        let result2 = calculate_wrapped_lines(content2, 40);
+        assert_eq!(result2, 3); // Empty line counts as 1
+    }
+
+    #[test]
+    /// What: Verify line wrapping calculation with Unicode characters.
+    ///
+    /// Inputs:
+    /// - Text containing Unicode/multi-byte characters.
+    ///
+    /// Output:
+    /// - Returns correct wrapped lines using display width.
+    ///
+    /// Details:
+    /// - Should use Unicode width for proper wrapping.
+    fn test_calculate_wrapped_lines_unicode() {
+        // Unicode characters have different display widths
+        let content = "测试中文";
+        let result = calculate_wrapped_lines(content, 4);
+        // Each Chinese character is typically 2 display width units
+        assert!(result >= 1);
+    }
+
+    #[test]
+    /// What: Verify content width calculation for empty content.
+    ///
+    /// Inputs:
+    /// - Empty string.
+    ///
+    /// Output:
+    /// - Returns minimum width.
+    ///
+    /// Details:
+    /// - Empty content should return minimum width.
+    fn test_calculate_content_width_empty() {
+        let result = calculate_content_width("", 100);
+        assert_eq!(result, MODAL_MIN_WIDTH);
+    }
+
+    #[test]
+    /// What: Verify content width calculation for single line.
+    ///
+    /// Inputs:
+    /// - Single line of text.
+    ///
+    /// Output:
+    /// - Returns correct content width.
+    ///
+    /// Details:
+    /// - Should calculate width based on longest line.
+    fn test_calculate_content_width_single_line() {
+        let content = "Short line";
+        let result = calculate_content_width(content, 100);
+        assert_eq!(result, 10.max(MODAL_MIN_WIDTH));
+    }
+
+    #[test]
+    /// What: Verify content width calculation with markdown formatting.
+    ///
+    /// Inputs:
+    /// - Text with markdown formatting characters.
+    ///
+    /// Output:
+    /// - Should remove markdown formatting for width calculation.
+    ///
+    /// Details:
+    /// - Markdown markers (**, ##, etc.) should be removed before calculating width.
+    fn test_calculate_content_width_markdown() {
+        let content = "## Header with **bold** text";
+        let result = calculate_content_width(content, 100);
+        // Should remove "## " and "**" markers, but result is clamped to MODAL_MIN_WIDTH
+        // "Header with bold text" is 22 chars, but MODAL_MIN_WIDTH is 40
+        assert_eq!(result, MODAL_MIN_WIDTH); // Should be clamped to minimum width
+    }
+
+    #[test]
+    /// What: Verify content width calculation respects max width.
+    ///
+    /// Inputs:
+    /// - Very long line of text.
+    ///
+    /// Output:
+    /// - Returns width capped at `max_width`.
+    ///
+    /// Details:
+    /// - Should not exceed the provided `max_width` parameter.
+    fn test_calculate_content_width_max() {
+        let content = "This is a very long line that exceeds the maximum width limit";
+        let max_width = 30;
+        let result = calculate_content_width(content, max_width);
+        assert_eq!(result, max_width.max(MODAL_MIN_WIDTH));
+    }
+}
