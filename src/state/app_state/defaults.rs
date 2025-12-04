@@ -173,6 +173,8 @@ pub(super) type DefaultModalRectsState = (
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Vec<(u16, u16, u16, String)>,
+    Vec<crate::announcements::RemoteAnnouncement>,
+    Option<Vec<crate::state::NewsItem>>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     u16,
@@ -550,12 +552,25 @@ pub(super) const fn default_mouse_hit_test_state() -> DefaultMouseHitTestState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
+/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `pending_announcements`, `pending_news`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
 ///
 /// Details:
-/// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls` starts as empty Vec.
+/// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls` and `pending_announcements` start as empty Vec, `pending_news` starts as None.
 pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
-    (None, None, None, Vec::new(), None, None, 0, None, [None; 5], None)
+    (
+        None,
+        None,
+        None,
+        Vec::new(),
+        Vec::new(),
+        None,
+        None,
+        None,
+        0,
+        None,
+        [None; 5],
+        None,
+    )
 }
 
 /// What: Create default sorting and menus state.

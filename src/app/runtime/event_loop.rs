@@ -112,9 +112,6 @@ fn handle_file_result_with_logging(
 /// Output: None (modifies app state in place)
 ///
 /// Details:
-/// - Validates version range and expiration date
-/// - Checks if announcement ID has been marked as read
-/// - Shows modal if announcement is valid and unread
 fn handle_remote_announcement(
     app: &mut AppState,
     announcement: crate::announcements::RemoteAnnouncement,
@@ -166,9 +163,13 @@ fn handle_remote_announcement(
         };
         tracing::info!("showing remote announcement modal");
     } else {
-        tracing::debug!(
-            id = %announcement.id,
-            "skipping remote announcement (modal already open)"
+        // Queue announcement to show after current modal closes
+        let announcement_id = announcement.id.clone();
+        app.pending_announcements.push(announcement);
+        tracing::info!(
+            id = %announcement_id,
+            queue_size = app.pending_announcements.len(),
+            "queued remote announcement (modal already open)"
         );
     }
 }

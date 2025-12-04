@@ -316,6 +316,10 @@ pub struct AppState {
     /// URLs in announcement content with their screen positions for click detection.
     /// Vector of (`x`, `y`, `width`, `url_string`) tuples.
     pub announcement_urls: Vec<(u16, u16, u16, String)>,
+    /// Pending remote announcements to show after current announcement is dismissed.
+    pub pending_announcements: Vec<crate::announcements::RemoteAnnouncement>,
+    /// Pending news to show after all announcements are dismissed.
+    pub pending_news: Option<Vec<crate::state::NewsItem>>,
 
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.

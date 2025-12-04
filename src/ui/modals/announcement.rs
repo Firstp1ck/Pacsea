@@ -40,10 +40,10 @@ fn calculate_wrapped_lines(content: &str, available_width: u16) -> u16 {
     if content.trim().is_empty() {
         return 1;
     }
-    
+
     let width = available_width.max(1) as usize;
     let mut total_lines: u16 = 0;
-    
+
     for line in content.lines() {
         if line.is_empty() {
             total_lines = total_lines.saturating_add(1);
@@ -54,7 +54,7 @@ fn calculate_wrapped_lines(content: &str, available_width: u16) -> u16 {
             total_lines = total_lines.saturating_add(wrapped);
         }
     }
-    
+
     total_lines.max(1)
 }
 
@@ -103,34 +103,33 @@ fn calculate_modal_rect(area: Rect, content: &str, app: &crate::state::AppState)
     // Calculate max available width first
     let max_available_width = (area.width * MODAL_MAX_WIDTH_RATIO) / MODAL_MAX_WIDTH_DIVISOR;
     let content_width = calculate_content_width(content, max_available_width);
-    
+
     // Calculate footer text width dynamically
     let footer_text = crate::i18n::t(app, "app.modals.announcement.footer_hint");
     let footer_text_width = footer_text.len() as u16;
     let footer_width = footer_text_width + CONTENT_PADDING * 2;
-    
+
     // Calculate modal width (max of content width and footer width, with padding + borders)
     let required_width = content_width.max(footer_width) + CONTENT_PADDING * 2 + BORDER_WIDTH;
-    let modal_width = required_width
-        .min(max_available_width)
-        .max(MODAL_MIN_WIDTH);
-    
+    let modal_width = required_width.min(max_available_width).max(MODAL_MIN_WIDTH);
+
     // Calculate content area width (inside borders and padding)
     let content_area_width = modal_width.saturating_sub(BORDER_WIDTH + CONTENT_PADDING * 2);
-    
+
     // Calculate wrapped content lines based on available width
     let content_lines = calculate_wrapped_lines(content, content_area_width);
-    
+
     // Calculate modal height (content + header + footer + buffer + borders)
-    let modal_height = (content_lines + TOTAL_HEADER_FOOTER_LINES + CONTENT_FOOTER_BUFFER + BORDER_WIDTH)
-        .min(area.height.saturating_sub(MODAL_HEIGHT_PADDING))
-        .min(MODAL_MAX_HEIGHT)
-        .max(MODAL_MIN_HEIGHT);
-    
+    let modal_height =
+        (content_lines + TOTAL_HEADER_FOOTER_LINES + CONTENT_FOOTER_BUFFER + BORDER_WIDTH)
+            .min(area.height.saturating_sub(MODAL_HEIGHT_PADDING))
+            .min(MODAL_MAX_HEIGHT)
+            .max(MODAL_MIN_HEIGHT);
+
     // Center the modal
     let x = area.x + (area.width.saturating_sub(modal_width)) / 2;
     let y = area.y + (area.height.saturating_sub(modal_height)) / 2;
-    
+
     Rect {
         x,
         y,
@@ -348,7 +347,9 @@ fn parse_markdown(
                         let end_pos = pos + 2 + end_pos;
                         segments.push((
                             trimmed[pos + 2..end_pos].to_string(),
-                            Style::default().fg(th.lavender).add_modifier(Modifier::BOLD),
+                            Style::default()
+                                .fg(th.lavender)
+                                .add_modifier(Modifier::BOLD),
                             false,
                             None,
                         ));
@@ -357,7 +358,9 @@ fn parse_markdown(
                         // Unclosed bold, treat rest as bold
                         segments.push((
                             trimmed[pos + 2..].to_string(),
-                            Style::default().fg(th.lavender).add_modifier(Modifier::BOLD),
+                            Style::default()
+                                .fg(th.lavender)
+                                .add_modifier(Modifier::BOLD),
                             false,
                             None,
                         ));
@@ -410,7 +413,9 @@ fn parse_markdown(
 
                     // Track URL position if this is a URL
                     if is_url && let Some(ref url) = url_string {
-                        let url_x = content_rect.x + u16::try_from(current_line_width + separator_width).unwrap_or(u16::MAX);
+                        let url_x = content_rect.x
+                            + u16::try_from(current_line_width + separator_width)
+                                .unwrap_or(u16::MAX);
                         let url_width = u16::try_from(word_width).unwrap_or(u16::MAX);
                         url_positions.push((url_x, line_y, url_width, url.clone()));
                     }
@@ -478,7 +483,7 @@ pub fn render_announcement(
     app.announcement_rect = Some((rect.x, rect.y, rect.width, rect.height));
 
     let th = theme();
-    
+
     // Calculate areas: footer needs 1 line for text, buffer is positional gap above
     let footer_height = FOOTER_LINES; // Footer text only
     let footer_total_height = footer_height + CONTENT_FOOTER_BUFFER; // Footer + buffer space
@@ -486,22 +491,23 @@ pub fn render_announcement(
     // Content area should fit: header (2 lines) + content + buffer + footer (2 lines)
     // So content area = inner_height - footer_total_height (header + content share the remaining space)
     let content_area_height = inner_height.saturating_sub(footer_total_height); // Area for header + content
-    
+
     // Content rect (inside borders, for header + content, excluding footer area)
     // Ensure minimum height for header + at least 1 line of content
     let min_content_height = HEADER_LINES + 1;
     let content_rect = Rect {
-        x: rect.x + 1, // Inside left border
-        y: rect.y + 1, // Inside top border
-        width: rect.width.saturating_sub(2), // Account for left + right borders
+        x: rect.x + 1,                                       // Inside left border
+        y: rect.y + 1,                                       // Inside top border
+        width: rect.width.saturating_sub(2),                 // Account for left + right borders
         height: content_area_height.max(min_content_height), // At least header + 1 line for content
     };
-    
+
     // Footer rect at the bottom (inside borders, footer text only)
     // Position footer after content area + buffer gap, ensuring it's inside the modal
     let footer_y = rect.y + 1 + content_area_height + CONTENT_FOOTER_BUFFER;
     // Ensure footer fits within the modal bounds
-    let footer_available_height = inner_height.saturating_sub(content_area_height + CONTENT_FOOTER_BUFFER);
+    let footer_available_height =
+        inner_height.saturating_sub(content_area_height + CONTENT_FOOTER_BUFFER);
     let footer_rect = Rect {
         x: rect.x + 1, // Inside left border
         y: footer_y.min(rect.y + rect.height.saturating_sub(footer_height + 1)), // Ensure it fits

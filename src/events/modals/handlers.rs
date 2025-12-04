@@ -429,15 +429,26 @@ pub(super) fn handle_announcement_modal(
         ref mut scroll,
     } = modal
     {
+        let old_id = id.clone();
         let result = super::common::handle_announcement(ke, app, id, scroll);
-        // Only restore if modal wasn't closed
-        if !matches!(app.modal, Modal::None) {
-            app.modal = Modal::Announcement {
-                title: title.clone(),
-                content: content.clone(),
-                id: id.clone(),
-                scroll: *scroll,
-            };
+        // Only restore if modal wasn't closed AND it's still the same announcement
+        // (don't restore if a new pending announcement was shown)
+        match &app.modal {
+            Modal::Announcement { id: new_id, .. } if *new_id == old_id => {
+                // Same announcement, restore scroll state
+                app.modal = Modal::Announcement {
+                    title: title.clone(),
+                    content: content.clone(),
+                    id: old_id,
+                    scroll: *scroll,
+                };
+            }
+            Modal::None => {
+                // Modal was closed, don't restore
+            }
+            _ => {
+                // Different modal (e.g., pending announcement was shown), don't restore
+            }
         }
         return result;
     }

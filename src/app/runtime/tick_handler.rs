@@ -673,11 +673,19 @@ pub fn handle_news(app: &mut AppState, todays: &[NewsItem]) {
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
         app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
     } else {
-        // Show unread news items; default to first selected
-        app.modal = Modal::News {
-            items: todays.to_vec(),
-            selected: 0,
-        };
+        // Queue news to show after all announcements are dismissed
+        // Only show immediately if no modal is currently displayed
+        if matches!(app.modal, Modal::None) {
+            app.modal = Modal::News {
+                items: todays.to_vec(),
+                selected: 0,
+            };
+            tracing::info!("showing news modal immediately (no other modals)");
+        } else {
+            // Queue news to show after announcements
+            app.pending_news = Some(todays.to_vec());
+            tracing::debug!("queued news (modal already open, will show after announcements)");
+        }
     }
 }
 

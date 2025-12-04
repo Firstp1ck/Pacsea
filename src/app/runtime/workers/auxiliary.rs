@@ -98,8 +98,14 @@ pub fn spawn_auxiliary_workers(
             tracing::info!(url = %url, "fetching remote announcement");
             match reqwest::get(&url).await {
                 Ok(response) => {
-                    tracing::debug!(status = response.status().as_u16(), "announcement fetch response received");
-                    match response.json::<crate::announcements::RemoteAnnouncement>().await {
+                    tracing::debug!(
+                        status = response.status().as_u16(),
+                        "announcement fetch response received"
+                    );
+                    match response
+                        .json::<crate::announcements::RemoteAnnouncement>()
+                        .await
+                    {
                         Ok(json) => {
                             tracing::info!(id = %json.id, "announcement fetched successfully");
                             let _ = announcement_tx_once.send(json);
