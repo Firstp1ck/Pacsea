@@ -186,6 +186,116 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify version matching with pre-release versions.
+    ///
+    /// Inputs:
+    /// - Pre-release version strings (e.g., "0.6.0-beta", "1.0.0-rc1").
+    ///
+    /// Output:
+    /// - Confirms correct matching behavior for pre-release versions.
+    ///
+    /// Details:
+    /// - Pre-release versions are compared using string comparison for non-numeric segments.
+    /// - When comparing "0.6.0-beta" vs "0.6.0", the "beta" segment is compared as string
+    ///   against the default "0", and "beta" > "0" lexicographically.
+    fn test_version_matches_prerelease() {
+        // Pre-release versions
+        assert!(version_matches("0.6.0-beta", Some("0.6.0-beta"), None));
+        assert!(version_matches("0.6.0-beta", Some("0.5.0"), None));
+        assert!(!version_matches("0.6.0-beta", Some("0.7.0"), None));
+        assert!(version_matches("1.0.0-rc1", Some("1.0.0-rc1"), None));
+        assert!(version_matches("1.0.0-rc1", Some("0.9.0"), None));
+        // Pre-release with non-numeric segment compared as string: "beta" > "0"
+        assert!(version_matches("0.6.0-beta", Some("0.6.0"), None));
+        assert!(!version_matches("0.6.0", Some("0.6.0-beta"), None));
+    }
+
+    #[test]
+    /// What: Verify version matching with different segment counts.
+    ///
+    /// Inputs:
+    /// - Versions with different numbers of segments (e.g., "1.0" vs "1.0.0").
+    ///
+    /// Output:
+    /// - Confirms correct matching behavior when segment counts differ.
+    ///
+    /// Details:
+    /// - Missing segments should be treated as "0".
+    fn test_version_matches_different_segments() {
+        assert!(version_matches("1.0", Some("1.0.0"), None));
+        assert!(version_matches("1.0.0", Some("1.0"), None));
+        assert!(version_matches("1.0", Some("1.0"), None));
+        assert!(version_matches("1.0.0", Some("1.0.0"), None));
+        assert!(version_matches("1.0", Some("0.9"), None));
+        assert!(!version_matches("1.0", Some("1.1"), None));
+    }
+
+    #[test]
+    /// What: Verify version matching boundary conditions.
+    ///
+    /// Inputs:
+    /// - Exact min/max version matches.
+    ///
+    /// Output:
+    /// - Confirms boundaries are inclusive.
+    ///
+    /// Details:
+    /// - Both min and max bounds are inclusive, so exact matches should pass.
+    fn test_version_matches_boundaries() {
+        // Exact min boundary
+        assert!(version_matches("0.6.0", Some("0.6.0"), Some("0.7.0")));
+        // Exact max boundary
+        assert!(version_matches("0.7.0", Some("0.6.0"), Some("0.7.0")));
+        // Both boundaries exact
+        assert!(version_matches("0.6.0", Some("0.6.0"), Some("0.6.0")));
+        // Just below min
+        assert!(!version_matches("0.5.9", Some("0.6.0"), Some("0.7.0")));
+        // Just above max
+        assert!(!version_matches("0.7.1", Some("0.6.0"), Some("0.7.0")));
+    }
+
+    #[test]
+    /// What: Verify version matching with both bounds None.
+    ///
+    /// Inputs:
+    /// - Version with both min and max as None.
+    ///
+    /// Output:
+    /// - Should always match regardless of version.
+    ///
+    /// Details:
+    /// - When both bounds are None, any version should match.
+    fn test_version_matches_no_bounds() {
+        assert!(version_matches("0.1.0", None, None));
+        assert!(version_matches("1.0.0", None, None));
+        assert!(version_matches("999.999.999", None, None));
+        assert!(version_matches("0.0.0", None, None));
+    }
+
+    #[test]
+    /// What: Verify version matching with non-numeric segments.
+    ///
+    /// Inputs:
+    /// - Versions with non-numeric segments (e.g., "0.6.0-alpha" vs "0.6.0-beta").
+    ///
+    /// Output:
+    /// - Confirms string comparison for non-numeric segments.
+    ///
+    /// Details:
+    /// - Non-numeric segments are compared lexicographically.
+    /// - When comparing versions with different segment counts, missing segments default to "0".
+    /// - Non-numeric segments compared against "0" use string comparison: "alpha" > "0".
+    fn test_version_matches_non_numeric_segments() {
+        // Non-numeric segments compared as strings
+        assert!(version_matches("0.6.0-alpha", Some("0.6.0-alpha"), None));
+        assert!(version_matches("0.6.0-beta", Some("0.6.0-alpha"), None));
+        assert!(!version_matches("0.6.0-alpha", Some("0.6.0-beta"), None));
+        // Numeric vs non-numeric: "alpha" > "0" lexicographically
+        assert!(!version_matches("0.6.0", Some("0.6.0-alpha"), None));
+        assert!(version_matches("0.6.0-alpha", Some("0.6.0"), None));
+    }
+
+    #[test]
     /// What: Verify expiration checking logic.
     ///
     /// Inputs:
@@ -200,5 +310,185 @@ mod tests {
         assert!(is_expired(Some("2020-01-01")));
         // None should not be expired
         assert!(!is_expired(None));
+    }
+
+    #[test]
+    /// What: Verify expiration checking with malformed date formats.
+    ///
+    /// Inputs:
+    /// - Invalid date formats that cannot be parsed.
+    ///
+    /// Output:
+    /// - Should not expire (returns false) for invalid formats.
+    ///
+    /// Details:
+    /// - Invalid dates should be treated as non-expiring to avoid hiding announcements
+    ///   due to parsing errors.
+    /// - Note: Some formats like "2020-1-1" may be parsed successfully by chrono's
+    ///   lenient parser, so we test with truly invalid formats.
+    fn test_is_expired_malformed_dates() {
+        // Invalid formats should not expire
+        assert!(!is_expired(Some("invalid-date")));
+        assert!(!is_expired(Some("2020/01/01")));
+        assert!(!is_expired(Some("01-01-2020")));
+        assert!(!is_expired(Some("")));
+        assert!(!is_expired(Some("not-a-date")));
+        assert!(!is_expired(Some("2020-13-45"))); // Invalid month/day
+        assert!(!is_expired(Some("abc-def-ghi"))); // Non-numeric
+    }
+
+    #[test]
+    /// What: Verify expiration checking edge case with today's date.
+    ///
+    /// Inputs:
+    /// - Today's date as expiration.
+    ///
+    /// Output:
+    /// - Should not expire (uses ">" not ">=").
+    ///
+    /// Details:
+    /// - The comparison uses `today > expires_date`, so today's date should not expire.
+    fn test_is_expired_today() {
+        let today = Utc::now().date_naive();
+        let today_str = today.format("%Y-%m-%d").to_string();
+        // Today's date should not be expired (uses > not >=)
+        assert!(!is_expired(Some(&today_str)));
+    }
+
+    #[test]
+    /// What: Verify expiration checking with empty string.
+    ///
+    /// Inputs:
+    /// - Empty string as expiration date.
+    ///
+    /// Output:
+    /// - Should not expire (treated as invalid format).
+    ///
+    /// Details:
+    /// - Empty string cannot be parsed as a date, so should not expire.
+    fn test_is_expired_empty_string() {
+        assert!(!is_expired(Some("")));
+    }
+
+    #[test]
+    /// What: Verify `RemoteAnnouncement` deserialization from valid JSON.
+    ///
+    /// Inputs:
+    /// - Valid JSON strings with all fields present.
+    ///
+    /// Output:
+    /// - Successfully deserializes into `RemoteAnnouncement` struct.
+    ///
+    /// Details:
+    /// - Tests that the struct can be deserialized from JSON format used by GitHub Gist.
+    fn test_remote_announcement_deserialize_valid() {
+        let json = r#"{
+            "id": "test-announcement-1",
+            "title": "Test Announcement",
+            "content": "This is test content",
+            "min_version": "0.6.0",
+            "max_version": "0.7.0",
+            "expires": "2025-12-31"
+        }"#;
+
+        let announcement: RemoteAnnouncement =
+            serde_json::from_str(json).expect("should deserialize valid JSON");
+        assert_eq!(announcement.id, "test-announcement-1");
+        assert_eq!(announcement.title, "Test Announcement");
+        assert_eq!(announcement.content, "This is test content");
+        assert_eq!(announcement.min_version, Some("0.6.0".to_string()));
+        assert_eq!(announcement.max_version, Some("0.7.0".to_string()));
+        assert_eq!(announcement.expires, Some("2025-12-31".to_string()));
+    }
+
+    #[test]
+    /// What: Verify `RemoteAnnouncement` deserialization with optional fields as null.
+    ///
+    /// Inputs:
+    /// - JSON with optional fields set to null.
+    ///
+    /// Output:
+    /// - Successfully deserializes with None for optional fields.
+    ///
+    /// Details:
+    /// - Optional fields (`min_version`, `max_version`, `expires`) can be null or omitted.
+    fn test_remote_announcement_deserialize_optional_null() {
+        let json = r#"{
+            "id": "test-announcement-2",
+            "title": "Test Announcement",
+            "content": "This is test content",
+            "min_version": null,
+            "max_version": null,
+            "expires": null
+        }"#;
+
+        let announcement: RemoteAnnouncement =
+            serde_json::from_str(json).expect("should deserialize with null fields");
+        assert_eq!(announcement.id, "test-announcement-2");
+        assert_eq!(announcement.min_version, None);
+        assert_eq!(announcement.max_version, None);
+        assert_eq!(announcement.expires, None);
+    }
+
+    #[test]
+    /// What: Verify `RemoteAnnouncement` deserialization with omitted optional fields.
+    ///
+    /// Inputs:
+    /// - JSON with optional fields completely omitted.
+    ///
+    /// Output:
+    /// - Successfully deserializes with None for omitted fields.
+    ///
+    /// Details:
+    /// - Optional fields can be omitted entirely from JSON.
+    fn test_remote_announcement_deserialize_optional_omitted() {
+        let json = r#"{
+            "id": "test-announcement-3",
+            "title": "Test Announcement",
+            "content": "This is test content"
+        }"#;
+
+        let announcement: RemoteAnnouncement =
+            serde_json::from_str(json).expect("should deserialize with omitted fields");
+        assert_eq!(announcement.id, "test-announcement-3");
+        assert_eq!(announcement.min_version, None);
+        assert_eq!(announcement.max_version, None);
+        assert_eq!(announcement.expires, None);
+    }
+
+    #[test]
+    /// What: Verify `RemoteAnnouncement` deserialization fails with invalid JSON.
+    ///
+    /// Inputs:
+    /// - Invalid JSON strings that cannot be parsed.
+    ///
+    /// Output:
+    /// - Returns error when JSON is invalid or missing required fields.
+    ///
+    /// Details:
+    /// - Required fields (`id`, `title`, `content`) must be present and valid.
+    fn test_remote_announcement_deserialize_invalid() {
+        // Missing required field
+        let json_missing_id = r#"{
+            "title": "Test",
+            "content": "Content"
+        }"#;
+        assert!(serde_json::from_str::<RemoteAnnouncement>(json_missing_id).is_err());
+
+        // Invalid JSON syntax
+        let json_invalid = r#"{
+            "id": "test",
+            "title": "Test",
+            "content": "Content"
+        "#;
+        assert!(serde_json::from_str::<RemoteAnnouncement>(json_invalid).is_err());
+
+        // Wrong types
+        let json_wrong_type = r#"{
+            "id": 123,
+            "title": "Test",
+            "content": "Content"
+        }"#;
+        assert!(serde_json::from_str::<RemoteAnnouncement>(json_wrong_type).is_err());
     }
 }

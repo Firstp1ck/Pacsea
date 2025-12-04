@@ -17,7 +17,7 @@ Key features:
 - [ ] docs (documentation only)
 - [x] refactor (no functional change)
 - [ ] perf (performance)
-- [ ] test (add/update tests)
+- [x] test (add/update tests)
 - [ ] chore (build/infra/CI)
 - [x] ui (visual/interaction changes)
 - [ ] breaking change (incompatible behavior)
@@ -78,9 +78,9 @@ cargo run
 - [x] No `unwrap()` or `expect()` in non-test code
 
 **Testing:**
-- [ ] Added or updated tests where it makes sense
-- [ ] For bug fixes: created failing tests first, then fixed the issue
-- [ ] Tests are meaningful and cover the functionality
+- [x] Added or updated tests where it makes sense
+- [x] For bug fixes: created failing tests first, then fixed the issue
+- [x] Tests are meaningful and cover the functionality
 
 **Documentation:**
 - [ ] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
@@ -108,6 +108,8 @@ cargo run
 - Modal restoration logic checks announcement ID to prevent overwriting pending announcements when dismissing embedded announcements
 - `parse_markdown` function refactored into smaller helpers: `parse_header_line`, `parse_code_block_line`, `parse_text_segments`, `build_wrapped_lines_from_segments`
 - `parse_settings` function refactored into category-specific parsers: `parse_layout_settings`, `parse_app_settings`, `parse_scan_settings`, `parse_mirror_settings`, `parse_news_settings`, `parse_search_settings`, `parse_misc_settings`
+- Added comprehensive unit tests (48 total) covering version matching edge cases, expiration logic, URL detection, markdown parsing, line wrapping, and content width calculation
+- Added integration tests (10 total) for announcement queue handling and key event handling with full coverage of user interactions
 
 ## Breaking changes
 - No breaking changes
