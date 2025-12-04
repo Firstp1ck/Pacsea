@@ -385,7 +385,7 @@ fn load_announcement_state(app: &mut AppState) {
 /// - If version announcement exists and hasn't been marked as read, shows modal
 fn check_version_announcement(app: &mut AppState) {
     const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
-    
+
     // Extract base version (X.X.X) from current version, ignoring suffixes
     let current_base_version = crate::announcements::extract_base_version(CURRENT_VERSION);
 
