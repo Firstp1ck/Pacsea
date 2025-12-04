@@ -1,8 +1,0 @@
-{
-  "id": "2025-12-04-test-announcement",
-  "title": "New Test Announcement for long content",
-  "content": "Test announcement.\nThis is a link: https://github.com/Firstp1ck/Pacsea/pull/85\nThis is a test to test the popup window and its ui rendering. here is some random text.Ok I need to have some more chars in this line to test what happens when the announcment gets to long. Is this enough, I dont think so, so I add some more like no should be enough.\n this should be on a new line :-)",
-  "min_version": "0.6.0",
-  "max_version": null,
-  "expires": "2025-12-05"
-}
