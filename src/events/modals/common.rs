@@ -83,14 +83,14 @@ fn show_next_pending_announcement(app: &mut AppState) {
     );
 
     // After all announcements are shown, check for pending news
-    if let Some(news_items) = app.pending_news.take() {
-        if !news_items.is_empty() {
-            app.modal = crate::state::Modal::News {
-                items: news_items,
-                selected: 0,
-            };
-            tracing::info!("showing pending news after announcements");
-        }
+    if let Some(news_items) = app.pending_news.take()
+        && !news_items.is_empty()
+    {
+        app.modal = crate::state::Modal::News {
+            items: news_items,
+            selected: 0,
+        };
+        tracing::info!("showing pending news after announcements");
     }
 }
 
