@@ -8,6 +8,8 @@ Key features:
 - Persistent read status tracking by announcement ID
 - Clickable URLs in announcement content (opens in default browser)
 - Boolean setting `get_announcement` to enable/disable remote Gist fetching
+- Sequential announcement queue system (embedded → remote → news)
+- News items queued to show after all announcements are dismissed
 
 ## Type of change
 - [x] feat (new feature)
@@ -54,6 +56,8 @@ Key features:
    - Footer keybinds are always visible with grey color
    - Buffer space exists between content and footer
    - Version announcements always show regardless of `get_announcement` setting
+   - Embedded and remote announcements show sequentially (embedded first, then remote)
+   - News items show after all announcements are dismissed
 
 ```bash
 cargo fmt --all
@@ -100,6 +104,8 @@ cargo run
 - URLs are detected and styled (mauve, underlined, bold) with click detection via mouse coordinates
 - Gist URL is hardcoded in `auxiliary.rs` since it's always the same
 - Version announcements are checked independently and always show regardless of `get_announcement` setting
+- Announcement queue system ensures embedded announcements show first, then remote announcements, then news items
+- Modal restoration logic checks announcement ID to prevent overwriting pending announcements when dismissing embedded announcements
 
 ## Breaking changes
 - Config key changed from `announcement_url` (string) to `get_announcement` (boolean)
@@ -123,9 +129,15 @@ Files changed:
 - `src/announcements.rs` - New module with announcement types and version matching logic
 - `src/ui/modals/announcement.rs` - Modal rendering with dynamic sizing, URL detection, and click tracking
 - `src/app/runtime/workers/auxiliary.rs` - Async Gist fetching with hardcoded URL
-- `src/app/runtime/event_loop.rs` - Remote announcement handling
+- `src/app/runtime/event_loop.rs` - Remote announcement handling and queue management
+- `src/app/runtime/init.rs` - Version announcement check and queue initialization
+- `src/app/runtime/tick_handler.rs` - News queue handling when modal is open
+- `src/events/modals/common.rs` - Announcement queue processing and sequential display logic
+- `src/events/modals/handlers.rs` - Fixed modal restoration to prevent overwriting pending announcements
 - `src/state/modal.rs` - Added title field to Announcement variant
-- `src/state/app_state/mod.rs` - Added `announcement_urls` for clickable URL tracking
+- `src/state/app_state/mod.rs` - Added `pending_announcements` and `pending_news` queues, `announcement_urls` for clickable URL tracking
+- `src/state/app_state/defaults.rs` - Initialize announcement and news queues
+- `src/state/app_state/default_impl.rs` - Default initialization for queue fields
 - `src/events/mouse/modals/simple.rs` - URL click handling in announcement modal
 - `src/theme/types.rs` - Changed `announcement_url` to `get_announcement` (boolean)
 - `src/theme/settings/parse_settings.rs` - Parse boolean `get_announcement` setting
