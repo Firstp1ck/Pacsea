@@ -13,12 +13,12 @@ Key features:
 
 ## Type of change
 - [x] feat (new feature)
-- [ ] fix (bug fix)
+- [x] fix (bug fix)
 - [ ] docs (documentation only)
 - [x] refactor (no functional change)
 - [ ] perf (performance)
 - [x] test (add/update tests)
-- [ ] chore (build/infra/CI)
+- [x] chore (build/infra/CI)
 - [x] ui (visual/interaction changes)
 - [ ] breaking change (incompatible behavior)
 
@@ -110,6 +110,9 @@ cargo run
 - `parse_settings` function refactored into category-specific parsers: `parse_layout_settings`, `parse_app_settings`, `parse_scan_settings`, `parse_mirror_settings`, `parse_news_settings`, `parse_search_settings`, `parse_misc_settings`
 - Added comprehensive unit tests (48 total) covering version matching edge cases, expiration logic, URL detection, markdown parsing, line wrapping, and content width calculation
 - Added integration tests (10 total) for announcement queue handling and key event handling with full coverage of user interactions
+- Fix: Global keybinds (reload_config, show_pkgbuild, change_sort) now only trigger when no modal is active, preventing interference with modal key handling (e.g., Ctrl+R in News popup)
+- Fix: Network errors now show Alert modal on Linux systems (platform-specific handling, Windows unchanged)
+- Chore: Removed unused translation key, added TODO for hu-HU locale
 
 ## Breaking changes
 - No breaking changes
