@@ -137,7 +137,11 @@ pub fn spawn_file_worker(
                     );
                 }
                 if let Err(e) = res_tx.send(files) {
-                    tracing::error!("[Background] Failed to send file result: {}", e);
+                    // Channel closed is expected during shutdown, log at debug level
+                    tracing::debug!(
+                        "[Background] Failed to send file result (channel closed): {}",
+                        e
+                    );
                 } else {
                     tracing::debug!("[Background] Successfully sent file result");
                 }
@@ -178,7 +182,11 @@ pub fn spawn_service_worker(
                     services.len()
                 );
                 if let Err(e) = res_tx.send(services) {
-                    tracing::error!("[Background] Failed to send service result: {}", e);
+                    // Channel closed is expected during shutdown, log at debug level
+                    tracing::debug!(
+                        "[Background] Failed to send service result (channel closed): {}",
+                        e
+                    );
                 } else {
                     tracing::debug!("[Background] Successfully sent service result");
                 }
@@ -217,7 +225,11 @@ pub fn spawn_sandbox_worker(
                         .collect::<Vec<_>>()
                 );
                 if let Err(e) = res_tx.send(sandbox_info) {
-                    tracing::error!("[Background] Failed to send sandbox result: {}", e);
+                    // Channel closed is expected during shutdown, log at debug level
+                    tracing::debug!(
+                        "[Background] Failed to send sandbox result (channel closed): {}",
+                        e
+                    );
                 } else {
                     tracing::debug!("[Background] Successfully sent sandbox result");
                 }

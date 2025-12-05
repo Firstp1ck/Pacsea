@@ -110,11 +110,19 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Main event loop
     run_event_loop(&mut terminal, &mut app, &mut channels).await;
 
-    // Cleanup on exit
+    // Cleanup on exit - this resets flags and flushes caches
     cleanup_on_exit(&mut app, &channels);
 
+    // Drop channels to close request channels and stop workers from accepting new work
+    drop(channels);
+
+    // Restore terminal so user sees prompt
     if !headless {
         restore_terminal()?;
     }
-    Ok(())
+
+    // Force immediate process exit to avoid waiting for background blocking tasks
+    // This is necessary because spawn_blocking tasks cannot be cancelled and would
+    // otherwise keep the tokio runtime alive until they complete
+    std::process::exit(0);
 }
