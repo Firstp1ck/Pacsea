@@ -124,6 +124,9 @@ hu-HU:
       installing_preflight_skipped: "Telepítési lista (előzetes ellenőrzés kihagyva)"
       removing_preflight_skipped: "Eltávolítási lista (előzetes ellenőrzés kihagyva)"
       preflight_remove_list: "Előzetes ellenőrzés: Eltávolítási lista"
+      # TODO: translate to hungarian
+      preflight_downgrade_list: "Preflight: Downgrade list"
+      downgrade_started: "Downgrade tool opened in terminal"
       theme_reloaded: "Téma újratöltve"
       config_reloaded: "Konfiguráció újratöltve"
       installing_skipped: "Telepítés (előzetes ellenőrzés kihagyva)"
@@ -361,9 +364,14 @@ hu-HU:
         heading: "Rendszerfrissítés"
         entries:
           update_arch_mirrors: "Arch tükrök frissítése"
-          update_pacman: "Pacman-frissítés (sudo pacman -Syu)"
+          # TODO: translate to hungarian
+          update_pacman: "Update Pacman"
           update_aur: "AUR frissítése (paru/yay)"
           remove_cache: "Gyorsítótár törlése (pacman/yay)"
+        # TODO: translate to hungarian
+        sync_mode:
+          normal: "Normal (-Syu)"
+          force: "Force Sync (-Syyu)"
         country_label: "Ország (Tükrök): "
         count_label: "Darabszám: {}"
         worldwide: "Világszerte"
@@ -485,9 +493,13 @@ hu-HU:
       preflight_exec:
         title_install: " Előzetes ellenőrzés: Telepítés "
         title_remove: " Előzetes ellenőrzés: Eltávolítás "
+        # TODO: translate to hungarian
+        title_downgrade: " Preflight: Downgrade "
       preflight:
         title_install: " Előzetes ellenőrzés: Telepítés "
         title_remove: " Előzetes ellenőrzés: Eltávolítás "
+        # TODO: translate to hungarian
+        title_downgrade: " Preflight: Downgrade "
         tabs:
           summary: "Összegzés"
           deps: "Függőségek"

@@ -386,6 +386,32 @@ fn handle_post_summary_result(app: &mut AppState, data: crate::logic::summary::P
 /// - For successful install operations, tracks installed packages and refreshes installed packages pane
 /// - For successful remove operations, closes modal, clears remove list, and refreshes installed packages pane
 fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOutput) {
+    // Log what we received (at trace level to avoid spam)
+    match &output {
+        crate::install::ExecutorOutput::Line(line) => {
+            tracing::trace!(
+                "[EventLoop] Received executor line: {}...",
+                &line[..line.len().min(50)]
+            );
+        }
+        crate::install::ExecutorOutput::ReplaceLastLine(line) => {
+            tracing::trace!(
+                "[EventLoop] Received executor replace line: {}...",
+                &line[..line.len().min(50)]
+            );
+        }
+        crate::install::ExecutorOutput::Finished { success, exit_code } => {
+            tracing::debug!(
+                "[EventLoop] Received executor Finished: success={}, exit_code={:?}",
+                success,
+                exit_code
+            );
+        }
+        crate::install::ExecutorOutput::Error(err) => {
+            tracing::warn!("[EventLoop] Received executor Error: {}", err);
+        }
+    }
+
     if let crate::state::Modal::PreflightExec {
         ref mut log_lines,
         ref mut abortable,
@@ -402,6 +428,10 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                 if log_lines.len() > 1000 {
                     log_lines.remove(0);
                 }
+                tracing::debug!(
+                    "[EventLoop] PreflightExec log_lines count: {}",
+                    log_lines.len()
+                );
             }
             crate::install::ExecutorOutput::ReplaceLastLine(line) => {
                 // Replace the last line (for progress bar updates via \r)
@@ -454,8 +484,11 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                             app.refresh_installed_until =
                                 Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
 
+                            // Refresh updates count after installation completes
+                            app.refresh_updates = true;
+
                             tracing::info!(
-                                "Install operation completed: triggered refresh of installed packages"
+                                "Install operation completed: triggered refresh of installed packages and updates"
                             );
                         }
                         crate::state::PreflightAction::Remove => {
@@ -472,6 +505,9 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                             // Trigger refresh of installed packages
                             app.refresh_installed_until =
                                 Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+
+                            // Refresh updates count after removal completes
+                            app.refresh_updates = true;
 
                             // Keep PreflightExec modal open so user can see completion message
                             // User can close it with Esc/q, and refresh happens in background
@@ -494,6 +530,9 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                             app.refresh_installed_until =
                                 Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
 
+                            // Refresh updates count after downgrade completes
+                            app.refresh_updates = true;
+
                             // Keep PreflightExec modal open so user can see completion message
                             // User can close it with Esc/q, and refresh happens in background
                             tracing::info!(
@@ -510,6 +549,11 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                 log_lines.push(format!("Error: {err}"));
             }
         }
+    } else {
+        tracing::warn!(
+            "[EventLoop] Received executor output but modal is not PreflightExec, modal={:?}",
+            std::mem::discriminant(&app.modal)
+        );
     }
 }
 

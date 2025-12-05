@@ -8,7 +8,28 @@ use ratatui::{
 
 use crate::i18n;
 use crate::state::AppState;
-use crate::theme::theme;
+use crate::theme::{Theme, theme};
+
+/// What: Get style for a row based on cursor position.
+fn row_style(th: &Theme, cursor: usize, row: usize) -> Style {
+    if cursor == row {
+        Style::default()
+            .fg(th.crust)
+            .bg(th.lavender)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(th.text)
+    }
+}
+
+/// What: Create a checkbox line with label.
+fn checkbox_line(th: &Theme, checked: bool, label: String, style: Style) -> Line<'static> {
+    let mark = if checked { "[x]" } else { "[ ]" };
+    Line::from(vec![
+        Span::styled(format!("{mark} "), Style::default().fg(th.overlay1)),
+        Span::styled(label, style),
+    ])
+}
 
 #[allow(clippy::too_many_arguments)]
 /// What: Render the system update modal with toggles for mirror/pacman/AUR/cache actions.
@@ -16,7 +37,7 @@ use crate::theme::theme;
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `area`: Full screen area used to center the modal
-/// - `do_mirrors`, `do_pacman`, `do_aur`, `do_cache`: Selected operations
+/// - `do_mirrors`, `do_pacman`, `force_sync`, `do_aur`, `do_cache`: Selected operations
 /// - `country_idx`: Selected country index for mirrors
 /// - `countries`: Available country list
 /// - `mirror_count`: Desired number of mirrors
@@ -26,8 +47,8 @@ use crate::theme::theme;
 /// - Draws the update configuration dialog, highlighting the focused row and showing shortcuts.
 ///
 /// Details:
-/// - Formats checkbox rows, displays the effective country list from settings, and surfaces key
-///   hints for toggling, adjusting country, and running the update.
+/// - Formats checkbox rows, displays the effective country list from settings.
+/// - Pacman update shows sync mode on same line, toggled with Left/Right arrows.
 #[allow(clippy::many_single_char_names, clippy::fn_params_excessive_bools)]
 pub fn render_system_update(
     f: &mut Frame,
@@ -35,6 +56,7 @@ pub fn render_system_update(
     area: Rect,
     do_mirrors: bool,
     do_pacman: bool,
+    force_sync: bool,
     do_aur: bool,
     do_cache: bool,
     country_idx: usize,
@@ -47,7 +69,7 @@ pub fn render_system_update(
     let h = 14;
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;
-    let rect = ratatui::prelude::Rect {
+    let rect = Rect {
         x,
         y,
         width: w,
@@ -62,77 +84,74 @@ pub fn render_system_update(
     )));
     lines.push(Line::from(""));
 
-    let mark = |b: bool| if b { "[x]" } else { "[ ]" };
+    // Row 0: Update Arch Mirrors
+    lines.push(checkbox_line(
+        &th,
+        do_mirrors,
+        i18n::t(app, "app.modals.system_update.entries.update_arch_mirrors"),
+        row_style(&th, cursor, 0),
+    ));
 
-    let entries: [(String, bool); 4] = [
-        (
-            i18n::t(app, "app.modals.system_update.entries.update_arch_mirrors"),
-            do_mirrors,
-        ),
-        (
+    // Row 1: Update Pacman with sync mode selector
+    let mode_style = if cursor == 1 {
+        Style::default().fg(th.yellow).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(th.overlay1)
+    };
+    let sync_mode = if force_sync {
+        i18n::t(app, "app.modals.system_update.sync_mode.force")
+    } else {
+        i18n::t(app, "app.modals.system_update.sync_mode.normal")
+    };
+    let mark = if do_pacman { "[x]" } else { "[ ]" };
+    lines.push(Line::from(vec![
+        Span::styled(format!("{mark} "), Style::default().fg(th.overlay1)),
+        Span::styled(
             i18n::t(app, "app.modals.system_update.entries.update_pacman"),
-            do_pacman,
+            row_style(&th, cursor, 1),
         ),
-        (
-            i18n::t(app, "app.modals.system_update.entries.update_aur"),
-            do_aur,
-        ),
-        (
-            i18n::t(app, "app.modals.system_update.entries.remove_cache"),
-            do_cache,
-        ),
-    ];
+        Span::styled("  ◄ ", mode_style),
+        Span::styled(sync_mode, mode_style),
+        Span::styled(" ►", mode_style),
+    ]));
 
-    for (i, (label, on)) in entries.iter().enumerate() {
-        let style = if cursor == i {
-            Style::default()
-                .fg(th.crust)
-                .bg(th.lavender)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(th.text)
-        };
-        lines.push(Line::from(vec![
-            Span::styled(format!("{} ", mark(*on)), Style::default().fg(th.overlay1)),
-            Span::styled((*label).clone(), style),
-        ]));
-    }
+    // Row 2: Update AUR
+    lines.push(checkbox_line(
+        &th,
+        do_aur,
+        i18n::t(app, "app.modals.system_update.entries.update_aur"),
+        row_style(&th, cursor, 2),
+    ));
 
-    // Country selector (mirrors)
+    // Row 3: Remove Cache
+    lines.push(checkbox_line(
+        &th,
+        do_cache,
+        i18n::t(app, "app.modals.system_update.entries.remove_cache"),
+        row_style(&th, cursor, 3),
+    ));
+
+    // Row 4: Country selector (mirrors)
     lines.push(Line::from(""));
     let worldwide_text = i18n::t(app, "app.modals.system_update.worldwide");
-    let country_label = if country_idx < countries.len() {
-        &countries[country_idx]
-    } else {
-        &worldwide_text
-    };
-    // Read configured countries and mirror count from settings for display
+    let country_label = countries.get(country_idx).unwrap_or(&worldwide_text);
     let prefs = crate::theme::settings();
     let conf_countries = if prefs.selected_countries.trim().is_empty() {
         worldwide_text.clone()
     } else {
         prefs.selected_countries
     };
-    // If Worldwide is selected, show the configured countries
     let shown_countries = if country_label == &worldwide_text {
         conf_countries.as_str()
     } else {
         country_label
-    };
-    let style = if cursor == entries.len() {
-        Style::default()
-            .fg(th.crust)
-            .bg(th.lavender)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(th.text)
     };
     lines.push(Line::from(vec![
         Span::styled(
             i18n::t(app, "app.modals.system_update.country_label"),
             Style::default().fg(th.overlay1),
         ),
-        Span::styled(shown_countries.to_string(), style),
+        Span::styled(shown_countries.to_string(), row_style(&th, cursor, 4)),
         Span::raw("  •  "),
         Span::styled(
             i18n::t_fmt1(app, "app.modals.system_update.count_label", mirror_count),
