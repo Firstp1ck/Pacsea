@@ -34,7 +34,6 @@ exported-assets/
 AUR_BUILD/
 
 .vscode/
-.cursor/
 .cache/
 semgrep-bin/
 */logs/*
