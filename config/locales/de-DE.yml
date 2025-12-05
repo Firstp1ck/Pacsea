@@ -121,6 +121,8 @@ de-DE:
       installing_preflight_skipped: "Installiere Liste (Preflight übersprungen)"
       removing_preflight_skipped: "Entferne Liste (Preflight übersprungen)"
       preflight_remove_list: "Preflight: Liste entfernen"
+      preflight_downgrade_list: "Preflight: Downgrade-Liste"
+      downgrade_started: "Downgrade-Tool im Terminal geöffnet"
       theme_reloaded: "Theme neu geladen"
       config_reloaded: "Konfiguration neu geladen"
       installing_skipped: "Installiere (Preflight übersprungen)"
@@ -231,11 +233,11 @@ de-DE:
       loading_comments: "Kommentare werden geladen…"
       no_comments: "Noch keine Kommentare"
       comments_error: "Kommentare konnten nicht abgerufen werden"
-    footer:
-      search_hint: "Suchen (Enter nächster, Esc abbrechen)"
-      confirm_installation: "Paket-Installation bestätigen"
-      confirm_downgrade: "Paket-Downgrade bestätigen"
-      confirm_removal: "Paket-Entfernung bestätigen"
+      footer:
+        search_hint: "Suchen (Enter nächster, Esc abbrechen)"
+        confirm_installation: "Paket-Installation bestätigen"
+        confirm_downgrade: "Paket-Downgrade bestätigen"
+        confirm_removal: "Paket-Entfernung bestätigen"
 
     results:
       title: "Ergebnisse"
@@ -358,9 +360,12 @@ de-DE:
         heading: "System-Update"
         entries:
           update_arch_mirrors: "Arch-Mirrors aktualisieren"
-          update_pacman: "Pacman aktualisieren (sudo pacman -Syu)"
+          update_pacman: "Pacman aktualisieren"
           update_aur: "AUR aktualisieren (paru/yay)"
           remove_cache: "Cache entfernen (pacman/yay)"
+        sync_mode:
+          normal: "Normal (-Syu)"
+          force: "Erzwungen (-Syyu)"
         country_label: "Land (Mirrors): "
         count_label: "Anzahl: {}"
         worldwide: "Weltweit"
@@ -482,7 +487,11 @@ de-DE:
       preflight_exec:
         title_install: " Ausführen: Installieren "
         title_remove: " Ausführen: Entfernen "
+        title_downgrade: " Ausführen: Downgrade "
       preflight:
+        title_install: " Preflight: Installieren "
+        title_remove: " Preflight: Entfernen "
+        title_downgrade: " Preflight: Downgrade "
         tabs:
           summary: "Zusammenfassung"
           deps: "Abhängigkeiten"

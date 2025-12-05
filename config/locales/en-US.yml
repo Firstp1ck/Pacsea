@@ -360,9 +360,12 @@ en-US:
         heading: "System Update"
         entries:
           update_arch_mirrors: "Update Arch Mirrors"
-          update_pacman: "Update Pacman (sudo pacman -Syu)"
+          update_pacman: "Update Pacman"
           update_aur: "Update AUR (paru/yay)"
           remove_cache: "Remove Cache (pacman/yay)"
+        sync_mode:
+          normal: "Normal (-Syu)"
+          force: "Force Sync (-Syyu)"
         country_label: "Country (Mirrors): "
         count_label: "Count: {}"
         worldwide: "Worldwide"

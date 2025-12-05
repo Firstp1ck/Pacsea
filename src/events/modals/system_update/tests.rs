@@ -21,6 +21,7 @@ fn system_update_esc_closes_modal() {
         modal: crate::state::Modal::SystemUpdate {
             do_mirrors: false,
             do_pacman: false,
+            force_sync: false,
             do_aur: false,
             do_cache: false,
             country_idx: 0,
@@ -33,6 +34,7 @@ fn system_update_esc_closes_modal() {
 
     let mut do_mirrors = false;
     let mut do_pacman = false;
+    let mut force_sync = false;
     let mut do_aur = false;
     let mut do_cache = false;
     let mut country_idx = 0;
@@ -46,6 +48,7 @@ fn system_update_esc_closes_modal() {
         &mut app,
         &mut do_mirrors,
         &mut do_pacman,
+        &mut force_sync,
         &mut do_aur,
         &mut do_cache,
         &mut country_idx,
@@ -76,6 +79,7 @@ fn system_update_navigation() {
         modal: crate::state::Modal::SystemUpdate {
             do_mirrors: false,
             do_pacman: false,
+            force_sync: false,
             do_aur: false,
             do_cache: false,
             country_idx: 0,
@@ -88,6 +92,7 @@ fn system_update_navigation() {
 
     let mut do_mirrors = false;
     let mut do_pacman = false;
+    let mut force_sync = false;
     let mut do_aur = false;
     let mut do_cache = false;
     let mut country_idx = 0;
@@ -101,6 +106,7 @@ fn system_update_navigation() {
         &mut app,
         &mut do_mirrors,
         &mut do_pacman,
+        &mut force_sync,
         &mut do_aur,
         &mut do_cache,
         &mut country_idx,
@@ -128,6 +134,7 @@ fn system_update_toggle() {
         modal: crate::state::Modal::SystemUpdate {
             do_mirrors: false,
             do_pacman: false,
+            force_sync: false,
             do_aur: false,
             do_cache: false,
             country_idx: 0,
@@ -140,6 +147,7 @@ fn system_update_toggle() {
 
     let mut do_mirrors = false;
     let mut do_pacman = false;
+    let mut force_sync = false;
     let mut do_aur = false;
     let mut do_cache = false;
     let mut country_idx = 0;
@@ -153,6 +161,7 @@ fn system_update_toggle() {
         &mut app,
         &mut do_mirrors,
         &mut do_pacman,
+        &mut force_sync,
         &mut do_aur,
         &mut do_cache,
         &mut country_idx,
@@ -165,22 +174,23 @@ fn system_update_toggle() {
 }
 
 #[test]
-/// What: Verify `SystemUpdate` modal handles Enter to execute.
+/// What: Verify `SystemUpdate` modal handles Enter to show password prompt.
 ///
 /// Inputs:
 /// - `SystemUpdate` modal with options selected, Enter key event.
 ///
 /// Output:
-/// - Commands are executed (spawns terminal - will fail in test environment).
+/// - Transitions to `PasswordPrompt` modal with pending update commands.
 ///
 /// Details:
-/// - Tests that Enter triggers system update execution.
-/// - Note: This will spawn a terminal, so it's expected to fail in test environment.
+/// - Tests that Enter triggers password prompt before system update execution.
+/// - Verifies that `pending_update_commands` is set with the update commands.
 fn system_update_enter_executes() {
     let mut app = AppState {
         modal: crate::state::Modal::SystemUpdate {
             do_mirrors: false,
             do_pacman: true,
+            force_sync: false,
             do_aur: false,
             do_cache: false,
             country_idx: 0,
@@ -193,6 +203,7 @@ fn system_update_enter_executes() {
 
     let mut do_mirrors = false;
     let mut do_pacman = true;
+    let mut force_sync = false;
     let mut do_aur = false;
     let mut do_cache = false;
     let mut country_idx = 0;
@@ -206,6 +217,7 @@ fn system_update_enter_executes() {
         &mut app,
         &mut do_mirrors,
         &mut do_pacman,
+        &mut force_sync,
         &mut do_aur,
         &mut do_cache,
         &mut country_idx,
@@ -214,16 +226,197 @@ fn system_update_enter_executes() {
         &mut cursor,
     );
 
-    // Should return Some(true) when Enter executes commands
+    // Should return Some(true) when Enter triggers password prompt
     assert_eq!(result, Some(true));
-    // Modal should transition to PreflightExec after execution
-    match app.modal {
-        crate::state::Modal::PreflightExec { .. } => {}
-        _ => panic!("Expected modal to transition to PreflightExec after execution"),
+    // Modal should transition to PasswordPrompt
+    match &app.modal {
+        crate::state::Modal::PasswordPrompt { purpose, .. } => {
+            assert!(
+                matches!(purpose, crate::state::modal::PasswordPurpose::Update),
+                "Password purpose should be Update"
+            );
+        }
+        _ => panic!("Expected modal to transition to PasswordPrompt"),
     }
-    // Verify that pending_executor_request is set
+    // Verify that pending_update_commands is set
     assert!(
-        app.pending_executor_request.is_some(),
-        "System update should set pending_executor_request"
+        app.pending_update_commands.is_some(),
+        "System update should set pending_update_commands"
     );
+    // Verify the commands include pacman update with normal sync (-Syu)
+    let commands = app
+        .pending_update_commands
+        .as_ref()
+        .expect("pending_update_commands should be set");
+    assert!(
+        commands.iter().any(|c| c.contains("pacman -Syu")),
+        "Commands should include pacman -Syu for normal sync"
+    );
+}
+
+#[test]
+/// What: Verify force sync option uses `-Syyu` instead of `-Syu`.
+///
+/// Inputs:
+/// - `SystemUpdate` modal with `force_sync` enabled, Enter key event.
+///
+/// Output:
+/// - Commands use `-Syyu` flag.
+///
+/// Details:
+/// - Tests that enabling force sync uses the force database refresh flag.
+fn system_update_force_sync_uses_syyu() {
+    let mut app = AppState {
+        modal: crate::state::Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: true,
+            force_sync: true,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
+    };
+
+    let mut do_mirrors = false;
+    let mut do_pacman = true;
+    let mut force_sync = true;
+    let mut do_aur = false;
+    let mut do_cache = false;
+    let mut country_idx = 0;
+    let countries = vec!["Worldwide".to_string()];
+    let mut mirror_count = 10;
+    let mut cursor = 0;
+
+    let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    let _ = handle_system_update(
+        ke,
+        &mut app,
+        &mut do_mirrors,
+        &mut do_pacman,
+        &mut force_sync,
+        &mut do_aur,
+        &mut do_cache,
+        &mut country_idx,
+        &countries,
+        &mut mirror_count,
+        &mut cursor,
+    );
+
+    // Verify the commands use -Syyu (force sync)
+    let commands = app
+        .pending_update_commands
+        .as_ref()
+        .expect("pending_update_commands should be set");
+    assert!(
+        commands.iter().any(|c| c.contains("-Syyu")),
+        "Commands should include -Syyu for force sync"
+    );
+    assert!(
+        !commands
+            .iter()
+            .any(|c| c.contains("-Syu --noconfirm") && !c.contains("-Syyu")),
+        "Commands should not include plain -Syu when force sync is enabled"
+    );
+}
+
+#[test]
+/// What: Verify left/right/tab keys toggle `force_sync` on pacman row.
+///
+/// Inputs:
+/// - `SystemUpdate` modal on cursor row 1 (pacman), Left/Right/Tab key event.
+///
+/// Output:
+/// - `force_sync` is toggled.
+///
+/// Details:
+/// - Tests that Left/Right/Tab on pacman row toggles sync mode.
+fn system_update_left_right_toggles_force_sync() {
+    let mut app = AppState {
+        modal: crate::state::Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: true,
+            force_sync: false,
+            do_aur: false,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 1, // Pacman row
+        },
+        ..Default::default()
+    };
+
+    let mut do_mirrors = false;
+    let mut do_pacman = true;
+    let mut force_sync = false;
+    let mut do_aur = false;
+    let mut do_cache = false;
+    let mut country_idx = 0;
+    let countries = vec!["Worldwide".to_string()];
+    let mut mirror_count = 10;
+    let mut cursor = 1; // Pacman row
+
+    // Press Right to toggle force_sync to true
+    let ke = KeyEvent::new(KeyCode::Right, KeyModifiers::empty());
+    let _ = handle_system_update(
+        ke,
+        &mut app,
+        &mut do_mirrors,
+        &mut do_pacman,
+        &mut force_sync,
+        &mut do_aur,
+        &mut do_cache,
+        &mut country_idx,
+        &countries,
+        &mut mirror_count,
+        &mut cursor,
+    );
+
+    assert!(
+        force_sync,
+        "force_sync should be toggled to true with Right"
+    );
+
+    // Press Left to toggle force_sync back to false
+    let ke = KeyEvent::new(KeyCode::Left, KeyModifiers::empty());
+    let _ = handle_system_update(
+        ke,
+        &mut app,
+        &mut do_mirrors,
+        &mut do_pacman,
+        &mut force_sync,
+        &mut do_aur,
+        &mut do_cache,
+        &mut country_idx,
+        &countries,
+        &mut mirror_count,
+        &mut cursor,
+    );
+
+    assert!(
+        !force_sync,
+        "force_sync should be toggled back to false with Left"
+    );
+
+    // Press Tab to toggle force_sync to true
+    let ke = KeyEvent::new(KeyCode::Tab, KeyModifiers::empty());
+    let _ = handle_system_update(
+        ke,
+        &mut app,
+        &mut do_mirrors,
+        &mut do_pacman,
+        &mut force_sync,
+        &mut do_aur,
+        &mut do_cache,
+        &mut country_idx,
+        &countries,
+        &mut mirror_count,
+        &mut cursor,
+    );
+
+    assert!(force_sync, "force_sync should be toggled to true with Tab");
 }

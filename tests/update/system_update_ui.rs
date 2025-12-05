@@ -26,6 +26,7 @@ fn ui_system_update_modal_structure() {
         modal: Modal::SystemUpdate {
             do_mirrors: true,
             do_pacman: true,
+            force_sync: false,
             do_aur: false,
             do_cache: true,
             country_idx: 1,
@@ -40,6 +41,7 @@ fn ui_system_update_modal_structure() {
         Modal::SystemUpdate {
             do_mirrors,
             do_pacman,
+            force_sync,
             do_aur,
             do_cache,
             country_idx,
@@ -49,6 +51,7 @@ fn ui_system_update_modal_structure() {
         } => {
             assert!(do_mirrors);
             assert!(do_pacman);
+            assert!(!force_sync);
             assert!(!do_aur);
             assert!(do_cache);
             assert_eq!(country_idx, 1);

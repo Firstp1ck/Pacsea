@@ -520,6 +520,8 @@ pub enum Modal {
         do_mirrors: bool,
         /// Whether to update system packages via pacman.
         do_pacman: bool,
+        /// Whether to force sync databases (pacman -Syyu instead of -Syu).
+        force_sync: bool,
         /// Whether to update AUR packages via paru/yay.
         do_aur: bool,
         /// Whether to remove caches (pacman and AUR helper).
@@ -530,7 +532,7 @@ pub enum Modal {
         countries: Vec<String>,
         /// Requested mirror count to fetch/rank.
         mirror_count: u16,
-        /// Cursor row in the dialog (0..=4)
+        /// Cursor row in the dialog (0..=5)
         cursor: usize,
     },
     /// Arch Linux News: list of recent items with selection.
@@ -642,6 +644,7 @@ mod tests {
         let _ = super::Modal::SystemUpdate {
             do_mirrors: true,
             do_pacman: true,
+            force_sync: false,
             do_aur: true,
             do_cache: false,
             country_idx: 0,

@@ -135,6 +135,7 @@ fn handle_options_system_update(app: &mut AppState) {
     app.modal = crate::state::Modal::SystemUpdate {
         do_mirrors: false,
         do_pacman: true,
+        force_sync: false,
         do_aur: true,
         do_cache: false,
         country_idx: initial_country_idx,
