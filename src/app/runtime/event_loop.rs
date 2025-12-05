@@ -474,11 +474,17 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                     // Handle successful operations: refresh installed packages and update UI
                     match action {
                         crate::state::PreflightAction::Install => {
-                            let installed_names: Vec<String> =
-                                items.iter().map(|p| p.name.clone()).collect();
+                            // Only track pending install names if items is non-empty.
+                            // System updates use empty items, and setting pending_install_names
+                            // to empty would cause install_list to be cleared in tick handler
+                            // due to vacuously true check (all elements of empty set satisfy any predicate).
+                            if !items.is_empty() {
+                                let installed_names: Vec<String> =
+                                    items.iter().map(|p| p.name.clone()).collect();
 
-                            // Set pending install names to track installation completion
-                            app.pending_install_names = Some(installed_names);
+                                // Set pending install names to track installation completion
+                                app.pending_install_names = Some(installed_names);
+                            }
 
                             // Trigger refresh of installed packages
                             app.refresh_installed_until =

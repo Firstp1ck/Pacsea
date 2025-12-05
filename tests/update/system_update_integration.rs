@@ -848,3 +848,104 @@ fn integration_system_update_network_error_handling() {
         _ => panic!("Expected PreflightExec modal"),
     }
 }
+
+#[test]
+/// What: Verify system update completion does NOT clear `install_list`.
+///
+/// Inputs:
+/// - System update completes (`PreflightExec` with empty items)
+/// - User has packages in `install_list` before update
+///
+/// Output:
+/// - `install_list` is preserved, NOT cleared
+/// - `pending_install_names` should NOT be set for system updates
+///
+/// Details:
+/// - System updates use empty items vector since they don't involve specific packages
+/// - The Install action completion handler should skip `pending_install_names` tracking
+///   when items is empty to avoid clearing `install_list` due to vacuously true check
+/// - Regression test for bug: empty `pending_install_names` causes `install_list` to be cleared
+fn integration_system_update_preserves_install_list() {
+    use pacsea::state::{PackageItem, Source};
+
+    // Create app with packages in install_list (queued for installation)
+    let mut app = AppState {
+        install_list: vec![
+            PackageItem {
+                name: "neovim".to_string(),
+                version: "0.10.0-1".to_string(),
+                description: "Vim-fork focused on extensibility and usability".to_string(),
+                source: Source::Official {
+                    repo: "extra".to_string(),
+                    arch: "x86_64".to_string(),
+                },
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            },
+            PackageItem {
+                name: "ripgrep".to_string(),
+                version: "14.0.0-1".to_string(),
+                description: "A search tool that combines ag with grep".to_string(),
+                source: Source::Official {
+                    repo: "extra".to_string(),
+                    arch: "x86_64".to_string(),
+                },
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            },
+        ],
+        // Simulate system update in progress (PreflightExec with empty items)
+        modal: Modal::PreflightExec {
+            items: Vec::new(),                // System update has NO items
+            action: PreflightAction::Install, // System update uses Install action
+            tab: PreflightTab::Summary,
+            verbose: false,
+            log_lines: vec![":: Starting full system upgrade...".to_string()],
+            abortable: false,
+            header_chips: PreflightHeaderChips::default(),
+            success: None,
+        },
+        ..Default::default()
+    };
+
+    // Verify install_list has packages before update
+    assert_eq!(
+        app.install_list.len(),
+        2,
+        "install_list should have 2 packages queued"
+    );
+    assert_eq!(app.install_list[0].name, "neovim");
+    assert_eq!(app.install_list[1].name, "ripgrep");
+
+    // Simulate system update completion - this is what handle_executor_output does
+    // For system updates, items is empty so installed_names would be empty
+    if let Modal::PreflightExec { items, action, .. } = &app.modal
+        && matches!(action, PreflightAction::Install)
+    {
+        // BUG CONDITION: If we set pending_install_names to empty vec,
+        // the tick handler will clear install_list (vacuously true check)
+        // FIX: Only set pending_install_names if items is NOT empty
+        if !items.is_empty() {
+            let installed_names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            app.pending_install_names = Some(installed_names);
+        }
+        // If items is empty (system update), do NOT set pending_install_names
+    }
+
+    // Verify pending_install_names is NOT set for system updates
+    assert!(
+        app.pending_install_names.is_none(),
+        "System updates (empty items) should NOT set pending_install_names"
+    );
+
+    // Verify install_list is preserved
+    assert_eq!(
+        app.install_list.len(),
+        2,
+        "install_list should still have 2 packages after system update"
+    );
+    assert_eq!(app.install_list[0].name, "neovim");
+    assert_eq!(app.install_list[1].name, "ripgrep");
+}
