@@ -444,7 +444,6 @@ en-US:
         none: "No news items available."
         footer_hint: "Up/Down: select  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc: close"
       announcement:
-        title: "Announcement"
         footer_hint: "r: Mark as read | Enter/Esc: Dismiss (show again)"
       updates_window:
         title: " Available Updates "
