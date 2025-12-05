@@ -21,7 +21,7 @@ tracing-appender = "0.2.4"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt", "time"] }
 unicode-width = "0.2.0"
 which = "8.0.0"
-reqwest = { version = "0.12", features = [] }
+reqwest = { version = "0.12", features = ["json"] }
 futures = "0.3"
 syntect = "5.0"
 fuzzy-matcher = "0.3"

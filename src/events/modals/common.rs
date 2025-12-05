@@ -4,6 +4,96 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::{AppState, PackageItem, Source};
 
+/// What: Show next pending announcement from queue if available.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Checks if there are pending announcements in the queue
+/// - Shows the first valid announcement if modal is currently None
+fn show_next_pending_announcement(app: &mut AppState) {
+    const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    // Only show if no modal is currently displayed
+    if !matches!(app.modal, crate::state::Modal::None) {
+        tracing::debug!("skipping pending announcement check (modal still open)");
+        return;
+    }
+
+    tracing::debug!(
+        queue_size = app.pending_announcements.len(),
+        "checking for pending announcements"
+    );
+
+    // Find next valid announcement in queue
+    while let Some(announcement) = app.pending_announcements.first() {
+        // Check version range
+        if !crate::announcements::version_matches(
+            CURRENT_VERSION,
+            announcement.min_version.as_deref(),
+            announcement.max_version.as_deref(),
+        ) {
+            tracing::debug!(
+                id = %announcement.id,
+                "pending announcement version range mismatch, removing from queue"
+            );
+            app.pending_announcements.remove(0);
+            continue;
+        }
+
+        // Check expiration
+        if crate::announcements::is_expired(announcement.expires.as_deref()) {
+            tracing::debug!(
+                id = %announcement.id,
+                "pending announcement expired, removing from queue"
+            );
+            app.pending_announcements.remove(0);
+            continue;
+        }
+
+        // Check if already read
+        if app.announcements_read_ids.contains(&announcement.id) {
+            tracing::debug!(
+                id = %announcement.id,
+                "pending announcement already read, removing from queue"
+            );
+            app.pending_announcements.remove(0);
+            continue;
+        }
+
+        // Show this announcement
+        let announcement = app.pending_announcements.remove(0);
+        let announcement_id = announcement.id.clone();
+        app.modal = crate::state::Modal::Announcement {
+            title: announcement.title,
+            content: announcement.content,
+            id: announcement_id.clone(),
+            scroll: 0,
+        };
+        tracing::info!(id = %announcement_id, "showing pending announcement");
+        return;
+    }
+
+    tracing::debug!(
+        queue_empty = app.pending_announcements.is_empty(),
+        "no more pending announcements"
+    );
+
+    // After all announcements are shown, check for pending news
+    if let Some(news_items) = app.pending_news.take()
+        && !news_items.is_empty()
+    {
+        app.modal = crate::state::Modal::News {
+            items: news_items,
+            selected: 0,
+        };
+        tracing::info!("showing pending news after announcements");
+    }
+}
+
 /// What: Handle key events for Alert modal.
 ///
 /// Inputs:
@@ -268,6 +358,73 @@ pub(super) fn handle_news(
     false
 }
 
+/// What: Handle key events for Announcement modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `id`: Unique identifier for this announcement (version string or remote ID)
+/// - `scroll`: Mutable scroll offset
+///
+/// Output:
+/// - `true` if Esc was pressed (to stop propagation), otherwise `false`
+///
+/// Details:
+/// - "r" key: Mark as read (store ID, set dirty flag, close modal - won't show again)
+/// - Enter/Esc/q: Dismiss temporarily (close modal without marking read - will show again)
+/// - Arrow keys: Scroll content
+pub(super) fn handle_announcement(
+    ke: crossterm::event::KeyEvent,
+    app: &mut AppState,
+    id: &str,
+    scroll: &mut u16,
+) -> bool {
+    match ke.code {
+        crossterm::event::KeyCode::Char('r') => {
+            // Mark as read - won't show again
+            app.announcements_read_ids.insert(id.to_string());
+            app.announcement_dirty = true;
+            tracing::debug!(id = %id, "marked announcement as read, closing modal");
+            app.modal = crate::state::Modal::None;
+            // Show next pending announcement if any
+            show_next_pending_announcement(app);
+            return true; // Stop propagation
+        }
+        crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Esc => {
+            // Dismiss temporarily - will show again on next startup
+            tracing::debug!(id = %id, "dismissed announcement temporarily, closing modal");
+            app.modal = crate::state::Modal::None;
+            // Show next pending announcement if any
+            show_next_pending_announcement(app);
+            return true; // Stop propagation for both Enter and Esc
+        }
+        crossterm::event::KeyCode::Char('q') => {
+            // Dismiss temporarily
+            tracing::debug!(id = %id, "dismissed announcement temporarily, closing modal");
+            app.modal = crate::state::Modal::None;
+            // Show next pending announcement if any
+            show_next_pending_announcement(app);
+            return true; // Stop propagation
+        }
+        crossterm::event::KeyCode::Up | crossterm::event::KeyCode::Char('k') => {
+            if *scroll > 0 {
+                *scroll -= 1;
+            }
+        }
+        crossterm::event::KeyCode::Down | crossterm::event::KeyCode::Char('j') => {
+            *scroll = scroll.saturating_add(1);
+        }
+        crossterm::event::KeyCode::PageUp => {
+            *scroll = scroll.saturating_sub(10);
+        }
+        crossterm::event::KeyCode::PageDown => {
+            *scroll = scroll.saturating_add(10);
+        }
+        _ => {}
+    }
+    false
+}
+
 /// What: Handle key events for Updates modal.
 ///
 /// Inputs:
@@ -452,4 +609,451 @@ pub(super) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> 
         _ => {}
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::announcements::RemoteAnnouncement;
+    use crate::state::types::NewsItem;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    /// What: Create a test `KeyEvent` for testing.
+    ///
+    /// Inputs:
+    /// - `code`: `KeyCode` to create event for.
+    ///
+    /// Output:
+    /// - `KeyEvent` with the specified code and no modifiers.
+    ///
+    /// Details:
+    /// - Helper function to create test key events.
+    fn test_key_event(code: KeyCode) -> KeyEvent {
+        KeyEvent {
+            code,
+            modifiers: KeyModifiers::empty(),
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        }
+    }
+
+    #[test]
+    /// What: Verify `show_next_pending_announcement` shows next valid announcement.
+    ///
+    /// Inputs:
+    /// - `AppState` with pending announcements in queue.
+    ///
+    /// Output:
+    /// - Shows the first valid announcement and sets modal.
+    ///
+    /// Details:
+    /// - Should show the first announcement when modal is None.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_show_next_pending_announcement_shows_valid() {
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::None;
+
+        let announcement = RemoteAnnouncement {
+            id: "test-1".to_string(),
+            title: "Test Title".to_string(),
+            content: "Test content".to_string(),
+            min_version: None,
+            max_version: None,
+            expires: None,
+        };
+        app.pending_announcements.push(announcement);
+
+        show_next_pending_announcement(&mut app);
+
+        match &app.modal {
+            crate::state::Modal::Announcement { id, title, .. } => {
+                assert_eq!(id, "test-1");
+                assert_eq!(title, "Test Title");
+            }
+            _ => panic!("Expected Announcement modal"),
+        }
+        assert!(app.pending_announcements.is_empty());
+    }
+
+    #[test]
+    /// What: Verify `show_next_pending_announcement` skips expired announcements.
+    ///
+    /// Inputs:
+    /// - `AppState` with expired announcement in queue.
+    ///
+    /// Output:
+    /// - Skips expired announcement and removes it from queue.
+    ///
+    /// Details:
+    /// - Expired announcements should be removed without showing.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_show_next_pending_announcement_skips_expired() {
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::None;
+
+        let expired = RemoteAnnouncement {
+            id: "expired-1".to_string(),
+            title: "Expired".to_string(),
+            content: "Content".to_string(),
+            min_version: None,
+            max_version: None,
+            expires: Some("2020-01-01".to_string()), // Past date
+        };
+        app.pending_announcements.push(expired);
+
+        let valid = RemoteAnnouncement {
+            id: "valid-1".to_string(),
+            title: "Valid".to_string(),
+            content: "Content".to_string(),
+            min_version: None,
+            max_version: None,
+            expires: None,
+        };
+        app.pending_announcements.push(valid);
+
+        show_next_pending_announcement(&mut app);
+
+        // Should skip expired and show valid
+        match &app.modal {
+            crate::state::Modal::Announcement { id, .. } => {
+                assert_eq!(id, "valid-1");
+            }
+            _ => panic!("Expected Announcement modal"),
+        }
+        assert!(app.pending_announcements.is_empty());
+    }
+
+    #[test]
+    /// What: Verify `show_next_pending_announcement` skips already-read announcements.
+    ///
+    /// Inputs:
+    /// - `AppState` with already-read announcement in queue.
+    ///
+    /// Output:
+    /// - Skips read announcement and removes it from queue.
+    ///
+    /// Details:
+    /// - Already-read announcements should be removed without showing.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_show_next_pending_announcement_skips_read() {
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::None;
+
+        let read = RemoteAnnouncement {
+            id: "read-1".to_string(),
+            title: "Read".to_string(),
+            content: "Content".to_string(),
+            min_version: None,
+            max_version: None,
+            expires: None,
+        };
+        app.announcements_read_ids.insert("read-1".to_string());
+        app.pending_announcements.push(read);
+
+        let unread = RemoteAnnouncement {
+            id: "unread-1".to_string(),
+            title: "Unread".to_string(),
+            content: "Content".to_string(),
+            min_version: None,
+            max_version: None,
+            expires: None,
+        };
+        app.pending_announcements.push(unread);
+
+        show_next_pending_announcement(&mut app);
+
+        // Should skip read and show unread
+        match &app.modal {
+            crate::state::Modal::Announcement { id, .. } => {
+                assert_eq!(id, "unread-1");
+            }
+            _ => panic!("Expected Announcement modal"),
+        }
+        assert!(app.pending_announcements.is_empty());
+    }
+
+    #[test]
+    /// What: Verify `show_next_pending_announcement` skips version-mismatched announcements.
+    ///
+    /// Inputs:
+    /// - `AppState` with version-mismatched announcement in queue.
+    ///
+    /// Output:
+    /// - Skips mismatched announcement and removes it from queue.
+    ///
+    /// Details:
+    /// - Announcements outside version range should be removed without showing.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_show_next_pending_announcement_skips_version_mismatch() {
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::None;
+
+        // Assuming current version is something like "0.6.0", this should be out of range
+        let mismatched = RemoteAnnouncement {
+            id: "mismatch-1".to_string(),
+            title: "Mismatch".to_string(),
+            content: "Content".to_string(),
+            min_version: Some("999.0.0".to_string()), // Future version
+            max_version: None,
+            expires: None,
+        };
+        app.pending_announcements.push(mismatched);
+
+        let valid = RemoteAnnouncement {
+            id: "valid-1".to_string(),
+            title: "Valid".to_string(),
+            content: "Content".to_string(),
+            min_version: None,
+            max_version: None,
+            expires: None,
+        };
+        app.pending_announcements.push(valid);
+
+        show_next_pending_announcement(&mut app);
+
+        // Should skip mismatched and show valid
+        match &app.modal {
+            crate::state::Modal::Announcement { id, .. } => {
+                assert_eq!(id, "valid-1");
+            }
+            _ => panic!("Expected Announcement modal"),
+        }
+        assert!(app.pending_announcements.is_empty());
+    }
+
+    #[test]
+    /// What: Verify `show_next_pending_announcement` shows pending news after all announcements.
+    ///
+    /// Inputs:
+    /// - `AppState` with no pending announcements but pending news.
+    ///
+    /// Output:
+    /// - Shows News modal after announcements are exhausted.
+    ///
+    /// Details:
+    /// - After all announcements are shown, pending news should be displayed.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_show_next_pending_announcement_shows_news_after() {
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::None;
+
+        let news_items = vec![NewsItem {
+            date: "2025-01-01".to_string(),
+            title: "Test News".to_string(),
+            url: "https://example.com/news".to_string(),
+        }];
+        app.pending_news = Some(news_items);
+
+        show_next_pending_announcement(&mut app);
+
+        // Should show news modal
+        match &app.modal {
+            crate::state::Modal::News { items, .. } => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].title, "Test News");
+            }
+            _ => panic!("Expected News modal"),
+        }
+        assert!(app.pending_news.is_none());
+    }
+
+    #[test]
+    /// What: Verify `handle_announcement` 'r' key marks as read and closes.
+    ///
+    /// Inputs:
+    /// - `KeyEvent` with 'r' key.
+    /// - `AppState` with announcement modal open.
+    ///
+    /// Output:
+    /// - Marks announcement as read, closes modal, shows next pending.
+    ///
+    /// Details:
+    /// - `r` key should mark announcement as read permanently.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_handle_announcement_mark_read() {
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::Announcement {
+            title: "Test".to_string(),
+            content: "Content".to_string(),
+            id: "test-1".to_string(),
+            scroll: 0,
+        };
+
+        let mut scroll = 0u16;
+        let ke = test_key_event(KeyCode::Char('r'));
+        let result = handle_announcement(ke, &mut app, "test-1", &mut scroll);
+
+        assert!(result); // Should stop propagation
+        assert!(app.announcements_read_ids.contains("test-1"));
+        assert!(app.announcement_dirty);
+        assert!(matches!(app.modal, crate::state::Modal::None));
+    }
+
+    #[test]
+    /// What: Verify `handle_announcement` Enter/Esc/q dismisses temporarily.
+    ///
+    /// Inputs:
+    /// - `KeyEvent` with Enter, Esc, or 'q' key.
+    /// - `AppState` with announcement modal open.
+    ///
+    /// Output:
+    /// - Closes modal without marking as read, shows next pending.
+    ///
+    /// Details:
+    /// - `Enter`, `Esc`, and `q` should dismiss temporarily (will show again on next startup).
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_handle_announcement_dismiss_temporary() {
+        for key_code in [KeyCode::Enter, KeyCode::Esc, KeyCode::Char('q')] {
+            let mut app = crate::state::AppState::default();
+            app.modal = crate::state::Modal::Announcement {
+                title: "Test".to_string(),
+                content: "Content".to_string(),
+                id: "test-1".to_string(),
+                scroll: 0,
+            };
+
+            let mut scroll = 0u16;
+            let ke = test_key_event(key_code);
+            let result = handle_announcement(ke, &mut app, "test-1", &mut scroll);
+
+            assert!(result); // Should stop propagation
+            assert!(!app.announcements_read_ids.contains("test-1")); // Not marked as read
+            assert!(matches!(app.modal, crate::state::Modal::None));
+        }
+    }
+
+    #[test]
+    /// What: Verify `handle_announcement` Up/Down/j/k scrolls content.
+    ///
+    /// Inputs:
+    /// - `KeyEvent` with Up, Down, 'j', or 'k' key.
+    /// - `AppState` with announcement modal open and scroll position.
+    ///
+    /// Output:
+    /// - Scroll position is updated correctly.
+    ///
+    /// Details:
+    /// - `Up`/`k` should decrease scroll, `Down`/`j` should increase scroll.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_handle_announcement_scroll() {
+        // Test Up/k decreases scroll
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::Announcement {
+            title: "Test".to_string(),
+            content: "Content".to_string(),
+            id: "test-1".to_string(),
+            scroll: 5,
+        };
+
+        let mut scroll = 5u16;
+        let ke_up = test_key_event(KeyCode::Up);
+        handle_announcement(ke_up, &mut app, "test-1", &mut scroll);
+        assert_eq!(scroll, 4);
+
+        let ke_k = test_key_event(KeyCode::Char('k'));
+        handle_announcement(ke_k, &mut app, "test-1", &mut scroll);
+        assert_eq!(scroll, 3);
+
+        // Test scroll doesn't go below 0
+        scroll = 0;
+        let ke_up_zero = test_key_event(KeyCode::Up);
+        handle_announcement(ke_up_zero, &mut app, "test-1", &mut scroll);
+        assert_eq!(scroll, 0);
+
+        // Test Down/j increases scroll
+        scroll = 0;
+        let ke_down = test_key_event(KeyCode::Down);
+        handle_announcement(ke_down, &mut app, "test-1", &mut scroll);
+        assert_eq!(scroll, 1);
+
+        let ke_j = test_key_event(KeyCode::Char('j'));
+        handle_announcement(ke_j, &mut app, "test-1", &mut scroll);
+        assert_eq!(scroll, 2);
+    }
+
+    #[test]
+    /// What: Verify `handle_announcement` PageUp/PageDown scrolls by 10.
+    ///
+    /// Inputs:
+    /// - `KeyEvent` with `PageUp` or `PageDown` key.
+    /// - `AppState` with announcement modal open and scroll position.
+    ///
+    /// Output:
+    /// - Scroll position is updated by 10 lines.
+    ///
+    /// Details:
+    /// - `PageUp` should decrease scroll by 10, `PageDown` should increase by 10.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_handle_announcement_page_scroll() {
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::Announcement {
+            title: "Test".to_string(),
+            content: "Content".to_string(),
+            id: "test-1".to_string(),
+            scroll: 20,
+        };
+
+        let mut scroll = 20u16;
+
+        // Test PageUp decreases by 10
+        let ke_page_up = test_key_event(KeyCode::PageUp);
+        handle_announcement(ke_page_up, &mut app, "test-1", &mut scroll);
+        assert_eq!(scroll, 10);
+
+        // Test PageDown increases by 10
+        let ke_page_down = test_key_event(KeyCode::PageDown);
+        handle_announcement(ke_page_down, &mut app, "test-1", &mut scroll);
+        assert_eq!(scroll, 20);
+
+        // Test PageUp doesn't go below 0 (saturating_sub)
+        scroll = 5;
+        let ke_page_up_saturate = test_key_event(KeyCode::PageUp);
+        handle_announcement(ke_page_up_saturate, &mut app, "test-1", &mut scroll);
+        assert_eq!(scroll, 0); // Should saturate at 0
+    }
+
+    #[test]
+    /// What: Verify `handle_announcement` shows next pending after marking as read.
+    ///
+    /// Inputs:
+    /// - `KeyEvent` with 'r' key.
+    /// - `AppState` with announcement modal and pending announcements.
+    ///
+    /// Output:
+    /// - Shows next pending announcement after marking current as read.
+    ///
+    /// Details:
+    /// - After marking as read, should automatically show next pending announcement.
+    #[allow(clippy::field_reassign_with_default)]
+    fn test_handle_announcement_shows_next_after_read() {
+        let mut app = crate::state::AppState::default();
+        app.modal = crate::state::Modal::Announcement {
+            title: "Test 1".to_string(),
+            content: "Content".to_string(),
+            id: "test-1".to_string(),
+            scroll: 0,
+        };
+
+        let next = RemoteAnnouncement {
+            id: "test-2".to_string(),
+            title: "Test 2".to_string(),
+            content: "Content".to_string(),
+            min_version: None,
+            max_version: None,
+            expires: None,
+        };
+        app.pending_announcements.push(next);
+
+        let mut scroll = 0u16;
+        let ke = test_key_event(KeyCode::Char('r'));
+        handle_announcement(ke, &mut app, "test-1", &mut scroll);
+
+        // Should show next announcement
+        match &app.modal {
+            crate::state::Modal::Announcement { id, .. } => {
+                assert_eq!(id, "test-2");
+            }
+            _ => panic!("Expected Announcement modal with next announcement"),
+        }
+    }
 }

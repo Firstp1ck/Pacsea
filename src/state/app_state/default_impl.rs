@@ -30,6 +30,7 @@ impl Default for AppState {
             deps_cache_path,
             files_cache_path,
             services_cache_path,
+            announcement_read_path,
         ) = defaults::default_paths();
         let (
             results_filter_show_aur,
@@ -89,6 +90,9 @@ impl Default for AppState {
 
         let (news_read_urls, news_read_path, news_read_dirty) =
             defaults::default_news_state(news_read_path);
+
+        let (announcements_read_ids, announcement_read_path, announcement_dirty) =
+            defaults::default_announcement_state(announcement_read_path);
 
         let (
             install_list,
@@ -188,6 +192,10 @@ impl Default for AppState {
         let (
             news_rect,
             news_list_rect,
+            announcement_rect,
+            announcement_urls,
+            pending_announcements,
+            pending_news,
             updates_modal_rect,
             updates_modal_content_rect,
             help_scroll,
@@ -295,6 +303,9 @@ impl Default for AppState {
             news_read_urls,
             news_read_path,
             news_read_dirty,
+            announcements_read_ids,
+            announcement_read_path,
+            announcement_dirty,
             install_list,
             install_state,
             remove_list,
@@ -376,6 +387,10 @@ impl Default for AppState {
             mouse_capture_enabled,
             news_rect,
             news_list_rect,
+            announcement_rect,
+            announcement_urls,
+            pending_announcements,
+            pending_news,
             updates_modal_rect,
             updates_modal_content_rect,
             help_scroll,

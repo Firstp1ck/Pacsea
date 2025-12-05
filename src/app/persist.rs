@@ -57,6 +57,26 @@ pub fn maybe_flush_news_read(app: &mut AppState) {
     }
 }
 
+/// What: Persist the announcement read IDs to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `announcements_read_ids` and `announcement_read_path`
+///
+/// Output:
+/// - Writes `announcements_read_ids` JSON to `announcement_read_path` and clears the dirty flag on success.
+///
+/// Details:
+/// - Saves set of read announcement IDs as JSON array.
+pub fn maybe_flush_announcement_read(app: &mut AppState) {
+    if !app.announcement_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.announcements_read_ids) {
+        let _ = fs::write(&app.announcement_read_path, s);
+        app.announcement_dirty = false;
+    }
+}
+
 /// What: Persist the dependency cache to disk if marked dirty.
 ///
 /// Inputs:

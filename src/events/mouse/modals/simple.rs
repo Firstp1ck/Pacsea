@@ -131,6 +131,53 @@ pub(super) fn handle_virustotal_modal(
 /// - Handles item selection and URL opening.
 /// - Handles scroll navigation.
 /// - Closes modal on outside click.
+pub(super) fn handle_announcement_modal(
+    m: MouseEvent,
+    mx: u16,
+    my: u16,
+    is_left_down: bool,
+    app: &mut AppState,
+) -> Option<bool> {
+    if let crate::state::Modal::Announcement { scroll, .. } = &mut app.modal {
+        // Left click: check for URL click first, then close on outside
+        if is_left_down {
+            // Check if click matches any URL position
+            for (url_x, url_y, url_width, url) in &app.announcement_urls {
+                if mx >= *url_x && mx < url_x.saturating_add(*url_width) && my == *url_y {
+                    crate::util::open_url(url);
+                    return Some(false);
+                }
+            }
+
+            // Click outside closes the modal (dismiss temporarily)
+            if let Some((x, y, w, h)) = app.announcement_rect
+                && (mx < x || mx >= x + w || my < y || my >= y + h)
+            {
+                // Click outside closes the modal (dismiss temporarily)
+                app.modal = crate::state::Modal::None;
+            }
+            return Some(false);
+        }
+        // Scroll within modal: scroll content
+        match m.kind {
+            MouseEventKind::ScrollUp => {
+                if *scroll > 0 {
+                    *scroll -= 1;
+                }
+                return Some(false);
+            }
+            MouseEventKind::ScrollDown => {
+                *scroll = scroll.saturating_add(1);
+                return Some(false);
+            }
+            _ => {}
+        }
+        // If modal is open and event wasn't handled above, consume it
+        return Some(false);
+    }
+    None
+}
+
 pub(super) fn handle_news_modal(
     m: MouseEvent,
     mx: u16,

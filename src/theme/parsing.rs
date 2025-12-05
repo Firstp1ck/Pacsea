@@ -329,8 +329,20 @@ pub(super) fn levenshtein(a: &str, b: &str) -> usize {
 /// Details:
 /// - Strips trailing `//` sections and secondary `#` characters without harming leading `#RRGGBB` values.
 pub(super) fn strip_inline_comment(mut s: &str) -> &str {
-    // Strip // comments first
-    if let Some(i) = s.find("//") {
+    // Strip // comments first, but preserve // in URLs (http://, https://)
+    // Find all occurrences of // and check each one
+    let mut comment_start = None;
+    for (i, _) in s.match_indices("//") {
+        // Check if this // is part of a URL scheme (preceded by :)
+        if i > 0 && s.as_bytes().get(i - 1) == Some(&b':') {
+            // This is part of a URL scheme (http:// or https://), skip it
+            continue;
+        }
+        // This // is likely a comment delimiter
+        comment_start = Some(i);
+        break;
+    }
+    if let Some(i) = comment_start {
         s = &s[..i];
     }
     // Strip # comments, but preserve leading # for hex colors
@@ -408,5 +420,19 @@ mod tests {
         assert_eq!(strip_inline_comment("#foo"), "#foo");
         assert_eq!(strip_inline_comment("abc // hi"), "abc");
         assert_eq!(strip_inline_comment("#ff00ff # tail"), "#ff00ff");
+        // URLs with // should be preserved
+        assert_eq!(
+            strip_inline_comment("https://example.com/path"),
+            "https://example.com/path"
+        );
+        assert_eq!(
+            strip_inline_comment("https://gist.github.com/user/id/raw/file.json"),
+            "https://gist.github.com/user/id/raw/file.json"
+        );
+        // URL followed by comment should preserve URL
+        assert_eq!(
+            strip_inline_comment("https://example.com // comment"),
+            "https://example.com"
+        );
     }
 }

@@ -8,9 +8,9 @@ use crate::logic::send_query;
 use crate::state::{AppState, ArchStatusColor, Modal, NewsItem, PackageItem, QueryInput};
 
 use super::super::persist::{
-    maybe_flush_cache, maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install,
-    maybe_flush_news_read, maybe_flush_recent, maybe_flush_sandbox_cache,
-    maybe_flush_services_cache,
+    maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
+    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read, maybe_flush_recent,
+    maybe_flush_sandbox_cache, maybe_flush_services_cache,
 };
 use super::super::recent::maybe_save_recent;
 
@@ -528,6 +528,7 @@ pub fn handle_tick(
     maybe_flush_cache(app);
     maybe_flush_recent(app);
     maybe_flush_news_read(app);
+    maybe_flush_announcement_read(app);
     maybe_flush_install(app);
     maybe_flush_deps_cache(app);
     maybe_flush_files_cache(app);
@@ -671,11 +672,19 @@ pub fn handle_news(app: &mut AppState, todays: &[NewsItem]) {
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
         app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
     } else {
-        // Show unread news items; default to first selected
-        app.modal = Modal::News {
-            items: todays.to_vec(),
-            selected: 0,
-        };
+        // Queue news to show after all announcements are dismissed
+        // Only show immediately if no modal is currently displayed
+        if matches!(app.modal, Modal::None) {
+            app.modal = Modal::News {
+                items: todays.to_vec(),
+                selected: 0,
+            };
+            tracing::info!("showing news modal immediately (no other modals)");
+        } else {
+            // Queue news to show after announcements
+            app.pending_news = Some(todays.to_vec());
+            tracing::debug!("queued news (modal already open, will show after announcements)");
+        }
     }
 }
 

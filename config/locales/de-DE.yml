@@ -441,6 +441,8 @@ de-DE:
         heading: "Arch Linux Neuigkeiten"
         none: "Keine Neuigkeiten verfügbar."
         footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc: schließen"
+      announcement:
+        footer_hint: "r: Als gelesen markieren | Enter/Esc: Schließen (erneut anzeigen)"
       updates_window:
         title: " Verfügbare Updates "
         heading: "Verfügbare Paket-Updates"

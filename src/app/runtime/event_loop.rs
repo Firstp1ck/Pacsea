@@ -1,7 +1,7 @@
 use ratatui::Terminal;
 use tokio::select;
 
-use crate::state::{AppState, Modal, PackageItem};
+use crate::state::{AppState, PackageItem};
 use crate::ui::ui;
 use crate::util::parse_update_entry;
 
@@ -103,6 +103,121 @@ fn handle_file_result_with_logging(
     handle_file_result(app, files, &channels.tick_tx);
 }
 
+/// What: Handle remote announcement received from async fetch.
+///
+/// Inputs:
+/// - `app`: Application state to update
+/// - `announcement`: Remote announcement fetched from configured URL
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+fn handle_remote_announcement(
+    app: &mut AppState,
+    announcement: crate::announcements::RemoteAnnouncement,
+) {
+    const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    // Check version range
+    if !crate::announcements::version_matches(
+        CURRENT_VERSION,
+        announcement.min_version.as_deref(),
+        announcement.max_version.as_deref(),
+    ) {
+        tracing::debug!(
+            id = %announcement.id,
+            current_version = CURRENT_VERSION,
+            min_version = ?announcement.min_version,
+            max_version = ?announcement.max_version,
+            "announcement version range mismatch"
+        );
+        return;
+    }
+
+    // Check expiration
+    if crate::announcements::is_expired(announcement.expires.as_deref()) {
+        tracing::debug!(
+            id = %announcement.id,
+            expires = ?announcement.expires,
+            "announcement expired"
+        );
+        return;
+    }
+
+    // Check if already read
+    if app.announcements_read_ids.contains(&announcement.id) {
+        tracing::info!(
+            id = %announcement.id,
+            "remote announcement already marked as read"
+        );
+        return;
+    }
+
+    // Only show if no modal is currently displayed
+    if matches!(app.modal, crate::state::Modal::None) {
+        app.modal = crate::state::Modal::Announcement {
+            title: announcement.title,
+            content: announcement.content,
+            id: announcement.id,
+            scroll: 0,
+        };
+        tracing::info!("showing remote announcement modal");
+    } else {
+        // Queue announcement to show after current modal closes
+        let announcement_id = announcement.id.clone();
+        app.pending_announcements.push(announcement);
+        tracing::info!(
+            id = %announcement_id,
+            queue_size = app.pending_announcements.len(),
+            "queued remote announcement (modal already open)"
+        );
+    }
+}
+
+/// What: Handle index notification message.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `channels`: Communication channels
+///
+/// Output: `false` (continue event loop)
+///
+/// Details:
+/// - Marks index loading as complete and triggers a tick
+fn handle_index_notification(app: &mut AppState, channels: &Channels) -> bool {
+    app.loading_index = false;
+    let _ = channels.tick_tx.send(());
+    false
+}
+
+/// What: Handle updates list received from background worker.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `count`: Number of available updates
+/// - `list`: List of update package names
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Updates app state with update count and list
+/// - If pending updates modal is set, opens the updates modal
+fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
+    app.updates_count = Some(count);
+    app.updates_list = list;
+    app.updates_loading = false;
+    if app.pending_updates_modal {
+        app.pending_updates_modal = false;
+        let updates_file = crate::theme::lists_dir().join("available_updates.txt");
+        let entries = parse_updates_file(&updates_file);
+        app.modal = crate::state::Modal::Updates {
+            entries,
+            scroll: 0,
+            selected: 0,
+        };
+    }
+}
+
 /// What: Process one iteration of channel message handling.
 ///
 /// Inputs:
@@ -130,9 +245,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             )
         }
         Some(()) = channels.index_notify_rx.recv() => {
-            app.loading_index = false;
-            let _ = channels.tick_tx.send(());
-            false
+            handle_index_notification(app, channels)
         }
         Some(new_results) = channels.results_rx.recv() => {
             handle_search_results(
@@ -184,7 +297,15 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(msg) = channels.net_err_rx.recv() => {
-            app.modal = Modal::Alert { message: msg };
+            tracing::warn!(error = %msg, "Network error received");
+            #[cfg(not(windows))]
+            {
+                // On Linux, show error to user via Alert modal
+                app.modal = crate::state::Modal::Alert {
+                    message: msg,
+                };
+            }
+            // On Windows, only log (no popup)
             false
         }
         Some(()) = channels.tick_rx.recv() => {
@@ -208,24 +329,16 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             handle_news(app, &todays);
             false
         }
+        Some(announcement) = channels.announcement_rx.recv() => {
+            handle_remote_announcement(app, announcement);
+            false
+        }
         Some((txt, color)) = channels.status_rx.recv() => {
             handle_status(app, &txt, color);
             false
         }
         Some((count, list)) = channels.updates_rx.recv() => {
-            app.updates_count = Some(count);
-            app.updates_list = list;
-            app.updates_loading = false;
-            if app.pending_updates_modal {
-                app.pending_updates_modal = false;
-                let updates_file = crate::theme::lists_dir().join("available_updates.txt");
-                let entries = parse_updates_file(&updates_file);
-                app.modal = crate::state::Modal::Updates {
-                    entries,
-                    scroll: 0,
-                    selected: 0,
-                };
-            }
+            handle_updates_list(app, count, list);
             false
         }
         Some(executor_output) = channels.executor_res_rx.recv() => {

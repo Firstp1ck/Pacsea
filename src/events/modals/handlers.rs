@@ -405,6 +405,53 @@ pub(super) fn handle_news_modal(ke: KeyEvent, app: &mut AppState, mut modal: Mod
     false
 }
 
+/// What: Handle key events for Announcement modal, including restoration logic.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: Announcement modal variant
+///
+/// Output:
+/// - `true` if Esc was pressed (to stop propagation), otherwise `false`
+///
+/// Details:
+/// - Delegates to common handler and restores modal if needed
+pub(super) fn handle_announcement_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    mut modal: Modal,
+) -> bool {
+    if let Modal::Announcement {
+        ref title,
+        ref content,
+        ref id,
+        ref mut scroll,
+    } = modal
+    {
+        let old_id = id.clone();
+        let result = super::common::handle_announcement(ke, app, id, scroll);
+        // Only restore if modal wasn't closed AND it's still the same announcement
+        // (don't restore if a new pending announcement was shown)
+        match &app.modal {
+            Modal::Announcement { id: new_id, .. } if *new_id == old_id => {
+                // Same announcement, restore scroll state
+                app.modal = Modal::Announcement {
+                    title: title.clone(),
+                    content: content.clone(),
+                    id: old_id,
+                    scroll: *scroll,
+                };
+            }
+            _ => {
+                // Modal was closed or different modal (e.g., pending announcement was shown), don't restore
+            }
+        }
+        return result;
+    }
+    false
+}
+
 /// What: Handle key events for Updates modal, including restoration logic.
 ///
 /// Inputs:

@@ -681,18 +681,23 @@ fn handle_global_keybinds(
         return Some(handle_help_overlay(app));
     }
 
-    // Configuration reload
-    if matches_keybind(ke, &km.reload_config) {
+    // Configuration reload (only if no modal is active - modals should handle their own keys)
+    if matches!(app.modal, crate::state::Modal::None) && matches_keybind(ke, &km.reload_config) {
         return Some(handle_reload_config(app, query_tx));
     }
 
-    // PKGBUILD toggle
-    if matches_keybind(ke, &km.show_pkgbuild) {
+    // Exit (always works, even in modals)
+    if matches_keybind(ke, &km.exit) {
+        return Some(handle_exit());
+    }
+
+    // PKGBUILD toggle (only if no modal is active - modals should handle their own keys)
+    if matches!(app.modal, crate::state::Modal::None) && matches_keybind(ke, &km.show_pkgbuild) {
         return Some(handle_toggle_pkgbuild(app, pkgb_tx));
     }
 
-    // Sort change
-    if matches_keybind(ke, &km.change_sort) {
+    // Sort change (only if no modal is active - modals should handle their own keys)
+    if matches!(app.modal, crate::state::Modal::None) && matches_keybind(ke, &km.change_sort) {
         return Some(handle_change_sort(app, details_tx));
     }
 

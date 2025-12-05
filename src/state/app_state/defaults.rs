@@ -25,6 +25,7 @@ pub(super) fn default_paths() -> (
     std::path::PathBuf,
     std::path::PathBuf,
     std::path::PathBuf,
+    std::path::PathBuf,
 ) {
     let lists_dir = crate::theme::lists_dir();
     (
@@ -36,6 +37,7 @@ pub(super) fn default_paths() -> (
         lists_dir.join("install_deps_cache.json"),
         lists_dir.join("file_cache.json"),
         lists_dir.join("services_cache.json"),
+        lists_dir.join("announcement_read.json"),
     )
 }
 
@@ -163,6 +165,10 @@ pub(super) type DefaultMouseHitTestState = (
 pub(super) type DefaultModalRectsState = (
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
+    Vec<(u16, u16, u16, String)>,
+    Vec<crate::announcements::RemoteAnnouncement>,
+    Option<Vec<crate::state::NewsItem>>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     u16,
@@ -299,6 +305,26 @@ pub(super) fn default_news_state(
     news_read_path: PathBuf,
 ) -> (std::collections::HashSet<String>, PathBuf, bool) {
     (std::collections::HashSet::new(), news_read_path, false)
+}
+
+/// What: Create default announcement state.
+///
+/// Inputs:
+/// - `announcement_read_path`: Path where the read announcement IDs are persisted.
+///
+/// Output:
+/// - Tuple of announcement fields: `announcements_read_ids`, `announcement_read_path`, `announcement_dirty`.
+///
+/// Details:
+/// - Initializes empty set of read announcement IDs.
+pub(super) fn default_announcement_state(
+    announcement_read_path: PathBuf,
+) -> (std::collections::HashSet<String>, PathBuf, bool) {
+    (
+        std::collections::HashSet::new(),
+        announcement_read_path,
+        false,
+    )
 }
 
 /// What: Create default install lists state.
@@ -510,12 +536,25 @@ pub(super) const fn default_mouse_hit_test_state() -> DefaultMouseHitTestState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
+/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `pending_announcements`, `pending_news`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
 ///
 /// Details:
-/// - All modal rectangles start as None, help scroll starts at 0.
+/// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls` and `pending_announcements` start as empty Vec, `pending_news` starts as None.
 pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
-    (None, None, None, None, 0, None, [None; 5], None)
+    (
+        None,
+        None,
+        None,
+        Vec::new(),
+        Vec::new(),
+        None,
+        None,
+        None,
+        0,
+        None,
+        [None; 5],
+        None,
+    )
 }
 
 /// What: Create default sorting and menus state.

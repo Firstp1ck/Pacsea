@@ -333,6 +333,102 @@ fn load_news_read_urls(app: &mut AppState) {
     }
 }
 
+/// What: Load announcement read IDs from disk.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Attempts to deserialize announcement read IDs set from JSON file
+/// - Handles both old format (single hash) and new format (set of IDs) for migration
+fn load_announcement_state(app: &mut AppState) {
+    // Try old format for migration ({ "hash": "..." })
+    #[derive(serde::Deserialize)]
+    struct OldAnnouncementReadState {
+        hash: Option<String>,
+    }
+    if let Ok(s) = std::fs::read_to_string(&app.announcement_read_path) {
+        // Try new format first (HashSet<String>)
+        if let Ok(ids) = serde_json::from_str::<std::collections::HashSet<String>>(&s) {
+            app.announcements_read_ids = ids;
+            tracing::info!(
+                path = %app.announcement_read_path.display(),
+                count = app.announcements_read_ids.len(),
+                "loaded announcement read IDs"
+            );
+            return;
+        }
+        if let Ok(old_state) = serde_json::from_str::<OldAnnouncementReadState>(&s)
+            && let Some(hash) = old_state.hash
+        {
+            app.announcements_read_ids.insert(format!("hash:{hash}"));
+            app.announcement_dirty = true; // Mark dirty to migrate to new format
+            tracing::info!(
+                path = %app.announcement_read_path.display(),
+                "migrated old announcement read state"
+            );
+        }
+    }
+}
+
+/// What: Check for version-embedded announcement and show modal if not read.
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Checks embedded announcements for current app version
+/// - If version announcement exists and hasn't been marked as read, shows modal
+fn check_version_announcement(app: &mut AppState) {
+    const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    // Extract base version (X.X.X) from current version, ignoring suffixes
+    let current_base_version = crate::announcements::extract_base_version(CURRENT_VERSION);
+
+    // Find announcement matching the base version (compares only X.X.X part)
+    if let Some(announcement) = crate::announcements::VERSION_ANNOUNCEMENTS
+        .iter()
+        .find(|a| {
+            let announcement_base_version = crate::announcements::extract_base_version(a.version);
+            announcement_base_version == current_base_version
+        })
+    {
+        // Use full current version (including suffix) for the ID
+        // This ensures announcements show again when suffix changes (e.g., 0.6.0-pr#85 -> 0.6.0-pr#86)
+        let version_id = format!("v{CURRENT_VERSION}");
+
+        // Check if this version announcement has been marked as read
+        if app.announcements_read_ids.contains(&version_id) {
+            tracing::info!(
+                current_version = CURRENT_VERSION,
+                base_version = %current_base_version,
+                "version announcement already marked as read"
+            );
+            return;
+        }
+
+        // Show version announcement modal
+        app.modal = crate::state::Modal::Announcement {
+            title: announcement.title.to_string(),
+            content: announcement.content.to_string(),
+            id: version_id,
+            scroll: 0,
+        };
+        tracing::info!(
+            current_version = CURRENT_VERSION,
+            base_version = %current_base_version,
+            announcement_version = announcement.version,
+            "showing version announcement modal"
+        );
+    }
+    // Note: Remote announcements will be queued if they arrive while embedded is showing
+    // and will be shown when embedded is dismissed via show_next_pending_announcement()
+}
+
 pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bool) -> InitFlags {
     app.dry_run = if dry_run_flag {
         true
@@ -348,6 +444,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
         details_cache = %app.cache_path.display(),
         index = %app.official_index_path.display(),
         news_read = %app.news_read_path.display(),
+        announcement_read = %app.announcement_read_path.display(),
         "resolved state file paths"
     );
 
@@ -446,8 +543,12 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     }
 
     load_news_read_urls(app);
+    load_announcement_state(app);
 
     pkgindex::load_from_disk(&app.official_index_path);
+
+    // Check for version-embedded announcement after loading state
+    check_version_announcement(app);
     tracing::info!(
         path = %app.official_index_path.display(),
         "attempted to load official index from disk"
