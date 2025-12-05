@@ -41,13 +41,26 @@ jobs:
       - name: Build Release
         run: cargo build --release
       
-      - name: Get tag name
+      - name: Get tag name and check prerelease
         id: tag
         run: |
           if [ -n "${{ github.event.release.tag_name }}" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            TAG="${{ github.event.release.tag_name }}"
           else
-            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          
+          # Extract version number (remove 'v' prefix if present)
+          VERSION="${TAG#v}"
+          # Extract major version (first number before the dot)
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          
+          # Prerelease if major version < 1
+          if [ "$MAJOR" -lt 1 ] 2>/dev/null; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
           fi
       
       - name: Create or Update Release and Upload Asset
@@ -57,7 +70,7 @@ jobs:
           name: Release ${{ steps.tag.outputs.tag }}
           files: target/release/pacsea
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.tag.outputs.prerelease == 'true' }}
           generate_release_notes: false
           fail_on_unmatched_files: false
           token: ${{ secrets.GITHUB_TOKEN }}
