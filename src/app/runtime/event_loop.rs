@@ -174,6 +174,50 @@ fn handle_remote_announcement(
     }
 }
 
+/// What: Handle index notification message.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `channels`: Communication channels
+///
+/// Output: `false` (continue event loop)
+///
+/// Details:
+/// - Marks index loading as complete and triggers a tick
+fn handle_index_notification(app: &mut AppState, channels: &Channels) -> bool {
+    app.loading_index = false;
+    let _ = channels.tick_tx.send(());
+    false
+}
+
+/// What: Handle updates list received from background worker.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `count`: Number of available updates
+/// - `list`: List of update package names
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Updates app state with update count and list
+/// - If pending updates modal is set, opens the updates modal
+fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
+    app.updates_count = Some(count);
+    app.updates_list = list;
+    app.updates_loading = false;
+    if app.pending_updates_modal {
+        app.pending_updates_modal = false;
+        let updates_file = crate::theme::lists_dir().join("available_updates.txt");
+        let entries = parse_updates_file(&updates_file);
+        app.modal = crate::state::Modal::Updates {
+            entries,
+            scroll: 0,
+            selected: 0,
+        };
+    }
+}
+
 /// What: Process one iteration of channel message handling.
 ///
 /// Inputs:
@@ -201,9 +245,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             )
         }
         Some(()) = channels.index_notify_rx.recv() => {
-            app.loading_index = false;
-            let _ = channels.tick_tx.send(());
-            false
+            handle_index_notification(app, channels)
         }
         Some(new_results) = channels.results_rx.recv() => {
             handle_search_results(
@@ -288,19 +330,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some((count, list)) = channels.updates_rx.recv() => {
-            app.updates_count = Some(count);
-            app.updates_list = list;
-            app.updates_loading = false;
-            if app.pending_updates_modal {
-                app.pending_updates_modal = false;
-                let updates_file = crate::theme::lists_dir().join("available_updates.txt");
-                let entries = parse_updates_file(&updates_file);
-                app.modal = crate::state::Modal::Updates {
-                    entries,
-                    scroll: 0,
-                    selected: 0,
-                };
-            }
+            handle_updates_list(app, count, list);
             false
         }
         Some(executor_output) = channels.executor_res_rx.recv() => {
