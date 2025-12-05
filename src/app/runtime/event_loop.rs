@@ -298,6 +298,14 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
         }
         Some(msg) = channels.net_err_rx.recv() => {
             tracing::warn!(error = %msg, "Network error received");
+            #[cfg(not(windows))]
+            {
+                // On Linux, show error to user via Alert modal
+                app.modal = crate::state::Modal::Alert {
+                    message: msg.clone(),
+                };
+            }
+            // On Windows, only log (no popup)
             false
         }
         Some(()) = channels.tick_rx.recv() => {
