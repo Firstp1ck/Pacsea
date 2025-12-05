@@ -9,7 +9,7 @@ Please ensure you've reviewed these before submitting your PR.
 -->
 
 ## Summary
-Briefly describe the problem and how your change solves it.
+Briefly describe the problem and how your change solves it. (show as list if possible)
 
 ## Type of change
 - [ ] feat (new feature)
