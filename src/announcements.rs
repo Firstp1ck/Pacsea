@@ -40,9 +40,9 @@ pub struct VersionAnnouncement {
 pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
     // Add version-specific announcements here
     VersionAnnouncement {
-        version: "0.6.0",
-        title: "Announcement Features",
-        content: "Pacsea now includes a announcement system to keep you informed about important updates, new features, and important information!\n\n**Key Features:**\n\n- **Version Announcements**: When you first launch a new version, you'll see a welcome message highlighting what's new\n- **Remote Announcements**: Important updates and notices can be delivered automatically from the announcement service\n- **Smart Display**: Announcements are shown at startup, and you can mark them as read so they won't appear again\n- **Clickable Links**: URLs in announcements are clickable and will open in your default browser\n",
+        version: "0.6.1",
+        title: "Announcement Modal",
+        content: "## What's New\n\n- Announcement modal system - view important updates and version notes\n- Fixed global keybinds interfering with modals - keyboard shortcuts now work correctly\n\n## Chore\n\n- Updated PKGBUILD SHASUM\n",
     },
 ];
 
