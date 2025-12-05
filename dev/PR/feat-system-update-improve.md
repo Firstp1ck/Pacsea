@@ -13,6 +13,7 @@ Please ensure you've reviewed these before submitting your PR.
 - Toggle with Left/Right/Tab keys on the pacman row
 - Auto-refresh updates count after install/remove/downgrade operations
 - Add missing locale keys for de-DE and hu-HU
+- Fix bug: system update completion no longer clears queued `install_list` packages
 
 ## Type of change
 - [x] feat (new feature)
@@ -40,6 +41,13 @@ Please ensure you've reviewed these before submitting your PR.
 1. Launch Pacsea with updates available
 2. Perform a system update via the System Update modal
 3. After completion, verify the updates count in the UI refreshes to show the new count
+
+### Test Install List Preservation (Bug Fix):
+1. Launch Pacsea
+2. Add some packages to the install list (search and press 'i')
+3. Open System Update modal and run a system update
+4. After completion, verify the install list still contains the queued packages
+5. Run regression test: `cargo test integration_system_update_preserves_install_list -- --test-threads=1`
 
 ### Run Tests:
 ```bash
@@ -98,9 +106,13 @@ None. The `force_sync` option defaults to `false`, maintaining backward-compatib
 1. **New Feature**: Force Sync option in System Update modal
 2. **Bug Fix**: Auto-refresh updates count after operations complete
 3. **Bug Fix**: Missing locale keys added to de-DE.yml and hu-HU.yml
-4. **Refactor**: Extracted UI helper functions to reduce complexity
-5. **Chore**: Added debug logging to executor worker for troubleshooting
-6. **Chore**: Removed obsolete `tests.rs.bak` file
+4. **Bug Fix**: System update completion no longer clears queued `install_list` packages
+   - Root cause: System updates used empty `items` vector, which set `pending_install_names` to empty
+   - Tick handler's vacuously true check (`all elements of empty set satisfy predicate`) cleared the list
+   - Fix: Only set `pending_install_names` if `items` is non-empty
+5. **Refactor**: Extracted UI helper functions to reduce complexity
+6. **Chore**: Added debug logging to executor worker for troubleshooting
+7. **Chore**: Removed obsolete `tests.rs.bak` file
 
 ### New Locale Keys:
 - `app.modals.system_update.sync_mode.normal`
