@@ -47,7 +47,7 @@ pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
     VersionAnnouncement {
         version: "0.6.2",
         title: "Version 0.6.2",
-        content: "## What's New\n\n- \n- \n- \n\n",
+        content: "## What's New\n\n### ⚡ Force Sync Option\n- Toggle between Normal (-Syu) and Force Sync (-Syyu) in System Update\n- Use ←/→ or Tab keys to switch sync mode\n\n### 🐛 Bug Fixes\n- Install list preserved: System update no longer clears queued packages\n- Faster exit: App closes immediately when exiting during preflight\n- Auto-refresh: Updates count refreshes after install/remove/downgrade\n\n### 🌍 Translations\n- Updated Hungarian translations\n",
     },
 ];
 
