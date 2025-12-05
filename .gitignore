@@ -50,3 +50,4 @@ ControlFlow_Diagram.md
 clippy_errors.txt
 
 *.pyc
+__pycache__/
