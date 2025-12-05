@@ -1,7 +1,7 @@
 use ratatui::Terminal;
 use tokio::select;
 
-use crate::state::{AppState, Modal, PackageItem};
+use crate::state::{AppState, PackageItem};
 use crate::ui::ui;
 use crate::util::parse_update_entry;
 
@@ -255,7 +255,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         Some(msg) = channels.net_err_rx.recv() => {
-            app.modal = Modal::Alert { message: msg };
+            tracing::warn!(error = %msg, "Network error received");
             false
         }
         Some(()) = channels.tick_rx.recv() => {
