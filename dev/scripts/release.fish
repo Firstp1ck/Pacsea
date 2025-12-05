@@ -127,6 +127,18 @@ function get_current_version
     grep -m1 '^version = ' "$PACSEA_DIR/Cargo.toml" | sed 's/version = "\(.*\)"/\1/'
 end
 
+function is_prerelease_version
+    # Returns 0 (true) if version is < 1.0.0 (prerelease)
+    # Returns 1 (false) if version is >= 1.0.0 (stable)
+    set -l ver_str $argv[1]
+    set -l major (string split '.' $ver_str)[1]
+    if test "$major" -lt 1 2>/dev/null
+        return 0
+    else
+        return 1
+    end
+end
+
 # ============================================================================
 # Phase 1: Version Update
 # ============================================================================
@@ -516,15 +528,34 @@ function phase4_build_release
     
     set -l release_file "$PACSEA_DIR/Documents/RELEASE_v$new_ver.md"
     
+    # Determine if this is a prerelease (version < 1.0.0)
+    set -l prerelease_flag ""
+    if is_prerelease_version "$new_ver"
+        set prerelease_flag "--prerelease"
+        log_info "Version < 1.0.0: Creating as prerelease"
+    else
+        log_info "Version >= 1.0.0: Creating as stable release"
+    end
+    
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would create GitHub release $tag with notes from $release_file"
         log_info "[DRY-RUN] Binary will be uploaded by GitHub Action"
+        if test -n "$prerelease_flag"
+            log_info "[DRY-RUN] Release would be marked as prerelease"
+        end
     else
         if test -f "$release_file"
             # Create release with notes (binary uploaded by GitHub Action)
-            gh release create "$tag" \
-                --title "v$new_ver" \
-                --notes-file "$release_file"
+            if test -n "$prerelease_flag"
+                gh release create "$tag" \
+                    --title "v$new_ver" \
+                    --prerelease \
+                    --notes-file "$release_file"
+            else
+                gh release create "$tag" \
+                    --title "v$new_ver" \
+                    --notes-file "$release_file"
+            end
             
             if test $status -eq 0
                 log_success "GitHub release created (binary will be uploaded by GitHub Action)"
@@ -534,9 +565,16 @@ function phase4_build_release
             end
         else
             log_warn "Release notes file not found, creating release without notes..."
-            gh release create "$tag" \
-                --title "v$new_ver" \
-                --generate-notes
+            if test -n "$prerelease_flag"
+                gh release create "$tag" \
+                    --title "v$new_ver" \
+                    --prerelease \
+                    --generate-notes
+            else
+                gh release create "$tag" \
+                    --title "v$new_ver" \
+                    --generate-notes
+            end
         end
     end
     
