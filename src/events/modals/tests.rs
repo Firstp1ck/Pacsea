@@ -85,6 +85,7 @@ fn system_update_esc_closes_modal() {
     app.modal = crate::state::Modal::SystemUpdate {
         do_mirrors: false,
         do_pacman: false,
+        force_sync: false,
         do_aur: false,
         do_cache: false,
         country_idx: 0,
@@ -363,6 +364,7 @@ fn system_update_navigation_preserves_modal() {
     app.modal = crate::state::Modal::SystemUpdate {
         do_mirrors: false,
         do_pacman: false,
+        force_sync: false,
         do_aur: false,
         do_cache: false,
         country_idx: 0,
@@ -450,6 +452,7 @@ fn system_update_unhandled_key_preserves_modal() {
     app.modal = crate::state::Modal::SystemUpdate {
         do_mirrors: false,
         do_pacman: false,
+        force_sync: false,
         do_aur: false,
         do_cache: false,
         country_idx: 0,
@@ -489,6 +492,7 @@ fn system_update_toggle_works() {
     app.modal = crate::state::Modal::SystemUpdate {
         do_mirrors: false,
         do_pacman: false,
+        force_sync: false,
         do_aur: false,
         do_cache: false,
         country_idx: 0,
@@ -1194,6 +1198,7 @@ fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
             crate::state::Modal::SystemUpdate {
                 do_mirrors: false,
                 do_pacman: false,
+                force_sync: false,
                 do_aur: false,
                 do_cache: false,
                 country_idx: 0,

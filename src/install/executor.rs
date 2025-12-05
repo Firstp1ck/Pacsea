@@ -415,7 +415,22 @@ pub fn build_update_command_for_executor(
             .collect()
     };
 
-    processed_commands.join(" && ")
+    let joined = processed_commands.join(" && ");
+
+    // If password is provided and any command contains "sudo", cache credentials first
+    // This handles cases where sudo is called inside shell scripts (like mirror update)
+    // that don't start with "sudo " but contain sudo calls internally
+    if let Some(pass) = password {
+        let has_sudo_anywhere = commands.iter().any(|c| c.contains("sudo"));
+        if has_sudo_anywhere {
+            let escaped = shell_single_quote(pass);
+            // Cache sudo credentials first using sudo -v, then run the commands
+            // Using `;` ensures commands run even if credential caching has issues
+            return format!("printf '%s\\n' {escaped} | sudo -S -v 2>/dev/null ; {joined}");
+        }
+    }
+
+    joined
 }
 
 /// What: Build scan command string for `PTY` execution (excluding aur-sleuth).

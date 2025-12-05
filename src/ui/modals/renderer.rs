@@ -76,6 +76,7 @@ struct PreflightExecContext {
 struct SystemUpdateContext {
     do_mirrors: bool,
     do_pacman: bool,
+    force_sync: bool,
     do_aur: bool,
     do_cache: bool,
     country_idx: usize,
@@ -348,6 +349,7 @@ impl ModalRenderer for Modal {
             Self::SystemUpdate {
                 do_mirrors,
                 do_pacman,
+                force_sync,
                 do_aur,
                 do_cache,
                 country_idx,
@@ -358,6 +360,7 @@ impl ModalRenderer for Modal {
                 let ctx = SystemUpdateContext {
                     do_mirrors,
                     do_pacman,
+                    force_sync,
                     do_aur,
                     do_cache,
                     country_idx,
@@ -646,6 +649,7 @@ fn render_system_update_modal(
         area,
         ctx.do_mirrors,
         ctx.do_pacman,
+        ctx.force_sync,
         ctx.do_aur,
         ctx.do_cache,
         ctx.country_idx,
@@ -656,6 +660,7 @@ fn render_system_update_modal(
     Modal::SystemUpdate {
         do_mirrors: ctx.do_mirrors,
         do_pacman: ctx.do_pacman,
+        force_sync: ctx.force_sync,
         do_aur: ctx.do_aur,
         do_cache: ctx.do_cache,
         country_idx: ctx.country_idx,

@@ -146,6 +146,7 @@ pub(super) fn handle_system_update_modal(
     if let Modal::SystemUpdate {
         ref mut do_mirrors,
         ref mut do_pacman,
+        ref mut force_sync,
         ref mut do_aur,
         ref mut do_cache,
         ref mut country_idx,
@@ -159,6 +160,7 @@ pub(super) fn handle_system_update_modal(
             app,
             do_mirrors,
             do_pacman,
+            force_sync,
             do_aur,
             do_cache,
             country_idx,
@@ -173,6 +175,7 @@ pub(super) fn handle_system_update_modal(
             Modal::SystemUpdate {
                 do_mirrors: *do_mirrors,
                 do_pacman: *do_pacman,
+                force_sync: *force_sync,
                 do_aur: *do_aur,
                 do_cache: *do_cache,
                 country_idx: *country_idx,
@@ -854,13 +857,40 @@ pub(super) fn handle_password_prompt_modal(
                 return true;
             }
 
+            // Handle Update purpose with pending_update_commands
+            if matches!(purpose, crate::state::modal::PasswordPurpose::Update) {
+                if let Some(commands) = app.pending_update_commands.take() {
+                    // Transition to PreflightExec for system update
+                    app.modal = Modal::PreflightExec {
+                        items: Vec::new(), // System update doesn't have package items
+                        action: crate::state::PreflightAction::Install,
+                        tab: crate::state::PreflightTab::Summary,
+                        verbose: false,
+                        log_lines: Vec::new(),
+                        abortable: false,
+                        header_chips,
+                        success: None,
+                    };
+
+                    // Store executor request with password
+                    app.pending_executor_request = Some(ExecutorRequest::Update {
+                        commands,
+                        password,
+                        dry_run: app.dry_run,
+                    });
+
+                    return true;
+                }
+                // No pending commands, this shouldn't happen but handle gracefully
+                app.modal = Modal::Alert {
+                    message: "No update commands found".to_string(),
+                };
+                return true;
+            }
+
             // For Install actions, use start_execution to check for reinstall scenarios
             // This ensures the reinstall confirmation modal is shown if needed
-            if matches!(
-                purpose,
-                crate::state::modal::PasswordPurpose::Install
-                    | crate::state::modal::PasswordPurpose::Update
-            ) {
+            if matches!(purpose, crate::state::modal::PasswordPurpose::Install) {
                 use crate::events::preflight::keys;
                 keys::start_execution(
                     app,

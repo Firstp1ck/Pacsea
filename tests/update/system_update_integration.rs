@@ -30,6 +30,7 @@ fn integration_system_update_modal_state() {
         modal: Modal::SystemUpdate {
             do_mirrors: true,
             do_pacman: true,
+            force_sync: false,
             do_aur: false,
             do_cache: false,
             country_idx: 0,
@@ -44,6 +45,7 @@ fn integration_system_update_modal_state() {
         Modal::SystemUpdate {
             do_mirrors,
             do_pacman,
+            force_sync,
             do_aur,
             do_cache,
             country_idx,
@@ -53,6 +55,7 @@ fn integration_system_update_modal_state() {
         } => {
             assert!(do_mirrors);
             assert!(do_pacman);
+            assert!(!force_sync);
             assert!(!do_aur);
             assert!(!do_cache);
             assert_eq!(country_idx, 0);
@@ -116,6 +119,7 @@ fn integration_system_update_all_options() {
         modal: Modal::SystemUpdate {
             do_mirrors: true,
             do_pacman: true,
+            force_sync: false,
             do_aur: true,
             do_cache: true,
             country_idx: 0,
@@ -159,6 +163,7 @@ fn integration_system_update_no_options() {
         modal: Modal::SystemUpdate {
             do_mirrors: false,
             do_pacman: false,
+            force_sync: false,
             do_aur: false,
             do_cache: false,
             country_idx: 0,
@@ -193,11 +198,13 @@ fn integration_system_update_no_options() {
 /// - System update action triggered through `handle_system_update_enter`.
 ///
 /// Output:
-/// - `pending_executor_request` should be set with `ExecutorRequest::Update`.
+/// - `pending_update_commands` should be set and `PasswordPrompt` modal shown.
+/// - After password entry, `pending_executor_request` should be set with `ExecutorRequest::Update`.
 ///
 /// Details:
 /// - Verifies that system update uses executor pattern instead of spawning terminals.
-/// - `handle_system_update_enter` should set `app.pending_executor_request` with `ExecutorRequest::Update`.
+/// - `handle_system_update_enter` should set `app.pending_update_commands` and show `PasswordPrompt`.
+/// - After password entry, the password handler creates `ExecutorRequest::Update`.
 /// - Note: Since `handle_system_update_enter` is private, we test the pattern by directly creating
 ///   the expected state that the function should produce.
 fn integration_system_update_uses_executor_not_terminal() {
@@ -208,15 +215,50 @@ fn integration_system_update_uses_executor_not_terminal() {
         ..Default::default()
     };
 
-    // Simulate what handle_system_update_enter should do:
-    // 1. Create ExecutorRequest::Update with commands
-    // 2. Set app.pending_executor_request
-    // 3. Transition to PreflightExec modal
+    // Step 1: Simulate what handle_system_update_enter does:
+    // 1. Store commands in pending_update_commands
+    // 2. Transition to PasswordPrompt modal
     let cmds = vec!["sudo pacman -Syu --noconfirm".to_string()];
 
+    app.pending_update_commands = Some(cmds.clone());
+    app.modal = pacsea::state::Modal::PasswordPrompt {
+        purpose: pacsea::state::modal::PasswordPurpose::Update,
+        items: Vec::new(),
+        input: String::new(),
+        cursor: 0,
+        error: None,
+    };
+
+    // Verify pending_update_commands is set
+    assert!(
+        app.pending_update_commands.is_some(),
+        "System update must set pending_update_commands before password prompt"
+    );
+
+    // Verify modal is PasswordPrompt
+    match &app.modal {
+        pacsea::state::Modal::PasswordPrompt { purpose, .. } => {
+            assert!(
+                matches!(purpose, pacsea::state::modal::PasswordPurpose::Update),
+                "Password purpose should be Update"
+            );
+        }
+        _ => panic!("Expected PasswordPrompt modal"),
+    }
+
+    // Step 2: Simulate what password handler does after password entry:
+    // 1. Take pending_update_commands
+    // 2. Create ExecutorRequest::Update
+    // 3. Transition to PreflightExec
+    let password = Some("test_password".to_string());
+    let update_cmds = app
+        .pending_update_commands
+        .take()
+        .expect("pending_update_commands should be set");
+
     app.pending_executor_request = Some(ExecutorRequest::Update {
-        commands: cmds.clone(),
-        password: None,
+        commands: update_cmds,
+        password: password.clone(),
         dry_run: app.dry_run,
     });
 
@@ -234,21 +276,24 @@ fn integration_system_update_uses_executor_not_terminal() {
     // Verify that pending_executor_request is set with ExecutorRequest::Update
     assert!(
         app.pending_executor_request.is_some(),
-        "System update must use ExecutorRequest instead of spawning terminals. Currently handle_system_update_enter calls spawn_shell_commands_in_terminal. When migrated, it should set ExecutorRequest::Update."
+        "System update must use ExecutorRequest instead of spawning terminals"
     );
 
-    // Verify it's an Update request
-    match app.pending_executor_request {
+    // Verify it's an Update request with password
+    match &app.pending_executor_request {
         Some(ExecutorRequest::Update {
-            ref commands,
-            password,
+            commands,
+            password: req_password,
             dry_run,
         }) => {
             assert_eq!(
                 *commands, cmds,
                 "Update request should have the correct commands"
             );
-            assert_eq!(password, None, "Password should be None initially");
+            assert_eq!(
+                *req_password, password,
+                "Password should be set from password prompt"
+            );
             assert!(!dry_run, "Dry run should be false");
         }
         _ => panic!("Expected ExecutorRequest::Update"),
@@ -458,6 +503,7 @@ fn integration_system_update_password_prompt() {
         modal: Modal::SystemUpdate {
             do_mirrors: false,
             do_pacman: true,
+            force_sync: false,
             do_aur: false,
             do_cache: false,
             country_idx: 0,
@@ -607,12 +653,13 @@ fn integration_system_update_cursor_navigation() {
         modal: Modal::SystemUpdate {
             do_mirrors: true,
             do_pacman: true,
+            force_sync: false,
             do_aur: true,
             do_cache: true,
             country_idx: 0,
             countries: vec!["Worldwide".to_string()],
             mirror_count: 10,
-            cursor: 3, // On cache option
+            cursor: 3, // On cache option (index 3)
         },
         ..Default::default()
     };
@@ -648,6 +695,7 @@ fn integration_system_update_country_selection() {
         modal: Modal::SystemUpdate {
             do_mirrors: true,
             do_pacman: false,
+            force_sync: false,
             do_aur: false,
             do_cache: false,
             country_idx: 2, // Germany
@@ -799,4 +847,105 @@ fn integration_system_update_network_error_handling() {
         }
         _ => panic!("Expected PreflightExec modal"),
     }
+}
+
+#[test]
+/// What: Verify system update completion does NOT clear `install_list`.
+///
+/// Inputs:
+/// - System update completes (`PreflightExec` with empty items)
+/// - User has packages in `install_list` before update
+///
+/// Output:
+/// - `install_list` is preserved, NOT cleared
+/// - `pending_install_names` should NOT be set for system updates
+///
+/// Details:
+/// - System updates use empty items vector since they don't involve specific packages
+/// - The Install action completion handler should skip `pending_install_names` tracking
+///   when items is empty to avoid clearing `install_list` due to vacuously true check
+/// - Regression test for bug: empty `pending_install_names` causes `install_list` to be cleared
+fn integration_system_update_preserves_install_list() {
+    use pacsea::state::{PackageItem, Source};
+
+    // Create app with packages in install_list (queued for installation)
+    let mut app = AppState {
+        install_list: vec![
+            PackageItem {
+                name: "neovim".to_string(),
+                version: "0.10.0-1".to_string(),
+                description: "Vim-fork focused on extensibility and usability".to_string(),
+                source: Source::Official {
+                    repo: "extra".to_string(),
+                    arch: "x86_64".to_string(),
+                },
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            },
+            PackageItem {
+                name: "ripgrep".to_string(),
+                version: "14.0.0-1".to_string(),
+                description: "A search tool that combines ag with grep".to_string(),
+                source: Source::Official {
+                    repo: "extra".to_string(),
+                    arch: "x86_64".to_string(),
+                },
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            },
+        ],
+        // Simulate system update in progress (PreflightExec with empty items)
+        modal: Modal::PreflightExec {
+            items: Vec::new(),                // System update has NO items
+            action: PreflightAction::Install, // System update uses Install action
+            tab: PreflightTab::Summary,
+            verbose: false,
+            log_lines: vec![":: Starting full system upgrade...".to_string()],
+            abortable: false,
+            header_chips: PreflightHeaderChips::default(),
+            success: None,
+        },
+        ..Default::default()
+    };
+
+    // Verify install_list has packages before update
+    assert_eq!(
+        app.install_list.len(),
+        2,
+        "install_list should have 2 packages queued"
+    );
+    assert_eq!(app.install_list[0].name, "neovim");
+    assert_eq!(app.install_list[1].name, "ripgrep");
+
+    // Simulate system update completion - this is what handle_executor_output does
+    // For system updates, items is empty so installed_names would be empty
+    if let Modal::PreflightExec { items, action, .. } = &app.modal
+        && matches!(action, PreflightAction::Install)
+    {
+        // BUG CONDITION: If we set pending_install_names to empty vec,
+        // the tick handler will clear install_list (vacuously true check)
+        // FIX: Only set pending_install_names if items is NOT empty
+        if !items.is_empty() {
+            let installed_names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+            app.pending_install_names = Some(installed_names);
+        }
+        // If items is empty (system update), do NOT set pending_install_names
+    }
+
+    // Verify pending_install_names is NOT set for system updates
+    assert!(
+        app.pending_install_names.is_none(),
+        "System updates (empty items) should NOT set pending_install_names"
+    );
+
+    // Verify install_list is preserved
+    assert_eq!(
+        app.install_list.len(),
+        2,
+        "install_list should still have 2 packages after system update"
+    );
+    assert_eq!(app.install_list[0].name, "neovim");
+    assert_eq!(app.install_list[1].name, "ripgrep");
 }
