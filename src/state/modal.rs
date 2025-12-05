@@ -532,7 +532,7 @@ pub enum Modal {
         countries: Vec<String>,
         /// Requested mirror count to fetch/rank.
         mirror_count: u16,
-        /// Cursor row in the dialog (0..=5)
+        /// Cursor row in the dialog (0..=4)
         cursor: usize,
     },
     /// Arch Linux News: list of recent items with selection.
