@@ -302,7 +302,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             {
                 // On Linux, show error to user via Alert modal
                 app.modal = crate::state::Modal::Alert {
-                    message: msg.clone(),
+                    message: msg,
                 };
             }
             // On Windows, only log (no popup)
