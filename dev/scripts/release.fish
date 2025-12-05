@@ -181,17 +181,13 @@ function phase2_documentation
     
     # Step 2.1: Generate release notes with Cursor
     log_step "Generate Release Notes"
-    log_info "Opening Cursor for /release-new command..."
     _blue; echo -n "[INFO] "; _reset; echo -n "Please run: "; _bold; echo "/release-new $new_ver"; _reset
     
     set -l release_file "$PACSEA_DIR/Documents/RELEASE_v$new_ver.md"
     
     if test "$DRY_RUN" = true
-        log_info "[DRY-RUN] Would open Cursor and wait for release notes generation"
+        log_info "[DRY-RUN] Would wait for release notes generation"
     else
-        # Open Cursor with the Documents directory
-        cursor "$PACSEA_DIR/Documents"
-        
         wait_for_user "After completing /release-new in Cursor, press Enter..."
         
         # Verify release file was created
@@ -251,26 +247,22 @@ function phase2_documentation
     
     # Step 2.5: README update with Cursor
     log_step "Update README"
-    log_info "Opening Cursor for /readme-update command..."
     _blue; echo -n "[INFO] "; _reset; echo -n "Please run: "; _bold; echo "/readme-update"; _reset
     
     if test "$DRY_RUN" = true
-        log_info "[DRY-RUN] Would open Cursor for README update"
+        log_info "[DRY-RUN] Would wait for README update"
     else
-        cursor "$PACSEA_DIR/README.md"
         wait_for_user "After completing /readme-update in Cursor, press Enter..."
         log_success "README update complete"
     end
     
     # Step 2.6: Wiki update with Cursor
     log_step "Update Wiki"
-    log_info "Opening Cursor for /wiki-update command..."
     _blue; echo -n "[INFO] "; _reset; echo -n "Please run: "; _bold; echo "/wiki-update"; _reset
     
     if test "$DRY_RUN" = true
-        log_info "[DRY-RUN] Would open Cursor for wiki update"
+        log_info "[DRY-RUN] Would wait for wiki update"
     else
-        cursor "$WIKI_DIR"
         wait_for_user "After completing /wiki-update in Cursor, press Enter..."
         log_success "Wiki update complete"
     end
@@ -285,41 +277,37 @@ function generate_announcement
     
     log_info "Parsing release file for announcement..."
     
-    # Extract content sections from release file
-    set -l content ""
-    set -l in_section false
-    set -l current_section ""
-    
-    # Read the release file and extract key points
-    set -l features ""
-    set -l fixes ""
-    set -l improvements ""
-    set -l chores ""
+    # Collect all bullet points from the "What's New" section
+    set -l all_items
+    set -l in_whats_new false
+    set -l current_subsection ""
     
     # Parse the release file line by line
     while read -l line
-        # Detect section headers
-        if string match -qr '^\#\#\#.*New|Feature|Added' "$line"
-            set current_section "features"
-            set in_section true
-        else if string match -qr '^\#\#\#.*Fix|Bug' "$line"
-            set current_section "fixes"
-            set in_section true
-        else if string match -qr '^\#\#\#.*Improve|Enhance' "$line"
-            set current_section "improvements"
-            set in_section true
-        else if string match -qr '^\#\#\#.*Chore|Maint' "$line"
-            set current_section "chores"
-            set in_section true
-        else if string match -qr '^\#\#\#' "$line"
-            # Other section - reset
-            set current_section ""
-            set in_section false
-        else if string match -qr '^\#\#' "$line"
-            # New major section - reset
-            set current_section ""
-            set in_section false
-        else if test "$in_section" = true
+        # Detect "## What's New" section start
+        if string match -qr '^##\s+What' "$line"
+            set in_whats_new true
+            continue
+        end
+        
+        # Detect end of "What's New" section (another ## header)
+        if test "$in_whats_new" = true
+            if string match -qr '^##\s+' "$line"
+                # Another major section - stop parsing
+                set in_whats_new false
+                continue
+            end
+        end
+        
+        # Inside What's New section
+        if test "$in_whats_new" = true
+            # Detect subsection headers (### ...)
+            if string match -qr '^###' "$line"
+                # Extract subsection name (strip ### and emoji)
+                set current_subsection (string replace -r '^###\s*[^\s]*\s*' '' "$line" | string trim)
+                continue
+            end
+            
             # Extract bullet points
             if string match -qr '^[-*]\s+' "$line"
                 set -l item (string replace -r '^[-*]\s+' '' "$line")
@@ -327,60 +315,37 @@ function generate_announcement
                 if test (string length "$item") -gt 80
                     set item (string sub -l 77 "$item")"..."
                 end
-                
-                switch $current_section
-                    case features
-                        set features $features "$item"
-                    case fixes
-                        set fixes $fixes "$item"
-                    case improvements
-                        set improvements $improvements "$item"
-                    case chores
-                        set chores $chores "$item"
+                # Skip empty items
+                if test -n "$item"
+                    set -a all_items "$item"
                 end
             end
         end
     end < "$release_file"
     
     # Build the announcement content
-    set -l output "## What's New\n\n"
+    set -l tmp_output (mktemp)
+    echo "## What's New" > "$tmp_output"
+    echo "" >> "$tmp_output"
     
-    # Add features (limit to first 3)
+    # Add items (limit to 5 total)
     set -l count 0
-    for feature in $features
-        if test $count -lt 3
-            set output "$output- $feature\n"
+    for item in $all_items
+        if test $count -lt 5
+            echo "- $item" >> "$tmp_output"
             set count (math $count + 1)
         end
     end
-    
-    # Add fixes (limit to first 2)
-    set count 0
-    for fix in $fixes
-        if test $count -lt 2
-            set output "$output- $fix\n"
-            set count (math $count + 1)
-        end
-    end
-    
-    # Add improvements (limit to first 2)
-    set count 0
-    for imp in $improvements
-        if test $count -lt 2
-            set output "$output- $imp\n"
-            set count (math $count + 1)
-        end
-    end
+    echo "" >> "$tmp_output"
     
     # Check character count (max 800)
-    set -l char_count (string length "$output")
+    set -l char_count (wc -c < "$tmp_output" | string trim)
     if test $char_count -gt 800
         log_warn "Announcement exceeds 800 chars ($char_count), truncating..."
-        set output (string sub -l 797 "$output")"..."
     end
     
-    # Write to file
-    echo -e $output > "$output_file"
+    # Move to output file
+    mv "$tmp_output" "$output_file"
     log_success "Generated announcement ($char_count chars) at: $output_file"
     
     # Show preview
@@ -391,9 +356,8 @@ function generate_announcement
     echo
     
     if not confirm_continue "Accept this announcement?"
-        log_info "Opening file for manual editing..."
-        cursor "$output_file"
-        wait_for_user "Press Enter after editing..."
+        log_info "Please edit the file manually..."
+        wait_for_user "Press Enter after editing $output_file..."
     end
 end
 
@@ -511,7 +475,7 @@ function phase4_build_release
     # Step 4.4: Create git tag
     log_step "Creating git tag"
     
-    set -l tag "$new_ver"
+    set -l tag "v$new_ver"
     
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would create tag: $tag"
@@ -642,6 +606,7 @@ function phase5_aur_update
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would copy $AUR_BIN_DIR/PKGBUILD to $PACSEA_DIR/PKGBUILD-bin"
         log_info "[DRY-RUN] Would copy $AUR_GIT_DIR/PKGBUILD to $PACSEA_DIR/PKGBUILD-git"
+        log_info "[DRY-RUN] Would commit and push PKGBUILD changes to Pacsea repo"
     else
         cp "$AUR_BIN_DIR/PKGBUILD" "$PACSEA_DIR/PKGBUILD-bin"
         if test $status -eq 0
@@ -655,6 +620,63 @@ function phase5_aur_update
             log_success "Copied PKGBUILD-git"
         else
             log_error "Failed to copy PKGBUILD-git"
+        end
+        
+        # Commit and push PKGBUILD changes
+        cd "$PACSEA_DIR"
+        git add PKGBUILD-bin PKGBUILD-git
+        git commit -m "Update PKGBUILDs for v$new_ver"
+        if test $status -eq 0
+            log_success "PKGBUILD changes committed"
+        else
+            log_warn "PKGBUILD commit failed or nothing to commit"
+        end
+        
+        git push origin
+        if test $status -eq 0
+            log_success "PKGBUILD changes pushed to origin"
+        else
+            log_error "Failed to push PKGBUILD changes"
+            if not confirm_continue "Continue anyway?"
+                return 1
+            end
+        end
+    end
+    
+    # Step 5.4: Push wiki changes
+    log_step "Pushing Wiki Changes"
+    
+    if test "$DRY_RUN" = true
+        log_info "[DRY-RUN] Would commit and push wiki changes"
+    else
+        if test -d "$WIKI_DIR"
+            cd "$WIKI_DIR"
+            
+            # Check if there are changes to commit
+            set -l wiki_status (git status --porcelain)
+            if test -n "$wiki_status"
+                git add -A
+                git commit -m "Update wiki for v$new_ver"
+                if test $status -eq 0
+                    log_success "Wiki changes committed"
+                else
+                    log_warn "Wiki commit failed or nothing to commit"
+                end
+                
+                git push origin
+                if test $status -eq 0
+                    log_success "Wiki pushed to origin"
+                else
+                    log_error "Failed to push wiki"
+                    if not confirm_continue "Continue anyway?"
+                        return 1
+                    end
+                end
+            else
+                log_info "No wiki changes to commit"
+            end
+        else
+            log_warn "Wiki directory not found: $WIKI_DIR"
         end
     end
     
@@ -802,38 +824,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
         return 0
     end
     
-    # Read the release content
-    set -l release_content (cat "$release_file")
-    
     # Get current date
     set -l release_date (date +%Y-%m-%d)
     
-    # Create the changelog entry
-    set -l changelog_entry "## [$new_ver] - $release_date
-
-$release_content
-
----
-"
+    # Create a temporary file for the new changelog
+    set -l tmp_file (mktemp)
     
-    # Insert after the header (after the first ---)
-    # Read existing content
-    set -l existing_content (cat "$changelog_file")
-    
-    # Find the position after the header separator and insert new entry
-    set -l header_end (string match -rn '^---$' "$existing_content" | head -1 | cut -d: -f1)
+    # Find the first --- separator line number
+    set -l header_end (grep -n '^---$' "$changelog_file" | head -1 | cut -d: -f1)
     
     if test -n "$header_end"
-        # Split and reconstruct
-        set -l header (head -n $header_end "$changelog_file")
-        set -l rest (tail -n +$header_end "$changelog_file" | tail -n +2)
+        # Write header (up to and including first ---)
+        head -n $header_end "$changelog_file" > "$tmp_file"
         
-        # Write new changelog
-        printf "%s\n\n%s\n%s" "$header" "$changelog_entry" "$rest" > "$changelog_file"
+        # Add blank line and new entry header
+        echo "" >> "$tmp_file"
+        echo "## [$new_ver] - $release_date" >> "$tmp_file"
+        echo "" >> "$tmp_file"
+        
+        # Append release content (preserving newlines)
+        cat "$release_file" >> "$tmp_file"
+        
+        # Add separator
+        echo "" >> "$tmp_file"
+        echo "---" >> "$tmp_file"
+        
+        # Append rest of changelog (after first ---)
+        tail -n +$header_end "$changelog_file" | tail -n +2 >> "$tmp_file"
+        
+        # Replace original file
+        mv "$tmp_file" "$changelog_file"
     else
-        # No header found, just prepend after first line
-        echo "$changelog_entry" | cat - "$changelog_file" > "$changelog_file.tmp"
-        mv "$changelog_file.tmp" "$changelog_file"
+        # No header found, prepend new entry
+        echo "## [$new_ver] - $release_date" > "$tmp_file"
+        echo "" >> "$tmp_file"
+        cat "$release_file" >> "$tmp_file"
+        echo "" >> "$tmp_file"
+        echo "---" >> "$tmp_file"
+        echo "" >> "$tmp_file"
+        cat "$changelog_file" >> "$tmp_file"
+        mv "$tmp_file" "$changelog_file"
     end
     
     log_success "CHANGELOG.md updated"
