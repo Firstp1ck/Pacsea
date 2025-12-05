@@ -706,6 +706,71 @@ fn news_unhandled_key_preserves_modal() {
 }
 
 #[test]
+/// What: Verify Ctrl+R in News modal triggers mark all read instead of config reload.
+///
+/// Inputs:
+/// - News modal with multiple items
+/// - Ctrl+R key event
+///
+/// Output:
+/// - All news items are marked as read
+/// - Modal remains open
+/// - Config reload does NOT happen
+///
+/// Details:
+/// - Ensures that when News modal is active, Ctrl+R triggers news action (mark all read)
+///   instead of the global config reload action
+fn news_ctrl_r_mark_all_read_not_config_reload() {
+    let mut app = new_app();
+    let items = vec![
+        crate::state::NewsItem {
+            date: "2025-01-01".to_string(),
+            title: "Test News 1".to_string(),
+            url: "https://example.com/news1".to_string(),
+        },
+        crate::state::NewsItem {
+            date: "2025-01-02".to_string(),
+            title: "Test News 2".to_string(),
+            url: "https://example.com/news2".to_string(),
+        },
+        crate::state::NewsItem {
+            date: "2025-01-03".to_string(),
+            title: "Test News 3".to_string(),
+            url: "https://example.com/news3".to_string(),
+        },
+    ];
+    app.modal = crate::state::Modal::News { items, selected: 0 };
+
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('r'), KeyModifiers::CONTROL);
+
+    // Verify initial state - no items marked as read
+    assert!(app.news_read_urls.is_empty());
+    assert!(!app.news_read_dirty);
+
+    handle_modal_key(ke, &mut app, &add_tx);
+
+    // Verify all items are marked as read
+    assert!(app.news_read_urls.contains("https://example.com/news1"));
+    assert!(app.news_read_urls.contains("https://example.com/news2"));
+    assert!(app.news_read_urls.contains("https://example.com/news3"));
+    assert_eq!(app.news_read_urls.len(), 3);
+    assert!(app.news_read_dirty);
+
+    // Verify modal remains open
+    match &app.modal {
+        crate::state::Modal::News { selected, .. } => {
+            assert_eq!(*selected, 0);
+        }
+        _ => panic!("Modal should remain News after Ctrl+R"),
+    }
+
+    // Verify config reload did NOT happen (no toast message about config reload)
+    // Config reload would set a toast message, but mark all read doesn't
+    assert!(app.toast_message.is_none());
+}
+
+#[test]
 /// What: Verify Esc key closes Alert modal.
 ///
 /// Inputs:
@@ -1045,4 +1110,471 @@ fn import_help_enter_closes_modal() {
     assert!(matches!(app.modal, crate::state::Modal::None));
 
     // No cleanup needed - file picker is a no-op during tests (see events/modals/import.rs)
+}
+
+// ============================================================================
+// Global Keybind Blocking Tests
+// ============================================================================
+// These tests verify that when a modal is open, global keybinds are blocked
+// and do not trigger their global actions. Only exit (Ctrl+C) should work globally.
+
+/// What: Create test modals for global keybind blocking tests.
+///
+/// Inputs:
+/// - None
+///
+/// Output:
+/// - Vector of (modal, name) tuples for testing
+///
+/// Details:
+/// - Returns all modals that should block global keybinds (excludes None and Preflight)
+fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
+    vec![
+        (
+            crate::state::Modal::Alert {
+                message: "Test alert".to_string(),
+            },
+            "Alert",
+        ),
+        (
+            crate::state::Modal::Loading {
+                message: "Loading...".to_string(),
+            },
+            "Loading",
+        ),
+        (
+            crate::state::Modal::ConfirmInstall { items: vec![] },
+            "ConfirmInstall",
+        ),
+        (
+            crate::state::Modal::ConfirmReinstall {
+                items: vec![],
+                all_items: vec![],
+                header_chips: PreflightHeaderChips::default(),
+            },
+            "ConfirmReinstall",
+        ),
+        (
+            crate::state::Modal::ConfirmBatchUpdate {
+                items: vec![],
+                dry_run: false,
+            },
+            "ConfirmBatchUpdate",
+        ),
+        (
+            crate::state::Modal::PreflightExec {
+                items: vec![],
+                action: PreflightAction::Install,
+                tab: PreflightTab::Summary,
+                verbose: false,
+                log_lines: vec![],
+                abortable: false,
+                header_chips: PreflightHeaderChips::default(),
+                success: None,
+            },
+            "PreflightExec",
+        ),
+        (
+            crate::state::Modal::PostSummary {
+                success: true,
+                changed_files: 0,
+                pacnew_count: 0,
+                pacsave_count: 0,
+                services_pending: vec![],
+                snapshot_label: None,
+            },
+            "PostSummary",
+        ),
+        (crate::state::Modal::Help, "Help"),
+        (
+            crate::state::Modal::ConfirmRemove { items: vec![] },
+            "ConfirmRemove",
+        ),
+        (
+            crate::state::Modal::SystemUpdate {
+                do_mirrors: false,
+                do_pacman: false,
+                do_aur: false,
+                do_cache: false,
+                country_idx: 0,
+                countries: vec!["US".to_string()],
+                mirror_count: 10,
+                cursor: 0,
+            },
+            "SystemUpdate",
+        ),
+        (
+            crate::state::Modal::News {
+                items: vec![crate::state::NewsItem {
+                    date: "2025-01-01".to_string(),
+                    title: "Test".to_string(),
+                    url: "https://example.com".to_string(),
+                }],
+                selected: 0,
+            },
+            "News",
+        ),
+        (
+            crate::state::Modal::Updates {
+                entries: vec![("pkg".to_string(), "1.0".to_string(), "2.0".to_string())],
+                scroll: 0,
+                selected: 0,
+            },
+            "Updates",
+        ),
+        (
+            crate::state::Modal::OptionalDeps {
+                rows: vec![],
+                selected: 0,
+            },
+            "OptionalDeps",
+        ),
+        (
+            crate::state::Modal::ScanConfig {
+                do_clamav: false,
+                do_trivy: false,
+                do_semgrep: false,
+                do_shellcheck: false,
+                do_virustotal: false,
+                do_custom: false,
+                do_sleuth: false,
+                cursor: 0,
+            },
+            "ScanConfig",
+        ),
+        (
+            crate::state::Modal::VirusTotalSetup {
+                input: String::new(),
+                cursor: 0,
+            },
+            "VirusTotalSetup",
+        ),
+        (
+            crate::state::Modal::PasswordPrompt {
+                purpose: crate::state::modal::PasswordPurpose::Install,
+                items: vec![],
+                input: String::new(),
+                cursor: 0,
+                error: None,
+            },
+            "PasswordPrompt",
+        ),
+        (
+            crate::state::Modal::GnomeTerminalPrompt,
+            "GnomeTerminalPrompt",
+        ),
+        (crate::state::Modal::ImportHelp, "ImportHelp"),
+    ]
+}
+
+#[test]
+/// What: Verify Ctrl+R (reload config) is blocked when modals are open.
+///
+/// Inputs:
+/// - Each modal type (except None and Preflight)
+/// - Ctrl+R key event
+///
+/// Output:
+/// - Config reload does NOT trigger
+/// - Modal remains open or handles 'r' key per its own logic
+///
+/// Details:
+/// - Tests that global keybind is blocked for all modals
+/// - Note: Some modals (like `PostSummary`) use 'r' for their own actions (rollback)
+///   which is expected behavior - the modal keybind takes priority
+fn global_keybind_ctrl_r_blocked_in_all_modals() {
+    // Config reload toast message pattern (from i18n)
+    let config_reload_patterns = ["config", "reload", "Config", "Reload"];
+
+    for (modal, name) in create_test_modals() {
+        let mut app = new_app();
+        app.modal = modal.clone();
+
+        let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let ke = key_event(KeyCode::Char('r'), KeyModifiers::CONTROL);
+
+        handle_modal_key(ke, &mut app, &add_tx);
+
+        // If there's a toast message, verify it's NOT a config reload message
+        // (some modals like PostSummary use 'r' for their own actions like rollback)
+        if let Some(ref msg) = app.toast_message {
+            let is_config_reload = config_reload_patterns.iter().any(|p| msg.contains(p));
+            assert!(
+                !is_config_reload,
+                "{name}: Ctrl+R should not trigger config reload, got toast: {msg}"
+            );
+        }
+
+        // Modal should still be open (or closed by its own handler, but NOT by global keybind)
+        // We just verify no global side effects occurred
+    }
+}
+
+#[test]
+/// What: Verify Ctrl+X (PKGBUILD toggle) is blocked when modals are open.
+///
+/// Inputs:
+/// - Each modal type (except None and Preflight)
+/// - Ctrl+X key event
+///
+/// Output:
+/// - PKGBUILD visibility does NOT change
+///
+/// Details:
+/// - Tests that global keybind is blocked for all modals
+fn global_keybind_ctrl_x_blocked_in_all_modals() {
+    for (modal, name) in create_test_modals() {
+        let mut app = new_app();
+        app.modal = modal.clone();
+        app.pkgb_visible = false;
+
+        let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let ke = key_event(KeyCode::Char('x'), KeyModifiers::CONTROL);
+
+        handle_modal_key(ke, &mut app, &add_tx);
+
+        assert!(
+            !app.pkgb_visible,
+            "{name}: Ctrl+X should be blocked, pkgb_visible should remain false"
+        );
+    }
+}
+
+#[test]
+/// What: Verify Ctrl+S (change sort) is blocked when modals are open.
+///
+/// Inputs:
+/// - Each modal type (except None and Preflight)
+/// - Ctrl+S key event
+///
+/// Output:
+/// - Sort order does NOT change
+///
+/// Details:
+/// - Tests that global keybind is blocked for all modals
+fn global_keybind_ctrl_s_blocked_in_all_modals() {
+    for (modal, name) in create_test_modals() {
+        let mut app = new_app();
+        app.modal = modal.clone();
+        let original_sort = app.sort_mode;
+
+        let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let ke = key_event(KeyCode::Char('s'), KeyModifiers::CONTROL);
+
+        handle_modal_key(ke, &mut app, &add_tx);
+
+        assert_eq!(
+            app.sort_mode, original_sort,
+            "{name}: Ctrl+S should be blocked, sort_mode should remain unchanged"
+        );
+    }
+}
+
+#[test]
+/// What: Verify F1 (help overlay) is blocked when modals are open.
+///
+/// Inputs:
+/// - Each modal type (except None, Preflight, and Help itself)
+/// - F1 key event
+///
+/// Output:
+/// - Help modal does NOT open (no nested Help modal)
+///
+/// Details:
+/// - Tests that global keybind is blocked for all modals
+fn global_keybind_f1_blocked_in_all_modals() {
+    for (modal, name) in create_test_modals() {
+        // Skip Help modal itself - F1 doesn't make sense there
+        if matches!(modal, crate::state::Modal::Help) {
+            continue;
+        }
+
+        let mut app = new_app();
+        app.modal = modal.clone();
+
+        let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let ke = key_event(KeyCode::F(1), KeyModifiers::empty());
+
+        handle_modal_key(ke, &mut app, &add_tx);
+
+        // Should NOT have opened Help modal (would replace current modal)
+        // The modal should either be unchanged or closed by its own Esc/Enter handling
+        // but NOT replaced by Help
+        assert!(
+            !matches!(app.modal, crate::state::Modal::Help)
+                || matches!(modal, crate::state::Modal::Help),
+            "{name}: F1 should be blocked, Help modal should not open"
+        );
+    }
+}
+
+#[test]
+/// What: Verify Ctrl+T (comments toggle) is blocked when modals are open.
+///
+/// Inputs:
+/// - Each modal type (except None and Preflight)
+/// - Ctrl+T key event
+///
+/// Output:
+/// - Comments visibility does NOT change
+///
+/// Details:
+/// - Tests that global keybind is blocked for all modals
+fn global_keybind_ctrl_t_blocked_in_all_modals() {
+    for (modal, name) in create_test_modals() {
+        let mut app = new_app();
+        app.modal = modal.clone();
+        let original_comments_visible = app.comments_visible;
+
+        let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let ke = key_event(KeyCode::Char('t'), KeyModifiers::CONTROL);
+
+        handle_modal_key(ke, &mut app, &add_tx);
+
+        assert_eq!(
+            app.comments_visible, original_comments_visible,
+            "{name}: Ctrl+T should be blocked, comments_visible should remain unchanged"
+        );
+    }
+}
+
+#[test]
+/// What: Verify all global keybinds work when no modal is open.
+///
+/// Inputs:
+/// - `Modal::None`
+/// - Various global keybind key events
+///
+/// Output:
+/// - Global keybinds should work normally (changes state)
+///
+/// Details:
+/// - Baseline test to ensure global keybinds work when expected
+fn global_keybinds_work_when_no_modal_open() {
+    // Test Ctrl+S changes sort mode when no modal is open
+    let mut app = new_app();
+    app.modal = crate::state::Modal::None;
+    let original_sort = app.sort_mode;
+
+    // Note: handle_modal_key returns early for Modal::None,
+    // so global keybinds are handled by handle_global_key in mod.rs
+    // This test verifies the modal handler doesn't interfere
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('s'), KeyModifiers::CONTROL);
+
+    let result = handle_modal_key(ke, &mut app, &add_tx);
+
+    // Modal handler should return false for Modal::None (not handled)
+    assert!(!result, "Modal::None should return false (not handled)");
+    // Sort mode should be unchanged by modal handler (global handler would change it)
+    assert_eq!(
+        app.sort_mode, original_sort,
+        "Modal handler should not change sort_mode for Modal::None"
+    );
+}
+
+#[test]
+/// What: Verify modal keybinds take priority over global keybinds.
+///
+/// Inputs:
+/// - News modal with items
+/// - Ctrl+R key event (global: reload config, modal: mark all read)
+///
+/// Output:
+/// - Modal action triggers (mark all read)
+/// - Global action does NOT trigger (no toast)
+///
+/// Details:
+/// - Comprehensive test for the original issue (Ctrl+R conflict in News modal)
+fn modal_keybinds_priority_over_global_ctrl_r_in_news() {
+    let mut app = new_app();
+    let items = vec![
+        crate::state::NewsItem {
+            date: "2025-01-01".to_string(),
+            title: "News 1".to_string(),
+            url: "https://example.com/1".to_string(),
+        },
+        crate::state::NewsItem {
+            date: "2025-01-02".to_string(),
+            title: "News 2".to_string(),
+            url: "https://example.com/2".to_string(),
+        },
+    ];
+    app.modal = crate::state::Modal::News { items, selected: 0 };
+
+    // Verify initial state
+    assert!(app.news_read_urls.is_empty());
+    assert!(!app.news_read_dirty);
+    assert!(app.toast_message.is_none());
+
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('r'), KeyModifiers::CONTROL);
+
+    handle_modal_key(ke, &mut app, &add_tx);
+
+    // Modal action should have triggered: mark all read
+    assert_eq!(
+        app.news_read_urls.len(),
+        2,
+        "All news items should be marked as read"
+    );
+    assert!(app.news_read_dirty, "news_read_dirty should be true");
+
+    // Global action should NOT have triggered: no config reload toast
+    assert!(
+        app.toast_message.is_none(),
+        "Config reload toast should NOT appear (global keybind blocked)"
+    );
+
+    // Modal should remain open
+    assert!(
+        matches!(app.modal, crate::state::Modal::News { .. }),
+        "News modal should remain open"
+    );
+}
+
+#[test]
+/// What: Verify 'r' (mark single read) works in News modal without conflict.
+///
+/// Inputs:
+/// - News modal with items
+/// - 'r' key event (no modifiers)
+///
+/// Output:
+/// - Single item marked as read
+///
+/// Details:
+/// - Tests that lowercase 'r' works for mark single read
+fn news_modal_lowercase_r_marks_single_read() {
+    let mut app = new_app();
+    let items = vec![
+        crate::state::NewsItem {
+            date: "2025-01-01".to_string(),
+            title: "News 1".to_string(),
+            url: "https://example.com/1".to_string(),
+        },
+        crate::state::NewsItem {
+            date: "2025-01-02".to_string(),
+            title: "News 2".to_string(),
+            url: "https://example.com/2".to_string(),
+        },
+    ];
+    app.modal = crate::state::Modal::News { items, selected: 0 };
+
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('r'), KeyModifiers::empty());
+
+    handle_modal_key(ke, &mut app, &add_tx);
+
+    // Only first item should be marked as read
+    assert_eq!(
+        app.news_read_urls.len(),
+        1,
+        "Only selected item should be marked as read"
+    );
+    assert!(
+        app.news_read_urls.contains("https://example.com/1"),
+        "First item URL should be marked as read"
+    );
+    assert!(app.news_read_dirty);
 }
