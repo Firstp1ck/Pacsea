@@ -443,10 +443,9 @@ hu-HU:
         title: " Hírek "
         heading: "Arch Linux hírek"
         none: "Nincsenek elérhető hírek."
-        footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: olvasottnak jelölés • {}: összes olvasottnak jelölése • Esc: bezárás"
+        footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: megjelölés olvasottként • {}: összes megjelölése olvasottként • Esc: bezárás"
       announcement:
-        # TODO: Translate announcement modal keys
-        footer_hint: "r: Mark as read | Enter/Esc: Dismiss (show again)"
+        footer_hint: "r: Megjelölés olvasottként | Enter/Esc: Eltüntetés (megjelenítés újra)"
       updates_window:
         title: " Elérhető frissítések "
         heading: "Elérhető csomagfrissítések"
