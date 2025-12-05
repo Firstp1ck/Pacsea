@@ -27,7 +27,7 @@ install_list.json
 install_log.txt
 installed_packages.txt
 
-RELEASE*.md
+RELEASE_v*.md
 Documents/
 exported-assets/
 .jj
