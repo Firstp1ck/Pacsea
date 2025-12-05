@@ -44,6 +44,11 @@ pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
         title: "Announcement Modal",
         content: "## What's New\n\n- Announcement modal system - view important updates and version notes\n- Fixed global keybinds interfering with modals - keyboard shortcuts now work correctly\n\n## Chore\n\n- Updated PKGBUILD SHASUM\n",
     },
+    VersionAnnouncement {
+        version: "0.6.2",
+        title: "Version 0.6.2",
+        content: "## What's New\n\n- \n- \n- \n\n",
+    },
 ];
 
 /// What: Remote announcement fetched from GitHub Gist.
