@@ -55,9 +55,9 @@ This document tracks the status of performance suggestions from `PREFORMANCE_SUG
 | Cache PKGBUILDs from yay/paru | ✅ | `get_pkgbuild_from_cache()` tries offline first | Fast local lookup |
 | Rate limiting for fetches | ✅ | `PKGBUILD_RATE_LIMITER` with 200ms interval | Prevents server overload |
 | Cache parsed PKGBUILD ASTs | ✅ | Disk LRU (200) via `parse_pkgbuild_cached()` | Signature-validated, persisted |
-| Incremental rendering | ❌ | Full render each frame | Syntect highlighting is expensive |
+| Incremental rendering | ✅ | Dirty-prefix incremental highlighting reuse | Falls back to full per-line on error |
 
-**Location**: `src/sources/pkgbuild.rs`, `src/logic/files/pkgbuild_parse.rs`, `src/logic/files/pkgbuild_cache.rs`
+**Location**: `src/sources/pkgbuild.rs`, `src/logic/files/pkgbuild_parse.rs`, `src/logic/files/pkgbuild_cache.rs`, `src/ui/details/pkgbuild_highlight.rs`
 
 ---
 
@@ -135,7 +135,7 @@ Based on **user-facing impact** and **implementation complexity**:
 |---|--------------|------------------|--------|-----------|--------|
 | 4 | **Pre-cached sort orders** | 🟡 Medium | Medium | Sort mode switching is common | ✅ **Implemented** (cache-based O(n) reordering) |
 | 5 | **LRU cache for recent searches** | 🟡 Medium | Low | Add `lru` crate; cleaner semantics | ✅ **Implemented** |
-| 6 | **Incremental PKGBUILD rendering** | 🟡 Medium | High | Syntect highlighting bottleneck | ❌ Not Implemented |
+| 6 | **Incremental PKGBUILD rendering** | 🟡 Medium | High | Syntect highlighting bottleneck | ✅ Implemented (dirty-prefix reuse, fallback safe) |
 
 ### 🟢 Low Priority (Lower Impact or Higher Effort)
 
@@ -181,10 +181,14 @@ Based on **user-facing impact** and **implementation complexity**:
    - Reused by backup parsing, install path extraction, and binary detection
    - Flushes via tick/cleanup persistence hooks
 
+7. **✅ Incremental PKGBUILD highlighting** (`src/ui/details/pkgbuild_highlight.rs`)
+   - Reuses cached highlighted prefixes; re-runs syntect from first changed line
+   - Falls back per-line to plain text on highlight errors
+   - Keeps syntect state consistent while reducing render work
+
 ### Remaining Optimizations
 
-5. **Incremental PKGBUILD rendering** - Requires architectural changes
-6. **Stream AUR results incrementally** - Needs UI redesign
+5. **Stream AUR results incrementally** - Needs UI redesign
 
 ### Long-Term (1+ week)
 
@@ -236,12 +240,12 @@ criterion_main!(benches);
 | Search & Filtering | 3 | 1 | 0 |
 | AUR/Repo Sync | 0 | 1 | 2 |
 | Installed Mode | 2 | 1 | 0 |
-| PKGBUILD | 3 | 0 | 1 |
+| PKGBUILD | 4 | 0 | 0 |
 | Queue Management | 2 | 0 | 0 |
 | Recent Searches | 3 | 0 | 0 |
 | Sorting | 2 | 0 | 0 |
 | Prefetch | 3 | 0 | 0 |
-| **Total** | **18** | **3** | **3** |
+| **Total** | **19** | **2** | **2** |
 
 **Recent implementations**:
 - ✅ Hash-based package index (O(1) lookups via `HashMap<String, usize>`)
@@ -250,6 +254,7 @@ criterion_main!(benches);
 - ✅ Sort cache-based O(n) reordering for mode switching (cacheable modes)
 - ✅ Recent searches LRU (bounded to 20, case-insensitive, O(1) dedupe/move-to-front)
 - ✅ PKGBUILD parse cache (disk LRU, signature-validated, reused across backup/install/binary parsing)
+- ✅ Incremental PKGBUILD highlighting (dirty-prefix reuse, syntect state preserved)
 
-**Focus areas for maximum impact**: Remaining optimizations include incremental PKGBUILD rendering and streaming AUR results incrementally.
+**Focus areas for maximum impact**: Remaining optimizations include streaming AUR results incrementally and broader incremental UI rendering.
 
