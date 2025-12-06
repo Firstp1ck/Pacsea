@@ -347,6 +347,19 @@ pub fn maybe_flush_sandbox_cache(app: &mut AppState) {
     );
 }
 
+/// What: Persist the PKGBUILD parse cache if there are pending updates.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Flushes the global PKGBUILD parse cache to disk best-effort.
+///
+/// Details:
+/// - Safe to call frequently; returns immediately when cache is clean.
+pub fn maybe_flush_pkgbuild_parse_cache() {
+    crate::logic::files::flush_pkgbuild_cache();
+}
+
 /// What: Persist the install list to disk if marked dirty, throttled to ~1s.
 ///
 /// Inputs:

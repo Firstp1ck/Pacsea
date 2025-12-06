@@ -54,10 +54,10 @@ This document tracks the status of performance suggestions from `PREFORMANCE_SUG
 |------------|--------|------------------------|-------|
 | Cache PKGBUILDs from yay/paru | ✅ | `get_pkgbuild_from_cache()` tries offline first | Fast local lookup |
 | Rate limiting for fetches | ✅ | `PKGBUILD_RATE_LIMITER` with 200ms interval | Prevents server overload |
-| Cache parsed PKGBUILD ASTs | ❌ | Re-parses on each access | Could cache parse results |
+| Cache parsed PKGBUILD ASTs | ✅ | Disk LRU (200) via `parse_pkgbuild_cached()` | Signature-validated, persisted |
 | Incremental rendering | ❌ | Full render each frame | Syntect highlighting is expensive |
 
-**Location**: `src/sources/pkgbuild.rs`, `src/logic/files/pkgbuild_parse.rs`
+**Location**: `src/sources/pkgbuild.rs`, `src/logic/files/pkgbuild_parse.rs`, `src/logic/files/pkgbuild_cache.rs`
 
 ---
 
@@ -84,11 +84,11 @@ app.install_list.insert(0, item);
 
 | Suggestion | Status | Current Implementation | Notes |
 |------------|--------|------------------------|-------|
-| Bounded LRU cache | ❌ | `Vec<String>` clamped to 20 | Manual truncate |
-| O(1) access | ⚠️ | Linear scan for dedup | Uses `.position()` |
-| Debounced persistence | ✅ | 2-second debounce window | `src/app/recent.rs` |
+| Bounded LRU cache | ✅ | `AppState.recent: LruCache<String, String>` (capacity 20 via `RECENT_CAPACITY`) | MRU-first with case-insensitive keys |
+| O(1) access | ✅ | LRU cache `.put()` keyed by lowercase | Dedup + move-to-front in O(1) |
+| Debounced persistence | ✅ | 2-second debounce window in `maybe_save_recent()` | Marks `recent_dirty`, persists when idle |
 
-**Location**: `src/app/recent.rs`
+**Location**: `src/app/recent.rs`, `src/state/app_state/mod.rs`
 
 ---
 
@@ -96,12 +96,12 @@ app.install_list.insert(0, item);
 
 | Suggestion | Status | Current Implementation | Notes |
 |------------|--------|------------------------|-------|
-| Pre-sort during initial load | ⚠️ | Infrastructure added but not fully utilized | Cache fields exist, invalidation integrated |
-| Cache multiple sort orders | ⚠️ | `sort_cache_repo_name`, `sort_cache_aur_popularity` fields added | Cache invalidation works; reordering not implemented |
+| Pre-sort during initial load | ✅ | `sort_results_preserve_selection` precomputes repo/name & AUR/popularity indices | Caches seeded after full sort; signature-validated |
+| Cache multiple sort orders | ✅ | `sort_cache_repo_name`, `sort_cache_aur_popularity` with signature | O(n) reordering on cache hit; `BestMatches` still full sort |
 
 **Location**: `src/logic/sort.rs`
 
-**Current behavior**: Every call to `sort_results_preserve_selection()` performs a full O(n log n) sort. Cache fields are cleared to maintain consistency. Future optimization: implement cache-based reordering for O(1) sort mode switching.
+**Current behavior**: Cacheable modes (`RepoThenName`, `AurPopularityThenOfficial`) reuse cached indices for O(n) reordering when the results signature matches; cache misses and `BestMatches` perform full O(n log n) sorts.
 
 ---
 
@@ -133,8 +133,8 @@ Based on **user-facing impact** and **implementation complexity**:
 
 | # | Optimization | Estimated Impact | Effort | Rationale | Status |
 |---|--------------|------------------|--------|-----------|--------|
-| 4 | **Pre-cached sort orders** | 🟡 Medium | Medium | Sort mode switching is common | ⚠️ **Partially Implemented** (infrastructure added) |
-| 5 | **LRU cache for recent searches** | 🟡 Medium | Low | Add `lru` crate; cleaner semantics | ❌ Not Implemented |
+| 4 | **Pre-cached sort orders** | 🟡 Medium | Medium | Sort mode switching is common | ✅ **Implemented** (cache-based O(n) reordering) |
+| 5 | **LRU cache for recent searches** | 🟡 Medium | Low | Add `lru` crate; cleaner semantics | ✅ **Implemented** |
 | 6 | **Incremental PKGBUILD rendering** | 🟡 Medium | High | Syntect highlighting bottleneck | ❌ Not Implemented |
 
 ### 🟢 Low Priority (Lower Impact or Higher Effort)
@@ -142,8 +142,7 @@ Based on **user-facing impact** and **implementation complexity**:
 | # | Optimization | Estimated Impact | Effort | Rationale |
 |---|--------------|------------------|--------|-----------|
 | 7 | **Stream AUR results incrementally** | 🟢 Low | High | Network latency dominates |
-| 8 | **Cache parsed PKGBUILD ASTs** | 🟢 Low | Medium | Parsing is fast; rendering is slower |
-| 9 | **Trie/BK-tree for fuzzy search** | 🟢 Low | High | SkimMatcher is already optimized |
+| 8 | **Trie/BK-tree for fuzzy search** | 🟢 Low | High | SkimMatcher is already optimized |
 
 ---
 
@@ -167,17 +166,25 @@ Based on **user-facing impact** and **implementation complexity**:
    - Updated `find_package_by_name()` to use O(1) HashMap lookup
    - Integrated rebuild into `load_from_disk()`, index fetch/update operations
 
-4. **⚠️ Pre-sorted views** (`src/logic/sort.rs`) - **Infrastructure Added**
-   - Added `sort_cache_repo_name`, `sort_cache_aur_popularity`, `sort_cache_signature` fields to `AppState`
-   - Implemented `invalidate_sort_caches()` function
-   - Integrated cache invalidation into filter/search result changes
-   - **Note**: Cache-based reordering not yet implemented (would require storing sorted copies or more complex index mapping)
+4. **✅ Pre-sorted views and cache-based sort switching** (`src/logic/sort.rs`)
+   - Populates `sort_cache_repo_name` and `sort_cache_aur_popularity` after a full sort
+   - Uses signature-based validation plus O(n) reordering for cacheable modes
+   - Cache invalidation integrated via `invalidate_sort_caches()` on result/filter changes
+
+5. **✅ LRU recent searches** (`src/app/recent.rs`, `src/state/app_state/mod.rs`)
+   - Replaced `Vec<String>` with `LruCache<String, String>` keyed case-insensitively
+   - Bounded to `RECENT_CAPACITY` (20) with MRU-first ordering and O(1) dedupe/move-to-front
+   - Debounced persistence marks `recent_dirty` and saves after idle window
+
+6. **✅ PKGBUILD parse cache** (`src/logic/files/pkgbuild_cache.rs`)
+   - Disk-persisted LRU (200 entries) keyed by name/version/source with content signature
+   - Reused by backup parsing, install path extraction, and binary detection
+   - Flushes via tick/cleanup persistence hooks
 
 ### Remaining Optimizations
 
-5. **LRU cache for recent searches** - Replace `Vec<String>` with `lru::LruCache`
-6. **Incremental PKGBUILD rendering** - Requires architectural changes
-7. **Stream AUR results incrementally** - Needs UI redesign
+5. **Incremental PKGBUILD rendering** - Requires architectural changes
+6. **Stream AUR results incrementally** - Needs UI redesign
 
 ### Long-Term (1+ week)
 
@@ -216,7 +223,7 @@ criterion_main!(benches);
 
 | Crate | Purpose | Size Impact |
 |-------|---------|-------------|
-| `lru` | LRU cache for recent searches | Minimal |
+| `lru` | LRU cache for recent searches | Minimal (already added) |
 | `hashbrown` | Faster HashMap (optional) | Minimal |
 | `criterion` | Benchmarking (dev only) | Dev dependency |
 
@@ -229,18 +236,20 @@ criterion_main!(benches);
 | Search & Filtering | 3 | 1 | 0 |
 | AUR/Repo Sync | 0 | 1 | 2 |
 | Installed Mode | 2 | 1 | 0 |
-| PKGBUILD | 2 | 0 | 2 |
+| PKGBUILD | 3 | 0 | 1 |
 | Queue Management | 2 | 0 | 0 |
-| Recent Searches | 1 | 1 | 1 |
-| Sorting | 0 | 2 | 0 |
+| Recent Searches | 3 | 0 | 0 |
+| Sorting | 2 | 0 | 0 |
 | Prefetch | 3 | 0 | 0 |
-| **Total** | **13** | **6** | **5** |
+| **Total** | **18** | **3** | **3** |
 
 **Recent implementations**:
 - ✅ Hash-based package index (O(1) lookups via `HashMap<String, usize>`)
 - ✅ Install/Remove/Downgrade list HashSet optimization (O(1) membership checks)
 - ✅ Search result caching (last query/results pair)
-- ⚠️ Sort cache infrastructure (fields added, invalidation integrated; reordering not yet implemented)
+- ✅ Sort cache-based O(n) reordering for mode switching (cacheable modes)
+- ✅ Recent searches LRU (bounded to 20, case-insensitive, O(1) dedupe/move-to-front)
+- ✅ PKGBUILD parse cache (disk LRU, signature-validated, reused across backup/install/binary parsing)
 
-**Focus areas for maximum impact**: Remaining optimizations include LRU cache for recent searches, incremental PKGBUILD rendering, and completing sort cache-based reordering.
+**Focus areas for maximum impact**: Remaining optimizations include incremental PKGBUILD rendering and streaming AUR results incrementally.
 

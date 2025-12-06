@@ -1,7 +1,8 @@
 //! Backup file detection and retrieval functions.
 
+use super::pkgbuild_cache::{PkgbuildSourceKind, parse_pkgbuild_cached};
 use super::pkgbuild_fetch::{fetch_pkgbuild_sync, fetch_srcinfo_sync};
-use super::pkgbuild_parse::{parse_backup_from_pkgbuild, parse_backup_from_srcinfo};
+use super::pkgbuild_parse::parse_backup_from_srcinfo;
 use crate::state::types::Source;
 use std::process::Command;
 
@@ -39,7 +40,9 @@ pub fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, Stri
             // Try to fetch PKGBUILD and parse backup array
             match fetch_pkgbuild_sync(name) {
                 Ok(pkgbuild) => {
-                    let backup_files = parse_backup_from_pkgbuild(&pkgbuild);
+                    let entry =
+                        parse_pkgbuild_cached(name, None, PkgbuildSourceKind::Official, &pkgbuild);
+                    let backup_files = entry.backup_files;
                     if !backup_files.is_empty() {
                         tracing::debug!(
                             "Found {} backup files from PKGBUILD for {}",
@@ -76,7 +79,9 @@ pub fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, Stri
             // Fallback to PKGBUILD if .SRCINFO failed
             match fetch_pkgbuild_sync(name) {
                 Ok(pkgbuild) => {
-                    let backup_files = parse_backup_from_pkgbuild(&pkgbuild);
+                    let entry =
+                        parse_pkgbuild_cached(name, None, PkgbuildSourceKind::Aur, &pkgbuild);
+                    let backup_files = entry.backup_files;
                     if !backup_files.is_empty() {
                         tracing::debug!(
                             "Found {} backup files from PKGBUILD for {}",

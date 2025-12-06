@@ -111,8 +111,13 @@ pub(super) fn collect_binaries_for_package(
             // Fallback: try to parse PKGBUILD to extract install paths
             match crate::logic::files::fetch_pkgbuild_sync(package) {
                 Ok(pkgbuild) => {
-                    let files =
-                        crate::logic::files::parse_install_paths_from_pkgbuild(&pkgbuild, package);
+                    let entry = crate::logic::files::parse_pkgbuild_cached(
+                        package,
+                        None,
+                        crate::logic::files::PkgbuildSourceKind::Aur,
+                        &pkgbuild,
+                    );
+                    let files = entry.install_paths;
                     let binaries: Vec<String> = files
                         .into_iter()
                         .filter(|f| {

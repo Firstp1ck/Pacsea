@@ -1,7 +1,7 @@
 //! File list retrieval functions for remote and installed packages.
 
+use super::pkgbuild_cache::{PkgbuildSourceKind, parse_pkgbuild_cached};
 use super::pkgbuild_fetch::fetch_pkgbuild_sync;
-use super::pkgbuild_parse::parse_install_paths_from_pkgbuild;
 use crate::state::types::Source;
 use std::process::Command;
 
@@ -98,7 +98,8 @@ fn get_aur_file_list(name: &str) -> Vec<String> {
 
     // Fallback: try to parse PKGBUILD to extract install paths
     if let Ok(pkgbuild) = fetch_pkgbuild_sync(name) {
-        let files = parse_install_paths_from_pkgbuild(&pkgbuild, name);
+        let entry = parse_pkgbuild_cached(name, None, PkgbuildSourceKind::Aur, &pkgbuild);
+        let files = entry.install_paths;
         if !files.is_empty() {
             tracing::debug!(
                 "Found {} files from PKGBUILD parsing for {}",
