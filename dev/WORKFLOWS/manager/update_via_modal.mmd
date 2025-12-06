@@ -1,0 +1,14 @@
+flowchart TD
+    A([Update Available modal]) --> B{Manager action}
+    B -- Remind later --> C[Set snooze; no change]
+    B -- Skip version --> D[Record deferral]
+    B -- Update now --> E[Review scope + impact]
+    E --> F{Approve?}
+    F -- No --> C
+    F -- Yes --> G[Run update]
+    G --> H{Completed?}
+    H -- Yes --> I[Notify success; log change]
+    H -- No --> J[Notify failure; assign follow-up]
+    I --> K([Done])
+    J --> K
+

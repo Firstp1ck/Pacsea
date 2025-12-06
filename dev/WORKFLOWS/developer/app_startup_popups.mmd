@@ -1,0 +1,23 @@
+flowchart TD
+    A([App Launch]) --> B[Load config + state]
+    B --> C{Offline?}
+    C -- Yes --> C1[Show offline notice; limited actions]
+    C -- No --> D{Pending restart required?}
+    D -- Yes --> D1[Prompt restart or postpone]
+    D -- No --> E{Previous task failed?}
+    E -- Yes --> E1[Show failure popup with logs/retry]
+    E -- No --> F{Updates available?}
+    F -- Yes --> F1[Show Update modal trigger]
+    F -- No --> G{Announcements/terms change?}
+    G -- Yes --> G1[Show announcement/ack modal]
+    G -- No --> H{Cached results stale?}
+    H -- Yes --> H1[Prompt refresh indexes]
+    H -- No --> I[No blocking popups]
+    C1 --> I
+    D1 --> I
+    E1 --> I
+    F1 --> I
+    G1 --> I
+    H1 --> I
+    I --> J([User proceeds to main UI])
+

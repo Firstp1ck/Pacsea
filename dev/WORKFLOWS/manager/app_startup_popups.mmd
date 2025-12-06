@@ -1,0 +1,19 @@
+flowchart TD
+    A([App Launch]) --> B{Pending restart from prior update?}
+    B -- Yes --> B1[Prompt restart scheduling]
+    B -- No --> C{Previous task failed?}
+    C -- Yes --> C1[Show failure summary; assign owner]
+    C -- No --> D{Updates available?}
+    D -- Yes --> D1[Offer update modal trigger]
+    D -- No --> E{New announcement/terms?}
+    E -- Yes --> E1[Show announcement; require ack]
+    E -- No --> F{Anything blocking start?}
+    F -- Yes --> F1[Display blocking notice]
+    F -- No --> G[Proceed to dashboard]
+    B1 --> G
+    C1 --> G
+    D1 --> G
+    E1 --> G
+    F1 --> G
+    G --> H([Ready])
+

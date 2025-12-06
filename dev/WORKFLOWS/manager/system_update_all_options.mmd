@@ -1,0 +1,19 @@
+flowchart TD
+    A([Start System Update]) --> B{Choose action}
+    B -- Check only --> C[Receive report of available updates]
+    B -- Schedule --> D[Set window/maintenance time]
+    B -- Run now --> E[Review scope + risk]
+    B -- Cancel --> Z([Done])
+    E --> F{Approve?}
+    F -- No --> Z
+    F -- Yes --> G[Execute update]
+    G --> H{Reboot required?}
+    H -- Yes --> I[Plan reboot window; notify users]
+    H -- No --> J[No reboot]
+    I --> K{Completed?}
+    J --> K
+    K -- Yes --> L[Notify success; log]
+    K -- No --> M[Notify failure; assign follow-up]
+    L --> Z
+    M --> Z
+

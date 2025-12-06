@@ -1,0 +1,15 @@
+flowchart TD
+    A([Start]) --> B{Selection made?}
+    B -- No --> C[Stay on results screen]
+    B -- Yes --> D[Show summary: source, version, size]
+    D --> E{Approve install?}
+    E -- No --> F[Cancel; ask to review requirements]
+    E -- Yes --> G{Meets policy (signed/trusted)?}
+    G -- No --> H[Block; request override/whitelist]
+    G -- Yes --> I[Trigger install]
+    I --> J{Completed?}
+    J -- Yes --> K[Notify success; log change]
+    J -- No --> L[Notify failure; assign follow-up]
+    K --> M([Done])
+    L --> M
+

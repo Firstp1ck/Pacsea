@@ -1,0 +1,16 @@
+flowchart TD
+    A([Start]) --> B{Downgrade list ready?}
+    B -- No --> C[Request packages + target versions]
+    B -- Yes --> D[Review availability + risk summary]
+    D --> E{Security/policy concerns?}
+    E -- Yes --> F[Require waiver/override]
+    E -- No --> G{Approve downgrade batch?}
+    F --> G
+    G -- No --> H[Cancel; request adjustments]
+    G -- Yes --> I[Trigger downgrades]
+    I --> J{Completed?}
+    J -- Yes --> K[Notify success; log pinned versions]
+    J -- No --> L[Notify failures; assign follow-up]
+    K --> M([Done])
+    L --> M
+

@@ -1,0 +1,28 @@
+flowchart TD
+    A([Update Available modal]) --> B{User action}
+    B -- Dismiss --> C[Remind later timestamp]
+    B -- View details --> D[Show changelog + size + risks]
+    B -- Update now --> E{Power/network ok?}
+    D --> E
+    E -- No --> E1[Warn; allow cancel/retry]
+    E -- Yes --> F{Scope selection}
+    F -- All packages --> G
+    F -- Only selected --> H[Select packages]
+    F -- Skip AUR --> I[Exclude AUR set]
+    G --> J{Tool available?<br/>pacman/paru/yay}
+    H --> J
+    I --> J
+    J -- No --> J1[Show missing-tool guidance; abort]
+    J -- Yes --> K{Dry-run?}
+    K -- Yes --> L[Run dry-run update; show conflicts]
+    K -- No --> M{User confirmed update?}
+    L --> M
+    M -- No --> N[Cancel; keep reminder]
+    M -- Yes --> O[Acquire lock; snapshot state if enabled]
+    O --> P[Execute update scope]
+    P --> Q{Success?}
+    Q -- Yes --> R[Post steps: refresh db, restart prompts]
+    Q -- No --> S[Show failure logs; offer retry]
+    R --> T([Done])
+    S --> T
+
