@@ -101,7 +101,7 @@ pub fn find_in_recent(app: &mut AppState, forward: bool) {
             vi - 1
         };
         let i = inds[vi];
-        if let Some(s) = app.recent.get(i)
+        if let Some(s) = app.recent_value_at(i)
             && s.to_lowercase().contains(&pattern.to_lowercase())
         {
             app.history_state.select(Some(vi));
@@ -367,7 +367,7 @@ mod tests {
     /// - Provides smoke coverage for the wrap-around logic inside the helper.
     fn find_in_recent_basic() {
         let mut app = new_app();
-        app.recent = vec!["alpha".into(), "beta".into(), "gamma".into()];
+        app.load_recent_items(&["alpha".to_string(), "beta".to_string(), "gamma".to_string()]);
         app.pane_find = Some("a".into());
         app.history_state.select(Some(0));
         find_in_recent(&mut app, true);

@@ -1,5 +1,6 @@
 //! Default initialization helpers for `AppState`.
 
+use lru::LruCache;
 use ratatui::widgets::ListState;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
@@ -284,8 +285,13 @@ pub(super) fn default_search_state() -> DefaultSearchState {
 /// - Initializes empty recent searches list and selection state.
 pub(super) fn default_recent_state(
     recent_path: PathBuf,
-) -> (Vec<String>, ListState, PathBuf, bool) {
-    (Vec::new(), ListState::default(), recent_path, false)
+) -> (LruCache<String, String>, ListState, PathBuf, bool) {
+    (
+        LruCache::new(super::recent_capacity()),
+        ListState::default(),
+        recent_path,
+        false,
+    )
 }
 
 /// What: Create default details cache state.

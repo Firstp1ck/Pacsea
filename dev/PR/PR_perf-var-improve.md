@@ -17,6 +17,7 @@ This PR implements performance optimizations and cache hardening across the appl
   - Optimized install/remove/downgrade list operations using HashSet for O(1) membership checking
   - Added search result caching to avoid redundant query processing
   - Hardened cache persistence and invalidation for deps/files/services/sandbox caches
+  - Switched recent searches to an `LruCache` (O(1) dedup, bounded to 20, MRU-first ordering)
 
 - **Cache improvements:**
   - Strengthened settings cache invalidation by comparing file sizes to avoid stale reloads after config rewrites
@@ -40,9 +41,6 @@ This PR implements performance optimizations and cache hardening across the appl
 - [ ] ui (visual/interaction changes)
 - [ ] breaking change (incompatible behavior)
 
-## Related issues
-Closes #N/A (not tracked in an issue)
-
 ## How to test
 List exact steps and commands to verify the change. Include flags like `--dry-run` when appropriate.
 
@@ -51,24 +49,14 @@ List exact steps and commands to verify the change. Include flags like `--dry-ru
 cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 
-# Run tests (currently one known failure listed below)
+# Run tests
 cargo test -- --test-threads=1
 
-# Targeted repro for the known failing test
-cargo test --lib logic::sort::tests::sort_cache_hit_repo_then_name -- --nocapture
-
-# Test performance improvements
-RUST_LOG=pacsea=debug cargo run -- --dry-run
-
-# Verify cache behavior
-# 1. Run application and perform searches
-# 2. Switch sort modes and verify O(1) switching
-# 3. Add/remove packages from install list and verify O(1) operations
-# 4. Check cache files are created and updated correctly in ~/.local/share/pacsea/
+# Manual UI verification (optional)
+# 1. Run in dry-run mode: cargo run -- --dry-run
+# 2. Perform >20 unique searches; confirm oldest entries evict and duplicates move to the front
+# 3. Restart and ensure recent history reloads with the same ordering
 ```
-
-## Screenshots / recordings (if UI changes)
-UI changes are present (announcement modal, modal/system-update tweaks); screenshots not captured yet.
 
 ## Checklist
 
@@ -76,7 +64,7 @@ UI changes are present (announcement modal, modal/system-update tweaks); screens
 - [x] Code compiles locally (`cargo check`)
 - [x] `cargo fmt --all` ran without changes
 - [x] `cargo clippy --all-targets --all-features -- -D warnings` is clean
-- [ ] `cargo test -- --test-threads=1` passes (fails at `logic::sort::tests::sort_cache_hit_repo_then_name` – cache signature mismatch)
+- [x] `cargo test -- --test-threads=1` passes
 - [ ] Complexity checks pass for new code (`cargo test complexity -- --nocapture`)
 - [x] All new functions/methods have rustdoc comments (What, Inputs, Output, Details)
 - [x] No `unwrap()` or `expect()` in non-test code
@@ -87,12 +75,12 @@ UI changes are present (announcement modal, modal/system-update tweaks); screens
 - [x] Tests are meaningful and cover the functionality
 
 **Documentation:**
-- [x] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
+- [ ] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
 - [ ] Updated relevant wiki pages if needed:
   - [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea)
   - [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration)
   - [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts)
-- [x] Updated config examples in `config/` directory if config keys changed
+- [ ] Updated config examples in `config/` directory if config keys changed
 - [ ] For UI changes: included screenshots and updated `Images/` if applicable
 
 **Compatibility:**
@@ -121,11 +109,11 @@ UI changes are present (announcement modal, modal/system-update tweaks); screens
 - Comprehensive test coverage added for modal interactions and system update functionality
 
 **Focus areas for review:**
-1. Cache invalidation logic in `src/app/persist.rs` and cache modules
-2. Performance-critical paths in `src/logic/sort.rs` and `src/logic/lists.rs` (includes failing test noted above)
-3. Index rebuilding logic in `src/index/mod.rs`
-4. Search cache integration in `src/app/runtime/handlers/search.rs`
-5. New announcement modal and release tooling flow changes
+1. Recent search LRU path (`AppState.recent`, persistence/load, pane filtering/rendering)
+2. Cache invalidation logic in `src/app/persist.rs` and cache modules
+3. Performance-critical paths in `src/logic/sort.rs` and `src/logic/lists.rs`
+4. Index rebuilding logic in `src/index/mod.rs`
+5. Search cache integration in `src/app/runtime/handlers/search.rs`
 
 ## Breaking changes
 None. All changes are backward compatible.

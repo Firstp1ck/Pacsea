@@ -31,10 +31,11 @@ pub fn render_recent(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     let th = theme();
     let recent_focused = matches!(app.focus, crate::state::Focus::Recent);
+    let recents = app.recent_values();
     let rec_inds = crate::ui::helpers::filtered_recent_indices(app);
     let rec_items: Vec<ListItem> = rec_inds
         .iter()
-        .filter_map(|&i| app.recent.get(i))
+        .filter_map(|&i| recents.get(i))
         .map(|s| {
             ListItem::new(Span::styled(
                 s.clone(),
@@ -140,8 +141,7 @@ mod tests {
         let mut app = crate::state::AppState::default();
         init_test_translations(&mut app);
         app.show_recent_pane = true;
-        app.recent.push("package1".to_string());
-        app.recent.push("package2".to_string());
+        app.load_recent_items(&["package1".to_string(), "package2".to_string()]);
 
         term.draw(|f| {
             let area = f.area();

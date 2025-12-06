@@ -220,7 +220,11 @@ fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
 fn filtered_indices_and_details_lines() {
     let mut app = crate::state::AppState::default();
     init_test_translations(&mut app);
-    app.recent = vec!["alpha".into(), "bravo".into(), "charlie".into()];
+    app.load_recent_items(&[
+        "alpha".to_string(),
+        "bravo".to_string(),
+        "charlie".to_string(),
+    ]);
     assert_eq!(filtered_recent_indices(&app), vec![0, 1, 2]);
     app.focus = crate::state::Focus::Recent;
     app.pane_find = Some("a".into());
@@ -379,7 +383,7 @@ async fn trigger_recent_preview_noop_when_not_recent_or_invalid() {
     assert!(none1.is_none());
 
     app.focus = crate::state::Focus::Recent;
-    app.recent = vec!["abc".into()];
+    app.load_recent_items(&["abc".to_string()]);
     app.history_state.select(None);
     trigger_recent_preview(&app, &tx);
     let none2 = tokio::time::timeout(std::time::Duration::from_millis(30), rx.recv())
