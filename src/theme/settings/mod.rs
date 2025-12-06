@@ -20,6 +20,8 @@ struct SettingsCache {
     settings: Settings,
     settings_mtime: Option<SystemTime>,
     keybinds_mtime: Option<SystemTime>,
+    settings_size: Option<u64>,
+    keybinds_size: Option<u64>,
     initialized: bool,
 }
 
@@ -29,6 +31,8 @@ impl SettingsCache {
             settings: Settings::default(),
             settings_mtime: None,
             keybinds_mtime: None,
+            settings_size: None,
+            keybinds_size: None,
             initialized: false,
         }
     }
@@ -63,18 +67,21 @@ pub fn settings() -> Settings {
             .map(|base| base.join("pacsea").join("settings.conf"))
     });
 
-    let settings_mtime = settings_path
-        .as_ref()
-        .and_then(|p| fs::metadata(p).and_then(|m| m.modified()).ok());
+    let settings_metadata = settings_path.as_ref().and_then(|p| fs::metadata(p).ok());
+    let settings_mtime = settings_metadata.as_ref().and_then(|m| m.modified().ok());
+    let settings_size = settings_metadata.as_ref().map(std::fs::Metadata::len);
+
     let keybinds_path = resolve_keybinds_config_path();
-    let keybinds_mtime = keybinds_path
-        .as_ref()
-        .and_then(|p| fs::metadata(p).and_then(|m| m.modified()).ok());
+    let keybinds_metadata = keybinds_path.as_ref().and_then(|p| fs::metadata(p).ok());
+    let keybinds_mtime = keybinds_metadata.as_ref().and_then(|m| m.modified().ok());
+    let keybinds_size = keybinds_metadata.as_ref().map(std::fs::Metadata::len);
 
     let cache_initialized = cache.initialized;
     let mtimes_match = cache_initialized
         && cache.settings_mtime == settings_mtime
-        && cache.keybinds_mtime == keybinds_mtime;
+        && cache.settings_size == settings_size
+        && cache.keybinds_mtime == keybinds_mtime
+        && cache.keybinds_size == keybinds_size;
     if mtimes_match {
         if tracing::enabled!(tracing::Level::TRACE) {
             debug!("[Config] Using cached settings (unchanged files)");
@@ -138,7 +145,9 @@ pub fn settings() -> Settings {
         );
     }
     cache.settings_mtime = settings_mtime;
+    cache.settings_size = settings_size;
     cache.keybinds_mtime = keybinds_mtime;
+    cache.keybinds_size = keybinds_size;
     cache.settings = out.clone();
     cache.initialized = true;
     out
