@@ -71,7 +71,7 @@ pub struct Settings {
     pub sort_mode: crate::state::SortMode,
     /// Text appended when copying PKGBUILD to clipboard.
     pub clipboard_suffix: String,
-    /// Whether the Recent pane should be shown on startup.
+    /// Whether the Search history pane should be shown on startup.
     pub show_recent_pane: bool,
     /// Whether the Install/Remove pane should be shown on startup.
     pub show_install_pane: bool,

@@ -178,7 +178,7 @@ mod tests {
         let settings_path = cfg.join("settings.conf");
         std::fs::write(
             &settings_path,
-            "layout_left_pct=10\nlayout_center_pct=10\nlayout_right_pct=10\nsort_mode=aur_popularity\nclipboard_suffix=OK\nshow_recent_pane=true\nshow_install_pane=false\nshow_keybinds_footer=true\n",
+            "layout_left_pct=10\nlayout_center_pct=10\nlayout_right_pct=10\nsort_mode=aur_popularity\nclipboard_suffix=OK\nshow_search_history_pane=true\nshow_install_pane=false\nshow_keybinds_footer=true\n",
         )
         .expect("failed to write test settings file");
         // Write keybinds.conf

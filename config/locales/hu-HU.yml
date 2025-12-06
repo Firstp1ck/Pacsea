@@ -43,8 +43,9 @@ hu-HU:
       globals: "GLOBÁLIS:"
       pkgb: "PKGBUILD"
       comments: "Megjegyzések"
-      recent: "LEGUTÓBBI:"
-      install: "TELEPÍTÉS:"
+      # TODO: translate to hungarian
+      recent: "SEARCH HISTORY:"
+      install: "INSTALL LIST:"
       downgrade: "VISSZAFEJLESZTÉS:"
       remove: "ELTÁVOLÍTÁS:"
       results: "Találatok"
@@ -62,8 +63,9 @@ hu-HU:
     titles:
       search: "Keresés"
       search_focused: "Keresés (fókuszált)"
-      recent: "Legutóbbi"
-      recent_focused: "Legutóbbi (fókuszált)"
+      # TODO: translate to hungarian
+      recent: "Search History:"
+      recent_focused: "Search History (Focused)"
       install_list: "Telepítési lista"
       install_list_focused: "Telepítési lista (fókuszált)"
       downgrade_list: "Visszafejlesztési lista"
@@ -383,7 +385,8 @@ hu-HU:
           search: "Keresés:"
           search_normal: "Keresés (normál keresés):"
           install: "Telepítés:"
-          recent: "Legutóbbi:"
+          # TODO: translate to hungarian
+          recent: "Search History:"
           mouse: "Egér:"
           system_update_dialog: "Rendszerfrissítési párbeszédablak:"
           news_dialog: "Hírek párbeszédablak:"

@@ -30,7 +30,7 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
         .to_string(),
         "sort_mode" => prefs.sort_mode.as_config_key().to_string(),
         "clipboard_suffix" => prefs.clipboard_suffix.clone(),
-        "show_recent_pane" => if prefs.show_recent_pane {
+        "show_recent_pane" | "show_search_history_pane" => if prefs.show_recent_pane {
             "true"
         } else {
             "false"
@@ -213,6 +213,9 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         if let Some(eq) = trimmed.find('=') {
             let (kraw, _) = trimmed.split_at(eq);
             let key = kraw.trim().to_lowercase().replace(['.', '-', ' '], "_");
+            if key == "show_recent_pane" {
+                have.insert("show_search_history_pane".to_string());
+            }
             have.insert(key);
         }
     }

@@ -76,7 +76,7 @@ fn parse_app_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             settings.clipboard_suffix = val.to_string();
             true
         }
-        "show_recent_pane" | "recent_visible" => {
+        "show_search_history_pane" | "show_recent_pane" | "recent_visible" => {
             settings.show_recent_pane = parse_bool(val);
             true
         }
