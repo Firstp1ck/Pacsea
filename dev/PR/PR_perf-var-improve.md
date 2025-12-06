@@ -9,7 +9,7 @@ Please ensure you've reviewed these before submitting your PR.
 -->
 
 ## Summary
-This PR implements performance optimizations and cache hardening across the application:
+This PR implements performance optimizations and cache hardening across the application, plus small reliability fixes:
 
 - **Performance optimizations:**
   - Implemented cache-based O(n) reordering for sort modes, enabling O(1) sort mode switching
@@ -30,10 +30,12 @@ This PR implements performance optimizations and cache hardening across the appl
   - Added comprehensive test coverage for modals and system update functionality
   - Improved logging with ChangeLogger helper to reduce duplicate UI debug output
   - Quieted noisy logs by clamping HTML parser crates and service resolution logs to warn level
+  - Reduced preflight dependency log spam by logging only on state changes
+  - Avoided futile `pacman -Sl eos` probes; only `endeavouros` is queried to prevent warnings
 
 ## Type of change
 - [ ] feat (new feature)
-- [ ] fix (bug fix)
+- [x] fix (bug fix)
 - [ ] docs (documentation only)
 - [ ] refactor (no functional change)
 - [x] perf (performance)
