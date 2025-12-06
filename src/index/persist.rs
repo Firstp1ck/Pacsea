@@ -13,11 +13,14 @@ use super::{OfficialIndex, idx};
 ///
 /// Details:
 /// - Silently ignores IO or deserialization failures to keep startup resilient.
+/// - Rebuilds the `name_to_idx` `HashMap` after deserialization for O(1) lookups.
 pub fn load_from_disk(path: &Path) {
     if let Ok(s) = fs::read_to_string(path)
-        && let Ok(new_idx) = serde_json::from_str::<OfficialIndex>(&s)
+        && let Ok(mut new_idx) = serde_json::from_str::<OfficialIndex>(&s)
         && let Ok(mut guard) = idx().write()
     {
+        // Rebuild the name index HashMap after deserialization
+        new_idx.rebuild_name_index();
         *guard = new_idx;
     }
 }

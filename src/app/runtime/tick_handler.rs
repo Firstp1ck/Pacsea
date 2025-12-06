@@ -431,6 +431,7 @@ fn handle_installed_cache_polling(
         if all_installed {
             // Clear install list and stop tracking
             app.install_list.clear();
+            app.install_list_names.clear();
             app.install_dirty = true;
             app.pending_install_names = None;
             // Clear dependency cache when install list is cleared

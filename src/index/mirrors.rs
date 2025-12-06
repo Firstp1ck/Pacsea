@@ -474,7 +474,8 @@ pub async fn refresh_official_index_from_arch_api(
             // Replace in-memory index and persist to disk
             if let Ok(mut guard) = idx().write() {
                 guard.pkgs.clone_from(&new_list);
-                tracing::debug!("Updated in-memory index");
+                guard.rebuild_name_index();
+                tracing::debug!("Updated in-memory index with {} packages", guard.pkgs.len());
             } else {
                 tracing::warn!("Failed to acquire write lock for index update");
             }

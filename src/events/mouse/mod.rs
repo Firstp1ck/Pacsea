@@ -129,6 +129,9 @@ pub fn handle_mouse_event(
     {
         app.fuzzy_search_enabled = !app.fuzzy_search_enabled;
         crate::theme::save_fuzzy_search(app.fuzzy_search_enabled);
+        // Invalidate cache when fuzzy mode changes
+        app.search_cache_query = None;
+        app.search_cache_results = None;
         // Re-trigger search with current query using new mode
         crate::logic::send_query(app, query_tx);
         return false;

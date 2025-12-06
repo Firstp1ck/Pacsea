@@ -59,8 +59,11 @@ def get_version_from_cargo_toml() -> str | None:
         match = re.search(pattern, content)
         if match:
             return match.group(1)
-    except Exception:
-        pass
+    except Exception as err:
+        print(
+            f"Warning: failed to read version from {CARGO_TOML_FILE}: {err}",
+            file=sys.stderr,
+        )
     
     return None
 

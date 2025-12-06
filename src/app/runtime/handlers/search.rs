@@ -24,6 +24,46 @@ pub fn handle_search_results(
     if new_results.id != app.latest_query_id {
         return;
     }
+
+    // Check cache before processing
+    let query_text = app.input.trim().to_string();
+    let cache_hit = if let Some(cached_query) = &app.search_cache_query {
+        cached_query == &query_text
+            && app.search_cache_fuzzy == app.fuzzy_search_enabled
+            && app.search_cache_results.is_some()
+    } else {
+        false
+    };
+
+    // If cache hit, use cached results and skip processing new_results
+    if cache_hit && let Some(cached_results) = &app.search_cache_results {
+        let prev_selected_name = app.results.get(app.selected).map(|p| p.name.clone());
+        app.all_results = cached_results.clone();
+        crate::logic::apply_filters_and_sort_preserve_selection(app);
+        let new_sel = prev_selected_name
+            .and_then(|name| app.results.iter().position(|p| p.name == name))
+            .unwrap_or(0);
+        app.selected = new_sel.min(app.results.len().saturating_sub(1));
+        app.list_state.select(if app.results.is_empty() {
+            None
+        } else {
+            Some(app.selected)
+        });
+        if let Some(item) = app.results.get(app.selected).cloned() {
+            app.details_focus = Some(item.name.clone());
+            if let Some(cached) = app.details_cache.get(&item.name).cloned() {
+                app.details = cached;
+            } else {
+                let _ = details_req_tx.send(item);
+            }
+        }
+        crate::logic::set_allowed_ring(app, 30);
+        if !app.need_ring_prefetch {
+            crate::logic::ring_prefetch_from_selected(app, details_req_tx);
+        }
+        return; // Early return on cache hit
+    }
+
     let prev_selected_name = app.results.get(app.selected).map(|p| p.name.clone());
     // Respect installed-only mode: keep results restricted to explicit installs
     let mut incoming = new_results.items;
@@ -122,6 +162,11 @@ pub fn handle_search_results(
             enrich_names,
         );
     }
+
+    // Update search cache with current query and results
+    app.search_cache_query = Some(query_text);
+    app.search_cache_fuzzy = app.fuzzy_search_enabled;
+    app.search_cache_results = Some(app.results.clone());
 }
 
 /// What: Handle package details update event.
@@ -268,6 +313,7 @@ mod tests {
     fn handle_search_results_updates_when_id_matches() {
         let mut app = new_app();
         app.latest_query_id = 1;
+        app.input = "hello".to_string();
         app.results = vec![PackageItem {
             name: "old-package".to_string(),
             version: "1.0.0".to_string(),
@@ -299,6 +345,9 @@ mod tests {
         // Results should be updated
         assert_eq!(app.results.len(), 1);
         assert_eq!(app.results[0].name, "new-package");
+        // Cache should be updated
+        assert_eq!(app.search_cache_query.as_deref(), Some("hello"));
+        assert_eq!(app.search_cache_results.as_ref().map(Vec::len), Some(1));
     }
 
     #[test]

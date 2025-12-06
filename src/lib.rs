@@ -93,6 +93,7 @@
 //! **Inject a fake official index during tests**
 //! ```rust
 //! use pacsea::index::{load_from_disk, OfficialIndex, OfficialPkg};
+//! use std::collections::HashMap;
 //! use std::path::PathBuf;
 //!
 //! fn seed_index() {
@@ -106,6 +107,7 @@
 //!             version: "1.0".into(),
 //!             description: "fixture".into(),
 //!         }],
+//!         name_to_idx: HashMap::new(), // Skipped during serialization
 //!     };
 //!     std::fs::write(&tmp, serde_json::to_string(&snapshot).unwrap()).unwrap();
 //!     load_from_disk(&tmp);

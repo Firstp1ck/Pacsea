@@ -1,7 +1,7 @@
 //! Default initialization helpers for `AppState`.
 
 use ratatui::widgets::ListState;
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
 use crate::state::modal::Modal;
 use crate::state::types::{ArchStatusColor, Focus, PackageDetails, PackageItem, SortMode};
@@ -78,6 +78,9 @@ pub(super) type DefaultSearchState = (
     Option<String>,
     u64,
     u64,
+    Option<String>,
+    bool,
+    Option<Vec<PackageItem>>,
 );
 
 /// Type alias for default install lists state tuple.
@@ -91,6 +94,9 @@ pub(super) type DefaultInstallListsState = (
     PathBuf,
     bool,
     Option<Instant>,
+    HashSet<String>,
+    HashSet<String>,
+    HashSet<String>,
 );
 
 /// Type alias for default clickable rectangles state tuple.
@@ -199,6 +205,10 @@ pub(super) type DefaultSortingMenusState = (
     bool,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
+    // Sort result caching fields
+    Option<Vec<usize>>,
+    Option<Vec<usize>>,
+    Option<u64>,
 );
 
 /// What: Create default filter state (all filters enabled).
@@ -256,6 +266,9 @@ pub(super) fn default_search_state() -> DefaultSearchState {
         None,
         0,
         1,
+        None,
+        false,
+        None,
     )
 }
 
@@ -349,6 +362,9 @@ pub(super) fn default_install_lists_state(install_path: PathBuf) -> DefaultInsta
         install_path,
         false,
         None,
+        HashSet::new(),
+        HashSet::new(),
+        HashSet::new(),
     )
 }
 
@@ -562,10 +578,11 @@ pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of sorting/menu fields: `sort_mode`, `sort_menu_open`, `sort_button_rect`, `sort_menu_rect`, `sort_menu_auto_close_at`, `options_menu_open`, `options_button_rect`, `options_menu_rect`, `panels_menu_open`, `panels_button_rect`, `panels_menu_rect`, `config_menu_open`, `artix_filter_menu_open`, `artix_filter_menu_rect`, `config_button_rect`, `config_menu_rect`, `collapsed_menu_open`, `collapsed_menu_button_rect`, `collapsed_menu_rect`.
+/// - Tuple of sorting/menu fields: `sort_mode`, `sort_menu_open`, `sort_button_rect`, `sort_menu_rect`, `sort_menu_auto_close_at`, `options_menu_open`, `options_button_rect`, `options_menu_rect`, `panels_menu_open`, `panels_button_rect`, `panels_menu_rect`, `config_menu_open`, `artix_filter_menu_open`, `artix_filter_menu_rect`, `config_button_rect`, `config_menu_rect`, `collapsed_menu_open`, `collapsed_menu_button_rect`, `collapsed_menu_rect`, `sort_cache_repo_name`, `sort_cache_aur_popularity`, `sort_cache_signature`.
 ///
 /// Details:
 /// - All menus are closed by default, sort mode is `SortMode::RepoThenName`.
+/// - Sort caches are empty (`None`) by default.
 pub(super) const fn default_sorting_menus_state() -> DefaultSortingMenusState {
     (
         SortMode::RepoThenName,
@@ -587,6 +604,10 @@ pub(super) const fn default_sorting_menus_state() -> DefaultSortingMenusState {
         false,
         None,
         None,
+        // Sort result caching fields
+        None, // sort_cache_repo_name
+        None, // sort_cache_aur_popularity
+        None, // sort_cache_signature
     )
 }
 

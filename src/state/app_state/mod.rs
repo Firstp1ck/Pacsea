@@ -1,7 +1,7 @@
 //! Central `AppState` container, split out from the monolithic module.
 
 use ratatui::widgets::ListState;
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
 use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
@@ -64,6 +64,13 @@ pub struct AppState {
     pub latest_query_id: u64,
     /// Next query identifier to allocate.
     pub next_query_id: u64,
+    // Search result cache
+    /// Cached search query text (None if cache is empty or invalid).
+    pub search_cache_query: Option<String>,
+    /// Whether fuzzy mode was used for cached query.
+    pub search_cache_fuzzy: bool,
+    /// Cached search results (None if cache is empty or invalid).
+    pub search_cache_results: Option<Vec<PackageItem>>,
     // Details cache
     /// Cache of details keyed by package name.
     pub details_cache: HashMap<String, PackageDetails>,
@@ -109,6 +116,12 @@ pub struct AppState {
     pub install_dirty: bool,
     /// Timestamp of the most recent change to the install list for throttling disk writes.
     pub last_install_change: Option<Instant>,
+    /// `HashSet` of package names in install list for O(1) membership checking.
+    pub install_list_names: HashSet<String>,
+    /// `HashSet` of package names in remove list for O(1) membership checking.
+    pub remove_list_names: HashSet<String>,
+    /// `HashSet` of package names in downgrade list for O(1) membership checking.
+    pub downgrade_list_names: HashSet<String>,
 
     // Visibility toggles for middle row panes
     /// Whether the Recent pane is visible in the middle row.
@@ -339,6 +352,13 @@ pub struct AppState {
     pub sort_menu_rect: Option<(u16, u16, u16, u16)>,
     /// Deadline after which the sort dropdown auto-closes.
     pub sort_menu_auto_close_at: Option<Instant>,
+    // Sort result caching for O(1) sort mode switching
+    /// Cached sort order for `RepoThenName` mode (indices into `results`).
+    pub sort_cache_repo_name: Option<Vec<usize>>,
+    /// Cached sort order for `AurPopularityThenOfficial` mode (indices into `results`).
+    pub sort_cache_aur_popularity: Option<Vec<usize>>,
+    /// Signature of results used to validate caches (order-insensitive hash of names).
+    pub sort_cache_signature: Option<u64>,
 
     // Results options UI (top-right dropdown)
     /// Whether the options dropdown is currently visible.

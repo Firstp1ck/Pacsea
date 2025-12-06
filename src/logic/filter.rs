@@ -61,6 +61,8 @@ pub fn apply_filters_and_sort_preserve_selection(app: &mut AppState) {
         }
     }
     app.results = filtered;
+    // Invalidate sort caches since results changed
+    crate::logic::invalidate_sort_caches(app);
     // Apply existing sort policy and preserve selection
     crate::logic::sort_results_preserve_selection(app);
     // Restore by name if possible

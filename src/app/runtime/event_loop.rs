@@ -512,6 +512,7 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
 
                             // Clear remove list
                             app.remove_list.clear();
+                            app.remove_list_names.clear();
                             app.remove_state.select(None);
 
                             // Set pending remove names to track removal completion
@@ -536,6 +537,7 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
 
                             // Clear downgrade list
                             app.downgrade_list.clear();
+                            app.downgrade_list_names.clear();
                             app.downgrade_state.select(None);
 
                             // Set pending downgrade names to track downgrade completion

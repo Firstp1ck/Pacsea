@@ -14,12 +14,10 @@ use tracing::debug;
 ///
 /// Details:
 /// - Updates `last_install_change` to support UI throttling of follow-up actions.
+/// - Uses `HashSet` for O(1) membership checking instead of linear scan.
 pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
-    if app
-        .install_list
-        .iter()
-        .any(|p| p.name.eq_ignore_ascii_case(&item.name))
-    {
+    let name_lower = item.name.to_lowercase();
+    if !app.install_list_names.insert(name_lower) {
         return;
     }
     let prev_len = app.install_list.len();
@@ -47,12 +45,10 @@ pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
 ///
 /// Details:
 /// - Leaves `remove_list` order deterministic by always pushing new entries to the head.
+/// - Uses `HashSet` for O(1) membership checking instead of linear scan.
 pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
-    if app
-        .remove_list
-        .iter()
-        .any(|p| p.name.eq_ignore_ascii_case(&item.name))
-    {
+    let name_lower = item.name.to_lowercase();
+    if !app.remove_list_names.insert(name_lower) {
         return;
     }
     let prev_len = app.remove_list.len();
@@ -77,12 +73,10 @@ pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
 ///
 /// Details:
 /// - Ensures repeated requests for the same package keep the cursor anchored at the newest item.
+/// - Uses `HashSet` for O(1) membership checking instead of linear scan.
 pub fn add_to_downgrade_list(app: &mut AppState, item: PackageItem) {
-    if app
-        .downgrade_list
-        .iter()
-        .any(|p| p.name.eq_ignore_ascii_case(&item.name))
-    {
+    let name_lower = item.name.to_lowercase();
+    if !app.downgrade_list_names.insert(name_lower) {
         return;
     }
     let prev_len = app.downgrade_list.len();
@@ -171,5 +165,57 @@ mod tests {
         add_to_downgrade_list(&mut app, item_official("pkgx", "extra"));
         assert_eq!(app.downgrade_list.len(), 1);
         assert_eq!(app.downgrade_state.selected(), Some(0));
+    }
+
+    #[test]
+    /// What: Verify `HashSet` synchronization after adding and removing items from install list.
+    ///
+    /// Inputs:
+    /// - Add items to install list, then remove them.
+    ///
+    /// Output:
+    /// - `HashSet` contains names only when items are in the list.
+    ///
+    /// Details:
+    /// - Ensures `HashSet` stays synchronized with the `Vec` for O(1) membership checking.
+    fn install_list_hashset_synchronization() {
+        let mut app = AppState::default();
+        add_to_install_list(&mut app, item_official("pkg1", "core"));
+        add_to_install_list(&mut app, item_official("pkg2", "extra"));
+        assert!(app.install_list_names.contains("pkg1"));
+        assert!(app.install_list_names.contains("pkg2"));
+        assert_eq!(app.install_list_names.len(), 2);
+
+        // Remove first item (pkg2 is at index 0 since it was added last)
+        // Items are inserted at index 0, so order is: [pkg2, pkg1]
+        let removed_name = app.install_list[0].name.to_lowercase();
+        app.install_list_names.remove(&removed_name);
+        app.install_list.remove(0);
+        // After removing pkg2, pkg1 should remain
+        assert!(app.install_list_names.contains("pkg1"));
+        assert!(!app.install_list_names.contains("pkg2"));
+        assert_eq!(app.install_list_names.len(), 1);
+    }
+
+    #[test]
+    /// What: Verify `HashSet` synchronization after clearing install list.
+    ///
+    /// Inputs:
+    /// - Add items to install list, then clear it.
+    ///
+    /// Output:
+    /// - `HashSet` is empty after clearing.
+    ///
+    /// Details:
+    /// - Ensures `HashSet` is cleared when list is cleared.
+    fn install_list_hashset_clear_synchronization() {
+        let mut app = AppState::default();
+        add_to_install_list(&mut app, item_official("pkg1", "core"));
+        add_to_install_list(&mut app, item_official("pkg2", "extra"));
+        assert_eq!(app.install_list_names.len(), 2);
+
+        app.install_list.clear();
+        app.install_list_names.clear();
+        assert!(app.install_list_names.is_empty());
     }
 }
