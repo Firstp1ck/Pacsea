@@ -193,7 +193,7 @@ layout_right_pct = 20\n\
 # Default dry-run behavior when starting the app (overridden by --dry-run)\n\
 app_dry_run_default = false\n\
 # Middle row visibility (default true)\n\
-show_recent_pane = true\n\
+show_search_history_pane = true\n\
 show_install_pane = true\n\
 show_keybinds_footer = true\n\
 # Search input mode on startup\n\

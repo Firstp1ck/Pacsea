@@ -111,10 +111,13 @@ mod tests {
     fn init_test_translations(app: &mut crate::state::AppState) {
         use std::collections::HashMap;
         let mut translations = HashMap::new();
-        translations.insert("app.titles.recent".to_string(), "Recent".to_string());
+        translations.insert(
+            "app.titles.recent".to_string(),
+            "Search history".to_string(),
+        );
         translations.insert(
             "app.titles.recent_focused".to_string(),
-            "Recent".to_string(),
+            "Search history".to_string(),
         );
         app.translations = translations.clone();
         app.translations_fallback = translations;
