@@ -24,11 +24,8 @@ impl tracing_subscriber::fmt::time::FormatTime for PacseaTimer {
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
 
 fn build_env_filter(log_level: &str) -> tracing_subscriber::EnvFilter {
-    let mut filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        tracing_subscriber::EnvFilter::new(format!(
-            "{log_level},pacsea::logic::services=warn,html5ever=warn,html5ever::tokenizer=warn,html5ever::tree_builder=warn,selectors=warn,selectors::matching=warn,markup5ever=warn,cssparser=warn,kuchiki=warn,scraper=warn"
-        ))
-    });
+    let mut filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
 
     // Always clamp noisy HTML parsing crates to warn even when RUST_LOG is set.
     for directive in [
