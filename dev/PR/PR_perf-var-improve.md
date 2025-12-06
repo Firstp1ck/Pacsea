@@ -9,7 +9,7 @@ Please ensure you've reviewed these before submitting your PR.
 -->
 
 ## Summary
-This PR implements comprehensive performance optimizations and cache improvements across the application:
+This PR implements performance optimizations and cache hardening across the application:
 
 - **Performance optimizations:**
   - Implemented cache-based O(n) reordering for sort modes, enabling O(1) sort mode switching
@@ -23,8 +23,7 @@ This PR implements comprehensive performance optimizations and cache improvement
   - Added explicit tracing and error handling for cache persistence/cleanup
   - Improved cache synchronization with runtime for better consistency
 
-- **Additional features:**
-  - Implemented hybrid announcement system with version-embedded and remote Gist support
+- **Additional features (within this branch):**
   - Enhanced event loop with index notification and updates handling
   - Added comprehensive test coverage for modals and system update functionality
   - Improved logging with ChangeLogger helper to reduce duplicate UI debug output
@@ -42,7 +41,7 @@ This PR implements comprehensive performance optimizations and cache improvement
 - [ ] breaking change (incompatible behavior)
 
 ## Related issues
-Closes #
+Closes #N/A (not tracked in an issue)
 
 ## How to test
 List exact steps and commands to verify the change. Include flags like `--dry-run` when appropriate.
@@ -52,8 +51,11 @@ List exact steps and commands to verify the change. Include flags like `--dry-ru
 cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 
-# Run tests
+# Run tests (currently one known failure listed below)
 cargo test -- --test-threads=1
+
+# Targeted repro for the known failing test
+cargo test --lib logic::sort::tests::sort_cache_hit_repo_then_name -- --nocapture
 
 # Test performance improvements
 RUST_LOG=pacsea=debug cargo run -- --dry-run
@@ -66,7 +68,7 @@ RUST_LOG=pacsea=debug cargo run -- --dry-run
 ```
 
 ## Screenshots / recordings (if UI changes)
-N/A - Performance improvements are internal optimizations with no visible UI changes.
+UI changes are present (announcement modal, modal/system-update tweaks); screenshots not captured yet.
 
 ## Checklist
 
@@ -74,7 +76,7 @@ N/A - Performance improvements are internal optimizations with no visible UI cha
 - [x] Code compiles locally (`cargo check`)
 - [x] `cargo fmt --all` ran without changes
 - [x] `cargo clippy --all-targets --all-features -- -D warnings` is clean
-- [x] `cargo test -- --test-threads=1` passes
+- [ ] `cargo test -- --test-threads=1` passes (fails at `logic::sort::tests::sort_cache_hit_repo_then_name` – cache signature mismatch)
 - [ ] Complexity checks pass for new code (`cargo test complexity -- --nocapture`)
 - [x] All new functions/methods have rustdoc comments (What, Inputs, Output, Details)
 - [x] No `unwrap()` or `expect()` in non-test code
@@ -85,7 +87,7 @@ N/A - Performance improvements are internal optimizations with no visible UI cha
 - [x] Tests are meaningful and cover the functionality
 
 **Documentation:**
-- [ ] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
+- [x] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
 - [ ] Updated relevant wiki pages if needed:
   - [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea)
   - [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration)
@@ -120,9 +122,10 @@ N/A - Performance improvements are internal optimizations with no visible UI cha
 
 **Focus areas for review:**
 1. Cache invalidation logic in `src/app/persist.rs` and cache modules
-2. Performance-critical paths in `src/logic/sort.rs` and `src/logic/lists.rs`
+2. Performance-critical paths in `src/logic/sort.rs` and `src/logic/lists.rs` (includes failing test noted above)
 3. Index rebuilding logic in `src/index/mod.rs`
 4. Search cache integration in `src/app/runtime/handlers/search.rs`
+5. New announcement modal and release tooling flow changes
 
 ## Breaking changes
 None. All changes are backward compatible.
