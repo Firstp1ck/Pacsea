@@ -2,6 +2,8 @@
 //!
 //! This module provides functions for executing pacman commands and handling
 //! common error cases.
+use std::process::Command;
+use tracing::{debug, warn};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -21,9 +23,42 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// Details:
 /// - Used internally by index and logic helpers to keep command invocation boilerplate centralized.
 pub fn run_pacman(args: &[&str]) -> Result<String> {
-    let out = std::process::Command::new("pacman").args(args).output()?;
+    debug!(command = "pacman", args = ?args, "executing pacman command");
+
+    let out = match Command::new("pacman").args(args).output() {
+        Ok(output) => output,
+        Err(err) => {
+            warn!(command = "pacman", args = ?args, error = %err, "failed to spawn pacman");
+            return Err(err.into());
+        }
+    };
+
+    let status_code = out.status.code();
+    let stdout_len = out.stdout.len();
+    let stderr_len = out.stderr.len();
+
     if !out.status.success() {
+        warn!(
+            command = "pacman",
+            args = ?args,
+            status = ?out.status,
+            status_code,
+            stdout_len,
+            stderr_len,
+            "pacman exited with non-zero status"
+        );
         return Err(format!("pacman {:?} exited with {:?}", args, out.status).into());
     }
+
+    debug!(
+        command = "pacman",
+        args = ?args,
+        status = ?out.status,
+        status_code,
+        stdout_len,
+        stderr_len,
+        "pacman command completed successfully"
+    );
+
     Ok(String::from_utf8(out.stdout)?)
 }

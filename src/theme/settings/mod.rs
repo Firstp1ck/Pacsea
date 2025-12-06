@@ -1,9 +1,12 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::SystemTime;
 
 use crate::theme::paths::{resolve_keybinds_config_path, resolve_settings_config_path};
 use crate::theme::types::Settings;
+use tracing::{debug, warn};
 
 mod normalize;
 mod parse_keybinds;
@@ -13,6 +16,26 @@ use normalize::normalize;
 use parse_keybinds::parse_keybinds;
 use parse_settings::parse_settings;
 
+struct SettingsCache {
+    settings: Settings,
+    settings_mtime: Option<SystemTime>,
+    keybinds_mtime: Option<SystemTime>,
+    initialized: bool,
+}
+
+impl SettingsCache {
+    fn new() -> Self {
+        Self {
+            settings: Settings::default(),
+            settings_mtime: None,
+            keybinds_mtime: None,
+            initialized: false,
+        }
+    }
+}
+
+static SETTINGS_CACHE: OnceLock<Mutex<SettingsCache>> = OnceLock::new();
+
 /// What: Load user settings and keybinds from config files under HOME/XDG.
 ///
 /// Inputs:
@@ -20,8 +43,16 @@ use parse_settings::parse_settings;
 ///
 /// Output:
 /// - A `Settings` value; falls back to `Settings::default()` when missing or invalid.
+///
+/// # Panics
+/// - If the internal settings cache mutex is poisoned (unexpected).
 #[must_use]
 pub fn settings() -> Settings {
+    let mut cache = SETTINGS_CACHE
+        .get_or_init(|| Mutex::new(SettingsCache::new()))
+        .lock()
+        .expect("Settings cache mutex poisoned");
+
     let mut out = Settings::default();
     // Load settings from settings.conf (or legacy pacsea.conf)
     let settings_path = resolve_settings_config_path().or_else(|| {
@@ -31,25 +62,56 @@ pub fn settings() -> Settings {
             .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")))
             .map(|base| base.join("pacsea").join("settings.conf"))
     });
+
+    let settings_mtime = settings_path
+        .as_ref()
+        .and_then(|p| fs::metadata(p).and_then(|m| m.modified()).ok());
+    let keybinds_path = resolve_keybinds_config_path();
+    let keybinds_mtime = keybinds_path
+        .as_ref()
+        .and_then(|p| fs::metadata(p).and_then(|m| m.modified()).ok());
+
+    let cache_initialized = cache.initialized;
+    let mtimes_match = cache_initialized
+        && cache.settings_mtime == settings_mtime
+        && cache.keybinds_mtime == keybinds_mtime;
+    if mtimes_match {
+        if tracing::enabled!(tracing::Level::TRACE) {
+            debug!("[Config] Using cached settings (unchanged files)");
+        }
+        return cache.settings.clone();
+    }
+
     if let Some(p) = settings_path.as_ref()
         && let Ok(content) = fs::read_to_string(p)
     {
+        debug!(path = %p.display(), bytes = content.len(), "[Config] Loaded settings.conf");
         parse_settings(&content, p, &mut out);
+    } else if let Some(p) = settings_path.as_ref() {
+        warn!(
+            path = %p.display(),
+            "[Config] settings.conf missing or unreadable, using defaults"
+        );
     }
 
     // Normalize settings
     normalize(&mut out);
 
     // Load keybinds from keybinds.conf if available; otherwise fall back to legacy keys in settings file
-    let keybinds_path = resolve_keybinds_config_path();
     if let Some(kp) = keybinds_path.as_ref() {
         if let Ok(content) = fs::read_to_string(kp) {
+            debug!(path = %kp.display(), bytes = content.len(), "[Config] Loaded keybinds.conf");
             parse_keybinds(&content, &mut out);
             // Done; keybinds loaded from dedicated file, so we can return now after validation
         }
     } else if let Some(p) = settings_path.as_ref() {
         // Fallback: parse legacy keybind_* from settings file if keybinds.conf not present
         if let Ok(content) = fs::read_to_string(p) {
+            debug!(
+                path = %p.display(),
+                bytes = content.len(),
+                "[Config] Loaded legacy keybinds from settings.conf"
+            );
             parse_keybinds(&content, &mut out);
         }
     }
@@ -68,7 +130,17 @@ pub fn settings() -> Settings {
         let keymap = out.keymap.clone();
         out = Settings::default();
         out.keymap = keymap;
+        debug!(
+            layout_left = out.layout_left_pct,
+            layout_center = out.layout_center_pct,
+            layout_right = out.layout_right_pct,
+            "[Config] Layout percentages invalid, reset to defaults while preserving keybinds"
+        );
     }
+    cache.settings_mtime = settings_mtime;
+    cache.keybinds_mtime = keybinds_mtime;
+    cache.settings = out.clone();
+    cache.initialized = true;
     out
 }
 

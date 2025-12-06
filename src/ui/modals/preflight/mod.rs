@@ -149,30 +149,34 @@ pub fn render_preflight(
     };
 
     let th = theme();
-    tracing::debug!(
-        "[UI] render_preflight START: tab={:?}, items={}, deps={}, files={}, services={}, sandbox={}, cache_deps={}, cache_files={}",
-        fields.tab,
-        fields.items.len(),
-        fields.dependency_info.len(),
-        fields.file_info.len(),
-        fields.service_info.len(),
-        fields.sandbox_info.len(),
-        app.install_list_deps.len(),
-        app.install_list_files.len()
-    );
+    if tracing::enabled!(tracing::Level::TRACE) {
+        tracing::trace!(
+            "[UI] render_preflight START: tab={:?}, items={}, deps={}, files={}, services={}, sandbox={}, cache_deps={}, cache_files={}",
+            fields.tab,
+            fields.items.len(),
+            fields.dependency_info.len(),
+            fields.file_info.len(),
+            fields.service_info.len(),
+            fields.sandbox_info.len(),
+            app.install_list_deps.len(),
+            app.install_list_files.len()
+        );
+    }
 
     sync_preflight_data(app, &mut fields);
 
-    tracing::debug!(
-        "[UI] render_preflight AFTER SYNC: tab={:?}, deps={}, files={}, cache_deps={}, cache_files={}, resolving_deps={}, resolving_files={}",
-        fields.tab,
-        fields.dependency_info.len(),
-        fields.file_info.len(),
-        app.install_list_deps.len(),
-        app.install_list_files.len(),
-        app.preflight_deps_resolving || app.deps_resolving,
-        app.preflight_files_resolving || app.files_resolving
-    );
+    if tracing::enabled!(tracing::Level::TRACE) {
+        tracing::trace!(
+            "[UI] render_preflight AFTER SYNC: tab={:?}, deps={}, files={}, cache_deps={}, cache_files={}, resolving_deps={}, resolving_files={}",
+            fields.tab,
+            fields.dependency_info.len(),
+            fields.file_info.len(),
+            app.install_list_deps.len(),
+            app.install_list_files.len(),
+            app.preflight_deps_resolving || app.deps_resolving,
+            app.preflight_files_resolving || app.files_resolving
+        );
+    }
 
     let (rect, content_rect, keybinds_rect) = layout::calculate_modal_layout(area);
     f.render_widget(Clear, rect);
@@ -213,7 +217,7 @@ pub fn render_preflight(
     let render_duration = render_start.elapsed();
     if render_duration.as_millis() > 50 {
         tracing::warn!("[UI] render_preflight took {:?} (slow!)", render_duration);
-    } else {
-        tracing::debug!("[UI] render_preflight completed in {:?}", render_duration);
+    } else if tracing::enabled!(tracing::Level::TRACE) {
+        tracing::trace!("[UI] render_preflight completed in {:?}", render_duration);
     }
 }
