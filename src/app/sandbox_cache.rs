@@ -3,6 +3,7 @@
 use crate::logic::sandbox::SandboxInfo;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 
 /// What: Cache blob combining install list signature with resolved sandbox metadata.
@@ -74,62 +75,86 @@ pub fn load_cache_partial(
     current_signature: &[String],
     exact_match_only: bool,
 ) -> Option<Vec<SandboxInfo>> {
-    if let Ok(s) = fs::read_to_string(path)
-        && let Ok(cache) = serde_json::from_str::<SandboxCache>(&s)
-    {
-        // Check if signature matches exactly
-        let mut cached_sig = cache.install_list_signature.clone();
-        cached_sig.sort();
-        let mut current_sig = current_signature.to_vec();
-        current_sig.sort();
-
-        if cached_sig == current_sig {
-            tracing::info!(
+    let raw = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            tracing::debug!(path = %path.display(), "[Cache] Sandbox cache not found");
+            return None;
+        }
+        Err(e) => {
+            tracing::warn!(
                 path = %path.display(),
-                count = cache.sandbox_info.len(),
-                "loaded sandbox cache (exact match)"
+                error = %e,
+                "[Cache] Failed to read sandbox cache"
             );
-            return Some(cache.sandbox_info);
-        } else if !exact_match_only {
-            // Partial matching: load entries for packages that exist in both signatures
-            let cached_set: std::collections::HashSet<&String> = cached_sig.iter().collect();
-            let current_set: std::collections::HashSet<&String> = current_sig.iter().collect();
+            return None;
+        }
+    };
 
-            // Find intersection: packages that exist in both cache and current list
-            let intersection: std::collections::HashSet<&String> =
-                cached_set.intersection(&current_set).copied().collect();
+    let cache: SandboxCache = match serde_json::from_str(&raw) {
+        Ok(cache) => cache,
+        Err(e) => {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "[Cache] Failed to parse sandbox cache"
+            );
+            return None;
+        }
+    };
 
-            if !intersection.is_empty() {
-                // Filter cached results to match packages in intersection
-                let intersection_names: std::collections::HashSet<&str> =
-                    intersection.iter().map(|s| s.as_str()).collect();
-                let filtered: Vec<SandboxInfo> = cache
-                    .sandbox_info
-                    .iter()
-                    .filter(|sandbox_info| {
-                        intersection_names.contains(sandbox_info.package_name.as_str())
-                    })
-                    .cloned()
-                    .collect();
+    // Check if signature matches exactly
+    let mut cached_sig = cache.install_list_signature.clone();
+    cached_sig.sort();
+    let mut current_sig = current_signature.to_vec();
+    current_sig.sort();
 
-                if !filtered.is_empty() {
-                    tracing::info!(
-                        path = %path.display(),
-                        cached_count = cache.sandbox_info.len(),
-                        filtered_count = filtered.len(),
-                        intersection_packages = ?intersection.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-                        "loaded sandbox cache (partial match)"
-                    );
-                    return Some(filtered);
-                }
+    if cached_sig == current_sig {
+        tracing::info!(
+            path = %path.display(),
+            count = cache.sandbox_info.len(),
+            "loaded sandbox cache (exact match)"
+        );
+        return Some(cache.sandbox_info);
+    } else if !exact_match_only {
+        // Partial matching: load entries for packages that exist in both signatures
+        let cached_set: std::collections::HashSet<&String> = cached_sig.iter().collect();
+        let current_set: std::collections::HashSet<&String> = current_sig.iter().collect();
+
+        // Find intersection: packages that exist in both cache and current list
+        let intersection: std::collections::HashSet<&String> =
+            cached_set.intersection(&current_set).copied().collect();
+
+        if !intersection.is_empty() {
+            // Filter cached results to match packages in intersection
+            let intersection_names: std::collections::HashSet<&str> =
+                intersection.iter().map(|s| s.as_str()).collect();
+            let filtered: Vec<SandboxInfo> = cache
+                .sandbox_info
+                .iter()
+                .filter(|sandbox_info| {
+                    intersection_names.contains(sandbox_info.package_name.as_str())
+                })
+                .cloned()
+                .collect();
+
+            if !filtered.is_empty() {
+                tracing::info!(
+                    path = %path.display(),
+                    cached_count = cache.sandbox_info.len(),
+                    filtered_count = filtered.len(),
+                    intersection_packages = ?intersection.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
+                    "loaded sandbox cache (partial match)"
+                );
+                return Some(filtered);
             }
         }
-
-        tracing::debug!(
-            path = %path.display(),
-            "sandbox cache signature mismatch, ignoring"
-        );
     }
+
+    tracing::debug!(
+        path = %path.display(),
+        "sandbox cache signature mismatch, ignoring"
+    );
     None
 }
 

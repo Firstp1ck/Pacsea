@@ -11,7 +11,74 @@ use crate::state::modal::{
 };
 use crate::state::{AppState, PackageItem, PreflightAction};
 use crate::theme::theme;
+use crate::ui::helpers::ChangeLogger;
 use std::fmt::Write;
+use std::sync::{Mutex, OnceLock};
+
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+struct IncompleteFlags(u16);
+
+impl IncompleteFlags {
+    const PREFLIGHT_DEPS: u16 = 1 << 0;
+    const DEPS: u16 = 1 << 1;
+    const COMPUTED_DEPS: u16 = 1 << 2;
+    const PREFLIGHT_FILES: u16 = 1 << 3;
+    const FILES: u16 = 1 << 4;
+    const PREFLIGHT_SANDBOX: u16 = 1 << 5;
+    const SANDBOX: u16 = 1 << 6;
+    const DEPS_INCOMPLETE: u16 = 1 << 7;
+    const SHOW_DEPS_INDICATOR: u16 = 1 << 8;
+    const SHOW_FILES_INDICATOR: u16 = 1 << 9;
+    const SHOW_SANDBOX_INDICATOR: u16 = 1 << 10;
+
+    const fn set(&mut self, bit: u16, enabled: bool) {
+        if enabled {
+            self.0 |= bit;
+        } else {
+            self.0 &= !bit;
+        }
+    }
+
+    const fn is_set(self, bit: u16) -> bool {
+        self.0 & bit != 0
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct IncompleteLogState {
+    flags: IncompleteFlags,
+    item_count: usize,
+    packages_with_deps_count: usize,
+    dependency_info_count: usize,
+}
+
+fn log_incomplete_state(state: &IncompleteLogState) {
+    static LOGGER: OnceLock<Mutex<ChangeLogger<IncompleteLogState>>> = OnceLock::new();
+    let mut logger = LOGGER
+        .get_or_init(|| Mutex::new(ChangeLogger::new()))
+        .lock()
+        .expect("Incomplete log state mutex poisoned");
+    if logger.should_log(state) {
+        let flags = state.flags;
+        tracing::debug!(
+            "[UI] render_incomplete_data_indicator: preflight_deps_resolving={}, deps_resolving={}, computed_deps_resolving={}, files_resolving={}/{}, sandbox_resolving={}/{}, deps_incomplete={}, items={}, packages_with_deps={}, dependency_info={}, show_deps_indicator={}, show_files_indicator={}, show_sandbox_indicator={}",
+            flags.is_set(IncompleteFlags::PREFLIGHT_DEPS),
+            flags.is_set(IncompleteFlags::DEPS),
+            flags.is_set(IncompleteFlags::COMPUTED_DEPS),
+            flags.is_set(IncompleteFlags::PREFLIGHT_FILES),
+            flags.is_set(IncompleteFlags::FILES),
+            flags.is_set(IncompleteFlags::PREFLIGHT_SANDBOX),
+            flags.is_set(IncompleteFlags::SANDBOX),
+            flags.is_set(IncompleteFlags::DEPS_INCOMPLETE),
+            state.item_count,
+            state.packages_with_deps_count,
+            state.dependency_info_count,
+            flags.is_set(IncompleteFlags::SHOW_DEPS_INDICATOR),
+            flags.is_set(IncompleteFlags::SHOW_FILES_INDICATOR),
+            flags.is_set(IncompleteFlags::SHOW_SANDBOX_INDICATOR)
+        );
+    }
+}
 
 /// What: Get source badge text and color for a dependency source.
 ///
@@ -136,23 +203,37 @@ fn render_incomplete_data_indicator(
     // Show sandbox indicator when sandbox is resolving
     let show_sandbox_indicator = sandbox_resolving;
 
-    tracing::debug!(
-        "[UI] render_incomplete_data_indicator: preflight_deps_resolving={}, deps_resolving={}, computed_deps_resolving={}, files_resolving={}/{}, sandbox_resolving={}/{}, deps_incomplete={}, items={}, packages_with_deps={}, dependency_info={}, show_deps_indicator={}, show_files_indicator={}, show_sandbox_indicator={}",
+    let mut flags = IncompleteFlags::default();
+    flags.set(
+        IncompleteFlags::PREFLIGHT_DEPS,
         app.preflight_deps_resolving,
-        app.deps_resolving,
-        deps_resolving,
-        app.preflight_files_resolving,
-        app.files_resolving,
-        app.preflight_sandbox_resolving,
-        app.sandbox_resolving,
-        deps_incomplete,
-        items.len(),
-        packages_with_deps_count,
-        dependency_info.len(),
-        show_deps_indicator,
-        show_files_indicator,
-        show_sandbox_indicator
     );
+    flags.set(IncompleteFlags::DEPS, app.deps_resolving);
+    flags.set(IncompleteFlags::COMPUTED_DEPS, deps_resolving);
+    flags.set(
+        IncompleteFlags::PREFLIGHT_FILES,
+        app.preflight_files_resolving,
+    );
+    flags.set(IncompleteFlags::FILES, app.files_resolving);
+    flags.set(
+        IncompleteFlags::PREFLIGHT_SANDBOX,
+        app.preflight_sandbox_resolving,
+    );
+    flags.set(IncompleteFlags::SANDBOX, app.sandbox_resolving);
+    flags.set(IncompleteFlags::DEPS_INCOMPLETE, deps_incomplete);
+    flags.set(IncompleteFlags::SHOW_DEPS_INDICATOR, show_deps_indicator);
+    flags.set(IncompleteFlags::SHOW_FILES_INDICATOR, show_files_indicator);
+    flags.set(
+        IncompleteFlags::SHOW_SANDBOX_INDICATOR,
+        show_sandbox_indicator,
+    );
+
+    log_incomplete_state(&IncompleteLogState {
+        flags,
+        item_count: items.len(),
+        packages_with_deps_count,
+        dependency_info_count: dependency_info.len(),
+    });
 
     let has_incomplete_data =
         show_deps_indicator || show_files_indicator || show_sandbox_indicator || deps_incomplete;

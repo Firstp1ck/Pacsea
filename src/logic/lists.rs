@@ -1,6 +1,7 @@
 //! Management of install, remove, and downgrade package lists.
 
 use crate::state::{AppState, PackageItem};
+use tracing::debug;
 
 /// What: Add a `PackageItem` to the install list if it is not already present.
 ///
@@ -19,11 +20,18 @@ pub fn add_to_install_list(app: &mut AppState, item: PackageItem) {
     if !app.install_list_names.insert(name_lower) {
         return;
     }
+    let prev_len = app.install_list.len();
     app.install_list.insert(0, item);
     app.install_dirty = true;
     app.last_install_change = Some(std::time::Instant::now());
     // Always keep cursor on top after adding
     app.install_state.select(Some(0));
+    debug!(
+        new_len = app.install_list.len(),
+        previous_len = prev_len,
+        first = ?app.install_list.first().map(|p| &p.name),
+        "[State] Added package to install list"
+    );
 }
 
 /// What: Add a `PackageItem` to the remove list if it is not already present.
@@ -43,8 +51,15 @@ pub fn add_to_remove_list(app: &mut AppState, item: PackageItem) {
     if !app.remove_list_names.insert(name_lower) {
         return;
     }
+    let prev_len = app.remove_list.len();
     app.remove_list.insert(0, item);
     app.remove_state.select(Some(0));
+    debug!(
+        new_len = app.remove_list.len(),
+        previous_len = prev_len,
+        first = ?app.remove_list.first().map(|p| &p.name),
+        "[State] Added package to remove list"
+    );
 }
 
 /// What: Add a `PackageItem` to the downgrade list if it is not already present.
@@ -64,8 +79,15 @@ pub fn add_to_downgrade_list(app: &mut AppState, item: PackageItem) {
     if !app.downgrade_list_names.insert(name_lower) {
         return;
     }
+    let prev_len = app.downgrade_list.len();
     app.downgrade_list.insert(0, item);
     app.downgrade_state.select(Some(0));
+    debug!(
+        new_len = app.downgrade_list.len(),
+        previous_len = prev_len,
+        first = ?app.downgrade_list.first().map(|p| &p.name),
+        "[State] Added package to downgrade list"
+    );
 }
 
 #[cfg(test)]

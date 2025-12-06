@@ -3,6 +3,7 @@
 use crate::state::modal::ServiceImpact;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 
 /// What: Cache blob combining install list signature with resolved service impact metadata.
@@ -49,21 +50,45 @@ pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> 
 /// - Reads the JSON, deserializes it, sorts both signatures, and compares them before
 ///   returning the cached service impact data.
 pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<ServiceImpact>> {
-    if let Ok(s) = fs::read_to_string(path)
-        && let Ok(cache) = serde_json::from_str::<ServiceCache>(&s)
-    {
-        // Check if signature matches
-        let mut cached_sig = cache.install_list_signature.clone();
-        cached_sig.sort();
-        let mut current_sig = current_signature.to_vec();
-        current_sig.sort();
-
-        if cached_sig == current_sig {
-            tracing::info!(path = %path.display(), count = cache.services.len(), "loaded service cache");
-            return Some(cache.services);
+    let raw = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            tracing::debug!(path = %path.display(), "[Cache] Service cache not found");
+            return None;
         }
-        tracing::debug!(path = %path.display(), "service cache signature mismatch, ignoring");
+        Err(e) => {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "[Cache] Failed to read service cache"
+            );
+            return None;
+        }
+    };
+
+    let cache: ServiceCache = match serde_json::from_str(&raw) {
+        Ok(cache) => cache,
+        Err(e) => {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "[Cache] Failed to parse service cache"
+            );
+            return None;
+        }
+    };
+
+    // Check if signature matches
+    let mut cached_sig = cache.install_list_signature.clone();
+    cached_sig.sort();
+    let mut current_sig = current_signature.to_vec();
+    current_sig.sort();
+
+    if cached_sig == current_sig {
+        tracing::info!(path = %path.display(), count = cache.services.len(), "loaded service cache");
+        return Some(cache.services);
     }
+    tracing::debug!(path = %path.display(), "service cache signature mismatch, ignoring");
     None
 }
 

@@ -18,7 +18,27 @@ pub fn maybe_flush_cache(app: &mut AppState) {
         return;
     }
     if let Ok(s) = serde_json::to_string(&app.details_cache) {
-        let _ = fs::write(&app.cache_path, s);
+        tracing::trace!(
+            path = %app.cache_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing details cache to disk"
+        );
+        match fs::write(&app.cache_path, &s) {
+            Ok(()) => {
+                tracing::trace!(
+                    path = %app.cache_path.display(),
+                    "[Persist] Details cache persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.cache_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write details cache"
+                );
+            }
+        }
+        // Preserve existing behaviour: clear dirty flag regardless to avoid repeated writes.
         app.cache_dirty = false;
     }
 }
@@ -35,7 +55,26 @@ pub fn maybe_flush_recent(app: &mut AppState) {
         return;
     }
     if let Ok(s) = serde_json::to_string(&app.recent) {
-        let _ = fs::write(&app.recent_path, s);
+        tracing::debug!(
+            path = %app.recent_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing recent searches to disk"
+        );
+        match fs::write(&app.recent_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.recent_path.display(),
+                    "[Persist] Recent searches persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.recent_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write recent searches"
+                );
+            }
+        }
         app.recent_dirty = false;
     }
 }
@@ -52,7 +91,26 @@ pub fn maybe_flush_news_read(app: &mut AppState) {
         return;
     }
     if let Ok(s) = serde_json::to_string(&app.news_read_urls) {
-        let _ = fs::write(&app.news_read_path, s);
+        tracing::debug!(
+            path = %app.news_read_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news read URLs to disk"
+        );
+        match fs::write(&app.news_read_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_read_path.display(),
+                    "[Persist] News read URLs persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_read_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news read URLs"
+                );
+            }
+        }
         app.news_read_dirty = false;
     }
 }
@@ -72,7 +130,26 @@ pub fn maybe_flush_announcement_read(app: &mut AppState) {
         return;
     }
     if let Ok(s) = serde_json::to_string(&app.announcements_read_ids) {
-        let _ = fs::write(&app.announcement_read_path, s);
+        tracing::debug!(
+            path = %app.announcement_read_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing announcement read IDs to disk"
+        );
+        match fs::write(&app.announcement_read_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.announcement_read_path.display(),
+                    "[Persist] Announcement read IDs persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.announcement_read_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write announcement read IDs"
+                );
+            }
+        }
         app.announcement_dirty = false;
     }
 }
@@ -88,7 +165,18 @@ pub fn maybe_flush_announcement_read(app: &mut AppState) {
 pub fn maybe_flush_deps_cache(app: &mut AppState) {
     if app.install_list.is_empty() {
         // Clear cache file if install list is empty
-        let _ = fs::remove_file(&app.deps_cache_path);
+        if let Err(e) = fs::remove_file(&app.deps_cache_path) {
+            tracing::debug!(
+                path = %app.deps_cache_path.display(),
+                error = %e,
+                "[Persist] Failed to remove dependency cache (may not exist)"
+            );
+        } else {
+            tracing::debug!(
+                path = %app.deps_cache_path.display(),
+                "[Persist] Removed dependency cache because install list is empty"
+            );
+        }
         app.deps_cache_dirty = false;
         return;
     }
@@ -96,8 +184,19 @@ pub fn maybe_flush_deps_cache(app: &mut AppState) {
         return;
     }
     let signature = deps_cache::compute_signature(&app.install_list);
+    tracing::debug!(
+        path = %app.deps_cache_path.display(),
+        signature_len = signature.len(),
+        deps_len = app.install_list_deps.len(),
+        "[Persist] Saving dependency cache"
+    );
     deps_cache::save_cache(&app.deps_cache_path, &signature, &app.install_list_deps);
     app.deps_cache_dirty = false;
+    tracing::debug!(
+        path = %app.deps_cache_path.display(),
+        deps_len = app.install_list_deps.len(),
+        "[Persist] Dependency cache save attempted"
+    );
 }
 
 /// What: Persist the file cache to disk if marked dirty.
@@ -111,7 +210,18 @@ pub fn maybe_flush_deps_cache(app: &mut AppState) {
 pub fn maybe_flush_files_cache(app: &mut AppState) {
     if app.install_list.is_empty() {
         // Clear cache file if install list is empty
-        let _ = fs::remove_file(&app.files_cache_path);
+        if let Err(e) = fs::remove_file(&app.files_cache_path) {
+            tracing::debug!(
+                path = %app.files_cache_path.display(),
+                error = %e,
+                "[Persist] Failed to remove file cache (may not exist)"
+            );
+        } else {
+            tracing::debug!(
+                path = %app.files_cache_path.display(),
+                "[Persist] Removed file cache because install list is empty"
+            );
+        }
         app.files_cache_dirty = false;
         return;
     }
@@ -147,7 +257,18 @@ pub fn maybe_flush_files_cache(app: &mut AppState) {
 pub fn maybe_flush_services_cache(app: &mut AppState) {
     if app.install_list.is_empty() {
         // Clear cache file if install list is empty
-        let _ = fs::remove_file(&app.services_cache_path);
+        if let Err(e) = fs::remove_file(&app.services_cache_path) {
+            tracing::debug!(
+                path = %app.services_cache_path.display(),
+                error = %e,
+                "[Persist] Failed to remove service cache (may not exist)"
+            );
+        } else {
+            tracing::debug!(
+                path = %app.services_cache_path.display(),
+                "[Persist] Removed service cache because install list is empty"
+            );
+        }
         app.services_cache_dirty = false;
         return;
     }
@@ -155,12 +276,23 @@ pub fn maybe_flush_services_cache(app: &mut AppState) {
         return;
     }
     let signature = services_cache::compute_signature(&app.install_list);
+    tracing::debug!(
+        path = %app.services_cache_path.display(),
+        signature_len = signature.len(),
+        services_len = app.install_list_services.len(),
+        "[Persist] Saving service cache"
+    );
     services_cache::save_cache(
         &app.services_cache_path,
         &signature,
         &app.install_list_services,
     );
     app.services_cache_dirty = false;
+    tracing::debug!(
+        path = %app.services_cache_path.display(),
+        services_len = app.install_list_services.len(),
+        "[Persist] Service cache save attempted"
+    );
 }
 
 /// What: Persist the sandbox cache to disk if marked dirty.
@@ -174,7 +306,18 @@ pub fn maybe_flush_services_cache(app: &mut AppState) {
 pub fn maybe_flush_sandbox_cache(app: &mut AppState) {
     if app.install_list.is_empty() {
         // Clear cache file if install list is empty
-        let _ = fs::remove_file(&app.sandbox_cache_path);
+        if let Err(e) = fs::remove_file(&app.sandbox_cache_path) {
+            tracing::debug!(
+                path = %app.sandbox_cache_path.display(),
+                error = %e,
+                "[Persist] Failed to remove sandbox cache (may not exist)"
+            );
+        } else {
+            tracing::debug!(
+                path = %app.sandbox_cache_path.display(),
+                "[Persist] Removed sandbox cache because install list is empty"
+            );
+        }
         app.sandbox_cache_dirty = false;
         return;
     }
@@ -222,7 +365,26 @@ pub fn maybe_flush_install(app: &mut AppState) {
         return;
     }
     if let Ok(s) = serde_json::to_string(&app.install_list) {
-        let _ = fs::write(&app.install_path, s);
+        tracing::debug!(
+            path = %app.install_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing install list to disk"
+        );
+        match fs::write(&app.install_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.install_path.display(),
+                    "[Persist] Install list persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.install_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write install list"
+                );
+            }
+        }
         app.install_dirty = false;
         app.last_install_change = None;
     }

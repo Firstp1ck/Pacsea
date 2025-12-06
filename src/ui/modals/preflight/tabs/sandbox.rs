@@ -7,8 +7,10 @@ use ratatui::{
 use crate::i18n;
 use crate::state::{AppState, PackageItem};
 use crate::theme::theme;
+use crate::ui::helpers::ChangeLogger;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
+use std::sync::{Mutex, OnceLock};
 
 /// What: Type alias for sandbox display items.
 ///
@@ -61,6 +63,39 @@ enum SandboxRenderState {
     Analyzing,
     NoAurPackages,
     Ready,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct SandboxLogState {
+    items_len: usize,
+    sandbox_info_len: usize,
+    sandbox_loaded: bool,
+    sandbox_selected: usize,
+    expanded_len: usize,
+    resolving_mask: u8,
+    has_error: bool,
+}
+
+fn log_sandbox_state(state: &SandboxLogState) {
+    static LOGGER: OnceLock<Mutex<ChangeLogger<SandboxLogState>>> = OnceLock::new();
+    let mut logger = LOGGER
+        .get_or_init(|| Mutex::new(ChangeLogger::new()))
+        .lock()
+        .expect("Sandbox log state mutex poisoned");
+
+    if logger.should_log(state) {
+        tracing::debug!(
+            "[UI] render_sandbox_tab: items={}, sandbox_info={}, sandbox_loaded={}, sandbox_selected={}, expanded={}, resolving={}/{}, error={}",
+            state.items_len,
+            state.sandbox_info_len,
+            state.sandbox_loaded,
+            state.sandbox_selected,
+            state.expanded_len,
+            state.resolving_mask & 1 != 0,
+            state.resolving_mask & 2 != 0,
+            state.has_error
+        );
+    }
 }
 
 /// What: Pre-computed render data to reduce data flow complexity.
@@ -821,27 +856,18 @@ pub fn render_sandbox_tab(
     sandbox_selected: &mut usize,
 ) -> Vec<Line<'static>> {
     let th = theme();
+    let resolving_mask =
+        u8::from(app.preflight_sandbox_resolving) | (u8::from(app.sandbox_resolving) << 1);
 
-    // Log render state for debugging
-    tracing::debug!(
-        "[UI] render_sandbox_tab: items={}, sandbox_info={}, sandbox_loaded={}, sandbox_selected={}, expanded={}, resolving={}/{}",
-        ctx.items.len(),
-        ctx.sandbox_info.len(),
-        ctx.sandbox_loaded,
-        sandbox_selected,
-        ctx.sandbox_tree_expanded.len(),
-        app.preflight_sandbox_resolving,
-        app.sandbox_resolving
-    );
-
-    // Log detailed dependency information only at DEBUG level (called on every render)
-    // Detailed package info is already logged in sync_sandbox when data changes
-    if !ctx.sandbox_info.is_empty() {
-        tracing::debug!(
-            "[UI] render_sandbox_tab: Rendering {} sandbox info entries",
-            ctx.sandbox_info.len()
-        );
-    }
+    log_sandbox_state(&SandboxLogState {
+        items_len: ctx.items.len(),
+        sandbox_info_len: ctx.sandbox_info.len(),
+        sandbox_loaded: ctx.sandbox_loaded,
+        sandbox_selected: *sandbox_selected,
+        expanded_len: ctx.sandbox_tree_expanded.len(),
+        resolving_mask,
+        has_error: ctx.sandbox_error.is_some(),
+    });
 
     // Determine render state (reduces data flow complexity by centralizing state checks)
     let render_state = determine_sandbox_state(app, ctx);

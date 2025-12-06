@@ -364,6 +364,15 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
 fn handle_post_summary_result(app: &mut AppState, data: crate::logic::summary::PostSummaryData) {
     // Only transition if we're in Loading state
     if matches!(app.modal, crate::state::Modal::Loading { .. }) {
+        tracing::debug!(
+            success = data.success,
+            changed_files = data.changed_files,
+            pacnew_count = data.pacnew_count,
+            pacsave_count = data.pacsave_count,
+            services_pending = data.services_pending.len(),
+            snapshot_label = ?data.snapshot_label,
+            "[EventLoop] Transitioning modal: Loading -> PostSummary"
+        );
         app.modal = crate::state::Modal::PostSummary {
             success: data.success,
             changed_files: data.changed_files,
