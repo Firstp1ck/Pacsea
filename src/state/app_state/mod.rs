@@ -357,7 +357,7 @@ pub struct AppState {
     pub sort_cache_repo_name: Option<Vec<usize>>,
     /// Cached sort order for `AurPopularityThenOfficial` mode (indices into `results`).
     pub sort_cache_aur_popularity: Option<Vec<usize>>,
-    /// Signature of results used to validate caches (hash of length + first/last names).
+    /// Signature of results used to validate caches (order-insensitive hash of names).
     pub sort_cache_signature: Option<u64>,
 
     // Results options UI (top-right dropdown)

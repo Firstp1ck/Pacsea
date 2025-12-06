@@ -13,19 +13,36 @@ use std::hash::{Hash, Hasher};
 /// - `results`: Slice of package items to compute signature for.
 ///
 /// Output:
-/// - Returns a `u64` hash based on length and first/last package names.
+/// - Returns an order-insensitive `u64` hash based on package names.
 ///
 /// Details:
 /// - Used to detect when results have changed, invalidating cached sort orders.
+/// - Order-insensitive so mode switches do not invalidate caches.
 fn compute_results_signature(results: &[PackageItem]) -> u64 {
+    // Collect and canonicalize names to be order-insensitive.
+    let mut names: Vec<&str> = results.iter().map(|p| p.name.as_str()).collect();
+    names.sort_unstable();
+
     let mut hasher = DefaultHasher::new();
-    results.len().hash(&mut hasher);
-    if let Some(first) = results.first() {
-        first.name.hash(&mut hasher);
+    names.len().hash(&mut hasher);
+
+    // Mix first/last to avoid hashing full list twice.
+    if let Some(first) = names.first() {
+        first.hash(&mut hasher);
     }
-    if let Some(last) = results.last() {
-        last.name.hash(&mut hasher);
+    if let Some(last) = names.last() {
+        last.hash(&mut hasher);
     }
+
+    // Aggregate individual name hashes in an order-insensitive way.
+    let mut aggregate: u64 = 0;
+    for name in names {
+        let mut nh = DefaultHasher::new();
+        name.hash(&mut nh);
+        aggregate ^= nh.finish();
+    }
+    aggregate.hash(&mut hasher);
+
     hasher.finish()
 }
 
@@ -236,11 +253,7 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
                     // Cache miss: compute indices from current state, then sort
                     let indices = compute_repo_then_name_indices(&app.results);
                     sort_repo_then_name(&mut app.results);
-                    // Populate caches for future O(n) switching
                     app.sort_cache_repo_name = Some(indices);
-                    app.sort_cache_aur_popularity =
-                        Some(compute_aur_popularity_then_official_indices(&app.results));
-                    app.sort_cache_signature = Some(current_sig);
                 }
             } else {
                 // Cache invalid: compute indices from current state, then sort
@@ -248,10 +261,12 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
                 sort_repo_then_name(&mut app.results);
                 // Populate caches
                 app.sort_cache_repo_name = Some(indices);
-                app.sort_cache_aur_popularity =
-                    Some(compute_aur_popularity_then_official_indices(&app.results));
-                app.sort_cache_signature = Some(current_sig);
             }
+            // Re-anchor caches to current order to keep future switches correct.
+            app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
+            app.sort_cache_aur_popularity =
+                Some(compute_aur_popularity_then_official_indices(&app.results));
+            app.sort_cache_signature = Some(current_sig);
         }
         SortMode::AurPopularityThenOfficial => {
             if cache_valid {
@@ -262,10 +277,8 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
                     // Cache miss: compute indices from current state, then sort
                     let indices = compute_aur_popularity_then_official_indices(&app.results);
                     sort_aur_popularity_then_official(&mut app.results);
-                    // Populate caches for future O(n) switching
                     app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
                     app.sort_cache_aur_popularity = Some(indices);
-                    app.sort_cache_signature = Some(current_sig);
                 }
             } else {
                 // Cache invalid: compute indices from current state, then sort
@@ -274,8 +287,12 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
                 // Populate caches
                 app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
                 app.sort_cache_aur_popularity = Some(indices);
-                app.sort_cache_signature = Some(current_sig);
             }
+            // Re-anchor caches to current order to keep future switches correct.
+            app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
+            app.sort_cache_aur_popularity =
+                Some(compute_aur_popularity_then_official_indices(&app.results));
+            app.sort_cache_signature = Some(current_sig);
         }
         SortMode::BestMatches => {
             // BestMatches is query-dependent, always do full sort and don't cache
@@ -422,6 +439,40 @@ mod tests {
         sort_results_preserve_selection(&mut app);
         let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
         assert_eq!(names, vec!["alpha_core", "alpha1", "alpha2"]);
+    }
+
+    #[test]
+    /// What: Ensure results signature is order-insensitive but content-sensitive.
+    ///
+    /// Inputs:
+    /// - Same set of packages in different orders.
+    /// - A variant with an extra package.
+    ///
+    /// Output:
+    /// - Signatures match for permutations and differ when content changes.
+    ///
+    /// Details:
+    /// - Guards cache reuse when switching sort modes without masking real result changes.
+    fn results_signature_is_order_insensitive() {
+        let base = vec![
+            item_official("aaa", "core"),
+            item_official("bbb", "extra"),
+            item_official("ccc", "community"),
+        ];
+        let permuted = vec![
+            item_official("ccc", "community"),
+            item_official("aaa", "core"),
+            item_official("bbb", "extra"),
+        ];
+        let mut extended = permuted.clone();
+        extended.push(item_official("ddd", "community"));
+
+        let sig_base = compute_results_signature(&base);
+        let sig_permuted = compute_results_signature(&permuted);
+        let sig_extended = compute_results_signature(&extended);
+
+        assert_eq!(sig_base, sig_permuted);
+        assert_ne!(sig_base, sig_extended);
     }
 
     #[test]
@@ -619,7 +670,7 @@ mod tests {
         // Switch to AUR popularity - should use cache
         app.sort_mode = SortMode::AurPopularityThenOfficial;
         sort_results_preserve_selection(&mut app);
-        let aur_order: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+        let _aur_order: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
         // AUR packages should be first
         assert!(matches!(app.results[0].source, Source::Aur));
 
