@@ -14,6 +14,8 @@ use std::path::PathBuf;
 #[cfg(test)]
 use std::sync::Arc;
 use std::sync::{Mutex, OnceLock};
+#[cfg(test)]
+use std::thread::ThreadId;
 
 const CACHE_CAPACITY: usize = 200;
 const CACHE_PATH_ENV: &str = "PACSEA_PKGBUILD_CACHE_PATH";
@@ -189,8 +191,15 @@ pub(in crate::logic::files) enum CacheTestHookPoint {
 pub(in crate::logic::files) type CacheTestHook = dyn Fn(CacheTestHookPoint) + Send + Sync + 'static;
 
 #[cfg(test)]
-fn cache_test_hook_slot() -> &'static Mutex<Option<Arc<CacheTestHook>>> {
-    static HOOK: OnceLock<Mutex<Option<Arc<CacheTestHook>>>> = OnceLock::new();
+#[derive(Clone)]
+struct CacheTestHookEntry {
+    hook: Arc<CacheTestHook>,
+    thread_id: ThreadId,
+}
+
+#[cfg(test)]
+fn cache_test_hook_slot() -> &'static Mutex<Option<CacheTestHookEntry>> {
+    static HOOK: OnceLock<Mutex<Option<CacheTestHookEntry>>> = OnceLock::new();
     HOOK.get_or_init(|| Mutex::new(None))
 }
 
@@ -199,15 +208,16 @@ fn cache_test_hook_slot() -> &'static Mutex<Option<Arc<CacheTestHook>>> {
 ///
 /// Inputs:
 /// - `hook`: Callback executed when a cache hook point is reached.
+/// - `thread_id`: Thread id to match before invoking the hook.
 ///
 /// Output:
 /// - Guard that clears the hook on drop to restore default behavior.
 ///
 /// Details:
 /// - Only compiled in tests; the hook is global and not re-entrant.
-pub fn set_cache_test_hook(hook: Arc<CacheTestHook>) -> CacheTestHookGuard {
+pub fn set_cache_test_hook(hook: Arc<CacheTestHook>, thread_id: ThreadId) -> CacheTestHookGuard {
     if let Ok(mut slot) = cache_test_hook_slot().lock() {
-        *slot = Some(hook);
+        *slot = Some(CacheTestHookEntry { hook, thread_id });
     }
     CacheTestHookGuard
 }
@@ -235,10 +245,16 @@ impl Drop for CacheTestHookGuard {
 
 #[cfg(test)]
 fn invoke_cache_test_hook(point: CacheTestHookPoint) {
-    if let Ok(slot) = cache_test_hook_slot().lock()
-        && let Some(hook) = slot.as_ref()
+    // Clone hook entry and release slot mutex before invoking so that other threads
+    // can still check the hook slot while this thread is blocked inside the callback.
+    let entry = cache_test_hook_slot()
+        .lock()
+        .ok()
+        .and_then(|slot| slot.clone());
+    if let Some(hook) = entry
+        && std::thread::current().id() == hook.thread_id
     {
-        hook(point);
+        (hook.hook)(point);
     }
 }
 
@@ -469,25 +485,32 @@ package() {
 "#
         .to_string();
 
-        let (hook_tx, hook_rx) = mpsc::channel();
-        let pause_barrier = Arc::new(Barrier::new(2));
-        let hook_barrier = Arc::clone(&pause_barrier);
+        let (reached_tx, reached_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
+        let resume_rx = Arc::new(Mutex::new(resume_rx));
         let hook_consumed = Arc::new(AtomicBool::new(false));
         let hook_flag = Arc::clone(&hook_consumed);
+        let hook_resume = Arc::clone(&resume_rx);
         let hook = Arc::new(move |point: CacheTestHookPoint| {
             if point == CacheTestHookPoint::AfterLookup
                 && hook_flag
                     .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
                     .is_ok()
             {
-                let _ = hook_tx.send(());
-                hook_barrier.wait();
+                let _ = reached_tx.send(());
+                hook_resume
+                    .lock()
+                    .expect("resume_rx lock poisoned")
+                    .recv()
+                    .expect("resume signal should arrive");
             }
         });
-        let _guard = set_cache_test_hook(hook);
+        let start_barrier = Arc::new(Barrier::new(2));
 
         let stale_pkgbuild_for_thread = stale_pkgbuild.clone();
+        let stale_start = Arc::clone(&start_barrier);
         let stale_handle = std::thread::spawn(move || {
+            stale_start.wait();
             parse_pkgbuild_cached(
                 name,
                 Some("1.2.3"),
@@ -496,29 +519,33 @@ package() {
             )
         });
 
-        hook_rx
+        let stale_thread_id = stale_handle.thread().id();
+        let _guard = set_cache_test_hook(hook, stale_thread_id);
+        start_barrier.wait();
+
+        reached_rx
             .recv_timeout(Duration::from_secs(2))
             .expect("stale thread should reach hook before proceeding");
 
-        let new_barrier = Arc::clone(&pause_barrier);
         let newer_pkgbuild_for_thread = newer_pkgbuild.clone();
         let new_handle = std::thread::spawn(move || {
-            let entry = parse_pkgbuild_cached(
+            parse_pkgbuild_cached(
                 name,
                 Some("1.2.3"),
                 PkgbuildSourceKind::Aur,
                 &newer_pkgbuild_for_thread,
-            );
-            new_barrier.wait();
-            entry
+            )
         });
 
-        let stale_entry = stale_handle
-            .join()
-            .expect("stale parsing thread should finish without panic");
         let new_entry = new_handle
             .join()
             .expect("new parsing thread should finish without panic");
+        resume_tx
+            .send(())
+            .expect("should release stale thread after new parse completes");
+        let stale_entry = stale_handle
+            .join()
+            .expect("stale parsing thread should finish without panic");
 
         let cached = peek_cache_entry_for_tests(name, "1.2.3", PkgbuildSourceKind::Aur)
             .expect("cache entry should exist after concurrent parses");
@@ -537,9 +564,15 @@ package() {
             cached.pkgbuild_signature, stale_signature,
             "stale parse must not overwrite newer cache entry"
         );
-        assert_ne!(
+        // When the stale thread loses the race, it should return the cached (newer)
+        // entry rather than its own stale parse result.
+        assert_eq!(
             stale_entry.pkgbuild_signature, new_entry.pkgbuild_signature,
-            "entries should differ to ensure test is meaningful"
+            "stale thread should return cached newer entry after losing race"
+        );
+        assert_ne!(
+            stale_signature, new_signature,
+            "test setup should use distinct PKGBUILD contents"
         );
     }
 }
