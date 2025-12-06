@@ -1,7 +1,7 @@
 {
-  "id": "2025-12-04-announcement-system-info",
-  "title": "About the Announcement System",
-  "content": "## What are these announcements for?\n\nPacsea's announcement system is used to keep you informed about important information:\n\n**Security Issues**\n- Critical security updates and vulnerabilities\n- Important security-related changes\n\n**Development Information**\n- Polls and discussions about upcoming features\n- Community feedback requests\n- Feature proposals and voting\n\n**Development Communication**\n- Until v1.0.0 is released, we use announcements to communicate with potential developers\n- Calls for help and contributions\n- Development opportunities and collaboration requests\n\n---\n\nYou can disable remote announcements in your settings (`~/.config/pacsea/settings.conf`) by setting `get_announcement = false`. Version-specific announcements will always be shown when you first launch a new version.\n\nFor more information, visit: https://github.com/Firstp1ck/Pacsea",
+  "id": "2025-12-06-community-poll-ux-vs-features",
+  "title": "Community Poll: UX Refinements or New Features?",
+  "content": "I want your input for the next milestone. Should I focus on UX refinements or on shipping more features (see the README for the list)?\n\nVote in the poll here: https://github.com/Firstp1ck/Pacsea/discussions/83",
   "min_version": "0.6.0",
   "max_version": null,
   "expires": null
