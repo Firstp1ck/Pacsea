@@ -139,6 +139,30 @@ function is_prerelease_version
     end
 end
 
+function is_major_or_minor_change
+    # Returns 0 (true) if major or minor version changed (not just patch)
+    # Returns 1 (false) if only patch version changed
+    set -l old_ver $argv[1]
+    set -l new_ver $argv[2]
+    
+    set -l old_parts (string split '.' $old_ver)
+    set -l new_parts (string split '.' $new_ver)
+    
+    set -l old_major $old_parts[1]
+    set -l old_minor $old_parts[2]
+    set -l new_major $new_parts[1]
+    set -l new_minor $new_parts[2]
+    
+    # Check if major or minor changed
+    if test "$old_major" != "$new_major"
+        return 0
+    else if test "$old_minor" != "$new_minor"
+        return 0
+    else
+        return 1
+    end
+end
+
 # ============================================================================
 # Phase 1: Version Update
 # ============================================================================
@@ -188,6 +212,7 @@ end
 
 function phase2_documentation
     set -l new_ver $argv[1]
+    set -l old_ver $argv[2]
     
     log_phase "2. Documentation"
     
@@ -277,6 +302,14 @@ function phase2_documentation
     else
         wait_for_user "After completing /wiki-update in Cursor, press Enter..."
         log_success "Wiki update complete"
+    end
+    
+    # Step 2.7: Update SECURITY.md if major/minor version changed
+    if is_major_or_minor_change "$old_ver" "$new_ver"
+        log_step "Update SECURITY.md"
+        update_security_md "$new_ver"
+    else
+        log_info "Skipping SECURITY.md update (patch release only)"
     end
     
     return 0
@@ -827,6 +860,109 @@ function check_preflight
 end
 
 # ============================================================================
+# SECURITY.md Update
+# ============================================================================
+
+function update_security_md
+    set -l new_ver $argv[1]
+    set -l security_file "$PACSEA_DIR/SECURITY.md"
+    
+    log_step "Updating SECURITY.md"
+    
+    if test "$DRY_RUN" = true
+        log_info "[DRY-RUN] Would update SECURITY.md with new version $new_ver"
+        return 0
+    end
+    
+    if not test -f "$security_file"
+        log_error "SECURITY.md not found at: $security_file"
+        return 1
+    end
+    
+    # Parse version to get major.minor
+    set -l ver_parts (string split '.' $new_ver)
+    set -l major $ver_parts[1]
+    set -l minor $ver_parts[2]
+    set -l major_minor "$major.$minor"
+    
+    # Create temporary file
+    set -l tmp_file (mktemp)
+    
+    # Read file and process line by line
+    set -l in_table false
+    set -l table_updated false
+    set -l header_written false
+    set -l separator_written false
+    
+    while read -l line
+        # Detect the start of the version table
+        if string match -qr '^\|\s*Version\s*\|\s*Supported' "$line"
+            set in_table true
+            set header_written false
+            set separator_written false
+            echo "$line" >> "$tmp_file"
+            set header_written true
+            continue
+        end
+        
+        # Handle table separator line
+        if test "$in_table" = true; and string match -qr '^\|\s*-' "$line"
+            if not test "$separator_written" = true
+                echo "$line" >> "$tmp_file"
+                set separator_written true
+                # Add new version row after separator
+                echo "| $major_minor.x   | :white_check_mark: |" >> "$tmp_file"
+                set table_updated true
+            end
+            continue
+        end
+        
+        # Handle table rows
+        if test "$in_table" = true
+            if string match -qr '^\|\s*<' "$line"
+                # This is the "< X.Y.Z" line - update it
+                echo "| < $major_minor.0   | :x:                |" >> "$tmp_file"
+                continue
+            else if string match -qr '^\|\s*[0-9]' "$line"
+                # Another version row - skip old version entries
+                continue
+            else if test -z (string trim "$line")
+                # Empty line - end of table
+                set in_table false
+                echo "$line" >> "$tmp_file"
+                continue
+            else if string match -qr '^##' "$line"
+                # New section - end of table
+                set in_table false
+                echo "" >> "$tmp_file"
+                echo "$line" >> "$tmp_file"
+                continue
+            else if not string match -qr '^\|' "$line"
+                # Not a table line anymore
+                set in_table false
+                echo "$line" >> "$tmp_file"
+                continue
+            end
+        end
+        
+        # Write line as-is if not in table or not a table row
+        echo "$line" >> "$tmp_file"
+    end < "$security_file"
+    
+    # Replace original file
+    mv "$tmp_file" "$security_file"
+    
+    if test "$table_updated" = true
+        log_success "SECURITY.md updated: $major_minor.x is now supported"
+    else
+        log_warn "Could not find version table in SECURITY.md"
+        return 1
+    end
+    
+    return 0
+end
+
+# ============================================================================
 # CHANGELOG Update
 # ============================================================================
 
@@ -980,11 +1116,14 @@ function main
         return 0
     end
     
+    # Store old version before updating
+    set -l old_version (get_current_version)
+    
     # Execute phases
     phase1_version_update "$new_version"
     or return 1
     
-    phase2_documentation "$new_version"
+    phase2_documentation "$new_version" "$old_version"
     or return 1
     
     phase3_pkgbuild_updates "$new_version"
