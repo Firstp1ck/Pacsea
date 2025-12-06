@@ -1,0 +1,29 @@
+flowchart TD
+    A([Start]) --> B[Add packages to Downgrade list]
+    B --> C{List empty?}
+    C -- Yes --> D[Prompt to add items]
+    C -- No --> E["Resolve available versions (cache or repos)"]
+    E --> F{Version selectable?}
+    F -- No --> F1[Mark unavailable; suggest building or skip]
+    F -- Yes --> G{Verify signatures or checksums}
+    G --> H{Tool available?<br/>pacman/paru/yay}
+    H -- No --> H1[Show missing-tool guidance; abort]
+    H -- Yes --> I{Dry-run?}
+    I -- Yes --> J[Run dry-run downgrade; list changes and risks]
+    I -- No --> K{User confirmed downgrade batch?}
+    J --> K
+    K -- No --> L[Cancel; preserve list]
+    K -- Yes --> M[Acquire lock; prepare queue]
+    M --> N{Process next item?}
+    N -- No --> Z[Summarize success or fail; remind pin or version hold]
+    N -- Yes --> O[Download or prepare target version]
+    O --> P{Preparation ok?}
+    P -- No --> P1[Mark failed; continue/stop?]
+    P -- Yes --> Q[Execute downgrade]
+    Q --> R{Success?}
+    R -- Yes --> S[Mark success; optionally pin or hold]
+    R -- No --> T[Mark failed; collect logs]
+    S --> N
+    T --> N
+    Z --> AA([Done])
+

@@ -1,0 +1,29 @@
+flowchart TD
+    A([Start]) --> B[Add packages to Install list]
+    B --> C{List empty?}
+    C -- Yes --> D[Prompt to add items; stay idle]
+    C -- No --> E[Normalize list: dedupe, sort]
+    E --> F{Conflicts or protected pkgs?}
+    F -- Yes --> F1[Flag items; allow remove/force with confirm]
+    F -- No --> G{Tool available?<br/>pacman/paru/yay}
+    F1 --> G
+    G -- No --> G1[Show missing-tool guidance; abort]
+    G -- Yes --> H{Dry-run?}
+    H -- Yes --> I[Run dry-run batch; collect per-item status]
+    H -- No --> J{User confirmed batch install?}
+    I --> J
+    J -- No --> K[Cancel; preserve list]
+    J -- Yes --> L[Acquire lock; prepare queue]
+    L --> M{Process next item?}
+    M -- No --> Z[Summarize results; log]
+    M -- Yes --> N[Resolve deps for item]
+    N --> O{Deps ok?}
+    O -- No --> O1[Mark failed; continue/stop?]
+    O -- Yes --> P[Execute install]
+    P --> Q{Success?}
+    Q -- Yes --> R[Mark success; log]
+    Q -- No --> S[Mark failed; collect logs]
+    R --> M
+    S --> M
+    Z --> AA([Done])
+

@@ -1,0 +1,16 @@
+flowchart TD
+    A([Start]) --> B{Install list ready?}
+    B -- No --> C[Request list from engineer]
+    B -- Yes --> D[Show summary: count, size, risks]
+    D --> E{Blocked/critical items?}
+    E -- Yes --> F[Require override or remove items]
+    E -- No --> G{Approve batch install?}
+    F --> G
+    G -- No --> H[Cancel; return for revisions]
+    G -- Yes --> I[Trigger batch install]
+    I --> J{All items completed?}
+    J -- Yes --> K[Notify success; record change set]
+    J -- No --> L[Partial/failed; assign follow-up]
+    K --> M([Done])
+    L --> M
+

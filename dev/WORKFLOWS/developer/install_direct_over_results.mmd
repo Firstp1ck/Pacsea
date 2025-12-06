@@ -1,0 +1,22 @@
+flowchart TD
+    A([Start]) --> B{Result selected?}
+    B -- No --> C[Stay on results list]
+    B -- Yes --> D{Package metadata ok?}
+    D -- No --> C1[Show fetch error; allow retry]
+    D -- Yes --> E{Tool available?<br/>pacman/paru/yay}
+    E -- No --> E1[Show missing-tool guidance; abort]
+    E -- Yes --> F{Dry-run first?}
+    F -- Yes --> G[Run dry-run install; capture deps/conflicts]
+    F -- No --> H{User confirmed install?}
+    G --> H
+    H -- No --> I[Cancel; keep selection]
+    H -- Yes --> J[Acquire lock; prepare command]
+    J --> K{Deps resolved?}
+    K -- No --> K1[Show resolver errors; let user adjust]
+    K -- Yes --> L[Execute install]
+    L --> M{Success?}
+    M -- Yes --> N[Post-install: refresh db, log result]
+    M -- No --> O[Show error, collect logs, suggest retry/alt tool]
+    N --> P([Done])
+    O --> P
+

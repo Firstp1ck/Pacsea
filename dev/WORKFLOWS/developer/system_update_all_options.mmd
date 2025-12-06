@@ -1,0 +1,29 @@
+flowchart TD
+    A([Start System Update]) --> B{User choice}
+    B -- Check only --> C[Query repos + AUR; show summary]
+    B -- Dry-run --> D[Simulate update; detect conflicts]
+    B -- Update all --> E[Proceed full scope]
+    B -- Update core only --> F[Limit to core repos]
+    B -- Cancel --> Z([Done])
+    C --> Z
+    D --> G{Conflicts found?}
+    G -- Yes --> G1[Show blockers; allow edit scope]
+    G -- No --> H[Ready to run real update]
+    E --> H
+    F --> H
+    H --> I{Tool available?<br/>pacman/paru/yay}
+    I -- No --> I1[Show missing-tool guidance; abort]
+    I -- Yes --> J{Confirmation?}
+    J -- No --> Z
+    J -- Yes --> K[Acquire lock; optional pre-snapshot]
+    K --> L[Execute update per scope]
+    L --> M{Reboot required?}
+    M -- Yes --> N[Prompt reboot; schedule if deferred]
+    M -- No --> O[No reboot needed]
+    N --> P{Success?}
+    O --> P
+    P -- Yes --> Q[Log success; refresh mirrors if configured]
+    P -- No --> R[Show failure logs; offer retry]
+    Q --> Z
+    R --> Z
+

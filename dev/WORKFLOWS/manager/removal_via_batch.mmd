@@ -1,0 +1,16 @@
+flowchart TD
+    A([Start]) --> B{Removal list ready?}
+    B -- No --> C[Request list of packages marked for removal]
+    B -- Yes --> D[Review summary: impact + protected items]
+    D --> E{Critical/protected packages present?}
+    E -- Yes --> F[Require explicit override or exclude]
+    E -- No --> G{Approve removal batch?}
+    F --> G
+    G -- No --> H[Cancel; ask for revised list]
+    G -- Yes --> I[Trigger removals]
+    I --> J{Completed?}
+    J -- Yes --> K[Notify success; confirm cleanup]
+    J -- No --> L[Notify failures; assign follow-up]
+    K --> M([Done])
+    L --> M
+
