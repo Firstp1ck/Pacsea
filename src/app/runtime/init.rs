@@ -273,13 +273,14 @@ fn load_recent_searches(app: &mut AppState) {
     if let Ok(s) = std::fs::read_to_string(&app.recent_path)
         && let Ok(list) = serde_json::from_str::<Vec<String>>(&s)
     {
-        app.recent = list;
-        if !app.recent.is_empty() {
+        let count = list.len();
+        app.load_recent_items(&list);
+        if count > 0 {
             app.history_state.select(Some(0));
         }
         tracing::info!(
             path = %app.recent_path.display(),
-            count = app.recent.len(),
+            count = count,
             "loaded recent searches"
         );
     }

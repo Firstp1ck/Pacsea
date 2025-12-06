@@ -61,6 +61,7 @@ pub async fn update_in_background(
                 if different {
                     if let Ok(mut g) = idx().write() {
                         g.pkgs = merged;
+                        g.rebuild_name_index();
                     }
                     save_to_disk(&persist_path);
                     let _ = notify_tx.send(());

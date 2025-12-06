@@ -172,10 +172,9 @@ fn remove_recent_item(app: &mut AppState, preview_tx: &mpsc::UnboundedSender<Pac
         return false;
     };
     let i = inds.get(vsel).copied().unwrap_or(0);
-    if i >= app.recent.len() {
+    if app.remove_recent_at(i).is_none() {
         return false;
     }
-    app.recent.remove(i);
     app.recent_dirty = true;
     let vis_len = inds.len().saturating_sub(1); // now one less visible
     if vis_len == 0 {
@@ -205,7 +204,7 @@ fn get_selected_recent_query(app: &AppState) -> Option<String> {
     }
     let vsel = app.history_state.selected()?;
     let i = inds.get(vsel).copied()?;
-    app.recent.get(i).cloned()
+    app.recent_value_at(i)
 }
 
 /// What: Handle Enter key to use the selected recent query.
@@ -427,7 +426,7 @@ mod tests {
     /// - Uses unbounded channels to capture the emitted query without running async tasks.
     fn recent_enter_uses_query() {
         let mut app = new_app();
-        app.recent = vec!["ripgrep".into()];
+        app.load_recent_items(&["ripgrep".to_string()]);
         app.history_state.select(Some(0));
         let (qtx, mut qrx) = mpsc::unbounded_channel::<QueryInput>();
         let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();

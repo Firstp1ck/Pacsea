@@ -23,15 +23,16 @@ use crate::state::{AppState, Focus};
 pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
     let apply =
         matches!(app.focus, Focus::Recent) && app.pane_find.as_ref().is_some_and(|s| !s.is_empty());
+    let recents = app.recent_values();
     if !apply {
-        return (0..app.recent.len()).collect();
+        return (0..recents.len()).collect();
     }
     let pat = app
         .pane_find
         .as_ref()
         .expect("pane_find should be Some when apply is true")
         .to_lowercase();
-    app.recent
+    recents
         .iter()
         .enumerate()
         .filter_map(|(i, s)| {

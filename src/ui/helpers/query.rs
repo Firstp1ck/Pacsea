@@ -74,7 +74,7 @@ pub fn trigger_recent_preview(
     if idx >= inds.len() {
         return;
     }
-    let Some(q) = app.recent.get(inds[idx]).cloned() else {
+    let Some(q) = app.recent_value_at(inds[idx]) else {
         return;
     };
     let tx = preview_tx.clone();

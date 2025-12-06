@@ -818,6 +818,7 @@ pub(super) fn handle_password_prompt_modal(
 
                 // Clear downgrade list
                 app.downgrade_list.clear();
+                app.downgrade_list_names.clear();
                 app.downgrade_state.select(None);
 
                 // Spawn downgrade in a terminal (interactive tool needs full terminal)

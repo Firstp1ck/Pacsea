@@ -80,6 +80,9 @@ impl Default for AppState {
             last_saved_value,
             latest_query_id,
             next_query_id,
+            search_cache_query,
+            search_cache_fuzzy,
+            search_cache_results,
         ) = defaults::default_search_state();
 
         let (recent, history_state, recent_path, recent_dirty) =
@@ -104,6 +107,9 @@ impl Default for AppState {
             install_path,
             install_dirty,
             last_install_change,
+            install_list_names,
+            remove_list_names,
+            downgrade_list_names,
         ) = defaults::default_install_lists_state(install_path);
 
         let (show_recent_pane, show_install_pane, show_keybinds_footer, pane_find) =
@@ -224,6 +230,9 @@ impl Default for AppState {
             collapsed_menu_open,
             collapsed_menu_button_rect,
             collapsed_menu_rect,
+            sort_cache_repo_name,
+            sort_cache_aur_popularity,
+            sort_cache_signature,
         ) = defaults::default_sorting_menus_state();
 
         let (installed_only_mode, right_pane_focus, package_marker) =
@@ -274,6 +283,7 @@ impl Default for AppState {
             preflight_files_resolving,
             preflight_services_resolving,
             preflight_sandbox_resolving,
+            last_logged_preflight_deps_state,
             preflight_cancelled,
         ) = defaults_cache::default_preflight_state();
 
@@ -297,6 +307,9 @@ impl Default for AppState {
             recent_dirty,
             latest_query_id,
             next_query_id,
+            search_cache_query,
+            search_cache_fuzzy,
+            search_cache_results,
             details_cache,
             cache_path,
             cache_dirty,
@@ -315,6 +328,9 @@ impl Default for AppState {
             install_path,
             install_dirty,
             last_install_change,
+            install_list_names,
+            remove_list_names,
+            downgrade_list_names,
             show_recent_pane,
             show_install_pane,
             show_keybinds_footer,
@@ -403,6 +419,9 @@ impl Default for AppState {
             sort_button_rect,
             sort_menu_rect,
             sort_menu_auto_close_at,
+            sort_cache_repo_name,
+            sort_cache_aur_popularity,
+            sort_cache_signature,
             options_menu_open,
             options_button_rect,
             options_menu_rect,
@@ -486,6 +505,7 @@ impl Default for AppState {
             preflight_files_resolving,
             preflight_services_resolving,
             preflight_sandbox_resolving,
+            last_logged_preflight_deps_state,
             preflight_cancelled,
             pending_executor_request: None,
             pending_exec_header_chips: None,

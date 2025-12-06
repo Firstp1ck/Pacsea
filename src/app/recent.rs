@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use crate::state::AppState;
+use crate::state::app_state::recent_capacity;
 
 /// What: Debounced persistence of the current search input into the Recent list.
 ///
@@ -23,17 +24,9 @@ pub fn maybe_save_recent(app: &mut AppState) {
     }
 
     let value = app.input.trim().to_string();
-    if let Some(pos) = app
-        .recent
-        .iter()
-        .position(|s| s.eq_ignore_ascii_case(&value))
-    {
-        app.recent.remove(pos);
-    }
-    app.recent.insert(0, value.clone());
-    if app.recent.len() > 20 {
-        app.recent.truncate(20);
-    }
+    let key = value.to_ascii_lowercase();
+    app.recent.resize(recent_capacity());
+    app.recent.put(key, value.clone());
     app.last_saved_value = Some(value);
     app.recent_dirty = true;
 }
@@ -44,6 +37,10 @@ mod tests {
 
     fn new_app() -> AppState {
         AppState::default()
+    }
+
+    fn recent_values(app: &AppState) -> Vec<String> {
+        app.recent.iter().map(|(_, v)| v.clone()).collect()
     }
 
     #[test]
@@ -85,7 +82,7 @@ mod tests {
             .checked_sub(std::time::Duration::from_secs(3))
             .unwrap_or_else(std::time::Instant::now);
         maybe_save_recent(&mut app);
-        assert_eq!(app.recent.first().map(String::as_str), Some("fd"));
+        assert_eq!(recent_values(&app).first().map(String::as_str), Some("fd"));
         assert!(app.recent_dirty);
     }
 
@@ -102,13 +99,47 @@ mod tests {
     /// - Protects the dedupe branch that removes stale duplicates before inserting the new value.
     fn recent_dedup_case_insensitive() {
         let mut app = new_app();
-        app.recent = vec!["RipGrep".into()];
+        app.recent.put("ripgrep".into(), "RipGrep".into());
         app.input = "ripgrep".into();
         app.last_input_change = std::time::Instant::now()
             .checked_sub(std::time::Duration::from_secs(3))
             .unwrap_or_else(std::time::Instant::now);
         maybe_save_recent(&mut app);
-        assert_eq!(app.recent.len(), 1);
-        assert_eq!(app.recent[0], "ripgrep");
+        let recents = recent_values(&app);
+        assert_eq!(recents.len(), 1);
+        assert_eq!(recents[0], "ripgrep");
+    }
+
+    #[test]
+    /// What: Confirm recent cache evicts least-recent entries while keeping newest first.
+    ///
+    /// Inputs:
+    /// - Sequence of unique inputs exceeding the configured recent capacity.
+    ///
+    /// Output:
+    /// - Cache length equals capacity; newest entry sits at the front; oldest entries are evicted.
+    ///
+    /// Details:
+    /// - Advances the debounce timer for each iteration to permit saves.
+    fn recent_eviction_respects_capacity() {
+        let mut app = new_app();
+        let cap = recent_capacity().get();
+        for i in 0..(cap + 2) {
+            app.input = format!("pkg{i}");
+            app.last_input_change = std::time::Instant::now()
+                .checked_sub(std::time::Duration::from_secs(3))
+                .unwrap_or_else(std::time::Instant::now);
+            maybe_save_recent(&mut app);
+        }
+
+        let recents = recent_values(&app);
+        assert_eq!(recents.len(), cap);
+        let newest = format!("pkg{}", cap + 1);
+        assert_eq!(recents.first().map(String::as_str), Some(newest.as_str()));
+        assert!(
+            recents
+                .iter()
+                .all(|entry| entry != "pkg0" && entry != "pkg1")
+        );
     }
 }

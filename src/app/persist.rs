@@ -54,7 +54,8 @@ pub fn maybe_flush_recent(app: &mut AppState) {
     if !app.recent_dirty {
         return;
     }
-    if let Ok(s) = serde_json::to_string(&app.recent) {
+    let recent_values = app.recent_values();
+    if let Ok(s) = serde_json::to_string(&recent_values) {
         tracing::debug!(
             path = %app.recent_path.display(),
             bytes = s.len(),
@@ -346,6 +347,19 @@ pub fn maybe_flush_sandbox_cache(app: &mut AppState) {
     );
 }
 
+/// What: Persist the PKGBUILD parse cache if there are pending updates.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Flushes the global PKGBUILD parse cache to disk best-effort.
+///
+/// Details:
+/// - Safe to call frequently; returns immediately when cache is clean.
+pub fn maybe_flush_pkgbuild_parse_cache() {
+    crate::logic::files::flush_pkgbuild_cache();
+}
+
 /// What: Persist the install list to disk if marked dirty, throttled to ~1s.
 ///
 /// Inputs:
@@ -465,7 +479,7 @@ mod tests {
                 .as_nanos()
         ));
         app.recent_path = path.clone();
-        app.recent = vec!["rg".into(), "fd".into()];
+        app.load_recent_items(&["rg".to_string(), "fd".to_string()]);
         app.recent_dirty = true;
         maybe_flush_recent(&mut app);
         assert!(!app.recent_dirty);

@@ -1,13 +1,17 @@
-//! Syntax highlighting for PKGBUILD files using syntect.
+//! Syntax highlighting for PKGBUILD files using syntect with incremental reuse.
 //!
 //! This module provides functions to highlight PKGBUILD content using syntect
-//! and convert the highlighted spans to ratatui-compatible Spans.
+//! and convert the highlighted spans to ratatui-compatible Spans, reusing cached
+//! results for unchanged prefixes to reduce re-render latency.
 
-use ratatui::style::{Color, Modifier, Style};
-use syntect::easy::HighlightLines;
-use syntect::highlighting::ThemeSet;
-use syntect::parsing::SyntaxSet;
-use syntect::util::LinesWithEndings;
+use ratatui::{
+    style::{Color, Modifier, Style},
+    text::Line,
+};
+use std::sync::{Mutex, OnceLock};
+use syntect::{
+    easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet, util::LinesWithEndings,
+};
 
 use crate::theme::Theme;
 
@@ -131,6 +135,19 @@ fn map_syntect_color(sc: syntect::highlighting::Color, th: &Theme) -> Color {
     Color::Rgb(r, g, b)
 }
 
+#[derive(Clone)]
+struct PkgbHighlightCache {
+    text: String,
+    lines: Vec<Line<'static>>,
+}
+
+/// Global cache for PKGBUILD highlighting to enable dirty-region reuse across renders.
+static PKGB_CACHE: OnceLock<Mutex<Option<PkgbHighlightCache>>> = OnceLock::new();
+
+fn cache_lock() -> &'static Mutex<Option<PkgbHighlightCache>> {
+    PKGB_CACHE.get_or_init(|| Mutex::new(None))
+}
+
 /// What: Highlight PKGBUILD text using syntect and convert to ratatui Spans.
 ///
 /// Inputs:
@@ -142,9 +159,10 @@ fn map_syntect_color(sc: syntect::highlighting::Color, th: &Theme) -> Color {
 ///
 /// Details:
 /// - Uses bash syntax definition for highlighting.
-/// - Falls back to plain text if syntax highlighting fails.
-/// - Maps syntect colors to theme colors for consistency.
-pub fn highlight_pkgbuild(text: &str, th: &Theme) -> Vec<ratatui::text::Line<'static>> {
+/// - Falls back to plain text if highlighting fails.
+/// - Reuses cached highlighted prefixes and recomputes from the first differing line to preserve
+///   syntect state; falls back to plain text per-line on parse errors.
+pub fn highlight_pkgbuild(text: &str, th: &Theme) -> Vec<Line<'static>> {
     init_syntax();
 
     let syntax_set = SYNTAX_SET.get().expect("syntax set should be initialized");
@@ -164,57 +182,114 @@ pub fn highlight_pkgbuild(text: &str, th: &Theme) -> Vec<ratatui::text::Line<'st
         .or_else(|| theme_set.themes.values().next())
         .expect("at least one theme should be available");
 
-    // Use HighlightLines - syntect already does scope-based highlighting internally
-    // The colors it assigns are based on scope matching, we just map them to our theme
-    let mut highlighter = HighlightLines::new(syntax, theme);
-    let mut lines = Vec::new();
-
-    for line in LinesWithEndings::from(text) {
-        let mut spans = Vec::new();
-
-        match highlighter.highlight_line(line, syntax_set) {
-            Ok(highlighted_line) => {
-                for (style, text) in highlighted_line {
-                    // Syntect's colors are already scope-based - map them to our theme colors
-                    let color = map_syntect_color(style.foreground, th);
-                    let mut ratatui_style = Style::default().fg(color);
-
-                    // Apply modifiers based on syntect style
-                    if style
-                        .font_style
-                        .contains(syntect::highlighting::FontStyle::BOLD)
-                    {
-                        ratatui_style = ratatui_style.add_modifier(Modifier::BOLD);
-                    }
-                    if style
-                        .font_style
-                        .contains(syntect::highlighting::FontStyle::ITALIC)
-                    {
-                        ratatui_style = ratatui_style.add_modifier(Modifier::ITALIC);
-                    }
-                    if style
-                        .font_style
-                        .contains(syntect::highlighting::FontStyle::UNDERLINE)
-                    {
-                        ratatui_style = ratatui_style.add_modifier(Modifier::UNDERLINED);
-                    }
-
-                    spans.push(ratatui::text::Span::styled(text.to_string(), ratatui_style));
-                }
-            }
-            Err(_) => {
-                // Fallback to plain text if highlighting fails
-                spans.push(ratatui::text::Span::styled(
-                    line.to_string(),
-                    Style::default().fg(th.text),
-                ));
-            }
-        }
-
-        lines.push(ratatui::text::Line::from(spans));
+    // Fast path: identical text to cache
+    if let Ok(cache_guard) = cache_lock().lock()
+        && let Some(cache) = cache_guard.as_ref()
+        && cache.text == text
+    {
+        return cache.lines.clone();
     }
 
-    lines
+    // Snapshot old cache (if any) and release lock for work
+    let old_cache = cache_lock().lock().ok().and_then(|c| c.clone());
+
+    let new_lines_raw: Vec<String> = LinesWithEndings::from(text).map(str::to_string).collect();
+    let old_lines_raw: Vec<String> = old_cache
+        .as_ref()
+        .map(|c| {
+            LinesWithEndings::from(c.text.as_str())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let prefix_len = new_lines_raw
+        .iter()
+        .zip(&old_lines_raw)
+        .take_while(|(a, b)| a == b)
+        .count();
+
+    // Syntect highlighter (stateful; must process lines in order)
+    let mut highlighter = HighlightLines::new(syntax, theme);
+    let mut highlighted_lines: Vec<Line<'static>> = Vec::with_capacity(new_lines_raw.len());
+
+    // Replay unchanged prefix to advance syntect state; reuse cached spans when present
+    for line in new_lines_raw.iter().take(prefix_len) {
+        match highlighter.highlight_line(line, syntax_set) {
+            Ok(highlighted_line) => {
+                if let Some(cache) = old_cache.as_ref()
+                    && cache.lines.len() > highlighted_lines.len()
+                {
+                    highlighted_lines.push(cache.lines[highlighted_lines.len()].clone());
+                } else {
+                    highlighted_lines.push(to_ratatui_line(&highlighted_line, th, line));
+                }
+            }
+            Err(_) => highlighted_lines.push(Line::from(line.to_string())),
+        }
+    }
+
+    // Highlight remaining (changed) region onward
+    for line in new_lines_raw.iter().skip(prefix_len) {
+        match highlighter.highlight_line(line, syntax_set) {
+            Ok(highlighted_line) => {
+                highlighted_lines.push(to_ratatui_line(&highlighted_line, th, line));
+            }
+            Err(_) => highlighted_lines.push(Line::from(line.to_string())),
+        }
+    }
+
+    // Update cache
+    if let Ok(mut cache_guard) = cache_lock().lock() {
+        *cache_guard = Some(PkgbHighlightCache {
+            text: text.to_string(),
+            lines: highlighted_lines.clone(),
+        });
+    }
+
+    highlighted_lines
+}
+
+fn to_ratatui_line(
+    highlighted_line: &[(syntect::highlighting::Style, &str)],
+    th: &Theme,
+    fallback: &str,
+) -> Line<'static> {
+    let mut spans = Vec::new();
+    for (style, text) in highlighted_line {
+        let color = map_syntect_color(style.foreground, th);
+        let mut ratatui_style = Style::default().fg(color);
+
+        if style
+            .font_style
+            .contains(syntect::highlighting::FontStyle::BOLD)
+        {
+            ratatui_style = ratatui_style.add_modifier(Modifier::BOLD);
+        }
+        if style
+            .font_style
+            .contains(syntect::highlighting::FontStyle::ITALIC)
+        {
+            ratatui_style = ratatui_style.add_modifier(Modifier::ITALIC);
+        }
+        if style
+            .font_style
+            .contains(syntect::highlighting::FontStyle::UNDERLINE)
+        {
+            ratatui_style = ratatui_style.add_modifier(Modifier::UNDERLINED);
+        }
+
+        spans.push(ratatui::text::Span::styled(
+            (*text).to_string(),
+            ratatui_style,
+        ));
+    }
+
+    if spans.is_empty() {
+        spans.push(ratatui::text::Span::raw(fallback.to_string()));
+    }
+
+    Line::from(spans)
 }
 
 #[cfg(test)]
@@ -223,7 +298,54 @@ mod tests {
     use crate::theme::theme;
 
     #[test]
+    /// What: Ensure identical text hits the cache and returns lines without recomputing content.
+    ///
+    /// Inputs:
+    /// - Two invocations with the same PKGBUILD text.
+    ///
+    /// Output:
+    /// - Highlighted lines are equal across calls, demonstrating cache reuse.
+    fn highlight_pkgbuild_cache_hit() {
+        reset_cache();
+        let th = theme();
+        let pkgbuild = "pkgname=test\npkgver=1\n";
+        let first = highlight_pkgbuild(pkgbuild, &th);
+        let second = highlight_pkgbuild(pkgbuild, &th);
+        assert_eq!(first.len(), second.len());
+        assert_eq!(first[0].to_string(), second[0].to_string());
+    }
+
+    #[test]
+    /// What: Ensure changes late in the file avoid re-highlighting unchanged prefixes.
+    ///
+    /// Inputs:
+    /// - Initial text, then an appended line.
+    ///
+    /// Output:
+    /// - Highlighting succeeds and yields expected total line count.
+    fn highlight_pkgbuild_incremental_appends() {
+        reset_cache();
+        let th = theme();
+        let base = "pkgname=test\npkgver=1\n";
+        let appended = "pkgname=test\npkgver=1\n# comment\n";
+        let first = highlight_pkgbuild(base, &th);
+        let second = highlight_pkgbuild(appended, &th);
+        assert_eq!(second.len(), 3);
+        assert_eq!(first.len(), 2);
+    }
+
+    #[test]
+    /// What: Ensure empty text returns an empty or single-line result.
+    fn test_highlight_pkgbuild_empty() {
+        reset_cache();
+        let th = theme();
+        let lines = highlight_pkgbuild("", &th);
+        assert!(lines.is_empty() || lines.len() == 1);
+    }
+
+    #[test]
     fn test_highlight_pkgbuild_basic() {
+        reset_cache();
         let th = theme();
         let pkgbuild = r"pkgname=test
 pkgver=1.0.0
@@ -235,10 +357,9 @@ depends=('bash')
         assert!(!lines.is_empty());
     }
 
-    #[test]
-    fn test_highlight_pkgbuild_empty() {
-        let th = theme();
-        let lines = highlight_pkgbuild("", &th);
-        assert!(lines.is_empty() || lines.len() == 1);
+    fn reset_cache() {
+        if let Ok(mut guard) = cache_lock().lock() {
+            *guard = None;
+        }
     }
 }

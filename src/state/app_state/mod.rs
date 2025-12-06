@@ -1,7 +1,10 @@
 //! Central `AppState` container, split out from the monolithic module.
 
+use lru::LruCache;
 use ratatui::widgets::ListState;
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{
+    collections::HashMap, collections::HashSet, num::NonZeroUsize, path::PathBuf, time::Instant,
+};
 
 use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
@@ -13,6 +16,25 @@ use crate::theme::KeyMap;
 mod default_impl;
 mod defaults;
 mod defaults_cache;
+
+/// Maximum number of recent searches to retain (most-recent-first).
+pub const RECENT_CAPACITY: usize = 20;
+
+/// What: Provide the non-zero capacity used by the LRU recent cache.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Non-zero capacity for the recent LRU cache.
+///
+/// Details:
+/// - Uses a const unchecked constructor because the capacity constant is guaranteed
+///   to be greater than zero.
+#[must_use]
+pub const fn recent_capacity() -> NonZeroUsize {
+    // SAFETY: `RECENT_CAPACITY` is a non-zero constant.
+    unsafe { NonZeroUsize::new_unchecked(RECENT_CAPACITY) }
+}
 
 /// Global application state shared by the event, networking, and UI layers.
 ///
@@ -43,8 +65,8 @@ pub struct AppState {
     /// If `true`, show install steps without executing side effects.
     pub dry_run: bool,
     // Recent searches
-    /// Previously executed queries.
-    pub recent: Vec<String>,
+    /// Previously executed queries stored as an LRU cache (keyed case-insensitively).
+    pub recent: LruCache<String, String>,
     /// List selection state for the Recent pane.
     pub history_state: ListState,
     /// Which pane is currently focused.
@@ -64,6 +86,13 @@ pub struct AppState {
     pub latest_query_id: u64,
     /// Next query identifier to allocate.
     pub next_query_id: u64,
+    // Search result cache
+    /// Cached search query text (None if cache is empty or invalid).
+    pub search_cache_query: Option<String>,
+    /// Whether fuzzy mode was used for cached query.
+    pub search_cache_fuzzy: bool,
+    /// Cached search results (None if cache is empty or invalid).
+    pub search_cache_results: Option<Vec<PackageItem>>,
     // Details cache
     /// Cache of details keyed by package name.
     pub details_cache: HashMap<String, PackageDetails>,
@@ -109,6 +138,12 @@ pub struct AppState {
     pub install_dirty: bool,
     /// Timestamp of the most recent change to the install list for throttling disk writes.
     pub last_install_change: Option<Instant>,
+    /// `HashSet` of package names in install list for O(1) membership checking.
+    pub install_list_names: HashSet<String>,
+    /// `HashSet` of package names in remove list for O(1) membership checking.
+    pub remove_list_names: HashSet<String>,
+    /// `HashSet` of package names in downgrade list for O(1) membership checking.
+    pub downgrade_list_names: HashSet<String>,
 
     // Visibility toggles for middle row panes
     /// Whether the Recent pane is visible in the middle row.
@@ -339,6 +374,13 @@ pub struct AppState {
     pub sort_menu_rect: Option<(u16, u16, u16, u16)>,
     /// Deadline after which the sort dropdown auto-closes.
     pub sort_menu_auto_close_at: Option<Instant>,
+    // Sort result caching for O(1) sort mode switching
+    /// Cached sort order for `RepoThenName` mode (indices into `results`).
+    pub sort_cache_repo_name: Option<Vec<usize>>,
+    /// Cached sort order for `AurPopularityThenOfficial` mode (indices into `results`).
+    pub sort_cache_aur_popularity: Option<Vec<usize>>,
+    /// Signature of results used to validate caches (order-insensitive hash of names).
+    pub sort_cache_signature: Option<u64>,
 
     // Results options UI (top-right dropdown)
     /// Whether the options dropdown is currently visible.
@@ -534,6 +576,8 @@ pub struct AppState {
     pub preflight_services_resolving: bool,
     /// Whether preflight sandbox resolution is in progress.
     pub preflight_sandbox_resolving: bool,
+    /// Last preflight dependency log state to suppress duplicate tick logs.
+    pub last_logged_preflight_deps_state: Option<(usize, bool, bool)>,
     /// Cancellation flag for preflight operations (set to true when modal closes).
     pub preflight_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
 
@@ -556,6 +600,74 @@ pub struct AppState {
 
 /// File database sync result type.
 pub type FileSyncResult = std::sync::Arc<std::sync::Mutex<Option<Result<bool, String>>>>;
+
+impl AppState {
+    /// What: Return recent searches in most-recent-first order.
+    ///
+    /// Inputs:
+    /// - `self`: Application state containing the recent LRU cache.
+    ///
+    /// Output:
+    /// - Vector of recent search strings ordered from most to least recent.
+    ///
+    /// Details:
+    /// - Clones stored values; limited to `RECENT_CAPACITY`.
+    #[must_use]
+    pub fn recent_values(&self) -> Vec<String> {
+        self.recent.iter().map(|(_, v)| v.clone()).collect()
+    }
+
+    /// What: Fetch a recent search by positional index.
+    ///
+    /// Inputs:
+    /// - `index`: Zero-based position in most-recent-first ordering.
+    ///
+    /// Output:
+    /// - `Some(String)` when the index is valid; `None` otherwise.
+    ///
+    /// Details:
+    /// - Uses the LRU iterator, so `index == 0` is the most recent entry.
+    #[must_use]
+    pub fn recent_value_at(&self, index: usize) -> Option<String> {
+        self.recent.iter().nth(index).map(|(_, v)| v.clone())
+    }
+
+    /// What: Remove a recent search at the provided position.
+    ///
+    /// Inputs:
+    /// - `index`: Zero-based position in most-recent-first ordering.
+    ///
+    /// Output:
+    /// - `Some(String)` containing the removed value when found; `None` otherwise.
+    ///
+    /// Details:
+    /// - Resolves the cache key via iteration, then pops it to maintain LRU invariants.
+    pub fn remove_recent_at(&mut self, index: usize) -> Option<String> {
+        let key = self.recent.iter().nth(index).map(|(k, _)| k.clone())?;
+        self.recent.pop(&key)
+    }
+
+    /// What: Replace the recent cache with the provided most-recent-first entries.
+    ///
+    /// Inputs:
+    /// - `items`: Slice of recent search strings ordered from most to least recent.
+    ///
+    /// Output:
+    /// - None (mutates `self.recent`).
+    ///
+    /// Details:
+    /// - Clears existing entries, enforces configured capacity, and preserves ordering by
+    ///   inserting from least-recent to most-recent.
+    pub fn load_recent_items(&mut self, items: &[String]) {
+        self.recent.clear();
+        self.recent.resize(recent_capacity());
+        for value in items.iter().rev() {
+            let stored = value.clone();
+            let key = stored.to_ascii_lowercase();
+            self.recent.put(key, stored);
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

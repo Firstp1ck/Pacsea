@@ -15,6 +15,7 @@ use crate::state::AppState;
 ///
 /// Details:
 /// - The id allows correlating responses so the UI can discard stale results.
+/// - Cache checking happens in `handle_search_results` to avoid architectural changes.
 pub fn send_query(app: &mut AppState, query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>) {
     let id = app.next_query_id;
     app.next_query_id += 1;

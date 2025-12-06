@@ -25,5 +25,5 @@ pub use prefetch::ring_prefetch_from_selected;
 pub use query::send_query;
 pub use selection::move_sel_cached;
 pub use services::resolve_service_impacts;
-pub use sort::sort_results_preserve_selection;
+pub use sort::{invalidate_sort_caches, sort_results_preserve_selection};
 pub use summary::compute_post_summary;

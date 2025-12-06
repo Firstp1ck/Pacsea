@@ -41,6 +41,7 @@ pub(super) type DefaultPreflightState = (
     bool,
     bool,
     bool,
+    Option<(usize, bool, bool)>,
     std::sync::Arc<std::sync::atomic::AtomicBool>,
 );
 
@@ -161,7 +162,7 @@ pub(super) fn default_sandbox_cache_state()
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of preflight fields: `preflight_summary_items`, `preflight_deps_items`, `preflight_files_items`, `preflight_services_items`, `preflight_sandbox_items`, `preflight_summary_resolving`, `preflight_deps_resolving`, `preflight_files_resolving`, `preflight_services_resolving`, `preflight_sandbox_resolving`, `preflight_cancelled`.
+/// - Tuple of preflight fields: `preflight_summary_items`, `preflight_deps_items`, `preflight_files_items`, `preflight_services_items`, `preflight_sandbox_items`, `preflight_summary_resolving`, `preflight_deps_resolving`, `preflight_files_resolving`, `preflight_services_resolving`, `preflight_sandbox_resolving`, `last_logged_preflight_deps_state`, `preflight_cancelled`.
 ///
 /// Details:
 /// - No preflight items to resolve, all resolution flags false, cancellation flag initialized.
@@ -177,6 +178,7 @@ pub(super) fn default_preflight_state() -> DefaultPreflightState {
         false,
         false,
         false,
+        None,
         std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     )
 }

@@ -315,7 +315,7 @@ fn test_ui_renders_middle_row() {
     let mut app = create_test_app_state();
 
     // Add some recent searches and install list items
-    app.recent = vec!["vim".to_string(), "git".to_string()];
+    app.load_recent_items(&["vim".to_string(), "git".to_string()]);
     app.history_state.select(Some(0));
 
     app.install_list = vec![PackageItem {

@@ -3,6 +3,7 @@
 mod backup;
 mod db_sync;
 mod lists;
+mod pkgbuild_cache;
 mod pkgbuild_fetch;
 mod pkgbuild_parse;
 mod resolution;
@@ -12,6 +13,7 @@ pub use db_sync::{
     ensure_file_db_synced, get_file_db_sync_info, get_file_db_sync_timestamp, is_file_db_stale,
 };
 pub use lists::{get_installed_file_list, get_remote_file_list};
+pub use pkgbuild_cache::{PkgbuildSourceKind, flush_pkgbuild_cache, parse_pkgbuild_cached};
 pub use pkgbuild_fetch::{fetch_pkgbuild_sync, fetch_srcinfo_sync, get_pkgbuild_from_cache};
 pub use pkgbuild_parse::{
     parse_backup_array_content, parse_backup_from_pkgbuild, parse_backup_from_srcinfo,

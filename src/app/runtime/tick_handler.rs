@@ -9,8 +9,9 @@ use crate::state::{AppState, ArchStatusColor, Modal, NewsItem, PackageItem, Quer
 
 use super::super::persist::{
     maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
-    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read, maybe_flush_recent,
-    maybe_flush_sandbox_cache, maybe_flush_services_cache,
+    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read,
+    maybe_flush_pkgbuild_parse_cache, maybe_flush_recent, maybe_flush_sandbox_cache,
+    maybe_flush_services_cache,
 };
 use super::super::recent::maybe_save_recent;
 
@@ -162,16 +163,37 @@ fn check_and_trigger_deps_resolution(
     app: &mut AppState,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
 ) {
-    // Log current state for debugging
-    if app.preflight_deps_items.is_some() || app.preflight_deps_resolving || app.deps_resolving {
+    let preflight_items_len = app
+        .preflight_deps_items
+        .as_ref()
+        .map_or(0, |(items, _)| items.len());
+    let should_log_state =
+        (app.preflight_deps_items.is_some() || app.preflight_deps_resolving || app.deps_resolving)
+            && (app.last_logged_preflight_deps_state
+                != Some((
+                    preflight_items_len,
+                    app.preflight_deps_resolving,
+                    app.deps_resolving,
+                )));
+
+    if should_log_state {
         tracing::info!(
             "[Runtime] check_and_trigger_deps_resolution: preflight_deps_items={}, preflight_deps_resolving={}, deps_resolving={}",
-            app.preflight_deps_items
-                .as_ref()
-                .map_or(0, |(items, _)| items.len()),
+            preflight_items_len,
             app.preflight_deps_resolving,
             app.deps_resolving
         );
+        app.last_logged_preflight_deps_state = Some((
+            preflight_items_len,
+            app.preflight_deps_resolving,
+            app.deps_resolving,
+        ));
+    } else if app.preflight_deps_items.is_none()
+        && !app.preflight_deps_resolving
+        && !app.deps_resolving
+    {
+        // Reset snapshot once idle so future state transitions log again.
+        app.last_logged_preflight_deps_state = None;
     }
 
     if let Some((items, action)) = app.preflight_deps_items.take()
@@ -431,6 +453,7 @@ fn handle_installed_cache_polling(
         if all_installed {
             // Clear install list and stop tracking
             app.install_list.clear();
+            app.install_list_names.clear();
             app.install_dirty = true;
             app.pending_install_names = None;
             // Clear dependency cache when install list is cleared
@@ -534,6 +557,7 @@ pub fn handle_tick(
     maybe_flush_files_cache(app);
     maybe_flush_services_cache(app);
     maybe_flush_sandbox_cache(app);
+    maybe_flush_pkgbuild_parse_cache();
     let last_check = LAST_FAILLOCK_CHECK.get_or_init(|| std::sync::Mutex::new(Instant::now()));
     if let Ok(mut last_check_guard) = last_check.lock()
         && last_check_guard.elapsed().as_secs() >= 60

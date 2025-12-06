@@ -2,8 +2,9 @@ use crate::state::AppState;
 
 use super::super::persist::{
     maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
-    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read, maybe_flush_recent,
-    maybe_flush_sandbox_cache, maybe_flush_services_cache,
+    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read,
+    maybe_flush_pkgbuild_parse_cache, maybe_flush_recent, maybe_flush_sandbox_cache,
+    maybe_flush_services_cache,
 };
 use super::background::Channels;
 
@@ -64,6 +65,7 @@ pub fn cleanup_on_exit(app: &mut AppState, channels: &Channels) {
     maybe_flush_files_cache(app);
     maybe_flush_services_cache(app);
     maybe_flush_sandbox_cache(app);
+    maybe_flush_pkgbuild_parse_cache();
 }
 
 #[cfg(test)]
