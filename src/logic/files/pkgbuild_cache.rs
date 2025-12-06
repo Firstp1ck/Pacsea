@@ -11,6 +11,8 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
+#[cfg(test)]
+use std::sync::Arc;
 use std::sync::{Mutex, OnceLock};
 
 const CACHE_CAPACITY: usize = 200;
@@ -177,6 +179,69 @@ fn cache_key(name: &str, version: &str, source: PkgbuildSourceKind) -> String {
     format!("{name}::{version}::{source:?}")
 }
 
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::logic::files) enum CacheTestHookPoint {
+    AfterLookup,
+}
+
+#[cfg(test)]
+pub(in crate::logic::files) type CacheTestHook = dyn Fn(CacheTestHookPoint) + Send + Sync + 'static;
+
+#[cfg(test)]
+fn cache_test_hook_slot() -> &'static Mutex<Option<Arc<CacheTestHook>>> {
+    static HOOK: OnceLock<Mutex<Option<Arc<CacheTestHook>>>> = OnceLock::new();
+    HOOK.get_or_init(|| Mutex::new(None))
+}
+
+#[cfg(test)]
+/// What: Temporarily register a cache test hook for synchronization.
+///
+/// Inputs:
+/// - `hook`: Callback executed when a cache hook point is reached.
+///
+/// Output:
+/// - Guard that clears the hook on drop to restore default behavior.
+///
+/// Details:
+/// - Only compiled in tests; the hook is global and not re-entrant.
+pub fn set_cache_test_hook(hook: Arc<CacheTestHook>) -> CacheTestHookGuard {
+    if let Ok(mut slot) = cache_test_hook_slot().lock() {
+        *slot = Some(hook);
+    }
+    CacheTestHookGuard
+}
+
+#[cfg(test)]
+/// What: RAII guard that removes the active cache test hook on drop.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Clears any registered test hook when dropped.
+///
+/// Details:
+/// - Scope the guard to the duration the hook should stay active.
+pub struct CacheTestHookGuard;
+
+#[cfg(test)]
+impl Drop for CacheTestHookGuard {
+    fn drop(&mut self) {
+        if let Ok(mut slot) = cache_test_hook_slot().lock() {
+            slot.take();
+        }
+    }
+}
+
+#[cfg(test)]
+fn invoke_cache_test_hook(point: CacheTestHookPoint) {
+    if let Ok(slot) = cache_test_hook_slot().lock()
+        && let Some(hook) = slot.as_ref()
+    {
+        hook(point);
+    }
+}
+
 /// What: Parse PKGBUILD data while leveraging a disk-backed LRU cache.
 ///
 /// Inputs:
@@ -204,13 +269,19 @@ pub fn parse_pkgbuild_cached(
         .map_or_else(|| "unknown".to_string(), ToString::to_string);
     let signature = compute_signature(pkgbuild);
     let key = cache_key(name, &normalized_version, source);
-
-    if let Ok(mut guard) = cache_state().lock()
+    let prior_signature = if let Ok(mut guard) = cache_state().lock()
         && let Some(entry) = guard.lru.get(&key)
-        && entry.pkgbuild_signature == signature
     {
-        return entry.clone();
-    }
+        if entry.pkgbuild_signature == signature {
+            return entry.clone();
+        }
+        Some(entry.pkgbuild_signature)
+    } else {
+        None
+    };
+
+    #[cfg(test)]
+    invoke_cache_test_hook(CacheTestHookPoint::AfterLookup);
 
     let parsed = PkgbuildParseEntry {
         name: name.to_string(),
@@ -221,10 +292,32 @@ pub fn parse_pkgbuild_cached(
         install_paths: parse_install_paths_from_pkgbuild(pkgbuild, name),
     };
 
-    if let Ok(mut guard) = cache_state().lock() {
-        let _ = guard.lru.put(key, parsed.clone());
-        guard.dirty = true;
+    let mut guard = match cache_state().lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            tracing::warn!(
+                "[PKGBUILD cache] Cache mutex poisoned; continuing with recovered state"
+            );
+            poisoned.into_inner()
+        }
+    };
+
+    if let Some(entry) = guard.lru.get(&key) {
+        if entry.pkgbuild_signature == signature {
+            return entry.clone();
+        }
+
+        if prior_signature.is_some() && prior_signature == Some(entry.pkgbuild_signature) {
+            let _ = guard.lru.put(key, parsed.clone());
+            guard.dirty = true;
+            return parsed;
+        }
+
+        return entry.clone();
     }
+
+    let _ = guard.lru.put(key, parsed.clone());
+    guard.dirty = true;
 
     parsed
 }
@@ -269,6 +362,9 @@ pub fn peek_cache_entry_for_tests(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Barrier, mpsc};
+    use std::time::Duration;
 
     fn sample_pkgbuild() -> String {
         r#"
@@ -352,6 +448,98 @@ package() {
         assert!(
             peek_cache_entry_for_tests("pkg0", "1", PkgbuildSourceKind::Unknown).is_none(),
             "oldest entry should be evicted past capacity"
+        );
+    }
+
+    #[test]
+    fn concurrent_parse_does_not_overwrite_newer_entry() {
+        let path = temp_cache_path("concurrent");
+        reset_cache_for_tests(path);
+        let name = "racepkg";
+        let stale_pkgbuild = sample_pkgbuild();
+        let newer_pkgbuild = r#"
+pkgname=sample
+pkgver=9.9.9
+pkgrel=1
+backup=('etc/sample.conf')
+package() {
+  install -Dm755 "$srcdir/sample" "$pkgdir/usr/bin/sample"
+  install -Dm644 "$srcdir/sample.conf" "$pkgdir/etc/sample.conf"
+}
+"#
+        .to_string();
+
+        let (hook_tx, hook_rx) = mpsc::channel();
+        let pause_barrier = Arc::new(Barrier::new(2));
+        let hook_barrier = Arc::clone(&pause_barrier);
+        let hook_consumed = Arc::new(AtomicBool::new(false));
+        let hook_flag = Arc::clone(&hook_consumed);
+        let hook = Arc::new(move |point: CacheTestHookPoint| {
+            if point == CacheTestHookPoint::AfterLookup
+                && hook_flag
+                    .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_ok()
+            {
+                let _ = hook_tx.send(());
+                hook_barrier.wait();
+            }
+        });
+        let _guard = set_cache_test_hook(hook);
+
+        let stale_pkgbuild_for_thread = stale_pkgbuild.clone();
+        let stale_handle = std::thread::spawn(move || {
+            parse_pkgbuild_cached(
+                name,
+                Some("1.2.3"),
+                PkgbuildSourceKind::Aur,
+                &stale_pkgbuild_for_thread,
+            )
+        });
+
+        hook_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("stale thread should reach hook before proceeding");
+
+        let new_barrier = Arc::clone(&pause_barrier);
+        let newer_pkgbuild_for_thread = newer_pkgbuild.clone();
+        let new_handle = std::thread::spawn(move || {
+            let entry = parse_pkgbuild_cached(
+                name,
+                Some("1.2.3"),
+                PkgbuildSourceKind::Aur,
+                &newer_pkgbuild_for_thread,
+            );
+            new_barrier.wait();
+            entry
+        });
+
+        let stale_entry = stale_handle
+            .join()
+            .expect("stale parsing thread should finish without panic");
+        let new_entry = new_handle
+            .join()
+            .expect("new parsing thread should finish without panic");
+
+        let cached = peek_cache_entry_for_tests(name, "1.2.3", PkgbuildSourceKind::Aur)
+            .expect("cache entry should exist after concurrent parses");
+        let stale_signature = compute_signature(&stale_pkgbuild);
+        let new_signature = compute_signature(&newer_pkgbuild);
+
+        assert_eq!(
+            cached.pkgbuild_signature, new_signature,
+            "newer entry must remain in cache"
+        );
+        assert_eq!(
+            cached.pkgbuild_signature, new_entry.pkgbuild_signature,
+            "cache entry should match result of newer parse"
+        );
+        assert_ne!(
+            cached.pkgbuild_signature, stale_signature,
+            "stale parse must not overwrite newer cache entry"
+        );
+        assert_ne!(
+            stale_entry.pkgbuild_signature, new_entry.pkgbuild_signature,
+            "entries should differ to ensure test is meaningful"
         );
     }
 }

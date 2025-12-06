@@ -23,6 +23,7 @@ This PR implements performance optimizations and cache hardening across the appl
   - Strengthened settings cache invalidation by comparing file sizes to avoid stale reloads after config rewrites
   - Added explicit tracing and error handling for cache persistence/cleanup
   - Improved cache synchronization with runtime for better consistency
+  - Hardened PKGBUILD parse cache writes to avoid stale overwrites during concurrent parses; added regression coverage
 
 - **Additional features (within this branch):**
   - Enhanced event loop with index notification and updates handling
@@ -102,6 +103,7 @@ cargo test -- --test-threads=1
 **Cache improvements:**
 - **Settings cache invalidation**: Added file size comparison to force reload after config rewrites, fixing CI-only test flake where cache appeared valid but content was stale.
 - **Cache persistence**: Enhanced deps/files/services/sandbox caches with explicit tracing and error handling. Caches use signature-based validation (sorted package names) to detect changes.
+- **PKGBUILD cache writes**: Added signature re-checking to prevent stale parses from overwriting newer cache entries; deterministic concurrent regression test included.
 
 **Code quality:**
 - All new code includes rustdoc comments with What/Inputs/Output/Details sections

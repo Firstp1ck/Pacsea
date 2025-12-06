@@ -6,6 +6,13 @@
 use crate::state::{AppState, PackageItem, SortMode, Source};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[cfg(test)]
+static COMPUTE_REPO_INDICES_CALLS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static COMPUTE_AUR_INDICES_CALLS: AtomicUsize = AtomicUsize::new(0);
 
 /// What: Compute a signature hash for the results list to validate cache validity.
 ///
@@ -66,64 +73,6 @@ fn reorder_from_indices(results: &mut Vec<PackageItem>, indices: &[usize]) {
     *results = reordered;
 }
 
-/// What: Sort results by repo order then name.
-///
-/// Inputs:
-/// - `results`: Mutable reference to results vector.
-///
-/// Output:
-/// - Sorts results in-place by repo order (core < extra < other), then alphabetically by name.
-///
-/// Details:
-/// - Used for `RepoThenName` sort mode.
-fn sort_repo_then_name(results: &mut [PackageItem]) {
-    results.sort_by(|a, b| {
-        let oa = crate::util::repo_order(&a.source);
-        let ob = crate::util::repo_order(&b.source);
-        if oa != ob {
-            return oa.cmp(&ob);
-        }
-        a.name.to_lowercase().cmp(&b.name.to_lowercase())
-    });
-}
-
-/// What: Sort results by AUR popularity then official packages.
-///
-/// Inputs:
-/// - `results`: Mutable reference to results vector.
-///
-/// Output:
-/// - Sorts results in-place: AUR packages first (by descending popularity), then official packages.
-///
-/// Details:
-/// - Used for `AurPopularityThenOfficial` sort mode.
-fn sort_aur_popularity_then_official(results: &mut [PackageItem]) {
-    results.sort_by(|a, b| {
-        // AUR first
-        let aur_a = matches!(a.source, Source::Aur);
-        let aur_b = matches!(b.source, Source::Aur);
-        if aur_a != aur_b {
-            return aur_b.cmp(&aur_a); // true before false
-        }
-        if aur_a && aur_b {
-            // Desc popularity for AUR
-            let pa = a.popularity.unwrap_or(0.0);
-            let pb = b.popularity.unwrap_or(0.0);
-            if (pa - pb).abs() > f64::EPSILON {
-                return pb.partial_cmp(&pa).unwrap_or(std::cmp::Ordering::Equal);
-            }
-        } else {
-            // Both official: keep pacman order (repo_order), then name
-            let oa = crate::util::repo_order(&a.source);
-            let ob = crate::util::repo_order(&b.source);
-            if oa != ob {
-                return oa.cmp(&ob);
-            }
-        }
-        a.name.to_lowercase().cmp(&b.name.to_lowercase())
-    });
-}
-
 /// What: Sort results by best match rank based on query.
 ///
 /// Inputs:
@@ -164,6 +113,9 @@ fn sort_best_matches(results: &mut [PackageItem], query: &str) {
 /// Details:
 /// - Used to populate cache without modifying the original results.
 fn compute_repo_then_name_indices(results: &[PackageItem]) -> Vec<usize> {
+    #[cfg(test)]
+    COMPUTE_REPO_INDICES_CALLS.fetch_add(1, Ordering::Relaxed);
+
     let mut indices: Vec<usize> = (0..results.len()).collect();
     indices.sort_by(|&i, &j| {
         let a = &results[i];
@@ -189,6 +141,9 @@ fn compute_repo_then_name_indices(results: &[PackageItem]) -> Vec<usize> {
 /// Details:
 /// - Used to populate cache without modifying the original results.
 fn compute_aur_popularity_then_official_indices(results: &[PackageItem]) -> Vec<usize> {
+    #[cfg(test)]
+    COMPUTE_AUR_INDICES_CALLS.fetch_add(1, Ordering::Relaxed);
+
     let mut indices: Vec<usize> = (0..results.len()).collect();
     indices.sort_by(|&i, &j| {
         let a = &results[i];
@@ -250,20 +205,17 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
                     // Cache hit: O(n) reorder
                     reorder_from_indices(&mut app.results, indices);
                 } else {
-                    // Cache miss: compute indices from current state, then sort
+                    // Cache miss: compute indices from current state, then reorder
                     let indices = compute_repo_then_name_indices(&app.results);
-                    sort_repo_then_name(&mut app.results);
-                    app.sort_cache_repo_name = Some(indices);
+                    reorder_from_indices(&mut app.results, &indices);
                 }
             } else {
-                // Cache invalid: compute indices from current state, then sort
+                // Cache invalid: compute indices from current state, then reorder
                 let indices = compute_repo_then_name_indices(&app.results);
-                sort_repo_then_name(&mut app.results);
-                // Populate caches
-                app.sort_cache_repo_name = Some(indices);
+                reorder_from_indices(&mut app.results, &indices);
             }
             // Re-anchor caches to current order to keep future switches correct.
-            app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
+            app.sort_cache_repo_name = Some((0..app.results.len()).collect());
             app.sort_cache_aur_popularity =
                 Some(compute_aur_popularity_then_official_indices(&app.results));
             app.sort_cache_signature = Some(current_sig);
@@ -274,24 +226,18 @@ pub fn sort_results_preserve_selection(app: &mut AppState) {
                     // Cache hit: O(n) reorder
                     reorder_from_indices(&mut app.results, indices);
                 } else {
-                    // Cache miss: compute indices from current state, then sort
+                    // Cache miss: compute indices from current state, then reorder
                     let indices = compute_aur_popularity_then_official_indices(&app.results);
-                    sort_aur_popularity_then_official(&mut app.results);
-                    app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
-                    app.sort_cache_aur_popularity = Some(indices);
+                    reorder_from_indices(&mut app.results, &indices);
                 }
             } else {
-                // Cache invalid: compute indices from current state, then sort
+                // Cache invalid: compute indices from current state, then reorder
                 let indices = compute_aur_popularity_then_official_indices(&app.results);
-                sort_aur_popularity_then_official(&mut app.results);
-                // Populate caches
-                app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
-                app.sort_cache_aur_popularity = Some(indices);
+                reorder_from_indices(&mut app.results, &indices);
             }
             // Re-anchor caches to current order to keep future switches correct.
             app.sort_cache_repo_name = Some(compute_repo_then_name_indices(&app.results));
-            app.sort_cache_aur_popularity =
-                Some(compute_aur_popularity_then_official_indices(&app.results));
+            app.sort_cache_aur_popularity = Some((0..app.results.len()).collect());
             app.sort_cache_signature = Some(current_sig);
         }
         SortMode::BestMatches => {
@@ -335,6 +281,22 @@ pub fn invalidate_sort_caches(app: &mut AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(test)]
+    /// What: Reset compute index call counters used for instrumentation in tests.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Clears the atomic counters to zero.
+    ///
+    /// Details:
+    /// - Keeps tests isolated by removing cross-test coupling from shared state.
+    fn reset_compute_counters() {
+        COMPUTE_REPO_INDICES_CALLS.store(0, Ordering::SeqCst);
+        COMPUTE_AUR_INDICES_CALLS.store(0, Ordering::SeqCst);
+    }
 
     fn item_official(name: &str, repo: &str) -> crate::state::PackageItem {
         crate::state::PackageItem {
@@ -636,6 +598,45 @@ mod tests {
         assert_ne!(old_sig, new_sig);
         assert!(app.sort_cache_repo_name.is_some());
         assert!(app.sort_cache_aur_popularity.is_some());
+    }
+
+    #[test]
+    /// What: Ensure cache invalidation only computes current-mode indices once while rebuilding caches.
+    ///
+    /// Inputs:
+    /// - Results with a deliberately mismatched cache signature to force invalidation.
+    ///
+    /// Output:
+    /// - Current-mode index computation runs once; cross-mode cache computation still occurs once after reorder.
+    ///
+    /// Details:
+    /// - Guards against redundant index work when cache signatures are stale.
+    fn sort_cache_invalid_computes_indices_once() {
+        reset_compute_counters();
+        let mut app = AppState {
+            results: vec![item_official("bbb", "extra"), item_official("aaa", "core")],
+            sort_mode: SortMode::RepoThenName,
+            ..Default::default()
+        };
+
+        // Force signature mismatch to hit invalidation path.
+        let sig = compute_results_signature(&app.results);
+        app.sort_cache_signature = Some(sig.wrapping_add(1));
+
+        sort_results_preserve_selection(&mut app);
+
+        assert_eq!(
+            COMPUTE_REPO_INDICES_CALLS.load(Ordering::SeqCst),
+            1,
+            "repo indices should be computed exactly once on cache invalidation"
+        );
+        assert_eq!(
+            COMPUTE_AUR_INDICES_CALLS.load(Ordering::SeqCst),
+            1,
+            "aur indices should be recomputed once to re-anchor caches"
+        );
+        let names: Vec<String> = app.results.iter().map(|p| p.name.clone()).collect();
+        assert_eq!(names, vec!["aaa", "bbb"]);
     }
 
     #[test]
