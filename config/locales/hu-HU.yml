@@ -55,7 +55,7 @@ hu-HU:
         clipboard: "Vágólap"
         aur_helper: "AUR-segéd"
         security: "Biztonság"
-        downgrade: "Visszafejlesztő-eszköz"
+        downgrade: "Visszafejlesztési eszköz"
     search_mode_fuzzy: "KÖZELÍTŐ"
     search_mode_normal: "NORMÁL"
       
@@ -124,9 +124,8 @@ hu-HU:
       installing_preflight_skipped: "Telepítési lista (előzetes ellenőrzés kihagyva)"
       removing_preflight_skipped: "Eltávolítási lista (előzetes ellenőrzés kihagyva)"
       preflight_remove_list: "Előzetes ellenőrzés: Eltávolítási lista"
-      # TODO: translate to hungarian
-      preflight_downgrade_list: "Preflight: Downgrade list"
-      downgrade_started: "Downgrade tool opened in terminal"
+      preflight_downgrade_list: "Előzetes ellenőrzés: Visszafejlesztési lista"
+      downgrade_started: "Visszafejlesztési eszköz megnyitva a terminálban"
       theme_reloaded: "Téma újratöltve"
       config_reloaded: "Konfiguráció újratöltve"
       installing_skipped: "Telepítés (előzetes ellenőrzés kihagyva)"
@@ -148,7 +147,7 @@ hu-HU:
       none: "Nincsenek elérhető frissítések"
       loading: "Frissítések ellenőrzése…"
       locked: "🔒 Zárolt"
-      locked_with_time: "🔒 Zárolt: {} perc"
+      locked_with_time: "🔒 Zárolás {} perc múlva"
       
     actions:
       exit: "Kilépés"
@@ -240,7 +239,7 @@ hu-HU:
       footer:
         search_hint: "Keresés (Enter: következő, Esc: megszakítás)"
         confirm_installation: "Csomagtelepítés megerősítése"
-        confirm_downgrade: "Csomag-visszafejlesztés megerősítése"
+        confirm_downgrade: "Csomag visszafejlesztésének megerősítése"
         confirm_removal: "Csomageltávolítás megerősítése"
       
     results:
@@ -323,8 +322,8 @@ hu-HU:
         title_clipboard_copy: " Másolás a vágólapra "
         title_connection_issue: " Kapcsolati probléma "
         title_account_locked: " Zárolt fiók "
-        account_locked: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a `su` paranccsal, és futtassa a `faillock --user {} --reset` parancsot."
-        account_locked_with_time: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a `su` paranccsal, és futtassa a `faillock --user {} --reset` parancsot. A fiók zárolásáig {} perc van hátra."
+        account_locked: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a „su” paranccsal, és futtassa a „faillock --user {} --reset” parancsot."
+        account_locked_with_time: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a „su” paranccsal, és futtassa a „faillock --user {} --reset” parancsot. A fiók zárolásáig {} perc van hátra."
       password_prompt:
         heading_install: "Rendszergazdai jogosultság szükséges a csomagok telepítéséhez"
         heading_remove: "Rendszergazdai jogosultság szükséges a csomagok eltávolításához"
@@ -364,14 +363,12 @@ hu-HU:
         heading: "Rendszerfrissítés"
         entries:
           update_arch_mirrors: "Arch tükrök frissítése"
-          # TODO: translate to hungarian
-          update_pacman: "Update Pacman"
+          update_pacman: "Pacman frissítés"
           update_aur: "AUR frissítése (paru/yay)"
           remove_cache: "Gyorsítótár törlése (pacman/yay)"
-        # TODO: translate to hungarian
         sync_mode:
-          normal: "Normal (-Syu)"
-          force: "Force Sync (-Syyu)"
+          normal: "Normál (-Syu)"
+          force: "Kényszerített szinkronizálás (-Syyu)"
         country_label: "Ország (Tükrök): "
         count_label: "Darabszám: {}"
         worldwide: "Világszerte"
@@ -493,13 +490,11 @@ hu-HU:
       preflight_exec:
         title_install: " Előzetes ellenőrzés: Telepítés "
         title_remove: " Előzetes ellenőrzés: Eltávolítás "
-        # TODO: translate to hungarian
-        title_downgrade: " Preflight: Downgrade "
+        title_downgrade: " Előzetes ellenőrzés: Visszafejlesztés "
       preflight:
         title_install: " Előzetes ellenőrzés: Telepítés "
         title_remove: " Előzetes ellenőrzés: Eltávolítás "
-        # TODO: translate to hungarian
-        title_downgrade: " Preflight: Downgrade "
+        title_downgrade: " Előzetes ellenőrzés: Visszafejlesztés "
         tabs:
           summary: "Összegzés"
           deps: "Függőségek"
