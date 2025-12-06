@@ -1,6 +1,22 @@
 ## [0.6.2] - 2025-12-05
 
-# Release v0.6.2  ## What's New  ### ⚡ Force Sync Option System Update modal now includes a **Force Sync** mode: - Toggle between `Normal (-Syu)` and `Force Sync (-Syyu)` on the pacman update row - Use `←`/`→` or `Tab` keys to switch sync mode - Force sync refreshes all package databases even if unchanged  ### 🐛 Bug Fixes - **Install list preserved**: System update no longer clears queued packages from the install list - **Faster exit**: App now closes immediately when exiting during preflight loading - **Auto-refresh**: Available updates count refreshes automatically after install/remove/downgrade operations  ### 🌍 Translations - Updated Hungarian translations  ## Changes  * feat: add force sync option to system update modal by @Firstp1ck * fix: system update no longer clears queued install_list packages by @Firstp1ck * fix: ensure app closes immediately when exiting during preflight loading by @Firstp1ck * Translation: Update hu-HU.yml by @summoner001  **Full Changelog**: https://github.com/Firstp1ck/Pacsea/compare/v0.6.1...v0.6.2 
+### Added
+- **Force Sync Option**: System Update modal now includes a Force Sync mode
+- Toggle between `Normal (-Syu)` and `Force Sync (-Syyu)` on the pacman update row
+- Use `←`/`→` or `Tab` keys to switch sync mode
+- Force sync refreshes all package databases even if unchanged
+
+### Fixed
+- **Install list preserved**: System update no longer clears queued packages from the install list
+- **Faster exit**: App now closes immediately when exiting during preflight loading
+- **Auto-refresh**: Available updates count refreshes automatically after install/remove/downgrade operations
+
+### Changed
+- Updated Hungarian translations
+
+### Contributors
+- @Firstp1ck
+- @summoner001 
 
 ---
 
@@ -66,20 +82,100 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.5.3] - 2025-11-30
 
 ### Added
-- Security scanning before AUR package installation
-- ClamAV malware scanning integration
-- Trivy vulnerability scanning integration
-- Semgrep static analysis integration
-- ShellCheck PKGBUILD linting
-- VirusTotal hash-based malware detection
-- Custom suspicious bash pattern detection
-- aur-sleuth LLM-powered security audit integration
+- **AUR Comments Viewer**: View community comments for AUR packages directly in Pacsea
+- Press `CTRL+T` or click "Show comments" to toggle
+- Features markdown support, clickable URLs, and auto-updates when navigating packages
+- **AUR Package Status Markings**: AUR packages now show status indicators
+  - `[OOD]` - Out-of-date packages
+  - `[ORPHAN]` - Orphaned packages (no maintainer)
+- **Collapsed Menu**: Automatically appears when the window is too narrow
+- **Package Downgrade**: Fixed support for downgrading installed packages using the `downgrade` tool
+- Enhanced **aur-sleuth** (LLM-based audit tool) for the security scanning workflow
+- Runs in a separate terminal window with setup wizard in Optional Deps modal
 
-### How to Use
-1. Add AUR package(s) to Install list → Enter (Confirm Install)
-2. Press `S` to run the scan
-3. Configure which scans to run
-4. Review the summary at the end
+### Fixed
+- Fixed preflight tabs not resolving when opening packages directly from results
+- Fixed Artix filter menu expanding in tight spaces
+
+### Changed
+- Faster tab switching with cached dependency reports for remove operations
+- Better warnings for meta-packages and dependency conflicts
+- Improved service impact detection
+- Press Enter in Updates Modal to open Preflight for detailed review before installing updates
+- Auto-refreshes after installation with real-time progress display
+- Updated Hungarian translations
+
+### Contributors
+- @summoner001
+- @Max-Guenther
+- @Firstp1ck
+
+---
+
+## [0.5.2] - 2025-11-23
+
+### Added
+- **Fuzzy Search**: Find packages faster with fuzzy search
+- Press `CTRL+F` to toggle fuzzy search mode
+- Smarter and more flexible search for easier package discovery
+
+### Changed
+- Press `CTRL+R` to reload your configuration (theme, settings, locale)
+- Use `Shift+Del` in insert mode to clear the search input
+- Choose your preferred startup mode (normal or insert) in settings
+- Close any popup window with `q`
+- Click and navigate the "available updates" window with your mouse
+- Updated Hungarian translations
+- Localization for Import help messages
+
+### Fixed
+- Fixed keybind conflicts in news viewer
+- Fixed alignment issues for Hungarian translation using Unicode display width
+- Fixed CLI command exit behavior documentation
+
+### Contributors
+- @summoner001
+- @LoayGhreeb
+- @Firstp1ck
+
+---
+
+## [0.5.1] - 2025-11-21
+
+### Added
+- **Artix Linux Support**: Pacsea now fully supports Artix Linux
+- Full repository filtering and mirror management for Artix systems
+- Automatic Artix detection with appropriate tools
+- **Hungarian Language Support**: Full interface translation to Hungarian (hu-HU)
+- **Package Update Availability**: Automatic background check for available package updates
+- "Updates available" button showing count of packages with updates ready
+- Detailed update list with current and new versions for each package
+- Supports both official repository packages and AUR packages
+- Preflight modal now supports scrolling for better navigation
+- New scrollable updates modal with side-by-side version comparison
+
+### Changed
+- Improved display of installed packages
+- Better visual feedback during package operations
+- Enhanced dropdown menus with ESC key support to close them quickly
+
+### Fixed
+- Fixed issues with test output interfering with mouse interactions
+- Improved handling of edge cases when no AUR packages are present
+- Better error handling throughout the application
+
+### Contributors
+- @summoner001
+- @Firstp1ck
+
+---
+
+## [0.5.0] - 2025-11-14
+
+### Added
+- Initial release of version 0.5.x series
+- Foundation for security scanning features
+- Enhanced package management capabilities
 
 ---
 
@@ -237,9 +333,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+[0.6.2]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.6.2
 [0.6.1]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.6.1
 [0.6.0]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.6.0
 [0.5.3]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.5.3
+[0.5.2]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.5.2
+[0.5.1]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.5.1
+[0.5.0]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.5.0
 [0.4.5]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.4.5
 [0.4.4]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.4.4
 [0.4.3]: https://github.com/Firstp1ck/Pacsea/releases/tag/v0.4.3
