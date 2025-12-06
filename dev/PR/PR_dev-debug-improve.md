@@ -4,6 +4,7 @@
 - Harden cache persistence/cleanup (details, recents, news, announcements, deps/files/services/sandbox) with explicit tracing and error handling.
 - Rename the Recent pane to “Search history” across locales and UI (contribution from community member @Summoner001).
 - Migrate config key to `show_search_history_pane` with legacy alias for `show_recent_pane` and coverage.
+- Strengthen settings cache invalidation by comparing file sizes to avoid stale reloads after config rewrites (fixes CI-only test flake).
 
 ## Type of change
 - [ ] feat (new feature)
@@ -60,7 +61,7 @@ RUST_LOG=pacsea=debug cargo run -- --dry-run
 - [ ] Not a packaging change for AUR (otherwise propose in `pacsea-bin` or `pacsea-git` repos)
 
 ## Notes for reviewers
-- Focus areas: preflight logging noise reduction, cache persistence tracing, and search-history naming/config key migration (legacy `show_recent_pane` remains supported).
+- Focus areas: preflight logging noise reduction, cache persistence tracing, search-history naming/config key migration (legacy `show_recent_pane` remains supported), and the new cache invalidation guard on settings/keybinds files to prevent stale loads.
 
 ## Breaking changes
 None.
