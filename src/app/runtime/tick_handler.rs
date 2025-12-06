@@ -163,16 +163,37 @@ fn check_and_trigger_deps_resolution(
     app: &mut AppState,
     deps_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
 ) {
-    // Log current state for debugging
-    if app.preflight_deps_items.is_some() || app.preflight_deps_resolving || app.deps_resolving {
+    let preflight_items_len = app
+        .preflight_deps_items
+        .as_ref()
+        .map_or(0, |(items, _)| items.len());
+    let should_log_state =
+        (app.preflight_deps_items.is_some() || app.preflight_deps_resolving || app.deps_resolving)
+            && (app.last_logged_preflight_deps_state
+                != Some((
+                    preflight_items_len,
+                    app.preflight_deps_resolving,
+                    app.deps_resolving,
+                )));
+
+    if should_log_state {
         tracing::info!(
             "[Runtime] check_and_trigger_deps_resolution: preflight_deps_items={}, preflight_deps_resolving={}, deps_resolving={}",
-            app.preflight_deps_items
-                .as_ref()
-                .map_or(0, |(items, _)| items.len()),
+            preflight_items_len,
             app.preflight_deps_resolving,
             app.deps_resolving
         );
+        app.last_logged_preflight_deps_state = Some((
+            preflight_items_len,
+            app.preflight_deps_resolving,
+            app.deps_resolving,
+        ));
+    } else if app.preflight_deps_items.is_none()
+        && !app.preflight_deps_resolving
+        && !app.deps_resolving
+    {
+        // Reset snapshot once idle so future state transitions log again.
+        app.last_logged_preflight_deps_state = None;
     }
 
     if let Some((items, action)) = app.preflight_deps_items.take()

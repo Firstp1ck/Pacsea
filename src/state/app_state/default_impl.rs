@@ -283,6 +283,7 @@ impl Default for AppState {
             preflight_files_resolving,
             preflight_services_resolving,
             preflight_sandbox_resolving,
+            last_logged_preflight_deps_state,
             preflight_cancelled,
         ) = defaults_cache::default_preflight_state();
 
@@ -504,6 +505,7 @@ impl Default for AppState {
             preflight_files_resolving,
             preflight_services_resolving,
             preflight_sandbox_resolving,
+            last_logged_preflight_deps_state,
             preflight_cancelled,
             pending_executor_request: None,
             pending_exec_header_chips: None,

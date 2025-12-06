@@ -576,6 +576,8 @@ pub struct AppState {
     pub preflight_services_resolving: bool,
     /// Whether preflight sandbox resolution is in progress.
     pub preflight_sandbox_resolving: bool,
+    /// Last preflight dependency log state to suppress duplicate tick logs.
+    pub last_logged_preflight_deps_state: Option<(usize, bool, bool)>,
     /// Cancellation flag for preflight operations (set to true when modal closes).
     pub preflight_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
 

@@ -128,7 +128,7 @@ pub const fn is_artix_system(repo: &str) -> bool {
 /// Details:
 /// - Returns `["eos", "endeavouros"]`.
 pub const fn eos_repo_names() -> &'static [&'static str] {
-    &["eos", "endeavouros"]
+    &["endeavouros"]
 }
 
 #[cfg(not(target_os = "windows"))]
