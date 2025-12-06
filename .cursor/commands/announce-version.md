@@ -28,5 +28,3 @@ Follow the following structure/format:
 - Refactor 2
 ...
 ```
-
-Run the command `python3 dev/scripts/update_version_announcement.py` to update the announcement.
