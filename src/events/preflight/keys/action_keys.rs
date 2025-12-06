@@ -181,6 +181,14 @@ pub fn start_execution(
     // Note: Reinstall check is now done in handle_proceed_install BEFORE password prompt
     // This function is called after reinstall confirmation (if needed) and password prompt (if needed)
 
+    tracing::debug!(
+        action = ?action,
+        item_count = items.len(),
+        header_chips = ?header_chips,
+        has_password = password.is_some(),
+        "[Preflight] Transitioning modal: Preflight -> PreflightExec"
+    );
+
     // Transition to PreflightExec modal
     app.modal = crate::state::Modal::PreflightExec {
         items: items.to_vec(),

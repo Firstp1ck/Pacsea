@@ -154,6 +154,7 @@ fn render_list_widget(
     let viewport_rows = area.height.saturating_sub(2) as usize;
     let start = list_offset;
     let end = std::cmp::min(app.results.len(), start + viewport_rows);
+    // Settings are cached; avoid per-frame reloads by fetching once and cloning.
     let prefs = crate::theme::settings();
 
     let items: Vec<ListItem> = app

@@ -3,6 +3,7 @@
 use crate::state::modal::DependencyInfo;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 
 /// What: Cache blob combining install list signature with resolved dependency graph.
@@ -48,21 +49,45 @@ pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> 
 /// - Reads the JSON, deserializes, sorts both signatures, and compares for equality before
 ///   returning the cached dependencies.
 pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<DependencyInfo>> {
-    if let Ok(s) = fs::read_to_string(path)
-        && let Ok(cache) = serde_json::from_str::<DependencyCache>(&s)
-    {
-        // Check if signature matches
-        let mut cached_sig = cache.install_list_signature.clone();
-        cached_sig.sort();
-        let mut current_sig = current_signature.to_vec();
-        current_sig.sort();
-
-        if cached_sig == current_sig {
-            tracing::info!(path = %path.display(), count = cache.dependencies.len(), "loaded dependency cache");
-            return Some(cache.dependencies);
+    let raw = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            tracing::debug!(path = %path.display(), "[Cache] Dependency cache not found");
+            return None;
         }
-        tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
+        Err(e) => {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "[Cache] Failed to read dependency cache"
+            );
+            return None;
+        }
+    };
+
+    let cache: DependencyCache = match serde_json::from_str(&raw) {
+        Ok(cache) => cache,
+        Err(e) => {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "[Cache] Failed to parse dependency cache"
+            );
+            return None;
+        }
+    };
+
+    // Check if signature matches
+    let mut cached_sig = cache.install_list_signature.clone();
+    cached_sig.sort();
+    let mut current_sig = current_signature.to_vec();
+    current_sig.sort();
+
+    if cached_sig == current_sig {
+        tracing::info!(path = %path.display(), count = cache.dependencies.len(), "loaded dependency cache");
+        return Some(cache.dependencies);
     }
+    tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
     None
 }
 

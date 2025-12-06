@@ -10,6 +10,8 @@ use pacsea::install::shell_single_quote;
 use pacsea::theme;
 #[cfg(not(target_os = "windows"))]
 use std::path::Path;
+#[cfg(not(target_os = "windows"))]
+use tracing::{debug, warn};
 
 /// What: Format text with ANSI color codes if colors are enabled.
 ///
@@ -453,6 +455,26 @@ fn run_command_with_logging(
         "set -o pipefail; stdbuf -oL -eL {full_command} 2>&1 | tee -a {log_file_escaped} | tee {temp_output_escaped} {tty_redirect}"
     );
 
+    let shell_cmd_log = if program == "sudo" && password.is_some() {
+        // Avoid logging the inlined password; show the sudo command shape instead.
+        format!(
+            "set -o pipefail; stdbuf -oL -eL sudo {args_str} 2>&1 | tee -a {log_file_escaped} | tee {temp_output_escaped} {tty_redirect}"
+        )
+    } else {
+        shell_cmd.clone()
+    };
+
+    debug!(
+        program,
+        args = ?args,
+        uses_password = password.is_some(),
+        has_tty,
+        log_file = %log_file_path.display(),
+        temp_output = %temp_output.display(),
+        shell_cmd = %shell_cmd_log,
+        "executing update command with logging"
+    );
+
     let status = Command::new("bash")
         .arg("-c")
         .arg(&shell_cmd)
@@ -461,13 +483,49 @@ fn run_command_with_logging(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .status()?;
+        .status()
+        .map_err(|err| {
+            warn!(
+                program,
+                args = ?args,
+                log_file = %log_file_path.display(),
+                error = %err,
+                "failed to spawn update command"
+            );
+            err
+        })?;
 
     // Read the captured output
-    let output = std::fs::read_to_string(&temp_output).unwrap_or_else(|_| String::new());
+    let output = match std::fs::read_to_string(&temp_output) {
+        Ok(content) => content,
+        Err(err) => {
+            warn!(
+                path = %temp_output.display(),
+                error = %err,
+                "failed to read update temp output"
+            );
+            String::new()
+        }
+    };
 
     // Clean up temp file
-    let _ = std::fs::remove_file(&temp_output);
+    if let Err(err) = std::fs::remove_file(&temp_output) {
+        debug!(
+            path = %temp_output.display(),
+            error = %err,
+            "failed to remove temp output file"
+        );
+    }
+
+    debug!(
+        program,
+        args = ?args,
+        status = ?status,
+        status_code = status.code(),
+        output_len = output.len(),
+        log_file = %log_file_path.display(),
+        "update command finished"
+    );
 
     Ok((status, output))
 }

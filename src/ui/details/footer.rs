@@ -459,7 +459,7 @@ fn build_install_section(
         let install_color = get_label_color(matches!(app.focus, Focus::Install), th);
         let i_spans = build_right_pane_spans(
             app,
-            format!("{}:  ", i18n::t(app, "app.headings.install")),
+            format!("{}  ", i18n::t(app, "app.headings.install")),
             install_color,
             &i18n::t(app, "app.details.footer.confirm_installation"),
             key_style,

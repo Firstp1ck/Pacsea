@@ -5,7 +5,7 @@ mod args;
 use clap::Parser;
 use pacsea::{app, theme, util};
 use std::sync::OnceLock;
-use std::{fmt, time::SystemTime};
+use std::{fmt, str::FromStr, time::SystemTime};
 
 struct PacseaTimer;
 
@@ -22,6 +22,31 @@ impl tracing_subscriber::fmt::time::FormatTime for PacseaTimer {
 }
 
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
+
+fn build_env_filter(log_level: &str) -> tracing_subscriber::EnvFilter {
+    let mut filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));
+
+    // Always clamp noisy HTML parsing crates to warn even when RUST_LOG is set.
+    for directive in [
+        "pacsea::logic::services=warn",
+        "html5ever=warn",
+        "html5ever::tokenizer=warn",
+        "html5ever::tree_builder=warn",
+        "selectors=warn",
+        "selectors::matching=warn",
+        "markup5ever=warn",
+        "cssparser=warn",
+        "kuchiki=warn",
+        "scraper=warn",
+    ] {
+        if let Ok(parsed) = tracing_subscriber::filter::Directive::from_str(directive) {
+            filter = filter.add_directive(parsed);
+        }
+    }
+
+    filter
+}
 
 #[tokio::main]
 async fn main() {
@@ -43,8 +68,7 @@ async fn main() {
         {
             Ok(file) => {
                 let (non_blocking, guard) = tracing_appender::non_blocking(file);
-                let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&log_level));
+                let env_filter = build_env_filter(&log_level);
                 // File logger: always disable ANSI codes for clean log files
                 tracing_subscriber::fmt()
                     .with_env_filter(env_filter)
@@ -58,8 +82,7 @@ async fn main() {
             }
             Err(e) => {
                 // Fallback: init stderr logger to avoid blocking startup
-                let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&log_level));
+                let env_filter = build_env_filter(&log_level);
                 tracing_subscriber::fmt()
                     .with_env_filter(env_filter)
                     .with_target(false)

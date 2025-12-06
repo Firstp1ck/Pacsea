@@ -85,7 +85,8 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
 /// What: Persist a single boolean toggle within `settings.conf` while preserving unrelated content.
 ///
 /// Inputs:
-/// - `key_norm`: Normalized (lowercase, underscore-separated) key name to update.
+/// - `primary_key`: Primary key name to update (lowercase, underscore-separated recommended).
+/// - `aliases`: Optional aliases that should map to the same setting (legacy compatibility).
 /// - `value`: Boolean flag to serialize as `true` or `false`.
 ///
 /// Output:
@@ -93,8 +94,9 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
 ///
 /// Details:
 /// - Creates the configuration file from the skeleton when it is missing or empty.
-/// - Rewrites existing entries in place; otherwise appends the new key at the end.
-fn save_boolean_key(key_norm: &str, value: bool) {
+/// - Rewrites existing entries (including aliases) in place; otherwise appends the primary key.
+/// - When an alias is encountered, it is replaced with the primary key to migrate configs forward.
+fn save_boolean_key_with_aliases(primary_key: &str, aliases: &[&str], value: bool) {
     let path = resolve_settings_config_path().or_else(|| {
         std::env::var("XDG_CONFIG_HOME")
             .ok()
@@ -132,6 +134,15 @@ fn save_boolean_key(key_norm: &str, value: bool) {
             .map(ToString::to_string)
             .collect()
     };
+    let bool_text = if value { "true" } else { "false" };
+    let primary_norm = primary_key
+        .trim()
+        .to_lowercase()
+        .replace(['.', '-', ' '], "_");
+    let alias_norms: Vec<String> = aliases
+        .iter()
+        .map(|k| k.trim().to_lowercase().replace(['.', '-', ' '], "_"))
+        .collect();
     let mut replaced = false;
     for line in &mut lines {
         let trimmed = line.trim();
@@ -141,8 +152,8 @@ fn save_boolean_key(key_norm: &str, value: bool) {
         if let Some(eq) = trimmed.find('=') {
             let (kraw, _) = trimmed.split_at(eq);
             let key = kraw.trim().to_lowercase().replace(['.', '-', ' '], "_");
-            if key == key_norm {
-                *line = format!("{} = {}", key_norm, if value { "true" } else { "false" });
+            if key == primary_norm || alias_norms.iter().any(|alias| alias == &key) {
+                *line = format!("{primary_key} = {bool_text}");
                 replaced = true;
             }
         }
@@ -151,18 +162,29 @@ fn save_boolean_key(key_norm: &str, value: bool) {
         if let Some(dir) = p.parent() {
             let _ = fs::create_dir_all(dir);
         }
-        lines.push(format!(
-            "{} = {}",
-            key_norm,
-            if value { "true" } else { "false" }
-        ));
+        lines.push(format!("{primary_key} = {bool_text}"));
     }
     let new_content = if lines.is_empty() {
-        format!("{} = {}\n", key_norm, if value { "true" } else { "false" })
+        format!("{primary_key} = {bool_text}\n")
     } else {
         lines.join("\n")
     };
     let _ = fs::write(p, new_content);
+}
+
+/// What: Persist a single boolean toggle within `settings.conf` while preserving unrelated content.
+///
+/// Inputs:
+/// - `key_norm`: Normalized (lowercase, underscore-separated) key name to update.
+/// - `value`: Boolean flag to serialize as `true` or `false`.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Convenience wrapper that delegates to `save_boolean_key_with_aliases` without aliases.
+fn save_boolean_key(key_norm: &str, value: bool) {
+    save_boolean_key_with_aliases(key_norm, &[], value);
 }
 
 /// What: Persist a string-valued setting inside `settings.conf` without disturbing other keys.
@@ -244,18 +266,19 @@ fn save_string_key(key_norm: &str, value: &str) {
     let _ = fs::write(p, new_content);
 }
 
-/// What: Persist the visibility flag for the Recent pane.
+/// What: Persist the visibility flag for the Search history pane.
 ///
 /// Inputs:
-/// - `value`: Whether the Recent pane should be shown on startup.
+/// - `value`: Whether the Search history pane should be shown on startup.
 ///
 /// Output:
 /// - None.
 ///
 /// Details:
-/// - Delegates to `save_boolean_key("show_recent_pane", value)`.
+/// - Writes to the canonical `show_search_history_pane` key while migrating legacy
+///   `show_recent_pane` entries.
 pub fn save_show_recent_pane(value: bool) {
-    save_boolean_key("show_recent_pane", value);
+    save_boolean_key_with_aliases("show_search_history_pane", &["show_recent_pane"], value);
 }
 /// What: Persist the visibility flag for the Install pane.
 ///

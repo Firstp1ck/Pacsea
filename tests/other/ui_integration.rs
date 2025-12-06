@@ -91,7 +91,10 @@ fn init_test_translations(app: &mut AppState) {
     translations.insert("app.toasts.title_news".to_string(), "News".to_string());
 
     // Middle row
-    translations.insert("app.middle.recent.title".to_string(), "Recent".to_string());
+    translations.insert(
+        "app.middle.recent.title".to_string(),
+        "Search history".to_string(),
+    );
     translations.insert(
         "app.middle.install.title".to_string(),
         "Install".to_string(),

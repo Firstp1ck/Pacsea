@@ -8,13 +8,82 @@ use crate::i18n;
 use crate::state::modal::{FileChangeType, PackageFileInfo};
 use crate::state::{AppState, PackageItem};
 use crate::theme::theme;
+use crate::ui::helpers::ChangeLogger;
 use crate::ui::modals::preflight::helpers::format_count_with_indicator;
+use std::sync::{Mutex, OnceLock};
 
 type FileDisplayItem = (
     bool,
     String,
     Option<(FileChangeType, String, bool, bool, bool)>,
 );
+
+#[derive(Clone, PartialEq, Eq)]
+struct FilePackageSummary {
+    name: String,
+    total: usize,
+    new_count: usize,
+    changed_count: usize,
+    removed_count: usize,
+    config_count: usize,
+    file_entries: usize,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct FilesLogState {
+    items_len: usize,
+    file_info_len: usize,
+    file_selected: usize,
+    expanded_len: usize,
+    preflight_resolving: bool,
+    global_resolving: bool,
+    has_error: bool,
+    package_summaries: Vec<FilePackageSummary>,
+}
+
+fn log_files_state(state: &FilesLogState) {
+    static LOGGER: OnceLock<Mutex<ChangeLogger<FilesLogState>>> = OnceLock::new();
+    let mut logger = LOGGER
+        .get_or_init(|| Mutex::new(ChangeLogger::new()))
+        .lock()
+        .expect("Files log state mutex poisoned");
+
+    if logger.should_log(state) {
+        let package_text = if state.package_summaries.is_empty() {
+            "no file details".to_string()
+        } else {
+            state
+                .package_summaries
+                .iter()
+                .map(|p| {
+                    format!(
+                        "{}: total={}, new={}, changed={}, removed={}, config={}, files={}",
+                        p.name,
+                        p.total,
+                        p.new_count,
+                        p.changed_count,
+                        p.removed_count,
+                        p.config_count,
+                        p.file_entries
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" | ")
+        };
+
+        tracing::debug!(
+            "[UI] render_files_tab: items={}, file_info={}, file_selected={}, expanded={}, resolving={}/{}, error={}, packages=[{}]",
+            state.items_len,
+            state.file_info_len,
+            state.file_selected,
+            state.expanded_len,
+            state.preflight_resolving,
+            state.global_resolving,
+            state.has_error,
+            package_text
+        );
+    }
+}
 
 /// What: Render loading/resolving state with package headers.
 ///
@@ -851,35 +920,29 @@ pub fn render_files_tab(
     const STALE_THRESHOLD_DAYS: u64 = 7;
     let is_resolving = app.preflight_files_resolving || app.files_resolving;
 
-    // Log render state for debugging
-    tracing::debug!(
-        "[UI] render_files_tab: items={}, file_info={}, file_selected={}, expanded={}, resolving={}/{}, error={:?}",
-        items.len(),
-        file_info.len(),
-        *file_selected,
-        file_tree_expanded.len(),
-        app.preflight_files_resolving,
-        app.files_resolving,
-        files_error.is_some()
-    );
-    if !file_info.is_empty() {
-        tracing::info!(
-            "[UI] render_files_tab: Rendering {} file info entries",
-            file_info.len()
-        );
-        for pkg_info in file_info {
-            tracing::info!(
-                "[UI] render_files_tab: Package '{}' - total={}, new={}, changed={}, removed={}, config={}, files={}",
-                pkg_info.name,
-                pkg_info.total_count,
-                pkg_info.new_count,
-                pkg_info.changed_count,
-                pkg_info.removed_count,
-                pkg_info.config_count,
-                pkg_info.files.len()
-            );
-        }
-    }
+    let package_summaries = file_info
+        .iter()
+        .map(|pkg| FilePackageSummary {
+            name: pkg.name.clone(),
+            total: pkg.total_count,
+            new_count: pkg.new_count,
+            changed_count: pkg.changed_count,
+            removed_count: pkg.removed_count,
+            config_count: pkg.config_count,
+            file_entries: pkg.files.len(),
+        })
+        .collect();
+
+    log_files_state(&FilesLogState {
+        items_len: items.len(),
+        file_info_len: file_info.len(),
+        file_selected: *file_selected,
+        expanded_len: file_tree_expanded.len(),
+        preflight_resolving: app.preflight_files_resolving,
+        global_resolving: app.files_resolving,
+        has_error: files_error.is_some(),
+        package_summaries,
+    });
 
     if is_resolving {
         let th = theme();

@@ -208,6 +208,13 @@ mod tests {
                         .replace(['.', '-', ' '], "_")
                 })
             })
+            .map(|key| {
+                if key == "show_recent_pane" {
+                    "show_search_history_pane".to_string()
+                } else {
+                    key
+                }
+            })
             .collect()
     }
 
@@ -228,7 +235,7 @@ mod tests {
             "app_dry_run_default",
             "sort_mode",
             "clipboard_suffix",
-            "show_recent_pane",
+            "show_search_history_pane",
             "show_install_pane",
             "show_keybinds_footer",
             "selected_countries",
@@ -565,7 +572,7 @@ mod tests {
              app_dry_run_default = true\n\
              sort_mode = alphabetical\n\
              clipboard_suffix = Custom suffix\n\
-             show_recent_pane = false\n\
+             show_search_history_pane = false\n\
              show_install_pane = false\n\
              show_keybinds_footer = false\n\
              selected_countries = Germany, France\n\
@@ -635,7 +642,7 @@ mod tests {
             .expect("Failed to read saved settings file (second read)");
         assert_config_contains(
             &saved_content2,
-            "show_recent_pane",
+            "show_search_history_pane",
             "true",
             "save_show_recent_pane",
         );
@@ -654,6 +661,30 @@ mod tests {
         assert_eq!(reloaded.sort_mode.as_config_key(), "best_matches");
         assert!(reloaded.show_recent_pane);
         assert_eq!(reloaded.selected_countries, "Switzerland, Austria");
+    }
+
+    /// What: Ensure legacy `show_recent_pane` config key remains supported.
+    ///
+    /// Inputs:
+    /// - `settings_path`: Path to the settings configuration file.
+    ///
+    /// Output:
+    /// - None (panics on failure).
+    ///
+    /// Details:
+    /// - Writes a config using the legacy key and verifies it loads into `show_recent_pane`.
+    fn test_load_legacy_recent_key(settings_path: &std::path::Path) {
+        use std::fs;
+        fs::write(
+            settings_path,
+            "show_recent_pane = false\nshow_install_pane = true\nshow_keybinds_footer = true\n",
+        )
+        .expect("Failed to write test settings file with legacy recent key");
+
+        let loaded = crate::theme::settings::settings();
+        assert!(!loaded.show_recent_pane);
+        assert!(loaded.show_install_pane);
+        assert!(loaded.show_keybinds_footer);
     }
 
     #[test]
@@ -696,7 +727,10 @@ mod tests {
         // Test 5: Parameters can be loaded from config file
         test_load_custom_parameters(&settings_path);
 
-        // Test 6: Save functions persist values correctly
+        // Test 6: Legacy key for search history pane is still parsed
+        test_load_legacy_recent_key(&settings_path);
+
+        // Test 7: Save functions persist values correctly
         test_save_functions_persist(&settings_path);
 
         // Cleanup
