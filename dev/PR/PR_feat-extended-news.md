@@ -1,17 +1,17 @@
 ## Summary
-- Ensure dependency, file, service, and sandbox cache files are created on startup if missing.
-- When the install list is empty, flushers now write empty cache payloads instead of deleting the files, preventing noisy "failed to remove" logs.
-- Added startup helper plus unit tests to cover empty cache persistence for all cache types.
+- Added News mode with Arch news + security advisory feed, filters/sorting, read/unread tracking, bookmarks, and optional `app_start_mode = news` startup setting (alias: `start_in_news`).
+- Added news search history/bookmarks panes with persisted caches, background worker/channels for article content fetch + caching, and news search history dedupe/debounce.
+- Updated UI panes/menus/modals and localization to render news lists, filter chips, item actions, and helper/tests for news queries and persistence flows.
 
 ## Type of change
-- [ ] feat (new feature)
-- [x] fix (bug fix)
+- [x] feat (new feature)
+- [ ] fix (bug fix)
 - [ ] docs (documentation only)
 - [ ] refactor (no functional change)
 - [ ] perf (performance)
 - [x] test (add/update tests)
 - [ ] chore (build/infra/CI)
-- [ ] ui (visual/interaction changes)
+- [x] ui (visual/interaction changes)
 - [ ] breaking change (incompatible behavior)
 
 ## Related issues
@@ -25,6 +25,9 @@ cargo check
 cargo test -- --test-threads=1
 cargo test complexity -- --nocapture --test-threads=1
 ```
+- Launch Pacsea, switch to News mode (or set `app_start_mode = news`), and verify Arch news + advisories load; toggle filter chips and mark items read/unread/bookmarked.
+- Run a news search, confirm the history pane records queries, and restart to ensure history/bookmarks persist.
+- Open a news item to fetch content, scroll, and ensure subsequent openings use the cached body.
 
 ## Screenshots / recordings (if UI changes)
 N/A
@@ -63,12 +66,13 @@ N/A
 - [x] Not a packaging change for AUR (otherwise propose in `pacsea-bin` or `pacsea-git` repos)
 
 ## Notes for reviewers
-- Cache files are now created eagerly at startup and rewritten to empty JSON when the install list is empty to eliminate repeated "Failed to remove ... cache" debug logs.
-- Added coverage for empty-cache writes across all cache types and a startup helper that ensures parent directories exist before writing.
+- News mode persists `news_recent_searches.json`, `news_bookmarks.json`, and `news_read_urls.json` (bookmarks loader keeps backward compatibility with old feed item format).
+- Settings gain `app_start_mode` (`package`/`news`, alias `start_in_news`), `news_filter_show_arch_news`, `news_filter_show_advisories`, `news_filter_installed_only`, and `news_max_age_days`; defaults/locales updated to match.
+- News content worker caches article bodies; filter chips expose clickable rects for mouse-driven toggles.
 
 ## Breaking changes
 None.
 
 ## Additional context
-Logs showed repeated `[Persist] Failed to remove ... cache` messages when cache files were absent. This change replaces removal with empty writes to keep paths stable and quiet.
+News feed/event/ UI work touches many files; no breaking changes expected, but configs now include news defaults and new persisted news cache files under the lists directory.
 
