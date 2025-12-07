@@ -9,7 +9,7 @@ mod details;
 /// News feed fetching.
 mod feeds;
 /// Arch Linux news fetching.
-mod news;
+pub mod news;
 /// PKGBUILD content fetching.
 mod pkgbuild;
 /// Package search functionality.
@@ -30,7 +30,7 @@ pub use advisories::fetch_security_advisories;
 pub use comments::fetch_aur_comments;
 pub use details::fetch_details;
 pub use feeds::fetch_news_feed;
-pub use news::{fetch_arch_news, fetch_news_content};
+pub use news::{fetch_arch_news, fetch_news_content, parse_news_html};
 pub use pkgbuild::fetch_pkgbuild_fast;
 pub use search::fetch_all_with_errors;
 pub use status::fetch_arch_status_text;

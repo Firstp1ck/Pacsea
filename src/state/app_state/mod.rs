@@ -8,8 +8,8 @@ use std::{
 
 use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
-    AppMode, ArchStatusColor, Focus, InstalledPackagesMode, NewsFeedItem, NewsSortMode,
-    PackageDetails, PackageItem, RightPaneFocus, SortMode,
+    AppMode, ArchStatusColor, Focus, InstalledPackagesMode, NewsBookmark, NewsFeedItem,
+    NewsSortMode, PackageDetails, PackageItem, RightPaneFocus, SortMode,
 };
 use crate::theme::KeyMap;
 use chrono::{NaiveDate, Utc};
@@ -131,18 +131,34 @@ pub struct AppState {
     pub news_recent_path: PathBuf,
     /// Dirty flag indicating `news_recent` needs to be saved.
     pub news_recent_dirty: bool,
+    /// Pending news search awaiting debounce before saving to history.
+    pub news_history_pending: Option<String>,
+    /// Timestamp when the pending news search was last updated.
+    pub news_history_pending_at: Option<std::time::Instant>,
+    /// Last news search saved to history (prevents duplicate saves).
+    pub news_history_last_saved: Option<String>,
     /// Whether to show Arch news items.
     pub news_filter_show_arch_news: bool,
     /// Whether to show security advisories.
     pub news_filter_show_advisories: bool,
     /// Whether to restrict advisories to installed packages.
     pub news_filter_installed_only: bool,
+    /// Clickable rectangle for Arch news filter chip in news title.
+    pub news_filter_arch_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for security advisory filter chip in news title.
+    pub news_filter_advisory_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for installed-only advisory filter chip in news title.
+    pub news_filter_installed_rect: Option<(u16, u16, u16, u16)>,
     /// Maximum age of news items in days (None = unlimited).
     pub news_max_age_days: Option<u32>,
+    /// Whether to show the news history pane in News mode.
+    pub show_news_history_pane: bool,
+    /// Whether to show the news bookmarks pane in News mode.
+    pub show_news_bookmarks_pane: bool,
     /// Sort mode for news results.
     pub news_sort_mode: NewsSortMode,
-    /// Saved news/bookmarked items.
-    pub news_bookmarks: Vec<NewsFeedItem>,
+    /// Saved news/bookmarked items with cached content.
+    pub news_bookmarks: Vec<crate::state::types::NewsBookmark>,
     /// Path where news bookmarks are persisted.
     pub news_bookmarks_path: PathBuf,
     /// Dirty flag indicating `news_bookmarks` needs to be saved.
@@ -697,6 +713,108 @@ impl AppState {
         self.recent.pop(&key)
     }
 
+    /// What: Add or replace a news bookmark, marking state dirty.
+    ///
+    /// Inputs:
+    /// - `bookmark`: Bookmark to insert (deduped by `item.id`).
+    ///
+    /// Output:
+    /// - None (mutates bookmarks and dirty flag).
+    pub fn add_news_bookmark(&mut self, bookmark: NewsBookmark) {
+        if let Some(pos) = self
+            .news_bookmarks
+            .iter()
+            .position(|b| b.item.id == bookmark.item.id)
+        {
+            self.news_bookmarks[pos] = bookmark;
+        } else {
+            self.news_bookmarks.push(bookmark);
+        }
+        self.news_bookmarks_dirty = true;
+    }
+
+    /// What: Remove a news bookmark at a position.
+    ///
+    /// Inputs:
+    /// - `index`: Zero-based index into bookmarks vector.
+    ///
+    /// Output:
+    /// - Removed bookmark if present.
+    pub fn remove_news_bookmark_at(&mut self, index: usize) -> Option<NewsBookmark> {
+        if index >= self.news_bookmarks.len() {
+            return None;
+        }
+        let removed = self.news_bookmarks.remove(index);
+        self.news_bookmarks_dirty = true;
+        Some(removed)
+    }
+
+    /// What: Return recent news searches in most-recent-first order.
+    ///
+    /// Inputs:
+    /// - `self`: Application state containing the news recent LRU cache.
+    ///
+    /// Output:
+    /// - Vector of recent news search strings ordered from most to least recent.
+    ///
+    /// Details:
+    /// - Clones stored values; limited by the configured recent capacity.
+    #[must_use]
+    pub fn news_recent_values(&self) -> Vec<String> {
+        self.news_recent.iter().map(|(_, v)| v.clone()).collect()
+    }
+
+    /// What: Fetch a recent news search by positional index.
+    ///
+    /// Inputs:
+    /// - `index`: Zero-based position in most-recent-first ordering.
+    ///
+    /// Output:
+    /// - `Some(String)` when the index is valid; `None` otherwise.
+    ///
+    /// Details:
+    /// - Uses the LRU iterator, so `index == 0` is the most recent entry.
+    #[must_use]
+    pub fn news_recent_value_at(&self, index: usize) -> Option<String> {
+        self.news_recent.iter().nth(index).map(|(_, v)| v.clone())
+    }
+
+    /// What: Replace the news recent cache with the provided most-recent-first entries.
+    ///
+    /// Inputs:
+    /// - `items`: Slice of recent news search strings ordered from most to least recent.
+    ///
+    /// Output:
+    /// - None (mutates `self.news_recent`).
+    ///
+    /// Details:
+    /// - Clears existing entries, enforces configured capacity, and preserves ordering by
+    ///   inserting from least-recent to most-recent.
+    pub fn load_news_recent_items(&mut self, items: &[String]) {
+        self.news_recent.clear();
+        self.news_recent.resize(recent_capacity());
+        for value in items.iter().rev() {
+            let stored = value.clone();
+            let key = stored.to_ascii_lowercase();
+            self.news_recent.put(key, stored);
+        }
+    }
+
+    /// What: Remove a recent news search at the provided position.
+    ///
+    /// Inputs:
+    /// - `index`: Zero-based position in most-recent-first ordering.
+    ///
+    /// Output:
+    /// - `Some(String)` containing the removed value when found; `None` otherwise.
+    ///
+    /// Details:
+    /// - Resolves the cache key via iteration, then pops it to maintain LRU invariants.
+    pub fn remove_news_recent_at(&mut self, index: usize) -> Option<String> {
+        let key = self.news_recent.iter().nth(index).map(|(k, _)| k.clone())?;
+        self.news_recent.pop(&key)
+    }
+
     /// What: Replace the recent cache with the provided most-recent-first entries.
     ///
     /// Inputs:
@@ -726,14 +844,13 @@ impl AppState {
     /// Output:
     /// - Updates `news_results`, selection state, and recent news searches.
     pub fn refresh_news_results(&mut self) {
-        self.news_search_input = self.input.clone();
-        self.news_search_caret = self.search_caret;
-        self.news_search_select_anchor = self.search_select_anchor;
         let query = self.news_search_input.to_lowercase();
-        if !query.is_empty() {
-            self.news_recent
-                .put(query.clone(), self.news_search_input.clone());
-            self.news_recent_dirty = true;
+        if query.is_empty() {
+            self.news_history_pending = None;
+            self.news_history_pending_at = None;
+        } else {
+            self.news_history_pending = Some(self.news_search_input.clone());
+            self.news_history_pending_at = Some(std::time::Instant::now());
         }
         let mut filtered: Vec<NewsFeedItem> = self
             .news_items
@@ -746,6 +863,17 @@ impl AppState {
             })
             .cloned()
             .collect();
+
+        if self.news_filter_installed_only {
+            let installed: std::collections::HashSet<String> =
+                crate::index::explicit_names().into_iter().collect();
+            filtered.retain(|it| {
+                !matches!(
+                    it.source,
+                    crate::state::types::NewsFeedSource::SecurityAdvisory
+                ) || it.packages.iter().any(|pkg| installed.contains(pkg))
+            });
+        }
 
         if !query.is_empty() {
             filtered.retain(|it| {

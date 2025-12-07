@@ -247,6 +247,28 @@ fn handle_artix_dropdown_click(mx: u16, my: u16, app: &mut AppState) -> bool {
 /// - Artix dropdown menu: Handles clicks on menu items to toggle individual Artix repo filters or all at once.
 ///   Updates the main Artix filter state based on individual filter states.
 pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Option<bool> {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        let mut handled = false;
+        if is_point_in_rect(mx, my, app.news_filter_arch_rect) {
+            app.news_filter_show_arch_news = !app.news_filter_show_arch_news;
+            handled = true;
+        } else if is_point_in_rect(mx, my, app.news_filter_advisory_rect) {
+            app.news_filter_show_advisories = !app.news_filter_show_advisories;
+            handled = true;
+        } else if is_point_in_rect(mx, my, app.news_filter_installed_rect) {
+            app.news_filter_installed_only = !app.news_filter_installed_only;
+            handled = true;
+        }
+        if handled {
+            crate::theme::save_news_filter_show_arch_news(app.news_filter_show_arch_news);
+            crate::theme::save_news_filter_show_advisories(app.news_filter_show_advisories);
+            crate::theme::save_news_filter_installed_only(app.news_filter_installed_only);
+            app.refresh_news_results();
+            return Some(false);
+        }
+        return None;
+    }
+
     // Handle Artix dropdown menu first (higher priority)
     if handle_artix_dropdown_click(mx, my, app) {
         return Some(false);
@@ -356,4 +378,61 @@ fn handle_simple_filter_toggles(mx: u16, my: u16, app: &mut AppState) -> bool {
         |a| a.results_filter_show_manjaro = !a.results_filter_show_manjaro,
         app,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::types::{NewsFeedSource, NewsSortMode};
+
+    fn sample_news_items() -> Vec<crate::state::types::NewsFeedItem> {
+        vec![
+            crate::state::types::NewsFeedItem {
+                id: "arch-news-1".to_string(),
+                date: "2025-01-01".to_string(),
+                title: "Arch item".to_string(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            crate::state::types::NewsFeedItem {
+                id: "adv-1".to_string(),
+                date: "2025-01-02".to_string(),
+                title: "Advisory item".to_string(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: None,
+                packages: vec!["example".to_string()],
+            },
+        ]
+    }
+
+    #[test]
+    fn news_filter_click_toggles_flags_and_refreshes() {
+        let mut app = crate::state::AppState {
+            app_mode: crate::state::types::AppMode::News,
+            news_items: sample_news_items(),
+            news_filter_show_arch_news: true,
+            news_filter_show_advisories: true,
+            news_filter_installed_only: false,
+            news_sort_mode: NewsSortMode::DateDesc,
+            news_filter_arch_rect: Some((0, 0, 5, 1)),
+            ..crate::state::AppState::default()
+        };
+        app.refresh_news_results();
+
+        let handled = handle_filters_mouse(0, 0, &mut app);
+
+        assert_eq!(handled, Some(false));
+        assert!(!app.news_filter_show_arch_news);
+        assert!(app.news_results.len() <= app.news_items.len());
+        assert!(
+            app.news_results
+                .iter()
+                .all(|i| matches!(i.source, NewsFeedSource::SecurityAdvisory))
+        );
+    }
 }

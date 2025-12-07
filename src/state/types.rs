@@ -121,6 +121,22 @@ pub struct NewsFeedItem {
     pub packages: Vec<String>,
 }
 
+/// What: Persisted bookmark entry for news items, including cached content and optional local HTML path.
+///
+/// Inputs:
+/// - `item`: The news feed item metadata.
+/// - `content`: Parsed article content stored locally for offline display.
+/// - `html_path`: Optional filesystem path to the saved HTML file (if downloaded).
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct NewsBookmark {
+    /// News feed metadata for the bookmark.
+    pub item: NewsFeedItem,
+    /// Parsed content cached locally.
+    pub content: Option<String>,
+    /// Path to the saved HTML file on disk (if downloaded).
+    pub html_path: Option<String>,
+}
+
 /// Package source origin.
 ///
 /// Indicates whether a package originates from the official repositories or

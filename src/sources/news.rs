@@ -144,6 +144,7 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
 fn parse_arch_news_html(html: &str) -> String {
     let document = Html::parse_document(html);
     let selectors = [
+        Selector::parse("div.advisory").ok(),
         Selector::parse("div.article-content").ok(),
         Selector::parse("article").ok(),
     ];
@@ -154,13 +155,17 @@ fn parse_arch_news_html(html: &str) -> String {
         if let Some(element) = document.select(sel).next()
             && let Some(node) = document.tree.get(element.id())
         {
-            render_node(&mut buf, node, false);
+            let preserve_ws = element
+                .value()
+                .attr("class")
+                .is_some_and(|c| c.contains("advisory"));
+            render_node(&mut buf, node, false, preserve_ws);
             found = true;
             break;
         }
     }
     if !found && let Some(root) = document.tree.get(document.root_element().id()) {
-        render_node(&mut buf, root, false);
+        render_node(&mut buf, root, false, false);
     }
 
     prune_news_boilerplate(&buf)
@@ -172,14 +177,23 @@ fn parse_arch_news_html(html: &str) -> String {
 /// - `buf`: Output buffer to append text into
 /// - `node`: Node to render
 /// - `in_pre`: Whether we are inside a <pre> block (preserve whitespace)
-fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool) {
+/// - `preserve_ws`: Whether to avoid collapsing whitespace (advisory pages).
+fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool, preserve_ws: bool) {
     match node.value() {
-        Node::Text(t) => push_text(buf, t.as_ref(), in_pre),
+        Node::Text(t) => push_text(buf, t.as_ref(), in_pre, preserve_ws),
         Node::Element(el) => {
             let name = el.name();
             let is_block = matches!(
                 name,
-                "p" | "div" | "section" | "article" | "header" | "footer" | "main"
+                "p" | "div"
+                    | "section"
+                    | "article"
+                    | "header"
+                    | "footer"
+                    | "main"
+                    | "table"
+                    | "tr"
+                    | "td"
             );
             let is_list = matches!(name, "ul" | "ol");
             let is_li = name == "li";
@@ -203,7 +217,7 @@ fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool) {
             if is_code {
                 let mut tmp = String::new();
                 for child in node.children() {
-                    render_node(&mut tmp, child, in_pre);
+                    render_node(&mut tmp, child, in_pre, preserve_ws);
                 }
                 if !tmp.is_empty() {
                     if !buf.ends_with('`') {
@@ -221,7 +235,7 @@ fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool) {
                 }
                 let mut tmp = String::new();
                 for child in node.children() {
-                    render_node(&mut tmp, child, true);
+                    render_node(&mut tmp, child, true, preserve_ws);
                 }
                 buf.push_str(tmp.trim_end());
                 buf.push('\n');
@@ -230,7 +244,7 @@ fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool) {
 
             let next_pre = in_pre;
             for child in node.children() {
-                render_node(buf, child, next_pre);
+                render_node(buf, child, next_pre, preserve_ws);
             }
 
             if is_block || is_list || is_li {
@@ -252,11 +266,16 @@ fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool) {
 /// - `buf`: Output buffer to append into.
 /// - `text`: Text content from the node.
 /// - `in_pre`: Whether whitespace should be preserved (inside `<pre>`).
+/// - `preserve_ws`: Whether to avoid collapsing whitespace for advisory pages.
 ///
 /// Output:
 /// - Mutates `buf` with appended text respecting whitespace rules.
-fn push_text(buf: &mut String, text: &str, in_pre: bool) {
+fn push_text(buf: &mut String, text: &str, in_pre: bool, preserve_ws: bool) {
     if in_pre {
+        buf.push_str(text);
+        return;
+    }
+    if preserve_ws {
         buf.push_str(text);
         return;
     }
@@ -319,11 +338,93 @@ fn prune_news_boilerplate(text: &str) -> String {
         return out.join("\n");
     }
 
-    text.trim().to_string()
+    // Advisory pages don't match the date format; drop leading navigation until the first meaningful header
+    let mut start = lines
+        .iter()
+        .position(|l| {
+            let t = l.trim();
+            t.starts_with("Arch Linux Security Advisory")
+                || t.starts_with("Severity:")
+                || t.starts_with("CVE-")
+        })
+        .unwrap_or(0);
+    while start < lines.len() && {
+        let t = lines[start].trim();
+        t.is_empty() || t.starts_with('•') || t == "Arch Linux"
+    } {
+        start += 1;
+    }
+    let mut out: Vec<&str> = lines
+        .iter()
+        .skip(start)
+        .map(|s| s.trim_end_matches('\r'))
+        .collect();
+    while matches!(out.first(), Some(l) if l.trim().is_empty() || l.trim().starts_with('•')) {
+        out.remove(0);
+    }
+    out.join("\n").trim_end().to_string()
+}
+
+/// What: Parse raw news/advisory HTML into displayable text (public helper).
+///
+/// Inputs:
+/// - `html`: Raw HTML source to parse.
+///
+/// Output:
+/// - Plaintext content suitable for the details view.
+#[must_use]
+pub fn parse_news_html(html: &str) -> String {
+    parse_arch_news_html(html)
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{parse_arch_news_html, prune_news_boilerplate};
+
+    #[test]
+    fn advisory_boilerplate_is_removed() {
+        let input = r"
+Arch Linux
+• Home
+• Packages
+
+Arch Linux Security Advisory ASA-202506-6 =========================================
+Severity: Low
+Date    : 2025-06-12
+Summary =======
+The package python-django before version 5.1.11-1 is vulnerable to content spoofing.
+";
+        let pruned = prune_news_boilerplate(input);
+        assert!(pruned.starts_with("Arch Linux Security Advisory"));
+        assert!(pruned.contains("Severity: Low"));
+        assert!(!pruned.contains("Home"));
+        assert!(!pruned.contains("Packages"));
+    }
+
+    #[test]
+    fn advisory_html_strips_links_and_keeps_text() {
+        let html = r#"
+        <div class="advisory">
+          Arch Linux Security Advisory ASA-202506-6 =========================================
+          Severity: Low
+          Package : <a href="/package/konsolen">konsolen</a>
+          Link : <a href="https://security.archlinux.org/AVG-2897">https://security.archlinux.org/AVG-2897</a>
+          Summary =======
+          The package before version 25.04.2-1 is vulnerable to arbitrary code execution.
+          Resolution =========
+          Upgrade to 25.04.2-1.
+          Description ===========
+          has a path where if telnet was not available it would fall back to using bash for the given arguments provided; this allows an attacker to execute arbitrary code.
+        </div>
+        "#;
+        let parsed = parse_arch_news_html(html);
+        assert!(parsed.contains("Arch Linux Security Advisory"));
+        assert!(parsed.contains("Severity: Low"));
+        assert!(parsed.contains("Package : konsolen"));
+        assert!(parsed.contains("https://security.archlinux.org/AVG-2897"));
+        assert!(!parsed.contains("<a href"));
+    }
+
     #[test]
     /// What: Validate HTML substring extraction and time-stripping helpers used by news parsing.
     ///

@@ -1,13 +1,15 @@
+use crate::i18n;
 use crate::state::AppState;
 use crate::state::types::{AppMode, NewsFeedSource};
 use crate::theme::theme;
 use ratatui::{
     Frame,
     prelude::Rect,
-    style::Style,
-    text::Line,
+    style::{Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
+use unicode_width::UnicodeWidthStr;
 
 /// Dropdown menu rendering module.
 mod dropdowns;
@@ -241,6 +243,7 @@ pub use dropdowns::render_dropdowns;
 /// Output: Renders news feed items as a list.
 ///
 /// Details: Renders news feed items from `app.news_results` as a list with source labels.
+#[allow(clippy::too_many_lines)]
 fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
     let items: Vec<ListItem> = app
@@ -279,25 +282,126 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
             ListItem::new(Line::from(spans)).style(Style::default().fg(th.text))
         })
         .collect();
-    // Build simple title with Date and Options buttons
     let title_text = format!("News Feed ({})", app.news_results.len());
-    let date_label = "Date";
-    let options_label = "Options";
-    let title_spans = vec![
-        ratatui::text::Span::styled(title_text.clone(), Style::default().fg(th.overlay1)),
-        ratatui::text::Span::raw("   "),
-        ratatui::text::Span::styled(date_label, Style::default().fg(th.mauve)),
-        ratatui::text::Span::raw("   "),
-        ratatui::text::Span::styled(options_label, Style::default().fg(th.mauve)),
-    ];
-    // Record rects for Date (reuse sort_button_rect) and Options for mouse hit-testing
-    let title_width = u16::try_from(title_text.len()).unwrap_or(0);
-    let date_w = u16::try_from(date_label.len()).unwrap_or(0);
-    let options_w = u16::try_from(options_label.len()).unwrap_or(0);
-    let base_x = area.x + 1 + title_width + 3;
-    app.sort_button_rect = Some((base_x, area.y, date_w, 1));
-    let opt_x = base_x.saturating_add(date_w).saturating_add(3);
-    app.options_button_rect = Some((opt_x, area.y, options_w, 1));
+    let age_label = app
+        .news_max_age_days
+        .map_or_else(|| "All".to_string(), |d| format!("{d} Days"));
+    let date_label = format!("Date: {age_label}");
+    let options_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
+    let panels_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
+    let config_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
+    let arch_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.arch"));
+    let advisory_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.advisories"));
+    let installed_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.installed_only"));
+
+    let button_style = |is_open: bool| -> Style {
+        if is_open {
+            Style::default()
+                .fg(th.crust)
+                .bg(th.mauve)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(th.mauve)
+                .bg(th.surface2)
+                .add_modifier(Modifier::BOLD)
+        }
+    };
+
+    let render_button = |label: &str, is_open: bool| -> Vec<Span<'static>> {
+        let style = button_style(is_open);
+        let mut spans = Vec::new();
+        if let Some(first) = label.chars().next() {
+            let rest = &label[first.len_utf8()..];
+            spans.push(Span::styled(
+                first.to_string(),
+                style.add_modifier(Modifier::UNDERLINED),
+            ));
+            spans.push(Span::styled(rest.to_string(), style));
+        } else {
+            spans.push(Span::styled(label.to_string(), style));
+        }
+        spans
+    };
+
+    let render_filter = |label: &str, active: bool| -> Span<'static> {
+        let (fg, bg) = if active {
+            (th.crust, th.green)
+        } else {
+            (th.mauve, th.surface2)
+        };
+        Span::styled(
+            label.to_string(),
+            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+        )
+    };
+
+    let date_button_spans = render_button(&date_label, false);
+    let options_button_spans = render_button(&options_label, app.options_menu_open);
+    let panels_button_spans = render_button(&panels_label, app.panels_menu_open);
+    let config_button_spans = render_button(&config_label, app.config_menu_open);
+    let arch_filter_span = render_filter(&arch_filter_label, app.news_filter_show_arch_news);
+    let advisory_filter_span =
+        render_filter(&advisory_filter_label, app.news_filter_show_advisories);
+    let installed_filter_span =
+        render_filter(&installed_filter_label, app.news_filter_installed_only);
+
+    let inner_width = area.width.saturating_sub(2);
+    let title_width = u16::try_from(title_text.width()).unwrap_or(u16::MAX);
+    let arch_width = u16::try_from(arch_filter_label.width()).unwrap_or(u16::MAX);
+    let advisory_width = u16::try_from(advisory_filter_label.width()).unwrap_or(u16::MAX);
+    let installed_width = u16::try_from(installed_filter_label.width()).unwrap_or(u16::MAX);
+    let date_width = u16::try_from(date_label.width()).unwrap_or(u16::MAX);
+    let options_width = u16::try_from(options_label.width()).unwrap_or(u16::MAX);
+    let panels_width = u16::try_from(panels_label.width()).unwrap_or(u16::MAX);
+    let config_width = u16::try_from(config_label.width()).unwrap_or(u16::MAX);
+
+    let mut title_spans: Vec<Span<'static>> = Vec::new();
+    title_spans.push(Span::styled(title_text, Style::default().fg(th.overlay1)));
+    title_spans.push(Span::raw("  "));
+
+    let mut x_cursor = area
+        .x
+        .saturating_add(1)
+        .saturating_add(title_width)
+        .saturating_add(2);
+
+    app.news_filter_arch_rect = Some((x_cursor, area.y, arch_width, 1));
+    title_spans.push(arch_filter_span);
+    x_cursor = x_cursor.saturating_add(arch_width).saturating_add(1);
+    title_spans.push(Span::raw(" "));
+
+    app.news_filter_advisory_rect = Some((x_cursor, area.y, advisory_width, 1));
+    title_spans.push(advisory_filter_span);
+    x_cursor = x_cursor.saturating_add(advisory_width).saturating_add(1);
+    title_spans.push(Span::raw(" "));
+
+    app.news_filter_installed_rect = Some((x_cursor, area.y, installed_width, 1));
+    title_spans.push(installed_filter_span);
+    x_cursor = x_cursor.saturating_add(installed_width).saturating_add(2);
+    title_spans.push(Span::raw("  "));
+
+    let options_x = area
+        .x
+        .saturating_add(1)
+        .saturating_add(inner_width.saturating_sub(options_width));
+    let panels_x = options_x.saturating_sub(1).saturating_sub(panels_width);
+    let config_x = panels_x.saturating_sub(1).saturating_sub(config_width);
+    let date_x = x_cursor;
+    let gap_after_date = config_x.saturating_sub(date_x.saturating_add(date_width));
+
+    title_spans.extend(date_button_spans);
+    title_spans.push(Span::raw(" ".repeat(gap_after_date as usize)));
+    title_spans.extend(config_button_spans);
+    title_spans.push(Span::raw(" "));
+    title_spans.extend(panels_button_spans);
+    title_spans.push(Span::raw(" "));
+    title_spans.extend(options_button_spans);
+
+    app.sort_button_rect = Some((date_x, area.y, date_width, 1));
+    app.config_button_rect = Some((config_x, area.y, config_width, 1));
+    app.panels_button_rect = Some((panels_x, area.y, panels_width, 1));
+    app.options_button_rect = Some((options_x, area.y, options_width, 1));
 
     let list = List::new(items)
         .style(Style::default().fg(th.text).bg(th.base))

@@ -5,6 +5,7 @@ use ratatui::{
     style::Style,
 };
 
+use crate::i18n;
 use crate::state::types::AppMode;
 use crate::state::{AppState, Focus};
 use crate::theme::theme;
@@ -104,48 +105,83 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
 ///
 /// Details: Renders a different layout when the news modal is active.
 fn render_middle_news(f: &mut Frame, app: &mut AppState, area: Rect) {
-    let th = theme();
+    let left_pct = if app.show_news_history_pane { 25 } else { 0 };
+    let right_pct = if app.show_news_bookmarks_pane { 25 } else { 0 };
+    let center_pct = 100u16
+        .saturating_sub(left_pct)
+        .saturating_sub(right_pct)
+        .min(100);
     let middle = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(25),
-            Constraint::Percentage(50),
-            Constraint::Percentage(25),
+            Constraint::Percentage(left_pct),
+            Constraint::Percentage(center_pct),
+            Constraint::Percentage(right_pct),
         ])
         .split(area);
 
     // Center search reuses existing search rendering/cursor
     search::render_search(f, app, middle[1]);
 
-    let recent_focused = matches!(app.focus, Focus::Recent);
-    let recent_block = ratatui::widgets::Paragraph::new("News search history").block(
-        ratatui::widgets::Block::default()
-            .borders(ratatui::widgets::Borders::ALL)
-            .border_type(ratatui::widgets::BorderType::Rounded)
-            .title("History")
-            .border_style(Style::default().fg(if recent_focused {
-                th.mauve
-            } else {
-                th.surface1
-            })),
-    );
-    f.render_widget(recent_block, middle[0]);
-    app.recent_rect = Some((middle[0].x, middle[0].y, middle[0].width, middle[0].height));
+    // Left: news search history
+    recent::render_news_recent(f, app, middle[0]);
 
-    let bookmarks_focused = matches!(app.focus, Focus::Install);
-    let bookmarks_block = ratatui::widgets::Paragraph::new("Bookmarks (news)").block(
-        ratatui::widgets::Block::default()
-            .borders(ratatui::widgets::Borders::ALL)
-            .border_type(ratatui::widgets::BorderType::Rounded)
-            .title("Bookmarks")
-            .border_style(Style::default().fg(if bookmarks_focused {
-                th.mauve
-            } else {
-                th.surface1
-            })),
-    );
-    f.render_widget(bookmarks_block, middle[2]);
-    app.install_rect = Some((middle[2].x, middle[2].y, middle[2].width, middle[2].height));
+    if app.show_news_bookmarks_pane && middle[2].width > 0 {
+        let th = theme();
+        let bookmarks_focused = matches!(app.focus, Focus::Install);
+        let items: Vec<ratatui::widgets::ListItem> = app
+            .news_bookmarks
+            .iter()
+            .map(|b| {
+                ratatui::widgets::ListItem::new(ratatui::text::Span::styled(
+                    b.item.title.clone(),
+                    Style::default().fg(if bookmarks_focused {
+                        th.text
+                    } else {
+                        th.subtext0
+                    }),
+                ))
+            })
+            .collect();
+        if app.install_state.selected().is_none() && !app.news_bookmarks.is_empty() {
+            app.install_state.select(Some(0));
+        }
+        let title = if bookmarks_focused {
+            i18n::t(app, "app.titles.news_recent_focused")
+        } else {
+            i18n::t(app, "app.titles.news_recent")
+        };
+        let list = ratatui::widgets::List::new(items)
+            .block(
+                ratatui::widgets::Block::default()
+                    .borders(ratatui::widgets::Borders::ALL)
+                    .border_type(ratatui::widgets::BorderType::Rounded)
+                    .title(title)
+                    .border_style(Style::default().fg(if bookmarks_focused {
+                        th.mauve
+                    } else {
+                        th.surface1
+                    })),
+            )
+            .style(
+                Style::default()
+                    .fg(if bookmarks_focused {
+                        th.text
+                    } else {
+                        th.subtext0
+                    })
+                    .bg(th.base),
+            )
+            .highlight_style(Style::default().fg(th.text).bg(th.surface2))
+            .highlight_symbol("▶ ");
+        f.render_stateful_widget(list, middle[2], &mut app.install_state);
+        app.install_rect = Some((middle[2].x, middle[2].y, middle[2].width, middle[2].height));
+    } else {
+        app.install_rect = None;
+        if matches!(app.focus, Focus::Install) {
+            app.focus = Focus::Search;
+        }
+    }
 }
 
 #[cfg(test)]

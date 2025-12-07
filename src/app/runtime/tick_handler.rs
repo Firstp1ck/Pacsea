@@ -13,7 +13,7 @@ use super::super::persist::{
     maybe_flush_news_read, maybe_flush_news_recent, maybe_flush_pkgbuild_parse_cache,
     maybe_flush_recent, maybe_flush_sandbox_cache, maybe_flush_services_cache,
 };
-use super::super::recent::maybe_save_recent;
+use super::super::recent::{maybe_save_news_recent, maybe_save_recent};
 
 /// What: Handle PKGBUILD result event.
 ///
@@ -549,6 +549,7 @@ pub fn handle_tick(
     static LAST_FAILLOCK_CHECK: std::sync::OnceLock<std::sync::Mutex<Instant>> =
         std::sync::OnceLock::new();
     maybe_save_recent(app);
+    maybe_save_news_recent(app);
     maybe_flush_cache(app);
     maybe_flush_recent(app);
     maybe_flush_news_recent(app);

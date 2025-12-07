@@ -87,13 +87,26 @@ pub fn handle_insert_mode(
             }
         }
         (KeyCode::Backspace, _) => {
-            app.input.pop();
-            app.last_input_change = std::time::Instant::now();
-            app.last_saved_value = None;
-            // Move caret to end and clear selection in insert mode
-            app.search_caret = char_count(&app.input);
-            app.search_select_anchor = None;
-            send_query(app, query_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.news_search_input.pop();
+                app.input = app.news_search_input.clone();
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                let caret = char_count(&app.news_search_input);
+                app.news_search_caret = caret;
+                app.news_search_select_anchor = None;
+                app.search_caret = caret;
+                app.search_select_anchor = None;
+                app.refresh_news_results();
+            } else {
+                app.input.pop();
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                // Move caret to end and clear selection in insert mode
+                app.search_caret = char_count(&app.input);
+                app.search_select_anchor = None;
+                send_query(app, query_tx);
+            }
         }
         // Handle Enter - but NOT if it's actually Ctrl+M (which some terminals send as Enter)
         (KeyCode::Char('\n') | KeyCode::Enter, m) => {
@@ -114,12 +127,25 @@ pub fn handle_insert_mode(
         }
         // Only handle character input if no modifiers are present (to allow global keybinds with modifiers)
         (KeyCode::Char(ch), m) if m.is_empty() => {
-            app.input.push(ch);
-            app.last_input_change = std::time::Instant::now();
-            app.last_saved_value = None;
-            app.search_caret = char_count(&app.input);
-            app.search_select_anchor = None;
-            send_query(app, query_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.news_search_input.push(ch);
+                app.input = app.news_search_input.clone();
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                let caret = char_count(&app.news_search_input);
+                app.news_search_caret = caret;
+                app.news_search_select_anchor = None;
+                app.search_caret = caret;
+                app.search_select_anchor = None;
+                app.refresh_news_results();
+            } else {
+                app.input.push(ch);
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                app.search_caret = char_count(&app.input);
+                app.search_select_anchor = None;
+                send_query(app, query_tx);
+            }
         }
         _ if matches_any(&ke, &km.search_move_up) => {
             if matches!(app.app_mode, crate::state::types::AppMode::News) {

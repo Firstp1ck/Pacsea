@@ -3,6 +3,8 @@ use tokio::sync::mpsc;
 
 use crate::logic::{move_sel_cached, send_query};
 use crate::state::{AppState, PackageItem, QueryInput};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use super::super::utils::matches_any;
 use super::helpers::navigate_pane;
@@ -352,6 +354,46 @@ fn handle_space_key(
             true
         }
         (KeyCode::Char(' '), _) => {
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                if let Some(item) = app.news_results.get(app.news_selected).cloned() {
+                    let url_opt = item.url.clone();
+                    let mut content = app.news_content.clone().or_else(|| {
+                        url_opt
+                            .as_ref()
+                            .and_then(|u| app.news_content_cache.get(u).cloned())
+                    });
+                    let mut html_path = None;
+                    if let Some(url) = &url_opt
+                        && let Ok(html) = crate::util::curl::curl_text(url)
+                    {
+                        let dir = crate::theme::lists_dir().join("news_html");
+                        let _ = std::fs::create_dir_all(&dir);
+                        let mut hasher = DefaultHasher::new();
+                        item.id.hash(&mut hasher);
+                        let fname = format!("{:016x}.html", hasher.finish());
+                        let path = dir.join(fname);
+                        if std::fs::write(&path, &html).is_ok() {
+                            html_path = Some(path.to_string_lossy().to_string());
+                            if content.is_none() {
+                                content = Some(crate::sources::parse_news_html(&html));
+                            }
+                        }
+                    }
+                    let bookmark = crate::state::types::NewsBookmark {
+                        item,
+                        content,
+                        html_path,
+                    };
+                    app.add_news_bookmark(bookmark);
+                    app.toast_message = Some(crate::i18n::t(
+                        app,
+                        "app.results.options_menu.news_management",
+                    ));
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+                }
+                return true;
+            }
             if let Some(item) = app.results.get(app.selected).cloned() {
                 if app.installed_only_mode {
                     crate::logic::add_to_remove_list(app, item);
@@ -464,7 +506,19 @@ fn handle_pane_navigation(
 /// Details:
 /// - Clears the entire search input and resets caret/selection.
 fn handle_input_clear(app: &mut AppState, query_tx: &mpsc::UnboundedSender<QueryInput>) {
-    if !app.input.is_empty() {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        if !app.news_search_input.is_empty() {
+            app.news_search_input.clear();
+            app.input.clear();
+            app.news_search_caret = 0;
+            app.news_search_select_anchor = None;
+            app.search_caret = 0;
+            app.search_select_anchor = None;
+            app.last_input_change = std::time::Instant::now();
+            app.last_saved_value = None;
+            app.refresh_news_results();
+        }
+    } else if !app.input.is_empty() {
         app.input.clear();
         app.search_caret = 0;
         app.search_select_anchor = None;

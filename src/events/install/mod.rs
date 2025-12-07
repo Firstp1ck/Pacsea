@@ -1,10 +1,12 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 
+use crate::sources::parse_news_html;
 use crate::state::{AppState, PackageItem};
 
 use super::utils::{
-    find_in_install, refresh_install_details, refresh_remove_details, refresh_selected_details,
+    find_in_install, matches_any, refresh_install_details, refresh_remove_details,
+    refresh_selected_details,
 };
 
 /// Preflight modal opening functions for install operations.
@@ -89,6 +91,134 @@ fn handle_left_arrow_navigation(
     }
 }
 
+/// What: Ensure bookmark selection is valid in news mode.
+fn ensure_news_bookmark_selection(app: &mut AppState) {
+    let len = app.news_bookmarks.len();
+    if len == 0 {
+        app.install_state.select(None);
+        return;
+    }
+    let sel = app
+        .install_state
+        .selected()
+        .filter(|i| *i < len)
+        .unwrap_or(0);
+    app.install_state.select(Some(sel));
+}
+
+/// What: Move bookmark selection up or down in news mode.
+fn move_news_bookmark_selection(app: &mut AppState, down: bool) {
+    ensure_news_bookmark_selection(app);
+    let len = app.news_bookmarks.len();
+    if len == 0 {
+        return;
+    }
+    let current = app.install_state.selected().unwrap_or(0);
+    let next = if down {
+        std::cmp::min(current + 1, len.saturating_sub(1))
+    } else {
+        current.saturating_sub(1)
+    };
+    app.install_state.select(Some(next));
+}
+
+/// What: Delete the currently selected news bookmark and its cached file.
+fn delete_news_bookmark_at_selection(app: &mut AppState) {
+    ensure_news_bookmark_selection(app);
+    let Some(sel) = app.install_state.selected() else {
+        return;
+    };
+    if let Some(removed) = app.remove_news_bookmark_at(sel)
+        && let Some(path) = removed.html_path
+    {
+        let _ = std::fs::remove_file(path);
+    }
+    // Adjust selection
+    let len = app.news_bookmarks.len();
+    if len == 0 {
+        app.install_state.select(None);
+    } else if sel >= len {
+        app.install_state.select(Some(len.saturating_sub(1)));
+    }
+}
+
+/// What: Load the selected news bookmark into the details pane from local cache.
+fn load_news_bookmark(app: &mut AppState) {
+    ensure_news_bookmark_selection(app);
+    let Some(sel) = app.install_state.selected() else {
+        return;
+    };
+    let Some(bookmark) = app.news_bookmarks.get(sel).cloned() else {
+        return;
+    };
+
+    // Ensure the bookmarked item is present in results for metadata rendering
+    let idx = if let Some(pos) = app
+        .news_results
+        .iter()
+        .position(|it| it.id == bookmark.item.id)
+    {
+        pos
+    } else {
+        app.news_results.insert(0, bookmark.item.clone());
+        0
+    };
+    app.news_selected = idx;
+    app.news_list_state.select(Some(idx));
+
+    // Load content from html if available, else fallback to cached content
+    let mut content = bookmark.content.clone();
+    if content.is_none()
+        && let Some(path) = bookmark.html_path.as_ref()
+        && let Ok(html) = std::fs::read_to_string(path)
+    {
+        content = Some(parse_news_html(&html));
+    }
+    if let Some(url) = bookmark.item.url.as_ref() {
+        if let Some(ref c) = content {
+            app.news_content_cache.insert(url.clone(), c.clone());
+        }
+        app.details.url.clone_from(url);
+    }
+    if let Some(c) = content {
+        app.news_content = Some(c);
+        app.news_content_loading = false;
+    }
+}
+
+/// What: Handle key events inside the news bookmarks pane.
+fn handle_news_bookmarks_key(ke: KeyEvent, app: &mut AppState) -> bool {
+    match ke.code {
+        KeyCode::Char('j') | KeyCode::Down => {
+            move_news_bookmark_selection(app, true);
+        }
+        KeyCode::Char('k') | KeyCode::Up => {
+            move_news_bookmark_selection(app, false);
+        }
+        code if matches_any(&ke, &app.keymap.pane_next) && code == ke.code => {
+            if app.history_state.selected().is_none() && !app.news_recent_values().is_empty() {
+                app.history_state.select(Some(0));
+            }
+            app.focus = crate::state::Focus::Recent;
+        }
+        KeyCode::Enter => {
+            load_news_bookmark(app);
+        }
+        KeyCode::Delete => {
+            delete_news_bookmark_at_selection(app);
+        }
+        KeyCode::Esc | KeyCode::Left => {
+            app.focus = crate::state::Focus::Search;
+            app.search_normal_mode = true;
+        }
+        KeyCode::Right => {
+            app.focus = crate::state::Focus::Recent;
+        }
+        _ => {}
+    }
+    false
+}
+
 /// What: Handle Right arrow navigation (moves focus right).
 fn handle_right_arrow_navigation(
     app: &mut AppState,
@@ -170,6 +300,9 @@ pub fn handle_install_key(
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
     _add_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        return handle_news_bookmarks_key(ke, app);
+    }
     if ke.code == KeyCode::Char('c') && ke.modifiers.contains(KeyModifiers::CONTROL) {
         return true;
     }

@@ -298,6 +298,26 @@ fn filtered_indices_and_details_lines() {
 }
 
 #[test]
+/// What: Ensure filtered recent indices use news history when in news mode.
+///
+/// Inputs:
+/// - App mode set to News with dedicated news recent entries and pane find.
+///
+/// Output:
+/// - Indices reflect the news history and respect pane find filtering.
+fn filtered_recent_indices_use_news_history() {
+    let mut app = crate::state::AppState::default();
+    init_test_translations(&mut app);
+    app.app_mode = crate::state::types::AppMode::News;
+    app.load_news_recent_items(&["alpha".to_string(), "beta".to_string(), "gamma".to_string()]);
+    assert_eq!(filtered_recent_indices(&app), vec![0, 1, 2]);
+    app.focus = crate::state::Focus::Recent;
+    app.pane_find = Some("be".into());
+    let inds = filtered_recent_indices(&app);
+    assert_eq!(inds, vec![1]);
+}
+
+#[test]
 /// What: Ensure details rendering formats lists and byte sizes into human-friendly strings.
 ///
 /// Inputs:

@@ -97,6 +97,16 @@ pub struct Settings {
     pub scan_do_custom: bool,
     /// Whether to run Sleuth scan on AUR packages.
     pub scan_do_sleuth: bool,
+    /// Whether to start the app in News mode (true) or Package mode (false).
+    pub start_in_news: bool,
+    /// Whether to show Arch news items in the News view.
+    pub news_filter_show_arch_news: bool,
+    /// Whether to show security advisories in the News view.
+    pub news_filter_show_advisories: bool,
+    /// Whether to restrict advisories to installed packages in the News view.
+    pub news_filter_installed_only: bool,
+    /// Maximum age of news items in days (None = unlimited).
+    pub news_max_age_days: Option<u32>,
     /// Visual marker style for packages added to Install/Remove/Downgrade lists.
     pub package_marker: PackageMarker,
     /// Symbol used to mark a news item as read in the News modal.
@@ -168,6 +178,11 @@ impl Default for Settings {
             scan_do_virustotal: true,
             scan_do_custom: true,
             scan_do_sleuth: true,
+            start_in_news: false,
+            news_filter_show_arch_news: true,
+            news_filter_show_advisories: true,
+            news_filter_installed_only: true,
+            news_max_age_days: Some(30),
             package_marker: PackageMarker::Front,
             news_read_symbol: "✓".to_string(),
             news_unread_symbol: "∘".to_string(),

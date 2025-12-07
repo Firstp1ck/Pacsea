@@ -1,8 +1,11 @@
 //! Menu mouse event handling (sort, options, config, panels, import/export).
 
+use std::time::Instant;
+
 use tokio::sync::mpsc;
 
 use crate::events::utils::refresh_selected_details;
+use crate::i18n;
 use crate::state::{AppState, PackageItem};
 
 use super::menu_options;
@@ -329,15 +332,19 @@ fn handle_options_menu_click(
     if let Some((_x, y, _w, _h)) = app.options_menu_rect {
         let row = my.saturating_sub(y) as usize;
         let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
-        if news_mode && row == 5 {
-            handle_news_age_toggle(app);
+        if news_mode {
+            match row {
+                0 => handle_system_update_option(app),
+                1 => handle_optional_deps_option(app),
+                2 => handle_mode_toggle(app, details_tx),
+                _ => return None,
+            }
         } else {
             match row {
                 0 => handle_installed_only_toggle(app, details_tx),
                 1 => handle_system_update_option(app),
-                2 => handle_mode_toggle(app, details_tx),
-                3 => handle_news_option(app),
-                4 => handle_optional_deps_option(app),
+                2 => handle_optional_deps_option(app),
+                3 => handle_mode_toggle(app, details_tx),
                 _ => return None,
             }
         }
@@ -420,7 +427,10 @@ fn handle_installed_only_toggle(
 /// Inputs:
 /// - `app`: Mutable application state
 /// - `details_tx`: Channel to request package details when switching back to package mode
-fn handle_mode_toggle(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
+pub(in crate::events) fn handle_mode_toggle(
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
     if matches!(app.app_mode, crate::state::types::AppMode::News) {
         app.app_mode = crate::state::types::AppMode::Package;
         if app.results.is_empty() {
@@ -440,6 +450,7 @@ fn handle_mode_toggle(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
             app.news_list_state.select(Some(0));
         }
     }
+    crate::theme::save_app_start_mode(matches!(app.app_mode, crate::state::types::AppMode::News));
 }
 
 /// What: Toggle news maximum age filter between 7, 30, 90 days, and no limit.
@@ -453,7 +464,7 @@ fn handle_mode_toggle(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// Details:
 /// - Cycles through age options: 7 days → 30 days → 90 days → no limit → 7 days
 /// - Refreshes news results after changing the filter
-fn handle_news_age_toggle(app: &mut AppState) {
+pub(in crate::events) fn handle_news_age_toggle(app: &mut AppState) {
     const AGES: [Option<u32>; 4] = [Some(7), Some(30), Some(90), None];
     let current = app.news_max_age_days;
     let next = AGES
@@ -465,6 +476,13 @@ fn handle_news_age_toggle(app: &mut AppState) {
         .unwrap_or(Some(7));
     app.news_max_age_days = next;
     app.refresh_news_results();
+    let age_label = app.news_max_age_days.map_or_else(
+        || i18n::t(app, "app.results.options_menu.news_age_all"),
+        |d| i18n::t_fmt1(app, "app.results.options_menu.news_age_days", d.to_string()),
+    );
+    app.toast_message = Some(age_label);
+    app.toast_expires_at = Some(Instant::now() + std::time::Duration::from_secs(3));
+    crate::theme::save_news_max_age_days(app.news_max_age_days);
 }
 
 /// Handle system update option.
@@ -506,47 +524,6 @@ fn handle_system_update_option(app: &mut AppState) {
         mirror_count: prefs.mirror_count,
         cursor: 0,
     };
-}
-
-/// Handle news option.
-///
-/// What: Fetches latest Arch news and opens News modal.
-///
-/// Inputs:
-/// - `app`: Mutable application state
-///
-/// Details:
-/// - Shows alert modal if fetch fails or times out
-fn handle_news_option(app: &mut AppState) {
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build();
-        let res = match rt {
-            Ok(rt) => rt.block_on(crate::sources::fetch_arch_news(10)),
-            Err(e) => Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into()),
-        };
-        let _ = tx.send(res);
-    });
-    match rx.recv_timeout(std::time::Duration::from_secs(3)) {
-        Ok(Ok(list)) => {
-            app.modal = crate::state::Modal::News {
-                items: list,
-                selected: 0,
-            };
-        }
-        Ok(Err(e)) => {
-            app.modal = crate::state::Modal::Alert {
-                message: format!("Failed to fetch news: {e}"),
-            };
-        }
-        Err(_) => {
-            app.modal = crate::state::Modal::Alert {
-                message: "Timed out fetching news".to_string(),
-            };
-        }
-    }
 }
 
 /// Handle optional deps option.
@@ -635,26 +612,53 @@ fn handle_config_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<boo
 fn handle_panels_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.panels_menu_rect {
         let row = my.saturating_sub(y) as usize;
-        match row {
-            0 => {
-                app.show_recent_pane = !app.show_recent_pane;
-                if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
-                    app.focus = crate::state::Focus::Search;
+        let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+        if news_mode {
+            match row {
+                0 => {
+                    app.show_news_history_pane = !app.show_news_history_pane;
+                    if !app.show_news_history_pane
+                        && matches!(app.focus, crate::state::Focus::Recent)
+                    {
+                        app.focus = crate::state::Focus::Search;
+                    }
                 }
-                crate::theme::save_show_recent_pane(app.show_recent_pane);
-            }
-            1 => {
-                app.show_install_pane = !app.show_install_pane;
-                if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
-                    app.focus = crate::state::Focus::Search;
+                1 => {
+                    app.show_news_bookmarks_pane = !app.show_news_bookmarks_pane;
+                    if !app.show_news_bookmarks_pane
+                        && matches!(app.focus, crate::state::Focus::Install)
+                    {
+                        app.focus = crate::state::Focus::Search;
+                    }
                 }
-                crate::theme::save_show_install_pane(app.show_install_pane);
+                2 => {
+                    app.show_keybinds_footer = !app.show_keybinds_footer;
+                    crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+                }
+                _ => return None,
             }
-            2 => {
-                app.show_keybinds_footer = !app.show_keybinds_footer;
-                crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+        } else {
+            match row {
+                0 => {
+                    app.show_recent_pane = !app.show_recent_pane;
+                    if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
+                        app.focus = crate::state::Focus::Search;
+                    }
+                    crate::theme::save_show_recent_pane(app.show_recent_pane);
+                }
+                1 => {
+                    app.show_install_pane = !app.show_install_pane;
+                    if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
+                        app.focus = crate::state::Focus::Search;
+                    }
+                    crate::theme::save_show_install_pane(app.show_install_pane);
+                }
+                2 => {
+                    app.show_keybinds_footer = !app.show_keybinds_footer;
+                    crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+                }
+                _ => return None,
             }
-            _ => return None,
         }
         Some(false)
     } else {
@@ -819,7 +823,25 @@ pub(super) fn handle_menus_mouse(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::state::types::AppMode;
     use crate::util::parse_update_entry;
+
+    fn seed_news_age_translations(app: &mut crate::state::AppState) {
+        let mut translations = HashMap::new();
+        translations.insert(
+            "app.results.options_menu.news_age_all".to_string(),
+            "News age: all time".to_string(),
+        );
+        translations.insert(
+            "app.results.options_menu.news_age_days".to_string(),
+            "News age: {} days".to_string(),
+        );
+        app.translations = translations.clone();
+        app.translations_fallback = translations;
+    }
 
     /// What: Test that updates parsing correctly extracts old and new versions.
     ///
@@ -874,4 +896,20 @@ mod tests {
             assert_eq!(new_version, expected_new, "Wrong new_version for: {input}");
         }
     }
+
+    #[test]
+    fn news_age_toggle_sets_toast_and_cycles_value() {
+        let mut app = crate::state::AppState::default();
+        seed_news_age_translations(&mut app);
+        app.news_max_age_days = Some(7);
+        app.app_mode = AppMode::News;
+
+        handle_news_age_toggle(&mut app);
+
+        assert_eq!(app.news_max_age_days, Some(30));
+        assert!(app.toast_message.as_ref().is_some());
+        assert!(app.toast_expires_at.is_some());
+    }
+
+    // Removed: News options menu no longer includes a News age entry.
 }

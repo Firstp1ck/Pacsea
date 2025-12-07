@@ -93,6 +93,19 @@ pub fn render_news_details(f: &mut Frame, app: &mut AppState, area: Rect) {
         |item| build_news_body(app, &item, area, &th),
     );
 
+    let footer_h: u16 = if app.show_keybinds_footer {
+        footer::news_footer_height(app).min(area.height)
+    } else {
+        0
+    };
+    let content_height = area.height.saturating_sub(footer_h);
+    let content_area = Rect {
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: content_height,
+    };
+
     let paragraph = ratatui::widgets::Paragraph::new(lines)
         .style(ratatui::style::Style::default().fg(th.text).bg(th.base))
         .block(
@@ -107,8 +120,17 @@ pub fn render_news_details(f: &mut Frame, app: &mut AppState, area: Rect) {
         )
         .wrap(Wrap { trim: true })
         .scroll((app.news_content_scroll, 0));
-    f.render_widget(paragraph, area);
-    app.details_rect = Some((area.x, area.y, area.width, area.height));
+    f.render_widget(paragraph, content_area);
+    app.details_rect = Some((
+        content_area.x,
+        content_area.y,
+        content_area.width,
+        content_area.height,
+    ));
+
+    if footer_h > 0 && area.height >= footer_h {
+        footer::render_news_footer(f, app, area, footer_h);
+    }
 }
 
 /// What: Build the lines for news metadata and content (without rendering).

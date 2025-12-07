@@ -311,22 +311,42 @@ fn render_panels_menu(
         return;
     }
 
-    let label_recent = if app.show_recent_pane {
-        i18n::t(app, "app.results.panels_menu.hide_recent")
+    let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    let opts: Vec<String> = if news_mode {
+        let label_history = if app.show_news_history_pane {
+            i18n::t(app, "app.results.panels_menu.hide_history")
+        } else {
+            i18n::t(app, "app.results.panels_menu.show_history")
+        };
+        let label_bookmarks = if app.show_news_bookmarks_pane {
+            i18n::t(app, "app.results.panels_menu.hide_bookmarks")
+        } else {
+            i18n::t(app, "app.results.panels_menu.show_bookmarks")
+        };
+        let label_keybinds = if app.show_keybinds_footer {
+            i18n::t(app, "app.results.panels_menu.hide_keybinds")
+        } else {
+            i18n::t(app, "app.results.panels_menu.show_keybinds")
+        };
+        vec![label_history, label_bookmarks, label_keybinds]
     } else {
-        i18n::t(app, "app.results.panels_menu.show_recent")
+        let label_recent = if app.show_recent_pane {
+            i18n::t(app, "app.results.panels_menu.hide_recent")
+        } else {
+            i18n::t(app, "app.results.panels_menu.show_recent")
+        };
+        let label_install = if app.show_install_pane {
+            i18n::t(app, "app.results.panels_menu.hide_install_list")
+        } else {
+            i18n::t(app, "app.results.panels_menu.show_install_list")
+        };
+        let label_keybinds = if app.show_keybinds_footer {
+            i18n::t(app, "app.results.panels_menu.hide_keybinds")
+        } else {
+            i18n::t(app, "app.results.panels_menu.show_keybinds")
+        };
+        vec![label_recent, label_install, label_keybinds]
     };
-    let label_install = if app.show_install_pane {
-        i18n::t(app, "app.results.panels_menu.hide_install_list")
-    } else {
-        i18n::t(app, "app.results.panels_menu.show_install_list")
-    };
-    let label_keybinds = if app.show_keybinds_footer {
-        i18n::t(app, "app.results.panels_menu.hide_keybinds")
-    } else {
-        i18n::t(app, "app.results.panels_menu.show_keybinds")
-    };
-    let opts: Vec<String> = vec![label_recent, label_install, label_keybinds];
 
     let widest = opts
         .iter()
@@ -371,31 +391,24 @@ fn render_options_menu(
         return;
     }
 
-    let label_toggle = if app.installed_only_mode {
-        i18n::t(app, "app.results.options_menu.list_all_packages")
-    } else {
-        i18n::t(app, "app.results.options_menu.list_installed_packages")
-    };
-    let mode_toggle_label = if matches!(app.app_mode, crate::state::types::AppMode::News) {
+    let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    let mode_toggle_label = if news_mode {
         i18n::t(app, "app.results.options_menu.package_mode")
     } else {
         i18n::t(app, "app.results.options_menu.news_management")
     };
-    let mut opts: Vec<String> = vec![
-        label_toggle,
-        i18n::t(app, "app.results.options_menu.update_system"),
-        mode_toggle_label,
-        i18n::t(app, "app.results.options_menu.news"),
-        i18n::t(app, "app.results.options_menu.tui_optional_deps"),
-    ];
-    if matches!(app.app_mode, crate::state::types::AppMode::News) {
-        let age_label = app.news_max_age_days.map_or_else(
-            || i18n::t(app, "app.results.options_menu.news_age_all"),
-            |d| i18n::t_fmt1(app, "app.results.options_menu.news_age_days", d.to_string()),
-        );
-        opts.push(age_label);
+    let mut opts: Vec<String> = Vec::new();
+    if !news_mode {
+        let label_toggle = if app.installed_only_mode {
+            i18n::t(app, "app.results.options_menu.list_all_packages")
+        } else {
+            i18n::t(app, "app.results.options_menu.list_installed_packages")
+        };
+        opts.push(label_toggle);
     }
-
+    opts.push(i18n::t(app, "app.results.options_menu.update_system"));
+    opts.push(i18n::t(app, "app.results.options_menu.tui_optional_deps"));
+    opts.push(mode_toggle_label);
     let widest = opts
         .iter()
         .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))

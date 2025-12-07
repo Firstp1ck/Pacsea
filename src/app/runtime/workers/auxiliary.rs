@@ -120,7 +120,7 @@ pub fn spawn_auxiliary_workers(
                 true,
                 true,
                 Some(&installed),
-                true,
+                false,
                 NewsSortMode::DateDesc,
             )
             .await

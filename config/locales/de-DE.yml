@@ -61,6 +61,8 @@ de-DE:
       search_focused: "Suche (fokussiert)"
       recent: "Suchverlauf:"
       recent_focused: "Suchverlauf (fokussiert)"
+      news_recent: "News-Suchverlauf:"
+      news_recent_focused: "News-Suchverlauf (fokussiert)"
       install_list: "Installationsliste"
       install_list_focused: "Installationsliste (fokussiert)"
       downgrade_list: "Herabstufungs-Liste"
@@ -301,6 +303,10 @@ de-DE:
         hide_install_list: "Installationsliste verbergen"
         show_keybinds: "Tastenkombinationen anzeigen"
         hide_keybinds: "Tastenkombinationen verbergen"
+        show_history: "History (TODO: translate to german)"
+        hide_history: "History (TODO: translate to german)"
+        show_bookmarks: "Bookmarks (TODO: translate to german)"
+        hide_bookmarks: "Bookmarks (TODO: translate to german)"
       options_menu:
         list_all_packages: "Alle Pakete auflisten"
         list_installed_packages: "Installierte Pakete auflisten"
@@ -311,6 +317,11 @@ de-DE:
         news_age_days: "News-Alter: {} Tage"
         news_age_all: "News-Alter: unbegrenzt"
         tui_optional_deps: "TUI Optionale Abhängigkeiten"
+    news:
+      filters:
+        arch: "Arch"
+        advisories: "Advisories"
+        installed_only: "Installed only"
 
     modals:
       common:

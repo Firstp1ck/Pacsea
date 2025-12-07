@@ -109,15 +109,23 @@ pub(super) type DefaultNewsFeedState = (
     bool,
     bool,
     bool,
+    Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
     Option<u32>,
+    bool,
+    bool,
     NewsSortMode,
-    Vec<NewsFeedItem>,
+    Vec<crate::state::types::NewsBookmark>,
     PathBuf,
     bool,
     std::collections::HashMap<String, String>, // news_content_cache
     Option<String>,                            // news_content
     bool,                                      // news_content_loading
     u16,                                       // news_content_scroll
+    Option<String>,                            // news_history_pending
+    Option<Instant>,                           // news_history_pending_at
+    Option<String>,                            // news_history_last_saved
 );
 
 /// What: Default application mode.
@@ -153,10 +161,27 @@ pub(super) fn default_news_feed_state(
             news_recent.put(key, v);
         }
     }
-    let news_bookmarks: Vec<NewsFeedItem> = fs::read_to_string(&news_bookmarks_path)
-        .ok()
-        .and_then(|s| serde_json::from_str::<Vec<NewsFeedItem>>(&s).ok())
-        .unwrap_or_default();
+    let news_bookmarks: Vec<crate::state::types::NewsBookmark> =
+        fs::read_to_string(&news_bookmarks_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<Vec<crate::state::types::NewsBookmark>>(&s).ok())
+            .or_else(|| {
+                // Backward compatibility: load old format Vec<NewsFeedItem>
+                fs::read_to_string(&news_bookmarks_path)
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<Vec<NewsFeedItem>>(&s).ok())
+                    .map(|items| {
+                        items
+                            .into_iter()
+                            .map(|item| crate::state::types::NewsBookmark {
+                                item,
+                                content: None,
+                                html_path: None,
+                            })
+                            .collect()
+                    })
+            })
+            .unwrap_or_default();
     (
         Vec::new(),           // news_items
         Vec::new(),           // news_results
@@ -171,7 +196,12 @@ pub(super) fn default_news_feed_state(
         true,  // news_filter_show_arch_news
         true,  // news_filter_show_advisories
         true,  // news_filter_installed_only
+        None,  // news_filter_arch_rect
+        None,  // news_filter_advisory_rect
+        None,  // news_filter_installed_rect
         Some(30),
+        true, // show_news_history_pane
+        true, // show_news_bookmarks_pane
         NewsSortMode::DateDesc,
         news_bookmarks, // news_bookmarks
         news_bookmarks_path,
@@ -180,6 +210,9 @@ pub(super) fn default_news_feed_state(
         None,                             // news_content
         false,                            // news_content_loading
         0,                                // news_content_scroll
+        None,                             // news_history_pending
+        None,                             // news_history_pending_at
+        None,                             // news_history_last_saved
     )
 }
 

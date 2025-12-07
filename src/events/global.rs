@@ -4,6 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 
 use crate::app::{apply_settings_to_app_state, initialize_locale_system};
+use crate::events::mouse::menus::{handle_mode_toggle, handle_news_age_toggle};
 use crate::events::utils;
 use crate::state::{AppState, PackageItem};
 use crate::theme::{reload_theme, settings};
@@ -145,46 +146,6 @@ fn handle_options_system_update(app: &mut AppState) {
     };
 }
 
-/// What: Handle news option from options menu.
-///
-/// Inputs:
-/// - `app`: Mutable application state
-///
-/// Details:
-/// - Fetches latest Arch news and opens News modal.
-/// - Shows alert modal if fetch fails or times out.
-fn handle_options_news(app: &mut AppState) {
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build();
-        let res = match rt {
-            Ok(rt) => rt.block_on(crate::sources::fetch_arch_news(10)),
-            Err(e) => Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into()),
-        };
-        let _ = tx.send(res);
-    });
-    match rx.recv_timeout(std::time::Duration::from_secs(3)) {
-        Ok(Ok(list)) => {
-            app.modal = crate::state::Modal::News {
-                items: list,
-                selected: 0,
-            };
-        }
-        Ok(Err(e)) => {
-            app.modal = crate::state::Modal::Alert {
-                message: format!("Failed to fetch news: {e}"),
-            };
-        }
-        Err(_) => {
-            app.modal = crate::state::Modal::Alert {
-                message: "Timed out fetching news".to_string(),
-            };
-        }
-    }
-}
-
 /// What: Handle optional deps option from options menu.
 ///
 /// Inputs:
@@ -206,26 +167,51 @@ fn handle_options_optional_deps(app: &mut AppState) {
 /// Details:
 /// - Toggles visibility of recent pane, install pane, or keybinds footer.
 fn handle_panels_menu_selection(idx: usize, app: &mut AppState) {
-    match idx {
-        0 => {
-            app.show_recent_pane = !app.show_recent_pane;
-            if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
-                app.focus = crate::state::Focus::Search;
+    let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    if news_mode {
+        match idx {
+            0 => {
+                app.show_news_history_pane = !app.show_news_history_pane;
+                if !app.show_news_history_pane && matches!(app.focus, crate::state::Focus::Recent) {
+                    app.focus = crate::state::Focus::Search;
+                }
             }
-            crate::theme::save_show_recent_pane(app.show_recent_pane);
-        }
-        1 => {
-            app.show_install_pane = !app.show_install_pane;
-            if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
-                app.focus = crate::state::Focus::Search;
+            1 => {
+                app.show_news_bookmarks_pane = !app.show_news_bookmarks_pane;
+                if !app.show_news_bookmarks_pane
+                    && matches!(app.focus, crate::state::Focus::Install)
+                {
+                    app.focus = crate::state::Focus::Search;
+                }
             }
-            crate::theme::save_show_install_pane(app.show_install_pane);
+            2 => {
+                app.show_keybinds_footer = !app.show_keybinds_footer;
+                crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+            }
+            _ => {}
         }
-        2 => {
-            app.show_keybinds_footer = !app.show_keybinds_footer;
-            crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+    } else {
+        match idx {
+            0 => {
+                app.show_recent_pane = !app.show_recent_pane;
+                if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
+                    app.focus = crate::state::Focus::Search;
+                }
+                crate::theme::save_show_recent_pane(app.show_recent_pane);
+            }
+            1 => {
+                app.show_install_pane = !app.show_install_pane;
+                if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
+                    app.focus = crate::state::Focus::Search;
+                }
+                crate::theme::save_show_install_pane(app.show_install_pane);
+            }
+            2 => {
+                app.show_keybinds_footer = !app.show_keybinds_footer;
+                crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+            }
+            _ => {}
         }
-        _ => {}
     }
 }
 
@@ -530,7 +516,7 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// What: Handle numeric menu selection for options menu.
 ///
 /// Inputs:
-/// - `idx`: Selected menu index (0=installed-only, 1=update, 2=news, 3=optional deps)
+/// - `idx`: Selected menu index (mode-specific ordering)
 /// - `app`: Mutable application state
 /// - `details_tx`: Channel to request package details
 ///
@@ -538,21 +524,63 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// - `Some(false)` if selection was handled, `None` otherwise
 ///
 /// Details:
-/// - Routes numeric selection to appropriate options menu handler and closes menu.
+/// - Package mode order: Installed-only, Update system, News management, TUI optional deps.
+/// - News mode order: Update system, Package mode, TUI optional deps, News age toggle.
+/// - Closes the options menu when a selection is handled.
 fn handle_options_menu_numeric(
     idx: usize,
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> Option<bool> {
-    match idx {
-        0 => handle_options_installed_only_toggle(app, details_tx),
-        1 => handle_options_system_update(app),
-        2 => handle_options_news(app),
-        3 => handle_options_optional_deps(app),
-        _ => return None,
+    let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    let handled = if news_mode {
+        match idx {
+            0 => {
+                handle_options_system_update(app);
+                true
+            }
+            1 => {
+                handle_mode_toggle(app, details_tx);
+                true
+            }
+            2 => {
+                handle_options_optional_deps(app);
+                true
+            }
+            3 => {
+                handle_news_age_toggle(app);
+                true
+            }
+            _ => false,
+        }
+    } else {
+        match idx {
+            0 => {
+                handle_options_installed_only_toggle(app, details_tx);
+                true
+            }
+            1 => {
+                handle_options_system_update(app);
+                true
+            }
+            2 => {
+                handle_mode_toggle(app, details_tx);
+                true
+            }
+            3 => {
+                handle_options_optional_deps(app);
+                true
+            }
+            _ => false,
+        }
+    };
+
+    if handled {
+        app.options_menu_open = false;
+        Some(false)
+    } else {
+        None
     }
-    app.options_menu_open = false;
-    Some(false)
 }
 
 /// What: Handle numeric menu selection for panels menu.

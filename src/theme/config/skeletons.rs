@@ -318,8 +318,14 @@ scan_do_sleuth = true\n\
 \n\
 # News\n\
 # Symbols for read/unread indicators in the News popup\n\
+app_start_mode = package\n\
 news_read_symbol = ✓\n\
 news_unread_symbol = ∘\n\
+news_filter_show_arch_news = true\n\
+news_filter_show_advisories = true\n\
+news_filter_installed_only = true\n\
+# Allowed values: number of days | all\n\
+news_max_age_days = 30\n\
 \n\
 # VirusTotal\n\
 # API key used for VirusTotal scans (optional)\n\

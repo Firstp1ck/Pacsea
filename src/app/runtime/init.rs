@@ -282,6 +282,17 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.search_normal_mode = prefs.search_startup_mode;
     app.fuzzy_search_enabled = prefs.fuzzy_search;
     app.installed_packages_mode = prefs.installed_packages_mode;
+    app.app_mode = if prefs.start_in_news {
+        crate::state::types::AppMode::News
+    } else {
+        crate::state::types::AppMode::Package
+    };
+    app.news_filter_show_arch_news = prefs.news_filter_show_arch_news;
+    app.news_filter_show_advisories = prefs.news_filter_show_advisories;
+    app.news_filter_installed_only = prefs.news_filter_installed_only;
+    app.news_max_age_days = prefs.news_max_age_days;
+    // Recompute news results with loaded filters/age
+    app.refresh_news_results();
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.

@@ -64,6 +64,9 @@ hu-HU:
       search_focused: "Keresés (fókuszált)"
       recent: "Keresési előzmények:"
       recent_focused: "Keresési előzmények (fókuszált)"
+      # TODO: translate to hungarian
+      news_recent: "News search history"
+      news_recent_focused: "News search history (focused)"
       install_list: "Telepítési lista"
       install_list_focused: "Telepítési lista (fókuszált)"
       downgrade_list: "Visszafejlesztési lista"
@@ -228,7 +231,8 @@ hu-HU:
       show_pkgbuild: "PKGBUILD megjelenítése"
       hide_pkgbuild: "PKGBUILD elrejtése"
       url_label: "Webcím:"
-      open_url_label: "[Open in Browser]" # TODO: translate to hungarian
+      # TODO: translate to hungarian
+      open_url_label: "[Open in Browser]"
       loading_pkgb: "PKGBUILD betöltése…"
       copy_pkgbuild: "PKGBUILD másolása"
       reload_pkgbuild: "PKGBUILD újratöltése"
@@ -304,16 +308,28 @@ hu-HU:
         hide_install_list: "Telepítési lista elrejtése"
         show_keybinds: "Billentyűkötések megjelenítése"
         hide_keybinds: "Billentyűkötések elrejtése"
+        # TODO: translate to hungarian
+        show_history: "History"
+        hide_history: "History"
+        show_bookmarks: "Bookmarks"
+        hide_bookmarks: "Bookmarks"
       options_menu:
         list_all_packages: "Összes csomag listázása"
         list_installed_packages: "Telepített csomagok listázása"
         update_system: "Rendszer frissítése"
         news: "Hírek"
-        news_management: "News management (TODO: translate to hungarian)"
-        package_mode: "Package mode (TODO: translate to hungarian)"
-        news_age_days: "News age: {} days (TODO: translate to hungarian)"
-        news_age_all: "News age: all time (TODO: translate to hungarian)"
+        # TODO: translate to hungarian
+        news_management: "News management"
+        package_mode: "Package mode"
+        news_age_days: "News age: {} days"
+        news_age_all: "News age: all time"
         tui_optional_deps: "A PacSea nem kötelező függőségei"
+    news:
+      filters:
+        # TODO: translate to hungarian
+        arch: "Arch"
+        advisories: "Advisories"
+        installed_only: "Installed only"
         
     modals:
       common:

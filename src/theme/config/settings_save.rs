@@ -334,6 +334,33 @@ pub fn save_mirror_count(value: u16) {
     save_string_key("mirror_count", &value.to_string());
 }
 
+/// Persist start mode (package/news).
+pub fn save_app_start_mode(start_in_news: bool) {
+    let v = if start_in_news { "news" } else { "package" };
+    save_string_key("app_start_mode", v);
+}
+
+/// Persist whether to show Arch news items.
+pub fn save_news_filter_show_arch_news(value: bool) {
+    save_boolean_key("news_filter_show_arch_news", value);
+}
+
+/// Persist whether to show security advisories.
+pub fn save_news_filter_show_advisories(value: bool) {
+    save_boolean_key("news_filter_show_advisories", value);
+}
+
+/// Persist whether to restrict advisories to installed packages.
+pub fn save_news_filter_installed_only(value: bool) {
+    save_boolean_key("news_filter_installed_only", value);
+}
+
+/// Persist the maximum age of news items (None = all).
+pub fn save_news_max_age_days(value: Option<u32>) {
+    let v = value.map_or_else(|| "all".to_string(), |d| d.to_string());
+    save_string_key("news_max_age_days", &v);
+}
+
 /// What: Persist the `VirusTotal` API key used for scanning packages.
 ///
 /// Inputs:

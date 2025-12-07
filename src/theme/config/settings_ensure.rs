@@ -53,6 +53,19 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
         "virustotal_api_key" => prefs.virustotal_api_key.clone(),
         "news_read_symbol" => prefs.news_read_symbol.clone(),
         "news_unread_symbol" => prefs.news_unread_symbol.clone(),
+        "app_start_mode" => {
+            if prefs.start_in_news {
+                "news".to_string()
+            } else {
+                "package".to_string()
+            }
+        }
+        "news_filter_show_arch_news" => prefs.news_filter_show_arch_news.to_string(),
+        "news_filter_show_advisories" => prefs.news_filter_show_advisories.to_string(),
+        "news_filter_installed_only" => prefs.news_filter_installed_only.to_string(),
+        "news_max_age_days" => prefs
+            .news_max_age_days
+            .map_or_else(|| "all".to_string(), |v| v.to_string()),
         "preferred_terminal" => prefs.preferred_terminal.clone(),
         "package_marker" => match prefs.package_marker {
             crate::theme::types::PackageMarker::FullLine => "full_line",

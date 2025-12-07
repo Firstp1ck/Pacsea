@@ -61,6 +61,8 @@ en-US:
       search_focused: "Search (focused)"
       recent: "Search history"
       recent_focused: "Search history (focused)"
+      news_recent: "News search history"
+      news_recent_focused: "News search history (focused)"
       install_list: "Install List"
       install_list_focused: "Install List (focused)"
       downgrade_list: "Downgrade List"
@@ -301,6 +303,10 @@ en-US:
         hide_install_list: "Hide Install List"
         show_keybinds: "Show Keybinds"
         hide_keybinds: "Hide Keybinds"
+        show_history: "Show History"
+        hide_history: "Hide History"
+        show_bookmarks: "Show Bookmarks"
+        hide_bookmarks: "Hide Bookmarks"
       options_menu:
         list_all_packages: "List all packages"
         list_installed_packages: "List installed packages"
@@ -311,6 +317,11 @@ en-US:
         news_age_days: "News age: {} days"
         news_age_all: "News age: all time"
         tui_optional_deps: "TUI Optional Dep's"
+    news:
+      filters:
+        arch: "Arch"
+        advisories: "Advisories"
+        installed_only: "Installed only"
 
     modals:
       common:

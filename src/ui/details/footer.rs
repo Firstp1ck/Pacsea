@@ -753,3 +753,200 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         f.render_widget(footer, content_rect);
     }
 }
+
+/// What: Build the lines for the news keybind footer (global, navigation, menus, news actions, optional normal mode).
+///
+/// Inputs:
+/// - `app`: Application state providing keymap, focus, and mode flags
+/// - `th`: Theme for styling
+///
+/// Output:
+/// - Vector of lines ready to render in the news footer
+///
+/// Details:
+/// - Always includes Global/Nav/Menus/News actions on the first line
+/// - Adds Normal Mode helper lines when search is focused and normal mode is active
+fn build_news_footer_lines(app: &AppState, th: &Theme) -> Vec<Line<'static>> {
+    let key_style = Style::default()
+        .fg(th.text)
+        .bg(th.surface2)
+        .add_modifier(Modifier::BOLD);
+    let sep_style = Style::default().fg(th.overlay2);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    let mut spans: Vec<Span<'static>> = Vec::new();
+
+    // Global/help
+    spans.extend(build_section_header("Global".to_string(), th.overlay1));
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.help_overlay.first(),
+        key_style,
+        "Help",
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.exit.first(),
+        key_style,
+        "Exit",
+        sep_style,
+    );
+
+    // Navigation
+    spans.extend(build_section_header("Nav".to_string(), th.overlay1));
+    add_dual_keybind_entry(
+        &mut spans,
+        app.keymap.search_move_up.first(),
+        app.keymap.search_move_down.first(),
+        key_style,
+        "Move",
+        sep_style,
+    );
+    add_dual_keybind_entry(
+        &mut spans,
+        app.keymap.search_page_up.first(),
+        app.keymap.search_page_down.first(),
+        key_style,
+        "Page",
+        sep_style,
+    );
+
+    // Menus
+    spans.extend(build_section_header("Menus".to_string(), th.overlay1));
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.options_menu_toggle.first(),
+        key_style,
+        "Options",
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.panels_menu_toggle.first(),
+        key_style,
+        "Panels",
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.config_menu_toggle.first(),
+        key_style,
+        "Config/Lists",
+        sep_style,
+    );
+
+    // News actions
+    spans.extend(build_section_header("News".to_string(), th.overlay1));
+    add_multi_keybind_entry(
+        &mut spans,
+        &app.keymap.news_mark_read,
+        key_style,
+        "Mark read",
+        sep_style,
+    );
+    add_multi_keybind_entry(
+        &mut spans,
+        &app.keymap.news_mark_all_read,
+        key_style,
+        "Mark all read",
+        sep_style,
+    );
+
+    lines.push(Line::from(spans));
+
+    // Normal mode specific help when search pane is focused
+    if matches!(app.focus, Focus::Search) {
+        if app.search_normal_mode {
+            lines.extend(build_normal_mode_section(app, th, key_style));
+        } else {
+            let label = |v: &Vec<KeyChord>, def: &str| {
+                v.first().map_or_else(|| def.to_string(), KeyChord::label)
+            };
+            let toggle_label = label(&app.keymap.search_normal_toggle, "Esc");
+            let clear_label = label(&app.keymap.search_insert_clear, "Shift+Del");
+            let fuzzy_label = label(&app.keymap.toggle_fuzzy, "Ctrl+f");
+
+            let mut insert_spans = build_section_header(
+                i18n::t(app, "app.modals.help.normal_mode.insert_mode"),
+                th.mauve,
+            );
+            insert_spans.push(Span::styled(format!("[{toggle_label}]"), key_style));
+            insert_spans.push(Span::raw(format!(
+                " {}",
+                i18n::t(app, "app.modals.help.key_labels.toggle_normal")
+            )));
+            insert_spans.push(Span::styled("  |  ", sep_style));
+
+            insert_spans.push(Span::styled(format!("[{clear_label}]"), key_style));
+            insert_spans.push(Span::raw(format!(
+                " {}",
+                i18n::t(app, "app.modals.help.key_labels.clear_input")
+            )));
+            insert_spans.push(Span::styled("  |  ", sep_style));
+
+            insert_spans.push(Span::styled(format!("[{fuzzy_label}]"), key_style));
+            insert_spans.push(Span::raw(format!(
+                " {}",
+                i18n::t(app, "app.modals.help.key_labels.toggle_fuzzy")
+            )));
+
+            lines.push(Line::from(insert_spans));
+        }
+    }
+
+    lines
+}
+
+/// What: Render a simplified keybind footer for news management mode.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state (keymap, focus)
+/// - `area`: Full area of the news details pane
+/// - `footer_height`: Reserved footer height
+///
+/// Output:
+/// - Draws news-relevant keybinds (navigation, menus, mark read) along the bottom.
+pub fn render_news_footer(f: &mut Frame, app: &AppState, area: Rect, footer_height: u16) {
+    if footer_height == 0 || area.height < footer_height {
+        return;
+    }
+    let th = theme();
+    let lines = build_news_footer_lines(app, &th);
+    if lines.is_empty() {
+        return;
+    }
+
+    let footer_rect = Rect {
+        x: area.x,
+        y: area
+            .y
+            .saturating_add(area.height.saturating_sub(footer_height)),
+        width: area.width,
+        height: footer_height,
+    };
+    let paragraph = Paragraph::new(lines)
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .borders(ratatui::widgets::Borders::ALL)
+                .border_style(Style::default().fg(th.overlay1))
+                .style(Style::default().bg(th.mantle)),
+        )
+        .style(Style::default().bg(th.mantle));
+    f.render_widget(paragraph, footer_rect);
+}
+
+/// What: Compute the preferred height (in rows) for the news keybind footer.
+///
+/// Inputs:
+/// - `app`: Application state (determines whether normal mode lines are included)
+///
+/// Output:
+/// - Height in rows needed to render the footer without truncation (minimum 1 when enabled)
+pub fn news_footer_height(app: &AppState) -> u16 {
+    let th = theme();
+    let line_count = build_news_footer_lines(app, &th).len();
+    u16::try_from(line_count.max(1)).unwrap_or(1)
+}
